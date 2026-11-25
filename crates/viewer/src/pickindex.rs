@@ -1766,9 +1766,12 @@ impl PickIndex {
     /// ray at `t` is the caller's at `t`, mapped), so its span needs no
     /// conversion, rigid map or not, and its point is read off the
     /// caller's ray at `t`, as `pick_face` reads every hit's. The
-    /// certificate is the carried ray's, which is the caller's to
-    /// within the map's rounding:
-    /// `work/vgeom/a-moved-copys-pick-span-crosses-its-frame-unconverted.md`.
+    /// certificate is the carried ray's, which is the caller's only to
+    /// the carry's rounding, so where a moved body's group meets
+    /// another every span is grown by what that rounding can move it
+    /// ([`on_callers_ray`]) before any two are ordered — a moved copy
+    /// drawn on another body's face ties with it, as two copies in one
+    /// batch do. The answer reports the grown span.
     ///
     /// # Errors
     ///
@@ -1781,6 +1784,19 @@ impl PickIndex {
         eval: &Evaluation<f64>,
         ray: &Ray,
         display: &DisplayView,
+    ) -> Result<Option<PickHit>, HitTestError> {
+        self.answered(eval, ray, display, false)
+    }
+
+    /// [`PickIndex::pick_for`], with every span grown to hold on the
+    /// caller's ray where `every` — not only where a moved body's group
+    /// meets another.
+    fn answered(
+        &self,
+        eval: &Evaluation<f64>,
+        ray: &Ray,
+        display: &DisplayView,
+        every: bool,
     ) -> Result<Option<PickHit>, HitTestError> {
         let visible = |part: &&NodePick| !display.hides(part.node(), part.body());
         // The unmoved parts, one batch per space: the kernel orders
@@ -1813,6 +1829,7 @@ impl PickIndex {
         for targets in unmoved.values() {
             candidates.extend(group_answer(pick_face(eval, targets, ray))?);
         }
+        let mapped_groups = mapped.len();
         for (map, part) in mapped {
             let targets = [part.target()];
             let inverse = map.inverse();
@@ -1827,6 +1844,25 @@ impl PickIndex {
                 });
             }
         }
+        // Where a moved body's group meets another, every span on the
+        // caller's ray before any is ordered against another group's
+        // ([`on_callers_ray`]); one group's answer is the kernel's own
+        // order, and stands.
+        let meet = mapped_groups > 0 && unmoved.len() + mapped_groups > 1;
+        let mut candidates: Vec<PickHit> = if meet || every {
+            candidates
+                .into_iter()
+                .map(|hit| match self.part_of(hit.node, hit.body) {
+                    Some(part) => {
+                        let patches = self.patches_of(&hit);
+                        on_callers_ray(hit, part, &patches, ray, display)
+                    }
+                    None => hit,
+                })
+                .collect()
+        } else {
+            candidates
+        };
         // Across groups, in the parts' order — the order the picture
         // draws them in — so a tie between bodies of two spaces lists
         // them as a tie inside one space does.
@@ -1855,6 +1891,22 @@ impl PickIndex {
                 hits: faces.iter().map(at).collect(),
             }),
         }
+    }
+
+    /// The positions, in its part's mesh, of the patches `hit`'s face is
+    /// drawn as.
+    fn patches_of(&self, hit: &PickHit) -> Vec<usize> {
+        let ids = self.ids_of_target(&FaceSelection {
+            name: hit.name.clone(),
+            node: hit.node,
+            body: hit.body,
+        });
+        self.ids_in(hit.node, hit.body)
+            .iter()
+            .enumerate()
+            .filter(|(_, id)| ids.contains(id))
+            .map(|(patch, _)| patch)
+            .collect()
     }
 
     /// The face selection a ray denotes, or `None` for a miss.
@@ -2249,6 +2301,11 @@ impl PickIndex {
     /// search is over. Only a caller whose own answer IS a face
     /// refuses on a set of several ([`PickIndex::hovered_for`]).
     ///
+    /// **Every span holds on the caller's ray** ([`on_callers_ray`]),
+    /// a posed copy's and a moved copy's included, because what the set
+    /// is ordered against — a chord's or an outline's own crossing — is
+    /// certified on that ray against corners placed in the world.
+    ///
     /// # Errors
     ///
     /// [`HitTestError`] from `pick_face`, less the tie.
@@ -2258,7 +2315,7 @@ impl PickIndex {
         ray: &Ray,
         display: &DisplayView,
     ) -> Result<Vec<PickHit>, HitTestError> {
-        group_answer(self.pick_for(eval, ray, display))
+        group_answer(self.answered(eval, ray, display, true))
     }
 
     /// The ray path's answer for a cursor: the un-projection and the
@@ -2933,6 +2990,13 @@ fn group_answer(
 /// the interval does not reach crossings of faces the chord does not
 /// bound.
 ///
+/// **For a part under a map** — a display map or a body frame — the
+/// part's faces in front are certified on the ray carried into it,
+/// which is the caller's only to the carry's rounding, so the interval
+/// is grown by what that rounding can move a crossing of these same
+/// triangles ([`carry_bound`], [`carried_reach`]): a face that IS one
+/// of them still overlaps the chord.
+///
 /// `None` when the chord point has no finite parameter.
 fn own_crossing(
     ray: &Ray,
@@ -2967,15 +3031,181 @@ fn own_crossing(
         vec![chords.on_chord([from, to])]
     };
     let place = placement(display, part);
-    let corner = |index: u32| mesh.positions.get(index as usize).copied().map(&place);
-    Some(
-        triangles
-            .into_iter()
-            .flatten()
-            .filter_map(|&[i, j, k]| Some([corner(i)?, corner(j)?, corner(k)?]))
-            .filter_map(|tri| ray_triangle(ray, &tri))
-            .fold(own, |hull, span| hull.hull(&span)),
+    let local = |index: u32| mesh.positions.get(index as usize).copied();
+    let incident: Vec<[Point3<f64>; 3]> = triangles
+        .into_iter()
+        .flatten()
+        .filter_map(|&[i, j, k]| Some([local(i)?, local(j)?, local(k)?]))
+        .collect();
+    let crossing = incident
+        .iter()
+        .filter_map(|tri| ray_triangle(ray, &tri.map(&place)))
+        .fold(own, |hull, span| hull.hull(&span));
+    // The part's own faces are certified on the ray carried into it,
+    // and these on the caller's: the chord's interval is grown by what
+    // that carry can move a crossing of its own triangles.
+    let at = ray.origin + ray.dir * crossing.t;
+    Some(match carry_bound(part, display, ray, at, crossing.t) {
+        Some((bound, back)) => carried_reach(crossing, bound, &back, ray, incident).0,
+        None => crossing,
+    })
+}
+
+/// **How far the ray carried into `part` is from the caller's**, with
+/// the map that carries back: `None` for a part under neither a display
+/// map nor a body frame, which the kernel reads the caller's ray for.
+///
+/// The drawn part is its triangles under the exact map `M = D ∘ P` of
+/// its two `f64` maps (the display map, the body frame), and an affine
+/// map keeps a ray's parameter, so a span the kernel certified on the
+/// carried ray is of the crossing of that ray mapped back by `M`. That
+/// ray, and the corners [`placement`] places, are off the caller's ray
+/// and `M`'s exact image by at most the bound answered here: a fixed
+/// count of rounding units over every magnitude a carry, a composition
+/// or a placement rounds at — the caller's origin and its image in each
+/// frame, the maps' translations, `at` (the crossing, in the part's
+/// coordinates) and the ray's run `t` to it — scaled by the maps'
+/// norms.
+fn carry_bound(
+    part: &NodePick,
+    display: &DisplayView,
+    ray: &Ray,
+    at: Point3<f64>,
+    t: f64,
+) -> Option<(f64, Affine3<f64>)> {
+    let outer = display_mapped(display, part);
+    let inner = in_space_of(part);
+    let map = crate::scene::composed(outer, inner)?;
+    let size = |m: Option<&Affine3<f64>>| {
+        m.map_or((1.0, 0.0), |m| {
+            let l = m.linear;
+            let frobenius = (l.c0.dot(l.c0) + l.c1.dot(l.c1) + l.c2.dot(l.c2)).sqrt();
+            (frobenius, m.translation.norm())
+        })
+    };
+    let ((k_outer, t_outer), (k_inner, t_inner)) = (size(outer.as_ref()), size(inner.as_ref()));
+    let norm = |p: Point3<f64>| (p - Point3::origin()).norm();
+    let origin = norm(ray.origin);
+    let in_outer = outer.map_or(origin, |m| norm(m.inverse().transform_point(ray.origin)));
+    let back = map.inverse();
+    let magnitudes = origin
+        + in_outer
+        + k_inner * (in_outer + t_inner)
+        + norm(back.transform_point(at))
+        + t_outer
+        + t_inner
+        + map.translation.norm()
+        + t.abs() * ray.dir.norm();
+    Some((
+        32.0 * f64::EPSILON * (1.0 + k_outer * k_inner) * magnitudes,
+        back,
+    ))
+}
+
+/// **`span` grown by what a carry off by `bound` can move a crossing of
+/// `triangles`** (corners in the part's coordinates, `back` carrying the
+/// caller's ray there), and the largest growth taken.
+///
+/// An offset `bound` moves a crossing of a triangle met at `cos θ` to
+/// its normal by `bound / (|d| · cos θ)` along the ray, and never past
+/// that triangle's own extent along it. So for each triangle the span
+/// takes in its own ends grown by four times that shift — the first
+/// order, and a probe ray's own miss of the chord it was cast through,
+/// which the carry can cross — cut to the triangle's extent.
+fn carried_reach(
+    span: TSpan,
+    bound: f64,
+    back: &Affine3<f64>,
+    ray: &Ray,
+    triangles: impl IntoIterator<Item = [Point3<f64>; 3]>,
+) -> (TSpan, f64) {
+    let start = back.transform_point(ray.origin);
+    let dir = back.transform_vec(ray.dir);
+    let pad = 4.0 * bound / ray.dir.norm();
+    let mut grown = span;
+    for [p, q, r] in triangles {
+        let normal = (q - p).cross(r - p);
+        let cosine = (normal.dot(dir) / (normal.norm() * dir.norm())).abs();
+        let shift = pad / cosine;
+        let along = [p, q, r].map(|corner| (corner - start).dot(dir) / dir.dot(dir));
+        let first = along[0].min(along[1]).min(along[2]) - pad;
+        let last = along[0].max(along[1]).max(along[2]) + pad;
+        let (lo, hi) = (
+            (span.t_lo - shift).max(first),
+            (span.t_hi + shift).min(last),
+        );
+        if lo <= hi {
+            grown = grown.hull(&TSpan {
+                t: span.t,
+                t_lo: lo,
+                t_hi: hi,
+            });
+        }
+    }
+    let growth = (span.t_lo - grown.t_lo).max(grown.t_hi - span.t_hi);
+    (
+        TSpan {
+            t: span.t,
+            t_lo: grown.t_lo.next_down(),
+            t_hi: grown.t_hi.next_up(),
+        },
+        growth,
     )
+}
+
+/// **A hit's span as it holds on the caller's ray**: the kernel
+/// certified it on that ray carried into the part ([`carry_bound`]),
+/// so it is grown by what the carry can move a crossing of the hit
+/// face's triangles near the hit ([`carried_reach`]) — the triangles
+/// within reach of the hit's own point, the reach grown once by the
+/// growth taken. Only the hit face's (`patches`, its patches in
+/// `part`'s mesh): a crossing of another face is that face's hit, with
+/// a certificate of its own. One pass over the face's triangles.
+fn on_callers_ray(
+    hit: PickHit,
+    part: &NodePick,
+    patches: &[usize],
+    ray: &Ray,
+    display: &DisplayView,
+) -> PickHit {
+    let Some((bound, back)) = carry_bound(part, display, ray, hit.point, hit.t) else {
+        return hit;
+    };
+    let local = back.transform_point(hit.point);
+    let mesh = part.mesh();
+    let within = |reach: f64| {
+        patches
+            .iter()
+            .filter_map(|&patch| mesh.patches.get(patch))
+            .flat_map(|patch| &patch.triangles)
+            .filter_map(|tri| {
+                let corner = |i: u32| mesh.positions.get(i as usize).copied();
+                Some([corner(tri[0])?, corner(tri[1])?, corner(tri[2])?])
+            })
+            .filter(move |tri| {
+                (0..3).all(|axis| {
+                    let at = |point: Point3<f64>| point.to_array()[axis];
+                    let lo = at(tri[0]).min(at(tri[1])).min(at(tri[2]));
+                    let hi = at(tri[0]).max(at(tri[1])).max(at(tri[2]));
+                    lo - reach <= at(local) && at(local) <= hi + reach
+                })
+            })
+    };
+    let length = ray.dir.norm();
+    let first = 4.0 * bound + 2.0 * hit.span().width() * length;
+    let (_, growth) = carried_reach(hit.span(), bound, &back, ray, within(first));
+    let (span, _) = carried_reach(
+        hit.span(),
+        bound,
+        &back,
+        ray,
+        within(first + growth * length),
+    );
+    PickHit {
+        t_lo: span.t_lo,
+        t_hi: span.t_hi,
+        ..hit
+    }
 }
 
 /// The best drawn edge segment a cursor found so far: how near it

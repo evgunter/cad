@@ -454,9 +454,9 @@ impl PickHit {
     /// with it: a hit found on a ray mapped into another frame is at
     /// the same `t`, `t_lo` and `t_hi` on the ray it came from. What a
     /// map does not carry is the certificate, which is the mapped
-    /// ray's as rounded: the viewer's own row
-    /// (`work/vgeom/a-moved-copys-pick-span-crosses-its-frame-unconverted.md`),
-    /// where a display frame moves an instance.
+    /// ray's as rounded: a caller ordering it against a hit on the
+    /// unmapped ray owes a bound on the map's rounding, as the viewer's
+    /// pick index does where a display frame moves an instance.
     #[getter]
     fn t_lo(&self) -> f64 {
         self.t_lo

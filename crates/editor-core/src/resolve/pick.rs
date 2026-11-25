@@ -1715,8 +1715,9 @@ pub struct PickHit {
     /// `map(o) + t·map(d)`): a consumer that maps the ray into another
     /// frame before the call gets back all three as parameters of the
     /// ray it mapped. The certificate is the mapped ray's as rounded,
-    /// which is the viewer's moved-copy crossing:
-    /// `work/vgeom/a-moved-copys-pick-span-crosses-its-frame-unconverted.md`.
+    /// so a consumer that orders it against a span certified on the
+    /// unmapped ray owes a bound on the map's rounding (the viewer's
+    /// `PickIndex::pick_for` grows a moved copy's span by one).
     pub t: f64,
     /// See [`PickHit::t`].
     pub t_lo: f64,
