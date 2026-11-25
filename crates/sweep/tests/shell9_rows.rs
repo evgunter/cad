@@ -6,10 +6,10 @@
 //! base/head diff, taken as that module says), and asserts each one
 //! BUILDS.
 //!
-//! The closing mint re-derives every row of every body `shell`
-//! returns: on a body whose transferred rows were content-correct the
-//! re-derived row is bit-identical, and a row that moves names a body
-//! that was carrying a stale row tier 3 did not see.
+//! The finish completes the rows of every body `shell` returns: it
+//! keeps every transferred row and derives each missing one, so a
+//! transferred row that went stale reaches the verdict and is refused,
+//! never replaced.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

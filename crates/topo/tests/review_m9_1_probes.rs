@@ -194,7 +194,7 @@ fn probe_at_rest_gate_refuses_a_false_edge_face_record() {
     let z_face = |z: f64| {
         body.faces()
             .find(|(fk, _)| match body.face_surface(*fk) {
-                Some(&topo::Surface::Plane { frame, .. }) => {
+                Ok(&topo::Surface::Plane { frame, .. }) => {
                     let (origin, normal) = (frame.origin(), frame.axis());
                     normal.z.abs() > 0.5 && (origin.z - z).abs() < 1e-12
                 }

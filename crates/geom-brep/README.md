@@ -308,11 +308,12 @@ the carrier is derived from the same foot schedule: beside a plane it is
 the feet's degree-1 interpolant, and beside a curved partner, whose arc
 bends in the chart, it is the image the pcurve mint climbs to for the
 same carrier (`edge_nurbs::general_chart_image`), whose nodes depend on
-the band. An image is evidence: inside the wall's knot rectangle limb 2
-bounds its distance from the carrier, and where it leaves the rectangle
-between two nodes limb 2 reads the boundary cell's polynomial extension
-and can pass, and there limb 3 refuses, its boxes cut to the rectangle
-(`SsiError::TubeNotOneArc`). The certificate records the tube
+the band. An image is evidence: limb 2 bounds its distance from the
+carrier on the wall's knot rectangle, and holds the image to the
+rectangle, since past it the composite reads the boundary cell's
+polynomial extension (`ssi::certify::chart_domain_limb`: an escape in
+the band is added to the bound, one past it refuses). A pcurve row's
+check 4 holds its fitted image the same way. The certificate records the tube
 by kind, a radius in metres or the per-axis chart pad (`SsiTube`), and
 the exhaustiveness accounting banks exactly the region it records.
 A component outside the chain is C3's exhaustiveness obligation, a

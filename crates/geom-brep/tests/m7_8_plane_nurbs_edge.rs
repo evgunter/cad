@@ -324,7 +324,7 @@ fn door_spec(
     wall: NurbsSurface<f64>,
     carrier: NurbsCurve3<f64>,
 ) -> (
-    impl Fn(SurfaceKey) -> Option<Surface<f64>>,
+    impl Fn(SurfaceKey) -> Result<Surface<f64>, geom_brep::SurfaceMiss>,
     EdgeCurveSpec<f64>,
 ) {
     let mut arena: SlotMap<SurfaceKey, Surface<f64>> = SlotMap::with_key();
@@ -333,7 +333,7 @@ fn door_spec(
     let carrier = Curve3::Nurbs(std::sync::Arc::new(carrier));
     let witness = carrier.eval(0.5);
     (
-        move |k| arena.get(k).cloned(),
+        move |k| arena.get(k).cloned().ok_or(geom_brep::SurfaceMiss::Stale),
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(s1, s2),

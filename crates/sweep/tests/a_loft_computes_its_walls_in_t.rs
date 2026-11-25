@@ -56,7 +56,7 @@ fn arc_wall<T: topo::AtRestPolicy + geom_core::spline::SpanLocate>(
 ) -> geom::NurbsSurface<T> {
     match lofted
         .body
-        .face_surface(lofted.side_faces[0][1][0].unwrap())
+        .face_surface(lofted.side_faces[0][1][0][0].unwrap())
         .expect("a described face")
     {
         Surface::Nurbs(n) => n.as_ref().clone(),
@@ -100,7 +100,7 @@ fn a_lofted_arc_wall_is_a_function_of_the_sections_bulge() {
             let build_reads = reads_per_theorem(rim_zeros.iter().map(|d| d.node));
             // The `loop_windings` door walks the wall's loop again: its
             // rows the arc-rim lane choice certified are not certified twice.
-            let face = lofted.side_faces[0][1][0].unwrap();
+            let face = lofted.side_faces[0][1][0][0].unwrap();
             let chart = lofted.body.face_surface(face).expect("a described face");
             let band = geom_core::Band::linear(Tol::witness()).expect("a witness band forms");
             let (windings, read) = record(|| topo::loop_windings(&lofted.body, face, chart, band));
@@ -655,7 +655,7 @@ fn a_degree_one_slab_is_the_skinned_wall_on_its_span() {
     let skinned = sweep::loft_geometry(&sections, &places, 1, &params, tol).expect("the skin");
     let wall = |j: usize, s: usize| match lofted
         .body
-        .face_surface(lofted.side_faces[0][j][s].expect("a wall"))
+        .face_surface(lofted.side_faces[0][j][0][s].expect("a wall"))
         .expect("a described face")
     {
         Surface::Nurbs(n) => n.as_ref().clone(),
@@ -967,7 +967,14 @@ fn wall_values<
     f: impl Fn(T) -> R,
 ) -> Vec<R> {
     let mut out = Vec::new();
-    for face in lofted.side_faces.iter().flatten().flatten().flatten() {
+    for face in lofted
+        .side_faces
+        .iter()
+        .flatten()
+        .flatten()
+        .flatten()
+        .flatten()
+    {
         match lofted
             .body
             .body_of()
@@ -1139,7 +1146,14 @@ fn a_placement_in_t_stays_a_function_of_its_parameter() {
     // The height moves the poles and nothing of the weights: a weight
     // that carried any derivative at all would make the walls rational
     // in the height.
-    for face in swept.side_faces.iter().flatten().flatten().flatten() {
+    for face in swept
+        .side_faces
+        .iter()
+        .flatten()
+        .flatten()
+        .flatten()
+        .flatten()
+    {
         let Surface::Nurbs(n) = swept.body.face_surface(*face).expect("a described face") else {
             panic!("a swept wall is a NURBS surface");
         };

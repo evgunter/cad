@@ -189,7 +189,7 @@ fn assert_prism_shaped<T: Decide>(
         body.faces().count(),
         body.loops().count(),
         body.half_edges().count(),
-        body.surfaces().count(),
+        body.surface_slots().count(),
     );
     assert_eq!(
         counts,
@@ -615,12 +615,12 @@ fn declined_cube_keeps_its_scaffolding_and_its_one_surface_key() {
          exactly as `geometric_cube`'s are: {declined_carries:?}"
     );
     assert_eq!(
-        declined.surfaces().count(),
+        declined.surface_slots().count(),
         1,
-        "all six faces of `declined_cube` sit on the one `mvfs` placeholder"
+        "all six faces of `declined_cube` sit on the one pending `mvfs` slot"
     );
     assert_eq!(
-        certified.surfaces().count(),
+        certified.surface_slots().count(),
         6,
         "and one surface key per face is what the certified door builds"
     );

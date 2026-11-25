@@ -258,9 +258,10 @@ pub enum ChartRegionError {
         /// The image's incidence read.
         read: geom_brep::IncidenceRead,
     },
-    /// A minting chart's stored cache is absent — the body must
-    /// re-mint before region queries (the `props.rs` posture); only
-    /// plane charts are derive-on-demand.
+    /// A minting chart's stored cache is absent — the body's rows must
+    /// be completed before region queries (the finish completes them,
+    /// `crate::finish::complete_in_place`); only plane charts are
+    /// derive-on-demand.
     MissingCache {
         /// The half-edge with no stored cache.
         half_edge: HalfEdgeKey,
@@ -386,6 +387,13 @@ pub enum ChartRegionError {
     /// its carrier gates have no region to read: the carrier's own refusal
     /// and each boundary entity that left its boundary unread.
     FaceUncovered(crate::cover::FaceUncovered),
+    /// A face of the pair has no surface yet
+    /// ([`crate::SurfaceMiss::Pending`]): a body mid-construction, which
+    /// tier 3 refuses at rest.
+    PendingFace {
+        /// The pending face.
+        face: FaceKey,
+    },
     /// The topology could not be walked, or the crossing walk
     /// contradicted itself (fail-loud kernel-invariant class).
     Corrupt,
@@ -426,7 +434,8 @@ impl ChartRegionError {
     ///   [`Self::EdgeScale`] (an edge length no ordinary number holds).
     /// - An abort: [`Self::MissingCache`] (a body that must re-mint, row
     ///   1(a)); [`Self::CarrierTilt`] (the declaration's carriers
-    ///   definitely apart, row 1(a)); [`Self::Corrupt`] (row 4);
+    ///   definitely apart, row 1(a)); [`Self::PendingFace`] (a body
+    ///   mid-construction, row 1(a)); [`Self::Corrupt`] (row 4);
     ///   [`Self::TrimOffFace`] where its read is a decided miss (a trim
     ///   its own plane contradicts, row 4 at a build); and
     ///   [`Self::ShortLoop`], which mixes classes (a loop collapsed in its
@@ -463,6 +472,7 @@ impl ChartRegionError {
             Self::NoOutline(_) => Ok(crate::live::LONE_LOOP_REFUSAL),
             Self::MissingCache { .. }
             | Self::CarrierTilt
+            | Self::PendingFace { .. }
             | Self::Corrupt
             | Self::ShortLoop { .. } => Err(Aborts),
         }
@@ -517,7 +527,8 @@ impl ChartRegionError {
             Self::MissingCache { half_edge } => write!(
                 f,
                 "chart-region: half-edge {half_edge:?} has no stored pcurve cache on \
-                 a minting chart — re-mint pcurves before region queries"
+                 a minting chart — complete the body's rows (finish it) before region \
+                 queries"
             ),
             Self::ArmUnbounded { chart } => write!(
                 f,
@@ -572,14 +583,14 @@ impl ChartRegionError {
                 "chart-region: loop {loop:?} of face {face:?} images to {vertices} straight \
                  chart segment(s), too few to bound a polygon the area test reads. Repair \
                  the loop so its chart image is three or more straight segments, or \
-                 re-mint its pcurves"
+                 drop its rows for the finish to derive again"
             ),
             Self::DegenerateLoop { face, r#loop } => write!(
                 f,
                 "chart-region: loop {loop:?} of face {face:?} has no definite chart \
                  orientation (degenerate polygon at this ε). Repair the loop so its \
                  chart image encloses area — collapsed or collinear runs are the \
-                 usual cause — or re-mint its pcurves"
+                 usual cause — or drop its rows for the finish to derive again"
             ),
             // A poisoned margin is reached by no declaration or move.
             Self::Escalated(diag) if diag.margin.is_invalid() => write!(
@@ -621,6 +632,12 @@ impl ChartRegionError {
                 f,
                 "chart-region: a face of the pair has no region to read its carriers over: \
                  {why}"
+            ),
+            Self::PendingFace { face } => write!(
+                f,
+                "chart-region: face {face:?}: {}. {}",
+                geom_brep::PENDING_SURFACE,
+                crate::pcurves::PLACEHOLDER_RECOURSE
             ),
             Self::NoOutline(_) => write!(
                 f,
@@ -1313,12 +1330,15 @@ fn world_carrier<T: Decide + Bounds>(
     }
 }
 
-/// **A face's surface, as this module refuses it**: [`Body::face`]'s [`crate::live::FaceView::surface`],
-/// a stale face key (the caller's argument) [`ChartRegionError::Corrupt`].
+/// **A face's surface, as this module refuses it**: [`Body::face`]'s
+/// [`crate::live::FaceView::surface`], a stale face key (the caller's
+/// argument) [`ChartRegionError::Corrupt`] and a pending surface
+/// [`ChartRegionError::PendingFace`].
 fn face_surface<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<&Surface<T>, ChartRegionError> {
     body.face(face)
-        .map(|f| f.surface())
-        .ok_or(ChartRegionError::Corrupt)
+        .ok_or(ChartRegionError::Corrupt)?
+        .surface()
+        .map_err(|_| ChartRegionError::PendingFace { face })
 }
 
 /// A face's plane description as `(origin, unit normal)`; the CHART
@@ -2587,11 +2607,15 @@ fn declared_chart<T: Decide + Bounds>(
 ) -> Result<Surface<T>, ChartRegionError> {
     let fa = body_a.face(face_a).ok_or(ChartRegionError::Corrupt)?;
     let fb = body_b.face(face_b).ok_or(ChartRegionError::Corrupt)?;
-    let s_a = fa.surface();
+    let s_a = fa
+        .surface()
+        .map_err(|_| ChartRegionError::PendingFace { face: face_a })?;
     if std::ptr::eq(body_a, body_b) && fa.record().surface == fb.record().surface {
         return Ok(s_a.clone());
     }
-    let s_b = fb.surface();
+    let s_b = fb
+        .surface()
+        .map_err(|_| ChartRegionError::PendingFace { face: face_b })?;
     if surface_bits_equal(s_a, s_b) {
         Ok(s_a.clone())
     } else {
@@ -4011,6 +4035,9 @@ mod tests {
                     geom::cover::Unknown::Unbounded,
                 )),
             ),
+            ChartRegionErrorKind::PendingFace => ChartRegionError::PendingFace {
+                face: FaceKey::default(),
+            },
             ChartRegionErrorKind::Corrupt => ChartRegionError::Corrupt,
         }
     }
@@ -4045,6 +4072,7 @@ mod tests {
                 ChartRegionErrorKind::NoOutline => Ok(crate::live::LONE_LOOP_REFUSAL),
                 ChartRegionErrorKind::MissingCache
                 | ChartRegionErrorKind::CarrierTilt
+                | ChartRegionErrorKind::PendingFace
                 | ChartRegionErrorKind::Corrupt
                 | ChartRegionErrorKind::ShortLoop => Err(Aborts),
             };
@@ -4204,7 +4232,8 @@ mod tests {
             "bring",
             "repair",
             "restrict",
-            "re-mint",
+            "complete",
+            "drop",
             "simplify",
             "rebuild",
             "split",
@@ -5050,7 +5079,7 @@ mod tests {
     }
 
     /// Builds an open rectangular sheet (a pillow: the mef face is the
-    /// rectangle, the mvfs seed face keeps its placeholder) whose mef
+    /// rectangle, the mvfs seed face stays pending) whose mef
     /// face carries `surface`. Returns the rectangle face.
     ///
     /// `pub(super)`, with this module's other polygon and plane
@@ -5357,11 +5386,11 @@ mod tests {
         let (arm_u, arm_v) = arm_values(certified_arms(&sphere, -0.5, 0.5, band())).unwrap();
         assert!((arm_u - 0.5_f64.cos()).abs() < 1e-15, "got {arm_u}");
         assert_eq!(arm_v, 1.0);
-        // A pole-reaching window, and a payload with no net at all,
-        // still refuse typed.
+        // A pole-reaching window, and a net that is not finite, still
+        // refuse typed.
         for (surface, v_hi, chart) in [
             (sphere, core::f64::consts::FRAC_PI_2, "sphere"),
-            (Surface::nurbs_placeholder(), 0.5, "NURBS"),
+            (crate::fixtures::poisoned_net(|_| true), 0.5, "NURBS"),
         ] {
             match arm_values(certified_arms(&surface, -0.5, v_hi, band())) {
                 Err(ChartRegionError::ArmUnbounded { chart: c }) => assert_eq!(c, chart),

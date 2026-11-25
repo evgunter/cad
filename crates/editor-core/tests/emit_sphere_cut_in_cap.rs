@@ -286,11 +286,11 @@ fn the_cap_states_its_meridian_crossings_as_meetings() {
         let on_face = |input, f, p: geom_core::Point3<f64>| {
             let b = body(input);
             match b.face_surface(f) {
-                Some(topo::Surface::Plane { frame, .. }) => {
+                Ok(topo::Surface::Plane { frame, .. }) => {
                     let (origin, normal) = (frame.origin(), frame.axis());
                     (p - origin).dot(normal).abs() < 1e-9
                 }
-                Some(topo::Surface::Sphere { frame, radius, .. }) => {
+                Ok(topo::Surface::Sphere { frame, radius, .. }) => {
                     let center = frame.origin();
                     ((p - center).norm() - radius).abs() < 1e-9
                 }
@@ -482,7 +482,7 @@ fn the_holdings_over_a_cut_in_name_only_their_operands_faces() {
 fn closes_a_cut(out: &topo::BooleanBody<f64>) -> bool {
     out.naming.substitutions.rows().iter().any(|&(dead, kept)| {
         matches!((dead, kept), (topo::Cell::Face(_), topo::Cell::Face(k))
-            if matches!(out.body.face_surface(k), Some(topo::Surface::Sphere { .. })))
+            if matches!(out.body.face_surface(k), Ok(topo::Surface::Sphere { .. })))
     })
 }
 
@@ -519,7 +519,7 @@ fn every_op_over_the_lens_and_the_brick_builds_maximal_and_additive() {
     };
     let spheres = |b: &topo::Body<f64>| {
         b.faces()
-            .filter(|&(f, _)| matches!(b.face_surface(f), Some(topo::Surface::Sphere { .. })))
+            .filter(|&(f, _)| matches!(b.face_surface(f), Ok(topo::Surface::Sphere { .. })))
             .count()
     };
     let built = |out: Result<topo::BooleanResult<f64>, topo::BooleanError>, what: &str| {

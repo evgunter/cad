@@ -118,7 +118,7 @@ pub(crate) fn interface_record(body: &Body<f64>) -> topo::Cited<topo::Contact> {
     let mut faces: Vec<_> = body
         .faces()
         .filter_map(|(k, _)| match body.face_surface(k) {
-            Some(Surface::Plane { frame, .. }) if (frame.origin().z - 1.0).abs() < 1e-9 => Some(k),
+            Ok(Surface::Plane { frame, .. }) if (frame.origin().z - 1.0).abs() < 1e-9 => Some(k),
             _ => None,
         })
         .collect();
@@ -320,7 +320,7 @@ fn r1_probe_a_bogus_patch_record_cannot_silently_back_the_corners() {
     let mut ifaces: Vec<_> = body
         .faces()
         .filter_map(|(k, _)| match body.face_surface(k) {
-            Some(Surface::Plane { frame, .. }) if (frame.origin().z - 1.0).abs() < 1e-9 => Some(k),
+            Ok(Surface::Plane { frame, .. }) if (frame.origin().z - 1.0).abs() < 1e-9 => Some(k),
             _ => None,
         })
         .collect();
@@ -347,7 +347,7 @@ fn r1_probe_a_bogus_patch_record_cannot_silently_back_the_corners() {
     let mut outers: Vec<_> = body
         .faces()
         .filter_map(|(k, _)| match body.face_surface(k) {
-            Some(Surface::Plane { frame, .. })
+            Ok(Surface::Plane { frame, .. })
                 if frame.origin().z.abs() < 1e-9 || (frame.origin().z - 2.0).abs() < 1e-9 =>
             {
                 Some(k)

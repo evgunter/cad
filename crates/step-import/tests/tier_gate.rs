@@ -1412,7 +1412,7 @@ fn the_refusal_carries_the_kernels_verdicts() {
     )
     .unwrap();
     let e = import_step(&text, &ImportOptions::default(), Tol::witness()).unwrap_err();
-    let StepImportError::TierInvalid { solid, errors } = &e else {
+    let StepImportError::TierInvalid { solid, errors, .. } = &e else {
         panic!("expected the gate's typed refusal, got: {e:?}");
     };
     assert_eq!(

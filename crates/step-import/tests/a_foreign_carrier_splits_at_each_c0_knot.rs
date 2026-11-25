@@ -36,7 +36,7 @@ fn fixture(name: &str) -> String {
 /// its split made) keeps the wall's stated `same_sense`.
 fn walls_keep_sense(body: &topo::Body<f64>, sense: bool, name: &str) {
     for (fk, _) in body.faces() {
-        if let Some(geom::Surface::Nurbs(_)) = body.face_surface(fk) {
+        if let Ok(geom::Surface::Nurbs(_)) = body.face_surface(fk) {
             assert_eq!(
                 body.face(fk).map(|f| f.sense()),
                 Some(sense),
@@ -84,7 +84,7 @@ fn a_creased_wall_and_its_creased_edges_import_split_at_the_knot() {
         // C¹ by its knot structure.
         let mut walls = 0;
         for (fk, _) in b.faces() {
-            if let Some(geom::Surface::Nurbs(s)) = b.face_surface(fk) {
+            if let Ok(geom::Surface::Nurbs(s)) = b.face_surface(fk) {
                 walls += 1;
                 assert!(
                     !creased(s.knot_values_u()) && !creased(s.knot_values_v()),
@@ -305,7 +305,7 @@ fn a_rational_wall_splits_where_its_rims_carry_no_knot() {
         "a vertex on each rim at the knot's meridian y = 0: {rim_points:?}"
     );
     for (fk, _) in b.faces() {
-        if let Some(geom::Surface::Nurbs(s)) = b.face_surface(fk) {
+        if let Ok(geom::Surface::Nurbs(s)) = b.face_surface(fk) {
             assert!(
                 !creased(s.knot_values_u()) && !creased(s.knot_values_v()),
                 "a wall chart still carries a C⁰ knot"
@@ -359,7 +359,7 @@ fn the_circular_half_frustum_promotes_whole_instead_of_splitting() {
     let cones: Vec<f64> = b
         .faces()
         .filter_map(|(fk, _)| match b.face_surface(fk) {
-            Some(geom::Surface::Cone { half_angle, .. }) => Some(*half_angle),
+            Ok(geom::Surface::Cone { half_angle, .. }) => Some(*half_angle),
             _ => None,
         })
         .collect();

@@ -89,7 +89,7 @@ fn holds_by(
         .body
         .faces()
         .filter_map(|(fk, _)| match built.body.face_surface(fk) {
-            Some(geom::Surface::Spindle { major_radius, .. }) => Some(*major_radius),
+            Ok(geom::Surface::Spindle { major_radius, .. }) => Some(*major_radius),
             _ => None,
         })
         .collect();
@@ -130,7 +130,7 @@ fn holds_by(
 /// period. A plane stores no rows.
 fn lifts_close(what: &str, body: &topo::Body<f64>) {
     for (fk, face) in body.faces() {
-        if matches!(body.face_surface(fk), Some(geom::Surface::Plane { .. })) {
+        if matches!(body.face_surface(fk), Ok(geom::Surface::Plane { .. })) {
             continue;
         }
         let lift = body
@@ -237,13 +237,13 @@ fn a_football_restored_on_the_other_sheet_is_refused_at_its_edges() {
         .unwrap();
         let mut body = built.body.into_body();
         let keys: Vec<_> = body
-            .surfaces()
+            .described_surfaces()
             .filter(|(_, s)| matches!(s, geom::Surface::Spindle { .. }))
             .map(|(k, _)| k)
             .collect();
         assert!(!keys.is_empty(), "{what}: no sheet");
         for key in keys {
-            let Some(geom::Surface::Spindle {
+            let Ok(geom::Surface::Spindle {
                 frame: carrier_frame,
                 major_radius,
                 minor_radius,
@@ -708,7 +708,7 @@ fn near_the_horn_the_drawn_ends_say_which_sheet() {
         )
         .unwrap_or_else(|e| panic!("R = 1 − {d:e}: {e}"));
         for (fk, _) in built.body.faces() {
-            if let Some(geom::Surface::Spindle { major_radius, .. }) = built.body.face_surface(fk) {
+            if let Ok(geom::Surface::Spindle { major_radius, .. }) = built.body.face_surface(fk) {
                 assert!(
                     (major_radius - big).abs() <= 1e-15,
                     "R = 1 − {d:e}: stored {major_radius}"
@@ -852,7 +852,7 @@ fn a_horns_cusp_turns_on_the_faces_side_from_above_and_below() {
         .body;
         let (_, face) = body
             .faces()
-            .find(|&(fk, _)| matches!(body.face_surface(fk), Some(geom::Surface::Spindle { .. })))
+            .find(|&(fk, _)| matches!(body.face_surface(fk), Ok(geom::Surface::Spindle { .. })))
             .unwrap_or_else(|| panic!("{what}: a sheet face"));
         let lift = body.loop_lift(face.outer).unwrap();
         let cusp = lift
@@ -911,7 +911,7 @@ fn a_kill_across_a_closed_meridian_through_a_horns_cusp_has_no_turn() {
     .body
     .into_body();
     let sheet =
-        |b: &topo::Body<f64>, f| matches!(b.face_surface(f), Some(geom::Surface::Spindle { .. }));
+        |b: &topo::Body<f64>, f| matches!(b.face_surface(f), Ok(geom::Surface::Spindle { .. }));
     let face_of = |b: &topo::Body<f64>, he| {
         b.get_loop(b.get_half_edge(he).unwrap().parent_loop)
             .unwrap()

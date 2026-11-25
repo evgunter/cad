@@ -883,7 +883,7 @@ fn a_slab_along_a_boxed_vector_stores_exact_caps_and_wide_walls() {
 fn worst_vertex_off_plane(body: &Body<f64>) -> f64 {
     let mut worst = 0.0_f64;
     for (fk, _) in body.faces() {
-        let Some(Surface::Plane {
+        let Ok(Surface::Plane {
             frame: carrier_frame,
             ..
         }) = body.face_surface(fk)

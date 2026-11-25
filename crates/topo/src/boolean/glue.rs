@@ -275,7 +275,7 @@ fn distinct<T: Decide>(
     fb: FaceKey,
     band: Band,
 ) -> Result<Option<super::DistinctGlue<T>>, BooleanError> {
-    let kind = |body: &Body<T>, f| body.proven_face(f).surface().kind();
+    let kind = |body: &Body<T>, f| body.proven_face(f).expect_described().kind();
     let read = DeclarationRead::Moot;
     if !ruled((kind(a, fa), kind(b, fb)))
         && !crate::rim_wedge::rim_exists(a, fa, b, fb, band)
@@ -321,7 +321,7 @@ pub(super) fn overlapping_pairs<T: Decide + Bounds>(
     let pad = boxes::sweep_pad(band);
     let boxed = |body: &Body<T>| -> Result<Vec<(FaceKey, bvh::Aabb)>, BooleanError> {
         body.face_views()
-            .filter(|face| keep(face.surface()))
+            .filter(|face| face.surface().is_ok_and(&keep))
             .map(|face| Ok((face.key(), boxes::face_box(body, face.key(), pad, band))))
             .collect()
     };
@@ -407,7 +407,7 @@ pub(crate) fn section_door<T: crate::props::AtRestPolicy + Bounds>(
     // Every face read here is one this door enumerated from its body.
     let surface = |body: &Body<T>, f| {
         let face = body.proven_face(f);
-        (face.record().surface, face.surface().clone())
+        (face.record().surface, face.expect_described().clone())
     };
     // A face that is a side of a pair read here: one whose kind pairs
     // with some kind on the other operand in a section the value builds
@@ -415,7 +415,7 @@ pub(crate) fn section_door<T: crate::props::AtRestPolicy + Bounds>(
     let kinds = |body: &Body<T>| {
         let mut kinds: Vec<geom::SurfaceKind> = Vec::new();
         for f in body.face_views() {
-            let kind = f.surface().kind();
+            let kind = f.expect_described().kind();
             if !kinds.contains(&kind) {
                 kinds.push(kind);
             }

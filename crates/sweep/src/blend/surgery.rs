@@ -280,10 +280,27 @@ pub(super) fn disagrees(at: EntityId, detail: &'static str) -> BlendError {
     BlendError::BodyNotIntact { at, breach, detail }
 }
 
+/// **Row 1**, a face's surface that did not resolve at `face`: a stale
+/// key is [`unresolved`], and a pending surface slot is construction
+/// [`scaffolding`], each naming `detail`.
+pub(super) fn surface_missed(
+    face: FaceKey,
+    detail: &'static str,
+    miss: topo::SurfaceMiss,
+) -> BlendError {
+    let at = EntityId::Face(face);
+    let breach = match miss {
+        topo::SurfaceMiss::Stale => Breach::Unresolved,
+        topo::SurfaceMiss::Pending => Breach::Scaffolding,
+    };
+    BlendError::BodyNotIntact { at, breach, detail }
+}
+
 /// **Row 1**, construction scaffolding at `at`: an edge with no
-/// certified carrier, or a lone-vertex cycle. Tier 2 refuses both at
-/// rest, so the build doors never reach it; a direct battery caller
-/// ([`super::battery::run_battery_for`]) reads a raw body and does.
+/// certified carrier, a lone-vertex cycle, or a face with no surface
+/// yet. Tiers 2 and 3 refuse all three at rest, so the build doors never
+/// reach it; a direct battery caller ([`super::battery::run_battery_for`])
+/// reads a raw body and does.
 pub(super) fn scaffolding(at: EntityId, detail: &'static str) -> BlendError {
     let breach = Breach::Scaffolding;
     BlendError::BodyNotIntact { at, breach, detail }
@@ -805,7 +822,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     };
 
     // ---- Mutation, on a clone. From here on every step is an Euler
-    // operator or a certified setter; refusals map to Op/PcurveMint. ----
+    // operator or a certified setter; refusals map to Op. ----
     // **The one snapshot.** Every face the surgery may NOT kill is a
     // face of the body it was handed, so the set is read once, here,
     // before the clone — not re-assembled per phase from whatever that
@@ -973,7 +990,6 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     for (edge, carrier, link) in described {
         attach_contact(&mut body, edge, carrier, link, band, tol)?;
     }
-    topo::mint_pcurves(&mut body, tol).map_err(|source| BlendError::PcurveMint { source })?;
 
     body.close_already_checked();
     let mut body = blended;
@@ -1135,8 +1151,11 @@ fn resolve_rim<'a, T: Decide + Bounds>(
     chain: &'a Chain<T>,
 ) -> Result<RimPlan<'a, T>, BlendError> {
     let link0 = chain.first();
+    // The battery read every link's two supports through
+    // `surface_missed` before this verdict existed, so a pending support
+    // never reaches here: the miss `.ok()?` folds is unreachable for it.
     let is_plane = |f: FaceKey| -> Option<bool> {
-        Some(matches!(body.face_surface(f)?, Surface::Plane { .. }))
+        Some(matches!(body.face_surface(f).ok()?, Surface::Plane { .. }))
     };
     // Links on different supports are the MIXED rim, one band face per
     // link; links all on one support pair are one torus band.
@@ -1444,7 +1463,7 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
     let is_plane_surface = |k: SurfaceKey| -> Result<bool, BlendError> {
         let s = body
             .get_surface(k)
-            .ok_or_else(|| unresolved(EntityId::Face(link0.face_a), "a rim support's surface"))?;
+            .map_err(|miss| surface_missed(link0.face_a, "a rim support's surface", miss))?;
         Ok(matches!(s, Surface::Plane { .. }))
     };
     let host_surface = if second_support_is_host(is_plane_surface(ka)?, is_plane_surface(kb)?) {
@@ -3542,8 +3561,8 @@ impl<T: Decide + Bounds> StripLevel<T> {
                 .get_face(face)
                 .ok_or_else(|| unresolved(EntityId::Face(face), "a rim's support"))?;
             match body.get_surface(fd.surface) {
-                Some(Surface::Plane { .. }) => (ci, None, si, rim_circle.radius()),
-                Some(Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Sphere { .. }) => {
+                Ok(Surface::Plane { .. }) => (ci, None, si, rim_circle.radius()),
+                Ok(Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Sphere { .. }) => {
                     let u = rim_circle.axis();
                     (
                         ci,
@@ -3552,14 +3571,14 @@ impl<T: Decide + Bounds> StripLevel<T> {
                         (rim_circle.frame().origin() - ci).dot(u),
                     )
                 }
-                Some(_) => {
+                Ok(_) => {
                     return Err(unbuilt_geometry(
                         EntityId::Face(face),
                         "a rim's support is not a plane, cylinder, cone or sphere, whose \
                          latitudes the support-boundary meter reads",
                     ));
                 }
-                None => return Err(unresolved(EntityId::Face(face), "a rim support's surface")),
+                Err(miss) => return Err(surface_missed(face, "a rim support's surface", miss)),
             }
         } else {
             let (o, m, across) = strip_frame(body, l, face)?;
@@ -6262,7 +6281,7 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
         }
         EdgeDescriptionSpec::wrap(s1)
     } else if is_section {
-        let (Some(surf1), Some(surf2)) = (body.get_surface(s1), body.get_surface(s2)) else {
+        let (Ok(surf1), Ok(surf2)) = (body.get_surface(s1), body.get_surface(s2)) else {
             return Err(unresolved(EntityId::Edge(edge), "a section's two surfaces"));
         };
         let pair = SurfacePair::new(s1, s2);
@@ -6315,7 +6334,7 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
         // a transverse station refutes this branch's smooth premise,
         // refused as the invariant it breaks.
         let witness = curve.mid_point(t0, t1);
-        let (Some(surf1), Some(surf2)) = (body.get_surface(s1), body.get_surface(s2)) else {
+        let (Ok(surf1), Ok(surf2)) = (body.get_surface(s1), body.get_surface(s2)) else {
             return Err(unresolved(
                 EntityId::Edge(edge),
                 "a described edge's two surfaces",
