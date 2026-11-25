@@ -1195,9 +1195,10 @@ fn read_far<T: Decide>(
 /// The joined edge's spec: `kept`'s carrier over its interval run on
 /// through `w` to `gone`'s far end, its description restated over the
 /// new interval. The far end's parameter is a whole period on where the
-/// join closes; otherwise `gone`'s own where `gone` lies on `kept`'s
-/// very carrier ([`carried_far`]), or the point's parameter read off the
-/// carrier ([`read_far`]).
+/// join closes on a periodic carrier; otherwise `gone`'s own where `gone`
+/// lies on `kept`'s very carrier ([`carried_far`]), or, where the join
+/// does not close, the point's parameter read off the carrier
+/// ([`read_far`]).
 fn joined_spec<T: Decide>(
     body: &Body<T>,
     w: VertexKey,
@@ -1226,38 +1227,37 @@ fn joined_spec<T: Decide>(
     let gone_from_w = body.get_half_edge(gd.he_plus).map(|h| h.start) == Some(w);
     let at_w = if gone_from_w { (g0, g1) } else { (g1, g0) };
     let carried = carried_far(carrier, tw, backward, gone.stored_carrier(), at_w);
-    // A closed join runs once round, so its far end is a whole period
-    // on, by the carrier's own period (`Curve3::period`; at `Interval`,
-    // τ's enclosure), even where `gone` is on the very carrier: its own
-    // far end names the same point only up to rounding, and a span a unit
-    // in the last place past a turn is no view of the loop.
-    let tx = if join.closed {
-        match carrier.period() {
-            Some(period) => {
-                if backward {
-                    t1 - period.length()
-                } else {
-                    t0 + period.length()
-                }
+    // A closed join on a periodic carrier runs once round, so its far end
+    // is a whole period on, by the carrier's own period (`Curve3::period`;
+    // at `Interval`, τ's enclosure), even where `gone` is on the very
+    // carrier: its own far end names the same point only up to rounding,
+    // and a span a unit in the last place past a turn is no view of the
+    // loop. A carrier with no period closes where `gone` does.
+    let tx = match (join.closed, carrier.period()) {
+        (true, Some(period)) => {
+            if backward {
+                t1 - period.length()
+            } else {
+                t0 + period.length()
             }
-            None => {
+        }
+        _ => match carried {
+            Some(tx) => tx,
+            None if join.closed => {
                 return Err(BooleanError::JoinCarrierUnsupported {
                     edge: join.kept,
                     carrier: carrier.kind(),
                     closed: true,
                 });
             }
-        }
-    } else if let Some(tx) = carried {
-        tx
-    } else {
-        read_far(carrier, gone.stored_carrier(), (g0, g1), far, tw).ok_or(
-            BooleanError::JoinCarrierUnsupported {
-                edge: join.kept,
-                carrier: carrier.kind(),
-                closed: false,
-            },
-        )?
+            None => read_far(carrier, gone.stored_carrier(), (g0, g1), far, tw).ok_or(
+                BooleanError::JoinCarrierUnsupported {
+                    edge: join.kept,
+                    carrier: carrier.kind(),
+                    closed: false,
+                },
+            )?,
+        },
     };
     let (a, b) = if backward { (tx, t1) } else { (t0, tx) };
     // A declaration's parameter is affine in the carrier's, so the kept
