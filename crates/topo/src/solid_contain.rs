@@ -2098,13 +2098,7 @@ fn point_in_faces<T: Decide + crate::props::AtRestPolicy>(
     // face answers before a later face is resolved.
     let mut geos: FaceGeos<T> = Vec::with_capacity(faces.len());
     let climbed = climb(Answering::Any, faces, |&face| {
-        let geo = match face_geo(
-            body,
-            face,
-            &sel.charts,
-            band,
-            T::spline_face_reader(),
-        ) {
+        let geo = match face_geo(body, face, &sel.charts, band, T::spline_face_reader()) {
             Ok(geo) => geo,
             // **A point past the whole selection's reach**, read only
             // where the ray test cannot cross a face of it: definitely
