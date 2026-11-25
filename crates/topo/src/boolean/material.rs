@@ -759,27 +759,11 @@ impl Through {
             )
             .collect();
         let rc = &mut n.reduction_contacts;
-        for c in &mut rc.vv {
-            c.record.b = self.vertex(c.record.b);
-        }
-        for c in &mut rc.a_on_b {
-            c.record.face = self.face(c.record.face);
-        }
-        for c in &mut rc.b_on_a {
-            c.record.vertex = self.vertex(c.record.vertex);
-        }
-        for c in &mut rc.ee {
-            c.record.b = self.edge(c.record.b);
-        }
-        for c in &mut rc.ff {
-            c.record.b = self.face(c.record.b);
-        }
-        for c in &mut rc.a_in_b {
-            c.record.face = self.face(c.record.face);
-        }
-        for c in &mut rc.b_in_a {
-            c.record.edge = self.edge(c.record.edge);
-        }
+        rc.rekey(Operand::B, |c| match c {
+            Cell::Vertex(v) => Cell::Vertex(self.vertex(v)),
+            Cell::Edge(e) => Cell::Edge(self.edge(e)),
+            Cell::Face(f) => Cell::Face(self.face(f)),
+        });
         for v in &mut out.verdicts {
             v.b = match self.read(Cell::Face(v.b)) {
                 Some((Cell::Face(f), None, _)) => f,

@@ -131,11 +131,10 @@ fn a_rim_arc_in_the_face_plane_records_its_valence_two_vertex() {
     let contacts = sweep(&a, &b).expect("the sweep runs");
     assert!(
         contacts
-            .a_on_b
-            .iter()
+            .on(crate::boolean::Operand::A)
             .any(|c| *c == VfContact { vertex: w, face: g }),
         "the valence-2 vertex is recorded on the top face: {:?}",
-        contacts.a_on_b
+        contacts.on(crate::boolean::Operand::A).collect::<Vec<_>>()
     );
 }
 
@@ -155,10 +154,11 @@ fn a_rim_arc_in_a_parallel_plane_off_the_face_is_a_miss() {
         let (b, _) = brick_under(top);
         let contacts = sweep(&a, &b).expect("the sweep runs");
         assert!(
-            contacts.a_on_b.is_empty() && contacts.vv.is_empty(),
+            contacts.on(crate::boolean::Operand::A).next().is_none()
+                && contacts.vv().next().is_none(),
             "top {top}: no contact: a_on_b {:?}, vv {:?}",
-            contacts.a_on_b,
-            contacts.vv
+            contacts.on(crate::boolean::Operand::A).collect::<Vec<_>>(),
+            contacts.vv().collect::<Vec<_>>()
         );
     }
 }

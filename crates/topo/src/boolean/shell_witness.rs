@@ -460,14 +460,14 @@ pub(super) fn debug_assert_contacts_undecisive<T: Decide + crate::props::AtRestP
              decisively: {read:?}"
         );
     };
-    for c in &contacts.vv {
+    for c in contacts.vv() {
         check(a, c.a, Operand::A);
         check(b, c.b, Operand::B);
     }
-    for c in &contacts.a_on_b {
+    for c in contacts.on(Operand::A) {
         check(a, c.vertex, Operand::A);
     }
-    for c in &contacts.b_on_a {
+    for c in contacts.on(Operand::B) {
         check(b, c.vertex, Operand::B);
     }
 }

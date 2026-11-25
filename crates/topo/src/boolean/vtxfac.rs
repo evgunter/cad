@@ -131,10 +131,7 @@ pub(super) fn pierced_and_paired<T: Decide>(
 ) -> Result<(Rereads, Walls), BooleanError> {
     let mut rereads = BTreeMap::new();
     let mut walls = Walls::new();
-    for (operand, pierced) in [
-        (Operand::A, &contacts.a_on_b),
-        (Operand::B, &contacts.b_on_a),
-    ] {
+    for (operand, pierced) in Operand::BOTH.map(|o| (o, contacts.on(o).collect::<Vec<_>>())) {
         let theirs = operand.other().index();
         let declared = |x: FaceKey, y: FaceKey| {
             records[theirs].rows().iter().any(|r| {
@@ -161,7 +158,7 @@ pub(super) fn pierced_and_paired<T: Decide>(
                 return Err(twice);
             }
         }
-        for c in &contacts.vv {
+        for c in contacts.vv() {
             let (own, other) = match operand {
                 Operand::A => (c.a, c.b),
                 Operand::B => (c.b, c.a),
@@ -3206,14 +3203,20 @@ mod tests {
         let rows = [
             (
                 "pierced twice by A",
-                ReductionContacts {
-                    a_on_b: vec![
-                        crate::Cited::new(vf(v, f), crate::Cites::decided(0)),
-                        crate::Cited::new(vf(w, f), crate::Cites::decided(0)),
-                        crate::Cited::new(vf(v, g), crate::Cites::decided(0)),
-                    ],
-                    ..Default::default()
-                },
+                ReductionContacts::from_iter([
+                    crate::Cited::new(
+                        vf(v, f).cells(crate::boolean::Operand::A),
+                        crate::Cites::decided(0),
+                    ),
+                    crate::Cited::new(
+                        vf(w, f).cells(crate::boolean::Operand::A),
+                        crate::Cites::decided(0),
+                    ),
+                    crate::Cited::new(
+                        vf(v, g).cells(crate::boolean::Operand::A),
+                        crate::Cites::decided(0),
+                    ),
+                ]),
                 Err((
                     Operand::A,
                     v,
@@ -3222,36 +3225,35 @@ mod tests {
             ),
             (
                 "pierced and paired, B",
-                ReductionContacts {
-                    b_on_a: vec![crate::Cited::new(vf(w, f), crate::Cites::decided(0))],
-                    vv: vec![
-                        crate::Cited::new(vv(x, v), crate::Cites::decided(0)),
-                        crate::Cited::new(vv(v, w), crate::Cites::decided(0)),
-                        crate::Cited::new(vv(x, w), crate::Cites::decided(0)),
-                    ],
-                    ..Default::default()
-                },
+                ReductionContacts::from_iter([
+                    crate::Cited::new(
+                        vf(w, f).cells(crate::boolean::Operand::B),
+                        crate::Cites::decided(0),
+                    ),
+                    crate::Cited::new(vv(x, v).cells(), crate::Cites::decided(0)),
+                    crate::Cited::new(vv(v, w).cells(), crate::Cites::decided(0)),
+                    crate::Cited::new(vv(x, w).cells(), crate::Cites::decided(0)),
+                ]),
                 Ok(vec![((Operand::B, w), SectorRead::Pair(v))]),
             ),
             (
                 "paired twice",
-                ReductionContacts {
-                    vv: vec![
-                        crate::Cited::new(vv(v, w), crate::Cites::decided(0)),
-                        crate::Cited::new(vv(v, x), crate::Cites::decided(0)),
-                        crate::Cited::new(vv(x, w), crate::Cites::decided(0)),
-                    ],
-                    ..Default::default()
-                },
+                ReductionContacts::from_iter([
+                    crate::Cited::new(vv(v, w).cells(), crate::Cites::decided(0)),
+                    crate::Cited::new(vv(v, x).cells(), crate::Cites::decided(0)),
+                    crate::Cited::new(vv(x, w).cells(), crate::Cites::decided(0)),
+                ]),
                 Ok(vec![]),
             ),
             (
                 "one key on each operand, pierced by A's and paired by B's",
-                ReductionContacts {
-                    a_on_b: vec![crate::Cited::new(vf(v, f), crate::Cites::decided(0))],
-                    vv: vec![crate::Cited::new(vv(w, v), crate::Cites::decided(0))],
-                    ..Default::default()
-                },
+                ReductionContacts::from_iter([
+                    crate::Cited::new(
+                        vf(v, f).cells(crate::boolean::Operand::A),
+                        crate::Cites::decided(0),
+                    ),
+                    crate::Cited::new(vv(w, v).cells(), crate::Cites::decided(0)),
+                ]),
                 Ok(vec![]),
             ),
         ];

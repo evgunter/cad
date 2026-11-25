@@ -2862,17 +2862,17 @@ pub(crate) fn contact_face_pairs<T: Real>(
         faces
     };
     let mut out = BTreeSet::new();
-    for c in &contacts.a_on_b {
+    for c in contacts.on(Operand::A) {
         for fa in around(Operand::A, c.vertex) {
             out.insert((fa, c.face));
         }
     }
-    for c in &contacts.b_on_a {
+    for c in contacts.on(Operand::B) {
         for fb in around(Operand::B, c.vertex) {
             out.insert((c.face, fb));
         }
     }
-    for c in &contacts.vv {
+    for c in contacts.vv() {
         for fa in around(Operand::A, c.a) {
             for fb in around(Operand::B, c.b) {
                 out.insert((fa, fb));
@@ -8868,21 +8868,14 @@ mod tests {
         body.faces.remove(dead_face);
         assert!(body.get_face(dead_face).is_none(), "key is dead");
 
-        let contacts = ReductionContacts {
-            vv: vec![],
-            a_on_b: vec![crate::Cited::new(
-                VfContact {
-                    vertex: live_vertex,
-                    face: dead_face,
-                },
-                crate::Cites::decided(0),
-            )],
-            b_on_a: vec![],
-            ee: vec![],
-            ff: vec![],
-            a_in_b: vec![],
-            b_in_a: vec![],
-        };
+        let contacts = ReductionContacts::from_iter([crate::Cited::new(
+            VfContact {
+                vertex: live_vertex,
+                face: dead_face,
+            }
+            .cells(crate::boolean::Operand::A),
+            crate::Cites::decided(0),
+        )]);
         // Without the descendant row: the record drops (pre-D5 loss).
         let out = found(
             &body,
@@ -8910,21 +8903,14 @@ mod tests {
         let dead_vertex = body.vertices().map(|(k, _)| k).nth(3).unwrap();
         assert_ne!(dead_vertex, live_vertex);
         body.vertices.remove(dead_vertex);
-        let contacts = ReductionContacts {
-            vv: vec![crate::Cited::new(
-                VvContact {
-                    a: dead_vertex,
-                    b: live_vertex,
-                },
-                crate::Cites::decided(0),
-            )],
-            a_on_b: vec![],
-            b_on_a: vec![],
-            ee: vec![],
-            ff: vec![],
-            a_in_b: vec![],
-            b_in_a: vec![],
-        };
+        let contacts = ReductionContacts::from_iter([crate::Cited::new(
+            VvContact {
+                a: dead_vertex,
+                b: live_vertex,
+            }
+            .cells(),
+            crate::Cites::decided(0),
+        )]);
         let mut desc = Descendants::default();
         desc.vertices.push((dead_vertex, live_vertex)).unwrap();
         let out = found(&body, &contacts, [&KeyView::Direct; 2], &desc).unwrap();
@@ -8950,10 +8936,10 @@ mod tests {
         body.vertices.remove(a);
         body.vertices.remove(c);
         let pair = VvContact { a: c, b: partner };
-        let contacts = ReductionContacts {
-            vv: vec![crate::Cited::new(pair, crate::Cites::decided(0))],
-            ..ReductionContacts::default()
-        };
+        let contacts = ReductionContacts::from_iter([crate::Cited::new(
+            pair.cells(),
+            crate::Cites::decided(0),
+        )]);
         let decls = Glue {
             records_a: OperandRecords::from_iter([CarriedRecord {
                 contact: crate::boolean::Contact::of(
@@ -9010,13 +8996,10 @@ mod tests {
         let (d0, d1) = (keys[4], keys[5]);
         body.faces.remove(d0);
         body.faces.remove(d1);
-        let contacts = ReductionContacts {
-            a_on_b: vec![crate::Cited::new(
-                VfContact { vertex, face: d0 },
-                crate::Cites::decided(0),
-            )],
-            ..ReductionContacts::default()
-        };
+        let contacts = ReductionContacts::from_iter([crate::Cited::new(
+            VfContact { vertex, face: d0 }.cells(crate::boolean::Operand::A),
+            crate::Cites::decided(0),
+        )]);
         let remap = |desc: &Descendants| found(&body, &contacts, [&KeyView::Direct; 2], desc);
 
         let mut dead_end = Descendants::default();
@@ -9243,23 +9226,21 @@ mod tests {
             "{bend:?} lands on the kept face"
         );
 
-        let records = |v: VertexKey| ReductionContacts {
-            vv: vec![crate::Cited::new(
-                VvContact { a: v, b: survivor },
-                crate::Cites::decided(0),
-            )],
-            a_on_b: vec![crate::Cited::new(
-                VfContact { vertex: v, face },
-                crate::Cites::decided(0),
-            )],
-            b_on_a: vec![crate::Cited::new(
-                VfContact { vertex: v, face },
-                crate::Cites::decided(0),
-            )],
-            ee: vec![],
-            ff: vec![],
-            a_in_b: vec![],
-            b_in_a: vec![],
+        let records = |v: VertexKey| {
+            ReductionContacts::from_iter([
+                crate::Cited::new(
+                    VvContact { a: v, b: survivor }.cells(),
+                    crate::Cites::decided(0),
+                ),
+                crate::Cited::new(
+                    VfContact { vertex: v, face }.cells(crate::boolean::Operand::A),
+                    crate::Cites::decided(0),
+                ),
+                crate::Cited::new(
+                    VfContact { vertex: v, face }.cells(crate::boolean::Operand::B),
+                    crate::Cites::decided(0),
+                ),
+            ])
         };
         let remap = |c: &ReductionContacts| {
             found(&body, c, [&KeyView::Direct; 2], &desc)
