@@ -2,10 +2,12 @@
 id: the-cone-search-fuzz-reads-near-coincident-coaxial-apexes-intractable
 kind: issue
 title: The cone search fuzz reads two coaxial cones whose apexes stand just past the band apart as Intractable
-status: open
+status: closed
 opened: 2026-11-24
 priority: P1
 cost: M
+closed: 2026-11-24
+pr: 7725
 ---
 
 
@@ -45,3 +47,6 @@ pair reaches `section_cert::classify_known`'s `cone_ruled` arm (PR 7637),
 the value's two-cone pose (`against_cone`, unchanged by 7457), and topo's
 `cone_pair` → `cone_cone` on `Elsewhere`. But the frequency is not
 established either way; replaying the seeds on main settles it.
+
+## Closed (2026-11-24, PR 7725)
+The refusal was the narrow cone's aperture guard (`ConeAtTheBand`) decided `Zero` over the search's hair-wide region. Topo's `of_pair_section` mapped that to `Intractable`. It now maps it to R-tan (`section_cone_at_the_band`), the same reading the value's ladder already gives it (`Refusal::InBand`). The fixed row `coaxial_cones_a_hair_apart_over_a_hair_wide_region_refuse_on_the_aperture` reproduces seed 0x520d16ca1fc9237e.
