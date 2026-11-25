@@ -3,7 +3,7 @@
 //! slice is a disc and the solid's an annulus (a disc where its inner
 //! radius is zero), and their overlap is the overlap of the disc with
 //! the outer circle less its overlap with the inner one, each a
-//! two-disc lens in closed form ([`disc_overlap`]).
+//! two-disc lens in closed form ([`disc_overlap`](crate::test_support::lens::disc_overlap)).
 //!
 //! The integral is the midpoint rule over the ball's heights, read as
 //! `z = h + r·sin θ` so the ball's own square-root ends are smooth in
@@ -15,7 +15,7 @@
 //! solid's slice ends (`ends`), and within each stretch the error falls
 //! regularly as the panels halve. The rule is read at `n` and at `2n`
 //! panels, and their difference stands for the error of the finer one
-//! ([`ball_in_revolved`]). It is an estimate, not a bound: on the four
+//! ([`ball_in_revolved`](crate::test_support::lens::ball_in_revolved)). It is an estimate, not a bound: on the four
 //! poses the rows read, the finer rule's error against one 128 times
 //! finer measured at most 0.34 of the difference at `n = 2000`, so a
 //! reader's tenfold margin holds it with room.
