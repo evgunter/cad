@@ -3173,15 +3173,18 @@ fn require_cone_holes<T: Decide>(
 ///   sweep turns through from the ruling it leaves along, on the face's
 ///   side for one sense of sweep and off it (a notch) for the other.
 ///   The wedges' sides, read as azimuths and grouped where they are
-///   decided one ruling (`props_cone_apex_lobe_side`), part the turn
+///   decided one ruling, part the turn
 ///   into arcs; on every arc the signed count of wedges must be `0` or
 ///   one sign's `1`, and `1` on some arc.
 ///
 /// The last is decided at the apex only. With no two edges crossing
 /// between vertices — the closed form's premise, decided by none of its
 /// readings ([`cone_face_closed_form`]) — lobes that cover the apex once
-/// bound the face once. Every angle is metered at the nearest radius a
-/// lobe's ruling reaches.
+/// bound the face once. Two meters stand at the apex, each its
+/// question's: a lobe's sweep at its own widest radius, and a pair of
+/// wedge sides at the shorter of its two rulings, where both exist.
+/// Sides group into rulings only where the grouping is an equivalence
+/// (`props_cone_apex_lobe_side` otherwise).
 fn require_apex_lobes<T: Decide>(
     cone: &Surface<T>,
     apex: Point3<T>,
@@ -3226,7 +3229,7 @@ fn require_apex_lobes<T: Decide>(
             .filter_map(|&(p, a, _)| a.map(|_| p))
             .collect();
         lobes.push((
-            sense,
+            (sense, w.total, w.arm),
             off,
             radial(first.traversal_ends().1),
             radial(last.traversal_ends().0),
@@ -3249,14 +3252,14 @@ fn require_apex_lobes<T: Decide>(
             }
         }
     }
-    let arm = lobes
-        .iter()
-        .flat_map(|&(_, _, l, b)| [l.norm(), b.norm()])
-        .fold(lobes[0].2.norm(), T::min);
-    let side = |x: T| {
+    // Two rulings are compared where both exist: metered at the shorter
+    // of their own reaches from the apex, never at a third lobe's. A
+    // lobe's own two sides are so read at its own reach, as its sweep
+    // was decided at its own (`apex_loop_sweep`).
+    let apart = |x: T, (u, v): (Vec3<T>, Vec3<T>)| {
         classify_as(
             SIDE,
-            Margin::metered(x, InfSpeed::new(arm)),
+            Margin::metered(x, InfSpeed::new(u.norm().min(v.norm()))),
             band,
             PropsCheck::Inventory,
         )
@@ -3269,56 +3272,93 @@ fn require_apex_lobes<T: Decide>(
     let azimuth = |u: Vec3<T>| -> Result<T, PropsError> {
         let (dot, cross) = turn_arms(axis, origin, u);
         let read = geom::Azimuth::of(cross, dot);
-        Ok(match side(cross / (origin.norm() * u.norm()))? {
+        let lengths = origin.norm() * u.norm();
+        Ok(match apart(cross / lengths, (origin, u))? {
             Sign::Positive => read.about(geom::Quarter(1)),
             Sign::Negative => read.about(geom::Quarter(3)),
-            Sign::Zero => match side(dot / (origin.norm() * u.norm()))? {
+            Sign::Zero => match apart(dot / lengths, (origin, u))? {
                 Sign::Positive => T::zero(),
                 _ => T::pi(),
             },
         })
     };
-    // The wedges' sides grouped into rulings, ascending in azimuth: a
-    // side joins the first ruling it is decided one with, and distinct
-    // rulings were decided apart when the later was opened.
-    let mut rulings: Vec<T> = Vec::new();
-    let mut ruling_of = |u: Vec3<T>| -> Result<usize, PropsError> {
-        let a = azimuth(u)?;
-        for (k, &r) in rulings.iter().enumerate() {
-            if side(a - r)? == Sign::Zero {
-                return Ok(k);
+    // Every wedge side: its ruling and azimuth. Sides `2k` and `2k + 1`
+    // are lobe `k`'s leaving and returning rulings.
+    let mut sides = Vec::with_capacity(2 * lobes.len());
+    for &(_, _, leave, back) in &lobes {
+        sides.push((leave, azimuth(leave)?));
+        sides.push((back, azimuth(back)?));
+    }
+    // Every pair's order, decided at the pair's own reach.
+    let n_sides = sides.len();
+    let mut order = vec![vec![Sign::Zero; n_sides]; n_sides];
+    for i in 0..n_sides {
+        for j in 0..n_sides {
+            if i != j {
+                let ((u, a), (v, b)) = (sides[i], sides[j]);
+                order[i][j] = apart(a - b, (u, v))?;
             }
         }
-        rulings.push(a);
-        Ok(rulings.len() - 1)
-    };
-    let mut wedges = Vec::with_capacity(lobes.len());
-    for &(sense, _, leave, back) in &lobes {
-        wedges.push((sense, ruling_of(leave)?, ruling_of(back)?));
     }
-    let m = rulings.len();
+    // Sides decided one ruling are grouped only where that relation is
+    // an equivalence: three sides chained within the band, the ends
+    // decided apart, have no grouping that does not depend on the order
+    // read, and refuse.
+    let mut ruling = vec![usize::MAX; n_sides];
+    let mut m = 0;
+    for i in 0..n_sides {
+        if ruling[i] != usize::MAX {
+            continue;
+        }
+        let class: Vec<usize> = (0..n_sides)
+            .filter(|&j| j == i || order[i][j] == Sign::Zero)
+            .collect();
+        for &j in &class {
+            for &k in &class {
+                if j != k && order[j][k] != Sign::Zero {
+                    return Err(refuse(SIDE));
+                }
+            }
+            ruling[j] = m;
+        }
+        m += 1;
+    }
     // Each ruling's rank in ascending azimuth: the count of rulings
-    // decided below it.
-    let mut rank = vec![0; m];
-    for (k, &a) in rulings.iter().enumerate() {
-        for &b in &rulings {
-            if side(a - b)? == Sign::Positive {
-                rank[k] += 1;
-            }
-        }
+    // decided below it, read off one side of each.
+    let mut first_side = vec![0; m];
+    for i in (0..n_sides).rev() {
+        first_side[ruling[i]] = i;
     }
+    let rank: Vec<usize> = (0..m)
+        .map(|r| {
+            (0..m)
+                .filter(|&q| order[first_side[r]][first_side[q]] == Sign::Positive)
+                .count()
+        })
+        .collect();
     // Arc `j` runs from the ruling of rank `j` to the next. A wedge runs
     // with its sense from the ruling it leaves along to the one it
-    // returns on; where those are one ruling it is the whole turn (its
-    // sweep is a definite one of at most a turn, and congruent to the
-    // turn between them).
+    // returns on. Where those are one ruling at the lobe's own reach, its
+    // sweep must be past half a turn, decided at the lobe's own arm: it
+    // is then the whole turn (definite, at most a turn, and congruent to
+    // the turn between its sides). A sweep not so decided refuses.
     let mut count = vec![0i32; m];
-    for &(sense, leave, back) in &wedges {
+    for (k, &((sense, total, lobe_arm), ..)) in lobes.iter().enumerate() {
+        let (leave, back) = (rank[ruling[2 * k]], rank[ruling[2 * k + 1]]);
         let (start, end) = match sense {
-            NonzeroSign::Positive => (rank[leave], rank[back]),
-            NonzeroSign::Negative => (rank[back], rank[leave]),
+            NonzeroSign::Positive => (leave, back),
+            NonzeroSign::Negative => (back, leave),
         };
         let arcs = if start == end {
+            if classify_as(
+                LOBES,
+                Margin::metered(total.abs() - T::pi(), InfSpeed::new(lobe_arm)),
+                band,
+                PropsCheck::Inventory,
+            )? != Sign::Positive
+            {
+                return Err(refuse(LOBES));
+            }
             m
         } else {
             (end + m - start) % m

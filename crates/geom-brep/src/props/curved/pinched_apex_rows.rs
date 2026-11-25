@@ -108,7 +108,12 @@ fn chain<const A: usize, const B: usize>(
 /// wound against the turn; the second pass at the apex tagged
 /// `second_apex`.
 fn turn_less_notch(second_apex: u32) -> [LoopEdge<f64>; 6] {
-    let (d1, d2) = (0.45, 1.0);
+    turn_less_notch_at(0.45, second_apex)
+}
+
+/// [`turn_less_notch`] with the notch at depth `d1`.
+fn turn_less_notch_at(d1: f64, second_apex: u32) -> [LoopEdge<f64>; 6] {
+    let d2 = 1.0;
     let (v4, v5, v2) = (V(at(d1, FRAC_PI_2), 1), V(at(d1, PI), 2), V(at(d2, 0.0), 3));
     let other = V(APEX.0, second_apex);
     [
@@ -263,4 +268,95 @@ fn lobes_meeting_off_the_apex_refuse() {
         sector(1.0, FRAC_PI_2, PI, (2, 3)),
     );
     assert_eq!(measured(&edges), refused("props_cone_apex_lobe_vertex"));
+}
+
+/// `edges` turned to start at each of its edges in turn.
+fn every_start(edges: &[LoopEdge<f64>]) -> impl Iterator<Item = (usize, Vec<LoopEdge<f64>>)> + '_ {
+    (0..edges.len()).map(|start| {
+        (
+            start,
+            edges[start..]
+                .iter()
+                .chain(&edges[..start])
+                .cloned()
+                .collect(),
+        )
+    })
+}
+
+/// **Each pair of wedge sides is read where both its rulings reach**: a
+/// thin sector of width `δ` at depth `1`, beside a sector a whole radian
+/// wide whose rulings reach only depth `d`. Wound with the thin one it
+/// is a face, and measures; wound against it, a notch outside it, it is
+/// none, and refuses (`props_cone_apex_lobes`, or degenerate where its
+/// area is none). Read at the short
+/// lobe's reach, the thin sector's two sides would be one ruling and it
+/// a whole turn, and the two verdicts swap.
+#[test]
+fn a_thin_sector_beside_a_short_lobe_reads_at_each_pairs_own_reach() {
+    for delta in [1e-5, 1e-6, 1e-7] {
+        for d in [1e-6, 1e-5, 1e-4, 1e-3, 1e-2] {
+            let thin = || sector(1.0, 0.3, 0.3 + delta, (1, 2));
+            let face = chain(thin(), sector(d, 2.0, 3.0, (3, 4)));
+            let notch = chain(thin(), sector(d, 3.0, 2.0, (3, 4)));
+            let want = lateral(1.0, delta) + lateral(d, 1.0);
+            for (start, turned) in every_start(&face) {
+                let area = measured(&turned)
+                    .unwrap_or_else(|e| panic!("δ {delta}, d {d}, start {start}: {e:?}"));
+                assert!(
+                    (area - want).abs() <= 1e-9 * want,
+                    "δ {delta}, d {d}, start {start}: {area} against {want}"
+                );
+            }
+            // Where the notch's area equals the sector's (`δ = d²`) the
+            // loop's area is none, refused first as degenerate.
+            let wanted = if (delta - d * d).abs() <= 1e-12 * delta {
+                Err(PropsError::DegenerateFace)
+            } else {
+                refused("props_cone_apex_lobes")
+            };
+            for (start, turned) in every_start(&notch) {
+                assert_eq!(
+                    measured(&turned),
+                    wanted,
+                    "δ {delta}, d {d}, start {start}: a notch outside the sector"
+                );
+            }
+        }
+    }
+}
+
+/// **Lobes whose scales differ by a thousand and more measure**: sectors
+/// side by side at depths `1` and `d`, and the whole turn less a notch at
+/// depth `d`, from every start.
+#[test]
+fn lobes_of_scales_a_thousand_apart_measure() {
+    for d in [1e-3, 1e-4, 1e-5] {
+        let sectors = chain(
+            sector(1.0, 0.0, FRAC_PI_2, (1, 2)),
+            sector(d, PI, 1.5 * PI, (3, 4)),
+        );
+        let notched = turn_less_notch_at(d, 0);
+        for (what, edges, want) in [
+            (
+                "sectors",
+                sectors,
+                lateral(1.0, FRAC_PI_2) + lateral(d, FRAC_PI_2),
+            ),
+            (
+                "a turn less a notch",
+                notched.to_vec(),
+                lateral(1.0, TAU) - lateral(d, FRAC_PI_2),
+            ),
+        ] {
+            for (start, turned) in every_start(&edges) {
+                let area = measured(&turned)
+                    .unwrap_or_else(|e| panic!("{what}, d {d}, start {start}: {e:?}"));
+                assert!(
+                    (area - want).abs() <= 1e-12 * want.max(1.0),
+                    "{what}, d {d}, start {start}: {area} against {want}"
+                );
+            }
+        }
+    }
 }
