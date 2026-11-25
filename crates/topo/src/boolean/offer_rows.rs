@@ -2197,7 +2197,6 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::NormalAtConeApex
         | BooleanErrorKind::VertexPairAtConeApex
         | BooleanErrorKind::VertexNearConeAxis
-        | BooleanErrorKind::ResultPinchedAtConeApex
         | BooleanErrorKind::ApexSection
         | BooleanErrorKind::NormalAtSplineCrease
         | BooleanErrorKind::PierceLeverUnread
@@ -2745,6 +2744,18 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("ops.rs", "surviving_cut", "SphereQuestion::CutIn", 1),
     ("ops.rs", "sphere_pair_cut", "BooleanDecision::Sphere", 1),
     ("ops.rs", "sphere_pair_cut", "SphereQuestion::CutIn", 1),
+    (
+        "ops/interior_cuts.rs",
+        "loop_cut_in",
+        "BooleanDecision::Sphere",
+        1,
+    ),
+    (
+        "ops/interior_cuts.rs",
+        "loop_cut_in",
+        "SphereQuestion::CutIn",
+        1,
+    ),
     ("ops.rs", "pair_seam", "BooleanDecision::Sphere", 1),
     ("ops.rs", "pair_seam", "SphereQuestion::CutIn", 1),
     ("ops.rs", "recut_lean", "BooleanDecision::Sphere", 1),

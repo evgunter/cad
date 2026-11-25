@@ -4532,7 +4532,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "poisoned_carrier_datum",
             "recharted_row_unstated",
             "result_invalid",
-            "result_pinched_at_cone_apex",
             "revert",
             "rim_cusp_arm_unbuilt",
             "seam_orientation",

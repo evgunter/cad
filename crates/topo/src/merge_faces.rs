@@ -2978,6 +2978,9 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     /// absorption killed is one: neither rim closes in the chart
     /// ([`crate::pcurves::RingPlacementError::OuterOpen`]), so no slot
     /// places the other, and the meridian stays.
+    /// [`MergeCoplanarError::Pcurve`] where the face's rows, dropped by a
+    /// join that re-cut its loops, do not mint again, its escalation
+    /// carried as it is.
     fn curved_outline_ring(
         &self,
         face: FaceKey,
@@ -2986,6 +2989,25 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     ) -> Result<Option<usize>, MergeCoplanarError> {
         let band = Band::linear(tol).map_err(|error| MergeCoplanarError::Band { error })?;
         let record = self.proven_face(face).record();
+        // The lift reads stored rows. A join that re-cut the face's loops
+        // drops theirs until the result is minted whole, after the merge:
+        // such a face is read off a copy with its own rows minted, which
+        // read its loops in whichever roles they stand.
+        let unminted = self
+            .proven_face(face)
+            .loops()
+            .flat_map(|(l, _, _)| crate::pcurves::loop_rows(self, l))
+            .any(|h| self.pcurve(h).is_none() || self.joint(h).is_none());
+        let minted;
+        let read = if unminted {
+            let mut copy = self.clone();
+            crate::pcurves::mint_pcurves_of(&mut copy, &[face], tol)
+                .map_err(|source| MergeCoplanarError::Pcurve { source })?;
+            minted = copy;
+            &minted
+        } else {
+            self
+        };
         let mut placed = Vec::new();
         for slot in core::iter::once(None).chain((0..record.rings.len()).map(Some)) {
             // Ring `i` asked as the outline trades places with the outer
@@ -2996,7 +3018,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
                 Some(i) => core::mem::replace(&mut rings[i], record.outer),
                 None => record.outer,
             };
-            if crate::pcurves::face_lift_as(self, face, outer, rings, band).is_ok() {
+            if crate::pcurves::face_lift_as(read, face, outer, rings, band).is_ok() {
                 placed.push(slot);
             }
         }

@@ -1766,6 +1766,16 @@ pub fn assert_promises_either_side(sentence: &str) {
     }
 }
 
+/// What a boolean built through a sphere cut-in leaves of the cut:
+/// nothing. A check of a built body, here because the `mesh` suites
+/// read it too.
+pub mod cut_trace;
+
+/// The volume a ball shares with a solid of revolution, by a 1-D
+/// integral of closed forms with its error stated: the lens a cut-in's
+/// rows check their volumes against, from the `sweep` and `mesh` suites.
+pub mod lens;
+
 /// **Pappus pieces for a meridian-plane fill or cut**: `(area, ∫x dA)`
 /// of the elementary regions a fillet's cross-section decomposes into,
 /// so a row can derive a revolved volume delta by hand as
