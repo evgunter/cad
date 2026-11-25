@@ -54,3 +54,52 @@ remainder, to see which drops were touches the op really removed and
 which were gaps.
 
 
+
+## 2026-11-25 — what moves (lane `heldrecords/removed-members`)
+
+The build on `heldrecords/removed-members`: `Division { pieces,
+minted, removed }`, `Remainder` gone, `Fate::removes` whole removals
+only; `boolean::records::landings` reads an unlanded record against the
+named removed members (in the operand clone, or in the two clones'
+joint body for a reduction row across operands) and consumes only a
+landing there; "moved" consumes only for a cell kept or substituted
+whole; the shell and blend name no removed member (1a).
+
+Measured on the gate's `ci` set of topo and sweep (7186 tests, 15
+moved). Each was consumed on main through "any removal":
+
+- **Ruled, rewritten.** A record touching nothing now refuses `Stale`:
+  `sweep::blend_carries_records::a_record_touching_nothing_on_a_support_face_refuses_stale`
+  (was `a_record_on_a_support_face_is_consumed`), the bookkeeping
+  record in `a_turns_third_edge_lands_a_resting_corners_record_on_the_surviving_piece`,
+  the notch in `a_carried_record_no_reading_covers::a_record_an_op_divides_is_read_and_found_stale`.
+  A real touch the shell's opening removed now refuses `Stale` (1a):
+  `surgery_carries_records::a_rim_that_opens_under_a_resting_corner_refuses_its_record_stale`.
+- **Still consumed, now through a removed member:**
+  `one_record_carry::a_pit_under_a_carried_rest_consumes_it`,
+  `a_notch_that_removes_a_recorded_overlap_consumes_it`, and the cone
+  apex, ruling, slit-tip and arc-tangent booleans (their reduction
+  rows on removed fragments, read in the joint body).
+- **Valid bodies now refusing: a reduction row on the section between
+  a kept piece and a removed fragment** (`CarryRefused { Found, Stale }`).
+  Twelve edge-in-face rows: the face is cut along the edge, and in the
+  result the edge bounds a kept piece (that pair is structure) and
+  reads apart from the others; the removed fragment holds the edge on
+  its boundary, not its interior. Two vertex-in-face rows: the vertex
+  lies on the section at a kept piece's boundary, a touch another row
+  records (vertex–vertex). The section's edges and vertices are in the
+  face's interior but the division names them neither minted nor
+  removed (`Incidence::chords` takes only edges every real face of
+  which is a fragment; a section edge's other side is a null face).
+  Tests: `band_co_requested_boundary` (2), `band_planar_cut_off_meters`,
+  `join1_mechanisms::the_incidence_check_reads_the_whole_site`,
+  `join_whole_orbit_cylinder`, `wedge_through_a_full_turn_collar`,
+  `boolean::holdings_rows::a_face_parted_after_a_substitution_holds_the_tile_only_where_it_lies`,
+  `a_figure_eight_hole_cut_through_its_pinch`,
+  `a_ring_crossed_at_its_vertices_is_divided_or_refused`,
+  `union_flush_onto_edge_contact` (4), and the vertex rows
+  `records_cite_their_decision::a_decision_at_copies_an_operand_already_held_is_a_row`,
+  `vertex_on_edge_records::a_split_at_the_other_edges_end_records_a_vertex_vertex_pair`.
+  Held for a ruling: the ratified clause consumes only on removed
+  cells, and these touches are on neither a kept piece nor a removed
+  member's interior.

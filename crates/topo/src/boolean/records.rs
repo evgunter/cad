@@ -155,8 +155,8 @@ impl core::fmt::Display for CarryRefusal {
             ),
             Self::Stale { record } => write!(
                 f,
-                "record {record}'s cells do not meet where the op put them, and the op \
-                 removed and moved neither"
+                "record {record}'s cells do not meet where the op put them nor on a cell \
+                 the op removed, and the op moved neither whole"
             ),
             Self::MintedMeeting { record, cells } => write!(
                 f,
@@ -526,8 +526,7 @@ impl ContactRecords {
         let [out] = <[Self; 1]>::try_from(self.carried_onto(
             input,
             lineage,
-            &[result],
-            None,
+            (&[result], None),
             band,
             region,
             None,
@@ -560,8 +559,7 @@ impl ContactRecords {
         let [out] = <[Self; 1]>::try_from(self.carried_onto(
             input,
             lineage,
-            &[result],
-            Some(&removed),
+            (&[result], Some(&removed)),
             band,
             region,
             None,
@@ -583,8 +581,7 @@ impl ContactRecords {
         &self,
         input: u32,
         lineage: &crate::Lineage,
-        sides: &[&Body<T>],
-        removed: Option<&RemovedIn<'_, T>>,
+        (sides, removed): (&[&Body<T>], Option<&RemovedIn<'_, T>>),
         band: geom_core::Band,
         region: Option<T::RegionLane>,
         parted: Option<&mut Vec<Parting>>,

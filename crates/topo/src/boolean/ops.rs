@@ -4494,13 +4494,17 @@ pub(super) fn carry<T: Decide + AtRestPolicy>(
         &mut pending,
         band,
     )?;
+    let joint = std::cell::OnceCell::new();
     let records = carry_rows(
         body,
         &tagged(&ledger.discovered),
         [&a, &b],
         views,
         (desc, &ledger.incidence, discarded),
-        Some(clones),
+        Some(Clones {
+            bodies: clones,
+            joint: &joint,
+        }),
         false,
         band,
     )?;
@@ -4638,6 +4642,45 @@ fn carried<T: Decide + AtRestPolicy>(
         }
     }
     Ok(out)
+}
+
+/// **The operand clones as the cuts left them**, where the boolean
+/// reads the members a division names removed: each clone, and the two
+/// in one body (A's copied, B's grafted in), made the first time a row
+/// across the two operands reads one.
+#[derive(Clone, Copy)]
+struct Clones<'b, T: Real> {
+    bodies: [&'b Body<T>; 2],
+    joint: &'b std::cell::OnceCell<(Body<T>, GraftMap)>,
+}
+
+impl<'b, T: Decide> Clones<'b, T> {
+    /// The two clones in one body, and B's keys there.
+    ///
+    /// # Errors
+    ///
+    /// As the graft.
+    fn joint(self) -> Result<&'b (Body<T>, GraftMap), BooleanError> {
+        if let Some(joint) = self.joint.get() {
+            return Ok(joint);
+        }
+        let mut body = self.bodies[0].clone();
+        let (map, _) = super::combine::graft_solids_minted(&mut body, self.bodies[1])?;
+        Ok(self.joint.get_or_init(|| (body, map)))
+    }
+}
+
+/// `side`'s clone cell `c` in the joint body ([`Clones::joint`]).
+fn in_joint(map: &GraftMap, side: Operand, c: Cell) -> Option<Cell> {
+    let view = match side {
+        Operand::A => KeyView::Direct,
+        Operand::B => KeyView::Graft(map),
+    };
+    match c {
+        Cell::Vertex(v) => view.vertex(v).map(Cell::Vertex),
+        Cell::Edge(e) => view.edge(e).map(Cell::Edge),
+        Cell::Face(f) => view.face(f).map(Cell::Face),
+    }
 }
 
 /// The operand's record a carried row is: the one it cites.
@@ -5501,7 +5544,7 @@ fn carry_rows<'b, T: Decide + AtRestPolicy>(
     carried: [&Rows; 2],
     views: [&KeyView<'_>; 2],
     (desc, incidence, discarded): (&Descendants, &[Incidence; 2], [&BTreeSet<FaceKey>; 2]),
-    clones: Option<[&'b Body<T>; 2]>,
+    clones: Option<Clones<'b, T>>,
     one_arena: bool,
     band: Band,
 ) -> Result<ContactRecords, BooleanError> {
@@ -5673,8 +5716,7 @@ fn carry_rows<'b, T: Decide + AtRestPolicy>(
             (desc, incidence, discarded),
             views,
             [(vs, vc), (fs, fc)],
-            found,
-            clones,
+            (found, clones),
             &mut confirms,
             band,
         )? {
@@ -5690,8 +5732,7 @@ fn carry_rows<'b, T: Decide + AtRestPolicy>(
             (desc, incidence, discarded),
             views,
             [(xs, xc), (ys, yc)],
-            found,
-            clones,
+            (found, clones),
             &mut confirms,
             band,
         )? {
@@ -5707,10 +5748,11 @@ fn carry_rows<'b, T: Decide + AtRestPolicy>(
 /// reduction's own (`found`, its index in the working set) on a face the
 /// join divided after the row was written (the re-cut operand's face,
 /// [`Keys::Recut`]) has that face divided into its live pieces and the
-/// chords between them ([`face_pieces`]), its remainder removed where
-/// the op stated a piece's removal
-/// ([`stated_removed`]), and lands on every pair of images the census's
-/// record confirm reads as meeting. A row whose every pair is structure
+/// chords between them ([`face_pieces`]), each piece whose removal the
+/// op stated ([`stated_removed`]) a removed member read in the face's
+/// operand clone (`clones`) against the other cell where that operand
+/// holds it, and lands on every pair of images the census's record
+/// confirm reads as meeting. A row whose every pair is structure
 /// is consumed, as structural sharing needs no record (D1,
 /// [`crate::Lineage::glued`]). None where the other cell left the
 /// result: a row of the reduction's own leaves with its cell.
@@ -5726,13 +5768,13 @@ fn place_found<'b, T: Decide + AtRestPolicy>(
     (desc, incidence, discarded): (&Descendants, &[Incidence; 2], [&BTreeSet<FaceKey>; 2]),
     views: [&KeyView<'_>; 2],
     ends: [End; 2],
-    found: Option<usize>,
-    clones: Option<[&'b Body<T>; 2]>,
+    (found, clones): (Option<usize>, Option<Clones<'b, T>>),
     confirms: &mut super::records::Confirms<'b, T>,
     band: Band,
 ) -> Result<Vec<(Cell, Cell)>, BooleanError> {
     let at = |side: Operand| side.index();
-    let mut divided: Option<(usize, crate::Fate, Vec<Cell>)> = None;
+    #[allow(clippy::type_complexity)]
+    let mut divided: Option<(usize, (Vec<Cell>, Vec<Cell>, Vec<Cell>), Vec<Cell>)> = None;
     if found.is_some() {
         for (i, &(side, cell)) in ends.iter().enumerate() {
             let Cell::Face(f) = cell else { continue };
@@ -5769,7 +5811,7 @@ fn place_found<'b, T: Decide + AtRestPolicy>(
                 &mut gone,
                 &mut back,
             )?;
-            divided = Some((i, fate_of(pieces, chords, true, gone), all));
+            divided = Some((i, (pieces, chords, gone), all));
         }
     }
     let live = |i: usize| {
@@ -5786,29 +5828,38 @@ fn place_found<'b, T: Decide + AtRestPolicy>(
             };
             ([x, y], crate::Lineage::new().glued())
         }
-        Some((i, fate, all)) => {
+        Some((i, (pieces, chords, gone), all)) => {
             let Some(other) = live(1 - i)? else {
                 return Ok(Vec::new());
             };
             let cells = ends.map(|(_, c)| c);
             // The removed fragments are the divided face's operand
-            // clone's, read there against the other cell where that
-            // operand holds it.
-            if let Some(clones) = clones {
-                let side = ends[i].0;
-                let mut there = BTreeMap::new();
-                there.insert(cells[i], all);
-                let other = if ends[1 - i].0 == side {
-                    vec![cells[1 - i]]
-                } else {
-                    Vec::new()
-                };
-                there.insert(cells[1 - i], other);
-                removed = Some(super::records::RemovedIn {
-                    body: clones[at(side)],
-                    cells: there,
-                });
-            }
+            // clone's, read with the other cell in the two clones' one
+            // body.
+            let gone = match clones {
+                Some(clones) if !gone.is_empty() => {
+                    let (joint, map) = clones.joint()?;
+                    let there = |(side, cs): (Operand, Vec<Cell>)| -> Result<_, BooleanError> {
+                        cs.into_iter()
+                            .map(|c| {
+                                in_joint(map, side, c).ok_or(BooleanError::JoinDesync {
+                                    what: "an operand clone's cell is missing from the clones' graft",
+                                })
+                            })
+                            .collect::<Result<Vec<Cell>, _>>()
+                    };
+                    let mut held = BTreeMap::new();
+                    held.insert(cells[i], there((ends[i].0, all))?);
+                    held.insert(cells[1 - i], there((ends[1 - i].0, vec![cells[1 - i]]))?);
+                    removed = Some(super::records::RemovedIn {
+                        body: joint,
+                        cells: held,
+                    });
+                    there((ends[i].0, gone))?
+                }
+                _ => gone,
+            };
+            let fate = fate_of(pieces, chords, true, gone);
             let lineage = crate::Lineage::new()
                 .glued()
                 .with(cells[i], fate)

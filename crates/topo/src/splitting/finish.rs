@@ -310,7 +310,7 @@ impl<T: crate::props::AtRestPolicy + Decide> SplitResult<T> {
         let sides = self.sides();
         let bodies: Vec<&Body<T>> = sides.iter().map(|&(_, b)| b).collect();
         let carried =
-            records.carried_onto(0, &self.lineage(), &bodies, None, band, region, parted)?;
+            records.carried_onto(0, &self.lineage(), (&bodies, None), band, region, parted)?;
         let mut out = SplitContacts::default();
         for ((side, _), list) in sides.iter().zip(carried) {
             match side {

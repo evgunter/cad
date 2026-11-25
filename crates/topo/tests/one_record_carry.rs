@@ -703,10 +703,11 @@ fn one_cutter_on_a_recorded_touch_cites_the_record_and_a_decision() {
 /// **A notch that removes the whole overlap of a recorded line touch
 /// consumes the record.** `a` (z ∈ [0, 2]) and `b` (z ∈ [1, 3]) kiss
 /// along x = y = 1 over z ∈ [1, 2]; a notch [0.5, 1.5]² × [0.9, 2.1]
-/// takes that whole span from both. Each kissing edge is divided, its
-/// remainder removed, so the edge–edge record lands on no pair and is
-/// consumed, and the result passes at rest. Red where the boolean's
-/// division is read as exhaustive: the record then refuses stale.
+/// takes that whole span from both. Each kissing edge is divided, the
+/// span its removed member, so the edge–edge record lands on no kept
+/// pair, lands on the removed span and is consumed, and the result
+/// passes at rest. Red where the boolean's removed members are not
+/// read: the record then refuses stale.
 #[test]
 fn a_notch_that_removes_a_recorded_overlap_consumes_it() {
     let a = box_of((0.0, 1.0), (0.0, 1.0), (0.0, 2.0), "a");

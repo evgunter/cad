@@ -182,8 +182,9 @@ fn a_record_on_the_blended_edge_is_consumed() {
 /// key (`BlendNaming::meridian_remnants`). The record lands on that
 /// piece, and the result passes at rest. Red on the carry that reads the
 /// rim by its key: the key is dead, and the record is refused
-/// `Unmapped`. A bookkeeping record on the rim is consumed by the carved
-/// span.
+/// `Unmapped`. A bookkeeping record on the rim (no touch) refuses
+/// stale: the blend names no cell it removed, so the carved span
+/// consumes nothing.
 #[test]
 fn a_turns_third_edge_lands_a_resting_corners_record_on_the_surviving_piece() {
     let a = finished(
@@ -210,8 +211,9 @@ fn a_turns_third_edge_lands_a_resting_corners_record_on_the_surviving_piece() {
     let y = edge_between(&base.body, corner, Point3::new(0.0, 1.0, 0.0));
     let z = edge_between(&base.body, corner, Point3::new(0.0, 0.0, 1.0));
     // A bookkeeping record on the rim, against a's far corner (no
-    // touch): the rim's division removes its carved span, so the record
-    // is consumed. Red where the division is read as exhaustive (stale).
+    // touch): it lands nowhere and the blend removed nothing named, so
+    // it refuses. Red where a division consumes a record it removed
+    // nothing under.
     let rim = edge_between(&base.body, corner, Point3::new(1.0, 0.0, 0.0));
     let far = base
         .body
@@ -243,8 +245,13 @@ fn a_turns_third_edge_lands_a_resting_corners_record_on_the_surviving_piece() {
             .as_ref()
             .expect("birth records")
             .meridian_remnants;
+        assert_eq!(
+            out.carry_contacts(&records, band, Some(topo::RegionLane::certified())),
+            Err(topo::CarryRefusal::Stale { record: 3 }),
+            "{what}: the bookkeeping record on the rim refuses stale"
+        );
         let carried = out
-            .carry_contacts(&records, band, Some(topo::RegionLane::certified()))
+            .carry_contacts(&base.contacts, band, Some(topo::RegionLane::certified()))
             .unwrap_or_else(|refusal| panic!("{what}: the records land: {refusal:?}"));
         let before: Vec<_> = base.contacts.vertex_edge().collect();
         let after: Vec<_> = carried.vertex_edge().collect();
