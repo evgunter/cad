@@ -13,7 +13,8 @@
 //! where the two sides are in two frames, each window's carrier is
 //! mapped into the question's frame at the reading ([`Side::windows_at`],
 //! `[placement.frame]`), and which part of a face a cell holds is read
-//! off the face in its own coordinates.
+//! off the face in its own coordinates, as each face's depths are
+//! (`parted_in_depth`).
 //!
 //! The door is generic over the lane scalar and the arithmetic is not.
 //! Every surface, curve and point the door reads is lifted through
@@ -429,9 +430,9 @@ impl<'b, T: Decide + CertifiedBounds> Side<'b, T> {
     /// [`Self::windows`] of a side read from another frame: each window's
     /// carrier mapped through `at`, the rigid motion from the body's
     /// coordinates into the question's ([`crate::transform::surface_at`]),
-    /// and which part of its face a cell holds read off the face in its
-    /// own coordinates. Two sides of one body are in one frame, `at`
-    /// `None`.
+    /// and which part of its face a cell holds, and its depths, read off
+    /// the face in its own coordinates. Two sides of one body are in one
+    /// frame, `at` `None`.
     ///
     /// # Errors
     ///
@@ -1630,7 +1631,7 @@ impl Sweep {
         // Two sides of one body are in one frame: the same-body arms read
         // each window's boundary beside its carrier, both in that frame.
         debug_assert!(
-            !same_body || wa.of.iter().chain(&wb.of).all(|w| w.own.is_none()),
+            !same_body || wa.of.iter().chain(&wb.of).all(|w| w.placed.is_none()),
             "two sides of one body are read through no motion"
         );
         k_stats::unlogged("F41", move || {
@@ -3499,10 +3500,10 @@ struct Window<'b, T: Real> {
     region: Region,
     /// The carrier, lifted, in the frame the question is read in.
     surface: Surface<Interval>,
-    /// The carrier lifted in the body's own coordinates, where the side
-    /// is read through a motion: what a cell's region is read against,
-    /// beside the face's own boundary. `None` where `surface` is it.
-    own: Option<Surface<Interval>>,
+    /// Where the side is read through a motion, the motion and the face's
+    /// own carrier; `None` where the body's coordinates are the
+    /// question's.
+    placed: Option<ReadThrough<T>>,
     u: (f64, f64),
     v: (f64, f64),
     /// **The body the face is read from**, which [`cell_region`](crate::cell_region::cell_region) reads
@@ -3516,6 +3517,24 @@ struct Window<'b, T: Real> {
     /// The face's poses, built once in the ask, when a cell is first read
     /// in one ([`injective::FacePoses`]).
     poses: injective::FacePoses,
+}
+
+/// **A window of a side read through a motion.**
+#[derive(Debug, Clone)]
+struct ReadThrough<T: Real> {
+    /// The rigid motion from the body's coordinates into the question's.
+    motion: RigidMotion<T>,
+    /// The carrier lifted in the body's own coordinates: what a cell's
+    /// region is read against, beside the face's own boundary.
+    own: Surface<Interval>,
+}
+
+impl<'b, T: Real> Window<'b, T> {
+    /// The window's body as the question reads it: through the side's
+    /// motion, where it has one.
+    fn seat(&self) -> crate::Seat<'b, T> {
+        crate::Seat::from_motion(self.body, self.placed.as_ref().map(|p| p.motion))
+    }
 }
 
 /// **What a window is of its face.**
@@ -3601,7 +3620,11 @@ impl RegionMemo {
                     cell_region_lifted(
                         w.body,
                         w.face,
-                        (stored, w.own.as_ref().unwrap_or(&w.surface), boundary),
+                        (
+                            stored,
+                            w.placed.as_ref().map_or(&w.surface, |p| &p.own),
+                            boundary,
+                        ),
                         c.u,
                         c.v,
                         self.band,
@@ -3803,18 +3826,24 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
     // Read through a motion, the window's carrier is the stored one
     // mapped into the question's frame, then lifted; its rectangle is the
     // stored one's, a rigid motion keeping every chart parameter.
-    let (surface, own) = match at {
+    let (surface, placed) = match at {
         None => (charted, None),
-        Some(motion) => {
-            let placed = crate::transform::surface_at(motion, stored)
+        Some(&motion) => {
+            let moved = crate::transform::surface_at(&motion, stored)
                 .ok()
-                .and_then(|placed| carrier_lifted(&placed));
-            let Some(placed) = placed else {
+                .and_then(|moved| carrier_lifted(&moved));
+            let Some(moved) = moved else {
                 return unsupported(
                     "a face whose carrier, read through its motion, does not certify",
                 );
             };
-            (placed, Some(charted))
+            (
+                moved,
+                Some(ReadThrough {
+                    motion,
+                    own: charted,
+                }),
+            )
         }
     };
     // The gate reads the carrier the window admits, the placed one where
@@ -3829,7 +3858,7 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
         face,
         region,
         surface: surface.with_rect_memo(),
-        own,
+        placed,
         u,
         v,
         body,
@@ -4663,11 +4692,16 @@ fn separated_by_support<T: Real>(
 /// above, and no other sign is read.
 ///
 /// The depths are read off the faces' covers at the lane scalar, as
-/// the cells' regions are, with no rounding charged
-/// (`[simple.conditioned]`), and each gap is less the pads
-/// [`depth_gap`] takes off it: a tolerance for each face's placement
-/// misread within the band and its boundary's vertices within ε of it,
-/// taken as the census takes it and not derived again for this reader.
+/// the cells' regions are, each face in its body's own coordinates: a
+/// site one face proposes is carried into the other's through the two
+/// sides' relative motion, composed through the question's frame
+/// ([`depth_gap::gaps_in_depth`]). At `Interval` the carried site encloses each enclosed
+/// motion's image; at `f64` it and the motion are read as real
+/// numbers, and no rounding is charged (`[simple.conditioned]`). Each
+/// gap is less the pads [`depth_gap`] takes off it: a tolerance for
+/// each face's placement misread within the band and its boundary's
+/// vertices within ε of it, taken as the census takes it and not
+/// derived again for this reader.
 /// `lift` crosses a gap to the bracket it is compared in; a gap that
 /// does not certify clears nothing, since the funnel refuses its
 /// margin. It is the caller's, which holds the certification bound
@@ -4680,18 +4714,11 @@ fn parted_in_depth<T: Decide>(
     band: Band,
     lift: impl Fn(T) -> Interval,
 ) -> bool {
-    // [`depth_gap::gaps_in_depth`]'s precondition: a side read through
-    // a motion has its faces' covers in another frame than the
-    // question's, so it is not asked, and its pairs are read by their
-    // cells.
-    if x.own.is_some() || y.own.is_some() {
-        return false;
-    }
     let read = |w: &Window<'_, T>| depth_gap::face_read(w.body, w.face, band);
     let (Some(rx), Some(ry)) = (read(x), read(y)) else {
         return false;
     };
-    depth_gap::gaps_in_depth((x.body, x.face, &rx), (y.body, y.face, &ry), band)
+    depth_gap::gaps_in_depth((x.seat(), x.face, &rx), (y.seat(), y.face, &ry), band)
         .any(|gap| definitely_positive(CLEARANCE_DEPTH_GAP, lift(gap) - c, band))
 }
 
@@ -6714,9 +6741,9 @@ mod support_rows {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod depth_rows {
-    use geom_core::{Band, Interval, Real, Tol};
+    use geom_core::{Band, Interval, Point3, Real, RigidMotion, Tol, Turns, UnitVec3, Vec3};
 
     use super::{
         BoundVerdict, Budgets, Cell, CellPair, ClearanceBound, DEFAULT_MAX_CELL_DEPTH, Side, Sweep,
@@ -6874,7 +6901,6 @@ mod depth_rows {
     /// over 50 parted) says the stream still reaches the reading.
     #[test]
     fn no_wall_pair_is_parted_in_depth_past_its_sampled_distance() {
-        use geom_core::{Point3, Vec3};
         struct Lcg(u64);
         impl Lcg {
             fn next(&mut self) -> f64 {
@@ -7092,36 +7118,317 @@ mod depth_rows {
         }
     }
 
-    /// **A side read through a motion is not asked its depths.** Two
-    /// coaxial walls of radius 1 and 1.001, each in its own body: in one
-    /// frame they are parted in depth. With the second read through a
-    /// shift of 0.5 across the axis the two cross, and they are not
-    /// parted, either way round, nor are they with the shift's inverse
-    /// on the first. Red where a placed window's cover is read in its
-    /// body's frame against the other's in the question's: the crossing
-    /// walls then read 0.001 apart.
+    /// **A side read through a motion is parted in depth as the same
+    /// pair built in place is** (`[placement.frame]`), at `f64` and at
+    /// `Interval`. Two walls of radius 1 and 1.001 about `z`, each in its
+    /// own body:
+    ///
+    /// - parted in one frame, and with both read through one shift;
+    /// - not parted with either read through a shift of 0.5 across the
+    ///   axis, where the walls cross, and the question does not hold;
+    /// - the outer wall built about an axis 0.5 off: parted read through
+    ///   the shift that carries it onto the inner's axis, and not through
+    ///   the opposite one, which a map read backwards would align;
+    /// - the inner wall built about an axis 0.5 off the other way, its
+    ///   seam a quarter turn back, and read through a quarter turn about
+    ///   `z`, the outer through a shift: the two motions put the walls
+    ///   over each other on one axis only composed in that order
+    ///   (`a⁻¹ ∘ b`, not `b ∘ a⁻¹`), and they are parted;
+    /// - the inner read through a skew turn and shift, against the outer
+    ///   built where that motion puts it: parted, as in place.
+    ///
+    /// Red where a placed window's depths are not asked (the agreeing
+    /// cases then read `false`), where a placed face's depth is read in
+    /// the question's frame against the other's own (the crossing walls
+    /// read 0.001 apart), or where the relative motion is inverted,
+    /// composed in the other order, or carries a site's origin without
+    /// turning its axis.
     #[test]
-    fn walls_read_through_a_motion_are_not_parted_in_depth() {
-        let wall = |r| {
-            let mut body = Body::<f64>::new();
-            let f = cyl_wall_sheet(
-                &mut body,
-                CylFrame::canonical(r),
-                (0.2, 1.4),
-                (0.0, 1.0),
-                Tol::witness(),
+    fn walls_read_through_a_motion_are_parted_as_built_in_place() {
+        macro_rules! read {
+            ($T:ty) => {{
+                let lane = stringify!($T);
+                let at = <$T>::from_f64;
+                let sheet = |frame: CylFrame| {
+                    let mut body = Body::<$T>::new();
+                    let f =
+                        cyl_wall_sheet(&mut body, frame, (0.2, 1.4), (0.0, 1.0), Tol::witness());
+                    (body, f)
+                };
+                let wall = |radius: f64, origin: Point3<f64>| {
+                    sheet(CylFrame {
+                        origin,
+                        ..CylFrame::canonical(radius)
+                    })
+                };
+                let shift = |x: f64, y: f64| {
+                    RigidMotion::translation(Vec3::new(at(x), at(y), at(0.0)))
+                        .expect("a finite shift")
+                };
+                type Read<'b> = Result<super::Windows<'b, $T>, super::EngineRefusal>;
+                fn windows<'b>(
+                    (a, fa): &'b (Body<$T>, FaceKey),
+                    ma: Option<RigidMotion<$T>>,
+                    (b, fb): &'b (Body<$T>, FaceKey),
+                    mb: Option<RigidMotion<$T>>,
+                ) -> (Read<'b>, Read<'b>) {
+                    let side = |body, face| Side {
+                        body,
+                        faces: vec![face],
+                    };
+                    (
+                        side(a, *fa).windows_at(Which::First, ma.as_ref()),
+                        side(b, *fb).windows_at(Which::Second, mb.as_ref()),
+                    )
+                }
+                let parted = |a, ma, b, mb| {
+                    let (Ok(wa), Ok(wb)) = windows(a, ma, b, mb) else {
+                        panic!("{lane}: a wall has a window");
+                    };
+                    let apart = |x: &Window<'_, $T>, y: &Window<'_, $T>| {
+                        parted_in_depth(
+                            x,
+                            y,
+                            Interval::from_f64(0.0),
+                            band(),
+                            Interval::from_certified,
+                        )
+                    };
+                    (apart(&wa.of[0], &wb.of[0]), apart(&wb.of[0], &wa.of[0]))
+                };
+                let origin = Point3::origin();
+                let (inner, outer) = (wall(1.0, origin), wall(1.001, origin));
+                let outer_off = wall(1.001, Point3::new(0.5, 0.0, 0.0));
+                // Its seam a quarter turn back, so the quarter turn brings its
+                // azimuths over the outer's and the two overlap on one axis.
+                let inner_off = sheet(CylFrame {
+                    origin: Point3::new(0.0, -0.5, 0.0),
+                    u_ref: -Vec3::unit_y(),
+                    ..CylFrame::canonical(1.0)
+                });
+                let quarter =
+                    RigidMotion::turned(Point3::origin(), UnitVec3::exact_z(), Turns::quarters(1));
+                let axis = |x: f64, y: f64, z: f64| Vec3::new(at(x), at(y), at(z));
+                let skew = RigidMotion::translation(axis(7.0, -3.0, 4.0))
+                    .unwrap()
+                    .compose(
+                        RigidMotion::rotation(
+                            UnitVec3::new(axis(1.0, -2.0, 0.5), "a skew axis", band()).unwrap(),
+                            at(0.9),
+                        )
+                        .unwrap(),
+                    )
+                    .unwrap();
+                let skew64 = RigidMotion::translation(Vec3::new(7.0, -3.0, 4.0))
+                    .unwrap()
+                    .compose(
+                        RigidMotion::rotation(
+                            UnitVec3::new(Vec3::new(1.0, -2.0, 0.5), "a skew axis", band())
+                                .unwrap(),
+                            0.9,
+                        )
+                        .unwrap(),
+                    )
+                    .unwrap();
+                let outer_moved = sheet(CylFrame {
+                    origin: skew64.transform_point(origin),
+                    axis: skew64.transform_vec(Vec3::unit_z()),
+                    radius: 1.001,
+                    u_ref: skew64.transform_vec(Vec3::unit_x()),
+                });
+                for (what, a, ma, b, mb, want) in [
+                    ("in one frame", &inner, None, &outer, None, true),
+                    (
+                        "both shifted",
+                        &inner,
+                        Some(shift(0.5, 0.0)),
+                        &outer,
+                        Some(shift(0.5, 0.0)),
+                        true,
+                    ),
+                    (
+                        "the second shifted across",
+                        &inner,
+                        None,
+                        &outer,
+                        Some(shift(0.5, 0.0)),
+                        false,
+                    ),
+                    (
+                        "the first shifted across",
+                        &inner,
+                        Some(shift(-0.5, 0.0)),
+                        &outer,
+                        None,
+                        false,
+                    ),
+                    (
+                        "the outer carried onto the axis",
+                        &inner,
+                        None,
+                        &outer_off,
+                        Some(shift(-0.5, 0.0)),
+                        true,
+                    ),
+                    (
+                        "the outer carried off it",
+                        &inner,
+                        None,
+                        &outer_off,
+                        Some(shift(0.5, 0.0)),
+                        false,
+                    ),
+                    (
+                        "the inner carried onto it",
+                        &outer_off,
+                        None,
+                        &inner,
+                        Some(shift(0.5, 0.0)),
+                        true,
+                    ),
+                    (
+                        "a turn and a shift composed",
+                        &inner_off,
+                        Some(quarter),
+                        &outer,
+                        Some(shift(0.5, 0.0)),
+                        true,
+                    ),
+                    (
+                        "a skew motion, as in place",
+                        &inner,
+                        Some(skew),
+                        &outer_moved,
+                        None,
+                        true,
+                    ),
+                ] {
+                    assert_eq!(parted(a, ma, b, mb), (want, want), "{lane}: {what}");
+                }
+                let (Ok(wa), Ok(wb)) = windows(&inner, None, &outer, Some(shift(0.5, 0.0))) else {
+                    panic!("{lane}: a wall has a window");
+                };
+                let sweep = Sweep {
+                    bound: ClearanceBound::StrictlyPositive,
+                    band: band(),
+                    budgets: Budgets {
+                        max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+                        max_cell_pairs: 128,
+                    },
+                };
+                let report: super::BoundReport<()> =
+                    sweep.run(&wa, &wb, false, |_| Err("no witness".to_owned()));
+                assert!(
+                    !matches!(report.verdict, BoundVerdict::Holds),
+                    "{lane}: the crossing walls do not hold: {:?} {:?}",
+                    report.verdict,
+                    report.receipt
+                );
+            }};
+        }
+        read!(f64);
+        read!(Interval);
+    }
+
+    /// **Nested tori read through a motion hold at their root, as built
+    /// in place.** Two torus patches about one core, tube radii 0.45 and
+    /// 0.425, over one chart window, each in its own body: 0.025 apart,
+    /// sharing nothing. Built in place, with the inner held in its own
+    /// coordinates and read through a skew motion beside an outer built
+    /// where the motion puts it, and with both read through the motion,
+    /// the question holds at the root, with no split. Red where a placed
+    /// window is not asked its depths: each placed pair then refuses for
+    /// pairs at the row's 4,096, and at 65,536 holds only after about
+    /// 37,000 splits.
+    #[test]
+    fn nested_tori_read_through_a_motion_hold_at_their_root_as_built_in_place() {
+        let band = band();
+        let axis = UnitVec3::new(Vec3::new(1.0, -2.0, 0.5), "a skew axis", band).unwrap();
+        let m = RigidMotion::translation(Vec3::new(7.0, -3.0, 4.0))
+            .unwrap()
+            .compose(RigidMotion::rotation(axis, 0.9).unwrap())
+            .unwrap();
+        let torus = |minor: f64, motion: Option<&RigidMotion<f64>>| {
+            let (o, z, x) = (Point3::origin(), Vec3::unit_z(), Vec3::unit_x());
+            let (o, z, x) = motion.map_or((o, z, x), |m| {
+                (m.transform_point(o), m.transform_vec(z), m.transform_vec(x))
+            });
+            crate::boxes::tests::torus_wall(o, z, x, 2.0, minor, (0.1, 3.0), (-3.0, 3.0))
+        };
+        let (outer, inner, outer_moved) =
+            (torus(0.45, None), torus(0.425, None), torus(0.45, Some(&m)));
+        let sweep = Sweep {
+            bound: ClearanceBound::StrictlyPositive,
+            band,
+            budgets: Budgets {
+                max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+                max_cell_pairs: 4_096,
+            },
+        };
+        let run = |(a, fa): &(Body<f64>, FaceKey),
+                   at_a: Option<&RigidMotion<f64>>,
+                   (b, fb): &(Body<f64>, FaceKey),
+                   at_b: Option<&RigidMotion<f64>>| {
+            let side = |body, face| Side {
+                body,
+                faces: vec![face],
+            };
+            let wa = side(a, *fa).windows_at(Which::First, at_a).unwrap();
+            let wb = side(b, *fb).windows_at(Which::Second, at_b).unwrap();
+            let report: super::BoundReport<()> =
+                sweep.run(&wa, &wb, false, |_| Err("no witness".to_owned()));
+            report
+        };
+        for (what, report) in [
+            ("built in place", run(&outer, None, &inner, None)),
+            (
+                "the inner placed",
+                run(&outer_moved, None, &inner, Some(&m)),
+            ),
+            ("both placed", run(&outer, Some(&m), &inner, Some(&m))),
+        ] {
+            assert!(
+                matches!(report.verdict, BoundVerdict::Holds) && report.receipt.splits == 0,
+                "{what}: the tori hold at their root: {:?} {:?}",
+                report.verdict,
+                report.receipt
             );
+        }
+    }
+
+    /// **A sphere's centre is carried through the relative motion.** A
+    /// unit-sphere zone at heights 0.9 to 0.99 read through a shift of 0.8,
+    /// against a wall of radius 0.3, heights 0 to 0.5, about an axis at
+    /// `(0.8, 0, 0)`: only the sphere's centre parts them (the wall lies
+    /// within 0.59 of it, the zone at 1), either side placed, either way
+    /// round. Then a smaller wall about an axis at `(0.3, 0, 0)`, which the
+    /// zone crosses when read through the shift `(0.211, −0.092, −0.795)`:
+    /// not parted. Red where the centre is not carried: the first reads
+    /// the wall about the uncarried centre, and the crossing pair reads the
+    /// whole small wall within 0.6 of it, a spurious part.
+    #[test]
+    fn a_sphere_centre_is_carried_through_the_relative_motion() {
+        let sphere = crate::boxes::sphere_rect_rows::sphere_zone_sheet(
+            (0.2, 1.4),
+            (0.9, 0.99),
+            Tol::witness(),
+        );
+        let wall = |x: f64, radius: f64, height: f64| {
+            let mut body = Body::<f64>::new();
+            let frame = CylFrame {
+                origin: Point3::new(x, 0.0, 0.0),
+                ..CylFrame::canonical(radius)
+            };
+            let f = cyl_wall_sheet(&mut body, frame, (0.2, 1.4), (0.0, height), Tol::witness());
             (body, f)
         };
-        let ((inner, fa), (outer, fb)) = (wall(1.0), wall(1.001));
-        let shift = |x: f64| {
-            geom_core::RigidMotion::translation(geom_core::Vec3::new(x, 0.0, 0.0))
-                .expect("a finite shift")
-        };
-        let parted = |a: Option<f64>, b: Option<f64>| {
-            let (ma, mb) = (a.map(shift), b.map(shift));
-            let wa = window_of(&inner, fa, Which::First, ma.as_ref()).expect("a wall's window");
-            let wb = window_of(&outer, fb, Which::Second, mb.as_ref()).expect("a wall's window");
+        let shift = |x: f64, y: f64, z: f64| RigidMotion::translation(Vec3::new(x, y, z)).unwrap();
+        let parted = |a: &(Body<f64>, FaceKey),
+                      ma: Option<RigidMotion<f64>>,
+                      b: &(Body<f64>, FaceKey),
+                      mb: Option<RigidMotion<f64>>| {
+            let wa = window_of(&a.0, a.1, Which::First, ma.as_ref()).unwrap();
+            let wb = window_of(&b.0, b.1, Which::Second, mb.as_ref()).unwrap();
             let at = |x: &Window<'_, f64>, y: &Window<'_, f64>| {
                 parted_in_depth(
                     x,
@@ -7133,16 +7440,81 @@ mod depth_rows {
             };
             (at(&wa, &wb), at(&wb, &wa))
         };
-        assert_eq!(parted(None, None), (true, true), "in one frame");
+        let (wide, small) = (wall(0.8, 0.3, 0.5), wall(0.3, 0.2, 0.3));
+        for (what, a, ma, b, mb, want) in [
+            (
+                "the zone across the small wall",
+                &sphere,
+                Some(shift(0.211, -0.092, -0.795)),
+                &small,
+                None,
+                false,
+            ),
+            (
+                "the sphere placed",
+                &sphere,
+                Some(shift(0.8, 0.0, 0.0)),
+                &wide,
+                None,
+                true,
+            ),
+            (
+                "the sphere placed, second",
+                &wide,
+                None,
+                &sphere,
+                Some(shift(0.8, 0.0, 0.0)),
+                true,
+            ),
+            (
+                "the wall placed",
+                &sphere,
+                None,
+                &wide,
+                Some(shift(-0.8, 0.0, 0.0)),
+                true,
+            ),
+        ] {
+            assert_eq!(parted(a, ma, b, mb), (want, want), "{what}");
+        }
+    }
+
+    /// **Crossing torus patches read through a motion are never parted.**
+    /// Tubes 0.425 and 0.45 over one chart window, their cores 0.2 apart
+    /// along the axis, so the patches cross; the inner read through a skew
+    /// motion beside the outer built at its image. Red where a core's axis
+    /// is not carried, or a site is read in the wrong frame: the tubes'
+    /// core depths then read 0.025 apart, a spurious part.
+    #[test]
+    fn crossing_tori_read_through_a_motion_are_not_parted() {
+        let axis = UnitVec3::new(Vec3::new(1.0, -2.0, 0.5), "a skew axis", band()).unwrap();
+        let m = RigidMotion::translation(Vec3::new(7.0, -3.0, 4.0))
+            .unwrap()
+            .compose(RigidMotion::rotation(axis, 0.9).unwrap())
+            .unwrap();
+        let torus = |minor: f64, lift: f64, motion: Option<&RigidMotion<f64>>| {
+            let (o, z, x) = (Point3::new(0.0, 0.0, lift), Vec3::unit_z(), Vec3::unit_x());
+            let (o, z, x) = motion.map_or((o, z, x), |m| {
+                (m.transform_point(o), m.transform_vec(z), m.transform_vec(x))
+            });
+            crate::boxes::tests::torus_wall(o, z, x, 2.0, minor, (0.1, 3.0), (-3.0, 3.0))
+        };
+        let (inner, outer_moved) = (torus(0.425, 0.2, None), torus(0.45, 0.0, Some(&m)));
+        let wa = window_of(&inner.0, inner.1, Which::First, Some(&m)).unwrap();
+        let wb = window_of(&outer_moved.0, outer_moved.1, Which::Second, None).unwrap();
+        let at = |p: &Window<'_, f64>, q: &Window<'_, f64>| {
+            parted_in_depth(
+                p,
+                q,
+                Interval::from_f64(0.0),
+                band(),
+                Interval::from_certified,
+            )
+        };
         assert_eq!(
-            parted(None, Some(0.5)),
+            (at(&wa, &wb), at(&wb, &wa)),
             (false, false),
-            "the second shifted"
-        );
-        assert_eq!(
-            parted(Some(-0.5), None),
-            (false, false),
-            "the first shifted"
+            "the patches cross"
         );
     }
 }

@@ -2,10 +2,11 @@
 id: a-trimmed-free-form-face-has-no-window-in-the-injectivity-engine
 kind: issue
 title: The injectivity engine opens no window on a trimmed free-form face, so a finished body holding a NURBS or approximated face cut off its iso boundary refuses Unsupported at the at-rest gate
-status: open
+status: dispatched
 opened: 2026-11-25
 priority: P0
 cost: H
+branch: embedwalk/trimmed-freeform-window
 ---
 
 
