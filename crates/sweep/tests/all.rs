@@ -68,6 +68,8 @@ mod a_carried_record_no_reading_covers;
 mod a_circle_of_one_radius_elsewhere_is_no_rim;
 #[path = "a_closed_rider_lying_in_a_face.rs"]
 mod a_closed_rider_lying_in_a_face;
+#[path = "probe_review_parting_division.rs"]
+mod probe_review_parting_division;
 #[path = "a_conical_ended_football_revolves.rs"]
 mod a_conical_ended_football_revolves;
 #[path = "a_corner_cut_on_a_far_wall_reads_its_sections_width.rs"]
