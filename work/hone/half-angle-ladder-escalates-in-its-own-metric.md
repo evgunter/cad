@@ -42,3 +42,14 @@ answering `Uncertain` and the band's gap escalating as the door's
 decision. Rows that pin a ladder escalation by predicate name
 (`conic_quadric::circle_wall_rows`' in-band rim row among them) move to the
 subdivision's rows.
+
+**Reached by a further row (2026-11-25, INSIDE's `inside-quartic-disc`
+lane).** Once `depressed_quartic_roots` reads `Δ` exactly
+(`geom_core::Real::quartic_sign_algebra`; it was read off the plain
+formula, whose rounding of `Δ/L¹¹` here was 6.9e-6), `ellipse_rows`'
+`a_graze_is_read_by_its_depth` row "wall r 500, depth 2e-8, tilt 0" escalates on
+`conic_quadric_disc`: its ladder quartic's exact `Δ/L¹¹` is 3.89e-9, in
+the band's gap in `τ`, while the crossing is 2e-8 m deep, past the band
+in metres. The row now admits that escalation beside the slack's
+refusal it expected (the roots there are unplaceable either way).
+
