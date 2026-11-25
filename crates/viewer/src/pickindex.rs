@@ -2418,7 +2418,11 @@ impl PickIndex {
             };
             let Some(pixel) = camera
                 .project(place(position), aspect)
-                .map_err(PickError::Projection)?
+                .map_err(|error| PickError::Projection {
+                    node: edge.node,
+                    body: Some(edge.body),
+                    error,
+                })?
                 .and_then(|ndc| viewport.cursor_of([ndc[0], ndc[1]]))
             else {
                 continue;
@@ -2476,10 +2480,12 @@ impl PickIndex {
         let Some(aspect) = viewport.aspect() else {
             return Ok(None);
         };
-        let project = |world: Point3<f64>| -> Result<Projected, PickError> {
+        let project = |world: Point3<f64>,
+                       (node, body): (RecipeNodeId, Option<u32>)|
+         -> Result<Projected, PickError> {
             Ok(camera
                 .project(world, aspect)
-                .map_err(PickError::Projection)?
+                .map_err(|error| PickError::Projection { node, body, error })?
                 .and_then(|ndc| viewport.cursor_of([ndc[0], ndc[1]]))
                 .map(|pixel| (world, pixel)))
         };
@@ -2496,7 +2502,7 @@ impl PickIndex {
         let mut candidates: Vec<(Line, Candidate)> = Vec::new();
         let outlines = self.drawn_outlines(display);
         if lines.outlines || lines.datums {
-            for (rank, &(_, datum, loops)) in outlines.iter().enumerate() {
+            for (rank, &(node, datum, loops)) in outlines.iter().enumerate() {
                 if !(if datum { lines.datums } else { lines.outlines }) {
                     continue;
                 }
@@ -2504,7 +2510,7 @@ impl PickIndex {
                 for (lp, points) in loops.iter().enumerate() {
                     let projected = points
                         .iter()
-                        .map(|&world| project(world))
+                        .map(|&world| project(world, (node, None)))
                         .collect::<Result<Vec<_>, _>>()?;
                     // The loop's position rides as the candidate's
                     // `boundary`, the tie-break's coordinate.
@@ -2549,7 +2555,7 @@ impl PickIndex {
                     .points
                     .iter()
                     .map(|&index| match mesh.positions.get(index as usize) {
-                        Some(&position) => project(place(position)),
+                        Some(&position) => project(place(position), (node, Some(body))),
                         None => Ok(None),
                     })
                     .collect::<Result<Vec<_>, _>>()?;
@@ -2584,9 +2590,13 @@ impl PickIndex {
             // the line behind a face and the line in front of it are
             // both near the same cursor exactly when a body is seen
             // through its own silhouette.
+            let (node, body) = match line {
+                Line::Edge(rank) => (bodies[rank].node(), Some(bodies[rank].body())),
+                Line::Outline(rank) => (outlines[rank].0, None),
+            };
             let ray = camera
                 .ray_through(candidate.pixel, viewport)
-                .map_err(PickError::Camera)?;
+                .map_err(|error| PickError::Projection { node, body, error })?;
             let [a, b] = candidate.ends;
             let (s, point) = ray_segment_closest(&ray, a, b);
             // A body edge's own crossing is widened by its incident
@@ -3251,9 +3261,19 @@ pub enum PickError {
     Camera(CameraError),
     /// A drawn point the cursor is measured against (a line's chord
     /// point, an edge's end) has no pixel the camera can compute
-    /// ([`Camera::project`]'s refusal), so what it belongs to cannot be
-    /// measured.
-    Projection(CameraError),
+    /// ([`Camera::project`]'s refusal), or its pixel names no ray to
+    /// probe it with, so what it belongs to cannot be measured. The
+    /// whole pick refuses: a pixel made up for it would decide the
+    /// contest.
+    Projection {
+        /// The node whose drawing holds the point.
+        node: RecipeNodeId,
+        /// The body of `node` whose edge holds it; `None` for a
+        /// profile's or datum's drawn outline.
+        body: Option<u32>,
+        /// The camera's refusal.
+        error: CameraError,
+    },
     /// The hit test refused.
     HitTest(HitTestError),
     /// The picked edge has no name here — [`EdgeNameFault`], per arm:
@@ -3538,7 +3558,17 @@ impl Say for PickError {
     fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::Camera(error) => write!(f, "the cursor names no ray: {error}"),
-            Self::Projection(error) => write!(f, "a drawn point has no pixel: {error}"),
+            Self::Projection { node, body, error } => {
+                match body {
+                    Some(body) => say!(
+                        f,
+                        "a drawn point on an edge of ",
+                        Said(&DrawnBody::new(*node, *body), by)
+                    )?,
+                    None => say!(f, "a drawn point on the outline of ", by.node(*node))?,
+                }
+                write!(f, " has no pixel: {error}")
+            }
             Self::HitTest(error) => say!(f, "the hit test refused: ", Said(error, by)),
             Self::EdgeName(fault) => {
                 say!(f, "the picked edge has no name: ", Said(fault, by))

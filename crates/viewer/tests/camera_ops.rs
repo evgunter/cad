@@ -654,8 +654,10 @@ fn a_viewport_with_no_area_has_no_projection() {
 ///
 /// `[-MAX, MAX, -MAX]` sums `f64::MAX`-sized terms into every clip
 /// coordinate, which the unfixed door divided through and answered as
-/// a screen position of NaNs. A point that is not one refuses on its
-/// own coordinate. The far half is the pair's other side: a point
+/// a screen position of NaNs, and it refuses on its clip `w`. A point
+/// `1.5e308` to the side of a level camera keeps `w` a number and
+/// overflows only the quotient, which refuses as a screen coordinate.
+/// A point that is not one refuses on its own coordinate. The far half is the pair's other side: a point
 /// `1e300` down the ray through a cursor is an ordinary projection of
 /// that ray, and lands on that cursor, so a door refusing on magnitude
 /// rather than on overflow fails it.
@@ -665,13 +667,34 @@ fn a_projection_that_overflows_refuses_and_a_far_one_lands_on_its_ray() {
     let camera = common::framed(aspect);
     match camera.project(Point3::new(-f64::MAX, f64::MAX, -f64::MAX), aspect) {
         Err(CameraError::NotFinite { what, value }) => {
-            assert_eq!(
-                what, "projected coordinate",
-                "refused, but not as an overflow"
-            );
+            assert_eq!(what, "clip w", "refused, but not on the clip w");
             assert!(!value.is_finite(), "the refusal reported {value}, a number");
         }
         other => panic!("an overflowed projection answered {other:?}"),
+    }
+    // The clip `w` an ordinary number and the quotient not: a camera
+    // looking down `-x` from `(1, 0, 0)` (yaw and pitch zero, so its
+    // axes are exact and nothing sideways leaks into `w`) and a point
+    // in its target plane `1.5e308` to the right. `w` is the distance
+    // to that plane, 1, and the screen `x` overflows.
+    let level = Camera::new(
+        Point3::new(0.0, 0.0, 0.0),
+        1.0,
+        0.0,
+        0.0,
+        std::f64::consts::FRAC_PI_4,
+        1.0,
+    )
+    .expect("a finite camera");
+    match level.project(Point3::new(0.0, 1.5e308, 0.0), 1.0) {
+        Err(CameraError::NotFinite { what, value }) => {
+            assert_eq!(
+                what, "screen coordinate",
+                "refused, but not on the quotient"
+            );
+            assert!(!value.is_finite(), "the refusal reported {value}, a number");
+        }
+        other => panic!("a projection whose quotient overflowed answered {other:?}"),
     }
     assert!(
         matches!(

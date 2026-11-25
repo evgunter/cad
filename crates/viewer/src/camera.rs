@@ -205,7 +205,7 @@ impl Default for Camera {
 pub enum CameraError {
     /// A coordinate, angle, distance or radius was not finite: an
     /// argument, or a quantity a door computed from finite ones (a
-    /// scene radius, a ray direction, a projected coordinate).
+    /// scene radius, a ray direction, a clip `w`, a screen coordinate).
     NotFinite {
         /// Which quantity.
         what: &'static str,
@@ -834,8 +834,10 @@ impl Camera {
     ///
     /// As [`Camera::projection_matrix`], plus
     /// [`CameraError::NotFinite`] for a point that is not one, and for
-    /// a projection that leaves `f64`: a clip `w`, or an answered
-    /// coordinate, that overflowed. Such a point has no screen
+    /// a projection that leaves `f64`: a clip `w` (`"clip w"`), or an
+    /// answered coordinate (`"screen coordinate"`, a finite point so
+    /// far off the view axis that its quotient overflows), that is not
+    /// a number. Such a point has no screen
     /// position, but it is not behind the eye, so it is not `None`.
     pub fn project(
         &self,
@@ -852,13 +854,13 @@ impl Camera {
             *slot = m[0][row] * v[0] + m[1][row] * v[1] + m[2][row] * v[2] + m[3][row] * v[3];
         }
         let w = out[3];
-        finite("projected coordinate", w)?;
+        finite("clip w", w)?;
         if w <= 0.0 {
             return Ok(None);
         }
         let ndc = [out[0] / w, out[1] / w, out[2] / w];
         for coordinate in ndc {
-            finite("projected coordinate", coordinate)?;
+            finite("screen coordinate", coordinate)?;
         }
         Ok(Some(ndc))
     }
