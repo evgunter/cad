@@ -4047,7 +4047,7 @@ mod collapsed_rows;
 pub(super) mod tests {
     use super::{
         ChordPass, Creases, FixedVertexHandle, Node, SpadePoint, TessellateError, TrimPolygon,
-        chain_creases, id_repeats_apart, one_location_per_branch, trim_polygon,
+        chain_creases, one_location_per_branch,
     };
 
     /// Whether any mesh id appears at two DIFFERENT UV locations in the

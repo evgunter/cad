@@ -50,9 +50,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom::SurfaceKind;
 use geom_core::Tol;
-use topo::{AtRestBody, BooleanError};
+use topo::AtRestBody;
 
 use crate::common::op_census::{
     Run, assert_one_meet, band, kernel_invariant, measure, names_its_own_face, result_volume,
