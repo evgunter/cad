@@ -293,3 +293,5 @@
   - The gate is red only from the stack.
   - Rows filed: the-parting-re-decides-an-edge-lying-in-a-face-the-sweep-decided and a-rim-whose-vertex-lies-on-a-wrap-edge-refuses-shared.
   - Single FULL review dispatched (session_018u3gVFWHiYZyakWSYnoknS).
+
+- 2026-11-25 **Main red from my merge of PR 7745.** Three slow-set carry rows (two union_flush `Stale{3}`, face_face_touch `Unread{18}`) fail on `0ac627ec92` and pass on its parent; checked locally. My merge evidence was `ci` plus the touched files. I did not ask for the full default profile on a carry change, and this is the cost. From here, a carry or records change merges only on a full default-profile topo+sweep per-test diff against its base. Filed P0 `main-red-removed-members-refuses-three-slow-carry-rows`, sent to the 7745 lane (session_018u3gVK16A8ND9orBs4bSqb) as a fix PR off main.
