@@ -845,34 +845,22 @@ fn a_full_torus_certifies_by_kind() {
     }
 }
 
-/// The football of the spindle sheet `(R, 1)` about the sketch `y` axis:
-/// the arc from its lower apex to its upper through the circle's widest
-/// point, closed down the axis, revolved whole — two sheet faces, each a
-/// π-band between meridians ending at both apexes; the axis is no face.
-/// Its centre is `by` up the axis.
+/// The football of the spindle sheet `(R, 1)`, its centre `by` up the
+/// axis ([`crate::revolve_common::football`]), revolved whole: two sheet
+/// faces, each a π-band between meridians ending at both apexes.
 fn football<T: Scalar>(big: f64, by: f64) -> Body<T> {
-    let h = ((1.0 - big) * (1.0 + big)).sqrt();
-    let v_star = (-big).acos();
-    let lp = profile::test_support::bulge_loop(vec![
-        (Point2::new(0.0, by - h), (v_star / 2.0).tan()),
-        (Point2::new(0.0, by + h), 0.0),
-    ]);
+    let lp = crate::revolve_common::football(big, 1.0, by);
     revolve(&validated::<T>(&[lp]), axis_y(), Revolution::Full, tol())
         .unwrap()
         .body
         .into_body()
 }
 
-/// A horn's needle tip: the horn of radius 1 reached at its cusp from
-/// one side, its arc an eighth of the circle from the cusp, closed by a
-/// disc it meets at 45°, not tangent.
+/// A horn's needle tip ([`crate::revolve_common::needle_tip`]), its arc
+/// an eighth of the circle from the cusp, so it meets its disc at 45°,
+/// not tangent.
 fn needle<T: Scalar>() -> Body<T> {
-    let s = core::f64::consts::FRAC_1_SQRT_2;
-    let lp = profile::test_support::bulge_loop(vec![
-        (Point2::new(0.0, 0.0), -(core::f64::consts::PI / 16.0).tan()),
-        (Point2::new(1.0 - s, s), 0.0),
-        (Point2::new(0.0, s), 0.0),
-    ]);
+    let lp = crate::revolve_common::needle_tip(core::f64::consts::FRAC_PI_4);
     revolve(&validated::<T>(&[lp]), axis_y(), Revolution::Full, tol())
         .unwrap()
         .body
@@ -889,11 +877,11 @@ fn sheet_faces<T: Real>(body: &Body<T>) -> usize {
 /// **Bodies on a spindle sheet hold at both scalars, each sheet face
 /// against itself by kind**: the lemon and the apple, each two sheet
 /// faces from apex to apex, read at each apex as their chart's collapsed
-/// side. A horn's needle is refused: its two sheet faces meet at its
-/// cusp tangent to the axis, both of the sheet's apexes. Red if a sheet
-/// face has no window, if its self-pair is not discharged by kind, if a
-/// cell at an apex is read as anything but the collapsed side, or if the
-/// needle reads embedded.
+/// side. A horn's needle, whose two sheet faces meet at its cusp
+/// tangent to the axis, is refused at their shared meridian. Red if a
+/// sheet face has no window, if its self-pair is not discharged by kind,
+/// if a cell at an apex is read as anything but the collapsed side, or
+/// if the needle reads embedded.
 #[test]
 fn bodies_on_a_spindle_sheet_hold_by_kind_at_both_scalars() {
     for (scalar, verdict) in [
@@ -928,39 +916,77 @@ fn bodies_on_a_spindle_sheet_hold_by_kind_at_both_scalars() {
     }
 }
 
+/// `body`'s verdict door within a small budget, at `T`: a crossing
+/// read `Crosses` where `crosses`, and never `Embedded` in any case.
+/// Where the walk reaches no station pair on both faces it refuses on
+/// its budget: the point door places a sheet station on its boundary
+/// alone (`work/inside/the-point-door-places-no-point-on-a-spindle-sheet-face.md`).
+fn crosses_at_both(what: &str, crosses: bool, float: &Body<f64>, interval: &Body<Interval>) {
+    let budgets = Budgets {
+        max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+        max_cell_pairs: 1024,
+    };
+    for (scalar, report) in [
+        ("f64", embedding_within(float, budgets)),
+        ("Interval", embedding_within(interval, budgets)),
+    ] {
+        let verdict = &report.verdict;
+        assert!(
+            !matches!(verdict, topo::clearance::Embedding::Embedded),
+            "{what} cross at {scalar}: {report:?}"
+        );
+        assert!(
+            !crosses || matches!(verdict, topo::clearance::Embedding::Crosses(_)),
+            "{what} read their crossing at {scalar}: {report:?}"
+        );
+    }
+}
+
+/// A football of `R = first` and a copy of `R = copy` built `by` up its
+/// axis, grafted in as a solid of its own: nothing in M is shared.
+fn footballs_through<T: Scalar>(first: f64, copy: f64, by: f64) -> Body<T> {
+    let mut folded = football::<T>(first, 0.0);
+    topo::graft_disjoint(&mut folded, &football::<T>(copy, by)).expect("the copy grafts");
+    folded
+}
+
 /// **Two footballs through one another never read embedded**, at both
 /// scalars and through the verdict door: the football and a copy built
-/// `by` up its axis, grafted in as a solid of its own, so their sheets
-/// meet on a circle and nothing in M is shared. Moved `0.3` the circle
-/// is at the sheets' widest; moved `1.2` it is near the first's upper
-/// apex and the copy's lower one, so a window short of either apex
-/// misses it. The point door places no station on a sheet face yet, so
-/// the crossing is not confirmed and the walk runs to its budget, kept
-/// small here. Red if the verdict is `Embedded`.
+/// `by` up its axis, so their sheets meet on a circle. Moved `0.3` the
+/// circle is near the sheets' widest; moved `1.2` the lemons' circle is
+/// at `v = ±0.64`, about `0.61 v*`, on the first's upper half and the
+/// copy's lower. The lemons moved `1.2` read the crossing; the others
+/// refuse on the budget. Red if any reads `Embedded`, or the lemons
+/// moved `1.2` read anything but `Crosses`.
 #[test]
 fn footballs_through_one_another_never_read_embedded() {
-    fn folded<T: Scalar>(big: f64, by: f64) -> Body<T> {
-        let mut folded = football::<T>(big, 0.0);
-        topo::graft_disjoint(&mut folded, &football::<T>(big, by)).expect("the copy grafts");
-        folded
+    for (big, by, crosses) in [(-0.5, 0.3, false), (-0.5, 1.2, true), (0.4, 1.2, false)] {
+        crosses_at_both(
+            &format!("the footballs of R = {big} moved {by}"),
+            crosses,
+            &footballs_through(big, big, by),
+            &footballs_through(big, big, by),
+        );
     }
-    for (big, by) in [(-0.5, 0.3), (-0.5, 1.2), (0.4, 1.2)] {
-        let budgets = Budgets {
-            max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
-            max_cell_pairs: 1024,
-        };
-        for (scalar, report) in [
-            ("f64", embedding_within(&folded::<f64>(big, by), budgets)),
-            (
-                "Interval",
-                embedding_within(&folded::<Interval>(big, by), budgets),
-            ),
-        ] {
-            assert!(
-                !matches!(report.verdict, topo::clearance::Embedding::Embedded),
-                "the footballs of R = {big} moved {by} cross at {scalar}: {report:?}"
-            );
-        }
+}
+
+/// **Footballs crossing a hair from an apex never read embedded**, at
+/// both scalars: a football and a copy moved up its axis by just short
+/// of the sum of their apex heights, so their sheets meet on a small
+/// circle beside the first's upper apex and the copy's lower one, at
+/// `v` within a few thousandths of `±v*`. Each reads `Crosses`. Red if
+/// a sheet's window falls short of its apexes by more than that.
+#[test]
+fn footballs_crossing_beside_an_apex_never_read_embedded() {
+    let h = |big: f64| ((1.0 - big) * (1.0 + big)).sqrt();
+    for (first, copy, short) in [(-0.5, -0.5, 1e-3), (-0.5, -0.9, 1e-3), (-0.9, -0.5, 1e-5)] {
+        let by = (h(first) + h(copy)) * (1.0 - short);
+        crosses_at_both(
+            &format!("footballs of R = {first} and {copy} moved {by}"),
+            true,
+            &footballs_through(first, copy, by),
+            &footballs_through(first, copy, by),
+        );
     }
 }
 

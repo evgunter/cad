@@ -45,6 +45,33 @@ pub fn donut_profile() -> ProfileLoop<f64> {
     ])
 }
 
+/// The football of the spindle sheet `(R, r)` about the sketch `y` axis,
+/// its centre `by` up the axis: the arc from its lower apex to its upper
+/// through the circle's widest point, closed down the axis. Revolved
+/// whole, two sheet faces, each a π-band between meridians ending at
+/// both apexes.
+pub fn football(big: f64, r: f64, by: f64) -> ProfileLoop<f64> {
+    let h = ((r - big) * (r + big)).sqrt();
+    let v_star = (-big / r).acos();
+    bulge_loop(vec![
+        (Point2::new(0.0, by - h), (v_star / 2.0).tan()),
+        (Point2::new(0.0, by + h), 0.0),
+    ])
+}
+
+/// A horn's needle tip: the horn of radius 1 (its centre `(1, 0)`, its
+/// cusp at the origin) reached at its cusp from one side, its arc
+/// `sweep` radians of the circle from the cusp, closed by a line to the
+/// axis and down it. At `sweep = π/2` the arc meets the disc tangent.
+pub fn needle_tip(sweep: f64) -> ProfileLoop<f64> {
+    let (s, c) = sweep.sin_cos();
+    bulge_loop(vec![
+        (Point2::new(0.0, 0.0), -(sweep / 4.0).tan()),
+        (Point2::new(1.0 - c, s), 0.0),
+        (Point2::new(0.0, s), 0.0),
+    ])
+}
+
 /// A needle cone: profile `(0, 0), (tan α, 0), (0, 1)` revolved about
 /// `y`, whole or over `window` radians, apex `(0, 1, 0)`, finished.
 pub fn needle(deg: f64, window: Option<f64>, tol: Tol) -> topo::AtRestBody<f64> {

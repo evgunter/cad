@@ -1,7 +1,7 @@
 ---
 id: the-point-door-places-no-point-on-a-spindle-sheet-face
 kind: issue
-title: The curved point door answers Trim(None) for every point on a spindle sheet face, so no station lands on one and a crossing through a sheet is never confirmed
+title: The curved point door places no point inside a spindle sheet face, so a crossing through a sheet is confirmed only where its stations land on the face's boundary
 status: open
 opened: 2026-11-25
 priority: P1
@@ -13,30 +13,38 @@ refs: [a-spindle-sheet-or-an-approximated-face-has-no-window-in-the-injectivity-
 ## Finding
 
 Found by lane `embedwalk-spindle` (2026-11-25), giving a spindle sheet
-its window in the injectivity engine.
+its window in the injectivity engine; narrowed by that PR's review.
 
 `topo::contain`'s `curved_interior_placement` reads a cylinder, cone,
-sphere and torus face through its carrier's closed form, and answers
-`Ok(CurvedPlacement::Trim(None))` for `geom::Surface::Spindle` (the arm
-it shares with the plane, which `face_placement` reads before it). So
-`topo::cell_region::station_region` places no station on a sheet face,
-and the verdict door's verifier (`topo::clearance::embedded`, its
-`on_face_stations`) has no pair of stations on a candidate holding one:
-a crossing through a sheet is never confirmed. The walk keeps splitting
-the pair and refuses on its budget, never `Embedded`.
+sphere and torus face through its carrier's closed form. For
+`geom::Surface::Spindle` it answers `Ok(CurvedPlacement::Trim(None))`
+(the arm it shares with the plane, which `face_placement` reads before
+it). The boundary pre-pass (`curved_boundary_containment`) comes first
+and does place a point on a sheet face's boundary. So
+`topo::cell_region::station_region` places a sheet station on its
+meridians and rims, and nowhere inside the face.
 
-Reproducer: `sweep::all self_intersection_proves_injectivity::footballs_through_one_another_never_read_embedded`
-(two footballs grafted through one another, their sheets crossing on a
-circle): `Refused(Budget { stop: Pairs { max_cell_pairs: 1024 }, .. })`
-where two stepped rings through one another read
-`Embedding::Crosses` (`two_stepped_rings_through_one_another_cross`).
-Its assertion is `!Embedded` for that reason; once a sheet station is
-placed, the row can ask for `Crosses`.
+The verdict door's verifier (`topo::clearance::embedded`, its
+`on_face_stations`) therefore confirms a crossing through a sheet only
+where a pair of boundary stations lands on it. Two lemons through one
+another moved 1.2 read `Crosses { faces: (1v1, 3v1), stations:
+[(-5e-324, 0.6435), (-5e-324, -0.6435)], .. }`, both stations on the
+seam meridian `u = 0`. Two lemons moved 0.3, and two apples moved 1.2,
+refuse on the walk's budget instead, never `Embedded`. Pinned:
+`sweep::all self_intersection_proves_injectivity::footballs_through_one_another_never_read_embedded`.
+Once an interior sheet station is placed, that row can ask `Crosses` of
+every case.
+
+The station's `u = −5e-324` is `0.0f64.next_down()`, the low end of the
+whole turn every periodic window takes (`injective::full_turn`, one ulp
+past `0` so its rounding never makes a band too narrow). A station at a
+window's corner is that value, the same chart point as `u = 0`. Intended,
+not a defect.
 
 What is needed: the sheet's arm in `curved_interior_placement`. The
 sheet's chart is the torus's formula with `R` signed
 (`geom::Surface::Spindle`), and its inverse is in
 `geom::chart_point` (`ChartArm::Spindle`), so `torus_face_containment`
-with a signed major radius may serve; its region legs decide the ring
+with a signed major radius may serve. Its region legs decide the ring
 convention (`geom::require_ring_torus`, `torus_face_region`) and refuse
 a sheet today, so that is where to look first.

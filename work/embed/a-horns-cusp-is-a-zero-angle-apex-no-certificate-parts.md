@@ -19,14 +19,20 @@ A spindle sheet's apex is a conical point of half-angle
 `atan(√(r² − R²)/|R|)` (`geom::Surface::Spindle`'s docs), zero on the
 horn (`R = r`), whose two apexes are its one cusp. Two sheet faces
 meeting there (the needle tip's two π-bands) meet tangent to the axis,
-so no first-order separator parts a cell pair at the cusp at any depth:
-read as a collapsed side, the pair spent the whole budget
-(`Budget { stop: Pairs { max_cell_pairs: 65536 } }`, 60 s an ask at the
-test profile). `topo::injective`'s `singular_ends` therefore reads a
-vertex at both of a sheet's apexes (the cusp, or two apexes within the
-band of each other) as no one end of the face's `v`, and the cell
-holding it refuses `Structural`: `Uncertified { arm: Departure }` at the
-shared meridian, in a few cells.
+so no first-order separator parts a cell pair at the cusp at any depth.
+At an earlier stage of PR 7769, a reading that took the cusp as the
+one end the face's stored extent reaches, and read it as a collapsed
+side, spent the whole budget (`Budget { stop: Pairs { max_cell_pairs:
+65536 } }`, 60 s an ask).
+
+At its head the needle's pair refuses at the root, with no split:
+`Uncertified { a: 3v1, b: 4v1, shared: Edge(2v1), arm: Departure }`,
+the two π-bands' shared meridian. It refuses the same whether
+`topo::injective`'s `singular_ends` reads a vertex at both of a sheet's
+apexes as no one end of the face's `v` (as at head) or as both ends,
+so no cell beside the cusp is ever asked. That site is recorded as
+reached by no built body
+(`work/embedwalk/three-refusal-sites-of-the-embedding-ask-are-reached-by-no-built-body.md`).
 
 Asks it refuses at the gate (2026-11-25): the needle tip
 (`sweep::all the_football_revolves::a_horn_reached_at_its_cusp_from_one_side_is_a_needle_tip`,

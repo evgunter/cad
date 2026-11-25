@@ -75,11 +75,12 @@ ring-torus `Budget`) are unchanged. The residue, each filed:
 - `Budget(Pairs)` on two π-bands sharing meridians to rim corners, 26
   asks, ~3.5 s each, and the ring torus refuses the same:
   `two-bands-of-a-revolved-arc-sharing-their-meridians-spend-the-pair-budget`.
-- A horn's cusp, refused structurally by design, 8 asks, and its
+- Horn bodies refused departure at a shared edge, 8 asks, and a horn's
   part-way caps at wedge 0, 4: `a-horns-cusp-is-a-zero-angle-apex-no-certificate-parts` (EMBED).
 - A part-way football's cap against its sheet, 2 departure and 2 depth:
   `a-part-way-revolved-sheets-cap-refuses-at-the-meridian-through-its-apexes` (EMBED).
-- No station lands on a sheet face, so a crossing through one is never
-  confirmed: `the-point-door-places-no-point-on-a-spindle-sheet-face` (INSIDE).
+- No station lands inside a sheet face, only on its boundary, so a
+  crossing through one is confirmed only where boundary stations meet it:
+  `the-point-door-places-no-point-on-a-spindle-sheet-face` (INSIDE).
 - A full-revolve football does not finish at `Interval`:
   `a-full-revolve-football-does-not-finish-at-interval` (SPIRICARM).

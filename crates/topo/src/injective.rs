@@ -610,9 +610,14 @@ pub(crate) enum Outcome {
 /// apexes `ρ = R + r·cos v > 0`, so a point's azimuth is its `u`; in the
 /// meridian half-plane `v ↦ (R + r·cos v, r·sin v)` runs a circle of
 /// radius `r` over `[−v*, v*]`, at most one turn, one-to-one but at the
-/// ends of a whole turn, the horn's one cusp. Both ends are apexes, the
-/// chart's collapsed sides, which the engine reads as vertices, never as
-/// a cover.
+/// ends of a whole turn, the horn's one cusp, where `u` collapses too.
+/// Two further premises, neither read here:
+/// - `spindle_sheet`'s horn end accepts `R − r` in the band of zero, so
+///   `R` a hair over `r` is discharged as a sheet; the surface it stands
+///   for is then a ring torus, injective as well.
+/// - The horn's self-pair is discharged without reading its cusp, which
+///   two points of the face meet at only where the face reaches the cusp
+///   from both sides; the revolve refuses that face (it pinches).
 ///
 /// # Errors
 ///
@@ -1881,6 +1886,9 @@ fn singular_ends(
             let v = geom::sheet_apex(major_radius, minor_radius).v;
             let [(_, up), (_, down)] = sheet_apexes(line, major_radius, minor_radius);
             let (high, low) = (held(up), held(down));
+            // No built body asks a cell holding such a vertex: the revolve
+            // refuses a face reaching the cusp from both sides, and a
+            // needle's two π-bands refuse at their shared meridian first.
             if high && low {
                 return None;
             }
@@ -8738,6 +8746,54 @@ mod by_kind_rows {
                 ),
                 "R = {major} is no sheet of r = 1"
             );
+        }
+    }
+}
+
+/// **A spindle sheet's coordinate circles are its chart's own**: on the
+/// lemon (`R < 0`, its meridian circle's centre across the axis) and the
+/// apple, [`iso_circle`]'s trace at `t` holds the chart's point, along a
+/// meridian (`u` held) and along a parallel (`v` held). Red if the
+/// meridian's centre is read on the wrong side of the axis, or the
+/// parallel's radius unsigned.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod iso_circle_rows {
+    use super::{Axis, at, iso_circle};
+    use geom::Surface;
+    use geom_core::interval::Interval;
+    use geom_core::{Bounds as _, Point3, Real as _, Vec3};
+
+    #[test]
+    fn a_sheets_meridians_and_parallels_trace_its_chart() {
+        let p = |x: f64| Interval::from_bounds(x, x);
+        for major in [-0.5, 0.4] {
+            let sheet = Surface::Spindle {
+                frame: geom::Frame::new(
+                    Point3::new(p(0.3), p(-0.2), p(0.1)),
+                    Vec3::new(p(0.0), p(0.0), p(1.0)),
+                    Vec3::new(p(1.0), p(0.0), p(0.0)),
+                ),
+                major_radius: p(major),
+                minor_radius: p(1.0),
+            };
+            let v_star = (-major).acos();
+            for (u, v) in [(0.7, 0.9 * v_star), (2.5, -0.4 * v_star), (4.0, 0.1)] {
+                for (held, b, t) in [(Axis::U, u, v), (Axis::V, v, u)] {
+                    let c = iso_circle(&sheet, held, b).expect("a sheet's line is a circle");
+                    let (sin, cos) = at(t).sin_cos();
+                    let traced = c.c + c.a * cos + c.b * sin;
+                    let chart = sheet.eval(at(u), at(v));
+                    let meets = |x: Interval, y: Interval| x.lo() <= y.hi() && y.lo() <= x.hi();
+                    assert!(
+                        meets(traced.x, chart.x)
+                            && meets(traced.y, chart.y)
+                            && meets(traced.z, chart.z),
+                        "R = {major}, {held:?} held at {b}, t = {t}: the circle's {traced:?} \
+                         is not the chart's {chart:?}"
+                    );
+                }
+            }
         }
     }
 }
