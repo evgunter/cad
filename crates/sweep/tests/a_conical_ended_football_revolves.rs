@@ -639,7 +639,7 @@ fn a_torus_band_copy_crossing_beside_its_rim_reads_its_crossing_there() {
         .map(|(k, _)| k)
         .filter(|&k| matches!(body.face_surface(k), Ok(geom::Surface::Torus { .. })))
         .collect();
-    assert_eq!(faces.len(), 4, "two torus bands on each body");
+    assert_eq!(faces.len(), 2, "one torus band on each body");
     let side = topo::clearance::Side { body: &body, faces };
     let budgets = topo::clearance::Budgets {
         max_cell_depth: topo::clearance::DEFAULT_MAX_CELL_DEPTH,

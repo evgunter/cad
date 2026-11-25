@@ -636,6 +636,13 @@ fn a_corrupt_body_does_not_finish_and_the_raw_door_panics_only_where_it_did() {
             Err(_) => panicked.push(format!("{id:?}")),
         }
     }
+    // The start vertex of the half-edge `25v1`: the shell's reference
+    // point reads it before any seam, as it reads the half-edge.
+    let corner = b
+        .half_edges()
+        .find(|(k, _)| format!("{k:?}") == "HalfEdgeKey(25v1)")
+        .map(|(_, h)| format!("{:?}", EntityId::Vertex(h.start)))
+        .expect("the half-edge 25v1");
     let before_any_seam = [
         "Face(FaceKey(1v3))",
         "Face(FaceKey(2v1))",
@@ -643,9 +650,7 @@ fn a_corrupt_body_does_not_finish_and_the_raw_door_panics_only_where_it_did() {
         "Face(FaceKey(6v5))",
         "Loop(LoopKey(2v1))",
         "HalfEdge(HalfEdgeKey(25v1))",
-        // The start vertex of that same half-edge: the shell's reference
-        // point reads it before any seam, as it reads the half-edge.
-        "Vertex(VertexKey(8v1))",
+        corner.as_str(),
     ];
     let new: Vec<_> = panicked
         .iter()

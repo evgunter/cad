@@ -1888,7 +1888,8 @@ fn singular_ends(
             let (high, low) = (held(up), held(down));
             // No built body asks a cell holding such a vertex: the revolve
             // refuses a face reaching the cusp from both sides, and a
-            // needle's two π-bands refuse at their shared meridian first.
+            // needle's one band reaches it from one side, its self-pair
+            // discharged by kind.
             if high && low {
                 return None;
             }

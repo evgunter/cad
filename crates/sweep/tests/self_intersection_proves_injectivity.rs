@@ -888,41 +888,43 @@ fn sheet_faces<T: Real>(body: &Body<T>) -> usize {
 }
 
 /// **Bodies on a spindle sheet hold at both scalars, each sheet face
-/// against itself by kind**: the lemon and the apple, each two sheet
-/// faces from apex to apex, read at each apex as their chart's collapsed
-/// side. A horn's needle, whose two sheet faces meet at its cusp
-/// tangent to the axis, is refused at their shared meridian. Red if a
-/// sheet face has no window, if its self-pair is not discharged by kind,
-/// if a cell at an apex is read as anything but the collapsed side, or
-/// if the needle reads embedded.
+/// against itself by kind**: the lemon and the apple, each one sheet
+/// face from apex to apex, read at each apex as their chart's collapsed
+/// side; and a horn's needle, its one sheet face reaching the horn's
+/// cusp from one side only, so that no two of its points meet but at
+/// the cusp, the chart's collapsed side (`topo::injective`'s premise
+/// for discharging a horn's self-pair by kind). Red if a sheet face has
+/// no window, if its self-pair is not discharged by kind, if a cell at
+/// an apex is read as anything but the collapsed side, or if any of the
+/// three does not hold.
 #[test]
 fn bodies_on_a_spindle_sheet_hold_by_kind_at_both_scalars() {
-    for (scalar, verdict) in [
-        ("f64", injective(&needle::<f64>(), None, BUDGET).verdict),
-        (
-            "Interval",
-            injective(&needle::<Interval>(), None, BUDGET).verdict,
-        ),
-    ] {
-        assert!(
-            matches!(
-                verdict,
-                BoundVerdict::Refused(EngineRefusal::Uncertified { .. })
-            ),
-            "the needle's cusp is refused at {scalar}: {verdict:?}"
-        );
-    }
     for (what, float, interval) in [
         ("the lemon", football(-0.5, 0.0), football(-0.5, 0.0)),
         ("the apple", football(0.4, 0.0), football(0.4, 0.0)),
+        ("the needle", needle::<f64>(), needle::<Interval>()),
     ] {
+        let (float, interval): (Body<f64>, Body<Interval>) = (float, interval);
         let sheets = sheet_faces(&float);
         assert!(sheets >= 1, "{what} is built on a spindle sheet");
-        for report in holds_at_both(what, float.clone(), interval) {
+        // The lemon and the apple are one face each, with no touching
+        // pair for [`holds_at_both`] to read: each scalar holds and
+        // reads the class the other does.
+        let (report, twin) = (
+            injective(&float, None, BUDGET),
+            injective(&interval, None, BUDGET),
+        );
+        same_class(what, &report, &twin);
+        for (scalar, report) in [("f64", report), ("Interval", twin)] {
+            assert!(
+                matches!(report.verdict, BoundVerdict::Holds),
+                "{what} is embedded at {scalar}: {:?}",
+                report.receipt
+            );
             assert!(
                 report.receipt.by_kind >= sheets,
-                "{what}: each of its {sheets} sheet faces against itself discharged by \
-                 kind: {:?}",
+                "{what} at {scalar}: each of its {sheets} sheet faces against itself \
+                 discharged by kind: {:?}",
                 report.receipt
             );
         }
@@ -930,12 +932,11 @@ fn bodies_on_a_spindle_sheet_hold_by_kind_at_both_scalars() {
 }
 
 /// **The point door places a sheet face's interior**, at both scalars:
-/// on the lemon and the apple, whose two sheet faces are each half a turn
-/// from apex to apex on one carrier, a station short of the seams and of
-/// the apexes is `In` on one face and `Out` on the other, and the face
-/// that holds it is the one whose half-turn holds its azimuth. Red if a
-/// sheet's interior is unplaced, placed on both faces or on neither, or
-/// split across a half-turn.
+/// on the lemon and the apple, each one sheet face from apex to apex
+/// (a full revolve's one band), a station short of its wrap edge and of
+/// the apexes is `In` on that face, at every azimuth round the turn.
+/// Red if a sheet's interior is unplaced or placed `Out` anywhere round
+/// the turn.
 #[test]
 fn the_point_door_places_a_sheet_faces_interior_at_both_scalars() {
     fn placed<T: Scalar>(what: &str, big: f64) {
@@ -945,38 +946,19 @@ fn the_point_door_places_a_sheet_faces_interior_at_both_scalars() {
             .map(|(k, _)| k)
             .filter(|&k| matches!(surface(&body, k), Surface::Spindle { .. }))
             .collect();
-        let [a, b] = sheets[..] else {
-            panic!("{what}: two sheet faces, not {}", sheets.len());
+        let [sheet] = sheets[..] else {
+            panic!("{what}: one sheet face, not {}", sheets.len());
         };
-        let point = |k, uv: (f64, f64)| surface(&body, k).eval_at(uv.0, uv.1);
-        let one = |p: Point3<T>, q: Point3<T>| (p - q).norm().hi() < 1e-12;
         let apex = geom::sheet_apex(big, 1.0).v;
-        let mut holder = [None, None];
         for u in [0.4, 1.5, 2.7, 3.6, 4.7, 5.9] {
             for v in [-0.95, -0.5, 0.0, 0.5, 0.95].map(|f| f * apex) {
+                let got = topo::cell_region::station_region(&body, sheet, (u, v), band());
                 assert!(
-                    one(point(a, (u, v)), point(b, (u, v))),
-                    "{what}: both sheet faces chart ({u}, {v}) as one point"
-                );
-                let at = |k| topo::cell_region::station_region(&body, k, (u, v), band());
-                let got = (at(a), at(b));
-                let holds = match got {
-                    (Some(topo::FaceContainment::In), Some(topo::FaceContainment::Out)) => a,
-                    (Some(topo::FaceContainment::Out), Some(topo::FaceContainment::In)) => b,
-                    _ => panic!("{what}: ({u}, {v}) is in exactly one sheet face: {got:?}"),
-                };
-                let half = &mut holder[usize::from(u > core::f64::consts::PI)];
-                assert_eq!(
-                    *half.get_or_insert(holds),
-                    holds,
-                    "{what}: ({u}, {v}) is in the face holding its half-turn"
+                    matches!(got, Some(topo::FaceContainment::In)),
+                    "{what}: ({u}, {v}) is in the sheet face: {got:?}"
                 );
             }
         }
-        assert_ne!(
-            holder[0], holder[1],
-            "{what}: each half-turn is its own face"
-        );
     }
     for (what, big) in [("the lemon", -0.5), ("the apple", 0.4)] {
         placed::<f64>(&format!("{what} at f64"), big);

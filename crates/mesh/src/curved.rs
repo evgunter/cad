@@ -2465,7 +2465,9 @@ mod tests {
     /// The #653 row's totals, measured. They are asserted so that a
     /// change in the fixture list is VISIBLE rather than silent — the
     /// row's actual guarantee is its per-fixture floor, not these.
-    const TOTAL_MESHED: usize = 244;
+    /// A full revolve's curved wall is one face, so the revolved
+    /// fixtures mesh fewer faces than they did as two half-bands.
+    const TOTAL_MESHED: usize = 238;
     /// Typed refusals in the same sweep: none. A split ruling sends its
     /// face to the trimmed lane (`walk::splits_a_straight_side`), which
     /// meshes the mirror nappe's split walls. The donut contributes none

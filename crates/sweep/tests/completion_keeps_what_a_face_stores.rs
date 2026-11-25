@@ -190,6 +190,14 @@ fn a_row_on_the_wrong_half_edge_is_refused_not_laundered() {
                     continue;
                 }
                 let (a, b) = (cycle[0], cycle[1]);
+                // A wrap edge's two half-edges carry its two sides, a
+                // period apart on the face's own chart: swapping them
+                // moves each image by the period, the lift unchanged, so
+                // it is no wrong row.
+                let edge = |h| reference.get_half_edge(h).unwrap().edge;
+                if edge(a) == edge(b) {
+                    continue;
+                }
                 let (Some(ra), Some(rb)) =
                     (reference.pcurve(a).cloned(), reference.pcurve(b).cloned())
                 else {
@@ -305,21 +313,25 @@ fn rows_over_a_moved_support_finish_where_their_images_are_current_and_refuse_wh
             (Point2::new(0.0, h), 0.0),
         ])
     };
-    // (name, body, other, whether the transplanted rows are stale)
+    // (name, body, other, whether the transplanted rows are stale,
+    // whether any row differs to plant). A full revolve's cylinder wall
+    // is one band whose rows are chart images of its rims and its wrap
+    // edge, none reading the radius, so r = 1.2's rows are r = 1's.
     let pairs = vec![
-        ("cylinder r", cyl(1.0), cyl(1.2), false),
-        ("torus R", torus(2.0), torus(2.1), false),
-        ("cone h", cone(1.5), cone(1.7), true),
+        ("cylinder r", cyl(1.0), cyl(1.2), false, false),
+        ("torus R", torus(2.0), torus(2.1), false, true),
+        ("cone h", cone(1.5), cone(1.7), true, true),
         (
             "spline twist",
             crate::common::approx::twisted_loft(0.3),
             crate::common::approx::twisted_loft(0.35),
             false,
+            true,
         ),
     ];
     let mut laundered = Vec::new();
     let mut wrongly_refused = Vec::new();
-    for (name, body, other, stale) in pairs {
+    for (name, body, other, stale, differs) in pairs {
         for gap in [false, true] {
             let mut moved = body.clone();
             let mut planted = 0;
@@ -356,7 +368,11 @@ fn rows_over_a_moved_support_finish_where_their_images_are_current_and_refuse_wh
                     Err(findings) => format!("{} findings", findings.len()),
                 }
             );
-            assert!(planted > 0, "{name}: nothing transplanted");
+            assert_eq!(
+                planted > 0,
+                differs,
+                "{name}: rows transplanted where they differ, none where they do not"
+            );
             if stale && r.is_ok() {
                 laundered.push(format!("{name} gap={gap}"));
             }

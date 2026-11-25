@@ -229,14 +229,17 @@ fn no_non_iso_form(body: &Body<f64>, fk: topo::FaceKey) -> bool {
 /// each sphere face's section as a projected image, which is no iso
 /// line, so the route sends the face to the trimmed lane without asking
 /// the door. Each cell meshes, passes `check_mesh`, and digests to the
-/// bytes pinned here.
+/// bytes pinned here. The four `x0 = 0.3` cells' bytes are read with
+/// the body's vertices as the boolean rounds them on unit carrier
+/// directions (a few ulps from the rounding before them, the mesh's
+/// counts the same).
 #[test]
 fn a_section_tilted_within_the_band_meshes_to_its_pinned_bytes() {
     const PINNED: [(f64, f64, u64); 8] = [
-        (0.3, 2e-9, 0xe74d_fd3b_9aee_4a4f),
-        (0.3, 3e-9, 0x6498_bc96_c17a_ae04),
-        (0.3, 5e-9, 0xd96b_84f3_db37_6b98),
-        (0.3, 8e-9, 0xb8d5_04c7_722c_3c91),
+        (0.3, 2e-9, 0xfe73_0cfb_6f43_27ad),
+        (0.3, 3e-9, 0x5e6b_f545_8933_1d7c),
+        (0.3, 5e-9, 0x3291_1c0a_47a1_aeaa),
+        (0.3, 8e-9, 0x018d_08e3_72f2_6f85),
         (0.6, 2e-9, 0x992a_1dd8_5fac_89cc),
         (0.6, 3e-9, 0x0a0f_3a92_b511_90c8),
         (0.6, 5e-9, 0xe13e_b4ca_24a6_f2f2),
@@ -300,7 +303,11 @@ fn a_section_tilted_within_the_band_meshes_to_its_pinned_bytes() {
 /// curved wall one face reaching the axis by its wrap edge, where they
 /// were two half-bands: fewer faces and edges, so their K streams and
 /// bytes are re-pinned on that branch (PR 7414); every other row is
-/// main's unchanged.
+/// main's unchanged. The ball less a slab at 0.3 turned 2e-9 holds
+/// its four vertices a few ulps from where that branch held them
+/// before main's merge (unit carrier directions), with the same
+/// topology and the same 185 positions and 62 + 304 triangles, so its
+/// bytes are that branch's measured on the merge.
 #[test]
 fn a_body_that_meshes_records_mains_k_stream() {
     const MAIN: [(&str, u64, u64, u64); 9] = [
@@ -350,7 +357,7 @@ fn a_body_that_meshes_records_mains_k_stream() {
             "ball less a slab at 0.3 turned 2e-9",
             0x1587_ba3b_91f0_f3a5,
             0xcbf2_9ce4_8422_2325,
-            0xe74d_fd3b_9aee_4a4f,
+            0xfe73_0cfb_6f43_27ad,
         ),
         (
             "ball less a slab at 0.6 turned 8e-9",
