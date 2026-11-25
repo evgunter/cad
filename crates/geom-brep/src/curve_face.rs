@@ -607,7 +607,7 @@ pub fn cross<T: Decide>(
     cross::cross(span, surface, band)
 }
 
-/// **How a spline span stands at one of its ends**, as [`composite::crossings`](composite::crossings)
+/// **How a spline span stands at one of its ends**, as [`composite::crossings`]
 /// reads it there, on the one margin it reads every piece end on.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum EndReading {
@@ -626,7 +626,7 @@ pub enum EndReading {
     },
 }
 
-/// What [`composite::crossings`](composite::crossings) reads of a span: its crossings strictly inside the
+/// What [`composite::crossings`] reads of a span: its crossings strictly inside the
 /// span, and how it stands at each end (start, stop).
 #[derive(Clone, Debug)]
 pub struct SpanCrossings<T: geom_core::Real> {
