@@ -114,6 +114,9 @@ pub(super) enum Formed<T: Real> {
     /// A spline span against an analytic face: the method reads the ring
     /// composite on its pieces ([`super::composite`]).
     SplineComposite,
+    /// A line against a spline chart: the method reads its cells
+    /// ([`super::line_patch`]).
+    LinePatch,
     /// A conic on the first-harmonic lane, crossing: its extremes read
     /// definitely on either side.
     FirstHarmonic(super::circle_roots::FirstHarmonic<T>),
@@ -315,6 +318,11 @@ pub fn pose<T: Decide>(
             // A spline span is read by its method alone: no pose is
             // decided ahead of the composite's pieces.
             Door::SplineComposite => Ok(Pose::Isolated(Form(Formed::SplineComposite))),
+            // A line against a spline chart is read by its method alone
+            // (`super::line_patch`): no pose is decided ahead of its cells.
+            Door::SplineFace if matches!(carrier, geom::Curve3::Line(_)) => {
+                Ok(Pose::Isolated(Form(Formed::LinePatch)))
+            }
             Door::SplineFace => Err(PoseRefusal::Enclosed.into()),
             Door::Spiric | Door::Sheet => Err(PoseRefusal::Unbuilt(way).into()),
         }
