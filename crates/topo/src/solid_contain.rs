@@ -286,6 +286,14 @@ pub enum PointInSolidError {
     /// kernel builds for itself is not read as given, and answers `In`
     /// there.
     InsideOut,
+    /// A curved face's region reading ([`crate::region`]) left the point
+    /// unplaced: no path of its walk settled against the face's whole
+    /// boundary ([`crate::ray_walk::NoRaySettled`]), or a boundary arc's
+    /// own reading did not place it (`region::circle_edge_hit`).
+    RegionRayExhausted {
+        /// The face whose region was walked.
+        face: FaceKey,
+    },
     /// An in-plane loop test failed (nested typed error).
     Loop(PointInLoopError),
     /// A face is not walkable, or an entity it names is lost — an
@@ -522,13 +530,14 @@ impl PointInSolidError {
     }
 
     /// An in-band reading (`Escalated`, `Loop(Escalated)`), or a
-    /// schedule no ray of which settled (`RayExhausted`,
-    /// `Loop(RayExhausted)`).
+    /// schedule no ray or path of which settled (`RayExhausted`,
+    /// `RegionRayExhausted`, `Loop(RayExhausted)`).
     pub(crate) fn in_band(&self) -> bool {
         matches!(
             self,
             Self::Escalated { .. }
                 | Self::RayExhausted
+                | Self::RegionRayExhausted { .. }
                 | Self::Loop(
                     PointInLoopError::Escalated { .. } | PointInLoopError::RayExhausted { .. }
                 )
@@ -569,6 +578,10 @@ impl PointInSolidError {
             }
             Self::InsideOut => {
                 "the instance is inside-out: its material holds the side at infinity"
+            }
+            Self::RegionRayExhausted { .. } => {
+                "no path of a curved face's region walk at the instance's boundary \
+                 settled: each grazed it or could not be read — undecided"
             }
             Self::Loop(_) => "the in-plane region walk at the instance's boundary refused",
             Self::CorruptFace { .. } => {
@@ -645,11 +658,23 @@ impl PointInSolidError {
                 "cannot tell what is inside the solid: {}",
                 ray_walk::NoRaySettled
             ),
-            Self::Loop(e) => write!(
+            Self::RegionRayExhausted { .. } => write!(
                 f,
-                "cannot tell what is inside the solid: {}",
-                geom_brep::recourse::read_at(e, at)
+                concat!(
+                    "cannot tell what is inside the solid: ",
+                    geom_core::undecided!(
+                        "whether the point lies in one of its curved faces",
+                        payload
+                    )
+                ),
+                ray_walk::NoRaySettled
             ),
+            // This sentence reaches a user verbatim (`BooleanError::Containment`),
+            // so the walk's refusal is read in words, not by its loop's key.
+            Self::Loop(e) => {
+                write!(f, "cannot tell what is inside the solid: ")?;
+                e.write_unnamed(f, at, "one of its faces")
+            }
             Self::ZeroVolumeBody => write!(
                 f,
                 "cannot tell what is inside the solid: it encloses no measurable volume"
@@ -2372,7 +2397,7 @@ fn region_hit(
 ) -> Result<Option<bool>, RayFault<PointInSolidError>> {
     match reading {
         Ok(side) => Ok(side),
-        Err(RegionRefusal::RayExhausted { .. }) => Ok(None),
+        Err(RegionRefusal::RayExhausted) => Ok(None),
         Err(e @ RegionRefusal::Escalated(_)) => Err(RayFault::InBand(e.of_face(face))),
         Err(e @ RegionRefusal::WoundPastPeriod) => Err(RayFault::Fatal(e.of_face(face))),
         Err(e @ RegionRefusal::Unreadable(_)) => Err(RayFault::Blocked(e.of_face(face))),
@@ -3836,7 +3861,7 @@ fn root_held<T: Decide>(
     };
     match reading {
         Ok(side) => Ok(side),
-        Err(RegionRefusal::RayExhausted { .. }) => Ok(None),
+        Err(RegionRefusal::RayExhausted) => Ok(None),
         Err(e @ RegionRefusal::Escalated(_)) => Err(RayFault::InBand(e.of_face(face))),
         Err(e @ RegionRefusal::WoundPastPeriod) => Err(RayFault::Fatal(e.of_face(face))),
         // An edge whose reading ran out at this hit: a limit of the

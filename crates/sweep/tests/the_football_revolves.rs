@@ -25,16 +25,10 @@ fn y_axis() -> RevolveAxis<f64> {
     }
 }
 
-/// The football of the sheet `(R, r)` about the sketch `y` axis: the
-/// arc from the lower apex to the upper through the circle's widest
-/// point, closed down the axis.
+/// The football of the sheet `(R, r)` about the sketch `y` axis
+/// ([`crate::revolve_common::football`]).
 fn football(big: f64, r: f64) -> profile::ProfileLoop<f64> {
-    let h = ((r - big) * (r + big)).sqrt();
-    let v_star = (-big / r).acos();
-    bulge_loop(vec![
-        (Point2::new(0.0, -h), (v_star / 2.0).tan()),
-        (Point2::new(0.0, h), 0.0),
-    ])
+    crate::revolve_common::football(big, r, 0.0)
 }
 
 /// The football's volume and area by Pappus. The axis cuts the circle
@@ -173,11 +167,7 @@ fn the_football_and_the_apple_revolve() {
 /// the area is the band's `2π(π/2 − 1)` and the disc's `π`.
 #[test]
 fn a_horn_reached_at_its_cusp_from_one_side_is_a_needle_tip() {
-    let needle = bulge_loop(vec![
-        (Point2::new(0.0, 0.0), -(PI / 8.0).tan()),
-        (Point2::new(1.0, 1.0), 0.0),
-        (Point2::new(0.0, 1.0), 0.0),
-    ]);
+    let needle = crate::revolve_common::needle_tip(PI / 2.0);
     holds(
         "the needle",
         needle,
@@ -544,11 +534,7 @@ fn a_football_cavity_revolves() {
 fn a_sheet_faces_boundary_encodes_its_side_where_a_rim_closes_it() {
     let tol = Tol::witness();
     let band = geom_core::Band::linear(tol).unwrap();
-    let needle = bulge_loop(vec![
-        (Point2::new(0.0, 0.0), -(PI / 8.0).tan()),
-        (Point2::new(1.0, 1.0), 0.0),
-        (Point2::new(0.0, 1.0), 0.0),
-    ]);
+    let needle = crate::revolve_common::needle_tip(PI / 2.0);
     let bullet = |big: f64| {
         let vs = apex_angle(big, 1.0);
         bulge_loop(vec![
@@ -775,11 +761,7 @@ fn a_horns_cusp_revolved_part_way_is_its_lune() {
         (
             "the needle",
             1,
-            bulge_loop(vec![
-                (Point2::new(0.0, 0.0), quarter),
-                (Point2::new(1.0, 1.0), 0.0),
-                (Point2::new(0.0, 1.0), 0.0),
-            ]),
+            crate::revolve_common::needle_tip(PI / 2.0),
             needle,
         ),
         (

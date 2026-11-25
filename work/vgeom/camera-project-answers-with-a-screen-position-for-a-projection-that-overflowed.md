@@ -2,10 +2,12 @@
 id: camera-project-answers-with-a-screen-position-for-a-projection-that-overflowed
 kind: issue
 title: Camera::project returns a screen position for a projection that overflowed
-status: open
+status: closed
 opened: 2026-09-21
 priority: P1
 cost: E
+closed: 2026-11-25
+pr: 7763
 ---
 
 
@@ -80,3 +82,7 @@ The second looks right and the reading that settles it is
 `crates/viewer/src/camera.rs`, and `crates/viewer/src/pickindex.rs`
 for the caller read. Both are chrome's by the territories table, and
 `camera.rs` is also fit's, vgeom's and view's.
+
+## Closed (2026-11-25)
+
+PR 7763: `Camera::project` asks the point, the clip `w` and the screen coordinate whether they are finite and refuses `NotFinite` by name (labels `clip w`, `screen coordinate`); a caller in `pickindex.rs` refuses the pick as `PickError::Projection { node, body, .. }`, naming whose point it was. The row's second example was not a defect (no overflow; the true screen position of that direction).

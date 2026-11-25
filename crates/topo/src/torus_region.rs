@@ -107,7 +107,7 @@ use geom_core::{Band, Decide, Margin, Point3, Vec3};
 use geom_brep::curve_pair::on_surface::{Charted, SurfaceCurve};
 
 use crate::body::Body;
-use crate::entity::{FaceKey, LoopKey};
+use crate::entity::FaceKey;
 use crate::region::{
     self, End, Fault, Legs, Paths, QueryFoot, Region, RegionEdge, RegionRefusal, Round,
     SplineCrossings, Splines, circle_edge_hit, pieced_edge_hit, spline_edge_hit,
@@ -145,8 +145,6 @@ pub(crate) struct TorusFaceRegion<T: geom_core::Real> {
     /// The face's sense bit: `false` points its outward normal into the
     /// tube.
     sense: bool,
-    /// The face's outer loop, named by an exhaustion.
-    outer: LoopKey,
     edges: Vec<Edge<T>>,
     /// A spline edge's crossings of a leg's plane at the region's scalar,
     /// where its builder reads spline edges ([`torus_face_region`]).
@@ -213,7 +211,6 @@ pub(crate) fn torus_face_region<T: Decide>(
     Ok(Some(TorusFaceRegion::on(
         Charted::record(f.record().surface, surface),
         f.sense(),
-        f.record().outer,
         edges,
         splines,
     )))
@@ -228,7 +225,6 @@ impl<T: Decide> TorusFaceRegion<T> {
     fn on(
         charted: Charted<T>,
         sense: bool,
-        outer: LoopKey,
         edges: Vec<Edge<T>>,
         splines: Option<SplineCrossings<T>>,
     ) -> Self {
@@ -246,7 +242,6 @@ impl<T: Decide> TorusFaceRegion<T> {
             major: major_radius,
             minor: minor_radius,
             sense,
-            outer,
             edges,
             splines,
         }
@@ -323,22 +318,13 @@ impl<T: Decide> Region<T> for TorusFaceRegion<T> {
         &mut self.edges
     }
 
-    fn outer(&self) -> LoopKey {
-        self.outer
-    }
-
     /// A circle on its own carrier, an oval or a spline by its contact
     /// ([`PiecedArc::contact`](crate::splitting::pieced_arc::PiecedArc::contact)).
     fn on_edge(&self, edge: &Edge<T>, p: Point3<T>, band: Band) -> Result<bool, RegionRefusal> {
         match edge.carrier {
-            geom::Curve3::Circle(..) => circle_edge_hit(
-                &edge.carrier,
-                edge.turn.as_ref(),
-                BOUNDARY,
-                p,
-                self.outer,
-                band,
-            ),
+            geom::Curve3::Circle(..) => {
+                circle_edge_hit(&edge.carrier, edge.turn.as_ref(), BOUNDARY, p, band)
+            }
             geom::Curve3::Spiric {
                 frame,
                 major_radius: major,
@@ -457,7 +443,7 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod tests {
     use super::*;
-    use crate::entity::EdgeKey;
+    use crate::entity::{EdgeKey, LoopKey};
     use core::f64::consts::{FRAC_PI_2, PI, TAU};
     use slotmap::KeyData;
 
@@ -499,7 +485,6 @@ mod tests {
         TorusFaceRegion::on(
             Charted::record(Default::default(), &torus),
             true,
-            LoopKey::default(),
             edges,
             None,
         )
@@ -1246,7 +1231,6 @@ mod tests {
                 TorusFaceRegion::on(
                     Charted::record(Default::default(), &torus),
                     true,
-                    LoopKey::default(),
                     vec![
                         parallel_arc(vs.0, us, true, 1),
                         meridian(us.1, true, 2),
@@ -1339,7 +1323,6 @@ mod tests {
         let splines = TorusFaceRegion::on(
             Charted::record(Default::default(), &torus),
             true,
-            LoopKey::default(),
             edges,
             Some(<f64 as crate::props::AtRestPolicy>::spline_face_crossings),
         );
