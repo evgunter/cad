@@ -97,6 +97,10 @@ limb. Both readers of the spline composite call it: the fitted door's
 check 4 (`fitted_lane`, so `certify_fitted`, `certify_general` and
 recertification at rest), and the edge certificate's limb 2
 (`nurbs_limbs`, so `plane_nurbs_incidence` and the other edges that owe no
-limb 3 are held too). An image that stays inside decides nothing. Row:
+limb 3 are held too). An image that stays inside decides nothing. A channel the net closes in
+(`spline_net_closes`) is not held: the mint states a seam-crossing side
+a period past the domain, which the composite reads on the extension;
+that residue is the P1
+`a-closed-spline-charts-image-across-its-seam-is-read-on-the-extension`. Row:
 `rest_rows::a_general_row_whose_image_leaves_the_knot_rectangle_is_not_certified`,
 red against no hold and against the control hull alone.

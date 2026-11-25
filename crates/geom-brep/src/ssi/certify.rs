@@ -1234,6 +1234,23 @@ pub(crate) fn chart_domain_limb<T: Decide + Bounds + CertifiedEnclosure>(
                    interval, so nothing holds it to its chart's knot rectangle",
         },
     )?;
+    // A channel the net closes in is a seam an image may cross: its
+    // window past the rectangle is a period over, which the composite
+    // reads on the boundary cell's extension and not on the chart a
+    // period back
+    // (`work/pcert/a-closed-spline-charts-image-across-its-seam-is-read-on-the-extension.md`),
+    // so only an open channel is held here. Asked only of an escape.
+    let open = |over: f64, axis| {
+        if over > 0.0 && crate::spline_net_closes(chart, axis, band) {
+            0.0
+        } else {
+            over
+        }
+    };
+    let (over_u, over_v) = (
+        open(over_u, crate::ChartAxis::U),
+        open(over_v, crate::ChartAxis::V),
+    );
     if over_u == 0.0 && over_v == 0.0 {
         return Ok(0.0);
     }
