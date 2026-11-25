@@ -34,7 +34,11 @@ slots 5 and 6 hold the neck's band and the shoulder's in opposite
 orders), so the `TangentIntersection` records of their trimlines and
 their surface keys sit at different keys too, which is the difference
 the PR 7414 review read. The volume sums the faces' flux terms in face
-slot order, so it sums the same terms in a different order.
+slot order, so it sums the same terms in a different order. The order
+reaches the mesh too: the PR's re-review (R2) measured 175 of the 494
+mesh positions of the two bodies differing, by at most `6.8e-16`, so the
+two compositions agree in what they store and differ at rounding in
+what is computed from them in slot order, the volume and the mesh.
 
 The row stays red on PR 7414 rather than being loosened: either the
 one-call plan and the sequence are made one computation again, or the
@@ -55,7 +59,9 @@ not", and the sibling row
 already pins cells equal and volume to the summation order. The two
 compositions are one construction; the order the faces' flux terms are
 summed in is incidental (`memories/output-stability-as-justification.md`),
-and the measurement above shows the order is the only difference.
+and the measurement above shows the stored records are the same; what
+is computed from them in slot order (the volume, the mesh positions)
+differs at rounding.
 On PR 7414 the three pins (`fillet_h5_hostless_rim::a_hostless_rim_composes_with_a_shared_wall_neighbour`,
 `blend_tworims::a_lantern_rim_pair_on_a_shared_wall_composes_in_one_call`,
 `blend_tworims::three_chained_shared_wall_rims_carve_in_one_call`) are
@@ -63,4 +69,4 @@ re-pinned to cells equal (where the row read cells) and volume within
 `4·ε` relative, with the reason in-file.
 
 - 2026-11-23 — closed by the LATHE one-band lane on PR 7414: re-pinned to what is promised.
-- 2026-11-25 — the differing datum measured: none; the two bands' face slots are swapped, so only the summation order differs.
+- 2026-11-25 — the differing datum measured: none stored; the two bands' face slots are swapped, so what is computed in slot order differs at rounding (the volume by one ulp, 175 of 494 mesh positions by at most 6.8e-16, R2).
