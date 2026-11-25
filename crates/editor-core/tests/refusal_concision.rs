@@ -85,7 +85,24 @@ fn the_cone_plane_union_refusal_names_the_conic_and_ends_on_its_recourse() {
         "a cone × plane section is not a coincidence refusal, and the wrapper must not \
          point the reader at that recourse: {msg}"
     );
-    assert!(!msg.contains("FaceKey("), "no arena key dump: {msg}");
+    assert!(arena_key_in(&msg).is_none(), "no arena key dump: {msg}");
+}
+
+/// The first arena key's `Debug` shape (`FaceKey(1v1)`, …) the text
+/// spells: a refusal the viewer shows names entities in words, never by
+/// key.
+fn arena_key_in(text: &str) -> Option<&'static str> {
+    [
+        "SolidKey(",
+        "ShellKey(",
+        "FaceKey(",
+        "LoopKey(",
+        "HalfEdgeKey(",
+        "EdgeKey(",
+        "VertexKey(",
+    ]
+    .into_iter()
+    .find(|key| text.contains(key))
 }
 
 /// **The word budget for a refusal the viewer shows: 75 words**, counted
@@ -117,8 +134,8 @@ fn every_rewritten_boolean_refusal_renders_within_the_budget() {
                 "{name} renders {words} words, over {BUDGET}: {text}"
             ));
         }
-        if text.contains("FaceKey(") {
-            problems.push(format!("{name} dumps an arena key: {text}"));
+        if let Some(key) = arena_key_in(&text) {
+            problems.push(format!("{name} dumps an arena key ({key}): {text}"));
         }
         if text.contains("boolean_reduce:") || text.contains("point_in_solid:") {
             problems.push(format!("{name} carries a kernel stage prefix: {text}"));
@@ -377,7 +394,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             BooleanError::PointInFaceRefused {
                 operand: Operand::B,
                 face,
-                refusal: topo::ContainError::RayExhausted,
+                refusal: topo::ContainError::RayExhausted(LoopKey::default()),
             },
         ),
         (
@@ -386,6 +403,34 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
                 operand: Operand::A,
                 face,
                 refusal: topo::ContainError::Curved(PointInSolidError::CorruptFace { face }),
+            },
+        ),
+        (
+            "PointInFaceRefused(Curved(RegionRayExhausted))",
+            BooleanError::PointInFaceRefused {
+                operand: Operand::A,
+                face,
+                refusal: topo::ContainError::Curved(PointInSolidError::RegionRayExhausted { face }),
+            },
+        ),
+        (
+            "PointInFaceRefused(Uncrossable)",
+            BooleanError::PointInFaceRefused {
+                operand: Operand::B,
+                face,
+                refusal: topo::ContainError::Uncrossable(topo::Uncrossable {
+                    r#loop: LoopKey::default(),
+                    edge: EdgeKey::default(),
+                    carrier: topo::UncrossableCarrier::Spline,
+                }),
+            },
+        ),
+        (
+            "PointInFaceRefused(ArcEndClearOfCorners)",
+            BooleanError::PointInFaceRefused {
+                operand: Operand::B,
+                face,
+                refusal: topo::test_support::arc_end_clear_of_corners(true),
             },
         ),
         (
@@ -798,6 +843,36 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             PointInSolidError::Escalated { face, diag },
         ),
         ("Containment(RayExhausted)", PointInSolidError::RayExhausted),
+        (
+            "Containment(RegionRayExhausted)",
+            PointInSolidError::RegionRayExhausted { face },
+        ),
+        (
+            "Containment(Loop(RayExhausted))",
+            PointInSolidError::Loop(topo::PointInLoopError::RayExhausted {
+                r#loop: LoopKey::default(),
+            }),
+        ),
+        (
+            "Containment(Loop(CorruptLoop))",
+            PointInSolidError::Loop(topo::PointInLoopError::CorruptLoop {
+                r#loop: LoopKey::default(),
+            }),
+        ),
+        (
+            "Containment(Loop(LoneLoop))",
+            PointInSolidError::Loop(topo::PointInLoopError::LoneLoop {
+                r#loop: LoopKey::default(),
+            }),
+        ),
+        (
+            "Containment(Loop(Uncrossable))",
+            PointInSolidError::Loop(topo::PointInLoopError::Uncrossable(topo::Uncrossable {
+                r#loop: Default::default(),
+                edge: Default::default(),
+                carrier: topo::UncrossableCarrier::Spline,
+            })),
+        ),
         (
             "Containment(ZeroVolumeBody)",
             PointInSolidError::ZeroVolumeBody,
