@@ -7755,7 +7755,7 @@ fn seg_content_tag(tag: SegTag) -> u8 {
         S::LoftSeam => 46,
         S::LoftSectionEdge => 55,
         S::LoftSectionVertex => 56,
-        S::SubArc => 60,
+        S::SubArc => 62,
         S::SubArcJoint => 61,
         S::Band => 7,
         S::BandRim => 8,
