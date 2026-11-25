@@ -61,3 +61,23 @@ back at its parted form when the gate drops:
   `a_keel_along_a_cylinder_floors_ruling_refuses_only_its_slit`,
   `A ∖ B`: two coincident keel edges at the closed form, the rod
   through the block and ending inside it.
+
+## 2026-11-25 — divisions build; rings and slits still refuse (HELDRECORDS, `heldrecords/parting-division`)
+
+The `CurvedFace` gate now refuses only partings that, all made, leave a
+slit or a zero-area ring in a curved face (the edge's two copies bound
+one face). A parting that divides the face builds. Of the rows above,
+on `heldrecords/split-on` at `80f11deb86` with that change:
+
+- built, at their closed forms with tier 3′ as each test reads it:
+  `a_pierce_held_in_a_curved_face.rs`, both rows (`parts_curved`
+  retired), and `edges_lying_in_a_face_part_wherever_they_lie.rs`
+  `a_keel_along_a_cylinder_floors_ruling_divides_its_face` (renamed),
+  the rod through the block and ending inside it, every op;
+- still `CurvedFace`, rings or slits as named above:
+  `a_ruling_through_a_box_corner_edge.rs` (both rows) and
+  `a_ruling_lying_on_a_wall.rs` (both rows).
+
+A wall tangent to a curved face now refuses `Tangent` rather than
+`CurvedFace`: it bounds a cusp, a case this row does not cover
+(`a_cylinder_through_a_hole_tangent_to_its_wall.rs`).
