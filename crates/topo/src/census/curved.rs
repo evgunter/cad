@@ -431,9 +431,12 @@ pub(super) type StoredEnd<T> = Option<(PointKey, Point3<T>)>;
 
 /// **`edge`'s two ends as the body stores them**, start then stop:
 /// [`StoredEnd`] of each end vertex, in `he_plus`-forward order, which is
-/// the order of its curve's parameters.
+/// the order of its curve's parameters. Neither for a span no body
+/// holds (a test's `EdgeSpan::of`).
 pub(super) fn stored_ends<T: Real>(body: &Body<T>, edge: EdgeKey) -> [StoredEnd<T>; 2] {
-    let (start, stop) = crate::query::edge_ends(body, edge);
+    let Some((start, stop)) = body.edge_vertices(edge) else {
+        return [None, None];
+    };
     [start, stop].map(|v| {
         let vertex = crate::live::proven(&body.vertices, v, EntityId::Vertex);
         Some((vertex.point, body.point_of(v, vertex)))
