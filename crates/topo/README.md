@@ -399,14 +399,15 @@ once the edge stands on its own face's side of the rim beyond the band,
 since the target face lies on the other side. The edge's departure from
 the rim is signed, its component along its face's inward conormal there,
 and the side margin (`junction_end_side`) is that departure's lead over
-the spread less the edge's and the rim's bends over it, the rim's read
-where it reaches the root's tangent coordinate, decided Positive (in band,
+the spread less the edge's bend over it and the rim's exact offset where
+it reaches the spread's tangent coordinate, decided Positive (in band,
 `BooleanDecision::JunctionEndSide`). The margin is read under two
 premises, each proven over the spread: the target's carrier is one graph
 over the junction's tangent plane there (`junction_end_reach`: the
 spread at most half its least radius of curvature, a cone's taken within
-the reach and short of its other nappe), and the rim turns by at most
-half a radian over it (`junction_end_chord`). A root nearer the end
+the reach and short of its other nappe), and the spread is short of the
+rim's radius (`junction_end_rim_reach`). The target face's other edges
+are assumed to stand off the spread, and no reading checks it. A root nearer the end
 than where that margin clears the band lies within the band of the
 target face's boundary, not necessarily at the vertex, and is the touch
 the vertex's own placement records. No window, a premise not proven or a
