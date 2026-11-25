@@ -993,10 +993,11 @@ fn a_sphere_face_bounded_by_a_spline_section_refuses_in_the_chord_pass() {
         let body = &built.body().unwrap_or_else(|| panic!("{op}: a body")).body;
         let spline_faces: Vec<(SurfaceKind, Vec<Option<&str>>)> = body
             .faces()
-            .filter_map(|(fk, face)| {
-                let images: Vec<_> = core::iter::once(face.outer)
-                    .chain(face.rings.iter().copied())
-                    .flat_map(|lk| loop_forms(body, lk))
+            .filter_map(|(fk, _)| {
+                let images: Vec<_> = body
+                    .face(fk)?
+                    .loops()
+                    .flat_map(|(lk, _, _)| loop_forms(body, lk))
                     .filter(|(carrier, _)| *carrier == CurveKind::Nurbs)
                     .map(|(_, image)| image)
                     .collect();

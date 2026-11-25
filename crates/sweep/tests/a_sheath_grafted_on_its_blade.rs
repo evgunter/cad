@@ -130,7 +130,10 @@ fn a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim() {
         // pcurve door the mint runs, so four of these are that second
         // derivation; handing the edge's certificate to the mint
         // (`work/pcert/a-stated-spline-image-is-certified-twice-by-the-edge-certificate-and-the-mint.md`)
-        // brings the count back to 62.
+        // brings the count back to 62. Since PR 7440 the output merge's
+        // curved role pass reads 34 more, the union's own count moving
+        // where this comment says it should not
+        // (`work/topo/the-merge-role-pass-reads-a-merged-faces-rims-on-row-checks-again.md`).
         assert_eq!(
             read.recorded()
                 .verdicts
@@ -138,7 +141,7 @@ fn a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim() {
                 .filter(|v| v.predicate == "pcurve_iso_boundary")
                 .filter(|v| v.sign == geom_core::Sign::Zero)
                 .count(),
-            66,
+            100,
             "{what}: each arc rim's on-row checks are read once"
         );
         let err = err.expect_err(what);

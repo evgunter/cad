@@ -2416,7 +2416,7 @@ const GAP_TURNS: f64 = 4.0;
 /// The largest ratio of a graded gap's upper slant to its lower on a
 /// cone of `sin α` ([`GAP_TURNS`]).
 fn gap_bound(sin_alpha: f64) -> f64 {
-    1.0 + core::f64::consts::TAU * sin_alpha * GAP_TURNS
+    1.0 + geom_core::period::Period::<f64>::angle().length() * sin_alpha * GAP_TURNS
 }
 
 /// **A cone face's lattice rows with every gap graded to its lower
