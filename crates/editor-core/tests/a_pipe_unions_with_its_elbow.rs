@@ -638,6 +638,48 @@ fn a_short_elbow_near_a_neutral_point_refuses_near_its_far_rim() {
     );
 }
 
+/// **A short elbow off its neutral point refuses near its far rim, at the
+/// order's own term.** `0.2` round the rim from the neutral point the
+/// window past the pipe's seam ruling's end is read at its order, two,
+/// its spread measured `σ ≤ 3.6·√(ε/δ)`, and the side reading places the
+/// roots in it off the bend only where nothing but the rim bounds the bend
+/// within `σ` of the end. Swept so short that its far cap's rim lies
+/// `0.4σ` or `0.8σ` along the bend from the end, the elbow refuses
+/// `NearBoundary`; swept `3σ`, or the quarter turn, it builds at the
+/// closed form.
+#[test]
+fn a_short_elbow_off_its_neutral_point_refuses_near_its_far_rim() {
+    let eps = Tol::witness().eps();
+    let delta = 0.2;
+    let spread = 3.6 * (eps / delta).sqrt();
+    for share in [0.4, 0.8] {
+        let what = format!("swept {share}σ");
+        let j = join(
+            true,
+            CapEnd::End,
+            short_off_the_seam(delta, share * spread / BEND),
+        );
+        let e = refusal(&j, &what);
+        assert!(
+            matches!(
+                e,
+                topo::BooleanError::JunctionEndUnread {
+                    gap: topo::JunctionEndGap::NearBoundary,
+                    ..
+                }
+            ),
+            "{what}: the far rim within the spread: {e:?}"
+        );
+    }
+    for (angle, what) in [
+        (3.0 * spread / BEND, "swept 3σ"),
+        (FRAC_PI_2, "a quarter turn"),
+    ] {
+        let off = short_off_the_seam(delta, angle);
+        builds_at(&join(true, CapEnd::End, off), closed_form(true, off), what);
+    }
+}
+
 /// **A root of the rest of the span is found, not covered.** A pipe 4
 /// long: its seam ruling `x = 1` meets the bend's carrier again at
 /// `z = 4 − √12`, inside its span and off the bend's face. The window past
