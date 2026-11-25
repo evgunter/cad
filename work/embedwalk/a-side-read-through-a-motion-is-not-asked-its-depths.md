@@ -41,3 +41,25 @@ A cover read through a motion (`Cover` has no map by a rigid motion),
 or the motion carried on the window so the depth gap can read both
 faces in one frame. Assemblies place instances, so a thin gap between
 two placed parts (a pin in a bore) is the case this leaves.
+
+## Measured (lane `embedwalk-placed-depth`, 2026-11-25)
+
+The hollow torus of `sweep`'s
+`two_nested_tori_a_thin_gap_apart_hold_at_their_roots` (`R = 2`, tube
+`0.45`, wall `0.025`), its outer two faces against its inner two, the
+strict bound at 65,536 pairs, both sides read in place and both read
+through one skew motion (a turn of 0.9 about `(1, −2, 0.5)`, then a
+shift `(7, −3, 4)`):
+
+| | in place | through the motion, before | through the motion, after |
+|---|---|---|---|
+| `f64` | Holds, 0 splits | `Budget(Pairs)`, 65,532 splits, 14.3 s | Holds, 0 splits |
+| `Interval` | Holds, 0 splits | `Budget(Pairs)`, 65,532 splits, 17.2 s | Holds, 0 splits |
+
+Two torus patches (`topo`'s
+`clearance::depth_rows::nested_tori_read_through_a_motion_hold_at_their_root_as_built_in_place`,
+chart window `(0.1, 3.0) × (−3.0, 3.0)`), at 65,536 pairs: in place
+Holds with no split; before, the inner placed beside an outer built
+where the motion puts it held after 36,998 splits, and both placed
+after 36,706; after, both hold with no split. The row asks at 4,096
+pairs, where before each placed pair refused `Budget(Pairs)`.

@@ -4653,8 +4653,7 @@ fn separated_by_support<T: Real>(
 /// the cells' regions are, each face in its body's own coordinates: a
 /// site one face proposes is carried into the other's through the two
 /// sides' relative motion, composed through the question's frame
-/// ([`depth_gap::gaps_in_depth`]), as a placed window's carrier is
-/// mapped. At `Interval` the carried site encloses each enclosed
+/// ([`depth_gap::gaps_in_depth`]). At `Interval` the carried site encloses each enclosed
 /// motion's image; at `f64` it and the motion are read as real
 /// numbers, and no rounding is charged (`[simple.conditioned]`). Each
 /// gap is less the pads [`depth_gap`] takes off it: a tolerance for

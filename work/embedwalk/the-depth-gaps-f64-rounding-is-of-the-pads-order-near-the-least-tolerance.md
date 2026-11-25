@@ -61,3 +61,15 @@ charge at this one site, or a floor on the tolerance below which the
 reading refuses. It is one question for both readers, and it changes
 `[simple.conditioned]`'s rule at a site, so it is Ev's. Not a defect
 of PR 7119.
+
+## A side read through a motion (lane `embedwalk-placed-depth`, 2026-11-25)
+
+The certificate now asks the depth gap of a side read through a rigid
+motion too: each face's depth is read in its own body's coordinates,
+and a site the other face proposes is carried into them through the
+two sides' relative motion (`Seat::relative`, `Around::moved`). At
+`f64` that carry is one more uncharged rounding in the same reading:
+the motion's application (about an ulp of the translation's and the
+site's magnitude) and the motion's own distance from rigid
+(`RigidMotion::rounding`, about an ulp per composition). It belongs to
+this row's question, and is not measured separately here.
