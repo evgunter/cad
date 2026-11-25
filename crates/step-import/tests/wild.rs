@@ -830,10 +830,10 @@ fn eps_in_scales_through_the_conversion_factor_and_the_override_wins() {
         Err(StepImportError::Interpretation { file, .. }) => file.eps_in(),
         other => panic!("{name}: refuses at the build, got {other:?}"),
     };
-    // 1.331353158630e-3 inch x 2.54e1 mm/inch x 1e-3 m/mm, in the
-    // order the resolver multiplies (the factor folds into the unit
-    // first, then scales the measure).
-    let expected = 1.331_353_158_630e-3 * (2.54e1 * 1e-3);
+    // 1.331353158630e-3 inch x 2.54e1 mm/inch x 1e-3 m/mm, exactly, and
+    // rounded once (the file's decimals through the unit door), by exact
+    // arithmetic outside this tree (Python's `Fraction`).
+    let expected = 3.381_637_022_920_2e-5;
     assert_eq!(eps_in, expected, "ε_in is a length like any other");
     assert!(
         (eps_in - 3.381_637e-5).abs() < 1e-11,

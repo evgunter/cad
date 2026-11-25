@@ -527,11 +527,8 @@ impl<T: Decide> RaySpace<T> for Point3<T> {
     }
 
     fn segment_distance(a: Self, b: Self, q: Self) -> T {
-        geom::Line {
-            origin: a,
-            dir: b - a,
-        }
-        .distance_within(q, (T::zero(), T::one()))
+        let (line, length) = geom::Line::chord(a, b);
+        line.distance_within(q, (T::zero(), length))
     }
 }
 

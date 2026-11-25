@@ -32,7 +32,7 @@ use crate::widgets::{
 pub(crate) const NEW_VARIABLE: &str = "New variable…";
 
 /// What the product door's button says ([`SessionOp::AddToProduct`]).
-pub(crate) const ADD_TO_THE_PRODUCT: &str = "Add to the product";
+pub(crate) use crate::recourse::ADD_TO_THE_PRODUCT;
 
 /// What the button taking a copy out of the product says.
 pub(crate) const TAKE_OUT_OF_THE_PRODUCT: &str = "Take out of the product";

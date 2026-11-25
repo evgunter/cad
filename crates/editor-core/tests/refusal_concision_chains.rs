@@ -85,14 +85,12 @@ const KERNEL_KEYED: &[&str] = &[
     "Naming/SeamVertexPartners",
     "Naming/SharedRim",
     "Naming/ChordOffRim",
-    "Naming/ConventionalVertex",
     "Naming/ClosedCarrierUnread",
     "Naming/CarrierUnplaced",
     "Naming/PartnerUnread",
     "Naming/UnsupportedCrossingSenses",
     "Naming/UnsupportedSeamSides",
     "Naming/UnsupportedJoin",
-    "Naming/UnsupportedTurnedCell",
     "Naming/WayInZeroBand",
     "Naming/JoinedPieceOffRoot",
     "Naming/BandVerdictsDisagree",
@@ -779,12 +777,12 @@ test_utils::f6_variants! {
         Expr, Profile, ProfileReplay, ProfileLaneReplay, Trace, Extrude, Revolve, Tube, Split, ContactCarry, Blend,
         Boolean, Transform, Mirror, Motion, Skin, Loft, CurvedSolidFrontier, MissingInput, UnresolvedRead, SelectResolve,
         ToleranceConflict, ParamBox, Seed, RecordRefused, RecordMispaired, WrongOperand, EmptyOperand, EmptyMember,
-        NotFinished, UnfinishedLeaf, EmptyHalf, HalfOfAFamily, MemberOutOfRange, MemberRefused, IndicesUnrelated,
+        NotFinished, UnfinishedLeaf, EmptyHalf, MemberOutOfRange, MemberRefused, TwoBinders, YieldsNothing,
         IndexCount, IndexCountOutOfRange, NoSuchPiece, PieceShape,
         DegenerateDirection, NonFiniteDirection, UnderflowedDirection, Band, MissingSlot,
         Escalated, MeasureEscalated, PlacementAxisEscalated, PoseDirectionEscalated,
         PoseRead, PoseDegenerate, PoseScalar, CountOutOfRange, UnschedulableCycle,
-        Naming, UnionFoldStep, Shell, ShellLaneUnsupported,
+        Naming, FoldStep, Shell, ShellLaneUnsupported,
         WitnessBifurcation, Part, Mate,
         SpaceMismatch, CrossingUnverified, MeasureRefUnreadable, MeasureNonFinite,
         MeasureNotParallel, MeasureUnsupported, PayloadExpr,
@@ -936,7 +934,7 @@ mod kernel {
     test_utils::f6_variants! {
         /// `TraceFault`'s arms, for the `Trace/Carrier/` rows.
         pub(super) const TRACE_FAULT: TraceFault = [
-            Unsupported, Unbounded, Grazing, Apex, OnCarrier, Escalated, Unsettled, Torus,
+            Unsupported, Unbounded, Grazing, Apex, OnCarrier, Escalated, Unsettled, Torus, Frame,
         ];
     }
 
@@ -984,7 +982,7 @@ mod kernel {
             Band, ConeCornerEscalated, ConeCornerUnread, WedgeEscalated, Undescribed,
             WholeBodySideEscalated,
             EdgeOnFacesEscalated, SmoothJoinRefuted, SectionWindingUndecided, KnifeEdge,
-            NestingContradiction, SlitUnplaced, SlitHoming, ResultInvalid,
+            UnplacedHole, NestingContradiction, SlitUnplaced, SlitHoming, ResultInvalid,
             ResultNotAtRest, EdgeJoin, Merge,
         ];
     }
@@ -1249,10 +1247,10 @@ fn forward(kind: &NodeErrorKind) -> Forward {
         | NodeErrorKind::EmptyOperand { .. }
         | NodeErrorKind::EmptyMember { .. }
         | NodeErrorKind::EmptyHalf { .. }
-        | NodeErrorKind::HalfOfAFamily { .. }
         | NodeErrorKind::ContactCarry { .. }
         | NodeErrorKind::MemberOutOfRange { .. }
-        | NodeErrorKind::IndicesUnrelated { .. }
+        | NodeErrorKind::TwoBinders { .. }
+        | NodeErrorKind::YieldsNothing { .. }
         | NodeErrorKind::NoSuchPiece { .. }
         | NodeErrorKind::PieceShape { .. }
         | NodeErrorKind::DegenerateDirection { .. }
@@ -1267,7 +1265,7 @@ fn forward(kind: &NodeErrorKind) -> Forward {
         | NodeErrorKind::CountOutOfRange { .. }
         | NodeErrorKind::IndexCountOutOfRange { .. }
         | NodeErrorKind::UnschedulableCycle
-        | NodeErrorKind::UnionFoldStep { .. }
+        | NodeErrorKind::FoldStep { .. }
         | NodeErrorKind::ShellLaneUnsupported { .. }
         | NodeErrorKind::CrossingUnverified { .. }
         | NodeErrorKind::MeasureNotParallel { .. }
@@ -1813,14 +1811,6 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         row(
-            "HalfOfAFamily",
-            NodeErrorKind::HalfOfAFamily {
-                read: editor_core::VarId::new(0, tagged(2)),
-                input: RecipeNodeId::new(0, tagged(3)),
-                half: editor_core::SplitHalf::Below,
-            },
-        ),
-        row(
             "ContactCarry",
             NodeErrorKind::ContactCarry {
                 refusal: topo::CarryRefusal::Stale { record: 0 },
@@ -1834,10 +1824,16 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         row(
-            "IndicesUnrelated",
-            NodeErrorKind::IndicesUnrelated {
+            "TwoBinders",
+            NodeErrorKind::TwoBinders {
                 a: editor_core::VarId::new(0, tagged(2)),
                 b: editor_core::VarId::new(0, tagged(4)),
+            },
+        ),
+        row(
+            "YieldsNothing",
+            NodeErrorKind::YieldsNothing {
+                binder: editor_core::VarId::new(0, tagged(2)),
             },
         ),
         row(
@@ -2893,6 +2889,20 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 face,
                 diag: Some(diag()),
             },
+        ),
+        (
+            "UnplacedHole(outline)",
+            F::UnplacedHole(topo::splitting::UnplacedHole {
+                hole: face,
+                beside: None,
+            }),
+        ),
+        (
+            "UnplacedHole(beside)",
+            F::UnplacedHole(topo::splitting::UnplacedHole {
+                hole: face,
+                beside: Some(face),
+            }),
         ),
         (
             "NestingContradiction",
@@ -4862,6 +4872,41 @@ fn trace() -> Vec<(String, NodeErrorKind)> {
                 .expect("a half the band left undecided refuses"),
             )),
         ),
+        (
+            "Carrier/Frame",
+            F::Carrier(TraceFault::Frame(geom_core::OrthonormalizeError {
+                axis: geom_core::OrthoAxis::V,
+                error: geom_core::UnitVec3Error::Degenerate,
+            })),
+        ),
+        (
+            "Carrier/Frame/axis",
+            F::Carrier(TraceFault::Frame(geom_core::OrthonormalizeError {
+                axis: geom_core::OrthoAxis::U,
+                error: geom_core::UnitVec3Error::Degenerate,
+            })),
+        ),
+        (
+            "Carrier/Frame/underflowed",
+            F::Carrier(TraceFault::Frame(geom_core::OrthonormalizeError {
+                axis: geom_core::OrthoAxis::V,
+                error: geom_core::UnitVec3Error::UnderflowedLength,
+            })),
+        ),
+        (
+            "Carrier/Frame/non-finite",
+            F::Carrier(TraceFault::Frame(geom_core::OrthonormalizeError {
+                axis: geom_core::OrthoAxis::V,
+                error: geom_core::UnitVec3Error::NonFiniteLength,
+            })),
+        ),
+        (
+            "Carrier/Frame/escalated",
+            F::Carrier(TraceFault::Frame(geom_core::OrthonormalizeError {
+                axis: geom_core::OrthoAxis::V,
+                error: geom_core::UnitVec3Error::Escalated(diag()),
+            })),
+        ),
         ("Uncovered", F::Uncovered(uncovered_face())),
     ];
     faults
@@ -5124,13 +5169,6 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "UnsupportedTurnedCell",
-            NamingError::UnsupportedTurnedCell {
-                read: editor_core::VarId::new(0, tagged(38)),
-                cell: topo::Cell::Vertex(topo::VertexKey::default()),
-            },
-        ),
-        (
             "WayInZeroBand",
             NamingError::WayInZeroBand {
                 edge: topo::EdgeKey::default(),
@@ -5179,13 +5217,6 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
                 edge: topo::EdgeKey::default(),
                 node: RecipeNodeId::new(0, tagged(3)),
                 face: topo::FaceKey::default(),
-            },
-        ),
-        (
-            "ConventionalVertex",
-            NamingError::ConventionalVertex {
-                vertex: topo::VertexKey::default(),
-                body: 0,
             },
         ),
         (
@@ -5458,8 +5489,8 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
     let face = || stable(EntityKind::Face, 3);
     let mut rows = vec![
         row(
-            "UnionFoldStep",
-            NodeErrorKind::UnionFoldStep {
+            "FoldStep",
+            NodeErrorKind::FoldStep {
                 member: 2,
                 read: editor_core::VarId::new(0, tagged(2)),
                 refusal: Box::new(NodeErrorKind::Boolean(topo::BooleanError::Escalated {

@@ -105,7 +105,7 @@ pub use op::{
 pub use range::{RangeReading, RangeTarget};
 pub use refuse::{
     BundleRefusal, GestureFrameFault, NodeKindWanted, ParseRefusal, Refusal, SaveChoice, Step,
-    VersionOffer, admits, admits_read,
+    admits, admits_read,
 };
 pub use select::{
     EdgeSelection, FaceSelection, Holds, HoldsNothing, Hovered, Selection, Standing,
@@ -766,6 +766,72 @@ impl core::fmt::Debug for Derived {
     }
 }
 
+/// **A landed run that is the committed document's run** — the one
+/// value a document-editing offer is read off
+/// ([`crate::recourse::Failure::Run`]). Only [`DocSession::current`]
+/// makes one, and only while the landed and the committed generations
+/// match, so what the run reports describes the document the offer's op
+/// acts on. It lives no longer than the borrow of the session.
+#[derive(Clone, Copy)]
+pub struct Current<'a> {
+    run: &'a LandedRun,
+}
+
+impl<'a> Current<'a> {
+    /// The document the run answers: the committed one.
+    pub fn doc(self) -> &'a Doc<ProfileProgram> {
+        &self.run.doc
+    }
+
+    /// The run's advisory-check report ([`DocSession::checks`]).
+    pub fn checks(self) -> Option<&'a ChecksReport> {
+        self.run.checks.as_ref()
+    }
+
+    /// **`finding`, as a failure this run reports**
+    /// ([`crate::recourse::Ran`]): `None` unless it is one of this run's
+    /// own findings, the value itself and not an equal one from another
+    /// run's report.
+    pub fn finding(
+        self,
+        finding: &pncad::document::CheckFinding,
+    ) -> Option<crate::recourse::Ran<'a>> {
+        let own = self
+            .checks()?
+            .findings
+            .iter()
+            .find(|own| core::ptr::eq(*own, finding))?;
+        Some(crate::recourse::Ran::finding(self, own))
+    }
+
+    /// Every finding of this run's report, as failures it reports.
+    pub fn findings(self) -> impl Iterator<Item = crate::recourse::Ran<'a>> {
+        self.checks()
+            .into_iter()
+            .flat_map(|report| report.findings.iter())
+            .map(move |finding| crate::recourse::Ran::finding(self, finding))
+    }
+
+    /// **The run's gather refusal, as a failure it reports**: `None`
+    /// where the product gathers.
+    pub fn gather_refusal(self) -> Option<crate::recourse::Ran<'a>> {
+        let fault = self.run.gather.as_ref().err()?;
+        Some(crate::recourse::Ran::gather_refusal(self, fault))
+    }
+
+    /// **The node `id`'s own failure, as a failure this run reports**:
+    /// `None` where the node did not fail itself (`tree::own_error`).
+    pub fn node(self, id: RecipeNodeId) -> Option<crate::recourse::Ran<'a>> {
+        let error = tree::own_error(id, &self.run.evaluation)?;
+        Some(crate::recourse::Ran::node(self, &error.kind))
+    }
+
+    /// The part files the run's resolver could name ([`PartFiles`]).
+    pub fn files(self) -> &'a PartFiles {
+        &self.run.files
+    }
+}
+
 /// One completed evaluation, landed: the pair it answers and every
 /// verdict taken for that pair.
 ///
@@ -837,7 +903,7 @@ enum Clearances {
     Stopped,
     /// The certify job ran out of its member budget before it answered:
     /// the row's sentence, with the recourse.
-    OutOfBudget(String),
+    OutOfBudget(pncad::document::Sentence),
     /// The certifying scalar's answer, one per clearance assertion, in
     /// document order.
     Settled(Vec<pncad::analysis::ClearanceAnswer>),
@@ -1689,6 +1755,19 @@ impl DocSession {
         }
     }
 
+    /// **The landed run, while it is the committed document's**
+    /// ([`Current`]): `None` while a run of a newer document is
+    /// outstanding, a gesture's scratch preview is shown, or nothing has
+    /// landed.
+    pub fn current(&self) -> Option<Current<'_>> {
+        // A gesture's preview is a scratch document the history does not
+        // hold, and a run of it describes no committed document.
+        if self.busy() || self.derived.scratch.is_some() {
+            return None;
+        }
+        self.derived.landed.as_ref().map(|run| Current { run })
+    }
+
     /// The generation the session is waiting for a result on.
     pub fn generation(&self) -> Generation {
         self.generation
@@ -1816,14 +1895,24 @@ impl DocSession {
                         }
                     }
                 }
-                // An offer acts on the COMMITTED document, so one read
-                // off a run of an older document is withheld until the
-                // current one lands: the accept it made may already be
-                // the edit that run is answering.
-                if self.busy() {
-                    for row in &mut rows {
-                        row.version_offer = None;
-                    }
+                // An offer acts on the COMMITTED document, so it is read
+                // only off a run of that document: one read off an older
+                // run could be the edit that run is still answering.
+                // Words answer the failure, not the document, so they are
+                // read off any run.
+                let current = self.current();
+                for row in &mut rows {
+                    row.offers = match current.and_then(|current| current.node(row.id)) {
+                        Some(ran) => {
+                            crate::recourse::offers(crate::recourse::Failure::Run(ran)).drawn
+                        }
+                        None => tree::own_error(row.id, &run.evaluation)
+                            .map(|error| crate::recourse::node_words(&error.kind))
+                            .into_iter()
+                            .flatten()
+                            .map(crate::recourse::Offer::Unoffered)
+                            .collect(),
+                    };
                 }
                 rows
             }
@@ -1920,11 +2009,11 @@ impl DocSession {
                     run.clearances = match done.answers {
                         Ok(answers) => Clearances::Settled(answers),
                         Err(pncad::document::Stopped::Exhausted { budget }) => {
-                            Clearances::OutOfBudget(format!(
+                            Clearances::OutOfBudget(pncad::document::sentence!(format_args!(
                                 "certifying ran out of the member budget of {budget} listing \
                                  steps before it answered. {}",
                                 pncad::document::Recourse(pncad::document::RAISE_THE_MEMBER_BUDGET)
-                            ))
+                            )))
                         }
                         // A canceled job was superseded: the request that
                         // canceled it makes this landing stale.
@@ -2396,6 +2485,7 @@ impl DocSession {
             | SessionOp::AddSplit { .. }
             | SessionOp::AddMirror { .. }
             | SessionOp::AddAssertion { .. }
+            | SessionOp::AssertQuieting { .. }
             | SessionOp::Place { .. }
             | SessionOp::AddPattern { .. }
             | SessionOp::AddFusedPattern { .. }
@@ -2468,6 +2558,7 @@ impl DocSession {
             SessionOp::AddSplit { target, plane } => self.add_split(target, &plane),
             SessionOp::AddMirror { body, plane } => self.add_mirror(body, &plane),
             SessionOp::AddAssertion { a, b, claim } => self.add_assertion(a, b, claim),
+            SessionOp::AssertQuieting { quieting } => self.assert_quieting(quieting),
             SessionOp::Place { body, target, name } => self.place(body, target, name),
             SessionOp::AddPattern { input, count, rule } => {
                 self.add_pattern(input, count, rule, PatternOutputChoice::Instances)
@@ -2960,7 +3051,7 @@ impl DocSession {
     ///
     /// **One parser.** `parse_formula` reads `50 mm` into a literal that
     /// already carries the canonical value and remembers the unit —
-    /// the one multiply is the parser's — so what arrives here is read
+    /// the unit's one door is the parser's — so what arrives here is read
     /// off the literal and never scaled again.
     ///
     /// **One action, therefore one undo.** The value and the notation
@@ -3788,13 +3879,23 @@ impl DocSession {
                 })
                 .collect(),
         );
-        for seat in spec.operands() {
+        // A union's and an intersect's members, and a subtract's tools,
+        // are a list seat, which takes a family whole as well as one body
+        // (D10 `[repetition]`); a subtract's `from` is a seat for one.
+        let from_seat = matches!(spec, BooleanSpec::Subtract { .. });
+        for (i, seat) in spec.operands().into_iter().enumerate() {
             let wanted = if seat.is_indexed() {
                 NodeKindWanted::Instances
             } else {
                 NodeKindWanted::Body
             };
-            self.require_read(&seat.read, wanted)?;
+            let list = !(from_seat && i == 0);
+            let family = list
+                && !seat.is_indexed()
+                && admits_read(doc, &seat.read, NodeKindWanted::Instances);
+            if !family {
+                self.require_read(&seat.read, wanted)?;
+            }
         }
         // A node spelled twice is not refused: a repeated read glues
         // (A∪A = A∩A = A, A−A the typed empty body), so it is a
@@ -3803,7 +3904,8 @@ impl DocSession {
         let takeover = self.combine_in_world(&spec.operands())?;
         Ok(taking_over(takeover, move |run| {
             let operands = in_one_space(run, &spec.operands())?;
-            let node = run.insert(spec.with_operands(operands).node())?;
+            let node = splice_families(run.doc(), spec.with_operands(operands).node());
+            let node = run.insert(node)?;
             Ok(Wrote::one(node))
         }))
     }
@@ -3837,7 +3939,7 @@ impl DocSession {
             let halves = pncad::select::SplitHalf::ALL
                 .map(|half| pncad::document::BodyRead::plain(Operand::output(split, half.port())));
             let both = run.insert(Node::Assemble {
-                members: pncad::document::Bodies::Spelled(halves.to_vec()),
+                members: pncad::document::Bodies::spelled(halves.to_vec()),
             })?;
             Ok(Wrote {
                 made: split,
@@ -3941,7 +4043,7 @@ impl DocSession {
                             })?;
                     Ok(Operand::select(body, names))
                 }
-                AssertedSeat::Read(read) => Ok(read),
+                AssertedSeat::Minted(reference) => Ok(reference.operand(doc)),
             }
         };
         let (a, b) = (read(a)?, read(b)?);
@@ -3978,6 +4080,23 @@ impl DocSession {
         })
     }
 
+    /// **Author a finding's assertion** ([`SessionOp::AssertQuieting`]):
+    /// the kernel's own edits for it (`Quieting::record`), one action.
+    /// **Its own check**: a document that already holds an assertion
+    /// saying the claim (`Quieting::held_in`) refuses
+    /// [`Refusal::ClaimHeld`], so the same offer taken twice authors one
+    /// assertion. A read the claim names that the document no longer
+    /// holds is the insert door's to refuse, in its own words.
+    fn assert_quieting(&self, quieting: pncad::document::Quieting) -> Result<Creating, Refusal> {
+        let doc = self.committed_doc();
+        if let Some(held) = quieting.held_in(doc) {
+            return Err(Refusal::ClaimHeld {
+                assertion: doc.spoken(held),
+            });
+        }
+        Ok(creating(move |run| quieting.record(run)))
+    }
+
     /// Insert one pattern of an existing body, fused or not
     /// ([`SessionOp::AddPattern`], [`SessionOp::AddFusedPattern`]): the
     /// index `k = index(count)` and one placement of the body in its own
@@ -4004,7 +4123,32 @@ impl DocSession {
         let doc = self.committed_doc();
         let index = combine::fresh_index(doc);
         let target = self.home_space(&input)?;
-        let source = pncad::document::BodyRead::plain(input.clone());
+        // A pattern of a pattern is one binder (D10 `[repetition]`): its
+        // index comes after the inner binder's, and it places each
+        // member, `{i, j: place(xs[i])}`, which the binder yields.
+        let inner = match &input {
+            Operand::Var(var) => Some(*var),
+            Operand::Node(id) => doc.outputs(*id).first().copied(),
+            Operand::Output { node, port } => doc.output(*node, *port),
+            _ => None,
+        }
+        .filter(|&var| doc.family_through_sources(var))
+        .and_then(|var| doc.yielding(doc.through_sources(var).read));
+        let inner_indices = inner
+            .map(|binder| doc.binder_indices(binder))
+            .unwrap_or_default();
+        let source = if inner_indices.is_empty() {
+            pncad::document::BodyRead::plain(input.clone())
+        } else {
+            pncad::document::BodyRead::indexed(
+                input.clone(),
+                inner_indices
+                    .iter()
+                    .map(|&at| Formula::var(at, pncad::document::Dimension::Count))
+                    .collect(),
+            )
+        };
+        let after = inner_indices.last().copied();
         let placement = match rule {
             PatternRuleSpec::Linear { direction, spacing } => {
                 let (along, across) = match direction {
@@ -4051,16 +4195,23 @@ impl DocSession {
                 index,
                 pncad::document::VarDecl::Index {
                     count: Formula::count(count),
-                    within: None,
+                    after: after.map(|at| Formula::var(at, pncad::document::Dimension::Count)),
                 },
             )
-            .map(drop)
         };
         let takeover = self.takeover(&input)?;
         let reads_one_body = takeover.reads_one_body();
         Ok(taking_over(takeover, move |run| {
-            declare(run)?;
+            let index = declare(run)?;
             let row = run.insert(placement)?;
+            // The binder yields the copies (D10 `[repetition]`), after
+            // what it yields already.
+            let copy = run
+                .doc()
+                .output(row, 0)
+                .unwrap_or_else(|| unreachable!("a placement defines its copy"));
+            let binder = inner.unwrap_or(index);
+            run.apply(DocEdit::yielding_more(run.doc(), binder, &[copy]))?;
             match output {
                 // Several bodies, the family itself: a reader of one
                 // body reads them through a `⊔`.
@@ -4271,10 +4422,14 @@ impl DocSession {
         // the body it defines: a revolve's body, not its axis.
         let doc = self.committed_doc();
         let read = as_body(doc, target.into());
-        match read {
-            // A node with no body output: the kind gate's own refusal.
-            Operand::Node(node) => self.require_kind(node, NodeKindWanted::Body)?,
-            _ => self.require_read(&read, NodeKindWanted::Body)?,
+        // A family is read at the one member the picks name
+        // (`picked_selection`), so the gate takes a family here too.
+        if !admits_read(doc, &read, NodeKindWanted::Instances) {
+            match read {
+                // A node with no body output: the kind gate's own refusal.
+                Operand::Node(node) => self.require_kind(node, NodeKindWanted::Body)?,
+                _ => self.require_read(&read, NodeKindWanted::Body)?,
+            }
         }
         let takeover = self.takeover(&read)?;
         let (body, selection) = picked_selection(doc, self.evaluation(), read, selection)
@@ -4526,6 +4681,7 @@ impl DocSession {
             | DocEdit::SetLoftSections { .. }
             // What the document makes: structure, not a panel field.
             | DocEdit::SetProduct { .. }
+            | DocEdit::SetYields { .. }
             // A profile's program replaced whole: structure, not a
             // panel field's value — and the identity program keeping
             // every step is the door's own no-op.
@@ -5493,13 +5649,24 @@ fn write_product(
         [] => None,
         [one] => Some(one.clone()),
         several => {
-            let members = pncad::document::Bodies::Spelled(
-                several
-                    .iter()
-                    .cloned()
-                    .map(pncad::document::BodyRead::plain)
-                    .collect(),
-            );
+            // A family a binder yields is spliced in whole (D10
+            // `[repetition]`).
+            let binders = run.doc().binders();
+            let entry = |read: Operand| {
+                let var = match &read {
+                    Operand::Var(var) => Some(*var),
+                    Operand::Node(id) => run.doc().outputs(*id).first().copied(),
+                    Operand::Output { node, port } => run.doc().output(*node, *port),
+                    _ => None,
+                };
+                let read = pncad::document::BodyRead::plain(read);
+                match var {
+                    Some(var) => binders.spell(run.doc(), var, read),
+                    None => pncad::document::Spell::One(read),
+                }
+            };
+            let members =
+                pncad::document::Bodies::Spelled(several.iter().cloned().map(entry).collect());
             Some(Operand::Node(run.insert(Node::Assemble { members })?))
         }
     };
@@ -5823,13 +5990,13 @@ fn split_halves_read(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Vec<VarId
     };
     let Some(split) = members
         .first()
-        .and_then(|member| doc.operation_of(member.read))
+        .and_then(|member| doc.operation_of(member.read().read))
         .filter(|&at| matches!(doc.node(at), Some(Node::Split { .. })))
     else {
         return Vec::new();
     };
     let halves = doc.outputs(split);
-    let read: Vec<VarId> = members.iter().map(|member| member.read).collect();
+    let read: Vec<VarId> = members.iter().map(|member| member.read().read).collect();
     if read == halves { halves } else { Vec::new() }
 }
 
@@ -5865,7 +6032,10 @@ fn assemble_seats(doc: &Doc<ProfileProgram>, var: VarId) -> Vec<(RecipeNodeId, O
             members
                 .into_iter()
                 .enumerate()
-                .filter(|(_, (stored, _))| stored.read == var && !stored.is_indexed())
+                .filter(|(_, (stored, _))| {
+                    matches!(stored, pncad::document::Spell::One(one)
+                        if one.read == var && !one.is_indexed())
+                })
                 .map(move |(i, _)| (id, OperandSlot::Member(i)))
         })
         .collect()
@@ -5884,7 +6054,10 @@ fn drop_seats(run: &mut Recording<'_, ProfileProgram>, var: VarId) -> Result<(),
         .filter_map(|node| {
             let kept = editor_core::continuation::spelled(doc, node)?
                 .into_iter()
-                .filter(|(stored, _)| stored.read != var || stored.is_indexed())
+                .filter(|(stored, _)| {
+                    !matches!(stored, pncad::document::Spell::One(one)
+                        if one.read == var && !one.is_indexed())
+                })
                 .map(|(_, authored)| authored)
                 .collect();
             Some((node, kept))
@@ -5998,6 +6171,58 @@ pub(crate) fn repoint_refusal(
     )
     .map_err(|e| Refusal::Edit(Box::new(e)))?;
     Ok((onto, onto_node))
+}
+
+/// **A list's picked members, each family spliced in whole** (D10
+/// `[repetition]`): a union, an intersect or a subtract's tools picked
+/// over a family read every member, `[a, …xs]`, as a list seat takes a
+/// family; a member read `xs[i]` and a single body are read as they are.
+fn splice_families(
+    doc: &Doc<ProfileProgram>,
+    node: pncad::document::AuthoredNode,
+) -> pncad::document::AuthoredNode {
+    type Entry = pncad::document::Spell<pncad::document::BodyRead<Formula>>;
+    let binders = doc.binders();
+    let spell = |entries: Vec<Entry>| -> Vec<Entry> {
+        entries
+            .into_iter()
+            .map(|entry| match entry {
+                pncad::document::Spell::One(read) if !read.is_indexed() => {
+                    let var = match &read.read {
+                        Operand::Var(var) => Some(*var),
+                        Operand::Node(id) => doc.outputs(*id).first().copied(),
+                        Operand::Output { node, port } => doc.output(*node, *port),
+                        _ => None,
+                    };
+                    match var {
+                        Some(var) => binders.spell(doc, var, read),
+                        None => pncad::document::Spell::One(read),
+                    }
+                }
+                other => other,
+            })
+            .collect()
+    };
+    match node {
+        Node::Union {
+            members: pncad::document::Bodies::Spelled(entries),
+        } => Node::Union {
+            members: pncad::document::Bodies::Spelled(spell(entries)),
+        },
+        Node::Intersect {
+            members: pncad::document::Bodies::Spelled(entries),
+        } => Node::Intersect {
+            members: pncad::document::Bodies::Spelled(spell(entries)),
+        },
+        Node::Subtract {
+            from,
+            tool: pncad::document::Bodies::Spelled(entries),
+        } => Node::Subtract {
+            from,
+            tool: pncad::document::Bodies::Spelled(spell(entries)),
+        },
+        other => other,
+    }
 }
 
 /// **A body seat's read of `read`**: a node named alone that is no body

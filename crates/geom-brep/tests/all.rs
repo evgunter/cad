@@ -54,12 +54,16 @@ mod shared;
 
 #[path = "a_blend_section_is_a_shared_row_of_its_bands.rs"]
 mod a_blend_section_is_a_shared_row_of_its_bands;
+#[path = "a_plane_against_a_torus_routes_as_its_pose_reads.rs"]
+mod a_plane_against_a_torus_routes_as_its_pose_reads;
+#[path = "a_plane_torus_closed_form_serves_its_circles_within_the_band_at_any_lever.rs"]
+mod a_plane_torus_closed_form_serves_its_circles_within_the_band_at_any_lever;
 #[path = "a_shared_row_is_certified_per_wall.rs"]
 mod a_shared_row_is_certified_per_wall;
 #[path = "an_iso_family_reads_the_edges_span.rs"]
 mod an_iso_family_reads_the_edges_span;
-#[path = "an_iso_lines_stated_ends.rs"]
-mod an_iso_lines_stated_ends;
+#[path = "an_iso_image_holds_its_line.rs"]
+mod an_iso_image_holds_its_line;
 #[path = "analytic_rung3_certificate.rs"]
 mod analytic_rung3_certificate;
 #[path = "approx_surface.rs"]
@@ -92,6 +96,8 @@ mod chart_singularity_locate;
 mod chart_singularity_sweep;
 #[path = "closed_form_limb2.rs"]
 mod closed_form_limb2;
+#[path = "cone_torus_pose.rs"]
+mod cone_torus_pose;
 
 #[path = "axis_rows_read_as_one_sum.rs"]
 mod axis_rows_read_as_one_sum;

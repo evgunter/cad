@@ -84,14 +84,13 @@ crates/topo/src/boolean/reduce.rs 5
 # pieces can answer different kinds (QML T4; the site says so); reach's
 # four reads, every arc's: NOT A SEARCH.
 crates/topo/src/rim_wedge.rs 6
-# section_cert ruling: roots walks sorted roots to the first past the
-# window: NOT A SEARCH.
-crates/topo/src/boolean/section_cert/ruling.rs 1
 # sectors: closed_reach (2), which face holds the reach: WHICH.
 # (crescent climbs its bound pairs, rays_within its sectors.)
 crates/topo/src/boolean/sectors.rs 2
-# slit: slot_from_far_end, which slot: WHICH.
-crates/topo/src/boolean/slit.rs 1
+# slit: slot_from_far_end, which slot: WHICH; close_cuts' part_cut (1),
+# every piece of a cut is closed, so a refusal on one is the op's: NOT A
+# SEARCH.
+crates/topo/src/boolean/slit.rs 2
 # pcurves: completion's fill walk derives every rowless half's image of
 # the loop it walks, each one the loop's closure needs: NOT A SEARCH.
 crates/topo/src/pcurves/complete.rs 1

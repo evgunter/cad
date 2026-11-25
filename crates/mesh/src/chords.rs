@@ -21,7 +21,7 @@
 //!
 //! **The one rule** ([`tighten`]): a face whose lattice the rule reads
 //! ([`FaceLattice::of`]: the curved lane's and every trimmed arm's but the
-//! cylinder's) certifies triangles about that lattice's cells, so a
+//! cylinder's, which lays none) certifies triangles about that lattice's cells, so a
 //! boundary chord beside it spans at most one lattice step on each chart
 //! axis: `n ≥ ⌈s_u·Δt/h_u⌉` and `⌈s_v·Δt/h_v⌉`, with `(h_u, h_v)` the
 //! face's lattice steps (its chart row's at its target, the spline arm's
@@ -977,9 +977,9 @@ pub(crate) mod tests {
             other => panic!("a spline carrier's projected row was admitted: {other:?}"),
         }
         let line = Pcurve::IsoLine {
-            p0: geom_core::Point2::new(0.0, 0.0),
-            pl: geom_core::Vec2::new(1.0, 0.0),
-            ends: None,
+            line: geom_brep::ChartLine::row(0.0),
+            at0: 0.0,
+            rate: 1.0,
         };
         assert!(
             matches!(chart_image(&line, EdgeKey::default()),

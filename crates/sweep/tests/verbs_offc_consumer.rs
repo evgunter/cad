@@ -971,7 +971,7 @@ fn a_rim_stated_as_a_row_in_another_chart_takes_its_own_image() {
         let mut fresh = body.clone();
         fresh.detach_pcurve(h);
         let image = topo::pcurve_of(&fresh, h, band).unwrap();
-        let topo::Pcurve::IsoLine { pl, .. } = image else {
+        let Some((_, pl)) = image.iso_line_form() else {
             panic!("{h:?}: a straight rim on the cap's chart is an iso line: {image:?}")
         };
         assert!(

@@ -205,7 +205,7 @@ pub fn boundary_material_sign_holding<T: Decide>(
                    check-6 Newell winding, not a props derivation)",
         }),
         Surface::Cylinder { frame, radius, .. } => {
-            let (origin, axis) = (frame.origin(), frame.axis());
+            let (origin, axis) = (frame.origin(), frame.axis_unit());
             cylinder_material_sign(
                 origin,
                 axis,
@@ -218,7 +218,7 @@ pub fn boundary_material_sign_holding<T: Decide>(
         Surface::Cone {
             frame, half_angle, ..
         } => {
-            let (apex, axis) = (frame.origin(), frame.axis());
+            let (apex, axis) = (frame.origin(), frame.axis_unit());
             cone_material_sign(surface, apex, axis, half_angle, loops, band)
         }
         Surface::Sphere { frame, radius, .. } => {
@@ -241,7 +241,7 @@ pub fn boundary_material_sign_holding<T: Decide>(
             minor_radius,
             ..
         } => {
-            let (center, axis) = (frame.origin(), frame.axis());
+            let (center, axis) = (frame.origin(), frame.axis_unit());
             torus_material_sign(
                 center,
                 axis,
@@ -258,7 +258,7 @@ pub fn boundary_material_sign_holding<T: Decide>(
             minor_radius,
             ..
         } => {
-            let (center, axis) = (frame.origin(), frame.axis());
+            let (center, axis) = (frame.origin(), frame.axis_unit());
             sheet_material_sign(
                 center,
                 axis,
@@ -434,7 +434,7 @@ pub fn iso_rectangle_sides<T: Decide>(
             what: "require_iso_rectangle called on a plane (a planar loop is not a chart rectangle)",
         }),
         Surface::Cylinder { frame, radius, .. } => {
-            let (origin, axis) = (frame.origin(), frame.axis());
+            let (origin, axis) = (frame.origin(), frame.axis_unit());
             let b = cylinder_boundary(
                 origin,
                 axis,
@@ -449,14 +449,14 @@ pub fn iso_rectangle_sides<T: Decide>(
         Surface::Cone {
             frame, half_angle, ..
         } => {
-            let (apex, axis) = (frame.origin(), frame.axis());
+            let (apex, axis) = (frame.origin(), frame.axis_unit());
             let (sin_a, cos_a) = half_angle.sin_cos();
             let b = cone_boundary(surface, apex, axis, sin_a, cos_a, outer, band)?;
             linear_rims_at_extremes(&b, band)?;
             Ok(b.sides)
         }
         Surface::Sphere { frame, radius, .. } => {
-            let (center, axis) = (frame.origin(), frame.axis());
+            let (center, axis) = (frame.origin(), frame.axis_unit());
             let b = sphere_boundary(
                 center,
                 radius,
@@ -480,11 +480,11 @@ pub fn iso_rectangle_sides<T: Decide>(
             minor_radius,
             ..
         } => {
-            let (center, axis) = (frame.origin(), frame.axis());
+            let (center, axis) = (frame.origin(), frame.axis_unit());
             let tube_arm = crate::uniform_curvature_arm(surface);
             let p = torus_parse(
                 center,
-                axis,
+                axis.get(),
                 major_radius,
                 minor_radius,
                 tube_arm,
@@ -584,41 +584,44 @@ impl<T: Real> IsoChart<T> {
         )
     }
 
-    /// The point `p`'s distance from the surface: from the cylinder,
-    /// `|ρ − R|`; from the cone (both nappes), `|ρ·cos α − |h|·sin α|`;
-    /// from the sphere, `|‖p − c‖ − R|`; from the torus,
+    /// The point `p`'s distance from the surface: from the cylinder
+    /// and the sphere, `|‖w‖ − R|` for its offset `w` from the axis or
+    /// the centre, read through [`geom_core::radius_gap`] (the zero form
+    /// for a point built at the radius); from the cone (both nappes),
+    /// `|ρ·cos α − |h|·sin α|`; from the torus,
     /// `|√((ρ − R)² + h²) − r|`, `ρ` and `h` the point's radius and height
     /// about the axis (about the apex on the cone).
     fn distance(self, p: Point3<T>) -> T {
         let about = |o: Point3<T>, axis: Vec3<T>| {
             let w = p - o;
             let h = w.dot(axis);
-            ((w - axis * h).norm(), h)
+            (w - axis * h, h)
         };
+        let wall = |w: Vec3<T>, radius: T| w.radius_gap(radius).abs();
         match self {
             Self::Cylinder {
                 origin,
                 axis,
                 radius,
-            } => (about(origin, axis).0 - radius).abs(),
+            } => wall(about(origin, axis).0, radius),
             Self::Cone {
                 apex,
                 axis,
                 sin_a,
                 cos_a,
             } => {
-                let (rho, h) = about(apex, axis);
-                (rho * cos_a - h.abs() * sin_a).abs()
+                let (w, h) = about(apex, axis);
+                (w.norm() * cos_a - h.abs() * sin_a).abs()
             }
-            Self::Sphere { center, radius } => ((p - center).norm() - radius).abs(),
+            Self::Sphere { center, radius } => wall(p - center, radius),
             Self::Torus {
                 center,
                 axis,
                 major,
                 minor,
             } => {
-                let (rho, h) = about(center, axis);
-                (((rho - major).powi(2) + h.powi(2)).sqrt() - minor).abs()
+                let (w, h) = about(center, axis);
+                (((w.norm() - major).powi(2) + h.powi(2)).sqrt() - minor).abs()
             }
         }
     }
@@ -839,6 +842,10 @@ impl<T: Real> IsoChart<T> {
 /// classification or the span bound lands in the ambiguity band
 /// (escalate, never guess); [`PropsError::Unimplemented`] for a NURBS
 /// surface.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub fn require_one_chart_branch<T: Decide>(
     surface: &Surface<T>,
     outer: &[LoopEdge<T>],
@@ -885,7 +892,7 @@ pub fn require_one_chart_branch<T: Decide>(
                 let m = (t_apex - e.t0).min(e.t1 - t_apex);
                 match classify_as(
                     "props_cone_apex",
-                    Margin::metered(m, InfSpeed::new(dir.norm())),
+                    Margin::metered(m, InfSpeed::new(dir.get().norm())),
                     band,
                     PropsCheck::Inventory,
                 ) {
@@ -1045,7 +1052,7 @@ fn torus_parse<T: Decide>(
 fn torus_rims_at_extremes<T: Decide>(
     p: &TorusParse<T>,
     center: Point3<T>,
-    axis: Vec3<T>,
+    axis: UnitVec3<T>,
     major: T,
     minor: T,
     tube_arm: Lever<T>,
@@ -1613,7 +1620,7 @@ fn unanimous_rim_side<T: Decide>(
 /// its own winding, no sense bit read (the traversal carries the side).
 fn cylinder_face<T: Decide>(
     origin: Point3<T>,
-    axis: Vec3<T>,
+    axis: UnitVec3<T>,
     radius: T,
     arm: Lever<T>,
     loops: &[&[LoopEdge<T>]],
@@ -1674,7 +1681,7 @@ struct CylinderChart<T> {
 /// definite, and a face with no rim bounds no area.
 fn cylinder_chart<T: Decide>(
     origin: Point3<T>,
-    axis: Vec3<T>,
+    axis: UnitVec3<T>,
     radius: T,
     arm: Lever<T>,
     loops: &[&[LoopEdge<T>]],
@@ -1707,7 +1714,7 @@ fn cylinder_chart<T: Decide>(
         levels.extend(b.levels);
         spans.push((first_rim, length - length_before));
     }
-    let windings = cylinder_windings(origin, axis, radius, loops, &rims, &spans, band)?;
+    let windings = cylinder_windings(origin, axis.get(), radius, loops, &rims, &spans, band)?;
     let (lo, hi) = min_max(&levels)?;
     require_extent(Margin::of(hi - lo), band)?;
     if rims.is_empty() {
@@ -1740,6 +1747,10 @@ fn cylinder_chart<T: Decide>(
 /// azimuth each edge turns between its own ends, and at each junction the turn about the axis
 /// from the edge before's end to the edge after's start, metered at the
 /// radius, beside the gap in level. Returns each loop's turns.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn cylinder_windings<T: Decide>(
     origin: Point3<T>,
     axis: Vec3<T>,
@@ -1921,7 +1932,7 @@ fn mean_width_side<T: Decide>(
 /// chart area ([`cylinder_chart`]), metered as the mean width `2·R·A/P`.
 fn cylinder_material_sign<T: Decide>(
     origin: Point3<T>,
-    axis: Vec3<T>,
+    axis: UnitVec3<T>,
     radius: T,
     arm: Lever<T>,
     loops: &[&[LoopEdge<T>]],
@@ -1984,7 +1995,7 @@ pub fn curved_face_holding<T: Decide>(
             what: "curved_face called on a plane (planar faces take the loop route)",
         }),
         Surface::Cylinder { frame, radius, .. } => {
-            let (origin, axis) = (frame.origin(), frame.axis());
+            let (origin, axis) = (frame.origin(), frame.axis_unit());
             cylinder_face(
                 origin,
                 axis,
@@ -1997,7 +2008,7 @@ pub fn curved_face_holding<T: Decide>(
         Surface::Cone {
             frame, half_angle, ..
         } => {
-            let (apex, axis) = (frame.origin(), frame.axis());
+            let (apex, axis) = (frame.origin(), frame.axis_unit());
             cone_face_closed_form(surface, apex, axis, half_angle, loops, band)
         }
         Surface::Sphere { frame, radius, .. } => {
@@ -2019,7 +2030,7 @@ pub fn curved_face_holding<T: Decide>(
             minor_radius,
             ..
         } => {
-            let (center, axis) = (frame.origin(), frame.axis());
+            let (center, axis) = (frame.origin(), frame.axis_unit());
             torus_face(
                 center,
                 axis,
@@ -2039,7 +2050,7 @@ pub fn curved_face_holding<T: Decide>(
             minor_radius,
             ..
         } => {
-            let (center, axis) = (frame.origin(), frame.axis());
+            let (center, axis) = (frame.origin(), frame.axis_unit());
             let side = if sense {
                 ApexSide::Left
             } else {
@@ -2150,12 +2161,25 @@ pub fn closed_surface<T: Real>(
     })
 }
 
+/// **A segment's greatest distance from a cylinder of `radius`**, `q0`
+/// and `q1` its ends' offsets from the axis: the ends' residuals
+/// ([`geom_core::radius_gap`], zero forms for ends built on the wall),
+/// and how far the segment sags inside between them ([`radial_sag`]).
+fn segment_off_cylinder<T: Real>(q0: Vec3<T>, q1: Vec3<T>, radius: T) -> T {
+    let (f0, f1) = (q0.radius_gap(radius), q1.radius_gap(radius));
+    f0.abs().max(f1.abs()).max(radial_sag(q0, q1) - f0.min(f1))
+}
+
 /// Classify a cylinder face's boundary into (rims, iso-levels) — the
 /// shared parse consumed by both the flux closed form and
 /// [`boundary_material_sign`].
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn cylinder_boundary<T: Decide>(
     origin: Point3<T>,
-    axis: Vec3<T>,
+    axis: UnitVec3<T>,
     radius: T,
     arm: Lever<T>,
     edges: &[LoopEdge<T>],
@@ -2172,10 +2196,9 @@ fn cylinder_boundary<T: Decide>(
                 // segment sags inside between them ([`radial_sag`]).
                 let radial = |p: Point3<T>| geom::Line { origin, dir: axis }.offset(p);
                 let (q0, q1) = (radial(e.p0()), radial(e.p1()));
-                let (f0, f1) = (q0.norm() - radius, q1.norm() - radius);
                 require_zero(
                     "props_meridian_on_surface",
-                    Margin::of(f0.abs().max(f1.abs()).max(radial_sag(q0, q1) - f0.min(f1))),
+                    Margin::of(segment_off_cylinder(q0, q1, radius)),
                     band,
                     Premise::OnSurface,
                 )?;
@@ -2189,25 +2212,22 @@ fn cylinder_boundary<T: Decide>(
                 };
                 require_zero(
                     "props_meridian_axial",
-                    ruling_miss(&start, (T::zero(), e.t1 - e.t0), Ruling::Axis(axis)),
+                    ruling_miss(&start, (T::zero(), e.t1 - e.t0), Ruling::Axis(axis.get())),
                     band,
                     Premise::Inventory,
                 )?;
-                levels.push((e.p0() - origin).dot(axis));
-                levels.push((e.p1() - origin).dot(axis));
+                levels.push((e.p0() - origin).dot(axis.get()));
+                levels.push((e.p1() - origin).dot(axis.get()));
                 sides.push(IsoFamily::U);
             }
             Curve3::Circle(conic_k) => {
-                let (center, n_c, u_c) = (
-                    conic_k.frame().origin(),
-                    conic_k.frame().axis(),
-                    conic_k.frame().u_ref(),
-                );
+                let (center, n_c, u_c) =
+                    (conic_k.frame().origin(), conic_k.axis(), conic_k.u_ref());
                 let r_c = conic_k.radius();
                 let s = classify_as(
                     "props_circle_axis_class",
                     Margin::levered(
-                        n_c.dot(axis),
+                        n_c.dot(axis.get()),
                         crate::ExtentBall::of_covered(e.carrier.cover().as_ref().ok()).lever(),
                     ),
                     band,
@@ -2226,7 +2246,7 @@ fn cylinder_boundary<T: Decide>(
                     let v_c = n_c.cross(u_c);
                     let seat = IsoChart::Cylinder {
                         origin,
-                        axis,
+                        axis: axis.get(),
                         radius,
                     };
                     let miss = [u_c, v_c, -u_c, -v_c]
@@ -2250,7 +2270,7 @@ fn cylinder_boundary<T: Decide>(
                 require_zero(
                     "props_cylinder_circle_tilt",
                     Margin::levered(
-                        T::one() - n_c.dot(axis).abs(),
+                        T::one() - n_c.dot(axis.get()).abs(),
                         crate::ExtentBall::of_covered(e.carrier.cover().as_ref().ok()).lever(),
                     ),
                     band,
@@ -2267,10 +2287,10 @@ fn cylinder_boundary<T: Decide>(
                     w,
                     n_c,
                     crate::ExtentBall::of_covered(e.carrier.cover().as_ref().ok()).lever(),
-                    axis,
+                    axis.get(),
                     band,
                 )?;
-                let v = (center - origin).dot(axis);
+                let v = (center - origin).dot(axis.get());
                 // The axial arc length itself — meters.
                 rims.push(Rim::decided(
                     e,
@@ -2288,7 +2308,7 @@ fn cylinder_boundary<T: Decide>(
             | Curve3::Periodic(_) => {
                 return Err(IsoChart::Cylinder {
                     origin,
-                    axis,
+                    axis: axis.get(),
                     radius,
                 }
                 .kind_refusal(e, band));
@@ -2397,7 +2417,7 @@ fn min_max<T: Real>(levels: &[T]) -> Result<(T, T), PropsError> {
 pub fn cone_face_closed_form<T: Decide>(
     cone: &Surface<T>,
     apex: Point3<T>,
-    axis: Vec3<T>,
+    axis: UnitVec3<T>,
     half_angle: T,
     loops: &[&[LoopEdge<T>]],
     band: Band,
@@ -2405,7 +2425,7 @@ pub fn cone_face_closed_form<T: Decide>(
     let read = cone_face_read(cone, apex, axis, half_angle, loops, band)?;
     Ok(FaceContribution {
         flux: (apex - Point3::origin()).dot(read.va),
-        area: (axis.dot(read.va) / half_angle.sin()).abs(),
+        area: (axis.get().dot(read.va) / half_angle.sin()).abs(),
     })
 }
 
@@ -2446,7 +2466,7 @@ fn apex_loop_sweep<T: Decide>(total: T, arm: T, band: Band) -> Result<(), PropsE
 fn cone_face_read<T: Decide>(
     cone: &Surface<T>,
     apex: Point3<T>,
-    axis: Vec3<T>,
+    axis: UnitVec3<T>,
     half_angle: T,
     loops: &[&[LoopEdge<T>]],
     band: Band,
@@ -2541,13 +2561,13 @@ struct ConeLoops<T: Real> {
 /// read in space ([`PropsError::ChartLoopOpen`] otherwise).
 fn cone_loops<T: Decide>(
     apex: Point3<T>,
-    axis: Vec3<T>,
+    axis: UnitVec3<T>,
     half_angle: T,
     loops: &[&[LoopEdge<T>]],
     band: Band,
 ) -> Result<ConeLoops<T>, PropsError> {
     let (sin_a, cos_a) = half_angle.sin_cos();
-    let slant = |p: Point3<T>| (p - apex).dot(axis) / cos_a;
+    let slant = |p: Point3<T>| (p - apex).dot(axis.get()) / cos_a;
     for &edges in loops {
         for e in edges {
             require_on_cone(apex, axis, sin_a, cos_a, e, band)?;
@@ -2576,7 +2596,7 @@ fn cone_loops<T: Decide>(
             ends.push(slant(e.p1()));
         }
         let loop_va = loop_vector_area(edges, apex)?;
-        let loop_axial = axis.dot(loop_va);
+        let loop_axial = axis.get().dot(loop_va);
         axial = axial + loop_axial;
         va = va + loop_va;
         per_loop.push((loop_axial, loop_length));
@@ -2626,9 +2646,13 @@ fn cone_loops<T: Decide>(
 ///   asks besides whether it is the iso rim ([`require_rim_incidence`]);
 /// - an ellipse arc is bounded off the cone over its whole span
 ///   ([`require_cone_ellipse`]).
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn require_on_cone<T: Decide>(
     apex: Point3<T>,
-    axis: Vec3<T>,
+    axis: UnitVec3<T>,
     sin_a: T,
     cos_a: T,
     e: &LoopEdge<T>,
@@ -2639,11 +2663,11 @@ fn require_on_cone<T: Decide>(
             require_cone_generator(apex, axis, sin_a, cos_a, dir, e, band)
         }
         Curve3::Circle(circle) => {
-            let (center, n_c) = (circle.frame().origin(), circle.frame().axis());
+            let (center, n_c) = (circle.frame().origin(), circle.axis());
             let r_c = circle.radius();
             require_cone_circle(
                 apex,
-                axis,
+                axis.get(),
                 sin_a,
                 cos_a,
                 (center, n_c, r_c),
@@ -2652,7 +2676,7 @@ fn require_on_cone<T: Decide>(
             )
             .map(|_| ())
         }
-        Curve3::Ellipse(..) => require_cone_ellipse(apex, axis, sin_a, cos_a, e, band),
+        Curve3::Ellipse(..) => require_cone_ellipse(apex, axis.get(), sin_a, cos_a, e, band),
         Curve3::Nurbs(_) | Curve3::Spiric { .. } | Curve3::Periodic(_) => {
             Err(PropsError::Unimplemented)
         }
@@ -2754,6 +2778,10 @@ fn require_cone_circle<T: Decide>(
 /// the axis less what `A` and `B` can move it over the piece. The bound
 /// over-reads the elevation by the spread of `ρ` and `|h|` across a
 /// piece and by the triangle inequality over the five terms.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn require_cone_ellipse<T: Decide>(
     apex: Point3<T>,
     axis: Vec3<T>,
@@ -2765,11 +2793,7 @@ fn require_cone_ellipse<T: Decide>(
     let Curve3::Ellipse(conic_k) = e.carrier else {
         return Err(PropsError::Unimplemented);
     };
-    let (center, n, u_ref) = (
-        conic_k.frame().origin(),
-        conic_k.frame().axis(),
-        conic_k.frame().u_ref(),
-    );
+    let (center, n, u_ref) = (conic_k.frame().origin(), conic_k.axis(), conic_k.u_ref());
     let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
     let (a, b) = (u_ref * semi_u, n.cross(u_ref) * semi_v);
     let (cos2, sin2) = (cos_a.powi(2), sin_a.powi(2));
@@ -2845,10 +2869,10 @@ fn require_cone_ellipse<T: Decide>(
 /// second.
 fn require_cone_generator<T: Decide>(
     apex: Point3<T>,
-    axis: Vec3<T>,
+    axis: UnitVec3<T>,
     sin_a: T,
     cos_a: T,
-    dir: Vec3<T>,
+    dir: UnitVec3<T>,
     e: &LoopEdge<T>,
     band: Band,
 ) -> Result<(), PropsError> {
@@ -2860,7 +2884,10 @@ fn require_cone_generator<T: Decide>(
         .offset(p)
     };
     let (q0, q1) = (radial(e.p0()), radial(e.p1()));
-    let (h0, h1) = ((e.p0() - apex).dot(axis), (e.p1() - apex).dot(axis));
+    let (h0, h1) = (
+        (e.p0() - apex).dot(axis.get()),
+        (e.p1() - apex).dot(axis.get()),
+    );
     let f0 = cone_offset(q0.norm(), h0.abs(), sin_a, cos_a);
     let f1 = cone_offset(q1.norm(), h1.abs(), sin_a, cos_a);
     // Over a piece on one side of the apex's plane: the larger end, and
@@ -2898,7 +2925,7 @@ fn require_cone_generator<T: Decide>(
 /// [`Real::select_le_zero`], decided nowhere: either choice is a sound
 /// reading, and an unread candidate's NaN (an end at the apex) is not
 /// read.
-fn cone_generator_miss<T: Decide>(apex: Point3<T>, dir: Vec3<T>, e: &LoopEdge<T>) -> Margin<T> {
+fn cone_generator_miss<T: Decide>(apex: Point3<T>, dir: UnitVec3<T>, e: &LoopEdge<T>) -> Margin<T> {
     // The far end lies on the line through the apex and itself, so the
     // reading is the near end's distance: read at the stored point, a
     // span of none, with no `dir·Δt` rounding to re-derive the far end.
@@ -3030,7 +3057,7 @@ fn cone_edge_length<T: Decide>(e: &LoopEdge<T>) -> Result<T, PropsError> {
 fn cone_material_sign<T: Decide>(
     cone: &Surface<T>,
     apex: Point3<T>,
-    axis: Vec3<T>,
+    axis: UnitVec3<T>,
     half_angle: T,
     loops: &[&[LoopEdge<T>]],
     band: Band,
@@ -3101,7 +3128,7 @@ fn require_cone_holes<T: Decide>(
 /// that passes the apex twice is pinched there.
 fn require_cone_loop_vertices_distinct<T: Decide>(
     apex: Point3<T>,
-    axis: Vec3<T>,
+    axis: UnitVec3<T>,
     w: &ConeWinding<T>,
     band: Band,
 ) -> Result<(), PropsError> {
@@ -3153,7 +3180,7 @@ fn require_cone_loop_vertices_distinct<T: Decide>(
 /// decided in space ([`cone_loops`]).
 fn cone_joints<T: Decide>(
     apex: Point3<T>,
-    axis: Vec3<T>,
+    axis: UnitVec3<T>,
     edges: &[LoopEdge<T>],
 ) -> Vec<Joint<T, 1>> {
     let radial = |p: Point3<T>| {
@@ -3172,7 +3199,7 @@ fn cone_joints<T: Decide>(
                 radial(next.traversal_ends().0),
             );
             Joint {
-                turn: [(turn_about(axis, a, b), b.norm())],
+                turn: [(turn_about(axis.get(), a, b), b.norm())],
                 flat: T::zero(),
             }
         })
@@ -3268,10 +3295,14 @@ struct ConeWinding<T: Real> {
 /// (`props_cone_loop_vertex`), and the Boolean names it first
 /// (`ResultPinchedAtConeApex`). The summed sweep is the same from every
 /// start: every joint off the apex is still read, cyclically.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn cone_loop_winding<T: Decide>(
     cone: &Surface<T>,
     apex: Point3<T>,
-    axis: Vec3<T>,
+    axis: UnitVec3<T>,
     edges: &[LoopEdge<T>],
     at_apex: AtApex,
     band: Band,
@@ -3331,7 +3362,7 @@ fn cone_loop_winding<T: Decide>(
         let sense = |n: Vec3<T>, rho: Lever<T>| -> Result<T, PropsError> {
             classify_as(
                 "props_cone_arc_sense",
-                Margin::levered(n.dot(axis), rho),
+                Margin::levered(n.dot(axis.get()), rho),
                 band,
                 PropsCheck::Inventory,
             )?
@@ -3351,7 +3382,7 @@ fn cone_loop_winding<T: Decide>(
                 let own = sense(n, ends_arm)? * (e.t1 - e.t0);
                 let own = if e.forward { own } else { -own };
                 Turn::Carried(EdgeTurn::carried(
-                    axis,
+                    axis.get(),
                     apex,
                     center,
                     own,
@@ -3370,7 +3401,7 @@ fn cone_loop_winding<T: Decide>(
                 let sense = sense(n, ends_arm.min(arm_at(q1)).min(arm_at(q2)))?;
                 let mut thirds = T::zero();
                 for (x, y) in [(a, m1), (m1, m2), (m2, b)] {
-                    let principal = turn_about(axis, x, y);
+                    let principal = turn_about(axis.get(), x, y);
                     thirds = thirds
                         + match classify_as(
                             "props_cone_arc_turn",
@@ -3387,7 +3418,7 @@ fn cone_loop_winding<T: Decide>(
                 }
                 Turn::Stored(thirds)
             }
-            _ => Turn::Stored(turn_about(axis, a, b)),
+            _ => Turn::Stored(turn_about(axis.get(), a, b)),
         };
         let ends = ((a, a_apex), (b, b_apex));
         let ends = if e.forward { ends } else { (ends.1, ends.0) };
@@ -3426,7 +3457,7 @@ fn cone_loop_winding<T: Decide>(
         total = total + step;
         let ((start, next_apex), _) = steps[(k + 1) % steps.len()].1;
         if !end_apex && !next_apex {
-            total = total + turn_about(axis, end, start);
+            total = total + turn_about(axis.get(), end, start);
         }
     }
     Ok(ConeWinding {
@@ -3450,10 +3481,14 @@ fn cone_loop_winding<T: Decide>(
 /// to return and no caller that can forget one: the fold refuses a rim
 /// that does not close around the apex ([`require_rim_only_closed`])
 /// rather than folding and leaving the check to whoever asked.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn cone_boundary<T: Decide>(
     cone: &Surface<T>,
     apex: Point3<T>,
-    axis: Vec3<T>,
+    axis: UnitVec3<T>,
     sin_a: T,
     cos_a: T,
     edges: &[LoopEdge<T>],
@@ -3468,16 +3503,16 @@ fn cone_boundary<T: Decide>(
             Curve3::Line(geom::Line { dir, .. }) => {
                 generators = true;
                 require_cone_generator(apex, axis, sin_a, cos_a, dir, e, band)?;
-                levels.push((e.p0() - apex).dot(axis) / cos_a);
-                levels.push((e.p1() - apex).dot(axis) / cos_a);
+                levels.push((e.p0() - apex).dot(axis.get()) / cos_a);
+                levels.push((e.p1() - apex).dot(axis.get()) / cos_a);
                 sides.push(IsoFamily::U);
             }
             Curve3::Circle(circle) => {
-                let (center, n_c) = (circle.frame().origin(), circle.frame().axis());
+                let (center, n_c) = (circle.frame().origin(), circle.axis());
                 let r_c = circle.radius();
                 let s = require_cone_circle(
                     apex,
-                    axis,
+                    axis.get(),
                     sin_a,
                     cos_a,
                     (center, n_c, r_c),
@@ -3488,10 +3523,10 @@ fn cone_boundary<T: Decide>(
                     center - apex,
                     n_c,
                     crate::ExtentBall::of_covered(e.carrier.cover().as_ref().ok()).lever(),
-                    axis,
+                    axis.get(),
                     band,
                 )?;
-                let v = (center - apex).dot(axis) / cos_a;
+                let v = (center - apex).dot(axis.get()) / cos_a;
                 // The signed slant arc length itself — meters.
                 rims.push(Rim::decided(
                     e,
@@ -3509,7 +3544,7 @@ fn cone_boundary<T: Decide>(
             | Curve3::Periodic(_) => {
                 return Err(IsoChart::Cone {
                     apex,
-                    axis,
+                    axis: axis.get(),
                     sin_a,
                     cos_a,
                 }
@@ -4051,6 +4086,10 @@ fn sphere_loops<T: Decide>(
 /// SIMPLE loop, and simplicity is not decided here: a loop that
 /// crosses itself, or visits a vertex twice (two whole circles joined
 /// at a point), answers the formula's value for it.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn sphere_loop<T: Decide>(
     center: Point3<T>,
     radius: T,
@@ -4364,7 +4403,7 @@ fn agreed_side<T: Decide>(
     axis: Vec3<T>,
     read: impl Fn(Vec3<T>) -> Result<Option<Sign>, PropsError>,
 ) -> Result<MaterialSign, PropsError> {
-    let up = axis.normalize();
+    let up = UnitVec3::squared(axis);
     let mut reading: Option<Sign> = None;
     // The sphere's singular points, from their one home, as directions.
     let origin = Point3::new(T::zero(), T::zero(), T::zero());
@@ -5256,11 +5295,15 @@ fn sphere_meridian_span_levels<T: Decide>(
 /// — [`require_iso_rectangle`]'s sphere parse, which `mesh`'s walk
 /// cites. The flux lane and the side reader read circles by
 /// Gauss–Bonnet instead ([`sphere_face`]) and do not parse.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn sphere_boundary<T: Decide>(
     center: Point3<T>,
     radius: T,
     arm: Lever<T>,
-    axis: Vec3<T>,
+    axis: UnitVec3<T>,
     edges: &[LoopEdge<T>],
     band: Band,
 ) -> Result<LinearBoundary<T>, PropsError> {
@@ -5287,7 +5330,7 @@ fn sphere_boundary<T: Decide>(
         let s = classify_as(
             "props_circle_axis_class",
             Margin::levered(
-                n_c.dot(axis),
+                n_c.dot(axis.get()),
                 crate::ExtentBall::of_covered(e.carrier.cover().as_ref().ok()).lever(),
             ),
             band,
@@ -5310,10 +5353,10 @@ fn sphere_boundary<T: Decide>(
                     w,
                     n_c,
                     crate::ExtentBall::of_covered(e.carrier.cover().as_ref().ok()).lever(),
-                    axis,
+                    axis.get(),
                     band,
                 )?;
-                let sin_v = w.dot(axis) / radius;
+                let sin_v = w.dot(axis.get()) / radius;
                 let cos_v = r_c / radius;
                 // Dimensionless latitude DIRECTION pair, both
                 // components from stored data (`w·â/R`, `r_c/R`). The
@@ -5375,7 +5418,7 @@ fn sphere_boundary<T: Decide>(
                     center,
                     radius,
                     arm,
-                    axis,
+                    axis.get(),
                     n_c,
                     (&mut levels, &mut cosines),
                     band,
@@ -5420,7 +5463,7 @@ fn torus_arms<T: Real>(major: T, tube_arm: Lever<T>) -> RimArms<T> {
 fn torus_ends<T: Real>(
     m0: &TorusMeridian<T>,
     center: Point3<T>,
-    axis: Vec3<T>,
+    axis: UnitVec3<T>,
     major: T,
     minor: T,
     orient: NonzeroSign,
@@ -5651,7 +5694,7 @@ fn torus_angle<T: Decide>(sin_v: T, cos_v: T) -> T {
 #[allow(clippy::too_many_arguments)]
 fn torus_chart<T: Decide>(
     center: Point3<T>,
-    axis: Vec3<T>,
+    axis: UnitVec3<T>,
     major: T,
     minor: T,
     tube_arm: Lever<T>,
@@ -5679,7 +5722,7 @@ fn torus_chart<T: Decide>(
         // Every edge is certified rim or meridian first, so a face this
         // inventory has no arm for refuses as itself.
         let mut pieces: Vec<TorusPiece<T>> = Vec::with_capacity(edges.len());
-        let classified = torus_classify(center, axis, major, minor, tube_arm, edges, band)?;
+        let classified = torus_classify(center, axis.get(), major, minor, tube_arm, edges, band)?;
         for (edge, e) in classified.into_iter().zip(edges.iter()) {
             let step = match edge {
                 TorusEdge::Rim(rim) => {
@@ -5701,7 +5744,7 @@ fn torus_chart<T: Decide>(
                     let orient = torus_meridian_orient(
                         (arc.n_c, arc.c_c),
                         center,
-                        axis,
+                        axis.get(),
                         major,
                         minor,
                         band,
@@ -5855,9 +5898,13 @@ fn torus_lift_as<T: Decide>(at: T, angle: T, minor: T, band: Band) -> Result<(i3
 /// end to the edge after's start, metered at the after's distance from
 /// the axis, beside the turn about the tube, metered at the minor
 /// radius.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn torus_chart_loop<T: Decide>(
     center: Point3<T>,
-    axis: Vec3<T>,
+    axis: UnitVec3<T>,
     major: T,
     minor: T,
     edges: &[LoopEdge<T>],
@@ -5889,11 +5936,11 @@ fn torus_chart_loop<T: Decide>(
     // not the point's: a point near the axis reads its own out-direction
     // to `u·|w|/ρ`, which the core circle would carry `major` times over.
     let about_core = |m: Vec3<T>, d: Vec3<T>, w: Vec3<T>| {
-        let radial = m - axis * m.dot(axis);
+        let radial = m - axis.get() * m.dot(axis.get());
         // Toward the meridian's half-plane: across the axis from its
         // centre on a lemon (`geom::meridian_side`, decided at rest).
         let out = radial * (geom::meridian_side(major) / radial.norm());
-        let (xd, yd) = (d.dot(out), d.dot(axis));
+        let (xd, yd) = (d.dot(out), d.dot(axis.get()));
         let (xw, yw) = tube(w);
         (xd * yw - yd * xw).atan2(xd * xw + yd * yw)
     };
@@ -5920,12 +5967,12 @@ fn torus_chart_loop<T: Decide>(
             TorusStep::Rim { du, .. } => {
                 closure::require_axis_inside(r_c, band)?;
                 [
-                    EdgeTurn::carried(axis, center, centre, du, (a, b), r_c),
+                    EdgeTurn::carried(axis.get(), center, centre, du, (a, b), r_c),
                     EdgeTurn::exact(principal(tube), minor),
                 ]
             }
             TorusStep::Meridian { dv } => {
-                let near = |w: Vec3<T>| (w - axis * w.dot(axis)).norm();
+                let near = |w: Vec3<T>| (w - axis.get() * w.dot(axis.get())).norm();
                 // An end at a sheet's apex has no azimuth: the turn is
                 // read to the meridian's middle instead, the point the
                 // apex's jump reads its half-plane at.
@@ -5942,7 +5989,7 @@ fn torus_chart_loop<T: Decide>(
                     },
                 );
                 [
-                    EdgeTurn::short(axis, ua, ub, near(ua).min(near(ub))),
+                    EdgeTurn::short(axis.get(), ua, ub, near(ua).min(near(ub))),
                     EdgeTurn::new(
                         dv + about_core(centre - center, b - centre, wb)
                             - about_core(centre - center, a - centre, wa),
@@ -5985,7 +6032,10 @@ fn torus_chart_loop<T: Decide>(
                 },
                 None => Joint {
                     turn: [
-                        (turn_about(axis, a, b), (b - axis * b.dot(axis)).norm()),
+                        (
+                            turn_about(axis.get(), a, b),
+                            (b - axis.get() * b.dot(axis.get())).norm(),
+                        ),
                         tube,
                     ],
                     flat: T::zero(),
@@ -6005,7 +6055,7 @@ fn torus_chart_loop<T: Decide>(
 #[allow(clippy::too_many_arguments)]
 fn torus_face<T: Decide>(
     center: Point3<T>,
-    axis: Vec3<T>,
+    axis: UnitVec3<T>,
     major: T,
     minor: T,
     tube_arm: Lever<T>,
@@ -6028,7 +6078,7 @@ fn torus_face<T: Decide>(
 /// chart area ([`torus_chart`]), metered as the mean width `2·A/P`.
 fn torus_material_sign<T: Decide>(
     center: Point3<T>,
-    axis: Vec3<T>,
+    axis: UnitVec3<T>,
     major: T,
     minor: T,
     tube_arm: Lever<T>,
@@ -6069,7 +6119,7 @@ fn torus_material_sign<T: Decide>(
 ///   refuses, `work/spiricarm/a-football-revolved-part-way-refuses-at-its-cap-meridians-certificate.md`).
 fn sheet_material_sign<T: Decide>(
     center: Point3<T>,
-    axis: Vec3<T>,
+    axis: UnitVec3<T>,
     major: T,
     minor: T,
     tube_arm: Lever<T>,
@@ -6143,7 +6193,7 @@ enum ApexSide {
 /// nothing there.
 fn sheet_apex_jumps<T: Decide>(
     center: Point3<T>,
-    axis: Vec3<T>,
+    axis: UnitVec3<T>,
     major: T,
     minor: T,
     pieces: &mut [TorusPiece<'_, T>],
@@ -6177,7 +6227,7 @@ fn sheet_apex_jumps<T: Decide>(
         }
         let (d_in, d_out) = (radial(meridian_middle(into)), radial(meridian_middle(out)));
         let lever = d_in.norm().min(d_out.norm());
-        let turn = turn_about(axis, d_in, d_out);
+        let turn = turn_about(axis.get(), d_in, d_out);
         let positive = match classify_as(
             "props_sheet_apex_turn",
             Margin::metered(turn, InfSpeed::new(lever)),
@@ -6215,7 +6265,7 @@ fn sheet_apex_jumps<T: Decide>(
 /// One meridian is carried by one edge, or by the pieces of one split
 /// edge folded back into it ([`fold_torus_meridians`]).
 struct TorusMeridian<T: Real> {
-    n_c: Vec3<T>,
+    n_c: UnitVec3<T>,
     c_c: Point3<T>,
     dt: T,
     anchor: Point3<T>,
@@ -6226,7 +6276,7 @@ struct TorusMeridian<T: Real> {
 /// classification certified (the minor circle's axis and centre).
 struct TorusArc<'a, T: Real> {
     edge: &'a LoopEdge<T>,
-    n_c: Vec3<T>,
+    n_c: UnitVec3<T>,
     c_c: Point3<T>,
 }
 
@@ -6268,6 +6318,10 @@ fn torus_boundary<T: Decide>(
 
 /// Certify every edge of a torus face's boundary as a rim or a meridian
 /// arc, in loop order.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn torus_classify<'a, T: Decide>(
     center: Point3<T>,
     axis: Vec3<T>,
@@ -6289,12 +6343,12 @@ fn torus_classify<'a, T: Decide>(
             .kind_refusal(e, band));
         };
         let frame = conic_k.frame();
-        let (c_c, n_c) = (frame.origin(), frame.axis());
+        let (c_c, n_c) = (frame.origin(), frame.axis_unit());
         let r_c = conic_k.radius();
         let s = classify_as(
             "props_circle_axis_class",
             Margin::levered(
-                n_c.dot(axis),
+                n_c.get().dot(axis),
                 crate::ExtentBall::of_covered(e.carrier.cover().as_ref().ok()).lever(),
             ),
             band,
@@ -6316,7 +6370,7 @@ fn torus_classify<'a, T: Decide>(
                     Premise::Inventory,
                 ) {
                     if matches!(miss, PropsError::NotIsoRectangle { .. }) {
-                        match require_rim_incidence(c_c - center, n_c, rim(), axis, band) {
+                        match require_rim_incidence(c_c - center, n_c.get(), rim(), axis, band) {
                             Ok(()) => {
                                 return Err(PropsError::OffSurface {
                                     what: "props_rim_fit",
@@ -6328,7 +6382,7 @@ fn torus_classify<'a, T: Decide>(
                     }
                     return Err(miss);
                 }
-                require_rim_incidence(c_c - center, n_c, rim(), axis, band)?;
+                require_rim_incidence(c_c - center, n_c.get(), rim(), axis, band)?;
                 // Dimensionless minor-angle direction pair.
                 let level = RimLevel::Unit(sin_v, cos_v);
                 classified.push(TorusEdge::Rim(Rim::decided(
@@ -6367,7 +6421,7 @@ fn torus_classify<'a, T: Decide>(
                 // tube-center distance (lever arm ρ ≈ R, meters).
                 require_zero(
                     "props_meridian_plane",
-                    Margin::of(n_c.dot(off)),
+                    Margin::of(n_c.get().dot(off)),
                     band,
                     Premise::OnSurface,
                 )?;
@@ -6560,7 +6614,7 @@ fn fold_chain<T: Decide>(
 /// centre lies across the axis from its half-plane, so the reading is
 /// taken against `sgn R·ρ̂`.
 fn torus_meridian_orient<T: Decide>(
-    (n_c, c_c): (Vec3<T>, Point3<T>),
+    (n_c, c_c): (UnitVec3<T>, Point3<T>),
     center: Point3<T>,
     axis: Vec3<T>,
     major: T,
@@ -6612,7 +6666,7 @@ fn torus_meridian_orient<T: Decide>(
         Margin::levered(
             // Read against `sgn R·ρ̂` (`geom::meridian_side`, decided at
             // rest), the meridian's own out-direction on either kind.
-            n_c.dot(tau) * geom::meridian_side(major),
+            n_c.get().dot(tau) * geom::meridian_side(major),
             meridian.lever(),
         ),
         band,
@@ -7061,23 +7115,32 @@ mod ruling_scale_rows {
 
     /// A cone generator, and the same shifted `s` along the rim's tangent
     /// so it stands `zero/2` off the cone (`s²·cos α/2ρ`) and misses the
-    /// apex by about `s/2`, far past the band; each read with `dir` unit
-    /// and scaled `1e-3` and `1e3`: the generator passes and the shifted
-    /// line refuses `props_meridian_generator`, at every scale. Before
-    /// the reading took the home, a shifted line read with `dir` scaled
-    /// `1e-3` passed.
+    /// apex by about `s/2`, far past the band; each read along `g` and
+    /// run back: the generator passes and the shifted line refuses
+    /// `props_meridian_generator`, either way. (The row read `dir` scaled
+    /// `1e-3` and `1e3` while a line's direction could be; it is a
+    /// `UnitVec3` now, and the scaled line that once passed is no line.)
     #[test]
-    fn a_cone_generator_reads_alike_at_every_scale() {
+    fn a_cone_generator_reads_alike_either_way() {
         let apex = Point3::new(0.0, 0.0, 0.0);
-        let axis = Vec3::unit_z();
         let (sin_a, cos_a) = 0.5f64.sin_cos();
         let g = Vec3::new(sin_a, 0.0, cos_a);
         let shift = (band().zero() * sin_a / cos_a / cos_a).sqrt();
         for (shift, generator) in [(0.0, true), (shift, false)] {
-            for k in [1.0, 1e-3, 1e3] {
-                let carrier = Curve3::line(apex + g + Vec3::new(0.0, shift, 0.0), g * k);
-                let e = LoopEdge::hand_built(carrier, 0.0, 1.0 / k, true, 0, 1);
-                let read = require_cone_generator(apex, axis, sin_a, cos_a, g * k, &e, band());
+            for k in [1.0, -1.0] {
+                let dir = geom_core::UnitVec3::checked(g * k);
+                let carrier = Curve3::line(apex + g + Vec3::new(0.0, shift, 0.0), dir);
+                let span = if k > 0.0 { (0.0, 1.0) } else { (-1.0, 0.0) };
+                let e = LoopEdge::hand_built(carrier, span.0, span.1, true, 0, 1);
+                let read = require_cone_generator(
+                    apex,
+                    geom_core::UnitVec3::exact_z(),
+                    sin_a,
+                    cos_a,
+                    dir,
+                    &e,
+                    band(),
+                );
                 match (generator, &read) {
                     (true, Ok(())) => {}
                     (
@@ -7086,7 +7149,7 @@ mod ruling_scale_rows {
                             what: "props_meridian_generator",
                         }),
                     ) => {}
-                    _ => panic!("shift {shift:e}, dir ×{k:e}: {read:?}"),
+                    _ => panic!("shift {shift:e}, dir ×{k}: {read:?}"),
                 }
             }
         }
@@ -7203,6 +7266,225 @@ mod pole_climb_rows {
         };
         let got = sphere_region_material_sign(&region, band);
         assert!(matches!(got, Ok(MaterialSign::Encoded(_))), "{got:?}");
+    }
+}
+
+/// **An edge built on a cylinder's or a sphere's wall at a parameter
+/// radius is on it with no sign asked of the radius**: the ruling
+/// premise ([`segment_off_cylinder`]) and the iso parse's carrier
+/// samples (`IsoChart::distance`).
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod ruling_on_wall_rows {
+    use super::*;
+    use geom_core::{Interval, ParamSymbol, Sym, SymBudget, Tol};
+
+    /// A ruling's ends are both at `r·x` from the axis, `x` a unit
+    /// direction (a frame's own, or one at a boxed angle): over a box on
+    /// `r` their distance from the cylinder of radius `r` is the zero
+    /// form, and from the radius spelled `|r|` too.
+    ///
+    /// Red with `segment_off_cylinder`'s residual spelled
+    /// `q.norm() − radius` (run by hand): at the radius `r` the premise
+    /// reads `|√(r²) − r|`, as wide as the box.
+    #[test]
+    fn a_ruling_built_on_a_cylinder_is_on_it_over_a_box_on_the_radius() {
+        type S = Sym<Interval>;
+        let band = Band::linear(Tol::witness()).expect("the witness band");
+        let budget = SymBudget {
+            max_terms: 4096,
+            max_degree: 64,
+        };
+        let boxed = |name: &str, lo: f64, hi: f64| -> S {
+            Sym::param_over(
+                ParamSymbol::new(test_utils::symbol_id(name)),
+                Interval::from_bounds(lo, hi),
+                lo,
+                hi,
+            )
+        };
+        geom_core::sym::with_session(budget, || {
+            let r = boxed("ruling_on_wall_radius", 0.2, 0.4);
+            let (s, c) = boxed("ruling_on_wall_angle", 0.3, 0.9).sin_cos();
+            let (zero, one) = (S::zero(), S::one());
+            let directions = [
+                ("u", Vec3::new(one, zero, zero)),
+                ("-v", Vec3::new(zero, zero - one, zero)),
+                ("at a boxed angle", Vec3::new(c, s, zero)),
+            ];
+            for (name, x) in directions {
+                for (spelling, radius) in [("r", r), ("|r|", r.abs())] {
+                    let q = x * r;
+                    let d = geom_core::k_stats::decide_reported(
+                        "ruling_on_wall_row",
+                        Margin::of(segment_off_cylinder(q, q, radius)),
+                        band,
+                    )
+                    .unwrap_or_else(|e| panic!("along {name}, radius {spelling}: {e:?}"));
+                    assert_eq!(
+                        (d.sign, d.margin.proven()),
+                        (Sign::Zero, true),
+                        "along {name}, radius {spelling}"
+                    );
+                }
+            }
+        });
+    }
+
+    /// **A carrier's sample built on a cylinder or a sphere is on it
+    /// over a box on the radius** (`IsoChart::distance`, the reading
+    /// behind `props_carrier_on_surface`): `c + r·x` against the radius
+    /// `r`, and against `|r|`.
+    ///
+    /// Red with `IsoChart::distance`'s `wall` spelled
+    /// `(w.norm() − radius).abs()` (run by hand).
+    #[test]
+    fn a_sample_built_on_an_iso_chart_is_on_it_over_a_box_on_the_radius() {
+        type S = Sym<Interval>;
+        let band = Band::linear(Tol::witness()).expect("the witness band");
+        let budget = SymBudget {
+            max_terms: 4096,
+            max_degree: 64,
+        };
+        geom_core::sym::with_session(budget, || {
+            let r = S::param_over(
+                ParamSymbol::new(test_utils::symbol_id("iso_chart_radius")),
+                Interval::from_bounds(0.2, 0.4),
+                0.2,
+                0.4,
+            );
+            let lit = S::from_f64;
+            let (zero, one) = (S::zero(), S::one());
+            let c = Point3::new(lit(0.5), lit(-0.25), lit(2.0));
+            let axis = Vec3::new(zero, zero, one);
+            let x = Vec3::new(zero, one, zero);
+            for (spelling, radius) in [("r", r), ("|r|", r.abs())] {
+                let charts = [
+                    (
+                        "cylinder",
+                        IsoChart::Cylinder {
+                            origin: c,
+                            axis,
+                            radius,
+                        },
+                        c + x * r + axis * lit(0.7),
+                    ),
+                    ("sphere", IsoChart::Sphere { center: c, radius }, c + x * r),
+                ];
+                for (name, chart, p) in charts {
+                    let d = geom_core::k_stats::decide_reported(
+                        "iso_chart_row",
+                        Margin::of(chart.distance(p)),
+                        band,
+                    )
+                    .unwrap_or_else(|e| panic!("{name}, radius {spelling}: {e:?}"));
+                    assert_eq!(
+                        (d.sign, d.margin.proven()),
+                        (Sign::Zero, true),
+                        "{name}, radius {spelling}"
+                    );
+                }
+            }
+        });
+    }
+
+    /// At `f64` an iso chart's distance is the direct `|‖w‖ − R|` to
+    /// four ulps of the offset's and the radius's sum, from the axis to
+    /// far past the wall.
+    ///
+    /// Red with `IsoChart::distance`'s `wall` handing the gap the
+    /// radius's square for the radius (run by hand).
+    #[test]
+    fn an_iso_charts_distance_is_the_direct_reading_to_its_rounding() {
+        let c = Point3::new(0.4, 0.1, -0.3);
+        let axis = Vec3::new(0.0, 0.0, 1.0);
+        let mut read = 0_u32;
+        for radius in [0.7, 1.0e-3, 1.0e3] {
+            for reach in [
+                0.0,
+                1.0e-6,
+                0.5,
+                1.0 - 1.0e-9,
+                1.0,
+                1.0 + 1.0e-9,
+                2.0,
+                1.0e6,
+            ] {
+                for angle in [0.3_f64, 2.2, -1.4] {
+                    let x = Vec3::new(angle.cos(), angle.sin(), 0.0);
+                    let w = x * (radius * reach);
+                    let cases = [
+                        (
+                            "cylinder",
+                            IsoChart::Cylinder {
+                                origin: c,
+                                axis,
+                                radius,
+                            },
+                            c + w + axis * 0.37,
+                            w.norm(),
+                        ),
+                        (
+                            "sphere",
+                            IsoChart::Sphere { center: c, radius },
+                            c + w,
+                            ((c + w) - c).norm(),
+                        ),
+                    ];
+                    for (name, chart, p, norm) in cases {
+                        let (got, want) = (chart.distance(p), (norm - radius).abs());
+                        let slack = 4.0 * f64::EPSILON * (radius * (1.0 + reach) + 1.0);
+                        assert!(
+                            (got - want).abs() <= slack,
+                            "{name} R = {radius}, reach {reach}, at {angle}: {got} against {want}"
+                        );
+                        read += 1;
+                    }
+                }
+            }
+        }
+        assert_eq!(read, 3 * 8 * 3 * 2, "every row of the table read");
+    }
+
+    /// At `f64` the reading is the direct spelling's, the ends'
+    /// `‖q‖ − R` and the sag between them, to four ulps of the ends'
+    /// reach: for a ruling on the wall, a chord between two points of
+    /// the wall, a segment off it either side, one through the axis and
+    /// one far out.
+    ///
+    /// Red with `segment_off_cylinder` handing the gap the radius's
+    /// square for the radius (run by hand).
+    #[test]
+    fn a_segments_distance_from_a_cylinder_is_the_direct_reading_to_its_rounding() {
+        let direct = |q0: Vec3<f64>, q1: Vec3<f64>, radius: f64| {
+            let (f0, f1) = (q0.norm() - radius, q1.norm() - radius);
+            f0.abs().max(f1.abs()).max(radial_sag(q0, q1) - f0.min(f1))
+        };
+        let at = |angle: f64, reach: f64| Vec3::new(angle.cos() * reach, angle.sin() * reach, 0.0);
+        let mut read = 0_u32;
+        for radius in [0.7, 1.0e-3, 1.0e3] {
+            for (a0, a1) in [(0.4, 0.4), (0.4, 0.9), (-1.2, 2.5), (0.0, 3.1)] {
+                for (k0, k1) in [
+                    (1.0, 1.0),
+                    (1.0 + 1.0e-9, 1.0 - 1.0e-9),
+                    (0.5, 1.0),
+                    (2.0, 1.0),
+                    (0.0, 1.0),
+                    (1.0e6, 1.0),
+                ] {
+                    let (q0, q1) = (at(a0, radius * k0), at(a1, radius * k1));
+                    let (got, want) =
+                        (segment_off_cylinder(q0, q1, radius), direct(q0, q1, radius));
+                    let slack = 4.0 * f64::EPSILON * (q0.norm() + q1.norm() + radius);
+                    assert!(
+                        (got - want).abs() <= slack,
+                        "R = {radius}, angles ({a0}, {a1}), reaches ({k0}, {k1}): {got} against {want}"
+                    );
+                    read += 1;
+                }
+            }
+        }
+        assert_eq!(read, 3 * 4 * 6, "every row of the table read");
     }
 }
 

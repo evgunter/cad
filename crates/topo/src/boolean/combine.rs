@@ -281,8 +281,8 @@ pub(crate) fn take_bridges() -> Vec<BridgeKind> {
 ///   DISJOINT graft wants, where the transplanted geometry is bitwise
 ///   the source's and no surgery happened: an import's placed
 ///   instances, the void door's reversed cavity
-///   ([`super::voids::insert_voids`]), the containment fallback's
-///   assembly and a sphere re-cut's rotated shells. It is also the only form that
+///   ([`super::voids::insert_voids`]) and the containment fallback's
+///   assembly. It is also the only form that
 ///   can carry a description the certification lanes cannot express at
 ///   all (a rational NURBS wall certifies nowhere).
 #[derive(Clone, Copy)]

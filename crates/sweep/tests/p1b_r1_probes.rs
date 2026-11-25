@@ -586,7 +586,7 @@ fn uncarriable_declarations_refuse_loudly_instead_of_flipping() {
             place: Affine3::translation(Vec3::new(0.4, 0.0, 0.0)),
             axis: geom::Line {
                 origin: Point3::new(0.0, 0.0, 0.0),
-                dir: Vec3::unit_y(),
+                dir: geom_core::UnitVec3::exact_y(),
             },
             angle: 0.5,
         })),

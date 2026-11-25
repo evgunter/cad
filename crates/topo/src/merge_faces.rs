@@ -2754,14 +2754,15 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
             }
         }
         // Intra-face duplicates: edges now occurring twice within the
-        // survivor's loops. On a CURVED survivor (C12.5, M5 PR 9) a
-        // same-face duplicate means the cosurface run CLOSED THE FULL
-        // PERIOD — a shape outside the merge's inventory (neither the
-        // ring form nor the kept-cut seam form is integrable by the
-        // exact-B-rep props yet), refused typed here; the driver
-        // records it as a LOUD skip, so sub-period re-merges (the C12.5
-        // through-cut case) proceed and full closures stay unmerged
-        // exactly as the operands arrived.
+        // survivor's loops. On a CURVED survivor (C12.5) a same-face
+        // duplicate means the cosurface run CLOSED THE FULL PERIOD, and
+        // the run's pieces are the ones an author wrote on a closed wall,
+        // which it keeps (`docs/DESIGN.md`, `[edges]`: the kernel adds
+        // no cut, so none it made reaches here; the Boolean closes its
+        // own chart cuts first, `boolean::slit::close_cuts`). Refused
+        // typed here; the driver records it as a LOUD skip, so sub-period
+        // re-merges (the C12.5 through-cut case) proceed and full
+        // closures stay unmerged exactly as the operands arrived.
         //
         // On a PLANAR survivor every duplicate is one of two things,
         // told apart by topology alone:

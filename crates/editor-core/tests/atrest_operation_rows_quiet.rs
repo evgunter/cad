@@ -1553,17 +1553,14 @@ fn the_mint_takes_the_rows_own_order_first() {
             .unwrap_or_else(|| panic!("a {site:?} row"));
         let claim = quieting(doc, ev, &row, Tol::witness())
             .unwrap_or_else(|| panic!("{site:?}: the row carries a claim"));
-        assert_eq!(claim.measure, editor_core::MeasureVerb::Gap, "{site:?}");
-        let reads = |r: &editor_core::QuietingRef| match r {
-            editor_core::QuietingRef::Read(var) => *var,
-            editor_core::QuietingRef::Entity { read, .. } => *read,
-        };
+        assert_eq!(claim.measure(), editor_core::MeasureVerb::Gap, "{site:?}");
+        let reads = editor_core::QuietingRef::read;
         let input = |c: &NamedCell| match c {
             NamedCell::Entity { input, .. } | NamedCell::Tool { input, .. } => *input,
             NamedCell::Piece { .. } => panic!("a piece"),
         };
         assert_eq!(
-            claim.references.each_ref().map(reads),
+            claim.references().each_ref().map(reads),
             [input(&row.cells[0]), input(&row.cells[1])],
             "{site:?}: the claim reads the row's cells in the row's order"
         );
@@ -1588,13 +1585,16 @@ fn pinched_by_a_repeated_tool(id: &str) -> (ProfileDoc, RecipeNodeId) {
         read: slid,
         role: tool.role,
     };
-    insert(
+    let (doc, split) = insert(
         doc,
         Node::Split {
             target: prism.into(),
             tool,
         },
-    )
+    );
+    // The split stands in the binder its tool reads, which yields it
+    // (D10 `[repetition]`).
+    (crate::fixture::yielded(doc, split), split)
 }
 
 /// **A split whose tool repeats carries the assertion over the

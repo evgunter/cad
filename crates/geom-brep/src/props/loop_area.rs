@@ -72,12 +72,12 @@ pub fn loop_vector_area<T: SpanLocate>(
                 a.cross(b) * half
             }
             Curve3::Circle(circle) => {
-                let axis = circle.frame().axis();
+                let axis = circle.axis();
                 let radius = circle.radius();
                 arc_vector_area(e, ref_point, axis, radius.powi(2)) * half
             }
             Curve3::Ellipse(ellipse) => {
-                let axis = ellipse.frame().axis();
+                let axis = ellipse.axis();
                 let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
                 arc_vector_area(e, ref_point, axis, semi_u * semi_v) * half
             }
@@ -326,7 +326,7 @@ pub fn closed_segment_term<T: SpanLocate>(
         Some(conic) => {
             let (a, b) = conic.semi_axes();
             let span = if forward { t1 - t0 } else { t0 - t1 };
-            arc_segment_term(conic.frame().axis(), a * b, span)
+            arc_segment_term(conic.axis(), a * b, span)
         }
         None => spline_bulge(carrier, (t0, t1), forward)?,
     };
@@ -381,10 +381,10 @@ pub enum SegmentQ {
 
 impl SegmentQ {
     /// The edge on `carrier` over `(t0, t1)`, traversed `forward` or
-    /// against the parameter. `None` for a spline whose enclosure does
-    /// not build: its interval's ends or its knots are not exact
-    /// parameters, its decomposition refuses, or its length bound is
-    /// not certified.
+    /// against the parameter, a periodic cubic's on its clamped view over
+    /// the span. `None` for a spline whose enclosure does not build: its
+    /// interval's ends or its knots are not exact parameters, its view or
+    /// decomposition refuses, or its length bound is not certified.
     #[must_use]
     pub fn of(
         (carrier, (t0, t1)): (&Curve3<Interval>, (Interval, Interval)),
@@ -429,7 +429,17 @@ impl SegmentQ {
                         .ok()?;
                 Self::Spline(edge, length)
             }
-            Curve3::Periodic(_) => return None,
+            // A periodic cubic's span is read on its clamped view, a
+            // spline in the carrier's own parameter.
+            Curve3::Periodic(loop_) => {
+                let exact = super::bracket::exact_point;
+                let (a, b) = (exact(t0)?, exact(t1)?);
+                let view = loop_.clamped_view((a.min(b), a.max(b))).ok()?;
+                return Self::of(
+                    (&Curve3::Nurbs(std::sync::Arc::new(view)), (t0, t1)),
+                    forward,
+                );
+            }
         })
     }
 
@@ -610,7 +620,13 @@ mod tests {
             ))
         };
         let carriers = [
-            (Curve3::line(p(0.0, 0.0), Vec3::new(1.0, 0.0, 0.0)), true),
+            (
+                Curve3::line(
+                    p(0.0, 0.0),
+                    geom::stated_direction(Vec3::new(1.0, 0.0, 0.0)),
+                ),
+                true,
+            ),
             (
                 Curve3::circle(
                     p(0.0, 0.0),
@@ -648,7 +664,14 @@ mod tests {
     fn line_edge(a: Point3<f64>, b: Point3<f64>, forward: bool) -> LoopEdge<f64> {
         let d = b - a;
         let len = d.norm();
-        LoopEdge::hand_built(Curve3::line(a, d * (1.0 / len)), 0.0, len, forward, 0, 0)
+        LoopEdge::hand_built(
+            Curve3::line(a, geom::stated_direction(d * (1.0 / len))),
+            0.0,
+            len,
+            forward,
+            0,
+            0,
+        )
     }
 
     #[test]

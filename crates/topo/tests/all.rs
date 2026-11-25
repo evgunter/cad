@@ -75,6 +75,8 @@ mod a_circle_no_row_holds_ends_alike_in_every_form;
 mod a_corner_reads_only_its_own_sectors;
 #[path = "a_corrupted_row_is_never_read_as_its_carrier_off_the_face.rs"]
 mod a_corrupted_row_is_never_read_as_its_carrier_off_the_face;
+#[path = "a_crossings_containment_turns_on_its_admitted_parameter.rs"]
+mod a_crossings_containment_turns_on_its_admitted_parameter;
 #[path = "a_decided_overlap_decides_its_pair.rs"]
 mod a_decided_overlap_decides_its_pair;
 #[path = "a_doubled_line_does_not_revert.rs"]

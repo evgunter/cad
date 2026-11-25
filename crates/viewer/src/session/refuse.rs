@@ -89,9 +89,8 @@ pub fn admits(doc: &Doc<ProfileProgram>, node: RecipeNodeId, wanted: NodeKindWan
         NodeKindWanted::Instances => {
             held.is_some()
                 && doc
-                    .node_reach(node)
-                    .chain()
-                    .is_some_and(|chain| !chain.is_empty())
+                    .read_of_node(node)
+                    .is_some_and(|var| doc.family_through_sources(var))
         }
         NodeKindWanted::Profile => held.and_then(seat_kind) == Some(wanted),
     }
@@ -114,11 +113,8 @@ pub fn admits_read(doc: &Doc<ProfileProgram>, read: &Operand, wanted: NodeKindWa
     };
     match wanted {
         NodeKindWanted::Body => holds_body(doc, var),
-        NodeKindWanted::Instances => var.is_some_and(|var| {
-            doc.var_reach(var)
-                .chain()
-                .is_some_and(|chain| !chain.is_empty())
-        }),
+        // A member is read of a family a binder yields.
+        NodeKindWanted::Instances => var.is_some_and(|var| doc.family_through_sources(var)),
         NodeKindWanted::Profile => false,
     }
 }
@@ -126,9 +122,15 @@ pub fn admits_read(doc: &Doc<ProfileProgram>, read: &Operand, wanted: NodeKindWa
 /// **Whether `var` is a live `Body` variable**, by the edit door's own
 /// slot check (`SlotKind::admits`) — the one spelling of the body
 /// gate's kind test.
+///
+/// A family a binder yields is no one body (D10 `[repetition]`): the
+/// door refuses it at a seat for one, so the gate does too.
 fn holds_body(doc: &Doc<ProfileProgram>, var: Option<VarId>) -> bool {
-    var.and_then(|var| doc.var(var))
-        .is_some_and(|var| SlotKind::Is(VarKind::Body).admits(var))
+    var.is_some_and(|id| {
+        doc.var(id)
+            .is_some_and(|var| SlotKind::Is(VarKind::Body).admits(var))
+            && !doc.family_through_sources(id)
+    })
 }
 
 /// **Which seat kind a node is by its kind alone**, or `None` for a
@@ -597,6 +599,13 @@ pub enum Refusal {
         /// The copy's placement.
         copy: SpokenNode,
     },
+    /// A finding's assertion asked of a document that already holds an
+    /// assertion saying it ([`super::SessionOp::AssertQuieting`]):
+    /// authoring it again would write a second one.
+    ClaimHeld {
+        /// The assertion that says it.
+        assertion: SpokenNode,
+    },
 }
 
 impl Refusal {
@@ -658,6 +667,9 @@ impl Refusal {
             Self::Draft(error) => Self::Draft(Box::new(error.respoken(doc))),
             Self::PlacementFails { fault } => Self::PlacementFails { fault },
             Self::InTheProduct { copy } => Self::InTheProduct { copy: again(copy) },
+            Self::ClaimHeld { assertion } => Self::ClaimHeld {
+                assertion: again(assertion),
+            },
             Self::StrandedPick { copy, pick } => Self::StrandedPick {
                 copy: again(copy),
                 pick: pick.respoken(doc),
@@ -708,8 +720,7 @@ impl Refusal {
     /// **The parse error, when the refusal is the expression door's
     /// parse refusal** — the text an author typed did not parse, so
     /// nothing reached the document and the typed source is still the
-    /// author's. The one reading `frame::creation_offer` and
-    /// `frame::retype_draft` both take.
+    /// author's. The reading `frame::retype_draft` takes.
     pub fn parse_error(&self) -> Option<&ParseError> {
         match self {
             Self::Parse(error) => Some(&**error),
@@ -750,7 +761,8 @@ impl Refusal {
             | Self::Draft(_)
             | Self::PlacementFails { .. }
             | Self::StrandedPick { .. }
-            | Self::InTheProduct { .. } => None,
+            | Self::InTheProduct { .. }
+            | Self::ClaimHeld { .. } => None,
         }
     }
 
@@ -804,6 +816,7 @@ impl Refusal {
             | Self::PlacementFails { .. }
             | Self::StrandedPick { .. }
             | Self::InTheProduct { .. }
+            | Self::ClaimHeld { .. }
             | Self::Io(_) => 1,
             // The ONE arm whose rank is a per-payload decision: the
             // three gesture-order faults rank with their document
@@ -1028,36 +1041,6 @@ impl Refusal {
     /// add-variable form when an expression refused on this name.
     pub fn offer_wording(name: &VarName) -> String {
         format!("create variable {}?", name.as_str())
-    }
-
-    /// **The choice this refusal offers**, when it is a save that
-    /// would give the document a second file in one folder.
-    pub fn save_choice(&self) -> Option<SaveChoice> {
-        match self {
-            Self::Workspace(error) => match &**error {
-                WorkspaceError::SaveWouldDuplicateId {
-                    existing,
-                    requested,
-                    ..
-                } => Some(SaveChoice {
-                    existing: existing.clone(),
-                    requested: requested.clone(),
-                }),
-                _ => None,
-            },
-            _ => None,
-        }
-    }
-
-    /// The accept-offer question, and its one home — shown under an
-    /// instance row whose pin no longer holds. It names the part by
-    /// its file, as the row does, and says the accept reaches every
-    /// instance of it.
-    pub fn version_question(offer: &VersionOffer) -> String {
-        format!(
-            "accept the updated version of {}, at every instance of it?",
-            offer.part
-        )
     }
 }
 
@@ -1371,6 +1354,9 @@ impl Refusal {
                  leave it naming a piece its copy no longer holds"
             ),
             Self::InTheProduct { copy } => say!(out, node(copy), " is in the product already"),
+            Self::ClaimHeld { assertion } => {
+                say!(out, node(assertion), " says this already")
+            }
         };
     }
 }
@@ -1408,6 +1394,15 @@ pub struct SaveChoice {
 }
 
 impl SaveChoice {
+    /// The choice between saving over `existing`, the file that holds
+    /// the document already, and saving at `requested` as a new one.
+    pub(crate) fn new(existing: PathBuf, requested: PathBuf) -> Self {
+        Self {
+            existing,
+            requested,
+        }
+    }
+
     /// The label of the control that saves over the existing file.
     pub fn over_label(&self) -> String {
         format!("Save over {}", file_name(&self.existing))
@@ -1436,39 +1431,6 @@ fn file_name(path: &Path) -> std::borrow::Cow<'_, str> {
         .map_or_else(|| path.to_string_lossy(), |name| name.to_string_lossy())
 }
 
-/// **The offer an instance whose pin no longer holds makes**: accept
-/// its part's updated version ([`crate::frame::version_offer`] reads
-/// it off the instance's own failure).
-///
-/// It names the part and nothing about versions: the failure line it is
-/// drawn under already names both pins in the store's words, and the
-/// version accepted is the one on disk at the click.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct VersionOffer {
-    id: DocumentId,
-    part: String,
-}
-
-impl VersionOffer {
-    /// **The button that accepts the offer**: the name the store's
-    /// recourse gives the edit (`pncad::workspace::PIN_MISMATCH_RECOURSE`,
-    /// "record the \"accept updated version\" edit"), so the sentence on
-    /// the row and the control under it name one act.
-    pub const LABEL: &str = "Accept updated version";
-
-    /// The offer for the part `id`, named by its file `part`.
-    pub(crate) fn new(id: DocumentId, part: String) -> Self {
-        Self { id, part }
-    }
-
-    /// **Accepting the offer**: every reference to the part moved onto
-    /// the store's version, one action at the session door, so one
-    /// undo.
-    pub fn accept(&self) -> SessionOp {
-        SessionOp::AcceptPartVersion { id: self.id }
-    }
-}
-
 /// **Why a gesture's frame could not be made**: a pattern's picked
 /// direction or axis.
 #[derive(Debug, Clone)]
@@ -1494,21 +1456,3 @@ impl core::fmt::Display for GestureFrameFault {
 }
 
 impl core::error::Error for GestureFrameFault {}
-
-#[cfg(test)]
-mod version_offer {
-    use super::VersionOffer;
-    use pncad::workspace::PIN_MISMATCH_RECOURSE;
-
-    /// **The accept button and the store's recourse name one act**: the
-    /// label is the edit's name the recourse quotes. Red if either is
-    /// re-worded without the other.
-    #[test]
-    fn the_accept_button_is_the_edit_the_pin_mismatch_recourse_quotes() {
-        let quoted = format!("\"{}\"", VersionOffer::LABEL.to_lowercase());
-        assert!(
-            PIN_MISMATCH_RECOURSE.contains(&quoted),
-            "{quoted} in: {PIN_MISMATCH_RECOURSE}"
-        );
-    }
-}

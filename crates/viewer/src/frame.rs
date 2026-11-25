@@ -21,9 +21,8 @@
 //! the types decide which, not the caller — and [`frame_status`]'s
 //! ranking over a frame's news. **The toolbar
 //! badge for the landed product** ([`product_badge`]) and the rest of
-//! the badge family beside it. **The draft and the offer a refused
-//! batch leaves behind** ([`retype_draft`], [`creation_offer`]), **and
-//! the one a failed instance makes** ([`version_offer`]).
+//! the badge family beside it. **The draft a refused batch leaves
+//! behind** ([`retype_draft`]).
 //! **What a folded event stream amounts to**
 //! ([`folded_is_a_camera_event`], [`fold_status`]), **what a frame says
 //! about work outstanding** ([`progress`]), and **where a file dialog
@@ -230,8 +229,8 @@ use std::path::Path;
 
 use pncad::document::{
     CheckEvidence, CheckFinding, ChecksReport, Doc, DocumentId, Evaluation, FindingSubject,
-    Maintenance, NamedCell, NodeErrorKind, ParseError, PartFault, ProductError, ProductErrorKind,
-    ProfileProgram, RecipeNodeId, ResolveFault, Run, Said, Sentence, SlotId, Speaker, VarName,
+    Maintenance, NamedCell, ProductError, ProductErrorKind, ProfileProgram, RecipeNodeId, Run,
+    Said, Sentence, SlotId, Speaker,
 };
 use pncad::prelude::EntityKind;
 use pncad::quantity::LengthUnit;
@@ -243,16 +242,16 @@ use crate::display::{PruneReport, Withdrawn};
 use crate::idpass::IdStep;
 use crate::layout::LayoutReport;
 use crate::matetool::MateToolEvent;
-use crate::parts::PartFiles;
 use crate::pickcache::{IndexSeam, NotIndexed};
 use crate::pickindex::{EdgeNamesRefused, PickError, PickIndex, PickIndexError, UndrawnBody};
 use crate::prefs::{StoreError, Unusable};
+use crate::recourse::Failure;
 use crate::scene::FittedDelta;
 use crate::scene::SceneError;
 use crate::seats::SeatEvent;
 use crate::session::{
-    AtRestBadge, EdgeSelection, FaceSelection, OpOutcome, Outstanding, Refusal, Selection,
-    SessionOp, VersionOffer,
+    AtRestBadge, Current, EdgeSelection, FaceSelection, OpOutcome, Outstanding, Refusal, Selection,
+    SessionOp,
 };
 use crate::tools::{PanelRefusal, ToolKind, ToolNotice};
 use crate::vocab::{partial_mirror, vocabulary};
@@ -838,6 +837,7 @@ pub fn acts(op: &SessionOp) -> bool {
         | SessionOp::AddSplit { .. }
         | SessionOp::AddMirror { .. }
         | SessionOp::AddAssertion { .. }
+        | SessionOp::AssertQuieting { .. }
         | SessionOp::Place { .. }
         | SessionOp::AddPattern { .. }
         | SessionOp::AddFusedPattern { .. }
@@ -1617,6 +1617,9 @@ fn maintenance_notice(row: &Maintenance) -> Option<Message> {
         // tolerance took an analysis axis, which nothing else says.
         Maintenance::AnonymousVarRemoved { .. } if row.is_silent_retirement() => return None,
         Maintenance::AnonymousVarRemoved { .. } => Retold::Never,
+        // A yield that went with its variable strands its readers
+        // outside the binder, which say so where they read it.
+        Maintenance::YieldRemoved { .. } => Retold::Never,
     };
     Some(Message::new(Subject::Document, row.to_string(), retold))
 }
@@ -2461,7 +2464,7 @@ pub fn pending_line(report: &ChecksReport) -> Option<String> {
 /// **One row of the Checks window**: the node a finding is about, the
 /// label of the button that selects it, the finding's sentence, and
 /// the cells it names that can be selected.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CheckRow {
     /// What the button selects: the node the finding is about (for a
     /// copy's finding the operation defining the body its placement
@@ -2477,11 +2480,8 @@ pub struct CheckRow {
     /// selects it: a face or an edge as itself, any other cell as the
     /// node whose table names it. Empty for every other finding.
     pub cells: Vec<(String, Selection)>,
-    /// The body an `unused` finding's row offers to the product door
-    /// ([`SessionOp::AddToProduct`]): the finding's node where it draws
-    /// one body ([`crate::world::body_read`], the door's own test).
-    /// `None` for every other finding.
-    pub add_to_product: Option<RecipeNodeId>,
+    /// The acts the finding offers ([`crate::recourse::offers`]).
+    pub offers: Vec<crate::recourse::Offer>,
 }
 
 /// An unproven coincidence's cells as the selections that show them,
@@ -2551,116 +2551,94 @@ fn coincidence_cells(
         .collect()
 }
 
-/// **The Checks window's rows**, each body spoken from `landed`.
+/// **The node a finding is about**, as its row's button selects it: for
+/// a copy's finding the operation defining the body its placement
+/// places ([`crate::world::original_of`]), for an overlap the earlier
+/// copy's placement's, for a census finding the operation the census
+/// was taken over. `None` for a variable's finding.
+pub fn finding_node(finding: &CheckFinding, landed: &Doc<ProfileProgram>) -> Option<RecipeNodeId> {
+    Some(match finding.subject {
+        FindingSubject::Var(_) => return None,
+        FindingSubject::Output { placement, .. } => crate::world::original_of(landed, placement),
+        FindingSubject::Node(node) => node,
+        // An overlap's row is the earlier copy's, as a contact's is; the
+        // findings beside it are the `⊔`'s whose census decided them, or
+        // the body the product slot reads.
+        FindingSubject::Census { read } => {
+            let at = match &finding.evidence {
+                CheckEvidence::Interference { finding } => finding.a.var,
+                _ => read,
+            };
+            let node = landed
+                .operation_of(at)
+                .unwrap_or_else(|| unreachable!("a census is taken over an operation's output"));
+            crate::world::original_of(landed, node)
+        }
+        // The earlier copy's placement: the row's cells name both.
+        FindingSubject::Copies { a, .. } => landed
+            .operation_of(a.var)
+            .unwrap_or_else(|| unreachable!("a gathered copy is a placement's output")),
+    })
+}
+
+/// **The Checks window's rows**, each body spoken from `landed`, each
+/// with the acts its finding offers where `current` is the run the
+/// report is of ([`crate::recourse::offers`]); none while it is not.
 ///
 /// The report is the landed run's: its placements' ids are spelled in the
 /// document that run was over, which the committed one passes while a
 /// run is outstanding. `landed` must be that run's document
-/// (`DocSession::landed_pair`). [`ChecksReport::speaker`] refuses
-/// another document, but not another version of this one, since a
-/// document's id survives every edit: the landed-against-committed
-/// choice is the caller's, and `ViewerApp::checks_window` makes it.
-pub fn check_rows(report: &ChecksReport, landed: &Doc<ProfileProgram>) -> Vec<CheckRow> {
+/// (`DocSession::landed_pair`). [`ChecksReport::speaker`] refuses another
+/// document, but not another version of this one, since a document's id
+/// survives every edit: the landed-against-committed choice is the
+/// caller's, and `ViewerApp::checks_window` makes it.
+///
+/// **A finding is said once.** Where the assertion it carries is drawn
+/// as a control, its sentence's recourse leaves that act out
+/// ([`CheckFinding::said_beside_its_assertion`]).
+pub fn check_rows(
+    report: &ChecksReport,
+    landed: &Doc<ProfileProgram>,
+    current: Option<Current<'_>>,
+) -> Vec<CheckRow> {
     let by = report.speaker(landed);
     report
         .findings
         .iter()
         .map(|finding| {
-            let node = match finding.subject {
-                FindingSubject::Var(var) => {
-                    return CheckRow {
-                        select: Selection::Variable(var),
-                        button: by.read(var).to_string(),
-                        sentence: Said(finding, by).sentence(),
-                        cells: Vec::new(),
-                        add_to_product: None,
-                    };
-                }
-                FindingSubject::Output { placement, .. } => {
-                    crate::world::original_of(landed, placement)
-                }
-                FindingSubject::Node(node) => node,
-                // An overlap's row is the earlier copy's, as a contact's
-                // is; the findings beside it are the `⊔`'s whose census
-                // decided them, or the body the product slot reads.
-                FindingSubject::Census { read } => {
-                    let at = match &finding.evidence {
-                        CheckEvidence::Interference { finding } => finding.a.var,
-                        _ => read,
-                    };
-                    let node = landed.operation_of(at).unwrap_or_else(|| {
-                        unreachable!("a census is taken over an operation's output")
-                    });
-                    crate::world::original_of(landed, node)
-                }
-                // The earlier copy's placement: the row's cells name both.
-                FindingSubject::Copies { a, .. } => landed
-                    .operation_of(a.var)
-                    .unwrap_or_else(|| unreachable!("a gathered copy is a placement's output")),
+            // Read off `current` only where the finding is its own.
+            let ran = current.and_then(|current| current.finding(finding));
+            let offers = ran.map_or_else(Vec::new, |ran| {
+                crate::recourse::offers(Failure::Run(ran)).drawn
+            });
+            // Where the carried assertion is drawn as its control, the
+            // sentence leaves that act out.
+            let sentence = if ran.is_some() && finding.carried_assertion().is_some() {
+                finding.said_beside_its_assertion(by)
+            } else {
+                Said(finding, by).sentence()
             };
-            let add_to_product = (matches!(finding.evidence, CheckEvidence::Unused { .. })
-                && crate::world::body_read(landed, node, None).is_some())
-            .then_some(node);
+            let (select, button) = match finding_node(finding, landed) {
+                Some(node) => (
+                    Selection::Node(node),
+                    (pncad::document::sentence!(by.node(node))).to_string(),
+                ),
+                None => {
+                    let FindingSubject::Var(var) = finding.subject else {
+                        unreachable!("only a variable's finding is about no node")
+                    };
+                    (Selection::Variable(var), by.read(var).to_string())
+                }
+            };
             CheckRow {
-                select: Selection::Node(node),
-                button: (pncad::document::sentence!(by.node(node))).to_string(),
-                sentence: Said(finding, by).sentence(),
+                select,
+                button,
+                sentence,
                 cells: coincidence_cells(finding, by, landed),
-                add_to_product,
+                offers,
             }
         })
         .collect()
-}
-
-/// **The actions a product fault's recourse names** (D10
-/// `[operations]`), each with its button's label: for a slot that reads
-/// nothing ([`ProductError::EmptyProduct`]) or a body that is gone
-/// ([`ProductError::StrandedProduct`]), **Add to the product** on each
-/// body the picture draws outside the product; for a slot reading a
-/// copy outside the world ([`ProductError::ProductOutsideWorld`]), the
-/// same door on each such copy it can move back
-/// ([`crate::world::movable_into_world`]). Empty for any other fault
-/// and for none. Read off `doc`, the committed document the op reads.
-pub fn product_recourse(
-    fault: Option<&ProductError>,
-    doc: &Doc<ProfileProgram>,
-) -> Vec<(String, SessionOp)> {
-    let by = Speaker::of(doc);
-    match fault.map(ProductError::kind) {
-        Some(ProductErrorKind::EmptyProduct | ProductErrorKind::StrandedProduct) => {
-            let picture = crate::world::Picture::of(doc);
-            picture
-                .nodes()
-                .into_iter()
-                .filter(|&node| !picture.product.iter().any(|piece| piece.node == node))
-                .filter(|&node| crate::world::body_read(doc, node, None).is_some())
-                .map(|node| {
-                    (
-                        format!(
-                            "Add {} to the product",
-                            pncad::document::sentence!(by.node(node))
-                        ),
-                        SessionOp::AddToProduct { node, body: None },
-                    )
-                })
-                .collect()
-        }
-        Some(ProductErrorKind::ProductOutsideWorld) => crate::world::product_reads(doc)
-            .into_iter()
-            .filter_map(|var| doc.operation_of(var))
-            .filter(|&node| crate::world::movable_into_world(doc, node).is_some())
-            .map(|node| {
-                (
-                    format!(
-                        "Move {} into the world",
-                        pncad::document::sentence!(by.node(node))
-                    ),
-                    SessionOp::AddToProduct { node, body: None },
-                )
-            })
-            .collect(),
-        _ => Vec::new(),
-    }
 }
 
 /// **One row of what the selection says about placements**
@@ -3357,75 +3335,6 @@ pub fn progress(outstanding: Outstanding, index: IndexSeam) -> Option<Progress> 
     }
 }
 
-/// The name a refused batch offers to CREATE.
-///
-/// The parse door's unknown-variable refusal is deliberate
-/// typo-safety — text naming an undeclared variable never creates
-/// one. The pattern is refuse-then-offer — G4 ratifies it for a drag
-/// on a driven dimension, and this door extends it — and this is the
-/// offer as a value: the undeclared name, for the frame loop to
-/// prefill into the add-variable affordance (name only — the
-/// expression's context does not determine the new variable's
-/// DIMENSION, so that stays the user's explicit pick there). `None`
-/// for every other refusal and for a clean batch.
-pub fn creation_offer(refusal: Option<&Refusal>) -> Option<VarName> {
-    match refusal.and_then(Refusal::parse_error)? {
-        // The parse error carries the identifier as text (it is a
-        // fact about the SOURCE); the offer mints the name the create
-        // door would declare. The text is a token the lexer read, so
-        // the constructor admits it; its answer is folded rather than
-        // trusted.
-        ParseError::UnknownParam { name, .. } => VarName::new(name.as_str()).ok(),
-        ParseError::UnexpectedChar { .. }
-        | ParseError::UnexpectedEnd { .. }
-        | ParseError::UnexpectedToken { .. }
-        | ParseError::TrailingInput { .. }
-        | ParseError::MalformedNumber { .. }
-        | ParseError::IntegerOverflow { .. }
-        | ParseError::RatioPartNotInteger { .. }
-        | ParseError::UnknownUnit { .. }
-        | ParseError::UnknownFunction { .. }
-        | ParseError::WrongArity { .. }
-        | ParseError::Dimension { .. } => None,
-    }
-}
-
-/// **The accept offer an instance's own failure makes** — the offer to
-/// move its part's references onto the version the store holds, when
-/// the failure is that the reference's pin no longer holds. The part is
-/// named by its file in `files`, as the instance's row names it. `None`
-/// for every other failure.
-///
-/// The outer pattern takes the one [`NodeErrorKind`] arm a part's
-/// resolution fails through; the decision is over that arm's faults.
-pub fn version_offer(kind: &NodeErrorKind, files: &PartFiles) -> Option<VersionOffer> {
-    let NodeErrorKind::Part { doc_ref, fault } = kind else {
-        return None;
-    };
-    match fault {
-        PartFault::Unresolved { fault, .. } => match fault {
-            ResolveFault::PinMismatch => Some(VersionOffer::new(
-                doc_ref.id,
-                files.name(doc_ref.id).to_owned(),
-            )),
-            // The part's file cannot be read here, or records another
-            // ε: there is no version of it this process could accept.
-            ResolveFault::EpsilonSeam | ResolveFault::Unresolved => None,
-        },
-        // The reference resolved, or was never tried: the pin is not
-        // what failed. A part whose product fails on a mismatch of its OWN
-        // references is repaired in that part, not here.
-        PartFault::NoResolver
-        | PartFault::PartProductFailed { .. }
-        | PartFault::PartProductPoisoned { .. }
-        | PartFault::PartProductFailureUnrecorded { .. }
-        | PartFault::PartProduct { .. }
-        | PartFault::ReferenceCycle { .. }
-        | PartFault::DepthExceeded
-        | PartFault::NotEntered => None,
-    }
-}
-
 /// The expression draft a parse-refused batch should hand back.
 ///
 /// The chrome clears the expression field the moment Set is clicked —
@@ -3581,7 +3490,7 @@ mod tests {
             name: name.clone(),
         };
         let report = coincidence_report(&doc, split, vec![cell(0), cell(1)]);
-        let rows = check_rows(&report, &doc);
+        let rows = check_rows(&report, &doc, None);
         let s = test_utils::refusal::tag(split.0.digest());
         let face = |body| {
             Selection::Face(FaceSelection {
@@ -4333,103 +4242,5 @@ mod tests {
         // `Withdrawal::of`'s decision, executed through the one door
         // rather than asserted of each constructor.
         assert_eq!(Withdrawal::all(&PruneReport::default()).count(), 0);
-    }
-
-    /// **Which arm of [`PartFault`] a census witness stands for** — an
-    /// exhaustive match, so a new arm does not compile until it has an
-    /// index here and a witness below.
-    fn part_fault_arm(fault: &PartFault) -> usize {
-        match fault {
-            PartFault::NoResolver => 0,
-            PartFault::Unresolved { fault, .. } => match fault {
-                ResolveFault::PinMismatch => 1,
-                ResolveFault::EpsilonSeam => 2,
-                ResolveFault::Unresolved => 3,
-            },
-            PartFault::PartProductFailed { .. } => 4,
-            PartFault::PartProductPoisoned { .. } => 5,
-            PartFault::PartProductFailureUnrecorded { .. } => 6,
-            PartFault::PartProduct { .. } => 7,
-            PartFault::ReferenceCycle { .. } => 8,
-            PartFault::DepthExceeded => 9,
-            PartFault::NotEntered => 10,
-        }
-    }
-
-    /// **Only a pin that no longer holds offers the accept**, over one
-    /// witness of every [`PartFault`] arm, naming the part by the file
-    /// the scan found. The part-product arms carry a NESTED pin mismatch:
-    /// that pin is the part's own reference, repaired in the part, so
-    /// it offers nothing here. Red if any other arm offers, or the
-    /// offer names another part.
-    #[test]
-    fn only_a_pin_that_no_longer_holds_offers_the_accept() {
-        use pncad::document::NodeRefusal;
-
-        use crate::test_support::{PART_FILE, part_refused};
-        let unresolved = |fault| PartFault::Unresolved {
-            fault,
-            message: "the store's own words".to_owned(),
-        };
-        let (mismatch, _) = part_refused(unresolved(ResolveFault::PinMismatch));
-        let NodeErrorKind::Part { doc_ref, .. } = &mismatch else {
-            unreachable!("the fixture is a part refusal")
-        };
-        let nested = || NodeRefusal::from(part_refused(unresolved(ResolveFault::PinMismatch)).0);
-        let witnesses = [
-            PartFault::NoResolver,
-            unresolved(ResolveFault::PinMismatch),
-            unresolved(ResolveFault::EpsilonSeam),
-            unresolved(ResolveFault::Unresolved),
-            PartFault::PartProductFailed {
-                held: Default::default(),
-                node: RecipeNodeId::new(0, test_utils::refusal::tagged(7)),
-                refusal: nested(),
-            },
-            PartFault::PartProductPoisoned {
-                held: Default::default(),
-                node: RecipeNodeId::new(0, test_utils::refusal::tagged(8)),
-                through: RecipeNodeId::new(0, test_utils::refusal::tagged(7)),
-                refusal: nested(),
-            },
-            PartFault::PartProductFailureUnrecorded {
-                held: Default::default(),
-                node: RecipeNodeId::new(0, test_utils::refusal::tagged(7)),
-            },
-            PartFault::PartProduct {
-                held: Default::default(),
-                refusal: ProductError::EmptyProduct.into(),
-            },
-            PartFault::ReferenceCycle {
-                cycle: vec![*doc_ref],
-            },
-            PartFault::DepthExceeded,
-            PartFault::NotEntered,
-        ];
-        let mut seen = [false; 11];
-        for fault in witnesses {
-            let arm = part_fault_arm(&fault);
-            assert!(!seen[arm], "two witnesses for arm {arm}: {fault:?}");
-            seen[arm] = true;
-            let offers = arm == part_fault_arm(&unresolved(ResolveFault::PinMismatch));
-            let (kind, files) = part_refused(fault);
-            match version_offer(&kind, &files) {
-                Some(offer) => {
-                    assert!(offers, "only a pin mismatch offers: {kind:?}");
-                    assert!(
-                        matches!(offer.accept(), SessionOp::AcceptPartVersion { id } if id == doc_ref.id),
-                        "{:?}",
-                        offer.accept()
-                    );
-                    assert!(
-                        Refusal::version_question(&offer).contains(PART_FILE),
-                        "{}",
-                        Refusal::version_question(&offer)
-                    );
-                }
-                None => assert!(!offers, "a pin mismatch offers the accept"),
-            }
-        }
-        assert!(seen.iter().all(|&s| s), "arms with no witness: {seen:?}");
     }
 }

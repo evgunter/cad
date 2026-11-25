@@ -727,18 +727,15 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
 
 // ---- The digest ----
 
-/// FNV-1a 64 over bytes.
-struct Fnv(u64);
+/// FNV-1a 64 over bytes (`fixture::digest::Fnv`), with a frame's bits.
+struct Fnv(fixture::digest::Fnv);
 
 impl Fnv {
     fn new() -> Self {
-        Self(0xcbf2_9ce4_8422_2325)
+        Self(fixture::digest::Fnv::new())
     }
     fn feed(&mut self, bytes: &[u8]) {
-        for b in bytes {
-            self.0 ^= u64::from(*b);
-            self.0 = self.0.wrapping_mul(0x1000_0000_01b3);
-        }
+        self.0.feed(bytes);
     }
     fn frame(&mut self, f: &editor_core::Frame) {
         for x in f.columns.iter().flatten().chain(f.translation.iter()) {
@@ -802,13 +799,15 @@ fn run_at<T: editor_core::test_support::AnyEvaluate>(
 /// pin, so every id the digest feeds moves with the row. The rows are
 /// the three the hosted matrix runs; any other ε has no measurement and
 /// the row fails rather than pass on nothing.
-// Re-measured when a placement came to read its body through a source
-// it mints (VARIABLES VR4): the digest feeds every node id, and one more
-// minted variable per placement moves the ids after it.
+///
+/// RE-PINNED for binders (D10 `[repetition]`): the corpus's pattern
+/// documents carry `SetYields`, so the ids this digest feeds move; every
+/// solved pose, placement, fault and refusal kind is unchanged (the
+/// id-free rows beside it hold).
 const PINNED_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x4002_fb45_280f_d40c),
-    (1e-6, 0xef4a_8f5e_5e94_2b77),
-    (1e-12, 0xe32b_2a40_e733_2c0d),
+    (1e-9, 0xb86d_0600_d939_c347),
+    (1e-6, 0xbf0b_441e_c788_25df),
+    (1e-12, 0xa9b0_d925_b676_bf4a),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the
@@ -893,12 +892,21 @@ fn each_seat_stands_on_what_it_is_seated_on() {
 /// fillet's `u_ref` zero signed `+0`), measured by dumping every corpus
 /// body on both trees.
 ///
+/// RE-PINNED when repetition became written (D10 `[repetition]`'s
+/// binders): the corpus's patterns write `SetYields`, which moves the
+/// documents the digest feeds; every solved pose, placement, fault and
+/// node refusal kind is main's bits at 1e-9, dumped corpus-wide on both
+/// trees and diffed line by line.
+///
 /// RE-PINNED when the least turn's Rodrigues arm became
 /// `v + k × v + k × (k × v)/(1 + c)` (no read of whether the pair is one
 /// direction): a generic turn's entries move by rounding (its landing
 /// defect 2.54u → 2.29u, its rigidity defect 6u → 3u over the spelling
 /// probe's draws), so the digest's bits moved; a pair one direction keeps
 /// the identity bit for bit.
+///
+/// In the slow set: the key-free evaluation digest reads every cell of
+/// every body the corpus builds (2.8 s on the hosted gate).
 #[test]
 fn a3_the_f64_solve_is_its_pinned_digest_on_the_mate_corpus() {
     let eps = Tol::witness().eps();
@@ -914,9 +922,10 @@ fn a3_the_f64_solve_is_its_pinned_digest_on_the_mate_corpus() {
         solve_digest(&mut h, &doc, &opts);
     }
     assert_eq!(
-        h.0, pinned,
+        h.0.finish(),
+        pinned,
         "the f64 solve moved on the mate corpus at ε = {eps:e}: {:#018x}",
-        h.0
+        h.0.finish()
     );
 }
 
@@ -2333,7 +2342,7 @@ fn r1_clearance_answers_alike_in_either_order() {
 /// builds through it and so does every replay. Over the bolts' spacing
 /// the search proves ground; without the resolver the witness does not
 /// build, as a drive's does not
-/// (`work/scalar/the-box-driver-carries-no-part-resolver`).
+/// (`work/certread/the-box-driver-carries-no-part-resolver`).
 ///
 /// *Breaks if* the search's witness or its replays lose the resolver.
 #[test]

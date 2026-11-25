@@ -348,7 +348,7 @@ jet system solved by SVD, Frenet choice of free coefficients, Newton
 refinement; all f64, libm-only, fixed iteration order). Each side
 enters the section through the one exact description it has: its
 implicit residual where it has one in metres (plane, cylinder, sphere,
-torus), else its chart (NURBS). The pair is one system on
+cone, torus), else its chart (NURBS). The pair is one system on
 `ℝ³ × ∏ Dᵢ`, the point eliminated wherever a chart side exists, so the
 trace shape is decided by the sides: two residuals, an implicit pair in
 ℝ³ (2×3 SVD; `cylinder_sphere_ssi`); a residual and a chart, one
@@ -718,7 +718,7 @@ nothing it does not already prove. For `Pcurve::Harmonic` (both sides
 in `span{1, cos t, sin t, t}`, so a corruption hiding between samples
 is unrepresentable) that spelling is the carrier's incidence with the
 chart (centre on the axis, radius, orientation, axial line, per chart
-arm, and the chart frame's own unit and orthogonality defects) plus the
+arm, and the chart frame's rounding, `Frame::rounding`) plus the
 stored image's fidelity to the image `certify` re-derives from the
 carrier, metered through the chart's stretch; the shared schedule is
 then the closed-form tables' cross-check, run on the point lane (the
@@ -1025,7 +1025,9 @@ axis-aligned plane×torus (its axis-parallel pose off the axis the
 `Spiric`) (rung 2); cylinder×cylinder in every pose (its parallel
 rulings and its bisector ellipses closed form, every other crossing pose
 marched over its ball cut by the region), cylinder×sphere,
-sphere×torus, cylinder×torus, torus×torus, plane×NURBS and plane×`Approx`,
+sphere×torus, cylinder×torus, torus×torus, plane×torus off the
+axis-aligned poses, a cone against an oblique cylinder, a cone, a
+sphere or a torus off its axis, plane×NURBS and plane×`Approx`,
 NURBS×NURBS and every pairing of `Approx` with NURBS or `Approx` (rung 3);
 NURBS (and `Approx` as its fit) against a cylinder, sphere or torus is
 classified, its tangency and coincidence decided and its loop-free
@@ -1109,7 +1111,11 @@ in ℝ³, say (`pair_section::winds`); a point is read on a carried loop within 
 band padded by the loop's pad (`CarriedComponent::pad`, where its
 closeness and uniqueness are argued). A reader that needs a list no closed form
 counts carries; a site's component is its foot on the carried section,
-its one reading. A spline wall against a plane, cylinder, sphere or
+its one reading. That foot is the site's orthogonal foot on the
+carrier within the band's zero, its along-residual decided zero
+(`CarriedComponent::reads`), or the end of an open component the site
+stands past, never a witness the padded band reads on: a reading that
+cannot decide it escalates. A spline wall against a plane, cylinder, sphere or
 ring torus is carried from its whole reading: each branch between two
 rim ends as the reading fitted and certified it, its pad the chart
 tube's windows imaged on the wall by its chart speeds. A pair traced
@@ -1158,7 +1164,8 @@ the tangency, decided on the pose, the arcs where it is positive the
 components, a cone's apex on the other surface a closed-form margin
 (its residual there), whose Zero is a node or a touch, and for two cylinders
 the margins above its extremes. Each torus pair's pose
-(`SphereTorusPose`, `CylinderTorusPose`, `TorusTorusPose`) guards its
+(`SphereTorusPose`, `CylinderTorusPose`, `TorusTorusPose`,
+`ConeTorusPose`) guards its
 operands, reads the partner's symmetry on the section certificate's
 lever and pivot margins over the torus's own ball `|x − c| ≤ R + r`
 (which holds the whole section; the smaller ball for two tori), and decides the
@@ -1172,7 +1179,10 @@ ladder reads the same decision for two torus faces it reads undeclared. A
 sphere, a cylinder and a torus are the points at distance `ρ` from a
 spine (a point, a line, a core circle), and two of them are tangent
 exactly where a critical value of the spine-to-spine distance equals
-`ρ₁ + ρ₂` or `|ρ₁ − ρ₂|`. A coaxial partner's spine distance is
+`ρ₁ + ρ₂` or `|ρ₁ − ρ₂|`. A cone is its own spine at `ρ = 0`, and a
+point's distance from the double cone is critical at its feet on the
+two whole lines of the cone in its meridian plane, signed
+`ρ cos α ∓ h sin α`, so its levels are both `r`. A coaxial partner's spine distance is
 constant, and its gap is the closed-form tube row read across the
 coaxial slack. A sphere's spine is a point, whose critical distances
 from the core circle are its two meridian ones, so its gap is closed
@@ -1190,7 +1200,7 @@ on `(D²)′` shrunk by its own rounding before anything divides it, so a
 slope within its rounding of zero reads no sign however small `D` is,
 and what is left, over the most `D` reaches, bounds the sine of the
 crossing, levered by the core radius. Where the core crosses a torus
-partner's axis `D` has a kink, and no cell holding one clears on its
+or a cone partner's axis `D` has a kink, and no cell holding one clears on its
 slope: a tangency on a kink always escalates, unless it is the least
 distance at the level `|ρ₁ − ρ₂|`. Over a transverse gap
 the symmetric poses (coaxial, parallel, square) count their components
@@ -1198,11 +1208,11 @@ in closed form, the coaxial ones as circles and the rest the general
 rung's, marched by `carry` over a ball that holds the whole section
 (`PairPose::ball`: the sphere, else the torus's `|x − c| ≤ R + r`, the
 smaller of two tori's), every branch closing inside it; a general
-sphere × torus pose is the sphere arm's, marched; a general cylinder or
-torus pose has no closed-form count of its components, and its
+sphere × torus pose is the sphere arm's, marched; a general cylinder,
+cone or torus pose has no closed-form count of its components, and its
 components are the march's (`Components::Marched`), which the general
-rung's door (`ssi::cylinder_torus_ssi`, `ssi::torus_torus_ssi`) marches
-past a transverse gap. `implemented` covers the whole operation.
+rung's door (`ssi::cylinder_torus_ssi`, `ssi::torus_torus_ssi`,
+`ssi::cone_torus_ssi`) marches past a transverse gap. `implemented` covers the whole operation.
 The conic pairs' poses are their closed-form doors' (`PlaneSpherePose`,
 `SphereSpherePose`, `PlaneCylinderPose`): each circle or tilted ellipse
 is one loop whose carrier is the whole closed curve, plane×cylinder's
@@ -1218,12 +1228,54 @@ discriminant is a tangency only where the rulings' clearance ceiling
 over it is decided `Zero`, the sweep's margin being a floor on that
 clearance; and an apex on the partner is divided out of the rulings'
 quadratic, its node's arcs ending at it. Two cones through one apex,
-and two on parallel axes of one aperture, are not built here. Its
-components are the general rung's, and carrying them refuses typed,
-since no march carries them: the certificate has no cone arm at the
-march's search (C2), and the pair has no march door. A crossing
-tangency is a node, its arcs one node-joined set.
-Every other pair refuses: the cone against a sphere or a torus.
+and two on parallel axes of one aperture, are not built here. A cone
+against a sphere off the cone's axis is the same sweep against the
+sphere, read over the sphere's own ball padded as cylinder × sphere's
+is, so no component is cut; its tangencies are decided on the pose
+before it, in closed form: the sphere's centre stands `(ρ, h)` from the
+apex across and along the axis, its distance from the double cone is
+critical only at its feet on the cone's two lines in its meridian plane,
+`g± = ρ cos α ∓ h sin α` from it, and `|g±| − R` decides each tangency,
+the sweep reading no ceiling. With the apex margin these are every
+critical value of the clearance, so a `Zero` line is a touch at its
+foot, the section's whole, only where every other one is decided
+positive: one point, or two where both lines are `Zero`. A `Zero` line
+beside a crossing (the other line nearer than `R`, or the apex inside)
+is a touch beside other components or a node, which the pose does not
+prove, and refuses by `kc_sphere_tangency`. A sphere on the cone's axis is
+`cone_sphere_section`'s closed form, read elsewhere. A cone pair's
+components are the general rung's, marched in ℝ³ from the count's
+witnesses (`ssi::cone_ruled_ssi`), the branches ending at the region
+or, for a sphere, closing in its ball. A crossing tangency is a node,
+its arcs one node-joined set; the apex on the partner is another. The
+ℝ³ march ends no branch at a node, so an arc ending at one is
+classified and not carried.
+A cone off a torus's axis (`ConeTorusPose`) reads its apex
+against the torus before its gap, the apex's residual there a
+closed-form margin whose Zero is a node or a touch by the cone's form
+on the torus's tangent plane, and a ruling in that plane refuses;
+neither is marched, since the ℝ³ march ends no branch at a node, and
+the pair's value refuses them as not built. Past a clear apex the gap
+is the sweep, its transverse components the march's
+(`ssi::cone_torus_ssi`); a parallel axis is that general pose too. A
+gap undecided beside an apex within a sixty-fourth of the tube radius
+of the torus escalates as the apex's question, the near-node's. A
+coaxial cone is `cone_torus_section`'s closed form, which the value
+reads elsewhere. Every other pair with a cone refuses: the cone
+against a plane is rung 2's, and against a spline side it has no arm.
+A plane against a torus (`PlaneTorusPose`) is read first by the C5
+table's own axis rows (`plane_torus_section`), levered over the torus's
+ball: a plane holding the axis, square to it, or parallel to it short of
+the inner equator is the closed form's, which the value reads
+elsewhere. Every other pose has a closed-form gap: the plane touches
+the torus only on the tube circles about the two core points of extreme
+height over it, so the rows `r − |h ∓ s·R|` (`s` the normal's part
+square to the axis, `h` the plane's height over the centre) decide its
+tangency, and with `s·R − r − |h|` they count its loops, two round the
+axis, two round the tube, one null loop or none, each the general
+rung's, marched over the torus's ball (`ssi::plane_torus_ssi`) and
+matched to the count by its winding about the torus; the null loop
+carries a witness on the tube circle it cuts.
 
 The same rule governs a curve against a face. A carrier span and a face
 meet through one exhaustive `(CurveKind, SurfaceKind)` table, in the
@@ -1304,6 +1356,14 @@ spiric's own plane, so it meets a plane not parallel to that one only
 on the line where the two planes meet, which the line × torus door reads
 against the spiric's own torus over the stretch of the line on the
 oval's side of the axis's projection on the spiric's plane, each root's minor angle the span's parameter.
+It reads the count again on the two lines of the spiric's plane that
+stand the band's escalation above and below the cutting plane, and
+refuses as a tangency where either differs: an oval with one extreme of
+its height within the band of the cutting plane, a near miss or a shallow
+dip. The oval is convex, so where the count is none on all three lines
+it lies wholly on one side of each, and one of its points read across
+the line says whether it lies within the band on one side of the
+cutting plane; there it refuses too.
 A span
 on one of two cylinders of equal radii whose axes meet is read against
 the other through their bisector planes (`factored_crossing`), reached
@@ -1422,9 +1482,11 @@ combination coefficients the knot algebra derives from them. Values are
 held in the scalar, each entered where it is made as what it is: a
 constant of the construction's form (π as `T::pi()`, never as the
 arithmetic that computes it) or of an imported file through `from_f64`;
-a numerical routine's output (a fit's knots, weights and poles) once, at
-the fit, through `Real::from_computed`; a value the model determines
-computed in the scalar. At an enclosure scalar a carrier stands for the
+a value the model determines (a skin through its sections among them)
+computed in the scalar; a fit that proposes one description of
+something already described (an edge's image in a spline wall's chart)
+`f64` until the certificate that checks it admits it, once, through the
+door of `crates/geom-core/README.md` DL5.2. At an enclosure scalar a carrier stands for the
 family of its members, so its knot positions and weights may be
 enclosures as its poles are. Structure is decided once for every member:
 at a point scalar it is read off the values; at an enclosure scalar it

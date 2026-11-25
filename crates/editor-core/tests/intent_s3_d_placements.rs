@@ -552,7 +552,7 @@ fn a_boolean_copy_stands_over_its_bodys_reach() {
     let (doc, whole) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(members),
+            members: editor_core::Bodies::spelled(members),
         },
     );
     let own = vertices(&doc, whole);

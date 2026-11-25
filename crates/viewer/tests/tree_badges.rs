@@ -883,7 +883,7 @@ fn a_downstream_failure_alone_is_a_fault_the_reader_cannot_act_on() {
         status,
         repair_at: None,
         readout: None,
-        version_offer: None,
+        offers: Vec::new(),
         constraints: Vec::new(),
     };
     let rows = [
@@ -949,7 +949,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     let (doc, apart) = common::inserted(
         &doc,
         Node::Intersect {
-            members: Bodies::Spelled(vec![near.into(), far_placed.into()]),
+            members: Bodies::spelled(vec![near.into(), far_placed.into()]),
         },
         tol,
     );

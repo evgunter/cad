@@ -23,8 +23,8 @@
 //! bored block — winds clockwise (`false`), and becomes a ring of the
 //! section face of its side that encloses it by the section nesting
 //! rule (`section_loops::nest`, applied in `nest_hole_sections`), so a
-//! holed section is one face; where nothing decides it, the hole keeps
-//! a face of its own that cancels the face around it.
+//! holed section is one face; where nothing decides it, the split
+//! refuses typed.
 //!
 //! The book's "the 'inner' loop should appear in the part Above, and
 //! the 'outer' loop in the part Below" is list-position convention
@@ -656,7 +656,7 @@ pub(super) fn end_maximal<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     side: PlaneSide,
     naming: &mut SplitNaming,
-    normal: Vec3<T>,
+    plane: geom::Frame<T>,
     tol: Tol,
 ) -> Result<(), SplitFinishError> {
     // Taken before the kills, which drop it (`SplitNaming::joined_lineage`).
@@ -697,7 +697,7 @@ pub(super) fn end_maximal<T: Decide + crate::props::AtRestPolicy>(
         .merge_skipped
         .extend(merged.skipped.into_iter().map(|s| (side, s)));
     naming.record_joins(side, &split_from, merged.joins);
-    record_islands(body, side, naming, normal, tol)
+    record_islands(body, side, naming, plane, tol)
 }
 
 /// Records which ring of `side`'s finished plane pieces holds which
@@ -715,7 +715,7 @@ fn record_islands<T: Decide>(
     body: &Body<T>,
     side: PlaneSide,
     naming: &mut SplitNaming,
-    normal: Vec3<T>,
+    plane: geom::Frame<T>,
     tol: Tol,
 ) -> Result<(), SplitFinishError> {
     let pieces = naming.plane_pieces(side, body).faces;
@@ -730,8 +730,8 @@ fn record_islands<T: Decide>(
         return Ok(());
     }
     let band = geom_core::Band::linear(tol).map_err(SplitFinishError::Band)?;
-    let side_normal = section_loops::section_normal(normal, side);
-    let nesting = section_loops::nest(body, rings, outlines, side_normal, band).map_err(
+    let side_plane = section_loops::section_frame(plane, side);
+    let nesting = section_loops::nest(body, rings, outlines, side_plane, band).map_err(
         |fault| match fault {
             section_loops::NestFault::Torn(key) => {
                 SplitFinishError::Desync(FinishDesync::Unresolved(key))
@@ -1006,11 +1006,13 @@ pub enum SplitFinishError {
         /// the island's plane piece (in its side's body).
         hole: FaceKey,
     },
+    /// A hole of the section no outline is decided to enclose
+    /// ([`super::UnplacedHole`], each hole its section face in the
+    /// discarded scratch body).
+    UnplacedHole(super::UnplacedHole<FaceKey>),
     /// A slit trace's slit, read definitely, lies in no section region of
     /// its side: no outline holds a vertex of it, or the innermost one
-    /// that does has it in a hole (`in_hole`), whether a ring of its own
-    /// or a hole the nesting rule left on a face of its own inside it, or
-    /// it lies on a loop. The slit lies on edges its side's material
+    /// that does has it in a ring (`in_hole`), or it lies on a loop. The slit lies on edges its side's material
     /// wraps round, which a section region of that side covers, so this
     /// is a kernel defect.
     SlitUnplaced {
@@ -1298,6 +1300,12 @@ impl SplitFinishError {
                 )?;
                 defect_ended(f, at)
             }
+            Self::UnplacedHole(hole) => write!(
+                f,
+                "{}. Recourse: {}",
+                hole.reason(),
+                super::SPLIT_COINCIDENCE_RECOURSE
+            ),
             Self::SlitUnplaced {
                 slit,
                 in_hole: false,
@@ -1545,20 +1553,12 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
         &mut body,
         &mut section_side,
         &mut naming,
-        red.plane.normal.get(),
+        red.plane.frame(),
         band,
         tol,
     )?;
     for (slit, side) in slits {
-        nest_slit(
-            &mut body,
-            slit,
-            side,
-            &naming,
-            red.plane.normal.get(),
-            band,
-            tol,
-        )?;
+        nest_slit(&mut body, slit, side, &naming, red.plane.frame(), band, tol)?;
     }
 
     // ---- D6 (M3 PR 6a): honest descriptions on the section boundary,
@@ -1651,31 +1651,28 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
 /// face of its side that encloses it by the section nesting rule
 /// ([`section_loops::nest`]), and the hole's face dies (`kfmrh`). A
 /// section with holes is then one face whose rings are the holes'
-/// sections, the encoding tier 3 reads, rather than a face over the
-/// whole outline plus a coplanar face per hole that cancels it. The
-/// hole moves onto that face's chart first, its boundary restated with
-/// it, so the ring rides the chart of the face that keeps it.
+/// sections, the encoding tier 3 reads. The hole moves onto that face's
+/// chart first, its boundary restated with it, so the ring rides the
+/// chart of the face that keeps it.
 ///
 /// A hole joins a face only where it is decided disjoint from every
 /// hole that face took before it, in section order: tier 3 compares a
 /// ring with its face's outer loop only, so a ring that met another
 /// ring would pass it.
 ///
-/// **A hole the rule leaves unplaced, or the ring guard turns away,
-/// keeps its own face** — sound by cancellation for volumes,
-/// point-in-solid and tier 3, though tier 3′ reads what lies inside it
-/// on both faces
-/// (`work/heldrecords/a-hole-in-an-elliptic-section-keeps-a-face-of-its-own-that-tier-3-prime-refuses.md`).
-///
 /// # Errors
 ///
+/// [`SplitFinishError::UnplacedHole`] where the rule places a hole in
+/// no outline, or the ring guard turns it away: a hole kept on a face
+/// of its own would lie on the face around it, two faces of opposite
+/// sense over one area of the plane;
 /// [`SplitFinishError::NestingContradiction`]; [`SplitFinishError::Euler`]
 /// and [`SplitFinishError::Desync`] from the surgery.
 fn nest_hole_sections<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     section_side: &mut SecondaryMap<FaceKey, PlaneSide>,
     naming: &mut SplitNaming,
-    normal: Vec3<T>,
+    plane: geom::Frame<T>,
     band: geom_core::Band,
     tol: Tol,
 ) -> Result<(), SplitFinishError> {
@@ -1693,9 +1690,9 @@ fn nest_hole_sections<T: Decide + crate::props::AtRestPolicy>(
                 holes.push(((face, data.outer), data.outer));
             }
         }
-        let side_normal = section_loops::section_normal(normal, side);
+        let side_plane = section_loops::section_frame(plane, side);
         let nesting =
-            section_loops::nest(body, outlines, holes, side_normal, band).map_err(|fault| {
+            section_loops::nest(body, outlines, holes, side_plane, band).map_err(|fault| {
                 match fault {
                     section_loops::NestFault::Torn(key) => {
                         SplitFinishError::Desync(FinishDesync::Unresolved(key))
@@ -1705,21 +1702,34 @@ fn nest_hole_sections<T: Decide + crate::props::AtRestPolicy>(
                     }
                 }
             })?;
+        if let Some(&(hole, _)) = nesting.unplaced.first() {
+            return Err(SplitFinishError::UnplacedHole(super::UnplacedHole {
+                hole,
+                beside: None,
+            }));
+        }
         for (parent, holes) in nesting.regions {
-            let mut rings: Vec<crate::entity::LoopKey> = Vec::new();
+            let mut rings: Vec<(FaceKey, crate::entity::LoopKey)> = Vec::new();
             for (hole, hole_loop) in holes {
-                let mut clear = true;
-                for &r in &rings {
-                    clear = clear
-                        && section_loops::outlines_disjoint(body, r, hole_loop, side_normal, band)
-                            .map_err(|section_loops::Torn(key)| {
-                                SplitFinishError::Desync(FinishDesync::Unresolved(key))
-                            })?;
+                for &(ring, r) in &rings {
+                    if !section_loops::outlines_disjoint(
+                        body,
+                        r,
+                        hole_loop,
+                        side_plane.axis(),
+                        band,
+                    )
+                    .map_err(|section_loops::Torn(key)| {
+                        SplitFinishError::Desync(FinishDesync::Unresolved(key))
+                    })? {
+                        return Err(SplitFinishError::UnplacedHole(super::UnplacedHole {
+                            hole,
+                            beside: Some(ring),
+                        }));
+                    }
                 }
-                if clear {
-                    rings.push(hole_loop);
-                    parent_of.insert(hole, parent);
-                }
+                rings.push((hole, hole_loop));
+                parent_of.insert(hole, parent);
             }
         }
     }
@@ -1779,12 +1789,10 @@ fn ring_into<T: Decide + crate::props::AtRestPolicy>(
 /// of the slit is read against the loops of the side's section faces on
 /// their own carriers ([`point_in_loop`]).
 ///
-/// A face's region is its outline less its rings, and less every hole
-/// the nesting rule left on a face of its own ([`nest_hole_sections`]:
-/// `sense` false) inside that outline. So the holder is the innermost
-/// outline holding the vertex, none of whose rings holds it, unless a
-/// hole of its own holding the vertex lies inside it, which takes the
-/// vertex out of its region. Section loops are disjoint, so one loop
+/// A face's region is its outline less its rings, every hole of the
+/// section among them ([`nest_hole_sections`]). So the holder is the
+/// innermost outline holding the vertex, none of whose rings holds it.
+/// Section loops are disjoint, so one loop
 /// lies inside another exactly when a vertex of it does. A slit lies on
 /// edges its side's material wraps round, so it lies in some section
 /// region, clear of every loop.
@@ -1804,7 +1812,7 @@ fn nest_slit<T: Decide + crate::props::AtRestPolicy>(
     slit: FaceKey,
     side: PlaneSide,
     naming: &SplitNaming,
-    normal: Vec3<T>,
+    plane: geom::Frame<T>,
     band: geom_core::Band,
     tol: Tol,
 ) -> Result<(), SplitFinishError> {
@@ -1817,26 +1825,22 @@ fn nest_slit<T: Decide + crate::props::AtRestPolicy>(
             .map_err(|key| SplitFinishError::Desync(FinishDesync::Unresolved(key)))
     };
     let q = at(slit_loop)?;
-    let side_normal = section_loops::section_normal(normal, side);
     let read = |l, p| {
-        point_in_loop(body, l, side_normal, p, band)
+        point_in_loop(body, l, plane, p, band)
             .map_err(|error| SplitFinishError::SlitHoming { slit, error })
     };
     let unplaced = |in_hole| Err(SplitFinishError::SlitUnplaced { slit, in_hole });
-    // The outlines whose own rings leave the vertex inside them, and the
-    // holes on faces of their own that hold it.
-    let (mut outlines, mut holes, mut in_hole) = (Vec::new(), Vec::new(), false);
+    // The outlines whose own rings leave the vertex inside them: every
+    // section face of the side is an outline, its holes its rings
+    // (`nest_hole_sections`).
+    let (mut outlines, mut in_hole) = (Vec::new(), false);
     for face in side_sections(naming, side) {
         let data = body
             .get_face(face)
             .ok_or(unresolved(EntityId::Face(face)))?;
         match read(data.outer, q)? {
             LoopContainment::Out => continue,
-            LoopContainment::OnBoundary => return unplaced(!data.sense),
-            LoopContainment::In if !data.sense => {
-                holes.push(data.outer);
-                continue;
-            }
+            LoopContainment::OnBoundary => return unplaced(false),
             LoopContainment::In => {}
         }
         let mut held = true;
@@ -1864,19 +1868,14 @@ fn nest_slit<T: Decide + crate::props::AtRestPolicy>(
             }
         }
         if all {
-            innermost.push((face, l));
+            innermost.push(face);
         }
     }
-    let (parent, outline) = match innermost[..] {
+    let parent = match innermost[..] {
         [one] => one,
-        [] if outlines.is_empty() => return unplaced(in_hole || !holes.is_empty()),
+        [] if outlines.is_empty() => return unplaced(in_hole),
         _ => return Err(SplitFinishError::NestingContradiction { hole: slit }),
     };
-    for &hole in &holes {
-        if inside(hole, outline)? {
-            return unplaced(true);
-        }
-    }
     ring_into(body, slit, parent, tol)
 }
 
@@ -2060,7 +2059,7 @@ pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                     geom_brep::WedgeClass::Crease => {
                         return Err(SplitFinishError::SmoothJoinRefuted { edge, mixed: None });
                     }
-                    geom_brep::WedgeClass::End | geom_brep::WedgeClass::Lamina
+                    geom_brep::WedgeClass::End { .. } | geom_brep::WedgeClass::Lamina
                         if !matches!(surf_other, Surface::Plane { .. }) =>
                     {
                         return Err(SplitFinishError::KnifeEdge(KnifeEdge {
@@ -2069,7 +2068,7 @@ pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                         }));
                     }
                     geom_brep::WedgeClass::Seam { .. }
-                    | geom_brep::WedgeClass::End
+                    | geom_brep::WedgeClass::End { .. }
                     | geom_brep::WedgeClass::Lamina => {}
                 }
                 // What the join stores is what its wedge demands, and

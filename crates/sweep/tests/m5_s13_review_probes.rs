@@ -205,7 +205,7 @@ fn probe_flipped_row_replays_bit_identical() {
 }
 
 /// PROBE 5: a TILTED ball chart (axis 0.3 rad off vertical, seam kept
-/// clear of the slab) — the re-cut handles an arbitrary source chart,
+/// clear of the slab) — the cut-in serves an arbitrary source chart,
 /// not just the perpendicular fixture: green with the exact cap volume.
 #[test]
 fn probe_tilted_chart_recut_still_cuts_exact() {
@@ -223,7 +223,7 @@ fn probe_tilted_chart_recut_still_cuts_exact() {
         SweepStrategy::Realized,
         Tol::witness(),
     )
-    .expect("the re-cut re-charts any tilted source chart")
+    .expect("the cut-in serves any tilted source chart")
     .body()
     .unwrap()
     .body
@@ -235,7 +235,7 @@ fn probe_tilted_chart_recut_still_cuts_exact() {
     );
 }
 
-/// PROBE 6: NEAR-PARALLEL chart (axis 0.05 rad off the escape normal):
+/// PROBE 6: NEAR-PARALLEL chart (axis 0.05 rad off the slab's normal):
 /// the seam then crosses the slab, so the pipeline goes through the
 /// crossing layer and the tilted-section frontier — a typed refusal or
 /// an exact answer are both honest; a wrong volume is not.
@@ -358,18 +358,17 @@ fn probe_plane_sphere_section_dense_residual() {
     }
 }
 
-/// PROBE 9 — **the review's MAJOR, pinned at the F1 refusal**: ONE
-/// sphere group escaping through TWO NON-PARALLEL faces (top z = 1 and
-/// side x = 0) with the seam great circle steered clear of both — no
-/// crossings, so only the extent scan sees the configuration. Before
-/// the fix the scan kept the FIRST escape normal only, the re-charted
-/// seam cut one circle, and the union answered 16 + cap_top exactly —
-/// tier-3 valid and silently short one cap. Now the scan collects
-/// EVERY definite escape normal and refuses typed unless all are
-/// parallel (`bool_sphere_escape_parallel`, metered at the group's
-/// radius); multi-chart re-cutting stays banked as an extension.
+/// PROBE 9 — **one sphere group escaping through TWO NON-PARALLEL
+/// faces builds both caps under every op**: the slab's top `z = 1` and
+/// side `x = 0`, with the ball's seam steered clear of both, so no edge
+/// crosses and only the extent scan sees the pose. Each escape is cut in
+/// along the ball's own meridian through its circle, so both circles
+/// land, and every op meets its closed form from the two caps (heights
+/// 0.25 and 0.017, disjoint: no point of the ball lies past both faces).
+/// Red on a body short a cap, on an invalid body, or on a refusal, in
+/// either strategy.
 #[test]
-fn probe_two_nonparallel_escapes_refuse_typed() {
+fn probe_two_nonparallel_escapes_build_both_caps_under_every_op() {
     let r = 0.4;
     let (cx, cy, cz) = (0.383, 2.0, 0.85);
     let pivot = Vec3::new(cx, cy, cz);
@@ -380,19 +379,207 @@ fn probe_two_nonparallel_escapes_refuse_typed() {
         finished("the slab", slab::<f64>(), Tol::witness()),
         finished("the turned ball", b, Tol::witness()),
     );
+    let caps = cap(r, cz + r - 1.0) + cap(r, r - cx);
+    let ball = 4.0 / 3.0 * PI * r.powi(3);
     for strat in [SweepStrategy::Realized, SweepStrategy::Idealized] {
-        let err = boolean_op_with(
-            BooleanOp::Union,
-            &slab,
-            &b,
-            &topo::BooleanInputs::default(),
-            strat,
-            Tol::witness(),
-        )
-        .expect_err("two non-parallel escapes must refuse");
-        let BooleanError::FallbackExtentUnsupported { what, .. } = err else {
-            panic!("{strat:?}: expected the multi-escape refusal, got {err:?}");
+        for (op, x, y, want, solids) in [
+            (BooleanOp::Union, &slab, &b, 16.0 + caps, 1),
+            (BooleanOp::Intersect, &slab, &b, ball - caps, 1),
+            (BooleanOp::Subtract, &slab, &b, 16.0 - (ball - caps), 1),
+            (BooleanOp::Subtract, &b, &slab, caps, 2),
+        ] {
+            let what = format!("{strat:?}, {op:?}");
+            let out = boolean_op_with(
+                op,
+                x,
+                y,
+                &topo::BooleanInputs::default(),
+                strat,
+                Tol::witness(),
+            )
+            .unwrap_or_else(|e| panic!("{what}: both escapes cut in and the op builds: {e:?}"));
+            let body = &out.body().unwrap_or_else(|| panic!("{what}: a body")).body;
+            assert_eq!(
+                topo::validate_geometric(body, Tol::witness()),
+                Ok(()),
+                "{what}: the result passes tier 3"
+            );
+            assert_eq!(body.solids().count(), solids, "{what}: its solids");
+            // Both cuts are closed again: the ball's part of each solid is
+            // connected, so it holds no more faces than the ball brought,
+            // and each further solid one more.
+            let on_sphere = |x: &topo::Body<f64>| {
+                x.faces()
+                    .filter(|&(f, _)| {
+                        matches!(x.face_surface(f), Some(topo::Surface::Sphere { .. }))
+                    })
+                    .count()
+            };
+            assert!(
+                on_sphere(body) < on_sphere(&b) + solids,
+                "{what}: sphere faces {} against the ball's {}",
+                on_sphere(body),
+                on_sphere(&b)
+            );
+            assert!(
+                (vol(body) - want).abs() < slack(),
+                "{what}: volume {}, closed form {want}",
+                vol(body)
+            );
+        }
+    }
+}
+
+/// Rotate `body` about the line through `pivot` along `axis` by `theta`.
+fn spun_about(body: &Body<f64>, pivot: Vec3<f64>, axis: Vec3<f64>, theta: f64) -> Body<f64> {
+    let map = Affine3::rotation_about_axis(Point3::origin() + pivot, axis, theta);
+    topo::transform_rigid(body, &geom_core::test_support::rigid(&map, Tol::witness())).unwrap()
+}
+
+/// The ball's sphere frame: its centre, polar axis and seam direction.
+fn sphere_frame(body: &Body<f64>) -> (Point3<f64>, Vec3<f64>, Vec3<f64>) {
+    body.faces()
+        .find_map(|(f, _)| match body.face_surface(f) {
+            Some(geom::Surface::Sphere { frame, .. }) => {
+                Some((frame.origin(), frame.axis(), frame.u_ref()))
+            }
+            _ => None,
+        })
+        .expect("a ball has a sphere face")
+}
+
+/// Whether the ball's seam (the revolve's two meridians, pole to pole
+/// through `u_ref` and back through `−u_ref`: one great circle) passes
+/// from one side to the other of any of `planes` (a point and a normal
+/// each): sampled densely, which is enough to tell a crossing these
+/// poses make from none.
+fn seam_crosses(body: &Body<f64>, r: f64, planes: &[(Point3<f64>, Vec3<f64>)]) -> bool {
+    let (c, axis, u) = sphere_frame(body);
+    planes.iter().any(|&(o, n)| {
+        let side = |k: u32| {
+            let phi = 2.0 * PI * f64::from(k) / 8192.0;
+            let p = c + (u * phi.sin() + axis * phi.cos()) * r;
+            (p - o).dot(n) > 0.0
         };
-        assert!(what.contains("NON-PARALLEL"), "{strat:?}: {what}");
+        (1..=8192).any(|k| side(k) != side(k - 1))
+    })
+}
+
+/// Every op of the slab and `ball` against the caps `caps` the slab's
+/// faces cut off the ball (disjoint): each builds at its closed form,
+/// tier-3 valid, or refuses at the crossings path's interior-loop guard
+/// (`work/germ/interior-loop-cut-in.md`), which a seam crossing a face
+/// puts it on. Every op that builds cuts the ball in `cuts` times.
+/// `true` where every op built.
+fn every_op_or_the_guard(what: &str, ball: &Body<f64>, r: f64, caps: f64, cuts: usize) -> bool {
+    let slab = finished("the slab", slab::<f64>(), Tol::witness());
+    let ball = finished("the ball", ball.clone(), Tol::witness());
+    let whole = 4.0 / 3.0 * PI * r.powi(3);
+    let mut built = true;
+    for (op, x, y, want) in [
+        (BooleanOp::Union, &slab, &ball, 16.0 + caps),
+        (BooleanOp::Intersect, &slab, &ball, whole - caps),
+        (BooleanOp::Subtract, &slab, &ball, 16.0 - (whole - caps)),
+        (BooleanOp::Subtract, &ball, &slab, caps),
+    ] {
+        let label = format!("{what}, {op:?}");
+        topo::test_support::take_cut_ins();
+        match boolean_op_with(
+            op,
+            x,
+            y,
+            &topo::BooleanInputs::default(),
+            SweepStrategy::Realized,
+            Tol::witness(),
+        ) {
+            Ok(out) => {
+                let body = &out.body().unwrap_or_else(|| panic!("{label}: a body")).body;
+                assert_eq!(
+                    topo::validate_geometric(body, Tol::witness()),
+                    Ok(()),
+                    "{label}: tier 3"
+                );
+                assert!(
+                    (vol(body) - want).abs() < slack(),
+                    "{label}: volume {}, closed form {want}",
+                    vol(body)
+                );
+                assert_eq!(
+                    topo::test_support::take_cut_ins()
+                        .iter()
+                        .flatten()
+                        .sum::<usize>(),
+                    cuts,
+                    "{label}: the ball's cuts"
+                );
+            }
+            Err(BooleanError::CurvedPairUnsupported {
+                site: topo::PairRefusalSite::InteriorLoopGuard,
+                ..
+            }) => built = false,
+            Err(e) => panic!("{label}: a closed form or the interior-loop guard, not {e:?}"),
+        }
+    }
+    built
+}
+
+/// **The non-parallel escapes, the ball spun about its own pole in 30°
+/// steps**: probe 9's two-plane pose (top `z = 1` and side `x = 0`), and
+/// a three-plane pose (r 0.4 at (0.37, 0.37, 0.63), poled along
+/// (1, −1, 0), poking 0.03 through `x = 0`, `y = 0` and `z = 1`). The
+/// three-plane pose's side circles lie on one meridian of the ball, so
+/// the second cut finds its circle across the first cut and takes none
+/// of its own (`apply_cut_ins`). Every spin of each builds every op at
+/// its closed form or refuses at the interior-loop guard; every spin
+/// whose seam crosses no escape face builds. Red on a wrong volume, an
+/// invalid body, another refusal, or a seam-clear spin that does not
+/// build.
+#[test]
+fn every_spin_of_the_nonparallel_escapes_builds_or_meets_the_guard() {
+    let two = {
+        let r = 0.4;
+        let pivot = Vec3::new(0.383, 2.0, 0.85);
+        let b0 = ball_poled_y(r, pivot, Tol::witness());
+        let b = rot_y_about(&rot_x_about(&b0, pivot, -0.2137), pivot, 0.312);
+        let caps = cap(r, pivot.z + r - 1.0) + cap(r, r - pivot.x);
+        let planes = vec![
+            (Point3::new(0.0, 0.0, 1.0), Vec3::new(0.0, 0.0, 1.0)),
+            (Point3::new(0.0, 0.0, 0.0), Vec3::new(-1.0, 0.0, 0.0)),
+        ];
+        ("two planes", r, pivot, b, caps, planes, 2)
+    };
+    let three = {
+        let r = 0.4;
+        let pivot = Vec3::new(0.37, 0.37, 0.63);
+        let b0 = ball_poled_y(r, pivot, Tol::witness());
+        let b = spun_about(&b0, pivot, Vec3::new(0.0, 0.0, 1.0), -0.75 * PI);
+        let caps = 3.0 * cap(r, 0.03);
+        let planes = vec![
+            (Point3::new(0.0, 0.0, 1.0), Vec3::new(0.0, 0.0, 1.0)),
+            (Point3::new(0.0, 0.0, 0.0), Vec3::new(-1.0, 0.0, 0.0)),
+            (Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, -1.0, 0.0)),
+        ];
+        ("three planes", r, pivot, b, caps, planes, 2)
+    };
+    for (pose, r, pivot, ball, caps, planes, cuts) in [two, three] {
+        let (_, axis, _) = sphere_frame(&ball);
+        let mut clear = 0;
+        for k in 0..12u32 {
+            let spin = f64::from(k) * PI / 6.0;
+            let spun = spun_about(&ball, pivot, axis, spin);
+            let what = format!("{pose}, spin {}°", 30 * k);
+            let built = every_op_or_the_guard(&what, &spun, r, caps, cuts);
+            if !seam_crosses(&spun, r, &planes) {
+                clear += 1;
+                assert!(
+                    built,
+                    "{what}: its seam crosses no escape face, so every op builds"
+                );
+            }
+        }
+        assert!(
+            clear > 0,
+            "{pose}: some spin keeps its seam off every escape face"
+        );
     }
 }

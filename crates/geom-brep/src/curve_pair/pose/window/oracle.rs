@@ -295,8 +295,65 @@ struct Made {
 /// on its bounds over a long arc.
 #[test]
 fn each_window_reading_holds_on_a_dense_distance() {
-    let mut rng = fuzz::start("curve_pair::pose::window::oracle");
-    let draws = fuzz::scaled(60);
+    dense_distance_sweep(
+        fuzz::start("curve_pair::pose::window::oracle"),
+        fuzz::scaled(60),
+        &fuzz::replay(),
+    );
+}
+
+/// The seed of nightly 44989234943's 1e-12 leg, on which
+/// [`dense_distance_sweep`] at 60 draws finds one reading the dense
+/// distance contradicts.
+const CONTRADICTED_SEED: u64 = 0x4071_461b_4c68_8a45;
+
+/// **Pinned red: a window reading at `f64` that the dense distance
+/// contradicts** (`work/cpair/a-window-reading-at-f64-is-contradicted-by-the-dense-distance-since-7131s-squaring.md`).
+/// [`each_window_reading_holds_on_a_dense_distance`]'s sweep on
+/// [`CONTRADICTED_SEED`]: at the needle's band (zero 1e-12), draw 7 reads
+/// `Recedes` at `f64` on a piece 1.5e-13 long of a circle of radius 457,
+/// 290 m out, where the dense distance does not recede. That is an
+/// answer, not a refusal, so it is a wrong one until shown to be the
+/// oracle's; the pin is the whole failure text, and goes red the day the
+/// reading holds or a different one is contradicted. The sweep's bands
+/// are its own, so it stops so at every ε row. Cause: the circle's
+/// frame squared at `f64` from stated directions, where it was stored
+/// raw (fork 274); mutant F1F (PR 7131's body: squaring at an `Inexact`
+/// kind stores the stated vectors raw) turns the sweep green, and this
+/// pin red; mutants A and F1X do not.
+#[test]
+fn a_window_reading_the_dense_distance_contradicts_is_pinned_red() {
+    test_utils::pinned_red::row(
+        geom_core::Tol::witness().eps(),
+        &test_utils::pinned_red::EVERY_ROW,
+        "the window oracle on its contradicted seed",
+        &CONTRADICTED,
+        || {
+            dense_distance_sweep(
+                fuzz::pinned_sweep("curve_pair::pose::window::oracle", CONTRADICTED_SEED),
+                60,
+                "pinned seed",
+            );
+        },
+    );
+}
+
+/// [`a_window_reading_the_dense_distance_contradicts_is_pinned_red`]'s
+/// stop, whole: the count and the one contradicted reading, as the sweep
+/// reports them with its replay told as `pinned seed`.
+const CONTRADICTED: [&str; 2] = [
+    "ε 0.000000000001: 1 readings contradicted (pinned seed): [",
+    "\"draw 7 f64: Recedes on (3.2272599256367685e-10, 3.228751041377335e-10) ring None: a \
+     Circle(Circle { at: Frame { origin: Point3 { x: -293.9481167401991, y: 168.2692198219998, \
+     z: 1.1866774119181317e-7 }, axis: Vec3 { x: 1.9599143542866378e-10, y: \
+     -1.819360637945598e-10, z: 1.0 }, u_ref: Vec3 { x: 0.8761920509866891, y: \
+     -0.4819621248477306, z: -2.5941242967692446e-10 } }, radius: 457.44658154992277 }) b \
+     (120.366928440912, 113.43223485221837)\",\n]",
+];
+
+/// The sweep [`each_window_reading_holds_on_a_dense_distance`] runs: `draws`
+/// pairs per band from `rng`, every contradiction reported with `replay`.
+fn dense_distance_sweep(mut rng: fuzz::Rng, draws: usize, replay: &str) {
     // The default band, and the needle's, where an off read past a point
     // within the escalation would decide a near-miss the band leaves open.
     // At the needle's band the ringed reading is not held: its `Recedes`
@@ -351,20 +408,20 @@ fn each_window_reading_holds_on_a_dense_distance() {
             "ε {}: {} readings contradicted ({}): {:#?}",
             band.zero(),
             bad.len(),
-            fuzz::replay(),
+            replay,
             &bad[..bad.len().min(8)]
         );
         assert!(
             !ringed_too || ringed.iter().all(|&c| c > 0),
             "ε {}: every ringed reading drawn ({}): {ringed:?}",
             band.zero(),
-            fuzz::replay()
+            replay
         );
         assert!(
             unringed[Read::Off as usize] > 0 && near_end > 0,
             "ε {}: unringed offs drawn, some read by the near end ({}): {unringed:?}, {near_end}",
             band.zero(),
-            fuzz::replay()
+            replay
         );
     }
 }

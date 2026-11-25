@@ -4,15 +4,16 @@
 //! At `Sym<Interval>` a definite non-zero sign is a certified bracket
 //! that excludes zero, so a form that is the zero polynomial under it
 //! would mean one of the two channels does not contain its real. That
-//! is a soundness defect and a panic is the honest answer; what this
-//! file measures is that it never happens on the documents the tier is
-//! measured on — at the scale each certifies whole at, and past its
-//! ceiling, where the residuals are the widest the drive ever sees.
+//! is a soundness defect; the decision asks the tier nothing there, so
+//! the test instrument (`geom_core::sym::contradiction`) asks it after
+//! the replay, and what this file measures is that it finds nothing on
+//! the documents the tier is measured on past each one's ceiling, where
+//! the residuals are the widest the drive ever sees. A symbolic `Zero`
+//! whose enclosure excludes 0 is the other half, asserted inside the
+//! replay, and a panic here is that assertion.
 //!
-//! The nominal half is pinned by the gating row
-//! `m10_9_no_registrant_lies_on_any_measured_document`, which replays
-//! the same five documents and now reads the dispute column too. This
-//! file is the ceiling-plus-δ half, a second whole-box replay of each.
+//! This file is a whole-box replay of each of the five documents
+//! `m10_9_no_registrant_lies_on_any_measured_document` replays.
 //! It runs in the slow set: the bracket replays whole past its ceiling
 //! and the pad reaches its extrude, about 20 s in a release build.
 
@@ -23,115 +24,55 @@ use std::sync::Arc;
 use editor_core::ProfileDoc;
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::{CancelToken, EvalOptions, NodeResult, evaluate};
+use geom_core::sym::contradiction::{self, Report};
+use geom_core::sym::revalue::record;
 use geom_core::{SymCounts, SymRules, Tol};
 
 use crate::m10_9_pins_interval::measured_studies;
 
-/// **THE RECEIPTS PAST EACH CEILING**, in `measured_studies`' order,
-/// as `[symbolic, numeric, frozen]`. Identical at
-/// ε = 1e-6, 1e-9 and 1e-12: the atoms a residual carries do not
-/// depend on the band, and neither does what the tier proves about
-/// them.
+/// **WHERE EACH REPLAY PAST ITS CEILING STOPS, AND WHAT IT MAY NOT
+/// LOSE**, in `measured_studies`' order: the stop — `None` where it
+/// replays whole, or the predicate its refusal names — then a floor on
+/// `symbolic` and a ceiling on `frozen`. The claim below is over every
+/// decision taken before the stop, so a replay that stops earlier
+/// claims less, and reds.
 ///
 /// The plate and the annulus refuse nowhere the bisection reaches, and
 /// replay whole at [`PAST_NO_CEILING`]. The link replays whole too:
 /// rule H proves the extrude's attachment gate
-/// (`carrier_matches_mapped_source`) it stopped at. The
-/// bracket's and the pad's over-band span readings (`arc_span`,
-/// `line_span`) are settled by the segments' ends, which lie on the
-/// other carrier, so the bracket replays whole and the pad stops at
-/// its extrude's pcurve certification (`pcurve_envelope`).
+/// (`carrier_matches_mapped_source`) it stopped at. The bracket's and
+/// the pad's over-band span readings (`arc_span`, `line_span`) are
+/// settled by the segments' ends, which lie on the other carrier, so
+/// the bracket and the pad replay whole.
 ///
-/// A receipt is a measurement, not a target. A change that moves one
-/// says in its PR which column moved, by how much and why — a `frozen`
-/// move attributed by the freezes' profile (`FreezeCause`, by op) — and
-/// that no dispute fired.
+/// **The floor and the ceiling are witnesses of two open rows**, which
+/// ask whether moves of these columns were decisions lost:
+/// `work/onehome/sym11s-symbolic-column-fell-on-four-documents-with-the-rigid-motion-move.md`
+/// and `work/onedoor/sym11s-numeric-and-frozen-columns-rose-at-6869-the-wedge-fold-stage-2.md`.
+/// A theorem that goes numeric, or a form that newly freezes, reds
+/// here; a move the other way does not. They narrow to the stop alone
+/// once both rows close.
 ///
-/// **PINNED at what main reads, and NOT judged.**
-/// [`sym11_the_exact_channel_never_contradicts_past_the_ceiling`] reads
-/// this table, and it holds main's readings so the next move reds; no
-/// one has said which decisions its latest moves changed or that they
-/// are right. Three rows owe that account:
-/// `work/onehome/sym11s-symbolic-column-fell-on-four-documents-with-the-rigid-motion-move.md`,
-/// `work/onedoor/sym11s-numeric-and-frozen-columns-rose-at-6869-the-wedge-fold-stage-2.md`
-/// and, for the readings
-/// `sym11_the_exact_channel_never_contradicts_past_the_ceiling` holds
-/// below against the ones the first two left,
-/// `work/boxfinish/sym11s-receipts-moved-on-four-documents-after-the-wedge-fold-pin.md`.
+/// The floors fell, and the pad's ceiling, when validation stopped
+/// reading an adjacent line pair's shared vertex (PROFILE, `dbc608ffba`):
+/// decisions no longer asked, not decisions answered differently.
 ///
-/// **Moved by the sweeps keeping their sketch frames** (BOXFINISH's
-/// `boxfinish/sweep-frames`, against main's readings above): the plate
-/// `[1019, 1054, 299]` → `[979, 1048, 54]`, the annulus `[535, 553, 278]`
-/// → `[511, 549, 54]`, the link `[814, 948, 3575]` → `[786, 944, 2738]`,
-/// the bracket `[1433, 1553, 969]` → `[1367, 1547, 84]` and the pad
-/// `[1531, 1714, 4000]` → `[1483, 1710, 2773]`. No extrude or loft fits
-/// a plane, so the Newell sums, their normalisation and their residuals
-/// are built nowhere: fewer decisions in both columns, and the freezes
-/// they caused gone. Attributed by the freezes' profile (`FreezeCause`
-/// by op, every document, on that branch and its merge base):
-/// `Coefficient Powi` 287 → 42 on the plate and 266 → 42 on the annulus,
-/// the link's `Coefficient Mul` 820 → 319 and `Sub` 1478 → 1109, the
-/// bracket's `checks_frozen` 373 → 16 and every one of its `Degree` and
-/// `Terms` freeze classes down, the pad's `Coefficient` classes down
-/// (`Powi` 1885 → 1467). No dispute fired and no registration was
-/// contradicted, at any document.
+/// The `frozen` ceilings are the decisions' own walks: a definite numeric
+/// sign walks none.
 ///
-/// **Then moved by the decided least-turn mint** (fork 270, PR 6988): a
-/// pair that is one direction exactly turns by the identity with no pole
-/// verdict (its chord is 2), so each mate chart whose mated directions
-/// agree exactly logs no `mate_chart_pole` row. Numeric only: the plate
-/// `1048 → 1046`, the annulus `549 → 548`, the link `944 → 943`, the
-/// bracket `1547 → 1545` and the pad `1710 → 1709`; no symbolic or frozen
-/// count moves. Measured by deciding the pole at the identity again,
-/// which puts back every receipt above
-/// (`sym11_the_exact_channel_never_contradicts_past_the_ceiling` reads
-/// them). (PR 6988's gate did not run this
-/// slow row:
-/// `work/onehome/main-red-sym11s-numeric-column-fell-on-five-documents-after-the-least-turn-mint.md`.)
-///
-/// **Then moved by the session box's move from the readers to the
-/// placing doors** (PR 7088; the review rulings that a reading between
-/// two operands asks no session box of an image in its own frame, and
-/// that the door placing a copy asks it of where the copy stands,
-/// `topo::session_box_at`). Each document's measure reads its placed
-/// operand through their relative motion (`topo::Seat`) and asks no box;
-/// each placement asks one. Numeric only: the plate `1046 → 1047` and the
-/// bracket `1545 → 1546`, two placements where one measure asked; the
-/// annulus, the link and the pad unmoved, one for one. No symbolic or
-/// frozen count moves, and no dispute fired. Measured by dropping the
-/// placement's ask, which takes each document one numeric per placement
-/// below these.
-///
-/// Then the carriers held their frames as rigid motions
-/// (`work/onehome/carrier-frames-the-types-and-the-lift.md`): the sweeps'
-/// walls, caps and revolve frames are minted from the sketch plane's
-/// frame and a surface's evaluation reads its stored frame, so fewer of
-/// the forms the reads build reach the budget and freeze. Frozen only:
-/// the plate and the annulus `54 → 36`, the link `2738 → 2600`, the
-/// bracket `84 → 57` and the pad `2773 → 1967`; no symbolic or numeric
-/// count moves, and under `SymRules::without_canonical_root` the plate's
-/// 2,025 recorded decisions answer as on the merge base, each with its
-/// outcome, its 64 blocked residuals the same predicates.
-///
-/// **Then moved by validation reading no adjacent line pair's shared
-/// vertex** (`profile::seg`'s `line_line`). Symbolic only, and frozen on
-/// the pad: the plate `979 → 955`, its four corners each losing two
-/// `chord_side` sides, two `line_span` spans and two
-/// `contact_at_shared_vertex` coincidences, all of which the tier proved;
-/// the bracket `1367 → 1337`, five corners; the pad `1483 → 1471` with
-/// `1967 → 1963` frozen, four collinear adjacent pairs, each losing two
-/// sides and one coincidence, and the forms those coincidences froze.
-/// The annulus and the link do not move. These are decisions no longer
-/// asked, not decisions answered differently, so no dispute or
-/// contradiction column can be reached by them: both read zero at every
-/// document, as before. Attributed by each document's per-predicate split
-/// at the nominal, base against head (PR 7264's probe).
-const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
-    ("two_hole_plate", [955, 1047, 36]),
-    ("r1_annulus", [511, 548, 36]),
-    ("r2_link", [786, 943, 2600]),
-    ("r2_filleted_bracket", [1337, 1546, 57]),
-    ("r2_rounded_pad", [1471, 1709, 1963]),
+/// They fell again with the profile's direction mint asking the chord's
+/// expression whether it is zero (`geom_core::Expression::proves_zero`,
+/// no decision) where it read a proved Zero as one: the plate 955 → 951,
+/// the link 786 → 785, the bracket 1337 → 1329, the pad 1471 → 1455,
+/// each a reading no longer taken. The link's and the pad's frozen
+/// ceilings fell with the arcs after an axis hop departing along the
+/// literal axis: 2175 → 1501 and 1303 → 127.
+const PAST_THE_CEILING: [(&str, Option<&str>, u64, u64); 5] = [
+    ("two_hole_plate", None, 951, 36),
+    ("r1_annulus", None, 511, 36),
+    ("r2_link", None, 785, 1501),
+    ("r2_filleted_bracket", None, 1329, 53),
+    ("r2_rounded_pad", None, 1455, 127),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal
@@ -141,8 +82,8 @@ const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
 const PAST_NO_CEILING: f64 = 1e5;
 
 /// One whole-box replay at `Sym<Interval>`, ON ITS OWN THREAD: the
-/// session's counts and the first node that refused, or the panic's
-/// own message when the theorem-vs-numeric assertion fired. A panic
+/// session's counts, the first node that refused and the instrument's
+/// report, or the panic's own message when the enclosure check fired. A panic
 /// inside the session leaves that thread's session installed and the
 /// next replay would refuse to nest, so the thread is what makes the
 /// next document runnable ([`test_utils::own_thread`], which keeps the
@@ -152,7 +93,7 @@ fn replay_on_a_thread(
     doc: ProfileDoc,
     box_: ParamBox,
     tol: Tol,
-) -> Result<(Option<String>, SymCounts), String> {
+) -> Result<(Option<String>, SymCounts, Report), String> {
     test_utils::own_thread::caught(move || {
         let opts = EvalOptions {
             param_box: Some(Arc::new(box_)),
@@ -162,14 +103,20 @@ fn replay_on_a_thread(
             max_terms: editor_core::drive::DEFAULT_SYM_MAX_TERMS,
             max_degree: editor_core::drive::DEFAULT_SYM_MAX_DEGREE,
         };
-        geom_core::sym::with_session_rules(budget, SymRules::shipped(), || {
-            let ev: editor_core::Evaluation<geom_core::Sym<geom_core::Interval>> =
-                evaluate(&doc, None, &CancelToken::new(), &opts, tol);
-            ev.order.iter().find_map(|id| match ev.result(*id) {
-                Some(NodeResult::Failed(e)) => Some(format!("node {} — {}", id.0, e.kind)),
-                _ => None,
-            })
-        })
+        let ((refusal, report), counts) =
+            geom_core::sym::with_session_rules(budget, SymRules::shipped(), || {
+                let (refusal, decisions) = record(|| {
+                    let ev: editor_core::Evaluation<geom_core::Sym<geom_core::Interval>> =
+                        evaluate(&doc, None, &CancelToken::new(), &opts, tol);
+                    ev.order.iter().find_map(|id| match ev.result(*id) {
+                        Some(NodeResult::Failed(e)) => Some(format!("node {} — {}", id.0, e.kind)),
+                        _ => None,
+                    })
+                });
+                let report = contradiction::check(&decisions).expect("inside the session");
+                (refusal, report)
+            });
+        (refusal, counts, report)
     })
 }
 
@@ -178,13 +125,14 @@ fn replay_on_a_thread(
 /// scale the measured bracket says the drive refuses at, or
 /// [`PAST_NO_CEILING`] for a document that refuses nowhere the
 /// bisection reaches — where every leaf's residuals are the widest the
-/// corpus produces. The exact
-/// witness contradicts its own form at NONE of them, at any ε.
+/// corpus produces. The instrument finds the exact witness contradicting
+/// its own form at NONE of them, at any ε, and no symbolic zero's
+/// enclosure excludes 0.
 ///
-/// **The receipts are ASSERTED, not recorded in prose**, so a re-take
-/// reds on drift instead of quietly printing a different table:
-/// [`PAST_THE_CEILING`] is the measurement, identical at ε = 1e-6,
-/// 1e-9 and 1e-12.
+/// **What the zero speaks for is asserted beside it**: each replay
+/// stops where [`PAST_THE_CEILING`] says, proves no fewer theorems and
+/// freezes no more forms than it says, and the instrument asked
+/// definite decisions it could read, at ε = 1e-6, 1e-9 and 1e-12.
 ///
 /// **What runs it: the slow set** (`.config/nextest.toml`), on every PR
 /// whose diff touches `editor-core`, and every night at every ε row.
@@ -205,29 +153,46 @@ fn sym11_the_exact_channel_never_contradicts_past_the_ceiling() {
         let doc = (study.at)(past * eps);
         let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
         match replay_on_a_thread(doc, ParamBox::of(&analyzed), tol) {
-            Ok((refusal, counts)) => {
+            Ok((refusal, counts, report)) => {
                 println!("   {name} at eps={eps:e}, ceiling + δ: {counts:?} -> {refusal:?}");
-                let got = [counts.symbolic, counts.numeric, counts.frozen];
-                if got != want.1 {
-                    moved.push(format!("{name}: {got:?}, stored {:?}", want.1));
-                }
-                if counts.registrations_contradicted != 0 {
+                println!(
+                    "     instrument: {} definite decisions checked, {} absent",
+                    report.checked, report.absent
+                );
+                let stopped = match (&refusal, want.1) {
+                    (None, None) => true,
+                    (Some(r), Some(predicate)) => r.contains(predicate),
+                    _ => false,
+                };
+                if !stopped {
                     moved.push(format!(
-                        "{name}: a registered identity was contradicted past the ceiling — \
-                         that is an axiom a constructor stated and this box disproves: {counts:?}"
+                        "{name}: stops at {refusal:?}, where it stopped at {:?}",
+                        want.1
                     ));
                 }
-                if counts.theorems_disputed != 0 {
+                if counts.symbolic < want.2 || counts.frozen > want.3 {
                     moved.push(format!(
-                        "{name}: this lane's witness is EXACT, so the theorem-vs-numeric \
-                         contradiction is routed to the `debug_assert!` and never to this \
-                         column — a count here is `Interval::WITNESS` having moved, not a \
-                         document behaving badly: {counts:?}"
+                        "{name}: symbolic {} under its floor {} or frozen {} over its ceiling \
+                         {}: {counts:?}",
+                        counts.symbolic, want.2, counts.frozen, want.3
+                    ));
+                }
+                if report.checked == 0 || report.absent != 0 {
+                    moved.push(format!(
+                        "{name}: the instrument checked {} decisions and could not read {}",
+                        report.checked, report.absent
+                    ));
+                }
+                for c in &report.contradictions {
+                    moved.push(format!(
+                        "{name}: the tier proves `{}` zero ({:?}, {:?} rung, attempt {}) under a \
+                         definite {:?}",
+                        c.predicate, c.event, c.rung, c.attempt, c.sign
                     ));
                 }
             }
             Err(message) => {
-                println!("   {name} at eps={eps:e}, ceiling + δ: the CONTRADICTION FIRED");
+                println!("   {name} at eps={eps:e}, ceiling + δ: the ENCLOSURE CHECK FIRED");
                 println!("     {message}");
                 fired += 1;
             }
@@ -235,17 +200,15 @@ fn sym11_the_exact_channel_never_contradicts_past_the_ceiling() {
     }
     assert_eq!(
         fired, 0,
-        "the exact witness contradicted its own form on {fired} of the measured documents — \
-         a certified bracket that excludes zero and a form that is the zero polynomial \
-         cannot both be right, so one of the two channels does not contain its real. That \
-         is a soundness defect in a channel and a DIFFERENT unit: stop, file it with the \
+        "a symbolic zero's certified enclosure excluded 0 on {fired} of the measured \
+         documents — one of the two channels does not contain its real. That is a \
+         soundness defect in a channel and a DIFFERENT unit: stop, file it with the \
          render, and report"
     );
     assert!(
         moved.is_empty(),
-        "at eps={eps:e}, past the ceiling (a receipt is [symbolic, numeric, frozen]). This row is the measurement SYM-11 argued the dispute column's \
-         zero from, so a number that moved is a decision that moved and is a finding, not a \
-         table to refresh:\n{}",
+        "at eps={eps:e}, past the ceiling. A stop, floor or ceiling that moved is a \
+         decision that moved; a contradiction is a soundness defect:\n{}",
         moved.join("\n")
     );
 }

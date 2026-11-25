@@ -4999,7 +4999,7 @@ mod tests {
             .unwrap();
         let ruling = |description| EdgeCurveSpec {
             description,
-            carrier: geom::Curve3::line(p0, Vec3::unit_z()),
+            carrier: geom::Curve3::line(p0, geom_core::UnitVec3::exact_z()),
             param_start: 0.0,
             param_end: 1.0,
         };

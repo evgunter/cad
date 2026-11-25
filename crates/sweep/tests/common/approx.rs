@@ -305,7 +305,7 @@ pub fn box_with_spline_cap(chart: Surface<f64>) -> (Body<f64>, FaceKey) {
         // carrier `o + t·w` is `o/2 + t·(w/2)` — exact in binary
         // arithmetic, and CHECKED against the fit rather than assumed.
         let p0 = Point2::new(origin.x * 0.5, origin.y * 0.5);
-        let pl = geom_core::Vec2::new(dir.x * 0.5, dir.y * 0.5);
+        let pl = geom_core::Vec2::new(dir.get().x * 0.5, dir.get().y * 0.5);
         for t in [param_start, 0.5 * (param_start + param_end), param_end] {
             let uv = Point2::new(p0.x + pl.x * t, p0.y + pl.y * t);
             let gap = fit.eval(uv.x, uv.y).distance(curve.carrier().eval(t));
@@ -319,7 +319,8 @@ pub fn box_with_spline_cap(chart: Surface<f64>) -> (Body<f64>, FaceKey) {
             EdgeCurveSpec {
                 description: geom_brep::EdgeDescriptionSpec::chart_image(
                     surface,
-                    geom_brep::Pcurve::IsoLine { p0, pl, ends: None },
+                    geom_brep::Pcurve::iso_line_for_tests([p0.x, p0.y], [pl.x, pl.y])
+                        .expect("a box edge's image on its face is a row or a column"),
                 ),
                 carrier: curve.carrier().clone(),
                 param_start,
@@ -405,12 +406,13 @@ pub struct ReattachRefusal {
 fn iso_residual(body: &Body<f64>, spec: &EdgeCurveSpec<f64>) -> Option<f64> {
     let geom_brep::EdgeDescriptionSpec::Chart {
         surface,
-        image: Some(geom_brep::Pcurve::IsoLine { p0, pl, .. }),
+        image: Some(ref image),
         ..
     } = spec.description
     else {
         return None;
     };
+    let (p0, pl) = image.iso_line_form()?;
     let (u, v0, v1) = (
         p0.x,
         p0.y + pl.y * spec.param_start,

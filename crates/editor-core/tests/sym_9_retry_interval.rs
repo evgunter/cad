@@ -380,433 +380,74 @@ fn sym_9_what_each_retry_recovers() {
     }
 }
 
-/// **THE LADDER'S PIN**: what `SymRetry::kept_atom` recovers, per
-/// document, asserted on both sides — and on R2's link, the two
-/// predicates it recovers, at their rows: `carrier_on_surface_2`
-/// `[84, 0, 8, 16]` → `[88, 0, 8, 12]` (four of the decisions rule G
-/// costs, `decide_3_split_rows_interval` pins that trade one attempt per
-/// rung) and `witness_on_surface_2` `[14, 0, 0, 2]` → `[16, 0, 0, 0]`.
+/// **WHAT THE LADDER RECOVERS, AND THAT IT TAKES NOTHING AWAY**: each
+/// of the five measured documents replayed at its nominal with
+/// `SymRetry::kept_atom` and without a ladder. A retry is asked only
+/// into the first attempt's silence (`geom_core::SymRetry`), so the two
+/// replays take the same decisions, and each retry the ladder records
+/// moves exactly one of them from `numeric` to `symbolic`; nothing else
+/// moves. A row that moved any other way is a defect in the ladder.
 ///
-/// **The history below is a record.** Each paragraph is in the
-/// receipt's columns of its day — the quadruples are `[theorem,
-/// sign_gated, registered, numeric]` — and DECIDE-10 made the first
-/// three one column, `symbolic`, beside `numeric`; the pin asserts the
-/// pairs. Where a paragraph calls a zero "the door's axiom and not a
-/// theorem", or counts a move between the zero columns, it records
-/// which walk answered then: no receipt reports that now, and a move
-/// between them is no move.
-///
-/// The link's row is the arc's span spelled from the decided turn
-/// (`sweep`'s `arc_span`): `[541, 0, 96, 465]` → `[545, 0, 108, 449]`
-/// without the ladder and `[553, 0, 96, 453]` → `[549, 0, 120, 433]`
-/// with it, retried 12 → 16, and the predicate with the ladder
-/// `[92, 0, 6, 10]` → `[88, 0, 8, 12]`. Eight of its theorems go to the
-/// door because the ladder's rule-G-shut attempt now freezes on the
-/// coefficient ring (a 512-bit ring takes all eight back), four come
-/// back as theorems where the carrier's span meets the pushforward's
-/// atom, and two door answers go numeric on the term budget
-/// (`work/decide/rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`
-/// renders each).
-///
-/// When the certification schedule began assigning its end samples
-/// exactly (`geom_brep::schedule_param`), the link moved again:
-/// without the ladder `[545, 0, 108, 509]` → `[545, 0, 110, 507]`, and
-/// with it `[549, 0, 120, 493]` → `[547, 0, 122, 493]`, retried 16 → 14,
-/// `carrier_on_surface_2` with the ladder `[88, 0, 8, 12]` →
-/// `[86, 0, 10, 12]`. Two decisions the first attempt left numeric, and
-/// the ladder used to recover as theorems, are now registered by the
-/// door on the first attempt, so the ladder is never asked them. No
-/// decision is lost, and `numeric` with the ladder is unchanged; the
-/// claim on those two is now the door's axiom and not a theorem.
-/// Measured by restoring the old end samples on a probe, which
-/// restores every old number.
-/// Over copied arc carriers, where a lift carries the stored carrier
-/// rather than re-lowering it, the bracket moves with the same end
-/// samples: `[1105, 21, 144, 783]` → `[1105, 21, 146, 781]` without the
-/// ladder and `[1105, 21, 150, 777]` → `[1105, 21, 152, 775]` with it,
-/// retried 6 either way — two numeric decisions registered by the door
-/// on the first attempt. Sixteen of the bracket's `sign_gated` are
-/// theorems once a product with an ungated zero factor rests on that
-/// factor alone (DECIDE-9: `dihedral_wedge`'s `sin θ · arm`, the arm a
-/// read): `[1105, 21, …]` → `[1121, 5, …]` with and without the ladder,
-/// `registered`, `numeric` and `retried` unmoved.
-///
-/// Every document moved UP when the extrude began closing with the
-/// pcurve mint: its wall rows' certificate is decided too. Without the
-/// ladder the plate read `[915, 0, 164, 754]`, the annulus
-/// `[408, 24, 164, 501]`, the boss `[435, 20, 118, 448]`, the bracket
-/// `[1206, 51, 170, 1151]` and the link `[649, 0, 122, 811]`, with the
-/// link's retries at 24 (`[651, 0, 144, 787]` with the ladder).
-///
-/// PCERT's incidence-and-fidelity unit (PR 3812) moved every document
-/// again. Without the ladder the plate reads `[947, 0, 148, 698]`, the
-/// annulus `[432, 32, 148, 445]`, the boss `[453, 26, 102, 410]`, the
-/// bracket `[1235, 59, 156, 1078]` and the link `[681, 0, 118, 743]`:
-/// theorems up on every document, `registered` and `numeric` down on
-/// every one. On a harmonic row check 4's envelope (incidence plus
-/// fidelity) is the whole statement and decides as a theorem where it
-/// used to go through the door, and the schedule that cross-checks it
-/// is not run at this scalar, so the residuals it used to register or
-/// leave numeric are gone. The loop walk's literal branch adds definite
-/// sign decisions at the half-period marks and turns some loop joints
-/// over to the form (`sign_gated` up). The ladder still recovers the
-/// bracket's six, and the link's retries fall 24 → 14 (`[683, 0, 130,
-/// 729]` with it): the ten that went were the certificate's schedule.
-///
-/// DECIDE-9 (a product with an ungated zero factor rests on that
-/// factor alone), merged in after PR 3812, turns `sign_gated` into
-/// theorems on three documents, with and without the ladder alike:
-/// the annulus `[432, 32, …]` → `[440, 24, …]`, the boss `[453, 26, …]`
-/// → `[459, 20, …]` and the bracket `[1235, 59, …]` → `[1259, 35, …]`.
-/// `registered`, `numeric` and `retried` do not move.
-///
-/// Check 5 deciding only an escape's positive part (PR 3981,
-/// `geom_brep::pcurve_cache::escape`) moves all five up out of
-/// `numeric`, with and without the ladder alike: theorems on the plate
-/// (+8, `[955, 0, 148, 690]`) and the link (+8, `[689, 0, 118, 735]`
-/// without the ladder), `sign_gated` on the annulus (+8, `[440, 32, …]`),
-/// the boss (+6, `[459, 26, …]`) and the bracket (+10, `[1259, 45, …]`).
-/// A row box inside its window reads Zero where its clearance read a
-/// numeric Negative. `registered` and `retried` do not move.
-///
-/// The variable table (INTENT-VARS-1 PR 2) keys a variable's symbol by
-/// its minted id where it was keyed by a hash of its name, so the
-/// bracket's variables sort differently inside every canonical form.
-/// Two of its residuals that registered under the old order are left
-/// numeric under the new one, with and without the ladder alike
-/// (`registered` 156 → 154 and 162 → 160, `numeric` up by two): the
-/// ladder's own six and every other document's row do not move.
-/// Measured by a probe binding each variable under its old name-hash
-/// symbol, which restores 156 and 162: the move is the order alone.
-///
-/// A loop walk that decides each loop's closure joint as every other
-/// joint, between two images, and reads the winding off the integer
-/// joint elements (the re-anchor ruling, PR 4024) trades the closure
-/// margins for that joint's branch, pole-lever and continuity margins:
-/// `numeric` up on all five, with and without the ladder alike (the
-/// plate +14 to 704, the annulus +14 to 451, the boss +10 to 414, the
-/// bracket +17 to 1087 and 1081, the link +13 to 748 and 734).
-/// Theorems, `sign_gated`, `registered` and `retried` do not move.
-///
-/// When the constructions began storing the carriers they build
-/// (`store-constructed-carriers`, re-measured on the tree with every
-/// change above merged) every document moved up, against the rows
-/// just above:
-/// - the plate and the annulus's 148 registered decisions are theorems
-///   (the circles' rims fold onto `|r|`), and the boss's 74 of 102;
-/// - the bracket reads `[1401, 45, 49, 1056]` either way, so its ladder
-///   retries nothing (it recovered 6);
-/// - the link reads `[824, 0, 52, 683]` either way, retried 0 (it was
-///   14).
-///
-/// The bracket's `registered` falls 105 and its `numeric` 37 against
-/// 142 more theorems. Eight `dihedral_wedge` decisions that are
-/// theorems before are registered after: the fillet's tangency is the
-/// registration `centre ≡ t1 + σ·r·n̂₁`, not an identity of the offset
-/// centre's algebra. On the link, `carrier_on_surface_2` without the
-/// ladder moved down, `[84, 0, 0, 24]` against `[76, 0, 16, 16]` on the
-/// shipped side. That is the tangent arc's quarter-tangent
-/// `2w / sqrt(4w²)`, which rule G re-keys as a sign quotient the tier
-/// does not hold; an `atan2` quarter-tangent restores it
-/// (`decide_3_split_rows_interval` holds the same trade without the
-/// ladder).
-///
-/// PCERT's chart-angle unit retired the loop's chart-space angle
-/// comparisons and check 5, so every document lost those decisions
-/// outright, in every column at once, with and without the ladder
-/// alike: the plate reads `[1047, 0, 0, 648]`, the annulus
-/// `[564, 0, 0, 395]`, the boss `[517, 2, 26, 372]`, the bracket
-/// `[1373, 5, 47, 980]` and the link `[772, 0, 48, 623]`. That is a
-/// baseline moving, not a retry taking a decision away: `retried` stays
-/// zero on all five.
-///
-/// A slot that holds a variable (INTENT-LITERALS PR C) lowers a formula
-/// written at a slot to an anonymous defined variable, which the
-/// environment binds through the non-finite door as it binds every
-/// definition: `symbolic_zero` gains those bindings' theorems on every
-/// document, over the rows just above (the plate +1, the annulus +2,
-/// the boss +4, the bracket +3, the link +2), and no other column
-/// moves; the pad's drive receipt holds. The untoleranced
-/// variables bind as constants (VR8), as the literals they were did.
-///
-/// It pins the whole split with the ladder against the same replay
-/// without it, so a decision that moved DOWN reds, and the `retried`
-/// column at its measured count — ZERO on all five now, which is the
-/// claim that the ladder is not quietly paying for itself somewhere
-/// unmeasured. No document here gains from the ladder at the nominal
-/// any more, so the half that shows the ladder RECOVERING something is
-/// [`sym_9_the_drive_writes_the_ladders_receipt`]'s: on the pad's leaf
-/// at `1e1·ε` the ladder takes four decisions the first attempt left
-/// numeric (`symbolic` 1211 → 1215, `retried` 4 against 0).
-///
-/// Every extruded cap decides `cap_plane_orientation` once, numeric
-/// on both sides: the plate's `numeric` 704 → 710, the annulus's
-/// 451 → 455, the boss's 414 → 418, the bracket's 1050 → 1056 and the
-/// link's 679 → 683, with the ladder and without it alike.
-///
-/// The final non-finite check asks boundedness and decides nothing
-/// (`expr-non-finite-asks-value-times-zero`), so its theorems leave
-/// `symbolic` with the ladder and without it alike: plate 1048 → 1003,
-/// annulus 566 → 539, boss 549 → 516, bracket 1448 → 1387, link
-/// 862 → 827, the pad's leaf 1376 → 1315. No decision moved; one left.
-///
-/// Placing each row over its edge's span in the chart's principal
-/// window (C4) reads two half-period marks per placed azimuth, numeric
-/// on both sides, and a cylinder's meridian azimuth is read only on a
-/// meridian, so a rim circle centred on the axis no longer takes the
-/// frame read the tier proved zero. With the ladder and without it
-/// alike: the plate 1048/654 → 1032/726, the annulus 566/399 →
-/// 550/471, the boss 549/376 → 537/428, the bracket 1448/1004 →
-/// 1428/1092 and the link 862/663 → 846/731, `retried` zero on all
-/// five. `symbolic` falls here because the decisions are gone, not
-/// because a retry took them; the pad's leaf moves 1372/1284 →
-/// 1348/1384 bare and 1376/1280 → 1352/1380 with the ladder, its four
-/// recovered decisions held. Main's final non-finite check and the
-/// placement add, with the ladder and without it alike: `symbolic` falls
-/// by main's count on each (plate −45, annulus −27, boss −33, bracket −61,
-/// link −35, the pad's leaf −61) from the placement's, `numeric` the
-/// placement's: plate 987/726, annulus 523/471, boss 504/428, bracket
-/// 1367/1092, link 811/731, the pad's leaf 1287/1384 bare and 1291/1380
-/// with the ladder. The frame decided across the window's cut sends the
-/// pad leaf's four theorems on the old frame's cut (`x ≡ 0`) to the
-/// numeric channel: 1283/1388 bare and 1287/1384 with the ladder.
-///
-/// A harmonic row's windings are structure (PCERT B2a, `[ev]` PR 5113's
-/// first decision): the angle channels' affine decisions, the winding
-/// walk and the harmonic period gate decide nothing now, with the ladder
-/// and without it alike. The plate 987/726 → 939/686, the annulus
-/// 523/471 → 475/431, the boss 504/428 → 468/398, the bracket 1367/1092
-/// → 1307/1042, the link 811/731 → 763/691, `retried` zero on all five;
-/// the pad's leaf 1283/1388 → 1211/1328 bare and 1287/1384 → 1215/1324
-/// with the ladder, its four recovered decisions held. Every column
-/// falls because the decisions are gone, not because a retry took
-/// them.
-///
-/// The profile's joint pass reads each joint's turn
-/// (`path_junction_turn`, #5354's ruling) after carrier identity: a
-/// line/line corner decides once more and a line/arc joint's clearance
-/// becomes a turn the tier proves. The plate 939/686 → 939/690, the
-/// bracket 1307/1042 → 1311/1043, the link 763/691 → 767/687, with the
-/// ladder and without it alike; the pad's leaf 1211/1328 → 1223/1316
-/// bare and 1215/1324 → 1227/1312 with the ladder, its four recovered
-/// decisions held.
-///
-/// The door reads each junction a departing leg follows again at the
-/// shorter leg's arm once that leg is stored (#5377's fix pass): the
-/// plate 939/690 → 939/693, the boss 468/398 → 468/399, the bracket
-/// 1311/1043 → 1311/1047, with the ladder and without it alike; no
-/// recovered decision moved.
-///
-/// Check 4 deciding no whole period (PCERT B2b): fidelity's numeric
-/// branch decisions are gone, with the ladder and without it alike,
-/// measured on the tree with every move above. The plate's `numeric`
-/// 693 → 661, the annulus 431 → 399, the boss 399 → 375, the bracket
-/// 1047 → 1007, the link 687 → 655. `symbolic` and `retried` hold. (The
-/// pad's leaf is `sym_9_the_drive_writes_the_ladders_receipt`'s.)
-///
-/// INTENT stage 3 D places each construction a document combines into
-/// its target's space by a plane mate and its values, and each
-/// placement's chart decides with the ladder and without it alike:
-/// `symbolic` +3 and `numeric` +3 per placement (the plate and the
-/// bracket +6/+8 over two, the annulus, the boss and the link +3/+3),
-/// and the pad's leaf 1315/1280 -> 1318/1283 (1311/1284 -> 1314/1287
-/// without the ladder). `retried` does not move.
-///
-/// A placement whose bundle reads a declared or toleranced variable
-/// runs its map at the nominal (C-5 narrowed, the orchestrator's
-/// ruling), so its transform and its copy's re-certification decide
-/// there, with the ladder and without it alike: `symbolic` +186 per
-/// such placement (bracket +372 over two; annulus, boss and link +186)
-/// and `numeric` +159 per placement (+318; +159), the link's
-/// `carrier_on_surface_2` 100 -> 136 and `witness_on_surface_2` 16 ->
-/// 20, and the pad's leaf 1318/1283 -> 1504/1442 (1314/1287 ->
-/// 1500/1446 without the ladder). Every row that moved, moved up;
-/// `retried` does not move. The plate's holes, placed by their start
-/// caps and written numbers alone, read no variable and still snap.
-///
-/// Re-taken on INTENT stage 3 D under FORK-REST (only the identity
-/// bundle as written places by no map). The plate moved by FORK-REST
-/// alone, [945, 701] -> [1253, 1043] with the ladder and without it:
-/// its two holes are placed by plane mates, which the narrowing's walk
-/// let snap, and now run their maps, so their transforms and their
-/// copies' re-certification decide at the nominal. The other four read
-/// on D before FORK-REST what they read now, measured on its head
-/// (`434139ef1c`): their placements read a declared or toleranced
-/// variable and already ran their maps. They moved from the narrowing's
-/// receipts above with main's merge at `0a1d95321e` (annulus [728, 561]
-/// -> [632, 605], boss [705, 538] -> [625, 573], bracket [1765, 1330]
-/// -> [1625, 1397], link [1016, 825] -> [924, 861]); on the plate the
-/// same merge read [1009, 662] -> [945, 701]. `retried` holds at 0
-/// everywhere, and with the ladder and without it read alike: no retry
-/// takes a decision away. The rows that fell fell with main's merge,
-/// between two trees, not between the ladder's two dials, which is what
-/// the paragraph below constrains.
-///
-/// Main's merge at `557e581a64` (check 4 deciding no whole period, PCERT
-/// B2b) takes fidelity's numeric branch decisions out, with the ladder
-/// and without it alike: the plate's `numeric` 1043 -> 979, the annulus
-/// 605 -> 557, the boss 573 -> 533, the bracket 1397 -> 1325, the link
-/// 861 -> 813. `symbolic` and `retried` hold, and the fall is between two
-/// trees, not between the ladder's dials. Measured identical with a
-/// written fraction of a turn read as its rounded radian.
-///
-/// `numeric` can only FALL and `symbolic` can only rise: a retry is
-/// asked only into the first attempt's silence (`geom_core::SymRetry`). A row here that moved the other way is a
-/// defect in the ladder, not a re-baseline.
+/// The ladder must recover something somewhere among the five (the
+/// filleted bracket, where rule G under H costs
+/// `carrier_matches_mapped_source` decisions on the first attempt and
+/// the ladder recovers them — the DECIDE-3 trade PR 5954 rules), or the
+/// claim above is about a ladder that is never asked.
 #[test]
 fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     let tol = Tol::witness();
     let ladder = SymRetry::kept_atom();
-    // `(document, the receipt without the ladder, with it, retried)`.
-    // Pinned at what main measures (2026-10-28), every ε row alike, not
-    // explained: the plate [1253, 979] -> [1149, 832], the annulus
-    // [632, 557] -> [654, 555], the boss [625, 533] -> [651, 531], the
-    // bracket [1625, 1325] -> [1535, 1167], the link [924, 813] ->
-    // [954, 813]. The first move was #5542's merge (the plate's numeric
-    // 979 -> 991 there); the rest is unbisected, and the same documents'
-    // counts moved with PR 5728 and PR 5811
-    // (`work/cpair/main-red-slow-set-receipts-moved-at-5542.md`,
-    // `work/shell/main-red-three-m10-interval-pins-moved-at-5728`).
-    // With the ladder and without it still read alike. Then PR 5952
-    // (the profile's simplicity pass reads no gap on a line pair that
-    // shares a vertex) took 8 numeric decisions off the plate and 10 off
-    // the bracket. PR 5954's rule H proves the bracket +2 and the link +8
-    // (its cost table): bare [1535, 1157] -> [1537, 1155], the link
-    // [954, 813] -> [962, 805] both ways. With the ladder the bracket is
-    // +8 and retries 6: rule G under H costs `carrier_matches_mapped_source`
-    // four per attempt and the ladder recovers them and two more, the
-    // DECIDE-3 trade PR 5954 rules as that predicate's exemption from
-    // never-loses (`work/intent/g-moves-four-main-reds-messages.md`).
-    // A cylinder rim's axial `cos t` and `sin t` terms are decided at
-    // `pcurve_cylinder_chart_axial` (`geom_brep::pcurve_cache`'s
-    // `cylinder_rim_axial`, PR 6105), which the tier proves `Zero` on
-    // these documents' nominal rims (not on a leaf whose radius varies,
-    // `work/pcert/the-cylinder-rim-axial-decision-refuses-every-leaf-of-the-two-parameter-drive`):
-    // the annulus decides it on 12 rims. The 14 the bracket decides in
-    // `sym11`'s replay leave this row's bracket unmoved, and why is not
-    // read here. Every rim of the plate and the link has exactly-zero
-    // axial terms and returns before the decision; the boss is not
-    // measured.
-    // So the annulus [654, 555] -> [666, 555] both ways.
-    // Then PCERT E1c (every mint reads incidence first, PR 5889), identical at all
-    // three ε rows: the plate +54, the annulus +54, the boss +36 symbolic
-    // and +8 numeric, the bracket +62 and the link +36 symbolic and +16
-    // numeric, the decisions of the read every mint makes first.
-    // Then ONEHOME (`mate::solve::admitted` removed: a placement composed
-    // as motions decides no rigidity margin): each placed
-    // map's seven `transform_rigid_*` margins log no row, 7 symbolic per map
-    // both ways, the numeric unmoved: the plate and the bracket −14, the
-    // annulus, the boss and the link −7. Then ONEHOME's moved copy (a
-    // move carries its verdict, `Held::moved`): the copy each document
-    // reads into its measuring frame is not re-certified or finished
-    // again there, 174 to 178 symbolic and 155 numeric fewer both ways,
-    // the retries holding. Then each move asks the session box of its
-    // image (`Replay::moved_by`): one numeric decision more both ways.
-    // PCERT's closed-form bound (main's `4121c920`) moves none of these:
-    // the stated images sit on moved copies whose certificates are
-    // carried, so none is metered again in the measuring frame.
-    // Then the extrude and revolve read each edge they write by its whole
-    // wedge, the arm, the wedge and a corner's sign at its 7 interior
-    // stations, where they read the class at one witness, identical at
-    // all three ε rows and with the ladder or without it: numeric the
-    // plate +380, the annulus +152, the boss +190, the bracket +539 and
-    // the link +280; symbolic the bracket −2 and the link −4, the witness
-    // reads the tier proved, which no station's read reproduces. The
-    // ladder's recovery on the bracket holds at 6. Then validation's mint
-    // began reading each straight side's chord components exactly and
-    // outside the log (audit row F43), with the ladder or without it: the
-    // plate +4/+4, the boss +1/+2, the bracket +8/+8 and the link +1/+1;
-    // the annulus, two circles, reads none, and the recovery holds at 6.
-    // Then the sweeps keep their sketch frames and fit no plane (no
-    // `newell_plane_residual`, no `cap_plane_orientation`), both ways:
-    // symbolic the plate −40, the annulus −24, the boss −18, the bracket
-    // −56 and the link −28; numeric the plate, the annulus, the boss, the
-    // bracket and the link −6, −4, −4, −6 and −4. The ladder's recovery on
-    // the bracket holds at 6. Then the decided least-turn mint (fork 270)
-    // took a pair that is one direction exactly to the identity with no
-    // pole verdict (its chord is 2), with the ladder or without it:
-    // numeric the plate −2, the annulus −1, the boss −1, the bracket −2
-    // and the link −1; no symbolic row moves and the recovery holds at 6.
-    // Then the session box moved from the readers to the placing doors
-    // (PR 7088): each placement asks it of where its copy stands
-    // (`topo::session_box_at`) and no measure asks it of an image. With
-    // the ladder or without it, numeric +1 on the plate and the bracket,
-    // each two placements where one measure asked, and unmoved on the
-    // rest, one for one; no symbolic row moves and the recovery holds at 6.
-    // Then validation stopped reading an adjacent line pair's shared
-    // vertex (`profile::seg`'s `line_line`): fewer decisions ASKED, not a
-    // retry taking one away, so both arms fall alike and the ladder's
-    // recovery on the bracket holds at 6. Symbolic only, with the ladder
-    // or without it: the plate −24 (four corners, each two `chord_side`
-    // sides, two `line_span` spans and two `contact_at_shared_vertex`
-    // coincidences, all proved) and the bracket −30 (five corners); the
-    // annulus, the boss and the link do not move.
-    let expected: [(&str, [u64; 2], [u64; 2], u64); 5] = [
-        ("two_hole_plate", [955, 1047], [955, 1047], 0),
-        ("r1_annulus", [511, 548], [511, 548], 0),
-        ("r1_segment_boss", [489, 572], [489, 572], 0),
-        ("r2_filleted_bracket", [1331, 1541], [1337, 1535], 6),
-        ("r2_link", [786, 943], [786, 943], 0),
+    let documents = [
+        "two_hole_plate",
+        "r1_annulus",
+        "r1_segment_boss",
+        "r2_filleted_bracket",
+        "r2_link",
     ];
-    let mut moved: Vec<String> = Vec::new();
-    for (name, want_off, want_on, want_retried) in expected {
+    let mut wrong: Vec<String> = Vec::new();
+    let mut recovered = 0;
+    for name in documents {
         let doc = document(name, 1.0, tol);
         let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
         let box_ = nominal_box(&analyzed);
         let (_, off) = replay(&doc, &box_, SymRetry::none(), false, tol);
-        // The shape report is on for ONE replay, the link's with the
-        // ladder: the predicate rule G trades is pinned here at the row
-        // the ladder recovers it to, and a split is read off the report.
-        let link = name == "r2_link";
-        let (shapes, on) = replay(&doc, &box_, ladder, link, tol);
-        if link {
-            let t = split(&shapes);
-            // `_2` is the higher key of the surface pair
-            // (`geom_brep::SurfacePair`), not the surface the extrude
-            // named second, so rule G's trade lands half on each slot:
-            // `[76, 0, 16, 16]` became `[92, 0, 8, 8]` here.
-            for (pred, want) in [
-                // ONEHOME's moved copy: 136/8 -> 100/8 and 20/0 -> 16/0.
-                ("carrier_on_surface_2", [100, 8]),
-                ("witness_on_surface_2", [16, 0]),
-            ] {
-                let got = t.get(pred).copied().unwrap_or([0; 2]);
-                if got != want {
-                    moved.push(format!("{name}/{pred} with the ladder {want:?} -> {got:?}"));
-                }
-            }
-        }
+        let (_, on) = replay(&doc, &box_, ladder, false, tol);
         println!(
             "== {name}: {:?} -> {:?} (retried {})",
             receipt(&off),
             receipt(&on),
             on.retried
         );
-        if receipt(&off) != want_off {
-            moved.push(format!(
-                "{name} without the ladder {want_off:?} -> {:?}",
-                receipt(&off)
-            ));
-        }
-        if receipt(&on) != want_on {
-            moved.push(format!(
-                "{name} with the ladder {want_on:?} -> {:?}",
-                receipt(&on)
-            ));
-        }
-        if on.retried != want_retried {
-            moved.push(format!("{name} retried {want_retried} -> {}", on.retried));
-        }
         assert_eq!(
             off.retried, 0,
             "{name}: `SymRetry::none()` installs no ladder, so nothing can be retried"
         );
+        if on.decisions() != off.decisions() {
+            wrong.push(format!(
+                "{name}: the ladder changed which decisions were taken: {:?} -> {:?}",
+                receipt(&off),
+                receipt(&on)
+            ));
+        }
+        if on.symbolic != off.symbolic + on.retried || off.numeric != on.numeric + on.retried {
+            wrong.push(format!(
+                "{name}: {} retries moved {:?} -> {:?}, where each moves one decision from \
+                 numeric to symbolic",
+                on.retried,
+                receipt(&off),
+                receipt(&on)
+            ));
+        }
+        recovered += on.retried;
     }
     assert!(
-        moved.is_empty(),
-        "the ladder's measured recovery moved (symbolic/numeric). A row that \
-         moved UP is re-baselined and said; one that moved DOWN is a retry taking a decision \
-         away, which `SymRetry` says cannot happen: {moved:?}"
+        wrong.is_empty(),
+        "the ladder took a decision away or moved one it did not retry: {wrong:?}"
+    );
+    assert!(
+        recovered > 0,
+        "the ladder recovers nothing on any measured document, so the rows above hold for a \
+         ladder that is never asked"
     );
 }
 
@@ -819,50 +460,13 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
 /// plain memo installed) — against the same leaf with
 /// `SymRetry::none()`.
 ///
-/// It reads both receipts the drive writes: the goldening line carries
-/// `retried=38` after the discharge columns, and the human form names
-/// the thirty-eight as discharges a second attempt reached. Without
-/// the ladder neither appears and the line is the one a drive wrote
-/// before the ladder existed. The thirty-eight move `symbolic`
-/// 1208 → 1246. The junction's turn levered by the shorter leg's arm
-/// (#5377's fix pass) moves sixteen more of the leaf's decisions from
-/// `numeric` to `symbolic`: 1246/1294 → 1262/1278 with the ladder and
-/// 1208/1332 → 1224/1316 without it, the thirty-eight held. Check 4
-/// deciding no whole period (PCERT B2b) takes its 48 numeric branch
-/// decisions off both, measured: 1262/1278 → 1262/1230 with the ladder
-/// and 1224/1316 → 1224/1268 without it;
-/// `symbolic` and `retried` hold. The line×line fillet's half-angle
-/// tangent read by the home's select (`profile`'s `sugar::split_half_tan`)
-/// moves decisions from `numeric` to `symbolic`: 1262/1230 → 1264/1228
-/// with the ladder, which retries thirty-nine, and 1224/1268 →
-/// 1225/1267 without it.
-///
-/// The row read the filleted bracket, then the link, then the pad as
-/// authored. Since the constructions store the carriers they build,
-/// the first attempt discharges on the first two what their ladder
-/// used to; since a chord's director is its components, it does on the
-/// pad as authored too (it retried four). Spelling the pad's one
-/// point-target leg as an angle puts a `sin_cos(π/2)` round trip back,
-/// and the ladder reaches thirty-eight. It is the heaviest leaf here:
-/// this row costs minutes in a debug build.
-///
-/// Re-taken on INTENT stage 3 D after FORK-REST: the leaf reads [1419,
-/// 1452, 34] shipped and [1385, 1486, 0] bare. The shipped receipt is
-/// the one D's head read before FORK-REST (`434139ef1c`, D's handoff):
-/// the pad's one placement reads a declared variable and ran its map
-/// before FORK-REST as after. It moved with main's merge at
-/// `0a1d95321e`, from the [1504, 1442, 4] and [1500, 1446, 0] these
-/// pins last held; the ladder now reaches thirty-four where the
-/// paragraphs above count thirty-eight, each a decision moved from
-/// `numeric` to `symbolic`.
-///
-/// Main's merge at `557e581a64` moved the leaf to [1421, 1386, 34]
-/// shipped and [1387, 1420, 0] bare: check 4 decides no whole period
-/// (PCERT B2b), so fidelity's numeric branch decisions go (`numeric`
-/// 1452 -> 1386 and 1486 -> 1420), and two more decisions discharge
-/// symbolically on the first attempt alike (1419 -> 1421, 1385 -> 1387).
-/// The ladder still retries thirty-four. Measured identical with a
-/// written fraction of a turn read as its rounded radian.
+/// Both leaves certify and take the same decisions, and the shipped
+/// receipt is the bare one with each retry moved from `numeric` to
+/// `symbolic`. The goldening line carries `retried=N` after the
+/// discharge columns, and the human form names the discharges a second
+/// attempt reached, exactly when the ladder retried something; the bare
+/// drive writes neither. It is the heaviest leaf here: this row costs
+/// minutes in a debug build.
 #[test]
 fn sym_9_the_drive_writes_the_ladders_receipt() {
     let tol = Tol::witness();
@@ -888,7 +492,10 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
         retry: SymRetry::none(),
         ..editor_core::drive::SymbolicDials::default()
     });
-    let (line, human) = (shipped.serialize(), shipped.render(&doc, &analyzed));
+    let (line, human) = (
+        shipped.serialize(),
+        shipped.render(&doc, &analyzed).to_string(),
+    );
     println!("{line}\n{human}");
     assert_eq!(shipped.receipt().certified, 1, "the leaf certifies whole");
     assert_eq!(
@@ -896,89 +503,54 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
         1,
         "with the ladder and without it"
     );
-    let d = shipped.decisions();
-    // Pinned at what main measures (2026-10-28), every ε row alike, not
-    // explained: [1421, 1386, 34] -> [1463, 1380, 34]. #5542's merge
-    // moved it first, to [1421, 1378, 34]; the rest is unbisected
-    // (`work/cpair/main-red-slow-set-receipts-moved-at-5542.md`).
-    // Then PR 5954's rule H took two (`symbolic` -2, `retried` holds):
-    // the leg's rounded `π/2` is a symbolic angle, its products linearise
-    // into multiple-angle atoms, and one square in each of a
-    // `carrier_on_surface_1` and a `carrier_on_surface_2` residual freezes
-    // on the coefficient bound. Pinned at that loss, a defect
-    // (`work/sym/rule-h-loses-two-pad-decisions-to-a-coefficient-freeze.md`).
-    // Then PCERT E1c (every mint reads incidence first, PR 5889): 1461 -> 1529
-    // symbolic, the read's decisions. Then a bare fillet's run in after a
-    // straight leg became a segment of its own, so each of the pad's
-    // filleted corners keeps its leg's end as a vertex inside a run:
-    // [1529, 1382] -> [1573, 1500], the retries holding. Then ONEHOME
-    // (`mate::solve::admitted` removed: a placement composed as motions
-    // decides no rigidity margin): the pad's placement's seven
-    // `transform_rigid_*` margins log no row: 1573 -> 1566 symbolic. Then
-    // ONEHOME's moved copy, its verdict carried and its edges not
-    // re-certified after the transform (`topo::FinishedBody::moved`):
-    // [1566, 1500] -> [1392, 1345], the retries holding, the same −174
-    // symbolic and −155 numeric `m10_9_pins_interval` reads off the pad.
-    // Then the placement asks the session box of its image
-    // (`Replay::moved_by`): [1392, 1345] -> [1392, 1346]. Then the
-    // constructors' whole-wedge reads (the extrude reads each edge it
-    // writes at its 7 interior stations, where it read the class at one
-    // witness): [1392, 1346, 34] -> [1384, 1830, 32], the witness reads the
-    // tier proved, two of them through the ladder, and the stations'
-    // numeric reads. Then validation's mint read each straight side's
-    // chord components exactly (audit row F43): [1384, 1830, 32] ->
-    // [1396, 1848, 32]. Then the sweeps keep their sketch frames and fit
-    // no plane: [1396, 1848, 32] -> [1390, 1802, 0], the planes' residuals
-    // gone from the numeric column and no decision on this leaf left for
-    // the ladder to retry; the bracket's recovery
-    // (`sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured`) is
-    // what carries the ladder now. Then the decided least-turn mint (fork
-    // 270) took the pad's identity chart with no pole verdict: [1390,
-    // 1802, 0] -> [1390, 1801, 0]. The pad's one session-box ask is its
-    // placement's, not its measure's (PR 7088): unmoved. Then validation
-    // stopped reading an adjacent line pair's shared vertex
-    // (`profile::seg`'s `line_line`): [1390, 1801, 0] -> [1381, 1798, 0],
-    // at every ε row. Those are the twelve decisions the pad loses at its
-    // nominal, measured there by predicate: its four collinear adjacent
-    // pairs' two `chord_side` sides and one `contact_at_shared_vertex`
-    // each. Over this leaf's box three of the twelve were numeric.
-    assert_eq!(
-        [d.symbolic, d.numeric, d.retried],
-        [1381, 1798, 0],
-        "the shipped ladder's leaf receipt"
-    );
-    // With nothing retried the receipt writes no ladder column, as the
-    // bare drive's does below; no fixture here retries in a one-leaf
-    // drive now (`work/sym/the-ladders-receipt-row-has-no-drive-that-retries.md`).
+    let (d, b) = (shipped.decisions(), bare.decisions());
     assert!(
-        !line.contains("retried="),
-        "nothing retried, no column: {line}"
+        d.symbolic > 0,
+        "the tier proves something on the leaf: {d:?}"
     );
-    assert!(!human.contains("second attempt"), "{human}");
-    let b = bare.decisions();
-    // Pinned with the shipped receipt above: [1387, 1420, 0] ->
-    // [1429, 1414, 0] -> [1427, 1416, 0], the last move rule H's
-    // (`SymRules::without_angle_sum` reads [1429, 1414, 0]). Then PCERT
-    // E1c (PR 5889): [1427, 1416, 0] -> [1495, 1416, 0], the read's
-    // decisions, as the shipped receipt's. Then the run in as its own
-    // segment, as the shipped receipt's: [1495, 1416, 0] -> [1539, 1534, 0].
-    // Then ONEHOME's seven rigidity margins, as the shipped receipt's:
-    // [1539, 1534, 0] -> [1532, 1534, 0]. Then ONEHOME's moved copy, as the
-    // shipped receipt's: [1532, 1534, 0] -> [1358, 1379, 0]. Then the
-    // placement's session-box ask, as the shipped receipt's:
-    // [1358, 1379, 0] -> [1358, 1380, 0]. Then the constructors'
-    // whole-wedge reads, as the shipped receipt's: [1358, 1380, 0] ->
-    // [1352, 1862, 0]. Then validation's mint, as the shipped receipt's:
-    // [1352, 1862, 0] -> [1364, 1880, 0].
-    // Then the sweeps' frames: the ladder retries nothing on this leaf,
-    // and the bare drive reads the shipped receipt, [1390, 1802, 0]. Then
-    // the least-turn mint's identity chart, as the shipped receipt's:
-    // [1390, 1802, 0] -> [1390, 1801, 0]. Then the unread shared
-    // vertices, as the shipped receipt's: [1390, 1801, 0] -> [1381, 1798, 0].
-    assert_eq!([b.symbolic, b.numeric, b.retried], [1381, 1798, 0]);
+    assert_eq!(b.retried, 0, "no ladder, nothing retried");
+    assert_eq!(
+        [d.symbolic, d.numeric],
+        [b.symbolic + d.retried, b.numeric - d.retried],
+        "the shipped receipt is the bare one with each retry moved from numeric to symbolic"
+    );
+    // The witness of an open defect, not a baseline: rule H loses two of
+    // this leaf's `carrier_on_surface` decisions to a coefficient freeze
+    // (`work/sym/rule-h-loses-two-pad-decisions-to-a-coefficient-freeze.md`),
+    // and no general claim can see such a loss, since the tier is not
+    // monotone in its rules. The loss shows in `symbolic`, so that column
+    // is pinned; `numeric` is not, and moves with decisions the tier
+    // never proved (the least turn's pole verdicts took it 1801 -> 1803).
+    // `symbolic` fell 1390 -> 1381 when validation stopped reading an
+    // adjacent line pair's shared vertex (PROFILE, `dbc608ffba`): decisions
+    // no longer asked. It fell 1381 -> 1369 with the profile's direction
+    // mint asking the chord's expression whether it is zero
+    // (`geom_core::Expression::proves_zero`, no decision): eleven axes'
+    // proved-Zero readings and one door-only radial's leave the count.
+    // Once that row closes, this pin narrows to the general form above.
+    assert_eq!(
+        d.symbolic, 1369,
+        "the shipped ladder's leaf proves 1369 theorems: {d:?}"
+    );
+    let retried = d.retried > 0;
+    assert_eq!(
+        line.contains(&format!("retried={}", d.retried)),
+        retried,
+        "the ladder's column is written exactly when it retried: {line}"
+    );
+    assert_eq!(
+        human.contains("second attempt"),
+        retried,
+        "the human form names the second attempt exactly when it reached one: {human}"
+    );
     assert!(
         !bare.serialize().contains("retried="),
         "no ladder, no column"
     );
-    assert!(!bare.render(&doc, &analyzed).contains("second attempt"));
+    assert!(
+        !bare
+            .render(&doc, &analyzed)
+            .to_string()
+            .contains("second attempt")
+    );
 }

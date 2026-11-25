@@ -230,6 +230,7 @@
 //! other charts keep a typed refusal naming that re-mint as the
 //! recourse.
 
+#![cfg_attr(not(test), deny(clippy::disallowed_methods))]
 mod adopt;
 mod assemble;
 mod build;

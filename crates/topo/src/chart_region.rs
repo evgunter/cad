@@ -37,7 +37,7 @@
 //!   relation between the charts — `(u, v) ↦ (δ + σ·u + kτ, c + σ·v)`
 //!   — after its own carrier gates certify that the two descriptions
 //!   agree within ε everywhere the pair's trims reach (bounded from
-//!   the descriptions with the radius-pricing `hyp` lever, then
+//!   the descriptions levered at the trims' reach from the origins, then
 //!   MEASURED at the trims), and folds the angular coordinate by ONE
 //!   whole number of periods decided per pair as structure
 //!   ([`geom_brep::Period::decide`]), however many periods apart. A gap
@@ -1526,22 +1526,21 @@ fn cyl_frame<T: Decide>(
 /// `|E| ≤ |Δr| + g⊥ + sin θ · ‖p − o_b‖`, where the last term is the
 /// displacement of `p` under the rigid rotation aligning the two
 /// frames. For `p` on B's cylinder, `‖p − o_b‖² = v² + r_b²`, so the
-/// rotation term is levered by **`hyp = √(reach² + r_max²)`** — the
-/// RADIUS is part of the lever (the tilt's first-order axial error is
+/// rotation term is levered by **both faces' reach from both origins**,
+/// which holds the RADIUS (the tilt's first-order axial error is
 /// `r·θ·cos u`, which no axial-reach lever prices; the review's
 /// bilateral finding):
 ///
 /// - `chart_region_cyl_radius` — `r_a − r_b`, metres at unit arm (a
 ///   length is not re-levered; enters `E` at weight one).
-/// - `chart_region_cyl_tilt` — `‖â_a × â_b‖` levered by `hyp`.
-///   `reach` is the largest |axial coordinate| of either face's cover
-///   about either description's own origin ([`pair_cover`]), and
-///   `r_max = max(r_a, r_b)` (both union-maxes over order-symmetric
-///   multisets — the `chart_region_carrier_tilt` construction). `hyp`
-///   over-states `‖p − o_b‖` for every trim point (|v| ≤ reach over the
-///   face's cover), which widens toward decline — the conservative
-///   direction; the second-order remainder rides the module's standing
-///   small-multiple posture.
+/// - `chart_region_cyl_tilt` — `‖â_a × â_b‖` levered by the farthest
+///   either face's cover ([`pair_cover`]) stands from either
+///   description's own origin (a union-max over an order-symmetric
+///   multiset — the `chart_region_carrier_tilt` construction). It acts
+///   on its Zero, so the lever is read from above: it is at least
+///   `‖p − o_b‖` for every trim point, which widens toward decline — the
+///   conservative direction; the second-order remainder rides the
+///   module's standing small-multiple posture.
 /// - `chart_region_cyl_offset` — the larger of the two perpendicular
 ///   origin-to-other-axis distances (`g⊥`), metres at unit arm
 ///   (symmetric by the same max-over-multiset construction).
@@ -1705,25 +1704,34 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
     // --- Door 1's premise, CONSUMED (doc above).
     let gate_band = premise.band(band);
 
-    // --- The carrier gates, at the pair's own extent (doc above).
-    //     `reach` is the axial reach (largest |axial coordinate| of
-    //     either face's cover about either origin, a union-max over an
-    //     order-symmetric set); `hyp` is the TRANSFER
-    //     lever `√(reach² + r_max²)`: every point p of either trim
-    //     satisfies ‖p − o‖² = v² + r² ≤ reach² + r_max², so a rigid
-    //     rotation by θ between the two descriptions displaces trim
-    //     points by at most sin θ · hyp — the radius is priced.
-    let mut reach = T::zero();
-    for (body, face) in [(body_a, face_a), (body_b, face_b)] {
-        let cover = pair_cover(body, face, band)?;
-        for frame in [a, b] {
-            let (lo, hi) = cover.range_along(frame.axis());
-            let base = (frame.origin() - geom_core::Point3::origin()).dot(frame.axis());
-            reach = reach.max((lo - base).abs()).max((hi - base).abs());
-        }
+    // --- The carrier gates, at the pair's own extent (doc above). A
+    //     rigid rotation by θ between the two descriptions, pinned at
+    //     either frame's origin, displaces a trim point by at most
+    //     sin θ times its distance from there: the lever is both faces'
+    //     reach from both origins. The tilt gate acts on its Zero and
+    //     reads it from above (each face's cover); the sense row acts on
+    //     its sign and reads it from below (each face's boundary). The
+    //     fold is over two pivots: from above, the larger of two upper
+    //     bounds bounds the reach from either; from below it is a read of
+    //     the axis cosine, which carries no point of its own, so either
+    //     origin's reach is one it is consumed over.
+    let read = |(body, face, pivot): (&Body<T>, FaceKey, geom_core::Point3<T>)| {
+        let up = geom_brep::ExtentBall::of_cover_from(Some(&pair_cover(body, face, band)?), pivot)
+            .lever();
+        let down = crate::cover::boundary_reach_below(body, face, pivot)
+            .map_err(|_| ChartRegionError::Corrupt)?;
+        Ok::<_, ChartRegionError>((up, down))
+    };
+    let (mut above, mut below) = read((body_a, face_a, a.origin()))?;
+    for pair in [
+        (body_a, face_a, b.origin()),
+        (body_b, face_b, a.origin()),
+        (body_b, face_b, b.origin()),
+    ] {
+        let (up, down) = read(pair)?;
+        above = above.max(up);
+        below = below.max(down);
     }
-    let r_max = a_radius.max(b_radius);
-    let hyp = (reach.powi(2) + r_max.powi(2)).sqrt();
     // A gate over a SIGNED margin (the radius difference): either
     // definite sign is a genuine "definitely apart".
     let signed_gate = |name: &'static str, margin: Margin<T>| -> Result<(), ChartRegionError> {
@@ -1745,33 +1753,23 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
     signed_gate("chart_region_cyl_radius", Margin::of(a_radius - b_radius))?;
     norm_gate(
         "chart_region_cyl_tilt",
-        Margin::levered(
-            a.axis().cross(b.axis()).norm(),
-            // Unsourced lever: `hyp`, √(reach² + r_max²) from the boundary vertices' axial reach
-            // and the larger radius; no extent read computes it.
-            geom_core::Lever::unsourced(hyp),
-        ),
+        Margin::levered(a.axis().cross(b.axis()).norm(), above),
     )?;
     let perp_a = a.axis_line().distance(b.origin());
     let perp_b = b.axis_line().distance(a.origin());
     norm_gate("chart_region_cyl_offset", Margin::of(perp_a.max(perp_b)))?;
 
     // --- The transfer parameters (doc above). The sense margin is the
-    //     axial-direction cosine LEVERED BY `hyp`: metres of travel at
-    //     the pair's own extent per unit axial step, so the sign read
-    //     goes through the metres door with an honest length. With unit
-    //     axes, (a·b)² + |a×b|² = 1, so `hyp` is at most
+    //     axial-direction cosine levered at the faces' reach from below:
+    //     metres of travel at the pair's own extent per unit axial step.
+    //     With unit axes, (a·b)² + |a×b|² = 1, so the reach is at most
     //     √(ε² + ε_gate²) when this row and the tilt gate both decide
-    //     Zero. Because `hyp ≥ r_max`, that happens only for a pair
-    //     smaller than the band, and the Zero it decides is honest.
+    //     Zero. A boundary point stands at least its radius from an
+    //     origin on its axis, so that happens only for a pair smaller
+    //     than the band.
     let sigma: T = decide_nonzero(
         "chart_region_cyl_axis_sense",
-        Margin::levered(
-            a.axis().dot(b.axis()),
-            // Unsourced lever: `hyp`, √(reach² + r_max²) from the boundary vertices' axial reach
-            // and the larger radius; no extent read computes it.
-            geom_core::Lever::unsourced(hyp),
-        ),
+        Margin::levered(a.axis().dot(b.axis()), below),
         band,
     )
     .map_err(ChartRegionError::Escalated)?
@@ -2659,41 +2657,23 @@ fn exact_zero<T: Bounds>(x: T) -> bool {
 /// the pcurve VARIANT (module docs: the planar trim inventory).
 /// `Ok(point)` only when the image is a straight chart segment whose
 /// endpoint this is; `Err(what)` names the violated inventory clause.
+///
+/// An iso image states no ends: its entry is the joint the loop's lift
+/// reads there (`joint`, [`crate::pcurves::Lift::joint_point`]: a
+/// corner's meet where a row meets a column), or, for an image read
+/// outside a lift, its own value where it enters.
 fn pcurve_entry<T: Decide + Bounds>(
     pcurve: &geom_brep::Pcurve<T>,
-    span: geom_brep::StoredSpan<T>,
+    (t0, t1): (T, T),
     forward: bool,
+    joint: Option<Point2<T>>,
 ) -> Result<Point2<T>, &'static str> {
     use geom_brep::Pcurve;
-    let (t0, t1) = span.ends();
     match pcurve {
-        // Straight by variant: `P(t) = p0 + pl·t`, its ends read as its
-        // mint placed them where it stored them.
-        Pcurve::IsoLine { .. } => {
-            let [start, end] = pcurve.span_ends(span);
-            Ok(if forward { start } else { end })
+        // Straight by variant: a row or a column of its chart.
+        Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. } => {
+            Ok(joint.unwrap_or_else(|| pcurve.eval(if forward { t0 } else { t1 })))
         }
-        // The UV image lies on the straight segment `p0 → p0 + pd` by
-        // variant; only the parameterization along it is
-        // transcendental. An edge spanning the image's whole arc has
-        // the segment's ends as its own, read structurally (`g = 0` at
-        // `t0`, `g = 1` at `t1`); an edge covering part of the arc (a
-        // split rim's child) ends where the image is at its parameter.
-        Pcurve::IsoArc {
-            p0,
-            pd,
-            t0: at0,
-            angle,
-            ..
-        } => Ok(if exact_zero(*at0 - t0) && exact_zero(*angle - (t1 - t0)) {
-            if forward {
-                *p0
-            } else {
-                Point2::new(p0.x + pd.x, p0.y + pd.y)
-            }
-        } else {
-            pcurve.eval(if forward { t0 } else { t1 })
-        }),
         // Straight iff each channel is (C6). An angle channel is, by
         // its kind: a phase and a winding's rate, with no trig terms.
         // A free channel is straight iff its trig coefficients are
@@ -2757,10 +2737,10 @@ fn loop_uv_polygon<T: Decide + Bounds>(
     // ([`crate::Body::loop_lift`]); a loop with no lift reads as rowless
     // here, and each half refuses or derives below.
     let lifted = match read {
-        ChartRead::Minted => crate::pcurves::lifted_images(body, &cycle),
-        ChartRead::WorldCarrier => vec![None; cycle.len()],
+        ChartRead::Minted => crate::pcurves::lift_of_halves(body, &cycle),
+        ChartRead::WorldCarrier => None,
     };
-    for (he, image) in cycle.into_iter().zip(lifted) {
+    for (i, he) in cycle.into_iter().enumerate() {
         let he_data = body.get_half_edge(he).ok_or(ChartRegionError::Corrupt)?;
         let edge = body.linked_edge(he_data.edge, crate::entity::EntityId::HalfEdge(he), "edge");
         let forward = crate::pcurves::is_plus(body, he);
@@ -2769,9 +2749,13 @@ fn loop_uv_polygon<T: Decide + Bounds>(
             half_edge: he,
             what,
         };
-        let cache = body.pcurve(he).zip(image);
-        let entry = if let Some((cache, image)) = cache {
-            pcurve_entry(&image, cache.edge_span(), forward).map_err(refuse)?
+        let row = lifted
+            .as_ref()
+            .and_then(|(lift, rows)| Some((lift, rows[i]?)));
+        let entry = if let Some((cache, (lift, row))) = body.pcurve(he).zip(row) {
+            let image = &lift.rows()[row].pcurve;
+            pcurve_entry(image, cache.params(), forward, Some(lift.joint_point(row)))
+                .map_err(refuse)?
         } else if matches!(surface, Surface::Plane { .. }) {
             // Derive-on-demand affine image (C4's standing plane
             // status). A plane chart has no branches, so the
@@ -2793,7 +2777,7 @@ fn loop_uv_polygon<T: Decide + Bounds>(
                         None => refuse("no closed-form chart image for this carrier kind"),
                     }
                 })?;
-            pcurve_entry(&pcurve, curve.edge_span(), forward).map_err(refuse)?
+            pcurve_entry(&pcurve, curve.params(), forward, None).map_err(refuse)?
         } else {
             return Err(ChartRegionError::MissingCache { half_edge: he });
         };
@@ -4510,59 +4494,65 @@ mod tests {
     #[test]
     fn iso_line_and_iso_arc_entry_points_are_exact() {
         let line = geom_brep::Pcurve::IsoLine {
-            p0: Point2::new(0.25, 0.0),
-            pl: Vec2::new(0.5, 1.0),
-            ends: None,
+            line: geom_brep::ChartLine::column(0.25),
+            at0: 0.0,
+            rate: 1.0,
         };
         assert_pt(
-            pcurve_entry(&line, geom_brep::StoredSpan::for_tests(0.0, 2.0), true).unwrap(),
+            pcurve_entry(&line, (0.0, 2.0), true, None).unwrap(),
             0.25,
             0.0,
         );
         assert_pt(
-            pcurve_entry(&line, geom_brep::StoredSpan::for_tests(0.0, 2.0), false).unwrap(),
-            1.25,
+            pcurve_entry(&line, (0.0, 2.0), false, None).unwrap(),
+            0.25,
             2.0,
+        );
+        // Read in a loop's lift, an iso image enters at the joint the lift
+        // hands in (a corner's meet), whatever its own map reads there.
+        assert_pt(
+            pcurve_entry(&line, (0.0, 2.0), true, Some(Point2::new(0.25, -0.125))).unwrap(),
+            0.25,
+            -0.125,
         );
 
         let arc = geom_brep::Pcurve::IsoArc {
-            p0: Point2::new(0.0, 1.0),
-            pd: Vec2::new(1.0, 0.0),
+            line: geom_brep::ChartLine::row(1.0),
+            g0: 0.0,
+            gd: 1.0,
             t0: 0.0,
             angle: core::f64::consts::FRAC_PI_2,
             breaks: geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
             ends: Box::default(),
         };
-        // The UV image is the straight segment p0 → p0 + pd by
-        // variant; a span that is the whole arc ends at its ends,
-        // structurally.
+        // The UV image is a straight segment of its row by variant;
+        // read outside a lift, an end is the image's own value there.
         let quarter = core::f64::consts::FRAC_PI_2;
         assert_pt(
-            pcurve_entry(&arc, geom_brep::StoredSpan::for_tests(0.0, quarter), true).unwrap(),
+            pcurve_entry(&arc, (0.0, quarter), true, None).unwrap(),
             0.0,
             1.0,
         );
-        assert_pt(
-            pcurve_entry(&arc, geom_brep::StoredSpan::for_tests(0.0, quarter), false).unwrap(),
-            1.0,
-            1.0,
+        let whole = pcurve_entry(&arc, (0.0, quarter), false, None).unwrap();
+        assert!(
+            (whole.x - 1.0).abs() < 1e-15 && whole.y == 1.0,
+            "the whole arc's own map ends at its segment's end: {whole:?}"
         );
         // A span covering part of the arc (a split rim's child) ends
         // where the image is at its parameter: on one sub-arc of a
         // quarter turn, `g(π/4)` is the Bézier midpoint, `½`.
         let half = core::f64::consts::FRAC_PI_4;
         assert_pt(
-            pcurve_entry(&arc, geom_brep::StoredSpan::for_tests(0.0, half), false).unwrap(),
+            pcurve_entry(&arc, (0.0, half), false, None).unwrap(),
             0.5,
             1.0,
         );
         assert_pt(
-            pcurve_entry(&arc, geom_brep::StoredSpan::for_tests(half, quarter), true).unwrap(),
+            pcurve_entry(&arc, (half, quarter), true, None).unwrap(),
             0.5,
             1.0,
         );
-        let end =
-            pcurve_entry(&arc, geom_brep::StoredSpan::for_tests(half, quarter), false).unwrap();
+        let end = pcurve_entry(&arc, (half, quarter), false, None).unwrap();
         assert!(
             (end.x - 1.0).abs() < 1e-15 && end.y == 1.0,
             "the child ending at the arc's end ends at its corner: {end:?}"
@@ -4578,7 +4568,7 @@ mod tests {
             Vec2::new(1.0, 0.0),
         );
         assert_pt(
-            pcurve_entry(&linear, geom_brep::StoredSpan::for_tests(0.0, 3.0), true).unwrap(),
+            pcurve_entry(&linear, (0.0, 3.0), true, None).unwrap(),
             0.0,
             0.5,
         );
@@ -4590,7 +4580,7 @@ mod tests {
             Vec2::new(0.0, 0.3),
             Vec2::new(1.0, 0.0),
         );
-        assert!(pcurve_entry(&sinusoid, geom_brep::StoredSpan::for_tests(0.0, 3.0), true).is_err());
+        assert!(pcurve_entry(&sinusoid, (0.0, 3.0), true, None).is_err());
     }
 
     #[test]
@@ -4603,7 +4593,7 @@ mod tests {
             Vec2::zero(),
             Vec2::new(1.0, 0.0),
         );
-        assert!(pcurve_entry(&nearly, geom_brep::StoredSpan::for_tests(0.0, 3.0), true).is_err());
+        assert!(pcurve_entry(&nearly, (0.0, 3.0), true, None).is_err());
     }
 
     // ------------------------------------------------------------------
@@ -4924,7 +4914,7 @@ mod tests {
     /// **A pair smaller than the band decides its axis sense Zero**,
     /// and the nonzero gate refuses that sign. Here a unit patch is
     /// read against a band wider than the patch. Every carrier gate
-    /// decides Zero, and so does the axis dot levered by `hyp`.
+    /// decides Zero, and so does the axis dot levered by the faces' reach.
     #[test]
     fn a_pair_inside_the_band_refuses_its_zero_axis_sense() {
         let twin = crate::pcurves::pole_slit_tests::cylinder_patch_below(0.0).unwrap();
@@ -5033,14 +5023,7 @@ mod tests {
             Vec2::new(0.0, 0.5),
             Vec2::new(1.0, 0.0),
         );
-        assert!(
-            pcurve_entry(
-                &sinusoid,
-                geom_brep::StoredSpan::for_tests(0.0, core::f64::consts::PI),
-                true
-            )
-            .is_err()
-        );
+        assert!(pcurve_entry(&sinusoid, (0.0, core::f64::consts::PI), true, None,).is_err());
     }
 
     // ------------------------------------------------------------------
@@ -5414,7 +5397,7 @@ mod tests {
                         Vec2::new(1.0, 0.0),
                     );
                     assert!(
-                        pcurve_entry(&h, geom_brep::StoredSpan::for_tests(0.0, 1.0), true).is_err(),
+                        pcurve_entry(&h, (0.0, 1.0), true, None).is_err(),
                         "a {tiny:e} trig channel must refuse typed"
                     );
                 }
@@ -5431,11 +5414,7 @@ mod tests {
                 Vec2::new(0.0, -0.0),
                 Vec2::new(1.0, 2.0),
             );
-            assert_pt(
-                pcurve_entry(&h, geom_brep::StoredSpan::for_tests(0.5, 1.0), true).unwrap(),
-                0.75,
-                1.5,
-            );
+            assert_pt(pcurve_entry(&h, (0.5, 1.0), true, None).unwrap(), 0.75, 1.5);
         }
 
         // ---- Claim 2: the same-chart lane is airtight, its boundary

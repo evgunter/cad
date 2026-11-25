@@ -116,8 +116,12 @@ impl ViewerBehavior<'_> {
             }
             None => {}
         }
-        if let Some(name) = frame::creation_offer(news.refused.as_ref()) {
-            self.drafts.offer_variable(name);
+        // A refusal's lead is taken as it is heard.
+        for heard in news.refused.iter().flat_map(|refused| {
+            crate::recourse::offers(crate::recourse::Failure::Refused(refused)).heard
+        }) {
+            self.drafts
+                .take_heard(heard, self.tools, self.session.committed_doc());
         }
         true
     }
@@ -368,7 +372,7 @@ pub(crate) struct FieldNews {
     /// to the draft.
     pub(crate) standing: Option<(SlotId, String)>,
     /// The refusal of text typed this frame, for the offer the slot
-    /// door's refusal makes ([`frame::creation_offer`]).
+    /// door's refusal makes ([`crate::recourse::Heard::CreateVariable`]).
     pub(crate) refused: Option<crate::session::Refusal>,
     /// What the fields said this frame.
     pub(crate) notices: Vec<frame::Message>,
@@ -1075,9 +1079,7 @@ mod tests {
         painted_while_hovering_opened,
     };
     use crate::props::Notation;
-    use crate::sketch::{
-        self, Cut, LoopEnd, PreviewError, PreviewHold, PreviewLoop, ProfilePreview,
-    };
+    use crate::sketch::{self, LoopEnd, PreviewError, PreviewHold, PreviewLoop, ProfilePreview};
     use crate::test_support::{self, inserted, line_to, try_inserted, two_legs};
     use crate::theme::Theme;
 
@@ -1506,6 +1508,7 @@ mod tests {
                 continue;
             };
             let steps = [legs.clone(), way_in].concat();
+            let steps_len = steps.len();
             let unclosable = PreviewError::Transition {
                 loop_: 0,
                 step: steps.len(),
@@ -1520,13 +1523,21 @@ mod tests {
                 prefix.loops[0].points, open.loops[0].points,
                 "{state:?}: the legs, and only those"
             );
-            assert_eq!(
-                prefix.loops[0].end,
-                LoopEnd::Unfinished(Some(Cut {
-                    refusal: unclosable.clone(),
-                    closes: false,
-                })),
-                "{state:?}"
+            let LoopEnd::Unfinished(Some(cut)) = &prefix.loops[0].end else {
+                panic!("{state:?}: cut at its tip: {:?}", prefix.loops[0].end)
+            };
+            assert!(!cut.closes, "{state:?}");
+            // The refusal is the end-of-program transition at the tip,
+            // field by field (a `PreviewError` has no equality: it can
+            // keep a sentence).
+            assert!(
+                matches!(
+                    cut.refusal,
+                    PreviewError::Transition { loop_: 0, step, state: at, verb: None }
+                        if step == steps_len && at == state
+                ),
+                "{state:?}: {:?}",
+                cut.refusal
             );
             let (painted, voices) = drawn(&preview);
             assert_eq!(

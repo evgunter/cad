@@ -315,8 +315,8 @@
 //!   [`ShellError::NotValid`] as the boolean's does, and a ringed cone
 //!   or cylinder wall — which props reads — at the mesh.
 //!
-//! Every nesting question the rim stage asks is read in the chart
-//! ([`encloses`]); check 9's contact arm reads only planes, so a curved
+//! Every concentric pair the rim stage orders is read in the chart
+//! ([`is_inner_of_concentric_pair`]); check 9's contact arm reads only planes, so a curved
 //! ring's contact with its outer loop is not decided here.
 //!
 //! # Why step 3 exists, and what the arm is expressible over
@@ -366,6 +366,7 @@
 //! bodies OTHER producers hand the same predicate, which is where
 //! check 9 does its work.
 
+use geom_core::UnitVec3;
 use geom_core::k_stats::{decide, gate_measured};
 use geom_core::ladder::{Answering, Climb, FreeOf, Rung, Undecided, argmin_decided, climb};
 use geom_core::{
@@ -828,7 +829,9 @@ fn cavity_refusal_said(
     use crate::clearance::EngineRefusal as R;
     match refusal {
         R::Sliver { .. } => "a separation sits wholly inside the ambiguity band".into(),
-        R::Budget(_) => "the search spent its budget with pairs of walls still undecided".into(),
+        R::Budget { .. } => {
+            "the search spent its budget with pairs of walls still undecided".into()
+        }
         R::Unsupported { carrier, .. } => {
             format!("a wall is {carrier}, which the certificate does not read").into()
         }
@@ -866,7 +869,7 @@ fn cavity_refusal_ending(
 ) -> std::borrow::Cow<'static, str> {
     use crate::clearance::EngineRefusal as R;
     match refusal {
-        R::Sliver { .. } | R::Budget(_) | R::WitnessUnverified { .. } => {
+        R::Sliver { .. } | R::Budget { .. } | R::WitnessUnverified { .. } => {
             format!("Recourse: {WALL_OR_GEOMETRY}").into()
         }
         // A torus off its ring convention ends in its half's lever, in band
@@ -2753,26 +2756,27 @@ fn canonicalize_chart<T: Decide>(
         );
         let chart = body.proven_face(anchor).surface().clone();
         let escalated = |source| ShellError::Escalated { source };
-        let ring_first = if encloses(&chart, &p1, &p2, band).map_err(escalated)? {
-            true
-        } else if encloses(&chart, &p2, &p1, band).map_err(escalated)? {
-            false
-        } else if wraps && band_seam(&chart, body, [&side1, &side2], band)? {
-            // Neither side is a hole, and each winds the period once: the
-            // slit is a band's seam, joining the band's two boundaries,
-            // and the band's surgery cuts it. A wrapping chart whose sides
-            // do not both wind (a hole whose nesting misreads) is no band
-            // and refuses below as the slit it is; `Chart` reads to
-            // just short of the period, so no verb path reaches that
-            // misread today and no row pins it.
-            band_seams.push(proven(&body.half_edges, he1, EntityId::HalfEdge).edge);
-            continue;
-        } else {
-            return Err(not_expressible(
-                "the chart's slit loop splits into two sides neither of which encloses the \
+        let ring_first =
+            if is_inner_of_concentric_pair(&chart, &p1, &p2, band).map_err(escalated)? {
+                true
+            } else if is_inner_of_concentric_pair(&chart, &p2, &p1, band).map_err(escalated)? {
+                false
+            } else if wraps && band_seam(&chart, body, [&side1, &side2], band)? {
+                // Neither side is a hole, and each winds the period once: the
+                // slit is a band's seam, joining the band's two boundaries,
+                // and the band's surgery cuts it. A wrapping chart whose sides
+                // do not both wind (a hole whose nesting misreads) is no band
+                // and refuses below as the slit it is; `Chart` reads to
+                // just short of the period, so no verb path reaches that
+                // misread today and no row pins it.
+                band_seams.push(proven(&body.half_edges, he1, EntityId::HalfEdge).edge);
+                continue;
+            } else {
+                return Err(not_expressible(
+                    "the chart's slit loop splits into two sides neither of which encloses the \
                  other, so neither is the hole",
-            ));
-        };
+                ));
+            };
         let (a, b) = if ring_first { (he1, he2) } else { (he2, he1) };
         let made = body.kemr(a, b).map_err(|error| ShellError::Rim {
             face: anchor,
@@ -2785,7 +2789,7 @@ fn canonicalize_chart<T: Decide>(
             let (outer, _) = body.proven_face(anchor).outer();
             (loop_points(body, made.ring), loop_points(body, outer))
         };
-        if !encloses(&chart, &ring_pts, &outer_pts, band)
+        if !is_inner_of_concentric_pair(&chart, &ring_pts, &outer_pts, band)
             .map_err(|source| ShellError::Escalated { source })?
         {
             return Err(not_expressible(
@@ -3890,7 +3894,7 @@ fn pair_rings<T: Decide>(
     match (&rim_rings[..], &source_rings[..]) {
         ([], []) => Ok(Vec::new()),
         ([rim_ring], [source_ring]) => {
-            if encloses(
+            if is_inner_of_concentric_pair(
                 &chart,
                 &loop_points(body, *source_ring),
                 &loop_points(body, *rim_ring),
@@ -3901,7 +3905,7 @@ fn pair_rings<T: Decide>(
                 Err(not_expressible(
                     "the designated face's hole does not sit inside the cavity counterpart's",
                 ))
-            } else if encloses(
+            } else if is_inner_of_concentric_pair(
                 &chart,
                 &loop_points(body, *rim_ring),
                 &loop_points(body, *source_ring),
@@ -4038,9 +4042,12 @@ fn loop_points<T: Decide>(
     half_edge_points(body, &body.loop_walk(first).closed("loop", first))
 }
 
-/// Whether `inner` is the ENCLOSED one of two nested loops on the
+/// Whether `inner` is the inner of a CONCENTRIC pair of loops on the
 /// chart `surface`, by mean radius about the pair's common centroid,
-/// read in that chart ([`chart_read`]).
+/// read in that chart ([`chart_read`]). An ordering of two loops known
+/// nested, not a containment statement ([`crate::loop_side`]'s module
+/// docs): a ring threading one arm of a thin cross is nested in it and
+/// reads un-nested here.
 ///
 /// The comparison is a mean radius and not a containment proof, and
 /// that is exactly the claim the callers need: the loops compared here
@@ -4051,7 +4058,7 @@ fn loop_points<T: Decide>(
 /// being read off this. One margin, one decide, metered as the length
 /// it is; a read that cannot be decided escalates rather than answering
 /// "not enclosed".
-fn encloses<T: Decide>(
+fn is_inner_of_concentric_pair<T: Decide>(
     surface: &geom::Surface<T>,
     inner: &[geom_core::Point3<T>],
     outer: &[geom_core::Point3<T>],
@@ -4133,7 +4140,7 @@ fn chart_read<T: Decide>(
                 T::zero()
             }
             // A whole number of periods bringing this run's mean within
-            // half a period of the first run's. The pairs `encloses` exists
+            // half a period of the first run's. The pairs `is_inner_of_concentric_pair` exists
             // for are concentric by construction (its doc), so the inner's
             // mean lies inside the outer's span and no tie arises. It is
             // also asked of pairs not known to nest: both orders before a
@@ -4915,7 +4922,7 @@ fn walls_cross<T: Decide>(
     }
     // The point of `L` nearest `a`'s box centre, so every side
     // and position below is a short difference.
-    let d = cross.normalize();
+    let d = UnitVec3::squared(cross);
     let k = a.normal.dot(b.normal);
     let q = a.lo.mid(a.hi);
     let r_a = a.normal.dot(a.origin - q);
@@ -5128,6 +5135,10 @@ impl<T: Decide> MovedWall<T> {
 
     /// [`Self::cut`] with a point on `L` (a Zero side) counted with the
     /// positive side when `zero_up`, else with the negative one.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn cut_counting(
         &self,
         line: geom::Line<T>,
@@ -5139,7 +5150,7 @@ impl<T: Decide> MovedWall<T> {
             Sign::Zero => zero_up,
             Sign::Negative => false,
         };
-        let m = self.normal.cross(line.dir);
+        let m = self.normal.cross(line.dir.get());
         let mut sides: Vec<(VertexKey, bool)> = Vec::new();
         // A vertex is decided once, so every edge meeting it reads the
         // same side, and an undecided vertex escalates. A point inside an
@@ -5767,7 +5778,7 @@ mod tests {
             disc.cut(
                 geom::Line {
                     origin: Point3::new(0.0, 0.6, 0.0),
-                    dir: x,
+                    dir: geom::stated_direction(x),
                 },
                 band,
             )
@@ -5779,7 +5790,7 @@ mod tests {
             disc.cut(
                 geom::Line {
                     origin: Point3::new(0.0, 1.5, 0.0),
-                    dir: x,
+                    dir: geom::stated_direction(x),
                 },
                 band,
             )
@@ -5808,7 +5819,7 @@ mod tests {
             half.cut(
                 geom::Line {
                     origin: Point3::new(0.3, 0.0, 0.0),
-                    dir: y,
+                    dir: geom::stated_direction(y),
                 },
                 band,
             )
@@ -5820,7 +5831,7 @@ mod tests {
             half.cut(
                 geom::Line {
                     origin: Point3::new(0.3, 0.0, 0.0),
-                    dir: -y,
+                    dir: geom::stated_direction(-y),
                 },
                 band,
             )
@@ -5846,7 +5857,7 @@ mod tests {
                 .cut(
                     geom::Line {
                         origin: Point3::new(1.0, 0.0, 0.0),
-                        dir: y,
+                        dir: geom::stated_direction(y),
                     },
                     band,
                 )
@@ -6361,7 +6372,7 @@ mod tests {
                     .cut(
                         geom::Line {
                             origin: Point3::new(c, 0.0, 0.0),
-                            dir: up,
+                            dir: geom::stated_direction(up),
                         },
                         band,
                     )
@@ -6377,7 +6388,7 @@ mod tests {
                 .cut(
                     geom::Line {
                         origin: Point3::new(1.5, 0.0, 0.0),
-                        dir: up,
+                        dir: geom::stated_direction(up),
                     },
                     band,
                 )
@@ -6493,7 +6504,7 @@ mod tests {
                     .cut(
                         geom::Line {
                             origin: Point3::new(d, c, 0.0),
-                            dir: Vec3::new(0.0, 0.0, 1.0),
+                            dir: geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
                         },
                         band,
                     )
@@ -6557,12 +6568,12 @@ mod tests {
         }
         for (i, (inner, outer)) in pairs.iter().enumerate() {
             assert_eq!(
-                encloses(&cylinder, inner, outer, band),
+                is_inner_of_concentric_pair(&cylinder, inner, outer, band),
                 Ok(true),
                 "pair {i}: in"
             );
             assert_eq!(
-                encloses(&cylinder, outer, inner, band),
+                is_inner_of_concentric_pair(&cylinder, outer, inner, band),
                 Ok(false),
                 "pair {i}: out"
             );

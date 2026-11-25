@@ -579,7 +579,7 @@ fn a_unions_seams_of_a_tied_face_tie_under_the_bare_name() {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![sub.into(), d.into()]),
+            members: editor_core::Bodies::spelled(vec![sub.into(), d.into()]),
         },
     );
     let ev = run(&doc);
@@ -650,10 +650,10 @@ fn node_level_prose_carries_the_emitter_payload() {
     let carried = |e: NamingError| NodeErrorKind::Naming(e).to_string();
 
     let s = carried(NamingError::Emission {
-        what: "a chart cut survives in the result",
+        what: "a carried edge's group names no operand",
     });
     assert!(
-        s.contains("a chart cut survives in the result"),
+        s.contains("a carried edge's group names no operand"),
         "the Emission payload is the diagnosis, and it must survive the \
          node boundary: {s}"
     );
