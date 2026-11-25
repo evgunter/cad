@@ -4411,7 +4411,7 @@ mod wiring {
 
     /// **A site on a ruling decides its foot at every scalar**: a plane ×
     /// cylinder ruling, a line along `z` cut to `(0, 1)`, and a site on it
-    /// and one `10⁻¹²` off it. Its curvature bound is zero, so its radius
+    /// and one a quarter of the band's zero off it. Its curvature bound is zero, so its radius
     /// is past any reach and the bend decides: at `f64` the reciprocal is
     /// `+∞`, at `Interval` `1 / [0, 0]` is no enclosure and the bend read
     /// `Invalid`, refusing every straight section a built cut of a
@@ -4441,8 +4441,12 @@ mod wiring {
                     Point3::new(T::zero(), T::zero(), T::from_f64(0.25)),
                 ),
                 (
-                    "1e-12 off it",
-                    Point3::new(T::from_f64(1e-12), T::zero(), T::from_f64(0.25)),
+                    "a quarter of the zero off it",
+                    Point3::new(
+                        T::from_f64(band.zero() * 0.25),
+                        T::zero(),
+                        T::from_f64(0.25),
+                    ),
                 ),
             ] {
                 let t = match component.reads(p, band) {
