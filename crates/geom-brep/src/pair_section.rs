@@ -3573,11 +3573,16 @@ impl<T: Decide> CarriedComponent<T> {
         // The parameter run the arc spans at most: over the speed's inf,
         // which over-states it, the side a curvature bound over it needs.
         let w = arc / speed_range(&self.carrier).0.get();
-        let kappa = curvature_hi_over(&self.carrier, (t - w, t + w));
+        // Raised to the least positive normal it is still a bound on the
+        // curvature, and its reciprocal a finite radius at every scalar: a
+        // straight carrier's `κ = 0` is a radius past any reach, where
+        // `1 / [0, 0]` (or `1 / [0, k]`) is no enclosure at `Interval`. A
+        // refused bound stays refused.
+        let kappa =
+            curvature_hi_over(&self.carrier, (t - w, t + w)).max(T::from_f64(f64::MIN_POSITIVE));
         let r = off.norm() + arc;
         let (decided, record) = detached(|| {
-            // The curvature radius less the site's reach, a length: an
-            // infinite radius (a straight carrier) is maximally clear.
+            // The curvature radius less the site's reach, a length.
             let bend = decide_reported(SITE_FOOT_BEND, Margin::of(T::one() / kappa - r), band)?;
             if bend.sign != Sign::Positive {
                 return Err(gate_rejection(
@@ -4402,6 +4407,56 @@ mod wiring {
             matches!(component.reads(at(1.0 - 2e-9), band), Ok(Some(_))),
             "2e-9 inside: on the arc"
         );
+    }
+
+    /// **A site on a ruling decides its foot at every scalar**: a plane ×
+    /// cylinder ruling, a line along `z` cut to `(0, 1)`, and a site on it
+    /// and one `10⁻¹²` off it. Its curvature bound is zero, so its radius
+    /// is past any reach and the bend decides: at `f64` the reciprocal is
+    /// `+∞`, at `Interval` `1 / [0, 0]` is no enclosure and the bend read
+    /// `Invalid`, refusing every straight section a built cut of a
+    /// cylinder by a box carries (`section_site_foot_bend`).
+    #[test]
+    fn a_site_on_a_ruling_decides_its_foot_at_every_scalar() {
+        fn on_a_ruling<T: geom_core::Decide>(scalar: &str) {
+            use geom_core::{Band, Point3, Tol};
+            let component = super::CarriedComponent {
+                witness: Point3::new(T::zero(), T::zero(), T::from_f64(0.5)),
+                boxes: Vec::new(),
+                runs: Vec::new(),
+                carrier: geom::Curve3::line(Point3::origin(), geom_core::UnitVec3::exact_z()),
+                span: (T::zero(), T::one()),
+                shape: super::ComponentShape::Open {
+                    ends: super::ComponentEnds::cut(),
+                },
+                certificate: None,
+                winds: [false, false],
+                pad: 0.0,
+                reach: 0.0,
+            };
+            let band = Band::linear(Tol::witness()).unwrap_or_else(|e| panic!("{e}"));
+            for (what, p) in [
+                (
+                    "on it",
+                    Point3::new(T::zero(), T::zero(), T::from_f64(0.25)),
+                ),
+                (
+                    "1e-12 off it",
+                    Point3::new(T::from_f64(1e-12), T::zero(), T::from_f64(0.25)),
+                ),
+            ] {
+                let t = match component.reads(p, band) {
+                    Ok(Some(t)) => t.point_value(),
+                    other => panic!("{scalar}, a site {what}: {other:?}"),
+                };
+                assert!(
+                    t.is_some_and(|t| (t - 0.25).abs() <= 1e-12),
+                    "{scalar}, a site {what}: its foot is its place along the ruling, {t:?}"
+                );
+            }
+        }
+        on_a_ruling::<f64>("f64");
+        on_a_ruling::<geom_core::Interval>("Interval");
     }
 
     /// **A site in a node's box that reads on one arc alone escalates**
