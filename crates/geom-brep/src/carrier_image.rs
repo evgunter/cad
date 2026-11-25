@@ -427,12 +427,11 @@ where
             || round == IMAGE_ROUNDS
             || chain.len() + add.len() > chain_knots + IMAGE_KNOTS
         {
-            // Past the cap the miss is decided against the band itself,
-            // as limb 2 decides it: an image within the band stands as
-            // the evidence it is, and its certificate reads it.
-            return crate::ssi::certify::image_miss::<T>(worst, band)
-                .map(|()| (image, domain))
-                .map_err(ImageRefusal::Miss);
+            // Past the cap the image is refused, on limb 2's own reading
+            // of the miss.
+            return Err(ImageRefusal::Miss(crate::ssi::certify::image_miss::<T>(
+                worst, band,
+            )));
         }
         chain.extend(add);
         chain.sort_by(f64::total_cmp);
@@ -559,7 +558,8 @@ fn chain<T: Decide + Bounds>(carrier: &Curve3<T>, (t0, t1): (f64, f64)) -> Optio
 }
 
 /// The Greville abscissae of a clamped knot list: one per control point,
-/// the first and last the domain's ends exactly.
+/// the first and last the domain's ends exactly, and a knot of full
+/// multiplicity exactly itself.
 fn greville(knots: &[f64], degree: usize) -> Vec<f64> {
     let n = knots.len() - degree - 1;
     (0..n)
@@ -570,8 +570,14 @@ fn greville(knots: &[f64], degree: usize) -> Vec<f64> {
             if j == n - 1 {
                 return 1.0;
             }
+            let window = &knots[j + 1..=j + degree];
+            // A knot of full multiplicity is its own abscissa, to the
+            // bit: the mean of equal doubles need not be that double.
+            if window.iter().all(|k| *k == window[0]) {
+                return window[0];
+            }
             #[allow(clippy::cast_precision_loss)]
-            let at = knots[j + 1..=j + degree].iter().sum::<f64>() / degree as f64;
+            let at = window.iter().sum::<f64>() / degree as f64;
             at
         })
         .collect()

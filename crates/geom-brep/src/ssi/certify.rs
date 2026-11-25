@@ -1159,27 +1159,24 @@ const CHART_IMAGE_HULL: HullArm = HullArm {
     ..CHART_HULL
 };
 
-/// **A wall image's miss of its foot path, decided as limb 2 decides
+/// **A wall image's miss of its foot path past its cap, as limb 2 reads
 /// it** at a break where the miss is the image's
-/// ([`SsiLimb::ImageMiss`], [`CHART_IMAGE_HULL`]'s value): `Ok` where it
-/// decides within the band.
-///
-/// # Errors
-///
-/// [`SsiError::CertificateLimb`] where it decides past the band, and
-/// [`SsiError::CertificateEscalated`] in it.
-pub(crate) fn image_miss<T: Decide>(miss: f64, band: Band) -> Result<(), SsiError> {
-    let decided = decide_reported(
+/// ([`SsiLimb::ImageMiss`], [`CHART_IMAGE_HULL`]'s value). `miss` is the
+/// largest the image sampled midway between its feet: a reading, not a
+/// bound. The refusal carries what the classifier saw of it:
+/// [`SsiError::CertificateLimb`] where it decides (past the band, or
+/// within it: the image is refused past its cap either way), and
+/// [`SsiError::CertificateEscalated`] in the band.
+pub(crate) fn image_miss<T: Decide>(miss: f64, band: Band) -> SsiError {
+    let limb = CHART_IMAGE_HULL.value_limb;
+    match decide_reported(
         CHART_IMAGE_HULL.value,
         Margin::of(T::from_computed(miss)),
         band,
-    );
-    limb_verdict(
-        CHART_IMAGE_HULL.value_limb,
-        decided,
-        || RefusedResidual::Over(miss),
-        &mut Refused::default(),
-    )
+    ) {
+        Ok(Decided { margin, .. }) => SsiError::CertificateLimb { limb, margin },
+        Err(cause) => SsiError::CertificateEscalated { limb, cause },
+    }
 }
 
 /// Limb 2's verdict on where [`subdivide`] stopped, and its bound: the
