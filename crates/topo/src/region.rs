@@ -41,6 +41,7 @@ use crate::splitting::Uncrossable;
 use crate::splitting::UncrossableCarrier;
 use crate::splitting::containment::{ConicArc, ConicArcError, ConicHit, ConicRows};
 use crate::splitting::pieced_arc::{ArcHit, ArcRefusal, ArcRows, PiecedArc};
+use crate::splitting::spline_arc::SplineArc;
 use crate::validate::decide;
 
 /// Where along each edge an aimed path's target lies, as shares of its
@@ -161,6 +162,29 @@ pub(crate) fn pieced_edge_hit<T: Decide>(
         Ok(ArcHit::Off) => Ok(false),
         Err(ArcRefusal::Escalated(diag)) => Err(RegionRefusal::Escalated(diag)),
         Err(ArcRefusal::Unsettled) => Err(edge.uncrossable(carrier)),
+    }
+}
+
+/// **Whether `p` is on `edge`, a spline arc on `spline`**, read piece by
+/// piece on `rows` ([`pieced_edge_hit`]). A span with no piece cut (an
+/// end no single point at an enclosure scalar) is a span the reading
+/// cannot cross.
+///
+/// # Errors
+///
+/// As [`pieced_edge_hit`]; [`RegionRefusal::Unreadable`] for a span with
+/// no piece cut.
+pub(crate) fn spline_edge_hit<T: Decide>(
+    spline: &std::sync::Arc<geom::NurbsCurve3<T>>,
+    edge: &RegionEdge<T>,
+    rows: ArcRows,
+    p: Point3<T>,
+    band: Band,
+) -> Result<bool, RegionRefusal> {
+    let spline_arc = UncrossableCarrier::Spline;
+    match SplineArc::new(spline, (edge.t0, edge.t1)) {
+        Some(pieces) => pieced_edge_hit(&pieces, edge, (rows, spline_arc), p, band),
+        None => Err(edge.uncrossable(spline_arc)),
     }
 }
 
@@ -1287,6 +1311,47 @@ macro_rules! fixture_turns {
 }
 
 fixture_turns!(fixture_turn: f64, fixture_turn_interval: geom_core::Interval);
+
+/// `edge`, a circle arc, carried on the rational quadratic that is
+/// exactly that arc: one segment per quarter turn or less, run the
+/// arc's way over `[0, 1]`.
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_precision_loss
+)]
+pub(crate) fn fixture_spline_of_arc(edge: &RegionEdge<f64>) -> RegionEdge<f64> {
+    let Some(frame) = edge.carrier.frame() else {
+        unreachable!("a fixture arc is a circle")
+    };
+    let centre = frame.origin();
+    let sweep = edge.t1 - edge.t0;
+    let segments = (sweep / core::f64::consts::FRAC_PI_2).ceil().max(1.0);
+    let half = sweep / segments / 2.0;
+    let (mut control, mut weights) = (vec![edge.at(edge.t0)], vec![1.0]);
+    let mut knots = vec![0.0; 3];
+    for k in 0..segments as usize {
+        let k = k as f64;
+        let middle = edge.at(edge.t0 + (2.0 * k + 1.0) * half);
+        control.push(centre + (middle - centre) / half.cos());
+        weights.push(half.cos());
+        control.push(edge.at(edge.t0 + (2.0 * k + 2.0) * half));
+        weights.push(1.0);
+        knots.extend([(k + 1.0) / segments; 2]);
+    }
+    knots.push(1.0);
+    let knots = geom_core::spline::KnotVector::clamped(knots, 2).unwrap();
+    let spline = geom::NurbsCurve3::new(knots, control, weights).unwrap();
+    RegionEdge {
+        carrier: geom::Curve3::Nurbs(std::sync::Arc::new(spline)),
+        t0: 0.0,
+        t1: 1.0,
+        turn: None,
+        ..edge.clone()
+    }
+}
 
 /// **A door's answer as a frame pin compares it**: the answer itself,
 /// or its refusal's predicate (`Some("another refusal")` for a refusal
