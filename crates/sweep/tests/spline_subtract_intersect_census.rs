@@ -395,7 +395,7 @@ fn every_op_of_a_spline_operand_refuses_typed_or_builds_right() {
         (
             "inside, on the bottom cap",
             ((-0.5, 0.5), (-0.5, 0.5), (0.0, 0.5)),
-            0.25,
+            0.5,
         ),
         (
             "inside, on the −y wall",
