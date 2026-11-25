@@ -7109,9 +7109,11 @@ fn plus_v_errors<T: Decide>(
 /// Pure, so that every verdict's finding is pinned by calling it,
 /// including the pairing and end disagreements no certified geometry is
 /// known to reach (`wedge_reading_table`). A settled wedge is legal at
-/// rest — the crease, the seam, and the two ends because the fold hands
-/// one out only over a jet-determinate tangency — and the lamina and
-/// every mixed edge refuse. A mixed edge refuses rather than falls
+/// rest — the crease, the seam, and the two ends, which the fold hands
+/// out only where the jets separate at every station — and the lamina
+/// and every mixed edge refuse. An end's legality is read at the
+/// stations, not certified along the edge
+/// (`work/select/a-wedge-end-is-legal-by-its-stations-not-certified-along-the-edge.md`). A mixed edge refuses rather than falls
 /// silent: silence would validate a wedge end on an edge whose own
 /// stations disagreed.
 pub(crate) fn wedge_reading(
@@ -7129,8 +7131,15 @@ pub(crate) fn wedge_reading(
             bend: Bend::Determinate,
             ..
         }
-        | V::End { .. } => ContactMark::Tangent,
+        | V::End {
+            bend: Bend::Determinate,
+            ..
+        } => ContactMark::Tangent,
         V::Seam {
+            bend: Bend::UnderDetermined,
+            ..
+        }
+        | V::End {
             bend: Bend::UnderDetermined,
             ..
         }
