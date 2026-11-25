@@ -526,7 +526,7 @@ impl ContactRecords {
         let [out] = <[Self; 1]>::try_from(self.carried_onto(
             input,
             lineage,
-            (&[result], None),
+            &[result],
             band,
             region,
             None,
@@ -556,12 +556,11 @@ impl ContactRecords {
             body: removed,
             cells: BTreeMap::new(),
         };
-        let [out] = <[Self; 1]>::try_from(self.carried_onto(
+        let [out] = <[Self; 1]>::try_from(self.placed(
             input,
             lineage,
             (&[result], Some(&removed)),
-            band,
-            region,
+            (band, region),
             None,
         )?)
         .unwrap_or_else(|_| unreachable!("one side carries one list"));
@@ -581,9 +580,21 @@ impl ContactRecords {
         &self,
         input: u32,
         lineage: &crate::Lineage,
-        (sides, removed): (&[&Body<T>], Option<&RemovedIn<'_, T>>),
+        sides: &[&Body<T>],
         band: geom_core::Band,
         region: Option<T::RegionLane>,
+        parted: Option<&mut Vec<Parting>>,
+    ) -> Result<Vec<Self>, CarryRefusal> {
+        self.placed(input, lineage, (sides, None), (band, region), parted)
+    }
+
+    /// [`Self::carried_onto`], removed members read in `removed`.
+    fn placed<T: crate::props::AtRestPolicy>(
+        &self,
+        input: u32,
+        lineage: &crate::Lineage,
+        (sides, removed): (&[&Body<T>], Option<&RemovedIn<'_, T>>),
+        (band, region): (geom_core::Band, Option<T::RegionLane>),
         parted: Option<&mut Vec<Parting>>,
     ) -> Result<Vec<Self>, CarryRefusal> {
         let rows: Vec<[Cell; 2]> = self.rows.iter().map(|r| r.cells()).collect();
@@ -767,9 +778,17 @@ impl<T: crate::props::AtRestPolicy> Confirms<'_, T> {
 /// `removed`), and each record cell's cells there: every cell the op
 /// made of it, kept or removed. A cell `cells` does not list is itself
 /// there (the op's input).
-pub(crate) struct RemovedIn<'b, T: Real> {
-    pub(crate) body: &'b Body<T>,
-    pub(crate) cells: BTreeMap<Cell, Vec<Cell>>,
+pub(in crate::boolean) struct RemovedIn<'b, T: Real> {
+    pub(in crate::boolean) body: &'b Body<T>,
+    pub(in crate::boolean) cells: BTreeMap<Cell, Vec<Cell>>,
+}
+
+/// A fate's division, where it divides its cell.
+fn division(fate: &crate::Fate) -> Option<&crate::Division> {
+    match fate {
+        crate::Fate::Divided(d) => Some(d),
+        _ => None,
+    }
 }
 
 impl<T: Real> RemovedIn<'_, T> {
@@ -814,7 +833,7 @@ impl<T: Real> RemovedIn<'_, T> {
 /// images are held by different sides only (listed in `parted` instead
 /// where it is given), and
 /// [`CarryRefusal::Unmapped`] for a cell with no image held anywhere.
-pub(crate) fn landings<'b, T: crate::props::AtRestPolicy>(
+pub(in crate::boolean) fn landings<'b, T: crate::props::AtRestPolicy>(
     rows: &[[Cell; 2]],
     lineage: &crate::Lineage,
     (sides, removed): (&[&'b Body<T>], Option<&RemovedIn<'b, T>>),
@@ -835,8 +854,8 @@ pub(crate) fn landings<'b, T: crate::props::AtRestPolicy>(
                 .iter()
                 .map(|&p| lineage.joined(p))
                 .collect();
-            fates[i]
-                .minted()
+            division(&fates[i])
+                .map_or(&[][..], |d| &d.minted)
                 .iter()
                 .map(|&m| lineage.joined(m))
                 .filter(|m| !pieces.contains(m))
@@ -950,7 +969,7 @@ pub(crate) fn landings<'b, T: crate::props::AtRestPolicy>(
         let mut on_removed = false;
         let mut removed_read = false;
         'members: for i in (0..2).filter(|_| held_by == [true, true]) {
-            for &r in fates[i].removed() {
+            for &r in division(&fates[i]).map_or(&[][..], |d| &d.removed) {
                 let Some(removed) = removed else {
                     return Err(CarryRefusal::Unread {
                         record,

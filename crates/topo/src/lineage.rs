@@ -333,25 +333,9 @@ impl Fate {
         }
     }
 
-    /// The cells the op minted in the cell, before the joins.
-    pub(crate) fn minted(&self) -> &[Cell] {
-        match self {
-            Self::Divided(d) => &d.minted,
-            _ => &[],
-        }
-    }
-
     /// Whether the op removed the whole cell.
     pub(crate) fn removes(&self) -> bool {
         matches!(self, Self::Removed)
-    }
-
-    /// The cells of the division the op removed.
-    pub(crate) fn removed(&self) -> &[Cell] {
-        match self {
-            Self::Divided(d) => &d.removed,
-            _ => &[],
-        }
     }
 }
 
@@ -983,10 +967,11 @@ mod tests {
     }
 
     fn removed_part(pieces: &[FaceKey]) -> Fate {
+        let cells: Vec<_> = pieces.iter().map(|&f| Cell::Face(f)).collect();
         Fate::Divided(Division {
-            pieces: pieces.iter().map(|&f| Cell::Face(f)).collect(),
+            pieces: cells.clone(),
             minted: Vec::new(),
-            removed: pieces.iter().map(|&f| Cell::Face(f)).collect(),
+            removed: cells,
         })
     }
 
