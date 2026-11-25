@@ -351,6 +351,41 @@ fn pick_error_forwards_its_camera_arm() {
     prose(&outer, "UnusableBounds");
 }
 
+#[test]
+fn pick_error_forwards_its_projection_arm() {
+    let inner = CameraError::NotFinite {
+        what: "clip w",
+        value: f64::INFINITY,
+    };
+    let node = RecipeNodeId::new(0, tagged(9));
+    let outer = PickError::Projection {
+        node,
+        body: Some(3),
+        error: inner,
+    }
+    .to_string();
+    assert!(outer.contains(&inner.to_string()), "{outer}");
+    assert!(
+        outer.contains('9') && outer.contains("body 3"),
+        "the refusal names whose point it is: {outer}"
+    );
+    let outline = PickError::Projection {
+        node,
+        body: None,
+        error: inner,
+    }
+    .to_string();
+    assert!(
+        outline.contains("outline") && outline.contains('9'),
+        "an outline's point is said as the outline's: {outline}"
+    );
+    assert!(
+        !outer.contains("cursor"),
+        "a drawn point's refusal is not the cursor's: {outer}"
+    );
+    prose(&outer, "Projection");
+}
+
 /// The hit-test arm forwards `editor-core`'s words rather than
 /// composing a sentence about somebody else's refusal.
 #[test]

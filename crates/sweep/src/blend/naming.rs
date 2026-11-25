@@ -292,14 +292,15 @@ impl BlendNaming {
     /// from it. A source edge the band's carve split is divided into its
     /// surviving pieces ([`Self::meridian_remnants`],
     /// [`Self::slits`], [`Self::sections`]) and the vertices that split
-    /// it, the carved span removed; a support face is divided into itself
-    /// and the trimlines and feet the blend minted in it, the strip it
-    /// carved away removed. Every other cell whose geometry the blend
+    /// it; a support face is divided into itself and the trimlines and
+    /// feet the blend minted in it. The carved span and strip are named
+    /// as no removed member, so a record on a carved edge or a support
+    /// face lands on its pieces or refuses stale. Every other cell whose geometry the blend
     /// changed under its key is read, not kept: the lineage carries the
     /// source's geometry ([`topo::Lineage::from_source`]).
     #[must_use]
     pub fn lineage(&self) -> topo::Lineage {
-        use topo::{Cell, Division, Fate, Remainder};
+        use topo::{Cell, Division, Fate};
         let mut lineage = topo::Lineage::new().through_joins(&self.edge_joins);
         let removed = self
             .blends
@@ -317,12 +318,12 @@ impl BlendNaming {
             .chain(self.rim_feet.iter().map(|&(_, v)| Cell::Vertex(v)))
             .chain(self.dead.edges.iter().map(|&e| Cell::Edge(e)))
             .chain(self.dead.vertices.iter().map(|&v| Cell::Vertex(v)));
-        // Every statement is a removal, and two removals of one cell
-        // merge: a band edge whose carve also left remnants keeps them.
+        // Every statement divides or removes, and two of one cell merge:
+        // a band edge whose carve also left remnants keeps them.
         let remove = |lineage: topo::Lineage, cell: Cell, fate: Fate| {
             lineage
-                .with_removal(cell, fate)
-                .unwrap_or_else(|e| unreachable!("the blend states only removals: {e:?}"))
+                .with_division(cell, fate)
+                .unwrap_or_else(|e| unreachable!("the blend keeps no cell it states: {e:?}"))
         };
         for cell in removed {
             lineage = remove(lineage, cell, Fate::Removed);
@@ -337,7 +338,7 @@ impl BlendNaming {
                         Division {
                             pieces: Vec::new(),
                             minted: Vec::new(),
-                            remainder: Remainder::Removed,
+                            removed: Vec::new(),
                         },
                     ));
                     carved.len() - 1
@@ -383,7 +384,7 @@ impl BlendNaming {
                 Fate::Divided(Division {
                     pieces: vec![Cell::Face(f)],
                     minted,
-                    remainder: Remainder::Removed,
+                    removed: Vec::new(),
                 }),
             );
         }
