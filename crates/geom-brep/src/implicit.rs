@@ -41,9 +41,9 @@
 //! The cone's `|h|` makes the residual vanish on **both** nappes (the
 //! complete locus, per `geom`'s surface conventions); its residual is
 //! the exact perpendicular distance to the generator line in the
-//! meridian half-plane through the point. The `Nurbs` placeholder
-//! yields poison throughout (representable ≠ implemented — the poison
-//! fails certification loudly, D4 ¶2).
+//! meridian half-plane through the point. A `Nurbs` surface has no
+//! implicit form and yields poison throughout (the poison fails
+//! certification loudly, D4 ¶2).
 //!
 //! # Curvature lever arms
 //!
@@ -2656,7 +2656,7 @@ mod tests {
             curvature_lever_arm(&plane, Point3::origin()).length(),
             f64::MAX
         );
-        let n: Surface<f64> = Surface::nurbs_placeholder();
+        let n: Surface<f64> = geom::test_support::unit_patch();
         assert!(implicit_residual(&n, Point3::origin()).is_nan());
         assert!(implicit_gradient(&n, Point3::origin()).x.is_nan());
         assert!(curvature_lever_arm(&n, Point3::origin()).length().is_nan());

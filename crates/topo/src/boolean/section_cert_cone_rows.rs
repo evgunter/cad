@@ -524,7 +524,7 @@ fn scan_with(
 }
 
 fn describes(body: &Body<f64>, face: FaceKey) -> Sheet {
-    let surface = body.proven_face(face).surface().clone();
+    let surface = body.proven_face(face).surface().unwrap().clone();
     ops::ChartCache::default()
         .describes(crate::Operand::A, body, face, &surface, band())
         .unwrap()
@@ -742,7 +742,7 @@ fn brick_top() -> (Body<f64>, FaceKey) {
         .find(|(_, f)| {
             matches!(
                 b.get_surface(f.surface),
-                Some(Surface::Plane { frame, .. })
+                Ok(Surface::Plane { frame, .. })
                     if frame.axis().z > 0.5 && (frame.origin().z - 0.5).abs() < 1e-12
             )
         })

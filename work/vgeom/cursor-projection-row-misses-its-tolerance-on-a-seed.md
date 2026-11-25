@@ -4,6 +4,8 @@ kind: issue
 title: the cursor-projection fuzz row misses its f32 tolerance at seed 0xe944f229074a29d0, red on main
 status: open
 opened: 2026-11-19
+priority: P4
+cost: E
 ---
 
 

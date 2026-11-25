@@ -234,12 +234,8 @@ fn is_wrap(body: &Body<f64>, edge: topo::EdgeKey) -> bool {
 /// edges between two of them or both of whose halves bound one. An
 /// edge whose wrap flag disagrees with its faces is an error.
 fn wall_census(body: &Body<f64>) -> Result<Wall, String> {
-    let on_wall = |face: topo::FaceKey| {
-        matches!(
-            body.face_surface(face),
-            Some(geom::Surface::Cylinder { .. })
-        )
-    };
+    let on_wall =
+        |face: topo::FaceKey| matches!(body.face_surface(face), Ok(geom::Surface::Cylinder { .. }));
     let walls = body.faces().filter(|&(f, _)| on_wall(f)).count();
     let (mut wraps, mut parted) = (0, 0);
     for (edge, _) in body.edges() {
@@ -893,7 +889,7 @@ fn a_boolean_tangent_to_a_two_arc_holes_rim_builds_sound() {
 /// Held as it stands: the bottom rim's arc is tangent to the sphere at
 /// the vertex too, and the crossing layer refuses it
 /// `CurvedPierceUnsupported` before the ring reads anything
-/// (`work/contacthold/conic-ties-outside-the-vertex-on-face-pass-still-read-first-order.md`),
+/// (`work/tang/conic-ties-outside-the-vertex-on-face-pass-still-read-first-order.md`),
 /// all three ops alike. Where it builds, every check above binds.
 #[test]
 fn a_ball_tangent_to_a_two_arc_holes_rim_is_held_or_builds_sound() {

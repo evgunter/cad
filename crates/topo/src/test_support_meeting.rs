@@ -426,10 +426,7 @@ pub fn notch_rows() -> Vec<(&'static str, Vec<Hole>)> {
 pub fn corners_disjoint(body: &Body<f64>, tol: Tol) -> Result<(), String> {
     use std::f64::consts::TAU;
     for (fk, f) in body.faces() {
-        if !matches!(
-            body.get_surface(f.surface),
-            Some(geom::Surface::Plane { .. })
-        ) {
+        if !matches!(body.get_surface(f.surface), Ok(geom::Surface::Plane { .. })) {
             return Err(format!(
                 "{fk:?} is not planar: the check reads planar faces"
             ));

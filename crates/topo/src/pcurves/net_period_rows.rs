@@ -54,7 +54,7 @@ fn joint<T: Decide>(s: &Surface<f64>, entry_v: f64, prev_v: f64) -> Result<Joint
         rate: f(0.1),
     };
     decide_plain_joint(
-        DescribedChart::of(&s).unwrap(),
+        DescribedChart::of(&s),
         &image,
         f(0.0),
         Point2::new(f(0.5), f(prev_v)),
@@ -137,7 +137,7 @@ fn a_long_u_domain_crosses_its_seam_by_one_period() {
         geom::NurbsSurface::new(ku, kv, control, vec![1.0; 8]).unwrap(),
     ));
     let out = decide_plain_joint(
-        DescribedChart::of(&s).unwrap(),
+        DescribedChart::of(&s),
         &Pcurve::IsoLine {
             line: geom_brep::ChartLine::row(0.5),
             at0: 0.0,
@@ -222,7 +222,7 @@ fn u_crossing<T: Decide>(s: &Surface<f64>) -> Result<JointElement, PinMiss> {
     let s: Surface<T> = s.map_scalar(T::from_f64);
     let f = T::from_f64;
     decide_plain_joint(
-        DescribedChart::of(&s).unwrap(),
+        DescribedChart::of(&s),
         &Pcurve::IsoLine {
             line: geom_brep::ChartLine::row(f(0.5)),
             at0: f(0.0),

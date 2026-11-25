@@ -165,7 +165,7 @@ fn torus_faces(body: &Body<f64>, minor: f64) -> Vec<FaceKey> {
         .filter(|&f| {
             matches!(
                 body.face_surface(f),
-                Some(geom::Surface::Torus { minor_radius, .. })
+                Ok(geom::Surface::Torus { minor_radius, .. })
                     if (*minor_radius - minor).abs() < 1e-12
             )
         })
@@ -466,7 +466,7 @@ fn the_chain_fixture_is_g1_with_one_shared_rim() {
     let radii = |body: &Body<f64>| {
         body.faces()
             .filter_map(|(fk, _)| match body.face_surface(fk) {
-                Some(&geom::Surface::Torus { minor_radius, .. }) => Some(minor_radius),
+                Ok(&geom::Surface::Torus { minor_radius, .. }) => Some(minor_radius),
                 _ => None,
             })
             .collect::<Vec<_>>()
@@ -479,7 +479,7 @@ fn the_chain_fixture_is_g1_with_one_shared_rim() {
     let planes = |body: &Body<f64>| {
         body.faces()
             .filter_map(|(fk, _)| match body.face_surface(fk) {
-                Some(&geom::Surface::Plane { frame, .. }) => {
+                Ok(&geom::Surface::Plane { frame, .. }) => {
                     let (origin, normal) = (frame.origin(), frame.axis());
                     Some((origin, normal))
                 }

@@ -79,7 +79,7 @@ fn assert_same_door(direct: &BooleanError, reposed: &BooleanError, what: &str) {
 /// The single cylinder surface of an operand built by [`cyl`].
 fn wall(b: &Body<f64>) -> (Point3<f64>, Vec3<f64>, f64) {
     let mut found = None;
-    for (_, s) in b.surfaces() {
+    for (_, s) in b.described_surfaces() {
         if let topo::Surface::Cylinder { frame, radius, .. } = s {
             let (origin, axis) = (frame.origin(), frame.axis());
             assert!(found.is_none(), "the fixture has one wall surface");

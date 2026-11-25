@@ -56,7 +56,7 @@ fn plane_slits(body: &Body<f64>) -> usize {
             let fm = body.face_of_half_edge(e.he_minus);
             fp.is_some()
                 && fp == fm
-                && matches!(body.face_surface(fp.unwrap()), Some(Surface::Plane { .. }))
+                && matches!(body.face_surface(fp.unwrap()), Ok(Surface::Plane { .. }))
         })
         .count()
 }
@@ -64,7 +64,7 @@ fn plane_slits(body: &Body<f64>) -> usize {
 /// Rings carried by plane faces.
 fn plane_rings(body: &Body<f64>) -> usize {
     body.faces()
-        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Plane { .. })))
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Ok(Surface::Plane { .. })))
         .map(|(_, f)| f.rings.len())
         .sum()
 }
@@ -201,7 +201,7 @@ fn every_lamina_full_revolve_has_one_unslit_face_per_plane_wall() {
         // Every plane wall here is an annulus (or the wire-case disc);
         // each annulus carries exactly one ring.
         for (fk, f) in body.faces() {
-            if let Some(Surface::Plane { .. }) = body.face_surface(fk) {
+            if let Ok(Surface::Plane { .. }) = body.face_surface(fk) {
                 assert!(
                     f.rings.len() <= 1,
                     "{what}: a plane wall carries one ring at most"
@@ -575,7 +575,7 @@ fn a_ruled_band_on_a_plane_support_carrying_the_bore_carves_at_the_closed_form()
         let bottom_rings: usize = body
             .faces()
             .filter(|(fk, _)| match body.face_surface(*fk) {
-                Some(Surface::Plane { frame, .. }) => {
+                Ok(Surface::Plane { frame, .. }) => {
                     let (origin, normal) = (frame.origin(), frame.axis());
                     origin.y.abs() < 1e-12 && normal.y.abs() > 0.5
                 }
@@ -698,7 +698,7 @@ fn plane_chart_at_y(body: &Body<f64>, y: f64) -> Vec<topo::FaceKey> {
     body.faces()
         .filter(|(fk, _)| {
             matches!(body.face_surface(*fk),
-                Some(Surface::Plane { frame, .. }) if (frame.origin().y - y).abs() < 1e-12)
+                Ok(Surface::Plane { frame, .. }) if (frame.origin().y - y).abs() < 1e-12)
         })
         .map(|(k, _)| k)
         .collect()

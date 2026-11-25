@@ -196,7 +196,7 @@ pub(super) fn bisectors<T: crate::props::AtRestPolicy>(
     (x, x_is, wall): (&Body<T>, Operand, crate::entity::FaceKey),
     (y, face): (&Body<T>, crate::entity::FaceKey),
 ) -> Result<Option<[Bisector<T>; 2]>, BooleanError> {
-    let is_wall = |b: &Body<T>, f| is_wall(b.proven_face(f).surface());
+    let is_wall = |b: &Body<T>, f| is_wall(b.proven_face(f).expect_described());
     if !is_wall(x, wall) || !is_wall(y, face) {
         return Ok(None);
     }

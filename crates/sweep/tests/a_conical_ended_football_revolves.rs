@@ -147,7 +147,7 @@ fn a_conical_ended_football_revolves() {
             .body
             .faces()
             .filter_map(|(fk, _)| match built.body.face_surface(fk) {
-                Some(geom::Surface::Spindle { major_radius, .. }) => Some(*major_radius),
+                Ok(geom::Surface::Spindle { major_radius, .. }) => Some(*major_radius),
                 _ => None,
             })
             .collect();

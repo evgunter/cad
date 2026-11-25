@@ -726,7 +726,10 @@ pub mod test_support {
         key: crate::SurfaceKey,
         surface: geom::Surface<T>,
     ) -> bool {
-        body.surfaces.get_mut(key).map(|s| *s = surface).is_some()
+        body.surfaces
+            .get_mut(key)
+            .map(|s| *s = surface.into())
+            .is_some()
     }
 
     /// `host` holding `cavity` as [`crate::insert_void`] would graft it,
@@ -1431,7 +1434,7 @@ pub mod test_support {
         face: crate::FaceKey,
         band: geom_core::Band,
     ) -> bool {
-        let Some(surface) = body.face(face).map(|f| f.surface()) else {
+        let Some(Ok(surface)) = body.face(face).map(|f| f.surface()) else {
             return false;
         };
         matches!(
@@ -1478,7 +1481,8 @@ pub mod test_support {
     /// # Errors
     ///
     /// The walk's own [`crate::PointInSolidError`]; a face that is not
-    /// planar is `KindUnsupported`.
+    /// planar is `KindUnsupported`, and one with no surface yet
+    /// `PendingFace`.
     pub fn point_in_face<T: geom_core::Decide>(
         body: &Body<T>,
         face: crate::FaceKey,
@@ -1487,10 +1491,12 @@ pub mod test_support {
     ) -> Result<Option<bool>, crate::PointInSolidError> {
         let Some(geom_brep::PlaneDesc { normal, .. }) = crate::face_normal::face_plane(body, face)
         else {
-            let f = body.proven_face(face);
+            let Ok(surface) = body.proven_face(face).surface() else {
+                return Err(crate::PointInSolidError::PendingFace { face });
+            };
             return Err(crate::PointInSolidError::KindUnsupported {
                 face,
-                kind: f.surface().kind(),
+                kind: surface.kind(),
             });
         };
         crate::solid_contain::point_in_face(body, face, normal, p, band)
@@ -1604,7 +1610,7 @@ pub use geom_brep::{
     EdgeDescription, EdgeDescriptionSpec, Pcurve, PcurveCache, PcurveCertifyError, SharedRow,
     Structural, SurfacePair,
 };
-pub use geometry::{CurveKey, PointKey, SurfaceKey};
+pub use geometry::{CurveKey, Pending, PointKey, SurfaceKey, SurfaceMiss, SurfaceSlot};
 pub use instance::{
     GraftKeys, graft_disjoint, graft_disjoint_all, graft_disjoint_all_keyed, per_part_gate_owed,
 };
@@ -1690,3 +1696,5 @@ pub use validate::{
     validate_geometric_structural, validate_pseudomanifold, validate_pseudomanifold_certificate,
     validate_pseudomanifold_certificate_structural, validate_pseudomanifold_structural,
 };
+#[cfg(test)]
+mod pending_face_rows;

@@ -77,7 +77,12 @@ impl Steep {
             spec,
             e.eval(t0),
             e.eval(t1),
-            |k| self.surfaces.get(k).cloned(),
+            |k| {
+                self.surfaces
+                    .get(k)
+                    .cloned()
+                    .ok_or(geom_brep::SurfaceMiss::Stale)
+            },
             geom_core::test_support::fixture_lever(1.0),
             band,
             geom_brep::NurbsLane::certified(),
@@ -212,7 +217,7 @@ fn certification_agrees_with_the_old_winding_check() {
             spec,
             start,
             end,
-            |_| None,
+            |_| Err(geom_brep::SurfaceMiss::Stale),
             geom_core::test_support::fixture_lever(1.0),
             band,
             geom_brep::NurbsLane::certified(),
@@ -307,7 +312,7 @@ fn the_stored_turn_is_the_edges_own_interval() {
             whole,
             circle.eval(0.3),
             circle.eval(0.3 + TAU),
-            |_| None,
+            |_| Err(geom_brep::SurfaceMiss::Stale),
             geom_core::test_support::fixture_lever(1.0),
             band,
             geom_brep::NurbsLane::certified(),
@@ -388,7 +393,7 @@ fn the_certified_readers_agree_with_the_reads_they_retired() {
             spec,
             start,
             end,
-            |_| None,
+            |_| Err(geom_brep::SurfaceMiss::Stale),
             geom_core::test_support::fixture_lever(1.0),
             band,
             geom_brep::NurbsLane::certified(),

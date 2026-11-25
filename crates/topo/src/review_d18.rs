@@ -3568,7 +3568,11 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
         match answer {
             Ok(_) => Ok(true),
             Err(e @ ReadbackError::Dangling { .. }) => Err(e.to_string()),
-            Err(ReadbackError::NoCanonicalFrame { .. } | ReadbackError::NoCarrier) => Ok(false),
+            Err(
+                ReadbackError::NoCanonicalFrame { .. }
+                | ReadbackError::NoCarrier
+                | ReadbackError::PendingSurface { .. },
+            ) => Ok(false),
         }
     }
     let band = Band::linear(Tol::witness()).unwrap();
@@ -3624,10 +3628,13 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
             PairUnread, carrier_pair_decided, carrier_pair_relation, flush_pair_relation,
         };
         use crate::face_normal::face_carrier_desc;
+        // A pending slot is the face's own typed refusal, read off a key
+        // the sweep took from the body; only a stale surface key is the
+        // caller's.
         let outside = || match body.get_surface(data.surface) {
-            Some(_) => Ok(false),
-            None => Err(format!(
-                "{} reads as outside the inventory over a surface that does not resolve",
+            Ok(_) | Err(crate::SurfaceMiss::Pending) => Ok(false),
+            Err(miss @ crate::SurfaceMiss::Stale) => Err(format!(
+                "{} reads as outside the inventory over a surface it cannot read: {miss}",
                 crate::entity::EntityId::Face(face)
             )),
         };
@@ -3727,7 +3734,8 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
                     Solid::Escalated { .. }
                     | Solid::PartialConeFace { .. }
                     | Solid::PartialTorusFace { .. }
-                    | Solid::WallOutlineUnsupported { .. },
+                    | Solid::WallOutlineUnsupported { .. }
+                    | Solid::PendingFace { .. },
                 ),
             ) => Ok(answer.is_ok()),
             // A scaffold circle or a conic wound past a period is a loop
@@ -3828,15 +3836,14 @@ fn revert_reads_whole(body: &Body<f64>) -> bool {
     });
     let charts = body
         .faces()
-        .all(|(_, f)| body.get_surface(f.surface).is_some())
+        .all(|(_, f)| body.get_surface(f.surface).err() != Some(crate::SurfaceMiss::Stale))
         && body.curves.values().all(|geom| {
             let crate::null::CurveGeom::Certified(curve) = geom else {
                 return true;
             };
-            curve
-                .description()
-                .chart()
-                .is_none_or(|chart| body.get_surface(chart.surface).is_some())
+            curve.description().chart().is_none_or(|chart| {
+                body.get_surface(chart.surface).err() != Some(crate::SurfaceMiss::Stale)
+            })
         });
     halves && anchors && rows && charts
 }

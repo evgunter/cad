@@ -168,7 +168,7 @@ fn section_chords<T: Decide>(
         if let StarFace::Apex(_) = sector.at {
             return T::zero();
         }
-        let surface = body.proven_face(sector.face).surface();
+        let surface = body.proven_face(sector.face).expect_described();
         geom_brep::implicit_graph_acceleration(surface, point, t, across)
     };
     // Whether germ `b`, tied with germ `a` along `a`'s tangent, curves

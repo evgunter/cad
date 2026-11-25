@@ -410,9 +410,7 @@ fn probe_two_nonparallel_escapes_build_both_caps_under_every_op() {
             // and each further solid one more.
             let on_sphere = |x: &topo::Body<f64>| {
                 x.faces()
-                    .filter(|&(f, _)| {
-                        matches!(x.face_surface(f), Some(topo::Surface::Sphere { .. }))
-                    })
+                    .filter(|&(f, _)| matches!(x.face_surface(f), Ok(topo::Surface::Sphere { .. })))
                     .count()
             };
             assert!(
@@ -440,7 +438,7 @@ fn spun_about(body: &Body<f64>, pivot: Vec3<f64>, axis: Vec3<f64>, theta: f64) -
 fn sphere_frame(body: &Body<f64>) -> (Point3<f64>, Vec3<f64>, Vec3<f64>) {
     body.faces()
         .find_map(|(f, _)| match body.face_surface(f) {
-            Some(geom::Surface::Sphere { frame, .. }) => {
+            Ok(geom::Surface::Sphere { frame, .. }) => {
                 Some((frame.origin(), frame.axis(), frame.u_ref()))
             }
             _ => None,

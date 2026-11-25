@@ -450,10 +450,7 @@ fn a_revolved_one_segment_circle_is_one_torus_wall_with_a_wrap_strut() {
             let walls = one.walls();
             let wall = walls[0][0].expect("the circle sweeps a wall");
             assert!(
-                matches!(
-                    one.body.face_surface(wall),
-                    Some(geom::Surface::Torus { .. })
-                ),
+                matches!(one.body.face_surface(wall), Ok(geom::Surface::Torus { .. })),
                 "{what}: the wall is a torus"
             );
             let wraps = wrap_edges(&one.body);
@@ -734,7 +731,7 @@ fn every_one_segment_circle_stack_builds_at_every_degree() {
         let slabs = if degree == 1 { z.len() - 1 } else { 1 };
         let mut walls = 0;
         for (k, _) in lofted.body.faces() {
-            let Some(geom::Surface::Nurbs(s)) = lofted.body.face_surface(k) else {
+            let Ok(geom::Surface::Nurbs(s)) = lofted.body.face_surface(k) else {
                 continue;
             };
             walls += 1;

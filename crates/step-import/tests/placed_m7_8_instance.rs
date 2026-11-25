@@ -74,7 +74,7 @@ fn offsets_beside_the_wall(body: &topo::Body<f64>, count: usize) {
     let tol = Tol::witness();
     let wall = body
         .faces()
-        .find(|(fk, _)| matches!(body.face_surface(*fk), Some(geom::Surface::Nurbs(_))))
+        .find(|(fk, _)| matches!(body.face_surface(*fk), Ok(geom::Surface::Nurbs(_))))
         .map(|(k, _)| k)
         .unwrap();
     let caps: Vec<_> = body
