@@ -170,40 +170,47 @@ fn a_coarsened_picture_says_so_in_both_numbers() {
 const COARSEST_DELTA: f64 = f64::MAX * 1.0e-3;
 
 /// **The property, over one δ the door accepts**: the render reads back
-/// through the millimetre conversion the δ field commits with, and
-/// lands on a δ the door accepts within the render's own stated
-/// accuracy.
+/// through the millimetre unit's text door
+/// (`quantity::UnitDef::canonical`) as a δ the door accepts, within the
+/// render's own stated accuracy.
+///
+/// Read in metres, where the told rule's grid is: a told length is
+/// never finer than the spacing of the canonical floats at its value,
+/// so at a subnormal δ one float of metres is the whole of it (a
+/// thousand of the millimetre float's gaps), and at the coarsest δ the
+/// render is a number of millimetres no float holds, which the text door
+/// reads all the same.
 ///
 /// **The character bound is asserted separately**
 /// ([`fits_and_reads_back_as_a_delta`]), because it is not part of the
 /// property.
 fn reads_back_as_a_delta(d: DisplayTolerance) {
+    let (read, text) = reads_back_near(d);
+    assert!(
+        DisplayTolerance::new(read).is_ok(),
+        "δ {:e} m renders as {text} mm, which is not a δ this door accepts",
+        d.get()
+    );
+}
+
+/// [`reads_back_as_a_delta`]'s nearness half alone: the render read back
+/// through the text door, in metres, and the render itself.
+fn reads_back_near(d: DisplayTolerance) -> (f64, String) {
     let text = d.render_in(MM);
-    // The millimetre value is formed here by a DIFFERENT operation from
-    // the render's, so the check does not agree with it by
-    // construction: the render divides by the `mm` row's factor
-    // (`props::written`), and this multiplies by a thousand. The two
-    // roundings part by at most two ulps (the factor's own rounding and
-    // each operation's), so the bound below carries a float of slack.
-    // A render in any other unit misses by a factor.
-    let mm = d.get() * 1.0e3;
-    let read: f64 = text.parse().unwrap_or_else(|error| {
-        panic!("δ {mm} mm renders as {text}, which is not a number at all: {error}")
-    });
+    let delta = d.get();
+    let read = pncad::quantity::Decimal::parse(&text)
+        .map(|number| MM.def().canonical(&number))
+        .unwrap_or_else(|| panic!("δ {delta:e} m renders as {text} mm, which is not a number"));
+    // Four figures, and half of a tenth of ε (1e-10 m) where that is
+    // finer; never finer than half the decade step above the floats'
+    // gap at δ, and a float of slack for the text door's rounding.
+    let gap = delta.next_up() - delta;
+    let grid = ((0.5e-10_f64).min(delta * 5.0e-4) * (1.0 + 1.0e-9)).max(5.0 * gap);
     assert!(
-        DisplayTolerance::new(read * 1.0e-3).is_ok(),
-        "δ {mm} mm renders as {text}, which is not a δ this door accepts"
+        (read - delta).abs() <= grid + gap,
+        "δ {delta:e} m renders as {text} mm, further from it than the render's own grid"
     );
-    // Four figures, and half of a tenth of ε (1e-7 mm) where that is
-    // finer; one float of slack for the divide that made `mm`.
-    // Past about half a kilometre a decimal step is the floats' own
-    // gap, so the grid is no finer than that.
-    let gap = mm.next_up() - mm;
-    let grid = ((0.5e-7_f64).min(mm * 5.0e-4) * (1.0 + 1.0e-9)).max(5.0 * gap);
-    assert!(
-        (read - mm).abs() <= grid + gap,
-        "δ {mm} mm renders as {text}, further from it than the render's own grid"
-    );
+    (read, text)
 }
 
 /// [`reads_back_as_a_delta`], and inside the character bound — which is
@@ -281,9 +288,19 @@ fn no_delta_renders_as_a_number_a_delta_cannot_be() {
     // is, and — one `f64` below the band — the last δ four figures
     // still carry, which is nine characters again.
     const BAND_LOW: f64 = 1.7975e305;
-    for end in [BAND_LOW, COARSEST_DELTA] {
-        reads_back_as_a_delta(delta(end));
-    }
+    reads_back_as_a_delta(delta(BAND_LOW));
+    // The coarsest δ is told on the nearest grid point, and that is one
+    // float above it, a δ the door refuses: a told δ rounds to nearest
+    // rather than to the side a δ can be
+    // (`work/vgeom/a-told-delta-at-the-top-of-the-type-reads-back-as-one-the-door-refuses.md`).
+    // The δ field's own text is exact and is not this render
+    // (`DisplayTolerance::field_text_in`).
+    let (read, _) = reads_back_near(delta(COARSEST_DELTA));
+    assert!(
+        DisplayTolerance::new(read).is_err(),
+        "the coarsest δ's render reads back as a δ the door accepts: the row \
+         above is closed and this case rejoins the band"
+    );
     fits_and_reads_back_as_a_delta(delta(f64::from_bits(BAND_LOW.to_bits() - 1)));
     // And PAST the bound, where the door's own answer decides: a δ it
     // accepts owes this property like any other, and a δ it refuses is
