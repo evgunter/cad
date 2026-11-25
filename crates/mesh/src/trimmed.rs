@@ -164,7 +164,7 @@
 //! (`work/tesslane/a-needle-cone-face-meshes-thin-triangles-beside-its-rulings.md`).
 //!
 //! Near a small end the development puts points far apart in azimuth
-//! close together, and its Delaunay triangulation joins them. Two things
+//! close together, and its Delaunay triangulation joins them. Three things
 //! answer that. The certificate is the flat triangle's own deviation
 //! ([`cert::cert_cone`]): each chord at its own two radii and its own
 //! azimuth difference, no chart box, so such a triangle is charged what it
@@ -172,7 +172,11 @@
 //! their own radius ([`AnalyticRow::lattice_rows`]), so the row next to a
 //! small end stands a chord of the lattice's target from it rather than
 //! many: under rows uniform in `v` a face ending near its apex holds
-//! triangles truly past δ.
+//! triangles truly past δ. And on a face more than a quarter turn round,
+//! every gap between rows is graded to its lower radius
+//! ([`reach_graded`]), so no triangle across it reaches far round the
+//! axis: a triangle reaching past a quarter turn from two points of a
+//! small end certifies and still winds into the surface.
 //!
 //! - **Which points are one CDT vertex.** Every copy of the apex is the
 //!   origin. The development rounds, so it is not injective: the cut
@@ -648,6 +652,12 @@ pub(crate) fn tessellate_trimmed(
                 a.lattice_steps(arm_steps(a, face_target(surface, Lane::Trimmed, tol.delta)));
             let nu = repeat_columns(&polygon, (u0, u1), ceil_count(u1 - u0, hu)?)?;
             let rows = a.lattice_rows((v0, v1), (hu, hv))?;
+            let rows = match a.development() {
+                Some(sin_alpha) => {
+                    reach_graded((v0, v1), &rows, sin_alpha, u1 - u0, !singular.is_empty())?
+                }
+                None => rows,
+            };
             (
                 lattice_candidates((u0, u1), (v0, v1), nu, &rows),
                 None,
@@ -2386,6 +2396,84 @@ fn run_of(
     Some(Run { members, anchor })
 }
 
+/// **How many whole turns' developed width a lattice gap may span**
+/// ([`reach_graded`]): a gap above slant `a` is at most
+/// `GAP_TURNS·2π·sin α·a`, the width the development gives that many
+/// turns at its lower radius.
+///
+/// A measured choice, not a bound: a Delaunay triangle across a gap can
+/// reach about the gap's own developed height round, as well as the
+/// columns' spacing, and no lemma here turns that into an angle the fold
+/// census admits. The census reads every triangle's winding and refuses
+/// loud (`FoldedTriangle`), which is the guarantee. On needle funnels
+/// (rim radius `0.002` to `0.1` over a unit height, whole, three-quarter
+/// and half turns, cut `10⁻²` to `10⁻⁵` above the apex by planes tilted
+/// `0`, `0.3` and `1`, at three δ each, 792 cells) eight turns leaves one
+/// cell folding, four leave none, and 160 leave 52. The same funnels a
+/// quarter turn and one radian round fold nowhere ungraded (504 cells).
+const GAP_TURNS: f64 = 4.0;
+
+/// The largest ratio of a graded gap's upper slant to its lower on a
+/// cone of `sin α` ([`GAP_TURNS`]).
+fn gap_bound(sin_alpha: f64) -> f64 {
+    1.0 + core::f64::consts::TAU * sin_alpha * GAP_TURNS
+}
+
+/// **A cone face's lattice rows with every gap graded to its lower
+/// radius**, where its span lets a triangle reach far round the axis
+/// (module docs, "The development"). `rows`, ascending inside the window
+/// `(v0, v1)` on one nappe, are [`AnalyticRow::lattice_rows`]'s. On a
+/// face whose `u` span is at most a quarter turn they are returned as
+/// they are: no triangle of it reaches past a quarter turn, where a
+/// chord triangle from two points of a small end starts to wind into
+/// the surface. Otherwise the gap from the window's end nearer the apex
+/// and each gap between rows is split geometrically into the fewest
+/// pieces whose upper slant is at most [`gap_bound`] times their lower.
+/// A window whose loop reaches the apex (`at_apex`) is not graded below
+/// its first row: the apex is one point of the development, and the
+/// window's end there is a rounding of zero. Errors as [`ceil_count`].
+fn reach_graded(
+    (v0, v1): (f64, f64),
+    rows: &[f64],
+    sin_alpha: f64,
+    span: f64,
+    at_apex: bool,
+) -> Result<Vec<f64>, TessellateError> {
+    if span <= core::f64::consts::FRAC_PI_2 {
+        return Ok(rows.to_vec());
+    }
+    let bound = gap_bound(sin_alpha);
+    let sign = if v1 <= 0.0 { -1.0 } else { 1.0 };
+    let (near, far) = (v0.abs().min(v1.abs()), v0.abs().max(v1.abs()));
+    let mut stops: Vec<f64> = rows.iter().map(|v| v.abs()).collect();
+    stops.sort_by(f64::total_cmp);
+    let mut out = Vec::with_capacity(stops.len());
+    let mut below = if at_apex { 0.0 } else { near };
+    for (k, &above) in stops.iter().chain(core::iter::once(&far)).enumerate() {
+        if below > 0.0 && above > below * bound {
+            let pieces = ceil_count((above / below).ln(), bound.ln())?;
+            #[allow(clippy::cast_precision_loss)]
+            let piece = (above / below).powf(1.0 / pieces as f64);
+            let mut at = below;
+            for _ in 1..pieces {
+                at *= piece;
+                out.push(at);
+            }
+        }
+        if k < stops.len() {
+            out.push(above);
+        }
+        below = above;
+    }
+    let mut out: Vec<f64> = out
+        .into_iter()
+        .filter(|&a| a > near && a < far)
+        .map(|a| sign * a)
+        .collect();
+    out.sort_by(f64::total_cmp);
+    Ok(out)
+}
+
 /// **The developed point of chart point `(u, v)` on the cone of
 /// half-angle `α` (`sin_alpha`), on nappe `σ`**: radius `r = σ·v` (the
 /// slant length, `geom::Surface::Cone`), angle `θ = σ·sin α·u`, at
@@ -3771,6 +3859,93 @@ pub(super) mod tests {
         /// (`super::last_attempt`). `cfg(test)` only.
         pub(crate) static LAST_ATTEMPT: std::cell::Cell<Option<usize>> =
             const { std::cell::Cell::new(None) };
+    }
+
+    /// **A cone face's gaps are graded where its span lets a triangle
+    /// reach far round, and only there** (`super::reach_graded`). On cones
+    /// from a needle to near flat, over a window from `10⁻³` to `1` and its
+    /// mirror on the other nappe, with rows like the certified rule's:
+    ///
+    /// - a face a quarter turn round or less keeps its rows bit for bit;
+    /// - past that, the rows hold the given ones and ascend inside the
+    ///   window; every gap from the window's end nearer the apex outward
+    ///   is within [`super::gap_bound`]; and each given gap is split into
+    ///   the fewest pieces that are, one fewer piece being past it;
+    /// - a window whose loop reaches the apex lays no row below its first.
+    #[test]
+    fn a_cone_faces_gaps_are_graded_only_where_its_span_reaches_far_round() {
+        use core::f64::consts::{FRAC_PI_2, PI, TAU};
+        let given = [0.0125, 0.05, 0.2, 0.6];
+        let (near, far) = (1e-3, 1.0);
+        let mut split = 0usize;
+        for sin_alpha in [0.002, 0.02, 0.4, 0.99] {
+            let bound = super::gap_bound(sin_alpha);
+            for span in [1.0, FRAC_PI_2, PI, 1.5 * PI, TAU] {
+                for nappe in [1.0, -1.0] {
+                    let window = if nappe > 0.0 {
+                        (near, far)
+                    } else {
+                        (-far, -near)
+                    };
+                    let rows: Vec<f64> = if nappe > 0.0 {
+                        given.to_vec()
+                    } else {
+                        given.iter().rev().map(|v| -v).collect()
+                    };
+                    for at_apex in [false, true] {
+                        let what = format!(
+                            "sin α {sin_alpha}, span {span}, nappe {nappe}, at the apex {at_apex}"
+                        );
+                        let got =
+                            super::reach_graded(window, &rows, sin_alpha, span, at_apex).unwrap();
+                        if span <= FRAC_PI_2 {
+                            assert_eq!(got, rows, "{what}: a quarter turn keeps its rows");
+                            continue;
+                        }
+                        let slants: Vec<f64> = got.iter().map(|v| v.abs()).collect();
+                        let mut up = slants.clone();
+                        up.sort_by(f64::total_cmp);
+                        assert!(
+                            got.windows(2).all(|w| w[0] < w[1])
+                                && slants.iter().all(|&a| a > near && a < far)
+                                && given.iter().all(|g| slants.contains(g)),
+                            "{what}: the rows ascend inside the window and hold the given ones"
+                        );
+                        let first = if at_apex { given[0] } else { near };
+                        assert!(
+                            up.iter().all(|&a| a >= first),
+                            "{what}: no row below {first:e}"
+                        );
+                        let stops: Vec<f64> = core::iter::once(first)
+                            .chain(up.iter().copied().filter(|&a| a > first))
+                            .chain(core::iter::once(far))
+                            .collect();
+                        assert!(
+                            stops
+                                .windows(2)
+                                .all(|w| w[1] / w[0] <= bound * (1.0 + 1e-12)),
+                            "{what}: a gap past {bound}"
+                        );
+                        let ends: Vec<f64> = core::iter::once(first)
+                            .chain(given.iter().copied().filter(|&g| g > first))
+                            .chain(core::iter::once(far))
+                            .collect();
+                        for pair in ends.windows(2) {
+                            let (c, t) = (pair[0], pair[1]);
+                            let pieces = stops.iter().filter(|&&a| a > c && a <= t).count();
+                            #[allow(clippy::cast_precision_loss)]
+                            let fewer = (t / c).powf(1.0 / (pieces as f64 - 1.0));
+                            assert!(
+                                pieces == 1 || fewer > bound,
+                                "{what}: ({c:e}, {t:e}) in {pieces} pieces where fewer would do"
+                            );
+                            split += pieces - 1;
+                        }
+                    }
+                }
+            }
+        }
+        assert!(split > 0, "some gap is split");
     }
 
     /// **The MAJOR-1 backstop's end-to-end guard**: a face left with a
