@@ -1055,3 +1055,5 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
 - PR 7065's three parked rows stay open, re-measured.
 - Slot-order byte 205 (odd), so R1 = Fable and R2 = Opus. Both reviews of the frozen head are running concurrently.
 - The cover-halving lane (Fable, byte 215) was resumed after a 529 overload.
+
+- 2026-11-25 — PR 7537 R1 (Fable) returned NOT-MERGEABLE-AS-IS (narrowly): seam-start image Ok at 0.96 m off (M1), Greville triple-knot snap misses 16.6% (M2), C2 start rule departs from the decision's stored-chart-point start unflagged (M3); nine mutants survive. Condensed at scratch rev7537-r1/report-condensed.md. Waiting on R2.
