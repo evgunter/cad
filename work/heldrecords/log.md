@@ -306,3 +306,5 @@
   - ContactContradicted counts as touched in a removed-member read only.
   The full-default per-test diff (8533 vs 8549 tests) found a fork: with section edges named, `a_plane_face_holding_the_pierce_over_a_cylinder…` refuses JoinDesync (a minted vertex meets a minted section edge at a point); with no section, `three_solids_on_one_line::a_contact_line_beside_a_face_holding_it…` refuses Stale.
   Ruled (C): an undecidable minted point meeting is set aside only where the record also lands on a non-minted pair. That is never consumption, and t3′ on the result stays the backstop. Pinned both ways with a mutant. (A), the door deciding vertex-on-edge meetings, is filed P2.
+
+- 2026-11-25 The P0 fix is PR 7799 (head 17237bee03). The full-default per-test diff shows 0 PASS → FAIL; the mutants all go red, including SETASIDEALONE and CONTRALEAK. Single FULL review dispatched (session_018u3gVJYnrwgxoiemwioLv7). (A) is filed P2 as `the-boolean-door-decides-no-minted-vertex-on-edge-meeting`.
