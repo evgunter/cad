@@ -73,3 +73,11 @@ Dispatch, with each unit's review tier:
   - One sub-option was weighed and rejected by both: keep the composite in interval arithmetic and state `Real::Value: Certifies` with a gated door. That would change DL5.3's text.
   - **Sequencing:** 7755 (and EMBEDWALK's 7772) land first, with their reader plumbing as scaffolding this unit removes.
   - The `Option`-lane class is SHELL's `the-policys-other-lanes-encode-certification-rights-as-a-runtime-none` (P2); evidence added there. (INSIDE orchestrator)
+- 2026-11-25 — PR 7755 (`inside/sphere-chord-region`) merges, and `point-in-solid-refuses-a-sphere-face-bounded-by-a-spline-chord` (P0) is CLOSED.
+  - `point_in_solid` reads a sphere face bounded by spline chords, so every cylinder × sphere result that builds is a legal far-union operand, and the piece sort's `PartialSphereFace` stops are gone.
+  - The review's MAJOR (a crossing beside a spline end lost, so `contains` answered wrong) is fixed at the root: the ring composite returns its own end readings, and the region adds a parity guard. The verifier confirmed it with the reviewer's own probes (lost 0; 1604/1604 right).
+  - Reviews: FULL (one Opus), a fix pass, then the same reviewer as verifier.
+  - Notes from the verifier, not acted on: the parity guard is defensive and no row reaches it; the "sideless spline landing" branch is unreachable against a plane; and `PartsUndecided` matches the census finding by its English prefix.
+  - Merged over the inherited `tools` red (PR 7780's baseline, filed on GREEN).
+  - Re-banded: `the-face-door-reads-no-spline-arc-of-a-sphere-face` P2 → P0 (cost H), with the decided design written into it; `the-ring-composites-refusals-and-end-readings-are-translated-per-caller` P3 → P1 (two readings of one fact), riding with it.
+  - Filed by the lane: `the-face-door-reads-no-spline-arc-of-a-sphere-face` and the composite row. The splitdoor sphere cut-in row is half served: `apply_cut_ins` gets a region, but its hit loop still refuses a non-circle edge. (INSIDE orchestrator)
