@@ -2,11 +2,10 @@
 id: import-mints-the-wrap-tip-at-a-chart-singularity
 kind: issue
 title: import's pole form flips to the wrap tip: geom::pole_form mints one wrap edge to each singularity, DegenerateApexCone's two-half form retires, OCC's seamed cap and cone import as written
-status: parked
+status: dispatched
 opened: 2026-10-29
-priority: P1
+priority: P0
 cost: E
-blocked_on: [a-full-revolves-curved-wall-carries-two-seam-meridians-nobody-wrote]
 ---
 
 
@@ -37,3 +36,5 @@ stored centres and axes are one value (`one_plane` in
   off `−n`, so the twin is not in the seam's plane. Read, not measured.
   For a circle whose normal is square to the axis, `azimuths`' exact
   negation is the spelling that keeps the pair in one plane.
+
+- 2026-11-25 — moved from IMPORTGATE to LATHE by `git mv` (LATHE orchestrator), id and body unchanged, re-banded P0. The one-band build (PR 7414) regenerates `step-export/tests/fixtures/ball.step` as one face, which step-import refuses ("a pole-form meridian ends at a vertex the face's loop passes more than once"). That reddens five step-import rows: three in the ci profile (`review_probes::a1_*`, `records_follow_the_file::a_pinch_is_refused_at_tier_3_on_one_record_or_two`) and the slow roundtrip pair. So this row gates the one-band landing like its other consumer gaps, and lands into the one-band stack (Ev's ruling on `[ev]` PR 6014 and the landing order logged on LATHE 2026-11-22). The probe branch `probe/foreign-wraptip` (E1–E7) is the starting point.
