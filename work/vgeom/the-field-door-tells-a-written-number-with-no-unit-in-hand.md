@@ -2,10 +2,12 @@
 id: the-field-door-tells-a-written-number-with-no-unit-in-hand
 kind: issue
 title: The field door tells a written number with no unit in hand, so its grid is a tenth of ε of the written number
-status: open
+status: closed
 opened: 2026-11-20
 priority: P3
 cost: M
+closed: 2026-11-25
+pr: 7775
 ---
 
 
@@ -49,3 +51,7 @@ is scientific below 1e-4 of its unit: the default δ of 0.05 mm seeds
 exponent (`pane::view::tests::the_field_reads_and_commits_in_the_working_unit`
 was moved to a δ whose render is a decimal for that reason). An
 editable seed wants the exact, positional spelling.
+
+## Closed (2026-11-25)
+
+Answered by PR 7775: a field no longer tells its number on the readout's grid; it spells the written value exactly in the unit it is written in (`props::FieldNumber`).
