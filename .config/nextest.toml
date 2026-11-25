@@ -498,8 +498,11 @@ failure-output = "immediate-final"
 #   0.25 / 0.42 s  sweep::all a_plane_holding_a_conic_tangent_at_a_vertex::a_tilted_plane_through_a_cap_vertex_cuts_by_the_arcs_bend
 #   0.33 / 0.25 s  editor-core::all emit_union_flush_names::a_cut_a_covered_face_meets_is_one_divider_in_every_order
 #   0.31 / 0.25 s  viewer::all mate_tool_flow::a_circular_pattern_copy_is_a_target_whose_rotation_is_applied_once
+# A test in a file PR 7748 edits, timed by its gate (hosted runner, alone):
+#    0.31 s  topo solid_contain::volume_read_key_rows::a_second_band_racing_the_first_is_read_afresh
 default-filter = """
 not (
+  (binary_id(topo) & test(=solid_contain::volume_read_key_rows::a_second_band_racing_the_first_is_read_afresh)) |
   (binary_id(sweep::all) & (test(=pair_doors_read_apart::a_spline_cap_beside_a_rods_wall_unions_until_it_touches) | test(=pair_doors_read_apart::the_lumps_of_a_bar_through_a_ball_union_with_a_spline_cap_between_them) | test(=pair_doors_read_apart::a_split_between_the_lumps_clears_their_sphere_patches))) |
   (binary_id(editor-core::all) & (test(=member_read_shapes::keys_are_the_same_on_both_schedules) | test(=member_read_shapes::readers_across_ranks) | test(=member_read_shapes::a_familys_count_moves_under_its_readers) | test(=member_read_shapes::a_mirror_across_another_members_face) | test(=docm4_evaluation_identity::a_prior_under_the_other_symbols_setting_is_refused))) |
   (binary_id(geom) & (test(=cover::tests::held_arc_rows::an_arc_held_cover_holds_its_stored_points_at_f64) | test(=cover::tests::held_arc_rows::an_arc_held_cover_encloses_its_stored_points_at_interval) | test(=cover::tests::held_arc_rows::an_arc_held_extent_holds_both_its_ends))) |
