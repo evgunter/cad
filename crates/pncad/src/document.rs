@@ -136,21 +136,23 @@ pub use editor_core::{Answered, Moved, TakeOverOutcome, Taken, TakenOver, take_o
 // the indices an expression reaches (`Doc::expr_reach`) and each member's
 // environment (`Doc::member_envs`) are what a reader of one evaluates in.
 pub use editor_core::{
-    Axis3, Bodies, BodyRead, ConstraintId, InputFault, ListFault, LoftSection, MintId, Node,
-    Operand, OperandSlot, OutputPort, PortKind, RecipeNodeId, SlotId, SlotKind, StationMove,
-    TubeWindow, VectorSlot,
+    Axis3, Binders, Bodies, BodyRead, ConstraintId, InputFault, ListFault, LoftSection, MintId,
+    Node, Operand, OperandSlot, OutputPort, PortKind, RecipeNodeId, SlotId, SlotKind, Spell,
+    StationMove, TubeWindow, VectorSlot,
 };
 pub use editor_core::{
-    Index, IndexFault, MemberAt, MemberCountFault, MemberEnv, Reached, SourceFault,
+    Index, IndexFault, IndexSeat, MemberAt, MemberCountFault, MemberEnv, Reached, SourceFault,
+    YieldsFault,
 };
 
-// How a sentence names a node: the kind noun and tag a person reads, the
-// speaker a refusal holding bare ids is said by, the nodes a door kept
-// beside a refusal it carries whole, and the full-width id a machine
-// channel prints.
+// How a sentence names a node: a sentence of words and mentions, the
+// one spelling of a mention, the speaker a refusal holding bare ids is
+// said by, the nodes a door kept beside a refusal it carries whole, and
+// the full-width id a machine channel prints.
 pub use editor_core::{
-    FullId, HeldNodes, NameTables, Said, Say, Speaker, SpokenName, SpokenNode, SpokenSpace,
-    SpokenVar, held_by, node_kind_noun, spoken_by, spoken_within,
+    FullId, HeldNodes, Lines, Mention, Mentioned, NameTables, Put, Run, Said, SaidName, SaidNode,
+    SaidVar, Say, Sentence, Speaker, SpokenName, SpokenNode, SpokenSpace, SpokenVar, display_said,
+    held_by, node_kind_noun, node_text, say, sentence, spoken_by, spoken_within, var_text,
 };
 
 // A node's label (DESIGN.md Band 1, "Node labels"): document data the
@@ -322,9 +324,10 @@ pub use editor_core::DocParamField;
 // `CarriedChain`, `CarriedLevel` and `CarriedIn` ride with it: they are
 // `NodeErrorKind::carried_chain`'s answer, the one reading of which
 // refusal a failure carries and which document its node is in.
-// `Mispaired` rides with `Evaluation` by the same rule: it is
-// `Evaluation::prior_refused`'s payload, so a consumer cannot read why
-// a memo was refused without naming it. The name is not the memo's —
+// `PriorRefusal` and `Mispaired` ride with `Evaluation` by the same
+// rule: the first is `Evaluation::prior_refused`'s payload and the
+// second its `Document` arm's, so a consumer cannot read why a memo
+// was refused without naming them. `Mispaired` is not the memo's name —
 // it is the one payload every pairing door carries (DI3; which doors
 // those are is `editor-core`'s `ASSEMBLY.md` A2a), which is why it is
 // spelled for the QUESTION rather than for any one door.
@@ -348,7 +351,8 @@ pub use editor_core::{
     BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, ComputingTwist,
     DEFAULT_MEMBER_BUDGET, DirectionRefusal, EvalCounters, EvalOptions, EvalOutcome, Evaluation,
     Framed, Held, Mispaired, NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult,
-    NodeStanding, NodeValue, PoseValue, SplitSide, Stop, Stopped, ValuePayload, evaluate,
+    NodeStanding, NodeValue, PoseValue, PriorRefusal, SplitSide, Stop, Stopped, ValuePayload,
+    evaluate,
 };
 // A dual evaluates bound to its build of record (DUAL-DESIGN DL3):
 // `evaluate_recorded` takes the base-scalar evaluation and refuses every
@@ -377,7 +381,7 @@ pub use editor_core::{
 // ([`Staged::sentence`]); the recourse label, and what an API door
 // given no part resolver says to do.
 pub use editor_core::{
-    Labelled, Labels, PASS_A_RESOLVER, RAISE_THE_MEMBER_BUDGET, Recourse, Staged,
+    Labelled, LabelledBy, Labels, PASS_A_RESOLVER, RAISE_THE_MEMBER_BUDGET, Recourse, Staged,
 };
 
 // Document identity and content pins.
@@ -507,14 +511,14 @@ pub use editor_core::{
 pub use editor_core::{
     AtRestEvidence, CarriedAtRestFinding, CarriedCoincidence, CarriedCoincidenceRows,
     CarriedFindings, CarriedInterference, CopyRef, FaceSite, InterferenceFinding, Overlap,
-    PinnedDoc, Route, Unlocalized,
+    PinnedDoc, Route, RouteHop, Unlocalized,
 };
 // What a finding's assertion recourse determines, as data: the
 // `Quieting` an unproven coincidence carries (a `Gap` or `Distance`
 // over two `QuietingRef`s, `= 0`, with the edits that author it), and
 // the `OpposedPair` of faces an interference's quieting `Gap` is
 // written over.
-pub use editor_core::{OpposedPair, Quieting, QuietingRef};
+pub use editor_core::{CarriedAssertion, OpposedPair, Quieting, QuietingRef};
 
 // Split, inline and flatten: the first-class
 // recorded refactorings. `split` cuts a closed node set out into a new

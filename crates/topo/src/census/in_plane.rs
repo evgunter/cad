@@ -132,68 +132,66 @@ fn outside<T: Decide>(body: &Body<T>, face: FaceKey, p: Point3<T>, band: Band) -
 /// other's plane** (module docs), each edge pair read along the world
 /// axes and `proposed`.
 pub(super) fn apart_in_plane<T: Decide>(
-    body: &Body<T>,
-    a: FaceKey,
-    b: FaceKey,
+    (x, a): (&Body<T>, FaceKey),
+    (y, b): (&Body<T>, FaceKey),
     proposed: &[UnitVec3<T>],
     band: Band,
 ) -> bool {
-    let (Some(la), Some(lb)) = (loops(body, a), loops(body, b)) else {
+    let (Some(la), Some(lb)) = (loops(x, a), loops(y, b)) else {
         return false;
     };
     let mut axes = world_axes().to_vec();
     axes.extend_from_slice(proposed);
-    let edges_apart = |x: EdgeKey, y: EdgeKey| {
+    let edges_apart = |(p, e): Edge<'_, T>, (q, f): Edge<'_, T>| {
         apart(
-            (body, Item::Edge(x)),
-            (body, Item::Edge(y)),
+            (p, Item::Edge(e)),
+            (q, Item::Edge(f)),
             &axes,
             sweep_pad(band),
             band,
         )
     };
     let one_plane = matches!(
-        crate::boolean::carrier_pair_decided(body, a, body, b, band),
+        crate::boolean::carrier_pair_decided(x, a, y, b, band),
         Ok(Ok(verdict)) if verdict.one().is_some()
     );
     if one_plane {
-        return la.iter().all(|x| outside(body, b, x.point, band))
-            && lb.iter().all(|y| outside(body, a, y.point, band))
-            && la.iter().flat_map(|x| &x.edges).all(|&ea| {
+        return la.iter().all(|l| outside(y, b, l.point, band))
+            && lb.iter().all(|l| outside(x, a, l.point, band))
+            && la.iter().flat_map(|l| &l.edges).all(|&ea| {
                 lb.iter()
-                    .flat_map(|y| &y.edges)
-                    .all(|&eb| edges_apart(ea, eb))
+                    .flat_map(|l| &l.edges)
+                    .all(|&eb| edges_apart((x, ea), (y, eb)))
             });
     }
-    standing(body, (a, &la), (b, &lb), &edges_apart, band)
-        || standing(body, (b, &lb), (a, &la), &edges_apart, band)
+    standing((x, a, &la), (y, b, &lb), &edges_apart, band)
+        || standing((y, b, &lb), (x, a, &la), &edges_apart, band)
 }
 
+/// An edge of its body.
+type Edge<'b, T> = (&'b Body<T>, EdgeKey);
+
 /// A face's levered outward normal ([`planar_axis`]) and its reach
-/// diagonal's length.
+/// diagonal's length, the scale its in-plane slope is read against.
 fn normal<T: Decide>(body: &Body<T>, f: FaceKey, band: Band) -> Option<(UnitVec3<T>, T)> {
     let (lo, hi) = super::face_reach(body, f, band)?;
-    Some((
-        planar_axis(body, f, || Some((lo, hi)), band)?,
-        (hi - lo).norm(),
-    ))
+    Some((planar_axis(body, f, band)?, (hi - lo).norm()))
 }
 
 /// The second reading (module docs): `b`, bounded by `lb`, standing on
-/// `a`'s plane, apart from `a` where it meets that plane.
+/// the plane of `x`'s face `a`, apart from `a` where it meets that plane.
 fn standing<T: Decide>(
-    body: &Body<T>,
-    (a, la): (FaceKey, &[Loop<T>]),
-    (b, lb): (FaceKey, &[Loop<T>]),
-    edges_apart: &dyn Fn(EdgeKey, EdgeKey) -> bool,
+    (x, a, la): (&Body<T>, FaceKey, &[Loop<T>]),
+    (body, b, lb): (&Body<T>, FaceKey, &[Loop<T>]),
+    edges_apart: &dyn Fn(Edge<'_, T>, Edge<'_, T>) -> bool,
     band: Band,
 ) -> bool {
-    let face = body.proven_face(a);
+    let face = x.proven_face(a);
     let geom::Surface::Plane { frame, .. } = *face.surface() else {
         return false;
     };
     let origin = frame.origin();
-    let (Some((n, _)), Some((nb, lever))) = (normal(body, a, band), normal(body, b, band)) else {
+    let (Some((n, _)), Some((nb, lever))) = (normal(x, a, band), normal(body, b, band)) else {
         return false;
     };
     let half = T::from_f64(0.5);
@@ -248,10 +246,10 @@ fn standing<T: Decide>(
         && touching.iter().all(|&(e, ends, signs)| {
             ends.iter()
                 .zip(signs)
-                .all(|(&p, s)| s != Sign::Zero || outside(body, a, p, band))
+                .all(|(&p, s)| s != Sign::Zero || outside(x, a, p, band))
                 && la
                     .iter()
-                    .flat_map(|x| &x.edges)
-                    .all(|&ea| edges_apart(e, ea))
+                    .flat_map(|l| &l.edges)
+                    .all(|&ea| edges_apart((body, e), (x, ea)))
         })
 }

@@ -59,7 +59,7 @@ fn bracket() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(vec![
+            members: Bodies::spelled(vec![
                 Operand::output(plate, 0).into(),
                 Operand::output(placed, 0).into(),
             ]),

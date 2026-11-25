@@ -238,7 +238,7 @@ impl<T: Decide> CylinderCylinderPose<T> {
     /// # Errors
     ///
     /// [`SectionError::RadiusEscalated`] or
-    /// [`SectionError::DegenerateOperand`] for a radius not definitely
+    /// [`SectionError::RadiusNotPositive`] for a radius not definitely
     /// positive; [`SectionError::CoincidentSurfaces`] for one surface;
     /// [`SectionError::Escalated`] for a question in the band.
     pub fn decide(
@@ -267,11 +267,11 @@ impl<T: Decide> CylinderCylinderPose<T> {
         let lines = [
             geom::Line {
                 origin: o1,
-                dir: f1.axis(),
+                dir: f1.axis_unit(),
             },
             geom::Line {
                 origin: o2,
-                dir: f2.axis(),
+                dir: f2.axis_unit(),
             },
         ];
         let region = reach.ball();
@@ -305,8 +305,8 @@ impl<T: Decide> CylinderCylinderPose<T> {
                     ..
                 }) => {}
                 Ok(_) => {
-                    return Err(SectionError::DegenerateOperand {
-                        what: "a cylinder's radius is not definitely positive",
+                    return Err(SectionError::RadiusNotPositive {
+                        radius: SectionRadius::Cylinder,
                     });
                 }
                 Err(diag) => {
@@ -429,7 +429,7 @@ impl<T: Decide> CylinderCylinderPose<T> {
 
     /// The axes as the operands store them (unit only to their
     /// rounding), in that order.
-    pub fn axes(&self) -> [Vec3<T>; 2] {
+    pub fn axes(&self) -> [geom_core::UnitVec3<T>; 2] {
         self.lines.map(|l| l.dir)
     }
 
@@ -469,7 +469,7 @@ impl<T: Decide> CylinderCylinderPose<T> {
             pick(foot.y, other.y),
             pick(foot.z, other.z),
         );
-        let (axis, partner) = (pick3(a1, a2), pick3(a2, a1));
+        let (axis, partner) = (pick3(a1.get(), a2.get()), pick3(a2.get(), a1.get()));
         let frame = geom::Frame::new(foot, axis, normal);
         let v = frame.v_ref();
         Some(RuledCylinders {
@@ -510,7 +510,7 @@ impl<T: Decide> CylinderCylinderPose<T> {
         else {
             return None;
         };
-        let [p, q] = parallel_rulings(foot, across, self.lines[0].dir, self.radii);
+        let [p, q] = parallel_rulings(foot, across, self.lines[0].dir.get(), self.radii);
         Some(match (gap.sign, nest.map(|n| n.sign)) {
             (Sign::Negative, _) | (Sign::Positive, Some(Sign::Negative)) => ParallelSection::Empty,
             (Sign::Zero, _) | (Sign::Positive, Some(Sign::Zero)) => {
@@ -591,7 +591,7 @@ impl<T: Decide> CylinderCylinderPose<T> {
         else {
             return None;
         };
-        let (normals, _) = bisector_normals(((self.lines[0].dir), (self.lines[1].dir)));
+        let (normals, _) = bisector_normals(((self.lines[0].dir).get(), (self.lines[1].dir).get()));
         Some((foot, normals))
     }
 
@@ -677,9 +677,10 @@ pub(super) fn region_span<T: Decide>(
     band: Band,
 ) -> Option<(T, T)> {
     let to = region.center() - origin;
-    let t = to.dot(dir);
+    let t = to.dot(dir.get());
     let off = (to.norm_squared() - t.powi(2)).max(T::zero()).sqrt();
-    if placement(Occupant::point(origin + dir * t), region, band) == RegionPlacement::Outside {
+    if placement(Occupant::point(origin + dir.get() * t), region, band) == RegionPlacement::Outside
+    {
         return None;
     }
     let half = (region.radius().powi(2) - off.powi(2))
@@ -770,7 +771,7 @@ fn bisector_nodes<T: Decide>(
     band: Band,
 ) -> (Vec<SectionNode<T>>, [NodeEnds; 4]) {
     let u = |e: &Curve3<T>| match e {
-        Curve3::Ellipse(e) => e.frame().u_ref(),
+        Curve3::Ellipse(e) => e.u_ref(),
         _ => unreachable!("the bisector pose's sections are ellipses"),
     };
     let (u1, u2) = (u(e1), u(e2));
@@ -970,7 +971,8 @@ pub(super) fn cylinder_cylinder<T: Decide>(
                             margin,
                         });
                     }
-                    let [e1, e2] = bisector_ellipses(foot, (axis, (pose.lines[1].dir)), r1, band)?;
+                    let [e1, e2] =
+                        bisector_ellipses(foot, (axis.get(), (pose.lines[1].dir).get()), r1, band)?;
                     let (bisector, ends) =
                         bisector_nodes(&pose, normal, [&e1, &e2], &against, band);
                     nodes = bisector;

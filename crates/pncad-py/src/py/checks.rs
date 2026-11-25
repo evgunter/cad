@@ -566,7 +566,7 @@ impl CheckEvidence {
 /// caller's `Severity` and the caller's `enforce_checks` call.
 ///
 /// `str()` renders it the way the library renders a finding, recourse
-/// included, each placement spoken (kind, label and tag) from the document
+/// included, each placement spoken (its label and tag, or its kind and tag with no label) from the document
 /// the checks ran over, the one the evaluation is of; `repr()` keeps
 /// the full id. Two findings are equal when they are the same finding
 /// over the same document; labels are not compared.
@@ -693,7 +693,9 @@ impl CheckFinding {
     /// checks ran over. The recourse is in that story; nothing is
     /// appended here.
     fn __str__(&self) -> String {
-        d::Said(&self.finding, d::Speaker::of(&*self.doc)).to_string()
+        d::Said(&self.finding, d::Speaker::of(&*self.doc))
+            .sentence()
+            .to_string()
     }
 
     /// The same finding over the same document; labels are not
@@ -748,19 +750,13 @@ impl QuietingRef {
         var: &dyn Fn(d::VarId) -> Var,
         r: &d::QuietingRef,
     ) -> PyResult<Self> {
-        Ok(match r {
-            d::QuietingRef::Read(read) => Self {
-                read: var(*read),
-                name: None,
-                pose: None,
-            },
-            d::QuietingRef::Entity {
-                read, name, pose, ..
-            } => Self {
-                read: var(*read),
-                name: Some(super::doc::name_text(py, name)?),
-                pose: pose.map(crate::errors::var_kind_tag),
-            },
+        Ok(Self {
+            read: var(r.read()),
+            name: r
+                .name()
+                .map(|name| super::doc::name_text(py, name))
+                .transpose()?,
+            pose: r.pose().map(crate::errors::var_kind_tag),
         })
     }
 }
@@ -831,7 +827,7 @@ impl Quieting {
     /// The measure related to zero: `gap` or `distance`.
     #[getter]
     fn measure(&self) -> &'static str {
-        self.0.measure.verb()
+        self.0.measure().verb()
     }
 
     /// The measure's two references, in its order: a `gap`'s outer then
@@ -840,7 +836,7 @@ impl Quieting {
     fn references(&self, py: Python<'_>) -> PyResult<(QuietingRef, QuietingRef)> {
         let var = |id| Var::of(&self.1, id);
         let reference = |r| QuietingRef::of(py, &var, r);
-        let [a, b] = &self.0.references;
+        let [a, b] = self.0.references();
         Ok((reference(a)?, reference(b)?))
     }
 
@@ -848,7 +844,7 @@ impl Quieting {
     /// checks ran over speaks it, a split's unnamed tool by the name
     /// `Doc.assert_quieting` gives it.
     fn __str__(&self) -> String {
-        self.0.said(d::Speaker::of(&*self.1))
+        self.0.said(d::Speaker::of(&*self.1)).to_string()
     }
 
     fn __eq__(&self, other: &Self) -> bool {
@@ -980,7 +976,7 @@ impl ChecksReport {
     /// The report, each placement spoken from the document the checks ran
     /// over.
     fn __str__(&self) -> String {
-        self.report.spoken(&*self.doc)
+        self.report.spoken(&*self.doc).to_string()
     }
 
     /// The same findings and skips over the same document (the
@@ -1115,7 +1111,7 @@ pub(crate) fn run_checks(
             report,
             doc: evaluation.doc_shared(),
         })
-        .map_err(|err| checks_err_saying(py, &err, err.spoken(evaluation.doc())))
+        .map_err(|err| checks_err_saying(py, &err, err.spoken(evaluation.doc()).to_string()))
 }
 
 /// A mispaired `(doc, evaluation)` as this door's own refusal.

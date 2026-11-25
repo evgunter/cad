@@ -992,7 +992,7 @@ fn the_offer_and_its_button_re_point_the_same_placements() {
             with(
                 &session,
                 Node::Union {
-                    members: pncad::document::Bodies::Spelled(vec![
+                    members: pncad::document::Bodies::spelled(vec![
                         Operand::Node(body).into(),
                         Operand::Node(c1).into(),
                     ]),
@@ -1101,7 +1101,7 @@ fn the_offer_and_its_button_re_point_the_same_placements() {
     let (session, u) = with(
         &session,
         Node::Union {
-            members: pncad::document::Bodies::Spelled(vec![
+            members: pncad::document::Bodies::spelled(vec![
                 Operand::Node(body).into(),
                 Operand::Node(c1).into(),
             ]),
@@ -1118,7 +1118,7 @@ fn the_offer_and_its_button_re_point_the_same_placements() {
     // words.
     let bracket = viewer::props::source_rows(session.committed_doc())
         .into_iter()
-        .find(|row| row.label.to_string() == "bracket")
+        .find(|row| viewer::tree::spelled_var(&row.label) == "bracket")
         .expect("bracket's source row")
         .var;
     assert_eq!(
@@ -1274,7 +1274,7 @@ fn a_continuation_is_a_body_read_whole() {
     let (session, u) = with(
         &session,
         Node::Union {
-            members: pncad::document::Bodies::Spelled(vec![m0, Operand::Node(copy).into()]),
+            members: pncad::document::Bodies::spelled(vec![m0, Operand::Node(copy).into()]),
         },
         tol,
     );
@@ -1294,6 +1294,7 @@ fn a_continuation_is_a_body_read_whole() {
     else {
         panic!("the union stays")
     };
+    let members: Vec<_> = members.iter().map(|m| m.read().clone()).collect();
     assert!(
         matches!(&members[..], [one] if one.is_indexed() && Some(one.read) == doc.output(family, 0)),
         "with member 0 its one operand: {members:?}"
@@ -1329,25 +1330,44 @@ fn a_continuation_is_a_body_read_whole() {
         "the copy's source reads member 0 of the family: {held:?}"
     );
 
-    // A fillet over the family, read by member: a list operand is handed
+    // A fillet of each member of the family, `{k in xs: fillet(xs[k])}`
+    // (D10 `[repetition]`), read by member: a list operand is handed
     // the same member of the family; a placement's source, which the slot
     // door writes whole, refuses typed.
-    let (mut session, body, family, copy) = family_and_copy(tol);
+    let (session, body, family, copy) = family_and_copy(tol);
     let edge = lateral_edges(&session, body)[..1].to_vec();
-    let fillet = common::session_insert(
-        &mut session,
-        SessionOp::AddFillet {
-            target: family,
-            radius: len(0.001),
-            selection: edge,
-        },
+    let doc = session.committed_doc();
+    let copies = doc.output(family, 0).expect("the family's copies");
+    let binder = doc
+        .yielding(copies)
+        .expect("the pattern's binder yields it");
+    let at: Vec<Formula> = doc
+        .binder_indices(binder)
+        .into_iter()
+        .map(|k| Formula::var(k, pncad::document::Dimension::Count))
+        .collect();
+    let (session, fillet) = with(
+        &session,
+        Node::fillet(
+            pncad::document::BodyRead::indexed(Operand::Var(copies), at),
+            len(0.001),
+            edge,
+        ),
+        tol,
     );
+    let doc = session.committed_doc();
+    let mut yields = doc.yields(binder).to_vec();
+    yields.push(doc.output(fillet, 0).expect("the fillet's body"));
+    let doc = pncad::document::apply(doc, &pncad::pattern::yields_edit(binder, &yields), tol)
+        .expect("the binder yields the fillets")
+        .doc;
+    let mut session = common::inline_without_door(doc, tol);
     session.pump();
     let f0 = member0(session.committed_doc(), fillet);
     let (session, u) = with(
         &session,
         Node::Union {
-            members: pncad::document::Bodies::Spelled(vec![f0.clone(), Operand::Node(copy).into()]),
+            members: pncad::document::Bodies::spelled(vec![f0.clone(), Operand::Node(copy).into()]),
         },
         tol,
     );
@@ -1382,6 +1402,7 @@ fn a_continuation_is_a_body_read_whole() {
     else {
         panic!("the union stays")
     };
+    let members: Vec<_> = members.iter().map(|m| m.read().clone()).collect();
     assert!(
         matches!(&members[..], [one, _] if one.is_indexed() && Some(one.read) == doc.output(family, 0)),
         "handed member 0 of the family: {members:?}"
@@ -1702,7 +1723,7 @@ fn a_cut_of_a_member_read_by_a_list_is_handed_the_member() {
     let (mut session, u) = with(
         &session,
         Node::Union {
-            members: Bodies::Spelled(vec![Operand::Node(cut).into(), m1]),
+            members: Bodies::spelled(vec![Operand::Node(cut).into(), m1]),
         },
         tol,
     );
@@ -1720,6 +1741,7 @@ fn a_cut_of_a_member_read_by_a_list_is_handed_the_member() {
     else {
         panic!("the union stays")
     };
+    let members: Vec<_> = members.iter().map(|m| m.read().clone()).collect();
     let family_out = doc.output(family, 0);
     assert!(
         matches!(&members[..], [a, b] if a.is_indexed() && b.is_indexed()
@@ -1738,7 +1760,7 @@ fn an_intersection_left_with_a_member_keeps_it() {
     let (session, i) = with(
         &session,
         Node::Intersect {
-            members: Bodies::Spelled(vec![m0, Operand::Node(copy).into()]),
+            members: Bodies::spelled(vec![m0, Operand::Node(copy).into()]),
         },
         tol,
     );
@@ -1858,7 +1880,7 @@ fn the_offer_leaves_out_a_placement_read_through_a_mate() {
     let (mut session, u) = with(
         &session,
         Node::Union {
-            members: Bodies::Spelled(vec![Operand::Node(body).into(), Operand::Node(c1).into()]),
+            members: Bodies::spelled(vec![Operand::Node(body).into(), Operand::Node(c1).into()]),
         },
         tol,
     );

@@ -4,6 +4,7 @@ kind: issue
 title: cover-kind-match counts a conic's semi_axes() read as a region read, and its no-raise-above-base rule has no way to re-baseline a field read that became an accessor
 status: open
 opened: 2026-11-20
+priority: P4
 ---
 
 
@@ -39,3 +40,8 @@ Two limits:
 2. **The ratchet has no way to acknowledge a re-baseline** when a field
    becomes an accessor the vocabulary names, for example a cited
    reason on the pin line.
+
+- 2026-11-22 — **Re-banded unbanded → P4 by CIW triage.** Gate friction, so its payoff is CI reds and workarounds avoided, which is P4 by `work/README.md:226-228`.
+One incident: PR 7183 (2026-11-20) added `semi_u()`/`semi_v()` "only to keep cover-kind-match's lexical count".
+GERM's review called that API shaped to a gate. GERM kept the accessors (`work/germ/log.md`, 7183 merge entry), so no pending change will hit this again.
+The band-log 7078 entry is the gate being met by re-spelling, not friction.

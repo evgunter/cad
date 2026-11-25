@@ -49,6 +49,7 @@ macro_rules! name_free_node {
             | $crate::node::Node::Intersect { .. }
             | $crate::node::Node::Assemble { .. }
             | $crate::node::Node::Place { .. }
+            | $crate::node::Node::Datum { .. }
             | $crate::node::Node::World
             | $crate::node::Node::Space
             | $crate::node::Node::Measure { .. }
@@ -1222,6 +1223,7 @@ macro_rules! expr_table {
             | Node::Intersect { .. }
             | Node::Assemble { .. }
             | Node::Place { .. }
+            | Node::Datum { .. }
             | Node::World
             | Node::Space
             | Node::InstantiatePart { .. }
@@ -1342,8 +1344,8 @@ impl SitedRef {
 ///     pose: plane(face.clone()).into(),
 /// }));
 /// let _: Mate<Formula> = Mate {
-///     on: plane(face),
-///     to: flipped,
+///     on: plane(face).into(),
+///     to: flipped.into(),
 ///     orient: editor_core::Orientation::IDENTITY,
 /// };
 /// ```
@@ -1412,9 +1414,10 @@ impl SitedFace {
 /// ([`crate::SelectionFault`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InputFault {
-    /// A union's or an intersect's family argument carries an index
-    /// ([`crate::BodyRead`]): the argument reads the family whole, and
-    /// one member read by index is a `Body`, spelled in a list.
+    /// A union's or an intersect's family argument, or a subtract's
+    /// tools read as a family, carries an index ([`crate::BodyRead`]):
+    /// the argument reads the family whole, and one member read by index
+    /// is a `Body`, spelled in a list.
     IndexedFamily,
     /// An indexed read carries a number of indices other than its
     /// family's rank: a family is keyed by the indices its definer
@@ -1899,17 +1902,24 @@ pub enum Node<P, S: Slot = crate::VarId> {
         /// The members, in fold order.
         members: Bodies<crate::BodyRead<S>>,
     },
-    /// **The subtract** (DM4): `from` cut by `tool`, the one pair node,
-    /// since difference neither commutes nor associates. Several tools
-    /// are `Subtract { from, tool: Union([tools…]) }`. A `from` that
+    /// **The subtract** (DM4): `from` cut by every tool, its two seats
+    /// named, since difference neither commutes nor associates. The cut
+    /// is the fold `from − t₁ − … − tₙ`, which fuses no tool with
+    /// another; two or more tools are judged and folded as a union's
+    /// members are, so the result and its names are the same in every
+    /// order of the tools. A tool list of none is `from`.
+    /// A tool that is a family read whole is its every member (D10
+    /// `[repetition]`), as a union's member is. A `from` that
     /// holds pieces (a [`Node::Assemble`], or a copy of one) is cut
     /// piece by piece, and the result holds each piece's cut as a
     /// piece; a piece the cut empties drops out.
     Subtract {
         /// The body cut.
         from: crate::BodyRead<S>,
-        /// The body cut away.
-        tool: crate::BodyRead<S>,
+        /// The bodies cut away, read as a union's members are, each at
+        /// a [`crate::OperandSlot::Cut`] seat, or a family read whole at
+        /// [`crate::OperandSlot::Cuts`].
+        tool: crate::Bodies<crate::BodyRead<S>>,
     },
     /// **The assemble** (`⊔`, D10 `[operations.operators]`): its
     /// members side by side as the pieces of one body, each a separate
@@ -1941,6 +1951,19 @@ pub enum Node<P, S: Slot = crate::VarId> {
         /// The body copied.
         source: crate::BodyRead<S>,
         /// The space the copy is placed into: a `Space` read.
+        target: S::Read,
+        /// The bundle, in the order written.
+        constraints: Vec<crate::mate::Constraint<S>>,
+    },
+    /// **A datum** (D10 `[placement.datums]`): a placement whose source
+    /// is nothing. What it places is a bare frame, its one output, in
+    /// its `target`, where its bundle pins it as a [`Node::Place`]'s
+    /// pins its copy. Each mate's `on` is that frame's own, read plainly
+    /// or through its xy plane, its z axis or its origin; its values
+    /// chart the rest on the target space's axes. Readers take a plane
+    /// or an axis off it through a role.
+    Datum {
+        /// The space the frame is placed into: a `Space` read.
         target: S::Read,
         /// The bundle, in the order written.
         constraints: Vec<crate::mate::Constraint<S>>,
@@ -2220,12 +2243,18 @@ macro_rules! node_rows {
                 target: _,
                 constraints,
             } => $out.extend(constraints.$rows()),
+            Node::Datum {
+                target: _,
+                constraints,
+            } => $out.extend(constraints.$rows()),
             Node::World | Node::Space => {}
             Node::Split { target, tool: _ } => index_rows!(O::Target, target, $rows, $out),
             Node::Mirror { body, plane: _ } => index_rows!(O::Body, body, $rows, $out),
             Node::Subtract { from, tool } => {
                 index_rows!(O::From, from, $rows, $out);
-                index_rows!(O::Cut, tool, $rows, $out);
+                for (seat, cut) in tool.$rows() {
+                    index_rows!(crate::operand::Seats::CUTS.of(seat), cut, $rows, $out);
+                }
             }
             Node::Union { members } | Node::Intersect { members } | Node::Assemble { members } => {
                 for (seat, member) in members.$rows() {
@@ -2349,6 +2378,10 @@ impl<P> Node<P> {
                 interface: _,
                 target,
                 constraints,
+            }
+            | Node::Datum {
+                target,
+                constraints,
             } => {
                 let mut v = vec![(O::Space, *target)];
                 v.extend(side_rows(constraints));
@@ -2416,10 +2449,13 @@ impl<P> Node<P> {
             }
             Node::Split { target, tool } => vec![(O::Target, target.read), (O::Tool, tool.read)],
             Node::Mirror { body, plane } => vec![(O::Body, body.read), (O::Plane, plane.read)],
-            Node::Subtract {
-                from,
-                tool,
-            } => vec![(O::From, from.read), (O::Cut, tool.read)],
+            Node::Subtract { from, tool } => core::iter::once((O::From, from.read))
+                .chain(
+                    tool.rows_in(crate::operand::Seats::CUTS)
+                        .into_iter()
+                        .map(|(o, r)| (o, r.read)),
+                )
+                .collect(),
             // In LIST ORDER: the order is the fold's (D9).
             Node::Union {
                 members,
@@ -2447,6 +2483,10 @@ impl<P> Node<P> {
             Node::InstantiatePart {
                 doc_ref: _,
                 interface: _,
+                target,
+                constraints,
+            }
+            | Node::Datum {
                 target,
                 constraints,
             } => {
@@ -2518,9 +2558,13 @@ impl<P> Node<P> {
             Node::Mirror { body, plane } => {
                 vec![(O::Body, &mut body.read), (O::Plane, &mut plane.read)]
             }
-            Node::Subtract { from, tool } => {
-                vec![(O::From, &mut from.read), (O::Cut, &mut tool.read)]
-            }
+            Node::Subtract { from, tool } => core::iter::once((O::From, &mut from.read))
+                .chain(
+                    tool.rows_mut_in(crate::operand::Seats::CUTS)
+                        .into_iter()
+                        .map(|(o, r)| (o, &mut r.read)),
+                )
+                .collect(),
             Node::Union { members } | Node::Intersect { members } | Node::Assemble { members } => {
                 members
                     .rows_mut()
@@ -2568,8 +2612,11 @@ impl<P> Node<P> {
         P: crate::ProfilePayload,
     {
         // An indexed read carries its family's rank of indices, and a
-        // family argument none.
-        if let Node::Union { members, .. } | Node::Intersect { members, .. } = self
+        // family argument none: at every list seat alike.
+        if let Node::Union { members, .. }
+        | Node::Intersect { members, .. }
+        | Node::Assemble { members, .. }
+        | Node::Subtract { tool: members, .. } = self
             && let crate::Bodies::Family(read) = members
             && read.is_member()
         {
@@ -2764,6 +2811,57 @@ impl OutputPort {
 }
 
 impl<P, S: Slot> Node<P, S> {
+    /// **Whether this is a datum** (D10 `[placement.datums]`): a
+    /// placement whose source is nothing, placing a bare frame.
+    #[must_use]
+    pub fn is_datum(&self) -> bool {
+        matches!(self, Self::Datum { .. })
+    }
+
+    /// **The bundle this node holds as a placement** (D10
+    /// `[placement.datums]`: a placement's source is a body or nothing):
+    /// a `Place`'s, an instance's or a datum's constraints, `None` for a
+    /// node that is no placement. The one reading of "is a placement".
+    #[must_use]
+    pub fn bundle(&self) -> Option<&[crate::mate::Constraint<S>]> {
+        match self {
+            Self::Place { constraints, .. }
+            | Self::InstantiatePart { constraints, .. }
+            | Self::Datum { constraints, .. } => Some(constraints),
+            _ => None,
+        }
+    }
+
+    /// [`Self::bundle`], writable.
+    pub fn bundle_mut(&mut self) -> Option<&mut Vec<crate::mate::Constraint<S>>> {
+        match self {
+            Self::Place { constraints, .. }
+            | Self::InstantiatePart { constraints, .. }
+            | Self::Datum { constraints, .. } => Some(constraints),
+            _ => None,
+        }
+    }
+
+    /// **The space a placement places into**, `None` for a node that is
+    /// no placement ([`Self::bundle`]).
+    #[must_use]
+    pub fn placement_target(&self) -> Option<&S::Read> {
+        match self {
+            Self::Place { target, .. }
+            | Self::InstantiatePart { target, .. }
+            | Self::Datum { target, .. } => Some(target),
+            _ => None,
+        }
+    }
+
+    /// **Whether this placement makes a copy**: a `Place` or an instance,
+    /// whose output is a body; a datum places a bare frame
+    /// ([`crate::Doc::copies`]).
+    #[must_use]
+    pub fn makes_a_copy(&self) -> bool {
+        matches!(self, Self::Place { .. } | Self::InstantiatePart { .. })
+    }
+
     /// **A loft's section ids**, first to last, each `None` where the
     /// section carries none yet; `None` for a node that is not a loft.
     #[must_use]
@@ -2828,6 +2926,7 @@ impl<P, S: Slot> Node<P, S> {
             }],
             // One copy of the part's product.
             Self::InstantiatePart { .. } => vec![OutputPort::of("copy", VarKind::Body)],
+            Self::Datum { .. } => vec![OutputPort::of("frame", VarKind::Frame)],
             Self::Measure { primitive } => {
                 vec![OutputPort::of("value", VarKind::from(primitive.dim()))]
             }
@@ -2956,7 +3055,7 @@ impl<P, S: Slot> Node<P, S> {
             },
             Node::Subtract { from, tool } => Node::Subtract {
                 from: from.try_map(O::From, f, read)?,
-                tool: tool.try_map(O::Cut, f, read)?,
+                tool: tool.try_map_in(crate::operand::Seats::CUTS, |o, r| r.try_map(o, f, read))?,
             },
             Node::Union { members } => Node::Union {
                 members: members.try_map(|o, r| r.try_map(o, f, read))?,
@@ -2973,6 +3072,13 @@ impl<P, S: Slot> Node<P, S> {
                 constraints,
             } => Node::Place {
                 source: source.try_map(O::Source, f, read)?,
+                target: read(O::Space, target)?,
+                constraints: map_constraints(constraints, f, read)?,
+            },
+            Node::Datum {
+                target,
+                constraints,
+            } => Node::Datum {
                 target: read(O::Space, target)?,
                 constraints: map_constraints(constraints, f, read)?,
             },
@@ -3014,7 +3120,9 @@ impl<P, S: Slot> Node<P, S> {
         match self {
             Node::Split { target, .. } => vec![(O::Target, target)],
             Node::Mirror { body, .. } => vec![(O::Body, body)],
-            Node::Subtract { from, tool, .. } => vec![(O::From, from), (O::Cut, tool)],
+            Node::Subtract { from, tool, .. } => core::iter::once((O::From, from))
+                .chain(tool.rows_in(crate::operand::Seats::CUTS))
+                .collect(),
             Node::Union { members, .. }
             | Node::Intersect { members, .. }
             | Node::Assemble { members, .. } => members.rows(),
@@ -3030,6 +3138,7 @@ impl<P, S: Slot> Node<P, S> {
             | Node::Chamfer { .. }
             | Node::Shell { .. }
             | Node::InstantiatePart { .. }
+            | Node::Datum { .. }
             | Node::World
             | Node::Space
             | Node::Measure { .. }
@@ -3050,7 +3159,10 @@ impl<P, S: Slot> Node<P, S> {
             (Node::Split { target, .. }, O::Target) => Some(target),
             (Node::Mirror { body, .. }, O::Body) => Some(body),
             (Node::Subtract { from, .. }, O::From) => Some(from),
-            (Node::Subtract { tool, .. }, O::Cut) => Some(tool),
+            (Node::Subtract { tool, .. }, _) => tool
+                .rows_mut_in(crate::operand::Seats::CUTS)
+                .into_iter()
+                .find_map(|(at, read)| (at == seat).then_some(read)),
             (
                 Node::Union { members, .. }
                 | Node::Intersect { members, .. }
@@ -3073,6 +3185,24 @@ impl<P, S: Slot> Node<P, S> {
     pub fn seat_kind(&self, seat: crate::OperandSlot) -> crate::SlotKind {
         if let Some(role) = self.seat_role(seat) {
             return crate::SlotKind::Is(role.of());
+        }
+        // A splice, `…xs`, reads a family whole (D10 `[repetition]`): in
+        // a boolean's members or a subtract's tools alike.
+        let spliced = match (self, seat) {
+            (
+                Node::Union { members, .. }
+                | Node::Intersect { members, .. }
+                | Node::Assemble { members, .. },
+                crate::OperandSlot::Member(i),
+            )
+            | (Node::Subtract { tool: members, .. }, crate::OperandSlot::Cut(i)) => {
+                matches!(members, crate::Bodies::Spelled(entries)
+                    if entries.get(i).is_some_and(crate::Spell::is_splice))
+            }
+            _ => false,
+        };
+        if spliced {
+            return crate::SlotKind::Is(crate::VarKind::Bodies);
         }
         self.body_read(seat)
             .map_or_else(|| seat.kind(), |read| read.kind(seat))
@@ -3109,15 +3239,27 @@ impl<P, S: Slot> Node<P, S> {
         match self {
             Node::Split { tool, .. } => vec![(O::Tool, tool.role)],
             Node::Mirror { plane, .. } => vec![(O::Plane, plane.role)],
-            Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } => {
-                constraints
-                    .iter()
-                    .filter_map(|c| {
-                        let coord = &c.value()?.coord;
-                        Some((coord.seat(c.id), coord.read()?.role))
-                    })
-                    .collect()
-            }
+            node if let Some(constraints) = node.bundle() => constraints
+                .iter()
+                .flat_map(|c| match &c.kind {
+                    crate::mate::ConstraintKind::Mate(m) => {
+                        let side = |side| O::Side {
+                            constraint: c.id,
+                            side,
+                        };
+                        vec![
+                            (side(crate::mate::MateSide::On), m.on.role),
+                            (side(crate::mate::MateSide::To), m.to.role),
+                        ]
+                    }
+                    crate::mate::ConstraintKind::Value(v) => v
+                        .coord
+                        .read()
+                        .map(|read| (v.coord.seat(c.id), read.role))
+                        .into_iter()
+                        .collect(),
+                })
+                .collect(),
             _ => Vec::new(),
         }
     }
@@ -3133,14 +3275,23 @@ impl<P, S: Slot> Node<P, S> {
             (Node::Split { tool, .. }, O::Tool) => Some(&mut tool.role),
             (Node::Mirror { plane, .. }, O::Plane) => Some(&mut plane.role),
             (
-                Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. },
-                O::Along { constraint } | O::About { constraint },
-            ) => constraints
+                node,
+                O::Along { constraint } | O::About { constraint } | O::Side { constraint, .. },
+            ) => node
+                .bundle_mut()?
                 .iter_mut()
                 .find(|c| c.id == constraint)
-                .and_then(|c| match &mut c.kind {
-                    crate::mate::ConstraintKind::Value(v) => v.coord.read_mut(),
-                    crate::mate::ConstraintKind::Mate(_) => None,
+                .and_then(|c| match (&mut c.kind, seat) {
+                    (crate::mate::ConstraintKind::Value(v), O::Along { .. } | O::About { .. }) => {
+                        v.coord.read_mut()
+                    }
+                    (crate::mate::ConstraintKind::Mate(m), O::Side { side, .. }) => {
+                        Some(match side {
+                            crate::mate::MateSide::On => &mut m.on,
+                            crate::mate::MateSide::To => &mut m.to,
+                        })
+                    }
+                    _ => None,
                 })
                 .map(|read| &mut read.role),
             _ => None,
@@ -3394,7 +3545,7 @@ impl<P, S: Slot> Node<P, S> {
             (Node::Shell { .. }, O::Open) => "shell",
             (Node::Measure { .. }, O::Measured(..)) => "measure",
             (Node::Assertion(_), O::Cleared(..)) => "clearance",
-            (Node::Place { .. } | Node::InstantiatePart { .. }, O::Side { .. }) => "constraint",
+            (node, O::Side { .. }) if node.bundle().is_some() => "constraint",
             _ => return None,
         };
         Some((owner, slot.selection_entry(reference)?))
@@ -3473,6 +3624,21 @@ impl<P> Node<P, crate::Formula> {
         }
     }
 
+    /// Builds a [`Node::Datum`] placed into `target` under `constraints`,
+    /// the whole bundle, as [`Self::place`] builds a placement. A datum
+    /// at its space's origin is [`crate::mate::pin::stand`]'s bundle; a
+    /// mate names the datum's own frame, so it is written once the datum
+    /// is.
+    pub fn datum(
+        target: impl Into<crate::Operand>,
+        constraints: Vec<crate::mate::Constraint<crate::Formula>>,
+    ) -> Self {
+        Node::Datum {
+            target: target.into(),
+            constraints,
+        }
+    }
+
     /// A [`Node::Measure`] over `primitive`, each reference authored as
     /// the read it lowers to ([`crate::Operand`]: a body, or a sited name
     /// as the selection of it in the body it is read at).
@@ -3528,6 +3694,7 @@ impl<P> Node<P, crate::Formula> {
             | Node::World
             | Node::Space
             | Node::Place { .. }
+            | Node::Datum { .. }
             | Node::InstantiatePart { .. }
             | Node::Assertion(crate::measure::Claim::Value { .. }) => Vec::new(),
         };
@@ -3644,10 +3811,7 @@ where
         // A constraint's own scalars are float payload no slot
         // addresses, and the `PartialEq` above compares them by value:
         // they compare here, by bits.
-        if let (
-            Node::Place { constraints: a, .. } | Node::InstantiatePart { constraints: a, .. },
-            Node::Place { constraints: b, .. } | Node::InstantiatePart { constraints: b, .. },
-        ) = (self, other)
+        if let (Some(a), Some(b)) = (self.bundle(), other.bundle())
             && (a.len() != b.len() || !a.iter().zip(b).all(|(x, y)| x.bit_eq(y)))
         {
             return false;
@@ -3694,8 +3858,8 @@ fn side_rows_mut<S: Slot>(
         };
         match &mut c.kind {
             crate::mate::ConstraintKind::Mate(crate::mate::Mate { on, to, .. }) => {
-                out.push((seat(crate::mate::MateSide::On), on));
-                out.push((seat(crate::mate::MateSide::To), to));
+                out.push((seat(crate::mate::MateSide::On), &mut on.read));
+                out.push((seat(crate::mate::MateSide::To), &mut to.read));
             }
             crate::mate::ConstraintKind::Value(value) => {
                 let at = value.coord.seat(id);

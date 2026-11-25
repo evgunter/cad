@@ -466,6 +466,21 @@ fn classify<T: Decide, A: MarginTerms>(
     margin: Margin<T, A>,
     band: Band,
 ) -> Result<Decided, Indeterminate> {
+    classify_quoting(name, margin, band, |source| source)
+}
+
+/// The one classification body. [`classify`] is this with the
+/// escalation left as classified; a row whose refusal quotes another
+/// reading of the same decision ([`decide_across`]'s far row, which
+/// quotes the bracket's floor) has it minted as `quote` restates it.
+/// `quote` keeps the predicate, the band and the classifier's verdict on
+/// subdivision, and the verdict channel never sees it.
+fn classify_quoting<T: Decide, A: MarginTerms>(
+    name: &'static str,
+    margin: Margin<T, A>,
+    band: Band,
+    quote: impl FnOnce(Indeterminate) -> Indeterminate,
+) -> Result<Decided, Indeterminate> {
     // The name is SCOPED to this classification: it is restored on the
     // way out, so a decision taken outside any named door (a bare
     // `sign_within`, a comparison inside a builder) is recorded under
@@ -490,17 +505,17 @@ fn classify<T: Decide, A: MarginTerms>(
     };
     // Both channels of the innermost open bracket: a definite sign as
     // a verdict, an indeterminate outcome as an escalation.
-    match &outcome {
-        Ok(decided) => record_verdict(Verdict {
-            predicate: name,
-            sign: decided.sign,
-            role: current_role(),
-        }),
-        Err(source) => {
-            record_escalation(*source);
+    match outcome {
+        Ok(decided) => {
+            record_verdict(Verdict {
+                predicate: name,
+                sign: decided.sign,
+                role: current_role(),
+            });
+            Ok(decided)
         }
+        Err(source) => Err(record_escalation(quote(source))),
     }
-    outcome
 }
 
 /// **THE STAGED-CEILING DIAL** (`identity-pass-testing`, a test-only
@@ -960,9 +975,10 @@ pub fn decide_reported<T: Decide, A: MarginTerms>(
 /// units, never a convenience door.
 ///
 /// **Standing rule (the debt lane is tracked as issue #214): no new
-/// `decide_flagged` site ships without a ledger row in
-/// `docs/predicate-dimension-audit.md`.** Two assertions in
-/// `flagged_census.rs` carry it over `crates/*/src`. Fixtures
+/// `decide_flagged` site ships without citing a row that exists in
+/// `docs/predicate-dimension-audit.md`.** An assertion in
+/// `flagged_census.rs` carries it over `crates/*/src`; a new site under
+/// an existing row is not a red, so the row's argument has to cover it. Fixtures
 /// and demos are outside the scan and cite a prose reason rather than a
 /// row.
 ///
@@ -1214,10 +1230,26 @@ pub fn decide_magnitude_reported<T: Decide, A: MarginTerms>(
 /// band would sum to nearly twice it. At zero swing it is the plain
 /// two-sided reading of `datum`, under two names.
 ///
+/// **What a refusal offers** is what this band's bracket supports, and
+/// nothing else. A smaller tolerance decides the row only by deciding
+/// its floor past the band, so the far row left in band quotes the
+/// floor's size, `|datum| − swing`, where it has one, not its own:
+/// tightening below that size over `K` decides the floor, and the far
+/// row with it, for a swing that does not grow as the tolerance
+/// shrinks. Where the bracket holds zero at this band the floor has no
+/// size: the refusal keeps the far reading and offers no tolerance.
+/// That is not a statement that none decides. It is one for a swing
+/// that is a fixed length, and for a datum of exactly zero. A swing the
+/// caller scaled from the band (the join's stand-off, a multiple of ε)
+/// shrinks with the tolerance, so a datum that is not zero is decided
+/// at some smaller one, which this door cannot name: it is handed a
+/// length, not how the length was made.
+///
 /// # Errors
 ///
 /// The [`Indeterminate`] of the row left undecided, naming it: the far
-/// row in its band, or a floor decided Zero beside a definite far row.
+/// row in its band, quoting the floor, or a floor decided Zero beside a
+/// definite far row.
 pub fn decide_across<T: Decide>(
     names: [&'static str; 2],
     datum: T,
@@ -1241,16 +1273,49 @@ pub fn decide_across_reported<T: Decide>(
     band: Band,
 ) -> Result<(Sign, MarginDiag), Indeterminate> {
     let swing = swing.abs();
-    let (far_side, margin) = decide_magnitude_reported(far, Margin::of(datum.abs() + swing), band)?;
-    match far_side {
-        Magnitude::Zero => Ok((Sign::Zero, margin)),
-        Magnitude::Positive => {
+    let Decided { sign, margin } =
+        classify_quoting(far, Margin::of(datum.abs() + swing), band, |source| {
+            quoting_floor(source, (datum.abs() - swing).max(T::zero()), band)
+        })?;
+    match sign {
+        Sign::Zero => Ok((Sign::Zero, margin)),
+        Sign::Positive => {
             let near = (datum - swing).max(T::zero()) + (datum + swing).min(T::zero());
             Ok(match decide_nonzero(floor, Margin::of(near), band)? {
                 NonzeroSign::Positive => (Sign::Positive, margin),
                 NonzeroSign::Negative => (Sign::Negative, margin),
             })
         }
+        Sign::Negative => unreachable!(
+            "`{far}` decided a far row Negative (margin {margin:e}, band ({:e}, {:e})): a \
+             magnitude plus a swing's magnitude is nonnegative by construction",
+            band.zero(),
+            band.escalate()
+        ),
+    }
+}
+
+/// The far row's escalation `source` as [`decide_across`] words it:
+/// quoting the bracket's `floor` (a magnitude, zero where the bracket
+/// holds zero) where the floor's reading has a size to offer a
+/// tolerance from, and otherwise the far reading itself, marked as
+/// offering none. An unreadable far row keeps its own reading.
+fn quoting_floor<T: Decide>(source: Indeterminate, floor: T, band: Band) -> Indeterminate {
+    if source.margin.is_invalid() {
+        return source;
+    }
+    let floor = match Margin::of(floor).sign_within(band) {
+        Ok(Decided { margin, .. }) => margin,
+        Err(in_band) => in_band.margin,
+    };
+    let quoted = Indeterminate {
+        margin: floor,
+        ..source
+    };
+    if quoted.offers_tolerance() {
+        quoted
+    } else {
+        source.undecided_passing(SizedPass::Zero)
     }
 }
 
@@ -2123,6 +2188,12 @@ impl Real for Probe {
 
     type Carries<C: Copy + core::fmt::Debug + Send + Sync + 'static> = C;
 
+    type Expression = crate::real::NoExpression;
+
+    fn expression(self) -> Option<crate::real::NoExpression> {
+        None
+    }
+
     /// The probe itself: it records the decisions its value meets.
     type Value = Self;
 
@@ -2175,6 +2246,22 @@ impl Real for Probe {
 
     fn sqrt(self) -> Self {
         Self(Real::sqrt(self.0))
+    }
+
+    fn difference_dot(q: [Self; 3], o: [Self; 3], n: [Self; 3]) -> Self {
+        Self(f64::difference_dot(
+            q.map(|x| x.0),
+            o.map(|x| x.0),
+            n.map(|x| x.0),
+        ))
+    }
+
+    fn harmonic_belly(curve: crate::StoredHarmonic<Self>, o: [Self; 3], n: [Self; 3]) -> Self {
+        Self(f64::harmonic_belly(
+            curve.map(|x| x.0),
+            o.map(|x| x.0),
+            n.map(|x| x.0),
+        ))
     }
 
     fn abs(self) -> Self {

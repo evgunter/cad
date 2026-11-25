@@ -860,7 +860,10 @@ fn an_edge_on_a_chart_with_no_general_lane_ends_not_yet() {
     let e = eps();
     let (h, rho) = (0.6_f64, 0.8_f64);
     let half = (0.5 * e).sqrt();
-    let line = Curve3::line(Point3::new(rho - 0.125 * e, 0.0, h), Vec3::unit_y());
+    let line = Curve3::line(
+        Point3::new(rho - 0.125 * e, 0.0, h),
+        geom_core::UnitVec3::exact_y(),
+    );
     let err =
         sphere_chart_edge(&line, (-half, half)).expect_err("a line on a sphere has no image yet");
     assert!(matches!(err, CertifyError::NoGeneralLane { .. }), "{err:?}");
@@ -916,7 +919,12 @@ fn a_carrier_ends_its_incidence_at_the_edge_certificate_by_the_door() {
         place: Affine3::identity(),
         vec: Vec3::unit_z(),
     });
-    let line = |origin: Point3<f64>, dir: Vec3<f64>| Curve3::Line(geom::Line { origin, dir });
+    let line = |origin: Point3<f64>, dir: Vec3<f64>| {
+        Curve3::Line(geom::Line {
+            origin,
+            dir: geom::stated_direction(dir),
+        })
+    };
     // (read, face, carrier, span, the in-band read's lever, if any)
     type Row = (
         &'static str,
@@ -1308,7 +1316,10 @@ fn a_carrier_on_its_face_is_read_on_it_far_out_and_on_a_long_axis() {
                 ),
                 radius: 1.0,
             },
-            Curve3::line(Point3::new(1.0, 0.0, height), Vec3::unit_z()),
+            Curve3::line(
+                Point3::new(1.0, 0.0, height),
+                geom_core::UnitVec3::exact_z(),
+            ),
         ),
     ];
     let tilted = Vec3::new(0.0, 0.6, 0.8);
@@ -1663,7 +1674,7 @@ fn a_corner_and_an_edge_on_a_tilted_plane_far_from_its_anchor_are_read_on_it() {
     let lift = Interval::from_f64;
     let lift_point = |p: Point3<f64>| Point3::new(lift(p.x), lift(p.y), lift(p.z));
     let reads = |p: Point3<f64>| {
-        let line = Curve3::line(p, Vec3::unit_x());
+        let line = Curve3::line(p, geom_core::UnitVec3::exact_x());
         [
             (
                 "corner, f64",

@@ -517,6 +517,12 @@ impl Real for Interval {
 
     type Carries<C: Copy + core::fmt::Debug + Send + Sync + 'static> = C;
 
+    type Expression = crate::real::NoExpression;
+
+    fn expression(self) -> Option<crate::real::NoExpression> {
+        None
+    }
+
     /// The enclosure itself: it carries no tangent.
     type Value = Self;
 
@@ -611,9 +617,11 @@ impl Real for Interval {
     ///
     /// Nothing is recorded here: an `Interval` carries no expression.
     /// The recording half is [`crate::Sym::register_equal`], which asks
-    /// this first. The same const is what makes a theorem this channel
-    /// contradicts an ASSERTION rather than a counted dispute
-    /// (`Sym<T>::sign_within`); a row pins the two together.
+    /// this first. The same const makes a zero the tier proves where
+    /// this channel's enclosure excludes zero a failed `debug_assert!`
+    /// (`sym::discharge_checked`), and a theorem the test instrument
+    /// finds under a definite sign its `Enclosure` event rather than a
+    /// `Rounded` one (`sym::contradiction`).
     fn register_equal(self, other: Self, _tol: Tol) -> crate::sym::SymRegistration {
         use crate::real::CertifiedEnclosure as _;
         use crate::sym::SymRegistration;
@@ -775,6 +783,65 @@ impl Real for Interval {
     /// A certified point's `f64`: its two ends one bit pattern.
     fn stated_point(self) -> Option<f64> {
         stated_point(self)
+    }
+
+    /// The exact sum enclosed where every input is a stated point
+    /// ([`Real::stated_point`]) each of whose products is exact as an
+    /// expansion (every nonzero input within `2^±450`, so no product's
+    /// residual leaves the normal range); the plain enclosure elsewhere.
+    fn difference_dot(q: [Self; 3], o: [Self; 3], n: [Self; 3]) -> Self {
+        let plain = || crate::real::plain_difference_dot(q, o, n);
+        let in_range = |x: &f64| *x == 0.0 || (2f64.powi(-450)..=2f64.powi(450)).contains(&x.abs());
+        let Some([q, o, n]) =
+            stated_points(&[q, o, n]).filter(|a| a.iter().flatten().all(in_range))
+        else {
+            return plain();
+        };
+        let e = crate::exact::Expansion::difference_dot(q, o, n);
+        if !e.is_finite() {
+            return plain();
+        }
+        enclose_expansion(&e, 0.0)
+    }
+
+    /// The exact expansions enclosed where every input is a stated point
+    /// whose digits an exact expansion keeps
+    /// ([`crate::exact::harmonic_belly`]) and the denominator is
+    /// definitely positive; the plain enclosure elsewhere, which is
+    /// sound. A frame lifted from `f64` states its axis and seam as
+    /// enclosures of the polar factor, not as points, so it reads the
+    /// plain enclosure ([`Real::harmonic_belly`]'s docs).
+    fn harmonic_belly(curve: crate::StoredHarmonic<Self>, o: [Self; 3], n: [Self; 3]) -> Self {
+        let plain = || crate::real::plain_harmonic_belly(curve, o, n);
+        let point = |x: Self| stated_point(x).ok_or(());
+        let points = |v: [Self; 3]| -> Result<[f64; 3], ()> {
+            Ok([point(v[0])?, point(v[1])?, point(v[2])?])
+        };
+        let stated = (|| -> Result<_, ()> {
+            Ok((
+                crate::StoredHarmonic {
+                    at: points(curve.at)?,
+                    axis: points(curve.axis)?,
+                    u_ref: points(curve.u_ref)?,
+                    semi: (point(curve.semi.0)?, point(curve.semi.1)?),
+                    phase: (point(curve.phase.0)?, point(curve.phase.1)?),
+                },
+                points(o)?,
+                points(n)?,
+            ))
+        })();
+        let Ok((curve, o, n)) = stated else {
+            return plain();
+        };
+        let Some((squares, parts)) = crate::exact::harmonic_belly(curve, o, n) else {
+            return plain();
+        };
+        let [big_a, big_b, d] = parts.map(|e| enclose_expansion(&e, 0.0));
+        let rise = (big_a.powi(2) + big_b.powi(2)).sqrt() + d.abs();
+        if !(rise.is_certified() && Bounds::lo(rise) > 0.0) {
+            return plain();
+        }
+        enclose_expansion(&squares, 0.0) / rise
     }
 
     /// **The unit's enclosure**, the one-column case of

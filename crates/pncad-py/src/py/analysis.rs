@@ -270,7 +270,13 @@ fn measure_err(py: Python<'_>, err: &a::MeasureUnavailable) -> PyErr {
             ),
             (
                 "param",
-                PyString::new(py, &param.to_string()).unbind().into_any(),
+                PyString::new(
+                    py,
+                    &pncad::document::sentence!(pncad::document::Speaker::TAG.var(param))
+                        .to_string(),
+                )
+                .unbind()
+                .into_any(),
             ),
         ],
     )
@@ -784,7 +790,7 @@ fn mc_err(py: Python<'_>, refusal: &a::McRefusal) -> PyErr {
     let text = |s: &str| PyString::new(py, s).unbind().into_any();
     let param = match refusal {
         a::McRefusal::BandHasNoMeasure(a::MeasureUnavailable::BandHasNoMeasure { param }) => {
-            text(&param.to_string())
+            text(&pncad::document::sentence!(pncad::document::Speaker::TAG.var(param)).to_string())
         }
         a::McRefusal::NoSamples
         | a::McRefusal::NominalDoesNotBuild { .. }
@@ -796,7 +802,7 @@ fn mc_err(py: Python<'_>, refusal: &a::McRefusal) -> PyErr {
                 Ok(id) => id.into_any().unbind(),
                 Err(failed) => return failed,
             },
-            text(cause),
+            text(&cause.to_string()),
         ),
         a::McRefusal::BandHasNoMeasure(_) | a::McRefusal::NoSamples | a::McRefusal::Stopped(_) => {
             (py.None(), py.None())
@@ -1173,7 +1179,7 @@ impl McReport {
     ///
     /// Its nodes are spoken from the document the run was drawn from.
     fn render(&self) -> String {
-        self.report.render(&self.doc)
+        self.report.render(&self.doc).to_string()
     }
 
     fn __repr__(&self) -> String {

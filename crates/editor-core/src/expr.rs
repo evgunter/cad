@@ -2356,9 +2356,8 @@ fn precedence<L: LeafSet>(expr: &ExprTree<L>) -> u8 {
 /// A written quantity is written in the display unit it REMEMBERS
 /// ([`crate::Formula::display_unit`]) — through
 /// [`quantity::fmt_length`]/[`quantity::fmt_angle`], whose own pin is
-/// that the digits multiply back to the exact bits, and which fall back
-/// to the canonical unit for the values that have no preimage in the
-/// asked-for one. A `Scalar` one takes no unit and is written with a
+/// that the digits read back through the unit's one door to the exact
+/// bits, in the unit asked for. A `Scalar` one takes no unit and is written with a
 /// decimal point or an exponent, because a BARE integer is this
 /// grammar's spelling of a `Count`. The text has no spelling of a
 /// written dimensionless value inside a formula, so there its digits
@@ -2387,12 +2386,50 @@ pub fn unparse<'n, L: LeafSet>(
     out
 }
 
+/// [`unparse`] into `out`, each reader handed to it with its name.
+pub(crate) fn unparse_into<'n, L: LeafSet>(
+    expr: &ExprTree<L>,
+    names: &impl Fn(VarId) -> Option<&'n VarName>,
+    out: &mut dyn Unparsed,
+) {
+    write_expr(expr, names, out);
+}
+
+/// **Where an unparsed formula is written**: its text, and each reader
+/// with the name it is written as ([`unparse`]'s contract).
+pub(crate) trait Unparsed {
+    fn push(&mut self, ch: char);
+    fn push_str(&mut self, text: &str);
+    /// The reader `var`, under `name` where the names gave one.
+    fn reader(&mut self, var: VarId, name: Option<&VarName>);
+}
+
+impl Unparsed for String {
+    fn push(&mut self, ch: char) {
+        String::push(self, ch);
+    }
+    fn push_str(&mut self, text: &str) {
+        String::push_str(self, text);
+    }
+    fn reader(&mut self, var: VarId, name: Option<&VarName>) {
+        match name {
+            Some(name) => String::push_str(self, name.as_str()),
+            None => String::push_str(self, &var.to_string()),
+        }
+    }
+}
+
 /// The names a rendering reads its readers' text from.
 type Names<'a, 'n> = &'a dyn Fn(VarId) -> Option<&'n VarName>;
 
 /// `expr`, wrapped in parentheses unless it already binds at least as
 /// tightly as `needs`.
-fn write_nested<L: LeafSet>(expr: &ExprTree<L>, needs: u8, names: Names<'_, '_>, out: &mut String) {
+fn write_nested<L: LeafSet>(
+    expr: &ExprTree<L>,
+    needs: u8,
+    names: Names<'_, '_>,
+    out: &mut dyn Unparsed,
+) {
     if precedence(expr) < needs {
         out.push('(');
         write_expr(expr, names, out);
@@ -2415,7 +2452,7 @@ fn write_infix<L: LeafSet>(
     right: &ExprTree<L>,
     level: u8,
     names: Names<'_, '_>,
-    out: &mut String,
+    out: &mut dyn Unparsed,
 ) {
     write_nested(left, level, names, out);
     out.push(' ');
@@ -2430,7 +2467,7 @@ fn write_call<L: LeafSet>(
     name: &str,
     args: &[&ExprTree<L>],
     names: Names<'_, '_>,
-    out: &mut String,
+    out: &mut dyn Unparsed,
 ) {
     out.push_str(name);
     out.push('(');
@@ -2444,21 +2481,22 @@ fn write_call<L: LeafSet>(
 }
 
 /// The rendering proper (see [`unparse`] for the contract).
-fn write_expr<L: LeafSet>(expr: &ExprTree<L>, names: Names<'_, '_>, out: &mut String) {
+fn write_expr<L: LeafSet>(expr: &ExprTree<L>, names: Names<'_, '_>, out: &mut dyn Unparsed) {
     use ExprKind as K;
     match &expr.kind {
         K::Ratio(r) => out.push_str(&r.to_string()),
         K::Integer(n) => out.push_str(&n.to_string()),
         K::Turn => out.push_str("turn"),
         K::Zero => out.push('0'),
-        K::Leaf(own) => own.write(expr.dim, out),
+        K::Leaf(own) => {
+            let mut text = String::new();
+            own.write(expr.dim, &mut text);
+            out.push_str(&text);
+        }
         // A reader the names cannot speak — an anonymous variable, or
         // one the document no longer holds — writes its full id, which
         // the parser does not read: such text names no variable.
-        K::Var(var) => match names(*var) {
-            Some(name) => out.push_str(name.as_str()),
-            None => out.push_str(&var.to_string()),
-        },
+        K::Var(var) => out.reader(*var, names(*var)),
         K::Add(a, b) => write_infix(a, "+", b, PREC_SUM, names, out),
         K::Sub(a, b) => write_infix(a, "-", b, PREC_SUM, names, out),
         K::Mul(a, b) => write_infix(a, "*", b, PREC_PRODUCT, names, out),

@@ -378,6 +378,7 @@ pub fn mass_props_error_tag(err: &pncad::topo::MassPropsError) -> &'static str {
         M::RingOnCurvedFace { .. } => "ring_on_curved_face",
         M::Corrupt { .. } => "corrupt",
         M::NullScaffoldEdge { .. } => "null_scaffold_edge",
+        M::NoOutline(_) => "no_outline",
         M::ResolutionFinerThanEps { .. } => "resolution_finer_than_eps",
         M::EmptyContains => "empty_contains",
         M::Poisoned { .. } => "poisoned",
@@ -569,7 +570,8 @@ pub fn operand_slot_tag(slot: &pncad::document::OperandSlot) -> &'static str {
         S::Cleared(_) => "cleared",
         S::Tool => "tool",
         S::From => "from",
-        S::Cut => "cut",
+        S::Cut(_) => "cut",
+        S::Cuts => "cuts",
         S::Member(_) => "member",
         S::Members => "members",
         S::Input => "input",
@@ -700,9 +702,10 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         // An index's own declaration, and a reader of two indices
         // neither within the other (D10 `[repetition]`).
         EditError::Index { .. } => "index",
+        EditError::Yields { .. } => "yields",
         EditError::SourceRead { .. } => "source_read",
         EditError::PlacementReadsNoSource { .. } => "placement_reads_no_source",
-        EditError::IndicesUnrelated { .. } => "indices_unrelated",
+        EditError::TwoBinders { .. } => "two_binders",
         EditError::PlacementAxis { .. } => "placement_axis",
         EditError::UpdateOnNonInstance { .. } => "update_on_non_instance",
         EditError::PinUnchanged { .. } => "pin_unchanged",
@@ -1031,12 +1034,13 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         // outside the counts an index holds.
         C::MemberOutOfRange => "member_out_of_range",
         C::MemberRefused => "member_refused",
-        C::IndicesUnrelated => "indices_unrelated",
+        C::TwoBinders => "two_binders",
+        C::YieldsNothing => "yields_nothing",
         C::IndexCount => "index_count",
         C::IndexCountOutOfRange => "index_count_out_of_range",
         C::UnschedulableCycle => "unschedulable_cycle",
         C::Naming => "naming",
-        C::UnionFoldStep => "union_fold_step",
+        C::FoldStep => "fold_step",
         // The shell: ONE tag for the op's refusal family (the
         // `revolve`/`tube` treatment — the kernel's `ShellError` arms
         // are prose in the message), and the lane refusal.
@@ -1045,7 +1049,6 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         // A read of a split's half with no material (DOCM-2).
         C::EmptyHalf => "empty_half",
         // A read of a half of a split whose target is a family.
-        C::HalfOfAFamily => "half_of_a_family",
         C::WitnessBifurcation => "witness_bifurcation",
         // The seam faults stay separable at the tag level:
         // "the pin does not hold" and "the tolerances disagree" are
@@ -1071,6 +1074,7 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::MateOverconstrained => "mate_overconstrained",
         C::MateUnpinned => "mate_unpinned",
         C::MateNotOnTheCopy => "mate_not_on_the_copy",
+        C::MateNotTheDatumsOwn => "mate_not_the_datums_own",
         C::MateUnleverable => "mate_unleverable",
         C::MateKindsDiffer => "mate_kinds_differ",
         C::MateSideUnevaluated => "mate_side_unevaluated",
@@ -1164,11 +1168,11 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         // `half` is WHICH side was empty, a value the caller asked
         // for — the payload question, not the fault one.
         NodeErrorKind::EmptyHalf { .. } => None,
-        NodeErrorKind::HalfOfAFamily { .. } => None,
         NodeErrorKind::MemberOutOfRange { .. } => None,
         // The member's own refusal crosses in the message.
         NodeErrorKind::MemberRefused { .. } => None,
-        NodeErrorKind::IndicesUnrelated { .. } => None,
+        NodeErrorKind::TwoBinders { .. } => None,
+        NodeErrorKind::YieldsNothing { .. } => None,
         NodeErrorKind::IndexCount { source, .. } => Some(eval_error_tag(source)),
         NodeErrorKind::IndexCountOutOfRange { .. } => None,
         NodeErrorKind::DegenerateDirection { .. } => None,
@@ -1201,7 +1205,7 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::UnschedulableCycle => None,
         NodeErrorKind::Naming(inner) => Some(naming_error_tag(inner)),
         // The step's own refusal crosses in the message.
-        NodeErrorKind::UnionFoldStep { .. } => None,
+        NodeErrorKind::FoldStep { .. } => None,
         NodeErrorKind::Shell(inner) => Some(shell_error_tag(inner)),
         NodeErrorKind::ShellLaneUnsupported { .. } => None,
         NodeErrorKind::WitnessBifurcation(_) => None,
@@ -1334,7 +1338,16 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::UnknownConstraint { .. } => None,
         EditError::Index { fault, .. } => Some(match fault {
             pncad::document::IndexFault::CountNotCount { .. } => "count_not_count",
-            pncad::document::IndexFault::WithinNoIndex => "within_no_index",
+            pncad::document::IndexFault::AfterNoIndex => "after_no_index",
+            pncad::document::IndexFault::AfterTaken { .. } => "after_taken",
+        }),
+        EditError::Yields { fault, .. } => Some(match fault {
+            pncad::document::YieldsFault::NotABinder => "not_a_binder",
+            pncad::document::YieldsFault::Index { .. } => "yield_is_index",
+            pncad::document::YieldsFault::Twice { .. } => "yield_twice",
+            pncad::document::YieldsFault::Elsewhere { .. } => "yield_elsewhere",
+            pncad::document::YieldsFault::Nothing => "no_yields",
+            pncad::document::YieldsFault::Outside { .. } => "yield_outside",
         }),
         EditError::SourceRead { fault, .. } => Some(match fault {
             pncad::document::SourceFault::Unresolved { .. } => "unresolved",
@@ -1345,7 +1358,7 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
             pncad::document::SourceFault::Fresh => "fresh",
         }),
         EditError::PlacementReadsNoSource { .. } => None,
-        EditError::IndicesUnrelated { .. } => None,
+        EditError::TwoBinders { .. } => None,
         EditError::UpdateOnNonInstance { .. } => None,
         EditError::PinUnchanged { .. } => None,
         EditError::LabelUnchanged { .. } => None,
@@ -1615,6 +1628,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::DegenerateTorus => "degenerate_torus",
         BooleanErrorKind::CurvedSectorSideUnsupported => "curved_sector_side_unsupported",
         BooleanErrorKind::CurvedPierceUnsupported => "curved_pierce_unsupported",
+        BooleanErrorKind::JunctionEndUnread => "junction_end_unread",
         BooleanErrorKind::CurvedPierceEscalated => "curved_pierce_escalated",
         BooleanErrorKind::CrossingAtConeApex => "crossing_at_cone_apex",
         BooleanErrorKind::NormalAtConeApex => "normal_at_cone_apex",
@@ -1657,12 +1671,10 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::CurvedPairUnsupported => "curved_pair_unsupported",
         BooleanErrorKind::NurbsExtentUnsupported => "nurbs_extent_unsupported",
         BooleanErrorKind::FallbackExtentUnsupported => "fallback_extent_unsupported",
-        BooleanErrorKind::RechartedRowUnstated => "recharted_row_unstated",
         BooleanErrorKind::SpheresMeet => "spheres_meet",
         BooleanErrorKind::GermFrameUnsupported => "germ_frame_unsupported",
         BooleanErrorKind::GermSectionUnbuilt => "germ_section_unbuilt",
         BooleanErrorKind::GermSectionOpenConic => "germ_section_open_conic",
-        BooleanErrorKind::GermSectionSpiric => "germ_section_spiric",
         BooleanErrorKind::NodeUnbuilt => "node_unbuilt",
         BooleanErrorKind::Euler => "euler",
         BooleanErrorKind::Pcurves => "pcurves",
@@ -1909,7 +1921,6 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         NamingError::SeamVertexPartners { .. } => "seam_vertex_partners",
         NamingError::ChordOffRim { .. } => "chord_off_rim",
         NamingError::MemberEdgeTied { .. } => "member_edge_tied",
-        NamingError::ConventionalVertex { .. } => "conventional_vertex",
         NamingError::ClosedCarrierUnread { .. } => "closed_carrier_unread",
         NamingError::CarrierUnplaced { .. } => "carrier_unplaced",
         NamingError::PartnerUnread { .. } => "partner_unread",
@@ -1919,7 +1930,6 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         NamingError::UnsupportedJoin { shape, .. } => join_shape_tag(shape),
         NamingError::UnsupportedUnionName { shape, .. } => union_name_shape_tag(shape),
         NamingError::HoldingsUnread { .. } => "holdings_unread",
-        NamingError::UnsupportedTurnedCell { .. } => "unsupported_turned_cell",
         // The PRECISION-LIMIT arms: a lever the model holds, neither a
         // kernel bug nor a missing rule.
         NamingError::WayInZeroBand { shape, .. } => way_shape_tag(shape),
@@ -1984,8 +1994,9 @@ pub fn program_refusal_tag(err: &ProgramRefusal) -> &'static str {
 /// (`topo::boolean::trace::TraceFault`): no closed form, data that bounds
 /// no region, a grazing or
 /// on-carrier piece, a sign in the band, an uncertified root count, a
-/// torus carrier its gate refused or left in band; or
-/// the face has no cover to lever the piece over.
+/// torus carrier its gate refused or left in band, a circle whose
+/// stated axis and seam name no frame; or the face has no cover to lever
+/// the piece over.
 pub fn trace_step_fault_tag(fault: &pncad::document::TraceStepFault) -> &'static str {
     use pncad::document::TraceStepFault as F;
     use pncad::topo::boolean::trace::TraceFault as C;
@@ -2009,6 +2020,7 @@ pub fn trace_step_fault_tag(fault: &pncad::document::TraceStepFault) -> &'static
         F::Carrier(C::Escalated(_)) => "escalated",
         F::Carrier(C::Unsettled(_)) => "unsettled",
         F::Carrier(C::Torus(_)) => "torus",
+        F::Carrier(C::Frame(_)) => "circle_frame",
         F::Uncovered(_) => "uncovered",
     }
 }
@@ -2167,6 +2179,7 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::OutputSignature { .. } => "output_signature",
         SnapshotError::VarNotMinted { .. } => "var_not_minted",
         SnapshotError::NameOnMissingVar { .. } => "name_on_missing_var",
+        SnapshotError::IndexSeat { .. } => "index_seat",
         SnapshotError::VarNameTwice { .. } => "var_name_twice",
         SnapshotError::ReaderOfUnmintedVar { .. } => "reader_of_unminted_var",
         SnapshotError::SlotVarKind { .. } => "slot_var_kind",
@@ -2213,6 +2226,7 @@ pub fn persist_error_tag(err: &PersistError) -> &'static str {
         // [`expr_dimension_error_tag`] — the same map the text door
         // draws `ParseError.kind` from. One vocabulary, three doors.
         PersistError::Dimension { .. } => "dimension",
+        PersistError::IndexBeforeBinders { .. } => "index_before_binders",
         PersistError::Snapshot(_) => "snapshot",
         PersistError::ToleranceConflict { .. } => "tolerance_conflict",
         PersistError::ToleranceInvalid { .. } => "tolerance_invalid",
@@ -3126,6 +3140,7 @@ pub fn coincidence_relation_tag(relation: pncad::document::coincidence::Relation
         R::Tangent { aligned: true } => "tangent",
         R::Tangent { aligned: false } => "cusp",
         R::SurfaceTangent => "surface_tangent",
+        R::RimJunction => "rim_junction",
         R::Coaxial => "coaxial",
         R::SameRadius => "same_radius",
         R::AxesMeet => "axes_meet",
@@ -3142,6 +3157,7 @@ pub fn decision_site_tag(site: pncad::document::coincidence::DecisionSite) -> &'
         S::PlaneLadder => "plane_ladder",
         S::CarrierLadder => "carrier_ladder",
         S::TangentWitness => "tangent_witness",
+        S::RimJunction => "rim_junction",
         S::CoaxialSphere => "coaxial_sphere",
         S::SphereOnTorusAxis => "sphere_on_torus_axis",
         S::CoaxialCylinderTorus => "coaxial_cylinder_torus",
@@ -3507,6 +3523,7 @@ pub fn maintenance_tag(maintenance: &Maintenance) -> &'static str {
         Maintenance::ProductOutsideWorld { .. } => "product_outside_world",
         Maintenance::ValueDropped { .. } => "value_dropped",
         Maintenance::AnonymousVarRemoved { .. } => "anonymous_var_removed",
+        Maintenance::YieldRemoved { .. } => "yield_removed",
     }
 }
 
@@ -3544,6 +3561,7 @@ pub fn product_read_fault_tag(fault: &ProductReadFault) -> &'static str {
         ProductReadFault::Kind { .. } => "kind",
         ProductReadFault::Space { .. } => "space",
         ProductReadFault::Member => "member_at_product",
+        ProductReadFault::PerMember => "per_member_at_product",
         ProductReadFault::Path { .. } => "pick_path",
     }
 }

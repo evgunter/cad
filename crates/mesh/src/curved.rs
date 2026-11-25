@@ -1,5 +1,5 @@
 //! Curved-face tessellation: UV-rectangle domain from the boundary
-//! walk, interior grid sampling, CDT in parameter space, pole-fan
+//! walk, interior grid sampling, CDT in the lattice metric, pole-fan
 //! collapse, per-triangle certificates.
 //!
 //! This lane's domain contract is the swept UV rectangle: the boundary
@@ -155,8 +155,53 @@
 //! face's widest latitude; torus —
 //! `(hu, hv)` = [`crate::sizing::torus_grid_steps`], one step per chart
 //! direction from the doubly-curved chord bound that function derives.
-//! The chord pass's one rule ([`crate::chords`]) puts every rim and
-//! meridian on the same steps.
+//! The chord pass's one rule ([`crate::chords`]) chords every rim and
+//! meridian at most those steps apart.
+//!
+//! # The lattice metric
+//!
+//! The CDT runs where the lattice is near square: each point enters at
+//! [`crate::cdt::lattice_point`] under [`cdt_metric`], the face's own
+//! lattice's metric ([`crate::chart_table::AnalyticRow::cell_metric`]:
+//! its realized cell aspect to the nearest power of two), on every
+//! chart. It is never the trimmed lane's sphere choice, the chart's own
+//! metric at mid latitude: that is no lattice's spacing, and near a pole
+//! it is 8 to 32 times one.
+//!
+//! Delaunay is not stretch-invariant. A chord point the grid did not
+//! place (a meridian's, between two rows; a rim's, between two columns)
+//! has, in raw UV, an empty circle `√(t(1 − t))·a` cells wide across the
+//! lattice's long axis, `t` the point's fraction of its cell and `a` the
+//! cell's aspect. A thin torus band's lattice is `a ≈ √(R/r)` times
+//! taller than wide, and a meridian of it whose chord count is not its
+//! row count (a whole turn's one slit, or a partial turn's two meridian
+//! edges) put points between the rows that joined rim points four
+//! columns away: 7.7 δ on PROFILE's filleted plate (R 0.305, r 0.005,
+//! δ 1e-3). In the metric `a` is within `√2` of one and the circle under
+//! a cell wide, inside the premise of `sizing::sphere_grid_steps`'
+//! containment lemma (a cell aspect under `2√2` on either axis) on every
+//! chart. A sphere's counts alone do not keep that premise: over this
+//! crate's suite a curved sphere face with rows reaches raw aspects
+//! from 0.032 (a one-column wedge) to 2.64, 29 of 3,045 such faces
+//! outside it. In the metric every one enters the CDT between 0.71 and
+//! 1.41.
+//!
+//! The lane's other arguments about its triangulation are kept by the
+//! metric, which scales each axis by a positive constant and so keeps
+//! the order of points along each row and column and every midpoint:
+//! [`pole_columns`]' separation of the two pole entries (order and
+//! equidistance along `u`, and re-derived over every patch by the emit
+//! pass's census), and the ruled charts' strip argument
+//! (`sizing::sagitta_step`, stated for any axis scaling).
+//!
+//! **What is measured and not proved.** The theorem above bounds a
+//! lattice half cell; a triangle beside an off-lattice chord point has
+//! no containment bound, and the certificate is what holds it. Measured
+//! (`tests/the_one_slit_band.rs`'s bands; the review's 720), such a
+//! triangle spans at most one column and at most `max(1, nv/m)` row
+//! gaps, `nv` the face's rows and `m` its meridian's chords: a meridian
+//! chord itself spans `nv/m`
+//! (`work/tesslane/the-curved-lanes-triangles-beside-an-off-lattice-chord-point-have-no-containment-bound.md`).
 
 use std::collections::HashMap;
 
@@ -344,6 +389,8 @@ pub(crate) fn tessellate_curved(
         meridian_interior,
     )?;
 
+    // `meta`, the grid and every certificate read UV.
+    let metric = cdt_metric(&row, (u0, u1), (v0, v1), (nu, nv));
     // CDT: boundary entries (fixed walk order) + constraints + grid.
     let mut cdt: ConstrainedDelaunayTriangulation<SpadePoint<f64>> =
         ConstrainedDelaunayTriangulation::new();
@@ -359,7 +406,7 @@ pub(crate) fn tessellate_curved(
         // `meta` keeps the chart's own `(u, v)`; only the CDT sees the
         // floored point.
         let h = cdt
-            .insert(crate::cdt::spade_point(u, v))
+            .insert(crate::cdt::lattice_point(u, v, metric))
             .map_err(|_| TessellateError::Triangulation { face: fk })?;
         if h.index() == meta.len() {
             meta.push((u, v, id, pole));
@@ -592,18 +639,19 @@ pub(crate) fn iso_rectangle_shape(
     band: Band,
 ) -> Result<Shape, TessellateError> {
     use geom_brep::props::PropsError as P;
-    let lp = body
-        .get_loop(lk)
-        .ok_or(TessellateError::MissingEntity { what: "loop" })?;
-    if matches!(lp.boundary, topo::LoopBoundary::Empty { .. }) {
-        return Err(TessellateError::EmptyLoop { face: fk });
-    }
+    let lp = body.cycle_loop(lk).map_err(|miss| match miss {
+        topo::NoCycle::Stale => TessellateError::MissingEntity { what: "loop" },
+        topo::NoCycle::Torn => TessellateError::MissingEntity {
+            what: "a loop that does not walk",
+        },
+        topo::NoCycle::Lone(_) => TessellateError::EmptyLoop { face: fk },
+    })?;
     // `loop_edges` reports exactly the two states a flatten can reach,
     // in its own type, so this match is exhaustive over them and a
     // third arm minted in `topo` is a compile error here — D2 row 0
     // across the crate boundary, in place of an `unreachable!` over
     // arms the flatten never produced.
-    let (outer, half_edges) = topo::props::loop_edges(body, lk).map_err(|e| match e {
+    let (outer, half_edges) = topo::props::loop_edges(lp).map_err(|e| match e {
         LoopEdgesError::NullScaffoldEdge { edge } => TessellateError::NullScaffoldEdge { edge },
         LoopEdgesError::Corrupt { what } => TessellateError::MissingEntity { what },
     })?;
@@ -1061,6 +1109,18 @@ fn overused_identified_edge(
     crate::walk::overused_identified_edge_in(&identified, &triangles())
 }
 
+/// **The metric a curved face's CDT runs in** (module docs, "The lattice
+/// metric"): its own lattice's, over the box `(u0, u1) × (v0, v1)` of
+/// `nu × nv` cells ([`AnalyticRow::cell_metric`]).
+pub(crate) fn cdt_metric(
+    row: &AnalyticRow<'_>,
+    u: (f64, f64),
+    v: (f64, f64),
+    counts: (usize, usize),
+) -> f64 {
+    row.cell_metric(u, v, counts)
+}
+
 /// The interior grid counts `(nu, nv)` for the face's UV spans, at the
 /// face's chart row's steps ([`AnalyticRow::steps`]) and the lattice it
 /// lays from them ([`AnalyticRow::lattice_steps`]).
@@ -1093,8 +1153,8 @@ fn grid_counts(
 ) -> Result<(usize, usize), TessellateError> {
     let steps = row.steps(delta);
     let (hu, hv) = steps;
-    // The lattice the row lays: rows every `lever·hu` on a ruled chart,
-    // the periodic steps capped on a torus and a spindle sheet.
+    // The lattice the row lays: the periodic steps capped on a torus and
+    // a spindle sheet, which this lane reads alone.
     let (lu, lv) = row.lattice_steps(steps);
     match row.kind() {
         Analytic::Cylinder { .. } => {
@@ -1169,6 +1229,90 @@ mod tests {
     use sweep::ExtrudeSide;
     use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
     use topo::construction::Construct;
+
+    /// **The CDT's cells keep the containment lemma's premise on every
+    /// chart** (module docs, "The lattice metric"): a curved face's cell,
+    /// in the plane [`cdt_metric`] puts it in, has aspect under `2√2` on
+    /// either axis, the premise of `sizing::sphere_grid_steps`' lemma.
+    /// Over sphere zones and caps off the equator, a whole sphere and a
+    /// thin torus band, at δ from 1e-1 to 1e-4, through the lane's own
+    /// `grid_counts`. The thin band's raw aspect is far outside it.
+    ///
+    /// It pins [`cdt_metric`], not its call site. That `tessellate_curved`
+    /// hands its CDT this metric is witnessed by the bytes: with the call
+    /// site reading the trimmed lane's sphere metric instead,
+    /// `d9_mesh_goldens`' `sphere_wedge` golden reds and nothing read off
+    /// the mesh does, since no sphere face built here carries a boundary
+    /// point off its lattice, where the plane would show.
+    #[test]
+    fn the_cdt_cell_keeps_the_containment_lemmas_aspect_on_every_chart() {
+        use core::f64::consts::{FRAC_PI_2, TAU};
+        let frame = geom::Frame::new(
+            geom_core::Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        );
+        let sphere = Surface::Sphere { frame, radius: 1.0 };
+        let band = Surface::Torus {
+            frame,
+            major_radius: 0.3,
+            minor_radius: 1e-3,
+        };
+        let bound = 2.0 * core::f64::consts::SQRT_2;
+        let mut raw_outside = 0usize;
+        let mut faces = 0usize;
+        let windows: Vec<(&Surface<f64>, f64, (f64, f64))> = [
+            (0.0, 30.0),
+            (20.0, 70.0),
+            (50.0, 80.0),
+            (60.0, 88.0),
+            (70.0, 89.0),
+            (-80.0, -50.0),
+            (30.0, 90.0),
+            (60.0, 90.0),
+            (80.0, 90.0),
+            (-90.0, 90.0),
+        ]
+        .into_iter()
+        .map(|(lo, hi): (f64, f64)| (&sphere, TAU, (lo.to_radians(), hi.to_radians())))
+        .chain([(&band, TAU, (FRAC_PI_2, core::f64::consts::PI))])
+        .collect();
+        for (surface, uspan, (v0, v1)) in windows {
+            let sphere_face = matches!(surface, Surface::Sphere { .. });
+            let widest = if v0 <= 0.0 && v1 >= 0.0 {
+                1.0
+            } else {
+                v0.abs().min(v1.abs()).cos()
+            };
+            let row =
+                AnalyticRow::new(surface, if sphere_face { widest } else { f64::NAN }).unwrap();
+            let has_pole = sphere_face && (v1 >= FRAC_PI_2 || v0 <= -FRAC_PI_2);
+            for delta in [1e-1, 3e-2, 1e-2, 3e-3, 1e-3, 1e-4] {
+                let (nu, nv) =
+                    grid_counts(&row, delta, (uspan, v1 - v0), has_pole, 2 * 64).unwrap();
+                if nv < 2 {
+                    continue;
+                }
+                faces += 1;
+                #[allow(clippy::cast_precision_loss)]
+                let aspect = (uspan / nu as f64) / ((v1 - v0) / nv as f64);
+                let k = cdt_metric(&row, (0.0, uspan), (v0, v1), (nu, nv));
+                let cdt = aspect / k;
+                raw_outside += usize::from(!(1.0 / bound < aspect && aspect < bound));
+                assert!(
+                    1.0 / bound < cdt && cdt < bound,
+                    "{surface:?} over v [{v0}, {v1}] at δ = {delta}: {nu} × {nv} cells of raw \
+                     aspect {aspect} enter the CDT at aspect {cdt} (metric {k}), outside the \
+                     lemma's 2√2"
+                );
+            }
+        }
+        assert!(faces > 40, "the windows lay rows: {faces}");
+        assert!(
+            raw_outside > 0,
+            "the thin band's raw aspect is past the lemma's bound"
+        );
+    }
 
     fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
         Profile::new(SketchPlane::xy(), loops)
@@ -1765,8 +1909,8 @@ mod tests {
 
     /// The die pip (`sweep`'s `m5_s13_pips` shape): a 4 × 4 × 1 slab
     /// with a radius-0.5 ball subtracted 0.2 above its top face. The
-    /// cavity's two sphere faces are the only curved faces in this
-    /// crate's reach that a BOOLEAN produced rather than a sweep.
+    /// cavity's sphere face is the only curved face in this crate's
+    /// reach that a BOOLEAN produced rather than a sweep.
     fn die_pip() -> Body<f64> {
         let lp = <ProfileLoop<f64> as RawLoop<f64>>::polygon([
             Point2::new(0.0, 0.0),
@@ -1807,6 +1951,9 @@ mod tests {
         (*cut.body().expect("a pip is a dent, not a void").body).clone()
     }
 
+    /// The [`die_pip`] fixture's name.
+    const DIE_PIP: &str = "die pip (boolean cut)";
+
     fn fixtures() -> Vec<(&'static str, Body<f64>)> {
         let pi = core::f64::consts::PI;
         vec![
@@ -1826,7 +1973,7 @@ mod tests {
             ("axis wedge(pi/2)", axis_wedge(pi / 2.0)),
             ("axis wedge(pi + 0.5)", axis_wedge(pi + 0.5)),
             ("rounded prism", rounded_prism()),
-            ("die pip (boolean cut)", die_pip()),
+            (DIE_PIP, die_pip()),
         ]
     }
 
@@ -2319,7 +2466,7 @@ mod tests {
     /// The #653 row's totals, measured. They are asserted so that a
     /// change in the fixture list is VISIBLE rather than silent — the
     /// row's actual guarantee is its per-fixture floor, not these.
-    const TOTAL_MESHED: usize = 250;
+    const TOTAL_MESHED: usize = 244;
     /// Typed refusals in the same sweep: none. A split ruling sends its
     /// face to the trimmed lane (`walk::splits_a_straight_side`), which
     /// meshes the mirror nappe's split walls. The donut contributes none
@@ -2345,14 +2492,21 @@ mod tests {
     /// count: `curved_walks` reaches its body through a silent
     /// `continue` (the route), so a
     /// global floor lets a fixture that stopped contributing hide
-    /// behind its siblings' faces. The die pip is the one this matters
-    /// most for: the boolean's
-    /// chart re-cut is what keeps a CUT sphere face iso-rectangular,
-    /// and if a future re-cut gave the cavity rim an ellipse carrier it
-    /// would drop out of the sweep silently.
+    /// behind its siblings' faces. The die pip is not swept: the
+    /// boolean cuts the ball in on its own chart, so the cavity is one
+    /// face bounded by a circle tilted against that chart, a trim
+    /// carrier the router sends to the trimmed lane, and it puts no face
+    /// in front of this one.
     #[test]
     fn every_curved_walk_is_its_own_bounding_rectangle() {
         for (name, body) in fixtures() {
+            if name == DIE_PIP {
+                assert!(
+                    curved_walks(name, &body).is_empty(),
+                    "{name}: a curved walk, though its cavity is a trim-carrier face"
+                );
+                continue;
+            }
             let walks = curved_walks(name, &body);
             assert!(
                 !walks.is_empty(),
@@ -3162,7 +3316,9 @@ mod tests {
         let routes = body
             .faces()
             .fold(crate::tessellate::Routes::witness(&body), |r, (fk, f)| {
-                let (_, half_edges) = topo::props::loop_edges(&body, f.outer).unwrap();
+                let (_, half_edges) =
+                    topo::props::loop_edges(body.cycle_loop(f.outer).expect("a cycle loop"))
+                        .unwrap();
                 let sides = half_edges
                     .into_iter()
                     .map(|he| (he, geom_brep::IsoFamily::V))
@@ -3188,7 +3344,9 @@ mod tests {
         assert_eq!(
             geom_brep::props::require_iso_rectangle(
                 surface,
-                &topo::props::loop_edges(&body, outer).unwrap().0,
+                &topo::props::loop_edges(body.cycle_loop(outer).expect("a cycle loop"))
+                    .unwrap()
+                    .0,
                 band
             ),
             Err(geom_brep::props::PropsError::NotIsoRectangle {

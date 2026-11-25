@@ -259,7 +259,7 @@ pub(crate) fn every_offered_assertion_quiets(what: &str, doc: &ProfileDoc) -> us
     let mut offered = Vec::new();
     let mut unoffered = Vec::new();
     for (found, row, quieting) in coincidences(&report) {
-        let said = editor_core::Said(found, by).to_string();
+        let said = editor_core::Said(found, by).sentence().to_string();
         if found.quiet.is_some() {
             assert!(
                 !said.contains("Recourse"),
@@ -340,8 +340,8 @@ pub(crate) fn every_offered_assertion_quiets(what: &str, doc: &ProfileDoc) -> us
                 Some(*assertion),
                 "{what}: the row is quiet under the assertion authored for {claim}: {found}"
             );
-            let named = by.node_as(*assertion, "assertion").to_string();
-            let said = editor_core::Said(found, by).to_string();
+            let named = editor_core::sentence!(by.node_as(*assertion, "assertion")).to_string();
+            let said = editor_core::Said(found, by).sentence().to_string();
             assert!(
                 said.contains(&format!("quiet: {named} says so")),
                 "{what}: the quiet row names the new assertion {named}: {said}"
@@ -355,7 +355,7 @@ pub(crate) fn every_offered_assertion_quiets(what: &str, doc: &ProfileDoc) -> us
                     !verdicts(&ev, quiet).iter().all(|&holds| holds),
                     "{what}: a row carrying no assertion is quieted by {}, which holds at every \
                  member: {found}",
-                    by.node_as(quiet, "assertion")
+                    editor_core::sentence!(by.node_as(quiet, "assertion"))
                 );
             }
         }
@@ -482,7 +482,10 @@ pub(crate) fn family(
         editor_core::BodyRead::plain(Operand::Node(body)),
         placed.bundle(),
     );
-    insert(doc, node)
+    // A pattern writer yields its placement from the binder it reads
+    // (D10 `[repetition]`).
+    let (doc, copies) = insert(doc, node);
+    (fixture::yielded(doc, copies), copies)
 }
 
 /// `n` fins standing over a unit-high base, one placement whose slide
@@ -606,7 +609,7 @@ fn two_families_on_one_index_carry_the_assertion_over_both() {
         let (doc, cap) = block(doc, (0.25, 0.5), (0.5, 1.5), 0.5);
         let (doc, caps) = family(doc, cap, k, 0.75, (2.25, 0.0));
         let (doc, what) = if union {
-            let (doc, _) = fixture::union_over(doc, &[fins, caps]);
+            let (doc, _) = fixture::union_of_families(doc, &[fins, caps]);
             (doc, "a union of two families")
         } else {
             (
@@ -719,7 +722,7 @@ fn the_law_holds_over_steps_stacks_and_unrelated_indices() {
         let (doc, hat) = block(doc, (0.25, 0.5), (0.5, 1.5), 0.25);
         let (doc, hats) = family(doc, hat, k, 0.75, (2.75, 0.0));
         if union {
-            fixture::union_over(doc, &[fins, caps, hats]).0
+            fixture::union_of_families(doc, &[fins, caps, hats]).0
         } else {
             editor_core::test_support::assemble_world_copies(doc, Tol::witness())
         }

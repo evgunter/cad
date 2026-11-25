@@ -47,6 +47,7 @@
 // `ParamBox` and `Seed` arms hold: a payload type a consumer can match
 // and cannot name is the refusal `crate::document` rules out for
 // `NodeRefusal`.
+use editor_core::Speaker;
 pub use editor_core::{
     AnalysisPolicy, AnalysisPolicyError, AnalyzedBox, AnalyzedParam, DEFAULT_QUANTILE_MASS,
     MeasureUnavailable, OffsetInterval, ParamBoxError, SeedError, analyzed_box, box_mass,
@@ -195,17 +196,24 @@ pub fn clearances_at_nominal(
                     // requirement over the family: one per member.
                     ValuePayload::Family => ClearanceOutcome::over_members(doc, assertion),
                     other => ClearanceOutcome::Unanswered {
-                        sentence: format!(
-                            "{} evaluated to {}, not to a clearance verdict",
-                            doc.spoken(assertion),
-                            other.kind_name()
+                        sentence: editor_core::sentence!(
+                            Speaker::of(doc).node(assertion),
+                            format_args!(
+                                " evaluated to {}, not to a clearance verdict",
+                                other.kind_name()
+                            )
                         ),
                     },
                 },
                 Some(NodeResult::Failed(_) | NodeResult::Poisoned { .. }) | None => {
                     ClearanceOutcome::Unanswered {
                         sentence: ev.node_error(assertion).map_or_else(
-                            || format!("{} did not evaluate", doc.spoken(assertion)),
+                            || {
+                                editor_core::sentence!(
+                                    Speaker::of(doc).node(assertion),
+                                    " did not evaluate"
+                                )
+                            },
                             |e| e.kind_spoken(doc),
                         ),
                     }
@@ -242,20 +250,20 @@ pub enum ClearanceOutcome {
         /// The refusal's class ([`ClearanceRefusal::name`]).
         name: &'static str,
         /// The refusal said, with its recourse.
-        sentence: String,
+        sentence: crate::document::Sentence,
     },
     /// **A requirement over a pattern's members**: a seat reads a
     /// family, so the assertion is one requirement per member, which the
     /// certifying lane does not decide yet. Said with its recourse.
     OverMembers {
         /// Why, said from the document, with the recourse.
-        sentence: String,
+        sentence: crate::document::Sentence,
     },
     /// The assertion did not evaluate: a seat that does not resolve, or
     /// a node under it that failed.
     Unanswered {
         /// Why, said from the document.
-        sentence: String,
+        sentence: crate::document::Sentence,
     },
 }
 
@@ -267,11 +275,11 @@ impl ClearanceOutcome {
         assertion: crate::document::RecipeNodeId,
     ) -> Self {
         Self::OverMembers {
-            sentence: format!(
-                "{} reads the members of a pattern, so it is one requirement per member, and a \
+            sentence: editor_core::sentence!(
+                Speaker::of(doc).node(assertion),
+                " reads the members of a pattern, so it is one requirement per member, and a \
                  clearance over a pattern's members is not certified yet. Recourse: seat one \
-                 member — project it with the projection tool and pick the projection",
-                doc.spoken(assertion)
+                 member — project it with the projection tool and pick the projection"
             ),
         }
     }
@@ -286,7 +294,7 @@ impl ClearanceOutcome {
             ClearanceVerdict::Exceeded => Self::Exceeded,
             ClearanceVerdict::Refused(r) => Self::Refused {
                 name: r.name(),
-                sentence: crate::document::Said(r, by).to_string(),
+                sentence: crate::document::Said(r, by).sentence(),
             },
         }
     }

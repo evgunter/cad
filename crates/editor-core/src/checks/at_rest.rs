@@ -42,6 +42,7 @@
 //! censused as one arrival (a `⊔`'s, or an instance's copy) discards what
 //! it finds inside it (`product::gather_sources`, [`finding_group`]).
 
+use crate::say;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
@@ -57,13 +58,13 @@ use crate::names::{EntityKey, EntityRef, Entry, NameTable, StableName};
 use crate::node::{Node, RecipeNodeId};
 use crate::product::{GatheredCopy, Product};
 
-use super::quieting::{OpposedPair, Quieting, QuietingRef};
+use super::quieting::{OpposedPair, Quieting, QuietingRef, Reference};
 
 mod carried;
 
 pub use carried::{
     AtRestRow, CarriedAtRestFinding, CarriedCoincidence, CarriedCoincidenceRows, CarriedFindings,
-    CarriedInterference, PinnedDoc, Route,
+    CarriedInterference, PinnedDoc, Route, RouteHop,
 };
 pub(crate) use carried::{DocRows, PartRow, Pinned, once_per_part_row};
 
@@ -93,21 +94,17 @@ pub enum AtRestEvidence {
 // door the check reads it at: its tier-3′ messages end in their own
 // recourse.
 impl crate::spoken::Say for AtRestEvidence {
-    fn say(
-        &self,
-        f: &mut core::fmt::Formatter<'_>,
-        by: crate::spoken::Speaker<'_>,
-    ) -> core::fmt::Result {
+    fn say(&self, f: &mut crate::Sentence, by: crate::spoken::Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::NoLane(error) | Self::Malformed(error) | Self::InsideArrival(error) => {
                 write!(f, "{}", error.render(geom_brep::recourse::Reading::AtRest))
             }
-            Self::NotGathered(refusal) => write!(
+            Self::NotGathered(refusal) => say!(
                 f,
-                "its operands do not gather: {}",
+                "its operands do not gather: ",
                 crate::spoken::Said(refusal, by)
             ),
-            Self::Carried(row) => write!(f, "{}", crate::spoken::Said(&**row, by)),
+            Self::Carried(row) => say!(f, crate::spoken::Said(&**row, by)),
         }
     }
 }
@@ -115,7 +112,7 @@ impl crate::spoken::Say for AtRestEvidence {
 /// The evidence where no document is at hand.
 impl core::fmt::Display for AtRestEvidence {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 
@@ -389,33 +386,27 @@ where
 /// whatever pose that is; and, where it is a selection of one name in a
 /// body read plainly or a pose read directly off one
 /// (`eval::read_directly_off`), that selection and pose. An indexed read
-/// is no selection the rule reads.
+/// is no selection the rule reads, but for a member read at its binder's
+/// own key (`xs[k]` inside `{k in xs: …}`, [`Doc::reads_own_member`]),
+/// which is the member the assertion stands at, as a plain read is.
 fn reference<P: crate::ProfilePayload>(doc: &Doc<P>, var: VarId) -> Vec<QuietingRef> {
     let selected = |var: VarId| {
         let select = doc
             .selection(var)
-            .filter(|select| !select.body.is_indexed())?;
+            .filter(|select| !select.body.is_indexed() || doc.reads_own_member(&select.body))?;
         let [name] = select.names.as_slice() else {
             return None;
         };
         Some((select.body.read, name.clone()))
     };
     let entity = match selected(var) {
-        Some((read, name)) => Some(QuietingRef::Entity {
-            read,
-            name,
-            pose: None,
-        }),
+        Some((read, name)) => Some(QuietingRef::entity(read, name, None)),
         None => crate::eval::read_directly_off(doc, var).and_then(|(cell, kind)| {
             let (read, name) = selected(cell)?;
-            Some(QuietingRef::Entity {
-                read,
-                name,
-                pose: Some(kind),
-            })
+            Some(QuietingRef::entity(read, name, Some(kind)))
         }),
     };
-    std::iter::once(QuietingRef::Read(var))
+    std::iter::once(QuietingRef::variable(var))
         .chain(entity)
         .collect()
 }
@@ -558,9 +549,9 @@ impl Saying {
         i: usize,
         kind: Option<crate::VarKind>,
     ) -> bool {
-        let posed = match r {
-            QuietingRef::Read(_) => true,
-            QuietingRef::Entity { pose, .. } => *pose == kind,
+        let posed = match &r.0 {
+            Reference::Read(_) => true,
+            Reference::Entity { pose, .. } => *pose == kind,
         };
         posed && cell_of(doc, r, at).reads(doc, &self.cells[i])
     }
@@ -675,12 +666,10 @@ impl Saying {
         T: crate::mate::SolveScalar + topo::AtRestPolicy,
     {
         let written = |i: usize| match &self.cells[i] {
-            RowCell::Tool(var) => QuietingRef::Read(*var),
-            RowCell::Entity(read, name) => QuietingRef::Entity {
-                read: *read,
-                name: written_name(doc, *read, name),
-                pose: kinds[i],
-            },
+            RowCell::Tool(var) => QuietingRef::variable(*var),
+            RowCell::Entity(read, name) => {
+                QuietingRef::entity(*read, written_name(doc, *read, name), kinds[i])
+            }
         };
         let references = order.map(written);
         let members = members_of::<P, T>(doc, &references)?;
@@ -704,10 +693,7 @@ impl Saying {
                 return None;
             }
         }
-        Some(Quieting {
-            measure: verb,
-            references,
-        })
+        Some(Quieting::minted(verb, references))
     }
 }
 
@@ -739,9 +725,9 @@ fn cell_of<P: crate::ProfilePayload>(
     r: &QuietingRef,
     at: &crate::names::MemberAt,
 ) -> RowCell {
-    match r {
-        QuietingRef::Read(var) => RowCell::Tool(*var),
-        QuietingRef::Entity { read, name, .. } => {
+    match &r.0 {
+        Reference::Read(var) => RowCell::Tool(*var),
+        Reference::Entity { read, name, .. } => {
             RowCell::Entity(*read, member_name(doc, *read, name, at))
         }
     }
@@ -761,10 +747,7 @@ fn members_of<P: crate::ProfilePayload, T: Decide>(
 ) -> Option<Vec<(crate::names::MemberAt, Option<crate::expr::VarEnv<T>>)>> {
     let mut reached = BTreeSet::new();
     for r in references {
-        let read = match r {
-            QuietingRef::Read(var) => *var,
-            QuietingRef::Entity { read, .. } => *read,
-        };
+        let read = r.read();
         reached.extend(doc.var_reach(read).chain()?.iter().copied());
     }
     let chain = crate::repetition::Reach::new(doc)
@@ -867,6 +850,7 @@ fn measure_sign_as<T: Decide>(
 /// | `CensusAtRest` | `SameOpposite`, `SameOriented`, `OnCarrier` | `Gap` over the two cells |
 /// | `VertexFusion` | `OnCarrier`, `Meet` of two cells | `Gap` over the two cells |
 /// | `TangentWitness` | `SurfaceTangent` | `Gap` over the two faces: an opposed tangency is a contact, an aligned one a continuation |
+/// | `RimJunction` | `RimJunction` | `Gap` over the two faces: they meet on the rim both end on, and nowhere near it |
 /// | `CoaxialSphere`, `SphereOnTorusAxis` | `OnCarrier` | `Distance` between the poses read off the two cells |
 /// | `CoaxialCylinderTorus`, `CoaxialTori`, `BatterySupportAxis` | `Coaxial` | `Distance` between the poses, two axes read parallel (a sphere's support its centre) |
 /// | `CrossingCylinders` | `AxesMeet` | `Distance` between the two axes |
@@ -886,7 +870,8 @@ fn saying(row: &crate::coincide::NamedCoincidence) -> Option<Saying> {
         (Site::PlaneLadder | Site::CarrierLadder, R::SameOpposite | R::SameOriented)
         | (Site::CensusAtRest, R::SameOpposite | R::SameOriented | R::OnCarrier)
         | (Site::VertexFusion, R::OnCarrier | R::Meet)
-        | (Site::TangentWitness, _) => (&[M::Gap], false, false),
+        | (Site::TangentWitness, _)
+        | (Site::RimJunction, R::RimJunction) => (&[M::Gap], false, false),
         (Site::SplitOn, _) => (&[M::Gap, M::Distance], false, false),
         (Site::CoaxialSphere | Site::SphereOnTorusAxis, _)
         | (Site::CrossingCylinders, R::AxesMeet) => (&[M::Distance], true, false),
@@ -1014,6 +999,50 @@ fn holding_measures<'a, P, T: Decide + topo::AtRestPolicy>(
             }))
         })
         .flatten()
+}
+
+/// **The assertion in `doc` that already says `claim`**, verdict
+/// aside: a `Claim::Value` relating a measure of `claim`'s verb to zero
+/// by its relation, whose two references read, in order, as
+/// `claim`'s ([`reference()`]). `None` where none does.
+pub(crate) fn asserted<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    claim: &Quieting,
+) -> Option<RecipeNodeId> {
+    use crate::measure::MeasureVerb as M;
+    doc.ids().into_iter().find(|&id| {
+        let Some(Node::Assertion(crate::measure::Claim::Value {
+            value,
+            relation,
+            bound,
+        })) = doc.node(id)
+        else {
+            return false;
+        };
+        let Some((measure, 0)) = doc.var(*value).and_then(|v| v.def().output()) else {
+            return false;
+        };
+        let (verb, a, b) = match doc.node(measure) {
+            Some(Node::Measure {
+                primitive: MeasurePrimitive::Gap { outer, inner },
+            }) => (M::Gap, *outer, *inner),
+            Some(Node::Measure {
+                primitive: MeasurePrimitive::Distance { a, b },
+            }) => (M::Distance, *a, *b),
+            Some(Node::Measure {
+                primitive: MeasurePrimitive::Angle { a, b },
+            }) => (M::Angle, *a, *b),
+            _ => return false,
+        };
+        let [ra, rb] = claim.references();
+        verb == claim.measure()
+            && *relation == Quieting::RELATION
+            && doc.var(*bound).is_some_and(
+                |var| matches!(var.def(), crate::var::VarDef::Defined(zero) if zero.is_zero()),
+            )
+            && reference(doc, a).contains(ra)
+            && reference(doc, b).contains(rb)
+    })
 }
 
 /// **The name a selection holds, as the member at `at` reads it**: the
@@ -1257,11 +1286,11 @@ fn face_read<P: crate::ProfilePayload, T: Decide + topo::AtRestPolicy>(
     r: &QuietingRef,
     at: &crate::names::MemberAt,
 ) -> Option<CopyFace> {
-    let QuietingRef::Entity {
+    let Reference::Entity {
         read,
         name,
         pose: None,
-    } = r
+    } = &r.0
     else {
         return None;
     };
@@ -1350,11 +1379,11 @@ fn written_pair<P: crate::ProfilePayload, T: Decide + topo::AtRestPolicy>(
             key: EntityKey::Face(face),
         })?;
         let name = keyed_by(name, read).unwrap_or(name);
-        Some(QuietingRef::Entity {
+        Some(QuietingRef::entity(
             read,
-            name: written_name(doc, read, name),
-            pose: None,
-        })
+            written_name(doc, read, name),
+            None,
+        ))
     };
     let references = [written(outer)?, written(inner)?];
     let members: Vec<_> = members_of::<P, f64>(doc, &references)?
@@ -2143,9 +2172,8 @@ fn could_quiet(
 }
 
 /// The connected solids of `result`, each with the aggregate faces its
-/// faces descend from; `None` when a face's lineage does not reach one
-/// face of either copy (a face a re-chart turned reaches every face of
-/// its shell).
+/// faces descend from; `None` when a face's lineage does not reach a
+/// face of either copy.
 fn components<T: topo::AtRestPolicy + Decide>(
     product: &Product<T>,
     a: usize,
@@ -2167,15 +2195,7 @@ fn components<T: topo::AtRestPolicy + Decide>(
                     topo::Operand::A => a,
                     topo::Operand::B => b,
                 };
-                // A face a re-chart turned stands for every face of its
-                // input shell, of which it may hold no area: as a source it
-                // would let `covered` and the quieting rule read faces the
-                // component does not hold, so the component is unnamed.
-                // Not pinned: no at-rest fixture turns a shell.
-                let [input] = source.inputs[..] else {
-                    return None;
-                };
-                sources.insert((copy, product.copies[copy].keys.face(input)?));
+                sources.insert((copy, product.copies[copy].keys.face(source.root)?));
             }
         }
         out.push(Component { solid, sources });
@@ -2288,12 +2308,10 @@ fn crossing(
         for f in kept.body.faces_of_solid(solid).unwrap_or_default() {
             let source = descent.source(f);
             if source.operand == topo::Operand::A
-                && let Some(&i) = source.inputs.iter().find_map(|&input| {
-                    result
-                        .body
-                        .solid_of_face(input)
-                        .and_then(|s| of_solid.get(&s))
-                })
+                && let Some(&i) = result
+                    .body
+                    .solid_of_face(source.root)
+                    .and_then(|s| of_solid.get(&s))
             {
                 out.insert(i);
                 named = true;
@@ -2379,7 +2397,7 @@ fn beyond(
             origin, outward, ..
         } => (origin, outward.vec(), vec![rectangle(span)], span),
         Carrier::Cylinder { axis, radius, .. } => {
-            let base = axis.origin - axis.dir * span;
+            let base = axis.origin - axis.dir.get() * span;
             // A concave face (a bore) has its material outside the
             // carrier, so the region past it is the solid cylinder; a
             // convex one (a pin) the tube around it.
@@ -2388,7 +2406,7 @@ fn beyond(
             } else {
                 vec![circle(radius)]
             };
-            (base, axis.dir, loops, 2.0 * span)
+            (base, axis.dir.get(), loops, 2.0 * span)
         }
         _ => unreachable!("the carrier was matched above"),
     };

@@ -146,13 +146,16 @@ fn a_row_evaluates_its_members_as_data() {
             .fold(f64::INFINITY, f64::min);
         assert_eq!(min_x, 2.0 * i as f64);
     }
-    // A family spelled at one member seat is its every member.
+    // A family spliced into a list is its every member, `[…row, other]`.
     let (doc, far) = unit_cube(doc, 10.0, 10.0);
     let (doc, other) = fixture::stood_in(doc, far, cube);
     let (doc, joined) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![row.into(), other.into()]),
+            members: editor_core::Bodies::Spelled(vec![
+                editor_core::Spell::All(row.into()),
+                editor_core::Spell::One(other.into()),
+            ]),
         },
     );
     let ev = run(&doc);
@@ -211,7 +214,7 @@ fn typed_refusal_doors() {
     let refusal = crate::fixture::insert_refused(
         &doc,
         Node::Intersect {
-            members: editor_core::Bodies::Spelled(vec![split_node.into(), second.into()]),
+            members: editor_core::Bodies::spelled(vec![split_node.into(), second.into()]),
         },
     );
     assert!(

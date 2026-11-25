@@ -533,8 +533,10 @@ pub const BESIDE_THE_REGISTRY: [&str; 1] = ["Shell"];
 
 /// The node kinds a document exercises (the coverage tally's domain).
 ///
-/// Hand-written, not welded to `Node`, and without `InstantiatePart`
-/// or `Mate`: `work/ciw/corpus-node-kinds-roster-is-hand-written`.
+/// Hand-written, not welded to `Node`, and without `InstantiatePart`,
+/// `Datum` or `Mate`: `work/ciw/corpus-node-kinds-roster-is-hand-written`,
+/// and for `Datum`
+/// `work/ciw/no-corpus-document-holds-a-datum.md`.
 pub const NODE_KINDS: [&str; 21] = [
     "Profile",
     "Extrude",
@@ -613,6 +615,8 @@ pub const NODE_KINDS: [&str; 21] = [
 /// written whole.
 /// `SetConstraints` is listed: a placement's bundle is written whole.
 /// `SetProduct` is listed: every document says its product.
+/// `SetYields` is listed: every document with a pattern says what its
+/// binder yields (D10 `[repetition]`).
 /// `SetProgram` is
 /// listed: `reshaped_rod` authors one, the first persisted in the
 /// tree. What guards the
@@ -624,7 +628,7 @@ pub const NODE_KINDS: [&str; 21] = [
 /// `m4_pr8_corpus`'s `vocabulary_coverage_is_total` reads this list and
 /// the tally in both directions, so a kind listed and never exercised
 /// is as red as a kind exercised and never listed.
-pub const EDIT_KINDS: [&str; 22] = [
+pub const EDIT_KINDS: [&str; 23] = [
     "InsertNode",
     "DeleteNode",
     "SetProgram",
@@ -647,6 +651,7 @@ pub const EDIT_KINDS: [&str; 22] = [
     "SetLabel",
     "SetConstraints",
     "SetProduct",
+    "SetYields",
 ];
 
 /// The SUB-kinds the corpus must also cover in full: a document that
@@ -700,6 +705,7 @@ pub fn sub_kinds<P, S: editor_core::Slot>(node: &Node<P, S>) -> Vec<&'static str
         | Node::Split { .. }
         | Node::Mirror { .. }
         | Node::Place { .. }
+        | Node::Datum { .. }
         | Node::World
         | Node::Space
         | Node::Loft { .. }
@@ -731,6 +737,7 @@ pub fn node_kind<P, S: editor_core::Slot>(node: &Node<P, S>) -> &'static str {
         Node::Intersect { .. } => "Intersect",
         Node::Subtract { .. } => "Subtract",
         Node::Place { .. } => "Place",
+        Node::Datum { .. } => "Datum",
         Node::World => "World",
         Node::Space => "Space",
         Node::Loft { .. } => "Loft",
@@ -748,6 +755,7 @@ pub fn edit_kind(edit: &DocEdit<ProfileProgram>) -> &'static str {
         DocEdit::DeleteNode { .. } => "DeleteNode",
         DocEdit::SetMembers { .. } => "SetMembers",
         DocEdit::SetProduct { .. } => "SetProduct",
+        DocEdit::SetYields { .. } => "SetYields",
         DocEdit::SetLoftSections { .. } => "SetLoftSections",
         DocEdit::SetProgram { .. } => "SetProgram",
         DocEdit::SetParam { .. } => "SetParam",

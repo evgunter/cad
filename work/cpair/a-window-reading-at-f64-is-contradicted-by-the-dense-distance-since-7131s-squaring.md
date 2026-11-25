@@ -38,3 +38,21 @@ So the draw's circle now carries a frame squared at `f64` (7131's `RigidMotion::
 
 The row is counted in ONEHOME's `pr-7131s-frame-cost-at-1e-12-is-larger-than-it-counted` (on PR 7402's branch until that merges) as one of the frame cost's two `f64`-squaring rows. Unlike the rest of that count, it is a finding and not a cost. It is not pinned; GREEN greens nothing until Ev rules on the count.
 (GREEN, U12)
+
+## A second seed, from `oneround/unsourced-unions` (PR 7294), 2026-11-23
+
+The row's hosted run on PR 7294 (run 45098183324, the slow-set step for the tests the diff edits) reds the same way at ε 1e-12 on seed `0xfe838f340344caed` (`CAD_FUZZ_EFFORT=1`): `draw 10 f64: Recedes on (-6.599691873753483e-8, -6.592501423312038e-8) ring None`. The draw is a circle of radius 734 whose centre is 721 m out, with a frame tilted by about 3·10⁻¹² against a point pair. Replayed locally, it reds on the same draw with PR 7294's head and with `origin/main`'s `geom-brep` files (`d7963dd38f`). So it is this row's, not that diff's.
+
+## Evidence (germ/co-surface-table, 2026-11-23)
+
+`geom-brep`'s `curve_pair::pose::window::oracle::each_window_reading_holds_on_a_dense_distance` is red on `origin/main` at default ε on seed `0x22eb45feecea31d9` (re-run on a main worktree, 2026-11-23, from PR 7431's review).
+
+## Evidence (germ/spiric-near-miss-off-q, 2026-11-23)
+
+The same row is red on main `61a3d77a0b`'s sources on seed `0x856e9c81e4b404d1` at ε unset, 1e-6 and 1e-12: three `Recedes` readings contradicted at ε 1e-12's column, draw 18, a circle of radius 485.93 whose frame's axis is `1.3e-9` off `z`.
+
+**Pinned red (GREEN U13, 2026-11-23, PR 7558).** Ev ruled on PR 7505 that PR 7131's frame cost stands. This row is a wrong answer, not that cost, and is pinned as one. `a_window_reading_the_dense_distance_contradicts_is_pinned_red` (`oracle.rs`) replays the sweep on `CONTRADICTED_SEED` with a fixed replay text and pins the whole failure text: the count and draw 7's reading. The oracle's bands are its own, so the seed stops at **every** ε row (default, 1e-6 and 1e-12, measured), not only at 1e-12. The pin goes red when the reading holds (mutant F1F) or a different one is contradicted.
+
+**The fuzzer is red on main at random seeds often (GREEN U13, 2026-11-23).** PR 7558's gate (run 45195294885, default ε) drew seed `0xc960ef101b854219`, and the sweep failed the same way: draw 58, `f64` `Recedes` on a circle of radius 523, 405 m out, contradicted at the needle's band. That is three seeds seen red in one day: this one, `0x22eb45feecea31d9` above, and the nightly's `0x4071461b4c688a45`. The row is in the slow set, so every nightly leg and every PR that edits `oracle.rs` draws it. Since its bands do not read ε, a red seed is red at every leg.
+- 2026-11-23 (GERM, PR 7553's fix pass): another seed. At `CAD_FUZZ_SEED=0xabba8ad2f01a1859`, ε 1e-12, `each_window_reading_holds_on_a_dense_distance` reads draw 34 at `f64` as `Recedes` on `(1.68e-8, 2.66e-8)` where the dense distance contradicts it. It does the same on main `9eb483e0c7`.
+- 2026-11-23 (GERM, PR 7553): seed `0x1` reds the row too, at ε 1e-12. Draw 58 at `f64` is read `Recedes` against the dense distance, the same on main `64aeba04f9`.

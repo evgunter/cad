@@ -420,8 +420,8 @@ fn the_door_admits_a_bundle_with_no_mate_only_whole() {
     // first spin about z stay, now on the plane's chart.
     let top = fixture::fname(b, editor_core::RoleSeg::Cap(editor_core::CapEnd::End));
     let mate = Mate {
-        on: start_cap(b),
-        to: fixture::plane(Operand::select(Operand::output(base, 0), vec![top])),
+        on: start_cap(b).into(),
+        to: fixture::plane(Operand::select(Operand::output(base, 0), vec![top])).into(),
         orient: editor_core::Orientation::IDENTITY,
     };
     let mated = stood
@@ -552,7 +552,7 @@ fn a_boolean_copy_stands_over_its_bodys_reach() {
     let (doc, whole) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(members),
+            members: editor_core::Bodies::spelled(members),
         },
     );
     let own = vertices(&doc, whole);
@@ -828,8 +828,8 @@ fn a_block_placed_upright_by_a_written_quarter_turn_stands_on_the_worlds_planes(
         .doc;
 
     let mate = |to: Operand| Mate {
-        on: start_cap(b),
-        to,
+        on: start_cap(b).into(),
+        to: to.into(),
         orient: editor_core::Orientation::IDENTITY,
     };
     let (level, flat, _) = fixture::floor(doc.clone(), Vec::new());
@@ -881,8 +881,8 @@ fn a_block_placed_upright_by_a_written_quarter_turn_stands_on_the_worlds_planes(
         lined,
         b,
         Mate {
-            on: edge,
-            to: line,
+            on: edge.into(),
+            to: line.into(),
             orient: editor_core::Orientation::IDENTITY,
         },
         vec![
@@ -1050,8 +1050,8 @@ fn a_retyped_form_moves_the_key_and_the_memo_serves_the_fresh_run() {
         ]
     };
     let mate = |on: Operand, to: Operand| Mate {
-        on,
-        to,
+        on: on.into(),
+        to: to.into(),
         orient: editor_core::Orientation::IDENTITY,
     };
     let (level, flat, _) = fixture::floor(doc.clone(), Vec::new());

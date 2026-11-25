@@ -17,3 +17,7 @@ A ball of radius 1 about the origin (B) and the segment of it below `y = 0.5` (A
 - **The shape.** The rods, cones and frusta of the same pose (a cap inside the other solid, the walls on one carrier) build every op since the side certificate (`OnDeferred::sided`). The sphere is the one kind whose cap-against-carrier circle the scan reads first.
 - **The answer owed.** `A ∩ B` is A, and `A ∖ B` is nothing. A circle the scan finds lying on the plane face's boundary, where that boundary is an edge of the face's operand that lies on the sphere, is a touch along an edge the reduction classified, not an escape; whether the scan can read it so, or should leave it to the section pass, is the question.
 
+
+## Evidence (2026-11-23, ORBIT `orbit/one-sphere-escape-cut`)
+
+Every op now builds at its closed form, in both orders. That branch asks the section certificate of a closed sphere group's faces in the plane arm too, as it already did for a trimmed group, so the ball's face against the cap is read before any escape is concluded. The certificate reads the circle on the rim the reduction met and clears the pair, and the section pass decides it. The pin is renamed `a_ball_segment_inside_its_ball_builds_every_op` and asserts the four closed forms per order. This row can close when that branch lands.

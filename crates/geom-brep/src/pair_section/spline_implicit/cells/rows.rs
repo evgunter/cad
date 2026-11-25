@@ -210,7 +210,7 @@ fn cells_stand_apart_exactly_where_no_site_is_read_in_both() {
     let h = 1e-3;
     let component = |lo: [f64; 3], hi: [f64; 3]| {
         let mid = |k: usize| 0.5 * (lo[k] + hi[k]);
-        let carrier = geom::Curve3::line(pt(0.0, mid(1), mid(2)), Vec3::unit_x());
+        let carrier = geom::Curve3::line(pt(0.0, mid(1), mid(2)), geom_core::UnitVec3::exact_x());
         CarriedComponent {
             witness: carrier.eval(0.5),
             carrier,

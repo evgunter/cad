@@ -1040,12 +1040,7 @@ fn wedge_of<T: Decide>(
     // The collapsed-arm gate (module docs): the wedge margin is only
     // meaningful through a definitely-positive arm.
     decide_positive("dihedral_arm", Margin::of(arm.length()), band).map_err(|gate| {
-        FirstOrderEscalation::Lever(at_wedge(
-            LeverEscalation::arm(gate),
-            arm.length(),
-            sin_theta,
-            band,
-        ))
+        FirstOrderEscalation::Lever(at_wedge(LeverEscalation::arm(gate), arm, sin_theta, band))
     })?;
     let margin = Margin::levered(sin_theta, arm);
     // The cause of an invalid margin, read only once the decision has
@@ -1085,8 +1080,8 @@ fn wedge_of<T: Decide>(
 /// arm but leaves that wedge in band reads no class, so the escalation
 /// carries the wedge's own margin, through the arm gate's funnel
 /// (`"dihedral_arm_wedge"`), and the tolerance it offers decides both.
-/// Where the wedge reads zero at the tolerance that decides the arm
-/// ([`wedge_reads_zero_at_the_arm`]), it reads smooth at every tolerance
+/// Where the wedge reads zero at the tolerance the arm's refusal offers
+/// ([`wedge_reads_zero_at_the_offer`]), it reads smooth at every tolerance
 /// from there down to its own, so the arm binds and keeps its own margin:
 /// an exactly zero wedge, and one that is only rounding on a tangent
 /// seam, whose own value would offer a tolerance many decades below the
@@ -1097,20 +1092,22 @@ fn wedge_of<T: Decide>(
 /// ([`LeverEscalation::re_quotes`]).
 fn at_wedge<T: Decide>(
     escalation: LeverEscalation,
-    arm: T,
+    arm: geom_core::Lever<T>,
     sin_theta: T,
     band: Band,
 ) -> LeverEscalation {
-    let wedge = sin_theta * arm;
+    let wedge = Margin::levered(sin_theta, arm);
+    let Some(offered) = escalation.diag().offered_band() else {
+        return escalation;
+    };
     // `arm / wedge` is finite unless the wedge is exactly zero, or poison
     // (a gradient the arm's decided zero leaves unread, at a cone's apex).
-    if !escalation.re_quotes()
-        || !geom_core::is_finite_length(arm / wedge)
-        || wedge_reads_zero_at_the_arm(sin_theta, band)
+    if !geom_core::is_finite_length(arm.length() / wedge.value())
+        || wedge_reads_zero_at_the_offer("dihedral_wedge_at_arm", wedge, offered)
     {
         return escalation;
     }
-    match decide_positive("dihedral_arm_wedge", Margin::of(wedge.abs()), band) {
+    match decide_positive("dihedral_arm_wedge", Margin::of(wedge.value().abs()), band) {
         Err(diag) => escalation.quoting_reading(diag),
         // Only where `sin θ`'s in-band excess over one carries the wedge
         // past the band: the arm keeps its own margin, whose tolerance
@@ -1119,27 +1116,17 @@ fn at_wedge<T: Decide>(
     }
 }
 
-/// **Whether the wedge reads zero at the arm's own tolerance**: the
-/// tolerance that decides the arm, `arm/K`, is the one whose band
-/// escalates at the arm, and in that band the wedge `sin θ · arm` reads
-/// as `sin θ · escalate` does in `band` (both scaled by `escalate/arm`).
-/// So the reading is the wedge levered over `band`'s own escalation
-/// edge, decided in `band` (`"dihedral_wedge_at_arm"`): zero exactly
-/// where `sin θ · arm ≤ arm/K`, with no threshold of its own.
-fn wedge_reads_zero_at_the_arm<T: Decide>(sin_theta: T, band: Band) -> bool {
+/// **Whether the wedge reads zero at the tolerance a refusal offers**:
+/// the wedge `sin θ · arm`, at its own arm, decided under `name` in the
+/// band at that tolerance ([`Indeterminate::offered_band`]), where the
+/// refused margin (the arm, or the pairing's cosine at it) decides.
+fn wedge_reads_zero_at_the_offer<T: Decide>(
+    name: &'static str,
+    wedge: Margin<T>,
+    offered: Band,
+) -> bool {
     matches!(
-        decide_reported(
-            "dihedral_wedge_at_arm",
-            // Unsourced lever: the band's own escalation edge, the arm
-            // rescaled to the tolerance that decides it; a tolerance, not
-            // an extent, a curvature or a rate.
-            // No door names it yet: `work/oneround/unsourced-levers-with-no-door-that-names-them.md`.
-            Margin::levered(
-                sin_theta,
-                geom_core::Lever::unsourced(T::from_f64(band.escalate()))
-            ),
-            band,
-        ),
+        decide_reported(name, wedge, offered),
         Ok(Decided {
             sign: Sign::Zero,
             ..
@@ -1168,7 +1155,12 @@ fn wedge_reads_zero_at_the_arm<T: Decide>(sin_theta: T, band: Band) -> bool {
 /// `crate::certify`'s `tangent_gap_orientation`: they lever the
 /// normals' cosine by the faces' extent.
 /// A new site levering against its own fold is a silent
-/// non-comparability, so route new callers through this function.
+/// non-comparability, so route new callers through this function. One
+/// reader of the same sine does not: `topo`'s embedding question levers
+/// it at the reach alone, and so reads a definite corner where this fold
+/// reads the smooth class beside a face whose radius is far below its
+/// reach
+/// (`work/embed/the-departure-is-levered-at-the-reach-alone-where-check-4-folds-the-faces-curvature-arms.md`).
 pub fn folded_lever_arm<T: Real>(
     s1: &Surface<T>,
     s2: &Surface<T>,
@@ -1332,19 +1324,102 @@ impl<T: Real> StationHook<T> for () {
 /// [`second_order_walk`]'s answer.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum SecondOrderWalk<B> {
-    /// Every station read `Positive`.
+    /// Every station read `Positive`, and `|κ_rel|` is certified bounded
+    /// away from zero over the whole span ([`WalkSpan`]).
     Determinate,
-    /// The first station not `Positive` read `Zero`/`Negative`.
+    /// Every station read `Positive`, and the span is not certified: the
+    /// stations' least `|κ_rel|` does not decide past the span's drift
+    /// bound, or the pair has no drift bound over the carrier.
+    Separated,
+    /// A station read `Zero`/`Negative`.
     UnderDetermined,
-    /// The first station not `Positive` was in band.
+    /// A station's bend was in band, none read `Zero`/`Negative`, and
+    /// every station was read: the first in-band station's escalation.
     InBand(Indeterminate),
     /// The hook stopped the walk.
     Stopped(B),
 }
 
+/// **The span a [`second_order_walk`] certifies its bend over**: how far
+/// `κ_rel` can drift between a station and the points it stands for, and
+/// the span's end samples, which no station reads.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct WalkSpan<T: Real> {
+    /// [`crate::TangentSpanBounds::kappa_drift`] at the walk's step;
+    /// `None` outside the tangency certificate's lane.
+    drift: Option<T>,
+    /// The span's two ends, where it has ends.
+    ends: Option<[Station<T>; 2]>,
+}
+
+impl<T: Decide> WalkSpan<T> {
+    /// An edge's span `[t0, t1]` on `carrier`, read at the certification
+    /// schedule ([`interior_stations`]), its two ends included.
+    pub(crate) fn along(
+        s1: &Surface<T>,
+        s2: &Surface<T>,
+        carrier: &geom::Curve3<T>,
+        t0: T,
+        t1: T,
+    ) -> Self {
+        Self {
+            drift: crate::tangent_span_bounds(s1, s2, carrier, t0, t1).map(|b| b.kappa_drift),
+            ends: Some([Station::on(carrier, t0), Station::on(carrier, t1)]),
+        }
+    }
+
+    /// A closed carrier read at stations `step` apart all the way round.
+    pub(crate) fn around(
+        s1: &Surface<T>,
+        s2: &Surface<T>,
+        carrier: &geom::Curve3<T>,
+        step: T,
+    ) -> Self {
+        Self {
+            drift: crate::tangent::tangent_step_bounds(s1, s2, carrier, step)
+                .map(|b| b.kappa_drift),
+            ends: None,
+        }
+    }
+}
+
+/// The name the tangency's uniqueness tube is decided under: the least
+/// sampled `|κ_rel|` less its certified drift, as a sagitta at the least
+/// folded arm ([`tube_separation`]).
+pub const TANGENT_TUBE_MARGIN: &str = "tangent_tube_margin";
+
+/// **The tube decision**: whether `|κ_rel|`, read at least `kappa_min`
+/// at samples whose drift bound is `drift`, is bounded away from zero
+/// over the span they stand for. The one decision the tangency
+/// certificate's tube check and [`second_order_walk`]'s determinacy both
+/// read, so what the walk demands is what the certificate certifies.
+pub(crate) fn tube_separation<T: Decide>(
+    kappa_min: T,
+    drift: T,
+    arm: geom_core::Lever<T>,
+    band: Band,
+) -> Result<Decided, Indeterminate> {
+    decide_reported(
+        TANGENT_TUBE_MARGIN,
+        Margin::sagitta(kappa_min - drift, arm),
+        band,
+    )
+}
+
 /// **The second-order walk** — [`tangent_second_order`]'s reading at
 /// each of `stations` (a point on the contact and the tangent there),
-/// in order, where the first station not `Positive` decides.
+/// in order, where the first station read `Zero`/`Negative` decides. A
+/// station whose bend lands in the band does not stop the walk: the
+/// stations after it are read too, and the walk answers `InBand` with the
+/// first such station's escalation once none decided zero. Where every
+/// station reads `Positive`, the bend is `Determinate` only where `|κ_rel|`
+/// is certified bounded away from zero over the whole `span`: the least
+/// `|κ_rel|` over the stations and the span's ends, less the drift bound
+/// the tangency certificate reads over the same step, decided positive
+/// under the certificate's own [`tube_separation`]. Otherwise it is
+/// `Separated`. A `κ_rel` that changes sign between stations, or crosses
+/// zero in an end gap, is a case of that rule: a sign change inside one
+/// step leaves both neighbours within the drift of zero.
 ///
 /// The one home of the walk's decision, which the must-carry rule
 /// ([`must_carry_over_edge`]) and the whole-edge fold
@@ -1362,16 +1437,28 @@ pub(crate) fn second_order_walk<T: Decide, H: StationHook<T>>(
     s1: &Surface<T>,
     s2: &Surface<T>,
     stations: impl IntoIterator<Item = (Station<T>, H::Item)>,
+    span: &WalkSpan<T>,
     reach: geom_core::Lever<T>,
     band: Band,
     hook: &mut H,
 ) -> SecondOrderWalk<H::Break> {
+    let read = |station: &Station<T>| JetStation {
+        jet: crate::tangent::tangent_jet(s1, s2, station.p, station.tau),
+        arm: folded_lever_arm(s1, s2, station.p, reach),
+    };
+    // The least `|κ_rel|` and the least arm read so far.
+    let mut least: Option<(T, geom_core::Lever<T>)> = None;
+    let fold = |least: Option<(T, geom_core::Lever<T>)>, station: &JetStation<T>| {
+        let kappa = station.jet.kappa_rel.abs();
+        Some(least.map_or((kappa, station.arm), |(k, arm)| {
+            (k.min(kappa), arm.min(station.arm))
+        }))
+    };
+    // The first station whose bend read in band: the walk reads on past
+    // it, so the stations after it are read too.
+    let mut in_band = None;
     for (station, item) in stations {
-        let (p, tau) = (station.p, station.tau);
-        let station = JetStation {
-            jet: crate::tangent::tangent_jet(s1, s2, p, tau),
-            arm: folded_lever_arm(s1, s2, p, reach),
-        };
+        let station = read(&station);
         if let ControlFlow::Break(b) = hook.before_decision(&station, &item) {
             return SecondOrderWalk::Stopped(b);
         }
@@ -1381,15 +1468,38 @@ pub(crate) fn second_order_walk<T: Decide, H: StationHook<T>>(
                 ..
             }) => {}
             Ok(_) => return SecondOrderWalk::UnderDetermined,
-            Err(source) => return SecondOrderWalk::InBand(source),
+            Err(source) => {
+                in_band.get_or_insert(source);
+                continue;
+            }
         }
+        least = fold(least, &station);
         if let ControlFlow::Break(b) = hook.after_positive(&station, &item) {
             return SecondOrderWalk::Stopped(b);
         }
     }
+    if let Some(source) = in_band {
+        return SecondOrderWalk::InBand(source);
+    }
     // No station at all reads nothing, the vacuous determinacy the
     // empty walk has always answered.
-    SecondOrderWalk::Determinate
+    if least.is_none() {
+        return SecondOrderWalk::Determinate;
+    }
+    for end in span.ends.iter().flatten() {
+        least = fold(least, &read(end));
+    }
+    match (least, span.drift) {
+        (Some((kappa_min, arm)), Some(drift)) => match tube_separation(kappa_min, drift, arm, band)
+        {
+            Ok(Decided {
+                sign: Sign::Positive,
+                ..
+            }) => SecondOrderWalk::Determinate,
+            Ok(_) | Err(_) => SecondOrderWalk::Separated,
+        },
+        _ => SecondOrderWalk::Separated,
+    }
 }
 
 /// [`tangent_second_order`]'s reading: the verdict, and the two
@@ -1424,9 +1534,11 @@ pub struct SecondOrder<T: geom_core::Real> {
 /// - **[`MustCarryVerdict::UnderDetermined`]** — every station read
 ///   was smooth first-order and definite second-order, and no
 ///   intrinsic tangency is demanded: a station's second-order
-///   separation read `Zero`/`Negative`, or the pair is outside the
-///   certificate's lane and cannot store one (see the variant). The
-///   conventional description is the honest one either way.
+///   separation read `Zero`/`Negative`, the separation is not certified
+///   between the stations ([`second_order_walk`]'s span), or the pair
+///   is outside the certificate's lane and cannot store one (see the
+///   variant). The conventional description is the honest one either
+///   way.
 /// - **[`MustCarryVerdict::InBand`]** — a station was certifiable as
 ///   neither, carrying that station's escalation tagged with the rung
 ///   that raised it ([`WedgeEscalation`]): the caller refuses TYPED
@@ -1472,11 +1584,10 @@ pub struct SecondOrder<T: geom_core::Real> {
 /// certificate can store an intrinsic tangency for this carrier over
 /// this pair, so an out-of-lane edge whose stations all read
 /// `Positive` answers `UnderDetermined`, not `JetDeterminate`. Both
-/// readings are every pair's: tier 3 refuses an in-band sagitta on
-/// every definitely-smooth edge, lane or not, so an in-band station
-/// cannot be answered conventionally whatever the certificate could
-/// store. An out-of-lane pair answers `UnderDetermined` only once every
-/// station read is `Smooth` and definite second-order.
+/// readings are every pair's: an in-band bend leaves the description
+/// question open, which the rule refuses typed, lane or not. An
+/// out-of-lane pair answers `UnderDetermined` only once every station
+/// read is `Smooth` and definite second-order.
 ///
 /// **A `Nurbs` or `Approx` surface answers `InBand` at the first
 /// station, whatever its geometry.** Neither kind has an implicit
@@ -1495,8 +1606,10 @@ pub struct SecondOrder<T: geom_core::Real> {
 /// second-order: an in-band station anywhere answers `InBand`, else a
 /// transverse one anywhere answers `Transverse` (every station) or
 /// `Mixed` (some); only an edge smooth at every station descends into
-/// [`second_order_walk`], where the first station not `Positive`
-/// decides. The tier-3 must-carry arm re-asks
+/// [`second_order_walk`], where a station read `Zero`/`Negative` leaves
+/// the bend under-determined, one in band refuses the description, and,
+/// past every station, the span's certified bound decides.
+/// The tier-3 must-carry arm re-asks
 /// this question of the stored description through the same walk, and
 /// that is what keeps the demanded set and the stored set ONE set: a
 /// constructor reading a coarser schedule can store a description tier
@@ -1553,12 +1666,15 @@ pub fn must_carry_over_edge<T: Decide>(
         s1,
         s2,
         reads.into_iter().map(|read| (read.station, ())),
+        &WalkSpan::along(s1, s2, carrier, t0, t1),
         reach,
         band,
         &mut (),
     ) {
         SecondOrderWalk::Determinate => crate::Bend::Determinate,
-        SecondOrderWalk::UnderDetermined => crate::Bend::UnderDetermined,
+        SecondOrderWalk::Separated | SecondOrderWalk::UnderDetermined => {
+            crate::Bend::UnderDetermined
+        }
         SecondOrderWalk::InBand(source) => {
             return MustCarryVerdict::InBand(MustCarryEscalation::at(MustCarryRung::Bend, source));
         }
@@ -2045,17 +2161,22 @@ impl MustCarryVerdict {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum MustCarryVerdict {
     /// Every interior station of the certification schedule read a
-    /// definitely-positive second-order separation and the pair is
-    /// inside [`crate::tangent_certificate_lane`]: the intrinsic
-    /// description is demanded.
+    /// definitely-positive second-order separation, `|κ_rel|` is
+    /// certified bounded away from zero over the whole edge (the
+    /// tangency certificate's own tube decision, [`tube_separation`]),
+    /// and the pair is inside [`crate::tangent_certificate_lane`]: the
+    /// intrinsic description is demanded, and its certificate certifies
+    /// it.
     JetDeterminate,
     /// The join is smooth first-order at every station read, and no
     /// intrinsic tangency is demanded, for one of two reasons.
     ///
     /// - A station's second-order separation was definitely
     ///   `Zero`/`Negative` (a G2 join, a same-surface split, coplanar
-    ///   planes): the conventional description is the honest one, by
-    ///   this predicate.
+    ///   planes), or every station's was positive and the separation
+    ///   is not certified between them (a bend whose `κ_rel` crosses
+    ///   zero off the stations): the conventional description is the
+    ///   honest one, by this predicate.
     /// - The pair is outside [`crate::tangent_certificate_lane`]: every
     ///   interior station read `Smooth` first-order and `Positive`
     ///   second-order, and the certificate cannot store an intrinsic
@@ -2277,12 +2398,12 @@ fn smooth_pairing<T: Decide>(
         .and_then(|reading| reading.pairing())
         .map_err(|refusal| {
             let (a, b) = (n_plus.vec(), n_minus.vec());
-            pairing_at_wedge(refusal, a.dot(b), a.cross(b).norm(), arm, band)
+            pairing_at_wedge(refusal, a.cross(b).norm(), arm, band)
         })
 }
 
 /// **The pairing's refusal, quoted at the wedge where its tolerance would
-/// not decide the wedge.** At a tolerance below `|cos θ|·arm/K` the
+/// not decide the wedge.** At the tolerance its refusal offers the
 /// pairing decides, but the same smaller tolerance re-reads the wedge
 /// `sin θ · arm` the smooth verdict was read on, and where that lands in
 /// band the edge refuses on its dihedral instead. So where the wedge does
@@ -2295,47 +2416,21 @@ fn smooth_pairing<T: Decide>(
 /// crease every smaller tolerance keeps.
 fn pairing_at_wedge<T: Decide>(
     refusal: Indeterminate,
-    cos_theta: T,
     sin_theta: T,
     arm: geom_core::Lever<T>,
     band: Band,
 ) -> Indeterminate {
-    if !refusal.offers_tolerance() || wedge_reads_zero_at_the_offer(sin_theta, cos_theta, band) {
+    let Some(offered) = refusal.offered_band() else {
+        return refusal;
+    };
+    let wedge = Margin::levered(sin_theta, arm);
+    if wedge_reads_zero_at_the_offer("material_pairing_offer_wedge", wedge, offered) {
         return refusal;
     }
-    match decide_positive(
-        "material_pairing_wedge",
-        Margin::levered(sin_theta, arm),
-        band,
-    ) {
+    match decide_positive("material_pairing_wedge", wedge, band) {
         Err(wedge) => wedge,
         Ok(()) => refusal,
     }
-}
-
-/// **Whether the wedge reads zero at the pairing's offered tolerance**,
-/// `|cos θ|·arm/K`: in the band that escalates at the pairing's margin
-/// the wedge reads as `tan θ · escalate` does in `band`, so the reading
-/// is `|tan θ|` levered over `band`'s own escalation edge, decided in
-/// `band` (`"material_pairing_offer_wedge"`).
-fn wedge_reads_zero_at_the_offer<T: Decide>(sin_theta: T, cos_theta: T, band: Band) -> bool {
-    matches!(
-        decide_reported(
-            "material_pairing_offer_wedge",
-            // Unsourced lever: the band's own escalation edge, as
-            // `wedge_reads_zero_at_the_arm`'s.
-            // No door names it yet: `work/oneround/unsourced-levers-with-no-door-that-names-them.md`.
-            Margin::levered(
-                sin_theta / cos_theta.abs(),
-                geom_core::Lever::unsourced(T::from_f64(band.escalate()))
-            ),
-            band,
-        ),
-        Ok(Decided {
-            sign: Sign::Zero,
-            ..
-        })
-    )
 }
 
 /// **The cusp/slit discriminant**: the jet's relative transverse
@@ -2422,7 +2517,7 @@ mod tests {
         let floor = plane(Vec3::unit_z(), Vec3::unit_x());
         let arm = (b.zero() + b.escalate()) / 2.0;
         // A wedge that reads zero over the in-band arm, but not at the
-        // arm's own tolerance (`wedge_reads_zero_at_the_arm`).
+        // arm's own tolerance (`wedge_reads_zero_at_the_offer`).
         let sin = (b.zero() / b.escalate() + b.zero() / arm) / 2.0;
         let leaning = plane(
             Vec3::new(0.0, sin, (1.0 - sin * sin).sqrt()),
@@ -2661,7 +2756,7 @@ mod tests {
     }
 
     /// **A wedge that reads zero at the arm's own tolerance leaves the arm
-    /// binding** (`wedge_reads_zero_at_the_arm`; the coincv5 review's
+    /// binding** (`wedge_reads_zero_at_the_offer`; the coincv5 review's
     /// NF-1, whose poses these are): over an in-band arm, a tangent
     /// cylinder and plane turned generically (`sin θ` is rounding, about
     /// `1.5e-16`), and plane pairs at 3e-3, 1e-7 and 1e-9 rad, quote the
@@ -2897,7 +2992,10 @@ mod tests {
         };
         let along = |dir| geom::Curve3::line(Point3::origin(), dir);
         let floor = plane(Vec3::unit_z(), Vec3::unit_x());
-        let (x_axis, y_axis) = (along(Vec3::unit_x()), along(Vec3::unit_y()));
+        let (x_axis, y_axis) = (
+            along(geom_core::UnitVec3::exact_x()),
+            along(geom_core::UnitVec3::exact_y()),
+        );
 
         let coplanar = plane(Vec3::unit_z(), Vec3::unit_y());
         assert_eq!(
@@ -2936,7 +3034,7 @@ mod tests {
         let ruling = Vec3::new(sin, 0.0, cos);
         let tangent = plane(Vec3::new(cos, 0.0, -sin), ruling);
         let len = (2.0 * (band().zero() * band().escalate()).sqrt() / 0.01).sqrt();
-        let generator = along(ruling);
+        let generator = along(geom::stated_direction(ruling));
         let bend = ask(&cone, &tangent, &generator, (100.0, 100.0 + len));
         assert!(
             bend.starts_with("Err(Escalated(Bend, ") && bend.contains("tangent_second_order"),
@@ -2988,11 +3086,10 @@ mod tests {
     /// [`crate::tangent_certificate_lane`] refuses. `κ_rel` is the
     /// cone's transverse curvature `1/t ≈ 0.01` and the folded arm is
     /// the extent `L`, so `L` sets the sagitta `κ_rel·L²/2`: at the
-    /// band's geometric mean every station is in band, and tier 3
-    /// refuses that edge `SliverDihedral` lane or not, so the rule
-    /// answers `InBand`; at ten times the escalation edge every station
-    /// reads `Positive` and the lane leaves nothing to demand, and at a
-    /// hundredth of the zero edge the first station reads `Zero`.
+    /// band's geometric mean every station is in band, and the rule
+    /// answers `InBand` lane or not; at ten times the escalation edge every
+    /// station reads `Positive` and the lane leaves nothing to demand, and
+    /// at a hundredth of the zero edge the first station reads `Zero`.
     #[test]
     fn an_out_of_lane_in_band_sagitta_escalates_and_a_definite_one_is_under_determined() {
         let b = band();
@@ -3003,7 +3100,7 @@ mod tests {
         };
         let ruling = Vec3::new(s, 0.0, c);
         let tangent = plane(Vec3::new(c, 0.0, -s), ruling);
-        let carrier = geom::Curve3::line(Point3::origin(), ruling);
+        let carrier = geom::Curve3::line(Point3::origin(), geom_core::UnitVec3::checked(ruling));
         assert!(
             !crate::tangent_certificate_lane(&carrier, &cone, &tangent),
             "the witness is out of lane"
@@ -3090,12 +3187,14 @@ mod tests {
         };
         let axis = geom::Curve3::line(
             Point3::new(f(0.0), f(0.0), f(0.0)),
-            Vec3::new(f(0.0), f(1.0), f(0.0)),
+            geom_core::UnitVec3::exact_y(),
         );
+        let (s1, s2) = (cylinder(1.0), cylinder(r2));
         second_order_walk(
-            &cylinder(1.0),
-            &cylinder(r2),
+            &s1,
+            &s2,
             interior_stations(&axis, f(0.0), f(1.0)).map(|(_, station)| (station, ())),
+            &WalkSpan::along(&s1, &s2, &axis, f(0.0), f(1.0)),
             fixture_lever(f(1.0)),
             band(),
             script,
@@ -3193,6 +3292,109 @@ mod tests {
         Surface::Plane {
             frame: geom::Frame::new(Point3::origin(), normal, u_ref),
         }
+    }
+
+    /// **An in-band arm's wedge is read in the band the arm's refusal
+    /// offers.** An arm of `1.5` bands offers `0.15` of one: a wedge at
+    /// half the arm is within the run's zero and past the offer's, so
+    /// the offered tolerance would leave it in band, and the refusal
+    /// quotes it. The offer is the told one: a wedge between the told
+    /// tolerance and the raw `arm/K` is quoted too, and one below the
+    /// told tolerance leaves the arm binding. On both lanes.
+    #[test]
+    fn the_arms_wedge_is_read_in_the_band_the_arms_refusal_offers() {
+        fn row<T: Decide>(lane: &str) {
+            let b = Band::new(1e-9, 1e-8).unwrap();
+            let lean = |sin: f64| Surface::<T>::Plane {
+                frame: geom::Frame::new(
+                    Point3::origin(),
+                    Vec3::new(0.0, sin, (1.0 - sin * sin).sqrt()).map(T::from_f64),
+                    Vec3::unit_x().map(T::from_f64),
+                ),
+            };
+            let quoted = |arm: f64, sin: f64| {
+                classify_dihedral(
+                    &lean(0.0),
+                    &lean(sin),
+                    Point3::origin(),
+                    fixture_lever(T::from_f64(arm)),
+                    b,
+                )
+                .map(|d| d.class())
+                .unwrap_err()
+                .diag()
+                .predicate
+            };
+            assert_eq!(quoted(1.5e-9, 0.5), Some("dihedral_arm_wedge"), "{lane}");
+            let arm = 7.123_456_789e-9;
+            let (told, raw) = (b.offer_deciding(arm).unwrap(), b.tolerance_deciding(arm));
+            assert!(
+                told < raw,
+                "the fixture's offer is told below {raw:e}: {told:e}"
+            );
+            assert_eq!(
+                quoted(arm, 0.5 * (told + raw) / arm),
+                Some("dihedral_arm_wedge"),
+                "{lane}: between the told offer and the raw one"
+            );
+            assert_eq!(
+                quoted(arm, 0.999 * told / arm),
+                Some("dihedral_arm"),
+                "{lane}: below the told offer"
+            );
+        }
+        row::<f64>("f64");
+        row::<geom_core::Interval>("Interval");
+    }
+
+    /// **A pairing's refusal reads the wedge in the band it offers.**
+    /// Over an arm of `4` bands, normals `0.2 rad` apart read a cosine
+    /// of `3.92` bands, in band, offering `0.392`: the wedge, `0.795`
+    /// bands, is within the run's zero and past the offer's, and is
+    /// quoted. At `0.05 rad` the wedge is `0.2` bands, zero at the
+    /// offer, and the pairing keeps its own margin. The offer is the
+    /// told one, as at the arm. On both lanes.
+    #[test]
+    fn a_pairings_wedge_is_read_in_the_band_the_pairings_refusal_offers() {
+        fn row<T: Decide>(lane: &str) {
+            let b = Band::new(1e-9, 1e-8).unwrap();
+            let refused = |theta: f64, arm: f64| {
+                smooth_pairing(
+                    OutwardNormal::from_chart(Vec3::unit_z().map(T::from_f64), true),
+                    OutwardNormal::from_chart(
+                        Vec3::new(0.0, theta.sin(), theta.cos()).map(T::from_f64),
+                        true,
+                    ),
+                    fixture_lever(T::from_f64(arm)),
+                    b,
+                )
+                .unwrap_err()
+                .predicate
+            };
+            assert_eq!(refused(0.2, 4e-9), Some("material_pairing_wedge"), "{lane}");
+            assert_eq!(refused(0.05, 4e-9), Some("material_wedge_side"), "{lane}");
+            let arm = 7.123_456_789e-9;
+            let k = b.escalate() / b.zero();
+            let cosine = (1.0 / k).atan().cos() * arm;
+            let share = b.offer_deciding(cosine).unwrap() / b.tolerance_deciding(cosine);
+            assert!(
+                share < 1.0,
+                "the fixture's offer is told below the raw one: {share}"
+            );
+            let theta = (0.5 * (1.0 + share) / k).atan();
+            let (wedge, cosine) = (theta.sin() * arm, theta.cos() * arm);
+            assert!(
+                b.offer_deciding(cosine).unwrap() < wedge && wedge < b.tolerance_deciding(cosine),
+                "the wedge lies between the told offer and the raw one"
+            );
+            assert_eq!(
+                refused(theta, arm),
+                Some("material_pairing_wedge"),
+                "{lane}"
+            );
+        }
+        row::<f64>("f64");
+        row::<geom_core::Interval>("Interval");
     }
 
     /// **Two faces' outward normals read one way, opposite ways or
@@ -3729,7 +3931,7 @@ mod tests {
             )
             .unwrap(),
         ));
-        let edge = geom::Curve3::line(Point3::origin(), Vec3::unit_x());
+        let edge = geom::Curve3::line(Point3::origin(), geom_core::UnitVec3::exact_x());
         let ask = |a: (crate::SurfaceKey, &Surface<f64>), b| {
             reask_chart([a, b], &edge, (0.0, 1.0), fixture_lever(1.0), band).unwrap()
         };
@@ -4335,6 +4537,342 @@ mod seam_rows {
                 band()
             ),
             Err(SeamEscalation::SplineReadAsAnalytic)
+        );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod bend_rows {
+    //! The must-carry rule over a bend whose `κ_rel` crosses zero: the
+    //! elbow's rim, a cylinder `r = 1` about `z` against a torus
+    //! `R = 3, r = 1` about the `y`-parallel line through `(3, 0, 2)`,
+    //! tangent along the circle `z = 2`. The torus's normal curvature
+    //! across the rim is `cos t/(3 − cos t)` and the cylinder's zero, so
+    //! `κ_rel` crosses zero at the neutral points `t = ±π/2`.
+    use super::*;
+    use core::f64::consts::{FRAC_PI_2, PI};
+    use geom_core::test_support::fixture_lever;
+    use geom_core::{Tol, Vec3};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    fn rim() -> geom::Curve3<f64> {
+        geom::Curve3::circle(
+            Point3::new(0.0, 0.0, 2.0),
+            Vec3::unit_z(),
+            1.0,
+            Vec3::unit_x(),
+        )
+    }
+
+    fn pipe() -> Surface<f64> {
+        Surface::Cylinder {
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
+            radius: 1.0,
+        }
+    }
+
+    fn bend() -> Surface<f64> {
+        Surface::Torus {
+            frame: geom::Frame::new(Point3::new(3.0, 0.0, 2.0), Vec3::unit_y(), Vec3::unit_z()),
+            major_radius: 3.0,
+            minor_radius: 1.0,
+        }
+    }
+
+    /// The rule in both argument orders, which must agree.
+    fn verdict(a: &Surface<f64>, b: &Surface<f64>, t0: f64, t1: f64) -> MustCarryVerdict {
+        let rim = rim();
+        let reach = fixture_lever(1.0);
+        let ab = must_carry_over_edge(a, b, &rim, t0, t1, reach, band());
+        let ba = must_carry_over_edge(b, a, &rim, t0, t1, reach, band());
+        assert_eq!(ab, ba, "the rule is symmetric over [{t0}, {t1}]");
+        ab
+    }
+
+    /// The sign of `κ_rel` at every interior station of `[t0, t1]`.
+    fn station_signs(t0: f64, t1: f64) -> Vec<bool> {
+        let rim = rim();
+        interior_stations(&rim, t0, t1)
+            .map(|(_, st)| {
+                crate::tangent::tangent_jet(&pipe(), &bend(), st.p, st.tau).kappa_rel > 0.0
+            })
+            .collect()
+    }
+
+    /// **A bend crossing zero where no station reads it is not
+    /// jet-determinate.** Every station reads `|κ_rel|` decided
+    /// positive, and the must-carry rule would demand a
+    /// `TangentIntersection` its certificate refuses: the stations' least
+    /// `|κ_rel|` does not clear the span's drift bound. Over an arc just
+    /// past π with both neutral points in its end gaps, every interior
+    /// station reads one sign; over one with a zero in the start gap
+    /// alone, likewise; over an arc that changes sign between two
+    /// interior stations, the sign changes.
+    #[test]
+    fn a_bend_whose_kappa_crosses_zero_off_its_stations_is_under_determined() {
+        let rows = [
+            (
+                "both zeros in the end gaps",
+                FRAC_PI_2 - 0.05,
+                3.0 * FRAC_PI_2 + 0.05,
+                true,
+            ),
+            (
+                "both zeros in the wide end gaps",
+                FRAC_PI_2 - 0.3,
+                3.0 * FRAC_PI_2 + 0.3,
+                true,
+            ),
+            ("one zero in the start gap", FRAC_PI_2 - 0.15, PI, true),
+            ("a zero between two stations", 0.1, PI + 0.1, false),
+        ];
+        for (why, t0, t1, one_signed) in rows {
+            let signs = station_signs(t0, t1);
+            assert_eq!(
+                signs.iter().all(|&s| s == signs[0]),
+                one_signed,
+                "{why}: the stations' signs {signs:?}"
+            );
+            assert_eq!(
+                verdict(&pipe(), &bend(), t0, t1),
+                MustCarryVerdict::UnderDetermined,
+                "{why}: no bound away from zero over [{t0}, {t1}]"
+            );
+        }
+    }
+
+    /// **The material fold still reads the stations** (no `Mixed` →
+    /// `Lamina` move): over an arc whose `κ_rel` changes sign between two
+    /// stations, the faces facing each other (an opposed contact) read a
+    /// cusp on one side of the neutral point and a slit on the other, and
+    /// the fold names the two stations; facing one way, the seam stands,
+    /// its bend under-determined.
+    #[test]
+    fn a_bend_crossing_zero_keeps_its_material_verdict() {
+        let rim = rim();
+        let (t0, t1) = (0.1, PI + 0.1);
+        let side = |surface, sense| crate::SideFace { surface, sense };
+        let (pipe, bend) = (pipe(), bend());
+        let read = |sense| {
+            let walk =
+                crate::WedgeWalk::along_edge(side(&pipe, true), side(&bend, sense), &rim, t0, t1);
+            crate::edge_wedge_over(&walk, fixture_lever(1.0), band())
+        };
+        assert!(
+            matches!(
+                read(false),
+                crate::WedgeVerdict::Mixed(MixedStations::End { .. })
+            ),
+            "opposed, the end flips at the neutral point: {:?}",
+            read(false)
+        );
+        assert!(
+            matches!(
+                read(true),
+                crate::WedgeVerdict::Seam {
+                    bend: crate::Bend::UnderDetermined,
+                    ..
+                }
+            ),
+            "aligned, the seam: {:?}",
+            read(true)
+        );
+    }
+
+    /// **A bend in band at a station is an undecided bend, not an
+    /// undecided seam**: the arc's middle station sits `off` past a
+    /// neutral point, where `κ_rel ≈ −off/3` and the sagitta over the
+    /// unit arm is `off/6`, set to the band's geometric mean. Facing one way,
+    /// the routing's fold reads the π seam, its bend under-determined,
+    /// while every reader of the description (the must-carry rule, the
+    /// whole-edge fold) refuses typed on the bend; facing each other, the
+    /// bend decides between an end and the lamina, and the routing refuses
+    /// it too.
+    #[test]
+    fn a_bend_in_band_at_a_station_leaves_the_seam_under_determined() {
+        let rim = rim();
+        let b = band();
+        let off = 6.0 * (b.zero() * b.escalate()).sqrt();
+        let (t0, t1) = (off, PI + off);
+        let mid = interior_stations(&rim, t0, t1)
+            .find(|&(i, _)| i == crate::CERT_SAMPLES / 2)
+            .map(|(_, st)| st)
+            .unwrap();
+        let jet = crate::tangent::tangent_jet(&pipe(), &bend(), mid.p, mid.tau);
+        assert!(
+            second_order_verdict(&jet, fixture_lever(1.0), band()).is_err(),
+            "the middle station's sagitta is in band: κ_rel {}",
+            jet.kappa_rel
+        );
+        assert!(
+            matches!(
+                verdict(&pipe(), &bend(), t0, t1),
+                MustCarryVerdict::InBand(e) if e.rung() == MustCarryRung::Bend
+            ),
+            "the description question refuses on the bend"
+        );
+        let (pipe, bend) = (pipe(), bend());
+        let side = |surface, sense| crate::SideFace { surface, sense };
+        let walk = |sense| {
+            crate::WedgeWalk::along_edge(side(&pipe, true), side(&bend, sense), &rim, t0, t1)
+        };
+        let routed = |sense| crate::rim_routing_wedge(&walk(sense), fixture_lever(1.0), band());
+        let folded = crate::edge_wedge_over(&walk(true), fixture_lever(1.0), band());
+        assert!(
+            matches!(
+                routed(true),
+                crate::WedgeVerdict::Seam {
+                    bend: crate::Bend::UnderDetermined,
+                    ..
+                }
+            ),
+            "aligned, the routing's seam: {:?}",
+            routed(true)
+        );
+        assert!(
+            matches!(folded, crate::WedgeVerdict::InBand(e) if e.rung() == crate::WedgeRung::Bend),
+            "aligned, the description's fold refuses on the bend: {folded:?}"
+        );
+        assert!(
+            matches!(
+                routed(false),
+                crate::WedgeVerdict::InBand(e) if e.rung() == crate::WedgeRung::Bend
+            ),
+            "opposed, undecided on the bend: {:?}",
+            routed(false)
+        );
+    }
+
+    /// **Today's reading of a wedge end over a bend crossing zero off
+    /// its stations** (R1's probe arc): over the converse arc, both
+    /// neutral points in its end gaps, the faces facing each other read
+    /// one end at every station, so the fold hands out a legal `End`
+    /// whose bend is under-determined, and tier 3 accepts it. MATE-7 makes
+    /// a wedge end legal only where it is jet-determinate; this pins the
+    /// stations' reading of that until the drift bound lets the certified
+    /// walk decide it
+    /// (`work/select/a-wedge-end-is-legal-by-its-stations-not-certified-along-the-edge.md`).
+    #[test]
+    fn an_opposed_bend_crossing_zero_off_its_stations_reads_one_uncertified_end() {
+        let rim = rim();
+        let (pipe, bend) = (pipe(), bend());
+        let side = |surface, sense| crate::SideFace { surface, sense };
+        for (t0, t1) in [
+            (FRAC_PI_2 - 0.05, 3.0 * FRAC_PI_2 + 0.05),
+            (FRAC_PI_2 - 0.3, 3.0 * FRAC_PI_2 + 0.3),
+        ] {
+            let walk =
+                crate::WedgeWalk::along_edge(side(&pipe, true), side(&bend, false), &rim, t0, t1);
+            let v = crate::edge_wedge_over(&walk, fixture_lever(1.0), band());
+            assert!(
+                matches!(
+                    v,
+                    crate::WedgeVerdict::End {
+                        bend: crate::Bend::UnderDetermined,
+                        ..
+                    }
+                ),
+                "[{t0}, {t1}]: one end, its bend uncertified: {v:?}"
+            );
+        }
+    }
+
+    /// The certificate's half of the same rows: what the rule leaves
+    /// undemanded is what the tangency certificate's tube cannot certify,
+    /// read through the one [`tube_separation`].
+    #[test]
+    fn the_rows_the_rule_leaves_undemanded_are_the_tubes_refusals() {
+        let rim = rim();
+        for (t0, t1) in [
+            (FRAC_PI_2 - 0.05, 3.0 * FRAC_PI_2 + 0.05),
+            (FRAC_PI_2 - 0.15, PI),
+        ] {
+            let drift = crate::tangent_span_bounds(&pipe(), &bend(), &rim, t0, t1)
+                .expect("the pair is in the certificate's lane")
+                .kappa_drift;
+            let least = interior_stations(&rim, t0, t1)
+                .map(|(_, st)| {
+                    crate::tangent::tangent_jet(&pipe(), &bend(), st.p, st.tau)
+                        .kappa_rel
+                        .abs()
+                })
+                .fold(f64::MAX, f64::min);
+            let tube = tube_separation(least, drift, fixture_lever(1.0), band());
+            assert!(
+                !matches!(
+                    tube,
+                    Ok(Decided {
+                        sign: Sign::Positive,
+                        ..
+                    })
+                ),
+                "[{t0}, {t1}]: the tube must not certify (least {least}, drift {drift}): {tube:?}"
+            );
+        }
+    }
+
+    /// **A coaxial tangency stays jet-determinate**: a ball and a
+    /// cylinder of one radius about one axis kiss along the equator,
+    /// `κ_rel = 1` all the way round and no drift, over any arc.
+    #[test]
+    fn a_coaxial_kiss_is_jet_determinate_over_any_arc() {
+        let ball = Surface::Sphere {
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 2.0), Vec3::unit_z(), Vec3::unit_x()),
+            radius: 1.0,
+        };
+        for (t0, t1) in [
+            (0.0, PI),
+            (0.1, PI + 0.1),
+            (FRAC_PI_2 - 0.05, 3.0 * FRAC_PI_2 + 0.05),
+        ] {
+            assert_eq!(
+                verdict(&pipe(), &ball, t0, t1),
+                MustCarryVerdict::JetDeterminate,
+                "[{t0}, {t1}]"
+            );
+        }
+    }
+
+    /// **A dome on the elbow's end**: the ball of the tube's radius
+    /// centred on the end's circle, a meridian of the torus, kisses the
+    /// torus along it with `κ_rel` bounded away from zero, but the circle
+    /// is no symmetry of the torus, so the span's drift bound is not
+    /// beaten and no intrinsic tangency is demanded.
+    #[test]
+    fn a_dome_on_the_elbows_end_is_not_demanded_intrinsic() {
+        let torus = Surface::Torus {
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
+            major_radius: 3.0,
+            minor_radius: 1.0,
+        };
+        let ball = Surface::Sphere {
+            frame: geom::Frame::new(Point3::new(3.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
+            radius: 1.0,
+        };
+        let end = geom::Curve3::circle(
+            Point3::new(3.0, 0.0, 0.0),
+            Vec3::unit_y(),
+            1.0,
+            Vec3::unit_x(),
+        );
+        let (t0, t1) = (0.1, 2.0 * PI + 0.1);
+        let least = interior_stations(&end, t0, t1)
+            .map(|(_, st)| {
+                crate::tangent::tangent_jet(&torus, &ball, st.p, st.tau)
+                    .kappa_rel
+                    .abs()
+            })
+            .fold(f64::MAX, f64::min);
+        let drift = crate::tangent_span_bounds(&torus, &ball, &end, t0, t1).map(|b| b.kappa_drift);
+        let v = must_carry_over_edge(&torus, &ball, &end, t0, t1, fixture_lever(1.0), band());
+        assert_eq!(
+            v,
+            MustCarryVerdict::UnderDetermined,
+            "least {least}, drift {drift:?}"
         );
     }
 }

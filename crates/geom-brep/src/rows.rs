@@ -438,6 +438,17 @@ geom_core::row_registry! {
         straddle: "tt_critical_gap_straddle",
     };
 
+    /// The cone × torus gap's rows (`pair_section::cone_torus`).
+    pub(crate) const KT_GAP: GapRows = GapRows {
+        gap: "kt_critical_gap",
+        clear: "kt_critical_gap_clear",
+        monotone: "kt_critical_gap_monotone",
+        smooth: "kt_critical_gap_smooth",
+        turn: "kt_critical_gap_turn",
+        floor: "kt_critical_gap_floor",
+        straddle: "kt_critical_gap_straddle",
+    };
+
     /// Check 2's interval-span winding (`certify`): a periodic span's
     /// turn, and the straddle of a bounded channel's two readings.
     pub const INTERVAL_SPAN_WINDING: PeriodRows =
@@ -486,16 +497,5 @@ geom_core::row_registry! {
         odd: "line_quadric_torus_odd",
         split: "line_quadric_torus_split",
         split_lead: "line_quadric_torus_split_lead",
-    };
-
-    // ------------------------------------------------- topo's readers
-
-    /// The subdivision rows every `topo` section ruling chart walks under
-    /// (`topo::boolean::section_cert`).
-    pub const SECTION_RULING_WALK: SubdivisionRows = SubdivisionRows {
-        clear: "section_ruling_clear",
-        monotone: "section_ruling_monotone",
-        side: "section_ruling_side",
-        width: "section_ruling_width",
     };
 }

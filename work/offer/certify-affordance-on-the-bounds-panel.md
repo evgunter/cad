@@ -2,12 +2,14 @@
 id: certify-affordance-on-the-bounds-panel
 kind: unit
 title: The bounds panel has no on-demand certify affordance for the certified range query
-status: dispatched
+status: closed
 opened: 2026-09-13
 refs: [1183]
 priority: P1
 cost: H
 branch: offer/range-is-the-certified-search
+pr: 7548
+closed: 2026-11-23
 ---
 
 Filed by DOCM-9, which built the kernel side and was forbidden by its
@@ -148,7 +150,7 @@ What follows was weighed by two designers and a further designer (`work/offer/lo
 **The kernel query changes first.** `editor_core::range` gains a resumable search that refines outward from the field's current value and keeps every finished step:
 - It splits at the current value first. On each side it replays the interval whole, and where the result is undecided it halves and replays both halves, nearest the current value first. Because the far half is replayed too, the search looks past undecided ground and can find a proven difference beyond it.
 - Its answer after n steps is a pure function of the inputs and n, so stopping keeps the answer. Ground it has not reached is priced as budget (E6).
-- It takes the session's part resolver (`work/scalar/the-box-driver-carries-no-part-resolver` is the same gap in `drive`).
+- It takes the session's part resolver (`work/certread/the-box-driver-carries-no-part-resolver` is the same gap in `drive`).
 - `certified_range` becomes a wrapper that runs the search to completion. `drive` is unchanged.
 
 **The answer type** states three things and nothing shaped like a second interval:
@@ -201,5 +203,5 @@ From `the-certified-range-refines-away-from-the-current-value`; the surface is `
   - The `f64` grid is no bound near the current value, so a depth of 64 is not free on a side that never proves.
   - `max_replays` is a cap, and the search is stepped, so the panel's stop is the real budget: a field that certifies only near `ε` grows its proof by about that much every two replays and never finishes a wide seed. `Step::Finished` means the answer can no longer move.
 - **The readings**: `RangeSide::proven_to`, `reached_seed_end`, `different()` (`at`, `kind()`: `StandingChange { node }` or `BuildsDifferently`), `not_decided()` (`past`, `reason()`: `Unproven::Unfinished { replays }`, `Stalled { width }` or the driver's `Floor(reason)`, and `more_time_helps()`, true only for `Unfinished`); `CertifiedRange::nothing_proven`, `pinned`, and `proven_interval`, whose absolute ends are rounded toward the nominal. Render the ends from `proven_interval`, not from `absolute` of the offsets.
-- **What a replay costs** is in `range.rs`'s module docs and on `work/scalar/a-replay-that-nearly-certifies-costs-fifty-times-one-that-stops-early`: seconds while the interval is wide, 20 s to 2 min near a width that certifies. The first proof on the plate arrives after about 47 replays from a seed of `±1e-6`, and later from the chosen one.
+- **What a replay costs** is in `range.rs`'s module docs and on `work/certread/a-replay-that-nearly-certifies-costs-fifty-times-one-that-stops-early`: seconds while the interval is wide, 20 s to 2 min near a width that certifies. The first proof on the plate arrives after about 47 replays from a seed of `±1e-6`, and later from the chosen one.
 - `crates/viewer/tests/docm9_range_vs_probe.rs` and `viewer::bounds`'s module docs were kept compiling and true on the new answer type, nothing more.

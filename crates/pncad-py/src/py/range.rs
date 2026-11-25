@@ -96,7 +96,7 @@ fn range_err(py: Python<'_>, refusal: &a::RangeRefusal) -> PyErr {
         | R::Drive(_) => None,
     };
     let param = match refusal {
-        R::NotAContinuousParam { param } => text(&param.to_string()),
+        R::NotAContinuousParam { param } => text(&d::var_text(param)),
         R::SeedNotABracket { .. }
         | R::UnknownNode { .. }
         | R::UnknownSlot { .. }
@@ -140,7 +140,7 @@ fn range_err(py: Python<'_>, refusal: &a::RangeRefusal) -> PyErr {
     let cause = match refusal {
         R::Derivation(edit) => text(&edit.to_string()),
         R::Drive(drive) => match &**drive {
-            a::DriveRefusal::WitnessDoesNotBuild { cause, .. } => text(cause),
+            a::DriveRefusal::WitnessDoesNotBuild { cause, .. } => text(&cause.to_string()),
             a::DriveRefusal::NothingVaries | a::DriveRefusal::Stopped(_) => py.None(),
         },
         R::SeedNotABracket { .. }

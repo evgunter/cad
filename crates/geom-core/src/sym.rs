@@ -680,8 +680,8 @@
 //! build — the argument this section already makes for two occurrences
 //! of a node inside one leaf, applied across leaves. `DriveMemo`'s own
 //! header carries the argument whole, the one premise that is not a
-//! content hash (an `Opaque` id is a per-leaf SEQUENCE number, pinned
-//! by execution), and the lock discipline.
+//! content hash (an `Opaque` id is the name it was minted under,
+//! [`mint`]), and the lock discipline.
 //!
 //! Distinct expressions colliding on a 128-bit content hash would be a
 //! soundness break; this is the standard hash-consing assumption and it
@@ -742,29 +742,22 @@
 //! the M10-3 slab and the two-hole plate at their nominals; the rows
 //! are `editor-core/tests/m10_sym_profile_interval`, the tables and
 //! the re-run method
-//! `work/sym/symbolic-tier-costs-95-percent-of-the-m10-3-drive`.
+//! `work/tier/symbolic-tier-costs-95-percent-of-the-m10-3-drive`.
 //!
-//! **Who asks for the forms.** The `Decide` impl has three callers of
+//! **Who asks for the forms.** The `Decide` impl has two callers of
 //! the walks and only one is the tier deciding: its DECISION path asks
-//! a form only where the numeric channel cannot answer; the
-//! contradiction CHECK runs the discharge on every DEFINITE margin —
-//! at an EXACT witness wherever debug assertions are on (dev, test,
-//! and this workspace's release profile, so every profile measured
-//! here and only the published build not), and at an INEXACT one in
-//! every profile, because there it is a receipt column and not an
-//! assertion ([`SymCounts::theorems_disputed`]); and the shape report,
-//! when installed, renders
-//! blocked residuals through the walks. On the slab at its nominal the
-//! decision path builds 9,686 plain forms in 980 calls and 36 early
-//! forms in 16; the assertion builds 918 plain and 1,958 early forms
-//! in 510 calls each — a tenth of the plain walk's forms and 95 % of
-//! the early walk's, so the slab's `reduce_steps` count (1,994 calls)
-//! is the assertion's. Over the chamber drive it is 1.57 M of 19.1 M
-//! plain forms and 3.18 M of 3.35 M early forms, 43 s of 162 s in
-//! the walks. On the plate at its nominal the assertion freezes 488 of
-//! 1,312 (360 of the plain walk's 1,044 `frozen`), the decision path
-//! 824. The plain walk's freezes are the drive's frozen SET whoever
-//! asked for them ([`SymCounts::frozen`]).
+//! a form only where the numeric channel cannot answer, and the shape
+//! report, when installed, renders blocked residuals through the walks.
+//! A definite numeric sign asks the tier nothing; the test instrument
+//! (`sym::contradiction`) walks the margins a build decided definite,
+//! after the build, and no shipped build contains it. The instruction
+//! and form counts below are an UPPER bound on the tier's cost: each
+//! includes a walk of every definite margin (918 plain and 1,958 early
+//! forms on the slab's nominal, 1.57 M of the chamber drive's 19.1 M
+//! plain forms), which no build pays
+//! (`work/tier/symbolic-tier-costs-95-percent-of-the-m10-3-drive` owes
+//! the re-take). The plain walk's freezes are the drive's frozen SET
+//! whoever asked for them ([`SymCounts::frozen`]).
 //!
 //! **The tier's instructions are TERM STORAGE, then the walk itself;
 //! arithmetic is second on the plate and degree is nowhere on the
@@ -1019,7 +1012,7 @@
 //! session's DAG cannot manufacture a theorem that a fully-recorded replay
 //! would not also reach.
 
-use core::cell::{Cell, RefCell};
+use core::cell::RefCell;
 use core::ops::{Add, Div, Mul, Neg, Sub};
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -1033,6 +1026,10 @@ use crate::tolerance::Tol;
 /// The atom algebra: the rule A/B reductions over a residual.
 #[path = "sym/algebra.rs"]
 mod algebra;
+/// The test instrument that checks the tier's algebra and the registry
+/// against the definite signs a build decided (test-only).
+#[cfg(feature = "sym-revalue-testing")]
+pub mod contradiction;
 /// The deferring session: decisions taken numerically, the Zeros a
 /// reader asks about discharged afterwards.
 #[path = "sym/deferred.rs"]
@@ -1050,8 +1047,16 @@ mod manifest;
 /// outlives a leaf, and the argument that lets it.
 #[path = "sym/memo.rs"]
 pub mod memo;
+/// The name a value with no expression is minted under: the scope open
+/// on the minting thread and the value's ordinal there.
+#[path = "sym/mint.rs"]
+pub mod mint;
 #[cfg(feature = "sym-profile-testing")]
 pub mod profile;
+/// The structural question: whether an expression is zero as a function
+/// of the document's variables, asked of the expression.
+#[path = "sym/question.rs"]
+mod question;
 /// Rule E: the quotient's common factor — the shared monomial divided
 /// out, and a constant ratio folded to its constant.
 #[path = "sym/quotient.rs"]
@@ -1090,6 +1095,7 @@ mod turn;
 
 use form::{Form, Poly, powi_form, within};
 pub use memo::{DriveMemo, MemoSize};
+pub use mint::{MintGuard, MintScope};
 use rational::Rat;
 
 // ---------------------------------------------------------------- ids
@@ -1194,9 +1200,10 @@ impl ParamSymbol {
 enum SymOp {
     Param,
     /// **One untracked real**, minted by [`Sym::opaque`]: a value whose
-    /// expression this session did not build, carrying a per-session
-    /// sequence number in its payload so that each such value is its
-    /// OWN unknown. Never keyed by the value's bits — two intervals
+    /// expression this session did not build, carrying the name it was
+    /// minted under ([`mint`]: its scope and its ordinal there) so that
+    /// each such value is its OWN unknown. Never keyed by the value's
+    /// bits — two intervals
     /// that happen to be equal are still two different reals, and
     /// keying by bits would re-introduce the false theorem this op
     /// exists to prevent.
@@ -1357,18 +1364,22 @@ impl SymNode {
         &self.kids[..self.op.arity()]
     }
 
-    /// The free indeterminate this node's form IS, where it is one —
-    /// a parameter, an opaque value, a limb identity's free parameter
-    /// ([`SymOp::Free`]) or a hull — and `None` for every
-    /// other op, whose form is built from its children's.
-    fn free_indet(&self) -> Option<u128> {
-        match self.op {
-            SymOp::Param => Some(indet_param(self.payload)),
-            SymOp::Opaque => Some(indet_opaque(self.payload)),
-            SymOp::Free => Some(INDET_FREE),
-            SymOp::Hull => Some(indet_hull(self.kids[0], self.kids[1])),
-            _ => None,
+    /// An opaque value's node: its ordinal in the payload and its mint
+    /// scope's name in the first child slot. The slot holds no node:
+    /// the op's arity is zero, so [`Self::kids`], which is what a walk
+    /// of a node's children reads, is empty, and a reader of the raw
+    /// slots reads them by an op that has children.
+    fn opaque(scope: u128, ordinal: u64) -> Self {
+        SymNode {
+            op: SymOp::Opaque,
+            payload: ordinal,
+            kids: [SymId(scope), SymId::UNRECORDED, SymId::UNRECORDED],
         }
+    }
+
+    /// The indeterminate an [`SymOp::Opaque`] node is.
+    fn opaque_indet(&self) -> u128 {
+        indet_opaque(self.kids[0].0, self.payload)
     }
 
     fn id(&self) -> SymId {
@@ -1457,110 +1468,6 @@ pub struct SymCounts {
     /// (`editor-core/tests/m10_9_pins_interval.rs`,
     /// `m10_9_no_registrant_lies_on_any_measured_document`).
     pub registrations_refused: u64,
-    /// **Decisions where a zero that rests on a registration met a
-    /// DEFINITE numeric sign** — the door form is zero and the tier's
-    /// algebra without the registry does not prove it ([`door_zero`]),
-    /// so the axiom is what the numeric channel denies over this box.
-    /// The numeric answer is returned (never the fold), and this column
-    /// is how the run says so.
-    ///
-    /// It is not a K token: the sample the funnel records is the
-    /// numeric channel's own `Definite(sign)`, a classified margin
-    /// like any other, so the K vocabulary needs nothing new. What is
-    /// new is the RECEIPT's statement that a stated identity was
-    /// contradicted.
-    ///
-    /// **It does NOT count [`SymRegistration::Contradicted`]**, despite
-    /// the shared word: that arm is the door REFUSING a registration at
-    /// the moment it is stated, and it lands in
-    /// [`SymCounts::registrations_refused`] with every other refusal.
-    /// This column is about a registration the door ACCEPTED, later
-    /// contradicted by the numeric channel at a decide site — two
-    /// different events, one of which happens after the other could
-    /// not.
-    pub registrations_contradicted: u64,
-    /// **Decisions where the form claimed ZERO under a DEFINITE numeric
-    /// sign at an INEXACT witness** — the two channels in contradiction
-    /// at a scalar whose value channel is one rounded number
-    /// ([`crate::Witness::Inexact`]). Those scalars are exactly `f64`,
-    /// [`crate::Probe`], and `Dual<T>` and `Sym<T>` over either of
-    /// them; every other lane scalar in the tree is
-    /// [`crate::Interval`]-backed and exact. The numeric answer is
-    /// returned, the form's answer is not, and this column is how the
-    /// run says the two disagreed.
-    ///
-    /// **No decision is charged HERE and in
-    /// [`SymCounts::registrations_contradicted`] at once**: this column
-    /// counts a zero the tier's algebra proves without the registry,
-    /// and that one a zero only the registry reaches ([`door_zero`]).
-    ///
-    /// **It is zero at [`crate::Interval`] by construction, and not by
-    /// measurement**: there the witness is EXACT, a definite non-zero
-    /// sign is a certified bracket that excludes zero, and the
-    /// contradiction is a soundness defect in one of the two channels
-    /// — asserted, never counted ([`Decide::sign_within`]). So a
-    /// non-zero count here is always an inexact lane's, which is the
-    /// unit-test lane and not a shipped one.
-    ///
-    /// **A refusal column, beside
-    /// [`SymCounts::registrations_contradicted`], and NOT a discharge
-    /// kind**: no decision lands here instead of in `numeric` — the
-    /// decision is counted `numeric` as it always was, and this column
-    /// is a second fact about it. It is not a K token either: the
-    /// sample the funnel records is the numeric channel's own
-    /// `Definite(sign)`, a classified margin like any other, so the K
-    /// vocabulary needs nothing new.
-    ///
-    /// **A dispute names no predicate on the receipt**, which is a
-    /// disclosed gap rather than a property: a reader sees that some
-    /// decision disputed and cannot see which
-    /// (`work/sym/a-dispute-names-no-predicate-on-the-receipt`).
-    ///
-    /// What a non-zero count means is that the form is a theorem of
-    /// the reals which this channel's arithmetic cannot see — a far
-    /// placement whose rounding exceeds the band, rule F's
-    /// amplification of a one-ulp sign error into a whole `2.0`, or a
-    /// pole the point channel has no clause 1 to refuse. It is NOT
-    /// evidence against the form: the rows that measure both
-    /// mechanisms (`geom-core/tests/sym11_witness_kind_rows.rs`,
-    /// `sweep/tests/sym11_far_placement_rows.rs`) drive the same
-    /// residuals at `Sym<Interval>`, where every one of them is a
-    /// plain theorem.
-    pub theorems_disputed: u64,
-    /// **Contradiction checks that saw the whole of a form** — the
-    /// checks a zero in `theorems_disputed` speaks for.
-    ///
-    /// The contradiction check (both witness kinds, [`Decide::sign_within`])
-    /// can only find a theorem the form can represent. A form that
-    /// carries an unknown standing for structure it could not build is
-    /// zero only where that unknown cancels against itself, so as such
-    /// unknowns spread a check stops being able to dispute anything, and
-    /// `theorems_disputed == 0` reads the same over a run that checked
-    /// everything and one that checked nothing. These two columns split
-    /// the checks so a reader can tell those runs apart.
-    ///
-    /// A check lands HERE when its plain form, or its early form where
-    /// the session runs the early walk, is not poisoned and reaches,
-    /// through any atom's arguments, only FREE indeterminates: π and
-    /// the parameters, opaque values and hulls of nodes this session
-    /// recorded. Every other indeterminate charges the check to
-    /// [`SymCounts::checks_frozen`]: a node the walk froze on its
-    /// budget, and a node minted OUTSIDE the session, which the walk
-    /// can only freeze. The second is the class to watch: any caller
-    /// that builds `Sym` values before installing a session and decides
-    /// on them in it reads its checks frozen, because over those nodes
-    /// they are. The classification is conservative in one more place:
-    /// an atom a rule-B reduction names without minting reads as an
-    /// unknown.
-    ///
-    /// A check is counted only where it ran — inside a session with a
-    /// non-zero budget — so at an exact witness with debug assertions
-    /// off both columns read 0.
-    pub checks_expanded: u64,
-    /// **Contradiction checks that saw no form whole** — every form
-    /// they read was poisoned or carried an unknown the session could
-    /// not see into. [`SymCounts::checks_expanded`] argues the split.
-    pub checks_frozen: u64,
     /// Decisions handed to the numeric channel.
     pub numeric: u64,
     /// **Decisions closed by a RETRY** ([`SymRetry`]) — the first
@@ -1649,10 +1556,6 @@ impl SymCounts {
     pub fn absorb(&mut self, other: Self) {
         self.symbolic += other.symbolic;
         self.registrations_refused += other.registrations_refused;
-        self.registrations_contradicted += other.registrations_contradicted;
-        self.theorems_disputed += other.theorems_disputed;
-        self.checks_expanded += other.checks_expanded;
-        self.checks_frozen += other.checks_frozen;
         self.numeric += other.numeric;
         self.retried += other.retried;
     }
@@ -2531,24 +2434,29 @@ struct Session {
     /// **The DOOR-reduced forms** ([`SymRules::registered`]): the early
     /// walk again, this time with the session's registry applied — a
     /// THIRD memo, beside the plain one and the early one, so the early
-    /// memo stays free of the registry. That buys two things: a
-    /// decision the early form answers never pays for the registry, and
-    /// [`door_zero`] can tell a zero that RESTS on a registration (the
-    /// registry-free rungs decline it) from one that merely touched a
-    /// registered node — the line `registrations_contradicted` counts
-    /// on. Measured, that line matters: on R2's pad at its nominal a
-    /// sticky-flag attribution (one memo, the registry in it) charged
-    /// the registry 40 of 368 zeros that A0 had already proved.
+    /// memo stays free of the registry: a decision the early form
+    /// answers never pays for the registry, and a zero that RESTS on a
+    /// registration (the registry-free rungs decline it) is told from
+    /// one that merely touched a registered node. Measured, that line
+    /// matters: on R2's pad at its nominal a sticky-flag attribution
+    /// (one memo, the registry in it) charged the registry 40 of 368
+    /// zeros that A0 had already proved.
     ///
-    /// Built lazily like the others, and never at all while the
-    /// registry is empty — so a document with no registrants (all of
-    /// straight geometry) pays nothing and serializes M10-8's bytes.
+    /// Built lazily like the others, by a decision the registry-free
+    /// rungs decline (and by the test instrument, after a build), and
+    /// never at all while the registry is empty — so a document with no
+    /// registrants (all of straight geometry) pays nothing and
+    /// serializes M10-8's bytes.
     forms_door: IdMap<Arc<Form>>,
     /// The `f64` bracket of each document parameter this leaf was
     /// evaluated over, by the parameter's indeterminate id — recorded
     /// by [`Sym::param_over`] and read by the decision read
     /// ([`signed`]) alone.
     params: IndetMap<(f64, f64)>,
+    /// The count each closed mint scope stopped at, by the scope's
+    /// name, so a scope opened again in this session mints on from
+    /// there and no name is minted twice ([`mint`]).
+    mints: IndetMap<u64>,
     /// **The witness kind of the scalar this session decides at**
     /// ([`crate::Witness`]), noted by the first decision and the same at
     /// every later one. The decision read takes an arm only at an EXACT
@@ -2560,14 +2468,6 @@ struct Session {
     witness: Option<crate::real::Witness>,
     /// Every opaque atom minted so far, by its indeterminate id.
     atoms: IndetMap<AtomInfo>,
-    /// **The free indeterminates this session's table names** — the
-    /// key of each `Param`, `Opaque`, `Free` and `Hull` node it recorded,
-    /// written as the node is interned. Every other non-atom
-    /// indeterminate a form carries is an unknown the session cannot
-    /// see into: a node the walk froze, or one minted outside the
-    /// session ([`SymCounts::checks_expanded`]). π is free everywhere
-    /// and is not kept here ([`names_free`]).
-    free: IndetMap<()>,
     /// **The registered-identity registry** ([`Sym::register_equal`]):
     /// `node -> the node it was registered equal to`, resolved
     /// transitively by [`Session::alias`]. Keyed by content hashes and
@@ -2681,6 +2581,14 @@ struct Session {
     /// against one the ring's guards refused
     /// ([`form::Refusal::Ring`]).
     budget_frozen: IdSet,
+    /// Times the retry ladder's growth guard withheld an attempt (read
+    /// by the contradiction instrument's report).
+    #[cfg(feature = "sym-revalue-testing")]
+    withheld: u64,
+    /// Whether the contradiction instrument has walked this session: a
+    /// decision after it would read the instrument's forms.
+    #[cfg(feature = "sym-revalue-testing")]
+    instrumented: bool,
 }
 
 /// One memoized per-node reduction ([`Session::reductions`]).
@@ -2779,8 +2687,8 @@ impl Session {
             forms_early: IdMap::default(),
             forms_door: IdMap::default(),
             params: IndetMap::default(),
+            mints: IndetMap::default(),
             atoms: IndetMap::default(),
-            free: IndetMap::default(),
             registry: IdMap::default(),
             witness: None,
             trig_closed: IndetMap::default(),
@@ -2799,6 +2707,10 @@ impl Session {
             plain_unpublished: IdSet::default(),
             plain_tainted: IdSet::default(),
             budget_frozen: IdSet::default(),
+            #[cfg(feature = "sym-revalue-testing")]
+            withheld: 0,
+            #[cfg(feature = "sym-revalue-testing")]
+            instrumented: false,
         }
     }
 
@@ -2843,6 +2755,26 @@ impl Session {
                 continue;
             }
             if let Some(node) = self.nodes.get(&id) {
+                stack.extend(node.kids().iter().copied());
+            }
+        }
+        false
+    }
+
+    /// **Whether a node under `from` in this table has an op `hit`
+    /// answers**, unaliased: the one walk the opaque-atom reading and the
+    /// free-identity exception ask.
+    fn reaches_op(&self, from: SymId, mut hit: impl FnMut(SymOp) -> bool) -> bool {
+        let mut seen: IdSet = IdSet::default();
+        let mut stack = vec![from];
+        while let Some(id) = stack.pop() {
+            if seen.insert(id, ()).is_some() {
+                continue;
+            }
+            if let Some(node) = self.nodes.get(&id) {
+                if hit(node.op) {
+                    return true;
+                }
                 stack.extend(node.kids().iter().copied());
             }
         }
@@ -2894,35 +2826,6 @@ pub use crate::real::SymRegistration;
 thread_local! {
     /// The installed session, if any (module docs: no session, no tier).
     static SESSION: RefCell<Option<Session>> = const { RefCell::new(None) };
-
-    /// **How many opaque values this leaf replay has minted** — the
-    /// payload [`Sym::opaque`] stamps into its node, so that each
-    /// untracked real is its own indeterminate.
-    ///
-    /// D9, argued here rather than assumed. A sequence number is only
-    /// deterministic if the order that advances it is; this one is
-    /// advanced by the ORDER A LEAF MINTS ITS OPAQUE VALUES, which is
-    /// the order the evaluation service walks that leaf's recipe — a
-    /// fixed, single-threaded walk per leaf, the same one whose node
-    /// ids D9 already rests on. [`with_session`] resets it around every
-    /// replay, so a leaf's sequence starts at 0 no matter which leaf
-    /// ran before it or on which rayon worker, and two replays of the
-    /// same leaf mint the same ids. The counter never crosses a leaf
-    /// boundary, which is the property that makes it safe: it is
-    /// per-replay state living beside a per-replay table.
-    static OPAQUE_SEQ: Cell<u64> = const { Cell::new(0) };
-}
-
-/// Restores [`OPAQUE_SEQ`] when a [`with_session`] call leaves, by any
-/// path including a panic — the counter is per-replay state, so a
-/// session that unwound without restoring it would hand the next leaf a
-/// sequence starting mid-count and break the D9 claim on `opaque`'s ids.
-struct OpaqueSeqGuard(u64);
-
-impl Drop for OpaqueSeqGuard {
-    fn drop(&mut self) {
-        OPAQUE_SEQ.set(self.0);
-    }
 }
 
 /// Runs `f` with a fresh symbolic session installed on this thread,
@@ -3048,17 +2951,17 @@ fn with_session_in<R>(
     f: impl FnOnce() -> R,
 ) -> (R, SymCounts) {
     let nested = session_installed();
-    // The opaque sequence is per-replay state, restored on the way out
-    // so a nested or sequential call cannot inherit a partial count
-    // (`OPAQUE_SEQ`'s docs carry the D9 argument).
-    let _restore = OpaqueSeqGuard(OPAQUE_SEQ.replace(0));
     // A nested call in a release build runs with the OUTER session,
     // which is sound — ids are content hashes and the table is keyed by
-    // them — and only muddles whose receipt the decisions land in.
+    // them — and only muddles whose receipt the decisions land in. It
+    // keeps the outer session's mint scope too: a root scope reopened
+    // at zero would mint the outer session's names again.
     debug_assert!(!nested, "symbolic sessions do not nest");
     if nested {
         return (f(), SymCounts::default());
     }
+    // The session's root mint scope, counting from zero (`mint`).
+    let _root = mint::SessionRoot::open();
     SESSION.with(|s| {
         *s.borrow_mut() = Some(Session::new(budget, rules, retry, memo));
     });
@@ -3223,11 +3126,10 @@ pub fn session_counts() -> Option<SymCounts> {
 ///   numeric one. A unit on a worker would decide differently from its
 ///   siblings on the caller's thread — the one thing D9 forbids
 ///   outright.
-/// - **The receipt is written in place.** `count_decision` and
-///   `count_registration_contradicted` mutate the installed session's
-///   [`SymCounts`], and [`Sym::opaque`] advances the per-replay
-///   `OPAQUE_SEQ` counter — a sequence whose determinism rests on the
-///   minting ORDER being a fixed single-threaded walk. Neither is a
+/// - **The receipt is written in place.** `count_decision` mutates
+///   the installed session's [`SymCounts`], and [`Sym::opaque`] advances
+///   the count of the mint scope open on its thread ([`mint`]), which a
+///   session keeps while the scope is closed. Neither is a
 ///   value handed back, so neither can be spliced. (Node ids are NOT in
 ///   this list: `intern` is a content hash of the node, so the DAG a
 ///   replay builds is the same whatever order it is built in.)
@@ -3319,9 +3221,6 @@ fn intern(node: SymNode) -> SymId {
             // not of the build.
             if let std::collections::hash_map::Entry::Vacant(e) = sess.nodes.entry(id) {
                 e.insert(node);
-                if let Some(key) = node.free_indet() {
-                    sess.free.insert(key, ());
-                }
                 if sess.memo.is_some() {
                     for kid in node.kids() {
                         if !sess.nodes.contains_key(kid) {
@@ -3341,13 +3240,14 @@ fn intern(node: SymNode) -> SymId {
 /// cancels while nothing reads a value of π anywhere.
 const INDET_PI: u128 = 0x5049_5f49_4e44_4554_5f5f_5f5f_5f5f_5f5f;
 
-/// The indeterminate ONE OPAQUE VALUE enters the form as, keyed by its
-/// per-replay sequence number — a different key per call, which is what
-/// makes two untracked reals two unknowns rather than one.
-fn indet_opaque(seq: u64) -> u128 {
+/// The indeterminate ONE OPAQUE VALUE enters the form as, keyed by the
+/// name it was minted under ([`mint`]): its scope and its ordinal
+/// there, which no other mint a form can meet shares.
+fn indet_opaque(scope: u128, ordinal: u64) -> u128 {
     Hash128::new()
         .word(0x4f50_4151_5545_5f5f)
-        .word(seq)
+        .wide(scope)
+        .word(ordinal)
         .finish()
 }
 
@@ -3539,9 +3439,9 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
         // A limb identity's free parameter: one indeterminate, with no
         // bracket (`SymOp::Free`'s docs).
         SymOp::Free => Some(Form::poly(Poly::indet(INDET_FREE))),
-        // One untracked real: its OWN indeterminate, keyed by the
-        // sequence number the node carries (`SymOp::Opaque`'s docs).
-        SymOp::Opaque => Some(Form::poly(Poly::indet(indet_opaque(node.payload)))),
+        // One untracked real: its OWN indeterminate, keyed by the name
+        // the node carries (`SymOp::Opaque`'s docs).
+        SymOp::Opaque => Some(Form::poly(Poly::indet(node.opaque_indet()))),
         SymOp::Lit => {
             Rat::of_f64(f64::from_bits(node.payload)).map(|c| Form::poly(Poly::constant(c)))
         }
@@ -4085,17 +3985,12 @@ fn form_in(
             };
             // **Rule E**, after the per-node A/B reduction and before
             // the budget check. AFTER is the order that lets the rule
-            // ACT, and the walk ledger
-            // (`editor-core/tests/m10_sym_profile_interval`) is what
-            // pins it: planted BEFORE the reduction, that ledger reds
-            // in four lines — the slab's `Early/Assertion` digest, and
-            // on the plate `Early/Decision` frozen 8 → 48 with its
-            // digest, `Early/Assertion`'s digest and `Door/Decision`'s
-            // — with the largest form the walk builds falling
-            // 288 → 90, the plate's early-decision walk back where it
-            // was before the rule. So under the other order the rule
-            // does almost nothing there: this is a REACH requirement
-            // and not only a convention. It is also the order
+            // act on what the reduction leaves, and the walk ledger
+            // (`editor-core/tests/m10_sym_profile_interval`) pins it:
+            // planted BEFORE the reduction, the plate's
+            // `Early/Decision` digest reds (the same 308 calls build the
+            // same 24,376 forms, none frozen, with other contents) and
+            // the slab's lines hold. It is also the order
             // `trig::sqrt_atom` applies to a form it builds by hand,
             // which is what makes the two spellings of one arc key one
             // atom.
@@ -4305,16 +4200,6 @@ fn early_form(sess: &mut Session, root: SymId) -> Arc<Form> {
     walk(sess, root, WalkKind::Early, 0, first)
 }
 
-/// The DOOR form of `root` — [`early_form`]'s walk with the session's
-/// registry applied ([`Sym::register_equal`]), memoized in its own
-/// third table. Asked only after the plain and the early forms have
-/// both declined, so a zero it finds is one the registration was
-/// needed for.
-fn door_form(sess: &mut Session, root: SymId) -> Arc<Form> {
-    let first = (sess.rules, rational::COEFF_BITS);
-    walk(sess, root, WalkKind::Door, 0, first)
-}
-
 /// The three normal-form walks.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum WalkKind {
@@ -4424,7 +4309,7 @@ fn walk(
     // **The first attempt swaps nothing and scopes nothing**: it runs
     // under the session's own rules at the ring's own bound, which is
     // what every caller hands it (`plain_form`, `early_form`,
-    // `door_form`, `rungs` at attempt 0). Only a retry swaps the rules
+    // `rungs` at attempt 0). Only a retry swaps the rules
     // in and widens the ring; the scope below still restores the memo
     // on every attempt.
     let first = attempt == 0;
@@ -4482,19 +4367,20 @@ fn walk(
 /// Every rung answers the same claim; the order is cost and reach
 /// ([`rungs`]). Recorded per decision by the cost profile
 /// (`profile::DecisionRecord`) so that "where the refusals are" is a
-/// count and not a reading of the code. **Nameable outside this crate
-/// only under `sym-profile-testing`**, the test-only feature the cost
-/// profile lives behind: no shipped build can read which rung answered,
-/// and no decision type carries it.
-#[cfg(feature = "sym-profile-testing")]
+/// count and not a reading of the code, and named by the test
+/// instrument's report (`sym::contradiction`, test-only). **Nameable outside this
+/// crate only under `sym-profile-testing` or `sym-revalue-testing`**,
+/// the test-only features those two live behind: no shipped build can
+/// read which rung answered, and no decision type carries it.
+#[cfg(any(feature = "sym-profile-testing", feature = "sym-revalue-testing"))]
 pub use rung::Rung;
-#[cfg(not(feature = "sym-profile-testing"))]
+#[cfg(not(any(feature = "sym-profile-testing", feature = "sym-revalue-testing")))]
 use rung::Rung;
 
 mod rung {
     /// See the re-export's docs.
     #[cfg_attr(
-        not(feature = "sym-profile-testing"),
+        not(any(feature = "sym-profile-testing", feature = "sym-revalue-testing")),
         expect(
             unreachable_pub,
             reason = "re-exported `pub` only under the profile's feature"
@@ -4515,42 +4401,62 @@ mod rung {
     }
 }
 
-/// **The identity test, as the contradiction check asks it**: does the
-/// tier's own algebra prove this node's expression zero — the plain
-/// form, then the first attempt's early and top rungs?
+/// **The identity test whose `Zero` leaves the tier**, and the check on
+/// it: the rung and the attempt that proved `id` zero, every rung asked
+/// and the RETRY LADDER offered ([`SymRetry`]). Every proven `Zero` the
+/// tier hands out passes here: a decision's ([`Decide::sign_within`])
+/// and a deferring session's reader's (`deferred::discharge`), so the
+/// check below is on each of them.
 ///
-/// The registered-identity door is not asked. A zero only the registry
-/// reaches, under a definite numeric sign, is an axiom the box denies,
-/// which the door counts on its own ([`door_zero`],
-/// [`SymCounts::registrations_contradicted`]); a zero the algebra
-/// proves under one is a contradiction between two channels, which is
-/// what this asks. Each rung is memoized per session, so a decision
-/// pays the walk it needs once.
+/// **At an exact witness the zero lies in `enclosure`**, the certified
+/// enclosure of the margin's number (`Decide::enclosure_probe`, read
+/// where the decision was taken). The number is the interval evaluation
+/// of the DAG the form was taken from, op by op, outward-rounded. A form
+/// that is zero makes that DAG's value 0 at every admissible point of the
+/// box, and every leaf (`Param`, `Opaque`, `Hull`, `Lit`) stands for a
+/// point of its own interval, so by inclusion isotonicity the enclosure
+/// holds 0. The decision read ([`signed`]) takes an arm only on a
+/// certified one-sided enclosure over the parameter brackets, which is
+/// the arm the value channel's own `min` / `max` / `select` contains. An
+/// enclosure that excludes 0 is then an algebra, enclosure or registrant
+/// defect (DESIGN [failure.taxonomy] row 5). Every exact witness reads an
+/// enclosure (`Interval`, and `Dual<Interval>` through its value), so a
+/// missing one is a defect too. At an inexact witness the number is one
+/// rounded reading and there is nothing to check.
 ///
-/// `false` outside a session, and at a zero-term budget — the tier
-/// switched off inside the scalar.
-fn discharge(id: SymId) -> bool {
-    discharge_in(id, Path::Contradiction).is_some()
-}
-
-/// **The identity test on the decision path**: whether the tier proves
-/// this node's expression zero, every rung asked and the RETRY LADDER
-/// offered ([`SymRetry`]), and the ATTEMPT that answered — `0` for the
-/// first, `k` for the `k`th rung of the ladder.
-///
-/// **The only spelling that retries.** The contradiction assertion on a
-/// definite margin runs [`discharge`] instead — the first attempt alone
-/// — and the reason is cost: that assertion asks a form of EVERY
-/// definite margin, which is 95 % of the early walk's forms on the
-/// M10-3 slab (`# Cost`), and almost all of them refuse, so a ladder
-/// there would be the ladder times the whole population instead of
-/// times the refusals the decision path actually has. What stands
-/// behind a retry's zero is therefore the soundness argument each
-/// attempt makes on its own terms ([`SymRetry`]), not a cross-check
-/// against the numeric channel; the cross-check is taken at the first
-/// attempt, where it always was.
-fn discharge_retried(id: SymId) -> Option<u8> {
-    discharge_in(id, Path::Decision)
+/// **The one exception is a margin whose number is a measured bound**:
+/// [`Decide::free_identity`]'s. It is recognised on the failing path only,
+/// by a [`SymOp::Free`] in the node's DAG, which is the door's mark and
+/// not an exact one: a margin built FROM a free identity's result (the
+/// identity plus another term) is exempt too, and an identity whose
+/// closure never calls `free` is not. Neither is reached by the door's one
+/// caller (`geom_brep::edge_nurbs::limb2_enclosure_as`, which decides the
+/// door's margin as returned and always mints the variable); both are
+/// pinned (`sym_contradiction_instrument_rows`).
+fn discharge_checked(id: SymId, enclosure: Option<(f64, f64)>) -> Option<(Rung, u8)> {
+    let (rung, attempt) = discharge_in(id, Path::Decision)?;
+    let exact = SESSION.with(|s| {
+        s.borrow()
+            .as_ref()
+            .is_some_and(|s| s.witness == Some(crate::Witness::Exact))
+    });
+    if exact {
+        debug_assert!(
+            enclosure.is_some(),
+            "`{}`: the symbolic tier proved this margin zero at the {rung:?} rung (attempt \
+             {attempt}) at an exact witness that reads no enclosure",
+            crate::k_stats::current_predicate(),
+        );
+        if let Some((lo, hi)) = enclosure {
+            debug_assert!(
+                (lo <= 0.0 && 0.0 <= hi) || reaches(id, |op| op == SymOp::Free),
+                "`{}`: the symbolic tier proved this margin zero at the {rung:?} rung \
+                 (attempt {attempt}) and its certified enclosure [{lo:e}, {hi:e}] excludes 0",
+                crate::k_stats::current_predicate(),
+            );
+        }
+    }
+    Some((rung, attempt))
 }
 
 /// **Which question the identity test answers**, and so which rungs it
@@ -4559,13 +4465,24 @@ fn discharge_retried(id: SymId) -> Option<u8> {
 enum Path {
     /// Whether the tier proves the margin zero, to DECIDE it: every
     /// rung, the registered-identity door last, and the retry ladder
-    /// into the first attempt's silence ([`discharge_retried`]).
+    /// into the first attempt's silence.
     Decision,
-    /// Whether the tier's own algebra proves the margin zero, to CHECK
-    /// a definite numeric sign against it: the first attempt alone and
-    /// no door, because a registered zero under a definite sign is the
-    /// door's own event ([`discharge`], [`door_zero`]).
-    Contradiction,
+    /// Whether the tier's own algebra proves the margin zero, for the
+    /// test instrument that checks it against a definite numeric sign
+    /// (`sym::contradiction`, test-only): every attempt, and no door, because a
+    /// registered zero under a definite sign is the instrument's own
+    /// event.
+    #[cfg(feature = "sym-revalue-testing")]
+    Algebra,
+}
+
+/// [`Session::reaches_op`] in the installed session; `false` outside one.
+fn reaches(id: SymId, hit: impl FnMut(SymOp) -> bool) -> bool {
+    SESSION.with(|s| {
+        s.borrow()
+            .as_ref()
+            .is_some_and(|sess| sess.reaches_op(id, hit))
+    })
 }
 
 /// **Whether the early form of `id` keeps an opaque value**
@@ -4585,27 +4502,13 @@ fn keeps_an_opaque_atom(id: SymId) -> Option<bool> {
             .nodes
             .values()
             .filter(|n| n.op == SymOp::Opaque)
-            .map(|n| indet_opaque(n.payload))
+            .map(SymNode::opaque_indet)
             .collect();
         if opaque.is_empty() {
             return Some(false);
         }
-        let reaches_opaque = |sess: &Session, from: SymId| {
-            let mut stack = vec![from];
-            let mut seen = std::collections::HashSet::new();
-            while let Some(at) = stack.pop() {
-                let Some(node) = sess.nodes.get(&at) else {
-                    continue;
-                };
-                if node.op == SymOp::Opaque {
-                    return true;
-                }
-                if seen.insert(at) {
-                    stack.extend(node.kids().iter().copied());
-                }
-            }
-            false
-        };
+        let reaches_opaque =
+            |sess: &Session, from: SymId| sess.reaches_op(from, |op| op == SymOp::Opaque);
         let early = early_form(sess, id);
         if early.poisoned {
             return Some(reaches_opaque(sess, id));
@@ -4665,16 +4568,9 @@ fn any_indet(sess: &Session, form: &Form, mut hit: impl FnMut(u128) -> bool) -> 
     false
 }
 
-/// **Whether `x` is a free indeterminate this session can name** — π,
-/// or the key of a `Param`, `Opaque`, `Free` or `Hull` node in its table
-/// ([`Session::free`]). An indeterminate that is neither this nor an
-/// atom stands for structure the session cannot see.
-fn names_free(sess: &Session, x: u128) -> bool {
-    x == INDET_PI || sess.free.contains_key(&x)
-}
-
-/// The identity test along `path`, inside the installed session.
-fn discharge_in(id: SymId, path: Path) -> Option<u8> {
+/// The identity test along `path`, inside the installed session: the
+/// rung and the attempt that proved `id` zero.
+fn discharge_in(id: SymId, path: Path) -> Option<(Rung, u8)> {
     SESSION.with(|s| {
         let mut slot = s.borrow_mut();
         let sess = slot.as_mut()?;
@@ -4686,13 +4582,14 @@ fn discharge_in(id: SymId, path: Path) -> Option<u8> {
         let out = ladder(sess, id, path);
         #[cfg(feature = "sym-profile-testing")]
         profile::decision_end(mark, out);
-        out.map(|(_, attempt)| attempt)
+        out
     })
 }
 
 /// **The ladder**: the plain rung once, then the rungs of the first
-/// attempt, then — only into their silence, and on the decision path
-/// only — each retry's rungs in [`SymRetry::attempts`]'s order.
+/// attempt, then — only into their silence — each retry's rungs in
+/// [`SymRetry::attempts`]'s order. Both paths climb it; the door rung is
+/// the decision path's alone ([`rungs`]).
 fn ladder(sess: &mut Session, id: SymId, path: Path) -> Option<(Rung, u8)> {
     // **THE PLAIN RUNG, and the first attempt's alone.** No attempt
     // above the first builds a plain form ([`SymRetry`]).
@@ -4703,9 +4600,6 @@ fn ladder(sess: &mut Session, id: SymId, path: Path) -> Option<(Rung, u8)> {
     let first = (sess.rules, rational::COEFF_BITS);
     if let Some(rung) = rungs(sess, id, &plain, 0, first, path) {
         return Some((rung, 0));
-    }
-    if path == Path::Contradiction {
-        return None;
     }
     for (attempt, rules, bits) in sess.retry.attempts(sess.rules) {
         // **The GROWTH GUARD** (`SymRetry::max_forms`), checked BEFORE
@@ -4718,6 +4612,10 @@ fn ladder(sess: &mut Session, id: SymId, path: Path) -> Option<(Rung, u8)> {
             .get(k)
             .is_some_and(|m| m.len() >= sess.retry.max_forms)
         {
+            #[cfg(feature = "sym-revalue-testing")]
+            {
+                sess.withheld += 1;
+            }
             continue;
         }
         if let Some(rung) = rungs(sess, id, &plain, attempt, (rules, bits), path) {
@@ -4775,115 +4673,11 @@ fn rungs(
     None
 }
 
-/// **Does this node's zero rest on a registration** — the DOOR form
-/// is the zero form, and the tier's own algebra, without the registry,
-/// does not prove it ([`Path::Contradiction`])?
-///
-/// The one question a decision the numeric channel has already proved
-/// NON-ZERO still has to ask about the registry (`Decide for Sym<T>`).
-/// A zero the algebra proves under a definite numeric sign is a
-/// contradiction between two channels that read no axioms
-/// ([`contradicts`]). A zero that needs the registry under a definite
-/// sign is a different animal: the axiom a constructor stated is false
-/// over this box. It is checked in release, counted
-/// ([`SymCounts::registrations_contradicted`]), and never folded. The
-/// two questions are disjoint, so one decision is charged to one of
-/// them.
-///
-/// Answers `false` immediately when the registry is empty, which is
-/// every document with no arc in it and therefore most of the corpus:
-/// the cost of the check is paid only where a registration exists to be
-/// wrong.
-fn door_zero(id: SymId) -> bool {
-    SESSION.with(|s| {
-        let mut slot = s.borrow_mut();
-        let Some(sess) = slot.as_mut() else {
-            return false;
-        };
-        if sess.budget.max_terms == 0
-            || !(sess.rules.registered && sess.rules.early)
-            || sess.registry.is_empty()
-        {
-            return false;
-        }
-        door_form(sess, id).is_zero() && ladder(sess, id, Path::Contradiction).is_none()
-    })
-}
-
 /// Records a registration the door refused, for the session's receipt.
 fn count_registration_refused() {
     SESSION.with(|s| {
         if let Some(sess) = s.borrow_mut().as_mut() {
             sess.counts.registrations_refused += 1;
-        }
-    });
-}
-
-/// Records a decision whose REGISTERED zero contradicted a definite
-/// numeric sign.
-fn count_registration_contradicted() {
-    SESSION.with(|s| {
-        if let Some(sess) = s.borrow_mut().as_mut() {
-            sess.counts.registrations_contradicted += 1;
-        }
-    });
-}
-
-/// **Does this node's form claim zero where the value channel answered
-/// a definite non-zero sign?** — the theorem-vs-numeric contradiction,
-/// as ONE predicate, so the two arms of
-/// [`Decide::sign_within`]'s charge cannot come to differ on what a
-/// contradiction is.
-///
-/// It asks the tier's own algebra ([`discharge`]): over THIS box — the
-/// one the value channel just classified — a zero it proves says the
-/// margin is zero where the value channel says it is not. A registered
-/// zero contradicted by a definite sign is the door's own event and is
-/// counted at the door ([`SymCounts::registrations_contradicted`],
-/// raised just above this call), so the door is not asked here.
-///
-/// It RUNS THE WALKS ([`discharge`]), which is the cost each arm pays,
-/// and charges the check to [`SymCounts::checks_expanded`] or
-/// [`SymCounts::checks_frozen`].
-fn contradicts(id: SymId) -> bool {
-    let out = discharge(id);
-    count_check(id);
-    out
-}
-
-/// Charges one contradiction check on `id` to the column its forms
-/// put it in ([`SymCounts::checks_expanded`]). Reads the forms
-/// [`discharge`] left in the session's plain and early memos rather
-/// than asking a walk for them, so the check costs no walk call: a
-/// form `discharge` did not store is a form the check did not see.
-fn count_check(id: SymId) {
-    SESSION.with(|s| {
-        let mut slot = s.borrow_mut();
-        let Some(sess) = slot.as_mut() else {
-            return;
-        };
-        if sess.budget.max_terms == 0 {
-            return;
-        }
-        let saw = |form: Option<&Arc<Form>>| {
-            form.is_some_and(|f| !f.poisoned && !any_indet(sess, f, |x| !names_free(sess, x)))
-        };
-        let expanded =
-            saw(sess.forms.get(&id)) || (sess.rules.early && saw(sess.forms_early.get(&id)));
-        if expanded {
-            sess.counts.checks_expanded += 1;
-        } else {
-            sess.counts.checks_frozen += 1;
-        }
-    });
-}
-
-/// Records a decision whose form the tier proved zero under a definite
-/// numeric sign at an INEXACT witness.
-fn count_theorem_disputed() {
-    SESSION.with(|s| {
-        if let Some(sess) = s.borrow_mut().as_mut() {
-            sess.counts.theorems_disputed += 1;
         }
     });
 }
@@ -4939,8 +4733,27 @@ fn count_decision(proven: bool) {
 #[derive(Clone, Copy, Debug)]
 pub struct Sym<T> {
     /// The numeric channel — the value a plain `T` run would carry.
-    pub value: T,
+    /// Private, so it is written only by this module's constructors,
+    /// each from the op it mints (and [`Decide::free_identity`], from
+    /// its caller's reading): no code outside `sym.rs` can pair a node
+    /// with a number of its choosing. That is all privacy gives. It does
+    /// not make the number its expression's evaluation: [`Sym::param`]
+    /// binds one symbol at whatever value each call is handed (two calls
+    /// at two values are one symbol at two numbers), and an opaque minted
+    /// before a session can share a node with one the session mints
+    /// (`work/sym/an-opaque-minted-before-a-session-shares-a-name-with-the-sessions-first.md`).
+    /// The enclosure check on a proven zero (`discharge_checked`) stands
+    /// on the number being the expression's wherever neither happens.
+    value: T,
     node: SymId,
+}
+
+impl<T: Copy> Sym<T> {
+    /// The numeric channel — the value a plain `T` run would carry.
+    #[must_use]
+    pub fn value(self) -> T {
+        self.value
+    }
 }
 
 impl<T> Sym<T> {
@@ -4969,19 +4782,20 @@ impl<T> Sym<T> {
     /// still two separate reals, and keying by bits would say they are
     /// one.
     ///
-    /// The sequence that separates them is [`OPAQUE_SEQ`], whose docs
-    /// carry the D9 argument for why a counter here is still
-    /// schedule-independent.
+    /// What separates them is the name each is minted under: the mint
+    /// scope open on this thread and the value's ordinal there.
+    /// [`mint`] argues why no two values a form can meet share one, and
+    /// why the name is the same under every schedule and in every
+    /// replay (D9).
     #[must_use]
     pub fn opaque(value: T) -> Self {
-        let seq = OPAQUE_SEQ.with(|c| {
-            let n = c.get();
-            c.set(n.wrapping_add(1));
-            n
-        });
+        let (scope, ordinal) = mint::take();
         #[cfg(feature = "sym-profile-testing")]
-        profile::record_opaque(indet_opaque(seq));
-        Self::nullary(value, SymOp::Opaque, seq)
+        profile::record_opaque(indet_opaque(scope, ordinal));
+        Self {
+            value,
+            node: intern(SymNode::opaque(scope, ordinal)),
+        }
     }
 
     /// A value bound as the document PARAMETER `symbol` — the one door
@@ -5168,8 +4982,7 @@ impl<T: Real> Sym<T> {
     /// per-leaf session, like the node table; a leaf's registrations
     /// are made by the same fixed single-threaded walk of its recipe
     /// that mints its nodes, so the record is identical across repeats
-    /// and across the rayon schedule, exactly as [`OPAQUE_SEQ`]'s
-    /// argument runs.
+    /// and across the rayon schedule.
     #[must_use = "a registration can be REFUSED, and a refusal a caller \
                   drops is a lie nobody sees"]
     pub fn register_equal(self, other: Self, tol: Tol) -> SymRegistration {
@@ -5295,8 +5108,8 @@ impl<T: Real> Real for Sym<T> {
     /// **The LANE SCALAR's.** A `Sym<T>` carries `T`'s value channel
     /// unchanged — the tier reads no value and widens no enclosure —
     /// so a comparison at `Sym<T>` proves exactly what one at `T`
-    /// proves. This is the const [`Decide::sign_within`] below charges
-    /// the theorem-vs-numeric contradiction by.
+    /// proves. This is the const [`Decide::sign_within`] below reads to
+    /// check a symbolic zero against its enclosure.
     const WITNESS: crate::real::Witness = T::WITNESS;
 
     const NAME: &'static str = "symbolic";
@@ -5304,6 +5117,13 @@ impl<T: Real> Real for Sym<T> {
     /// The lane scalar's: the tier changes how a margin decides, not
     /// whether the scalar certifies.
     type Carries<C: Copy + core::fmt::Debug + Send + Sync + 'static> = T::Carries<C>;
+
+    /// The node, whatever the lane scalar: the tier reads no value.
+    type Expression = SymId;
+
+    fn expression(self) -> Option<SymId> {
+        Some(self.node)
+    }
 
     /// The symbolic scalar over its numeric channel's value: the
     /// identity over the unknowns is what a decision at it reads, so it
@@ -5371,6 +5191,27 @@ impl<T: Real> Real for Sym<T> {
 
     fn sqrt(self) -> Self {
         self.unary(self.value.sqrt(), SymOp::Sqrt, 0)
+    }
+
+    /// The plain formula's form, carrying `T`'s value
+    /// ([`Real::difference_dot`]): the same real, read to its digits.
+    fn difference_dot(q: [Self; 3], o: [Self; 3], n: [Self; 3]) -> Self {
+        let plain = crate::real::plain_difference_dot(q, o, n);
+        Sym {
+            value: T::difference_dot(q.map(|x| x.value), o.map(|x| x.value), n.map(|x| x.value)),
+            node: plain.node,
+        }
+    }
+
+    /// The plain formula's form, carrying `T`'s value
+    /// ([`Real::harmonic_belly`]): the same real, read to its digits.
+    fn harmonic_belly(curve: crate::StoredHarmonic<Self>, o: [Self; 3], n: [Self; 3]) -> Self {
+        let plain = crate::real::plain_harmonic_belly(curve, o, n);
+        let value = |p: [Self; 3]| p.map(|x| x.value);
+        Self {
+            value: T::harmonic_belly(curve.map(|x| x.value), value(o), value(n)),
+            node: plain.node,
+        }
     }
 
     fn abs(self) -> Self {
@@ -5581,43 +5422,21 @@ impl<T: SpanLocate> SpanLocate for Sym<T> {
 /// by one with no margin in it — at the index taken BEFORE the base
 /// scalar ran, so the row re-tagged is this decision's own.
 ///
-/// **And a definite non-zero numeric answer short-circuits the form.**
-/// A certified enclosure that excludes zero is a proof that the margin
-/// is not zero, so no normal form over the parameters can be the zero
-/// polynomial — asking for one is work whose answer is already known.
-/// Building it was a measurable share of the tier's cost (a reviewer
-/// clocked one leaf replay at 57 ms against 1.4 ms numeric), and the
-/// forms skipped here are exactly the expensive ones: the margins that
-/// are NOT identities, which is most of them.
+/// **And a definite non-zero numeric answer is the answer.** A
+/// certified enclosure that excludes zero is a proof that the margin is
+/// not zero, and at a point scalar the rounded reading is what the
+/// construction compares; either way nothing the tier could say would
+/// change the sign returned, so the tier is asked nothing there: no
+/// form, no registry walk, no count. Whether the algebra or a
+/// registration WOULD have claimed `Zero` on a margin the numbers
+/// decided is a question about the kernel, asked by the test
+/// instrument (`sym::contradiction`, test-only) and by no shipped build (ERROR-DESIGN
+/// E12, "the two channels are checked where an answer is returned").
 ///
-/// **And the shortcut is kept honest PER WITNESS KIND**
-/// ([`crate::Witness`], declared on the lane scalar). The sentence
-/// above — "a certified enclosure that excludes zero is a proof" — is
-/// a claim about the VALUE CHANNEL, and it is true at exactly the
-/// scalars whose witness is exact:
-///
-/// - **At an EXACT witness** ([`crate::Interval`]) the enclosure
-///   proves it, so a form that IS zero under a definite numeric sign
-///   means the two channels contradict each other: an enclosure does
-///   not contain its real, or the form is wrong. That is a soundness
-///   bug in one of them and not a fast path to take quietly, and the
-///   `debug_assert!` below is the answer.
-/// - **At an INEXACT witness** (`f64`, [`crate::Probe`]) the same
-///   answer is a comparison of ONE ROUNDED NUMBER against the band,
-///   and it is wrong in three measured ways: at a far placement the
-///   rounding exceeds the band; under rule F a one-ulp error in a
-///   sign argument becomes a whole `2.0` at the margin, because
-///   `copysign`'s output is `±1` however small its argument's error
-///   was; and at a pole the channel evaluates `1/0` to an infinity
-///   and has no clause 1 to refuse with. The form's theorem is
-///   correct wherever the function is defined, so the disagreement is
-///   a DISPUTE: the numeric answer is kept, the run says so on the
-///   receipt ([`SymCounts::theorems_disputed`]), and nothing panics.
-///
-/// It is the same partition [`Sym::register_equal`] already forwards
-/// for the registry door — [`SymRegistration::Contradicted`] from an
-/// exact witness, [`SymRegistration::Disputed`] from an inexact one —
-/// drawn for the theorem channels, and both read the one marker.
+/// **Where the tier answers `Zero` at an EXACT witness, the certified
+/// enclosure contains 0** — asserted in debug builds, at every rung, a
+/// retry's and the registry door's included ([`Witness`](crate::Witness);
+/// the assertion's site argues it).
 ///
 /// Everything else is `T::sign_within` verbatim.
 impl<T: Decide> Decide for Sym<T> {
@@ -5658,89 +5477,29 @@ impl<T: Decide> Sym<T> {
         let mark = crate::k_stats::sink_mark();
         note_witness(T::WITNESS);
         let numeric = self.value.sign_within(band);
-        if let Some(deferred) = deferred::defer(self.node, numeric) {
+        if let Some(deferred) = deferred::defer(self.node, numeric, self.value.enclosure_probe()) {
             count_decision(false);
             return deferred;
         }
-        let domain_violation = matches!(&numeric, Err(e) if e.margin.is_invalid());
-        let definitely_nonzero = matches!(
+        if matches!(
             &numeric,
             Ok(Decided {
                 sign: Sign::Positive | Sign::Negative,
                 ..
             })
-        );
-        if definitely_nonzero {
-            // **A zero only the registry reaches, here, is a
-            // CONTRADICTED AXIOM** (`door_zero`), and it
-            // is checked in release rather than asserted in debug: a
-            // constructor stated an identity this box's numeric answer
-            // denies, and the numeric answer wins — but the run has to
-            // SAY so. Never a fold; counted; the receipt reports it
-            // (`SymCounts::registrations_contradicted`). Counted at
-            // every witness kind, never asserted at any: what the
-            // witness kind decides is how strong the denial is, and
-            // this column records the event rather than grading it.
-            //
-            // It asks the door walk and the registry-free rungs, and
-            // only where a registration exists, so a document with no
-            // arc pays one `is_empty()`.
-            if door_zero(self.node) {
-                count_registration_contradicted();
-            }
-            // **The contradiction, charged by WITNESS KIND.** Each arm
-            // asks [`contradicts`], which RUNS THE DISCHARGE — the
-            // plain walk and the early one — and the cost profile
-            // charges those walks to `Origin::Assertion`, apart from
-            // the decision's. `T::WITNESS` is a const, so the arm this
-            // lane takes is fixed at monomorphization and the other one
-            // is not compiled.
-            //
-            // **WHEN each arm pays for that walk is NOT the same, and
-            // the asymmetry is the point.** The exact arm asks inside a
-            // `debug_assert!`, so with debug assertions off it asks
-            // nothing and the walk does not happen; the inexact arm
-            // asks unconditionally, because the count is a receipt
-            // column and a column that exists only under debug
-            // assertions is a column a run cannot be asked for. This
-            // workspace ships `[profile.release] debug-assertions =
-            // true`, so both arms walk in every profile it builds.
-            #[cfg(feature = "sym-profile-testing")]
-            let origin = profile::set_origin(profile::Origin::Assertion);
-            match T::WITNESS {
-                // An EXACT witness is a certified bracket that
-                // excludes zero: a proof that the margin is not zero,
-                // which no normal form over the parameters can
-                // contradict. If one does, an enclosure does not
-                // contain its real or the form is wrong — a soundness
-                // bug in one of the two channels, and this codebase
-                // fails loud on it.
-                crate::Witness::Exact => debug_assert!(
-                    !contradicts(self.node),
-                    "the numeric channel proved this margin nonzero and the form says it is \
-                     identically zero: the two channels contradict each other"
-                ),
-                // An INEXACT witness compared one rounded number. The
-                // form's theorem holds wherever the function is
-                // defined; what this channel answered is a point
-                // reading the band could not save. So the numeric
-                // answer is kept — the ratified numeric-first order is
-                // untouched — and the disagreement is COUNTED.
-                crate::Witness::Inexact => {
-                    if contradicts(self.node) {
-                        count_theorem_disputed();
-                    }
-                }
-            }
-            #[cfg(feature = "sym-profile-testing")]
-            profile::set_origin(origin);
+        ) {
             count_decision(false);
             report::record(&numeric, false, None, self.value.enclosure_probe());
             return numeric;
         }
-        let proven = !domain_violation && discharge_retried(self.node).is_some();
-        count_decision(proven);
-        if proven {
+        let domain_violation = matches!(&numeric, Err(e) if e.margin.is_invalid());
+        let answered = if domain_violation {
+            None
+        } else {
+            discharge_checked(self.node, self.value.enclosure_probe())
+        };
+        count_decision(answered.is_some());
+        if answered.is_some() {
             #[cfg(feature = "probe")]
             crate::k_stats::retag_at(mark, crate::k_stats::SampleOutcome::Symbolic);
             report::record(&numeric, true, None, self.value.enclosure_probe());
@@ -6955,6 +6714,53 @@ mod tests {
             "proven"
         } else {
             "numeric"
+        }
+    }
+
+    /// **The structural question does not read the registry**
+    /// ([`crate::Expression::proves_zero`]): two values a constructor
+    /// registered equal decide Zero through the session's door, and the
+    /// question, asked of their difference, proves nothing. An answer
+    /// taken from the installed session's ladder is red here.
+    #[test]
+    fn the_structural_question_does_not_read_the_registry() {
+        use crate::real::Expression;
+        with_session(budget(), || {
+            let (n, r) = (p("n", 1.0), p("r", 1.0));
+            assert_eq!(
+                n.register_equal(r, Tol::witness()),
+                SymRegistration::Recorded
+            );
+            let residual = n - r;
+            let decided = residual.sign_within(band()).unwrap();
+            assert!(decided.margin.proven(), "the door proves the pair");
+            assert!(
+                residual
+                    .expression()
+                    .and_then(Expression::proves_zero)
+                    .is_none()
+            );
+        });
+    }
+
+    /// **The kept-atom shapes close without the ladder at the question's
+    /// budget**: the two identities the retry ladder was measured on
+    /// (rule G shut, rule A shut) are proved by an ask with the ladder
+    /// and by one without it. At 64 terms the form each retry would keep
+    /// as an atom is already frozen into one.
+    #[test]
+    fn the_kept_atom_shapes_close_without_the_ladder_at_the_questions_budget() {
+        for build in [
+            closes_only_with_rule_g_off as fn() -> Sym<f64>,
+            closes_only_with_rule_a_off,
+        ] {
+            let answers = with_session(budget(), || {
+                let id = build().node();
+                [SymRetry::kept_atom(), SymRetry::none()]
+                    .map(|retry| question::asked(id, question::BUDGET, retry))
+            })
+            .0;
+            assert_eq!(answers, [true, true]);
         }
     }
 

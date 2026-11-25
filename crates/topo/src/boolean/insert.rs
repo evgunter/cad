@@ -2630,7 +2630,18 @@ fn record_germ_dir<T: crate::props::AtRestPolicy>(
         Coincide::TangentLocus,
         &[],
     );
-    if read != DeclarationRead::Spent(GlueClass::Tangent) {
+    // A junction's locus is its rim, a BOUND of both sectors, not a line
+    // through their interiors: its codes (the rim bound `On`, every other
+    // `Out`, `sectors::junction_bound_side`) name the germ's ray as any
+    // crossing record's do, so it is read as one. Only a tangency's line
+    // lies inside both faces, where the codes name no ray.
+    let tangent = match read {
+        DeclarationRead::Spent(GlueClass::Tangent) => true,
+        DeclarationRead::Spent(GlueClass::Junction | GlueClass::Rest | GlueClass::Continuation)
+        | DeclarationRead::Settles(_)
+        | DeclarationRead::Moot => false,
+    };
+    if !tangent {
         if let Some(fan) = super::fan::Fan::of(sa, sb) {
             return fan_germ_dir(
                 (a_body, a_vertex, sa),
@@ -2649,7 +2660,7 @@ fn record_germ_dir<T: crate::props::AtRestPolicy>(
         Ok(geom_brep::TangentLocus::Line {
             line: geom::Line { dir, .. },
             ..
-        }) => dir.normalize(),
+        }) => dir.get().normalize(),
         Err(geom_brep::TangentLocusError::Escalated(diag)) => {
             return Err(BooleanError::coincidence(
                 Coincide::TangentLocus,

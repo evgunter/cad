@@ -170,6 +170,15 @@ fn a0_alone() -> SymRules {
 /// certifies in ONE leaf again, fitting no plane on the way: plain
 /// 2863/2831 → 460/504, shipped 2919/2775 → 468/496. A0's yield is 8,
 /// one replay's.
+/// Then validation stopped reading an adjacent line pair's shared vertex
+/// (`profile::seg`'s `line_line`), 24 decisions on the slab's four
+/// corners: plain 460/504 → 444/496, and shipped 468/496 → 444/496. A0's
+/// eight were comparisons at those corners, so it yields nothing here
+/// and the shipped tier decides what the plain one does.
+/// Then the profile's direction mint asks the chord's expression whether
+/// it is zero (`geom_core::Expression::proves_zero`, no decision) and
+/// reads one sign per axis: the four sides' proved-Zero readings leave
+/// the count, 444/496 → 440/496 in both tiers.
 #[test]
 fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
     use crate::m10_3_driver_interval::slab;
@@ -200,14 +209,14 @@ fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
     };
     assert_eq!(
         line(&plain),
-        "decisions symbolic=460 numeric=504 frozen=0",
+        "decisions symbolic=440 numeric=496 frozen=0",
         "the plain tier on straight geometry"
     );
     assert_eq!(
         line(&shipped),
-        "decisions symbolic=468 numeric=496 frozen=0",
-        "8 of the 504 numeric refusals are comparisons of two rational CONSTANTS, which A0 \
-         decides exactly"
+        "decisions symbolic=440 numeric=496 frozen=0",
+        "the shipped tier on straight geometry: no numeric refusal is a comparison of two \
+         rational constants for A0 to decide"
     );
     assert_eq!(
         shipped,
@@ -216,7 +225,7 @@ fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
             ..SymRules::none()
         }),
         "and the FORM-LEVEL rules are inert on the slab: the shipped tier serialises byte \
-         for byte what A0 alone does, so the eight are A0's own yield and rules A/B, D, E, \
-         F, G, the decision read and the door reach nothing here"
+         for byte what A0 alone does, so rules A/B, D, E, F, G, the decision read and the \
+         door reach nothing here"
     );
 }

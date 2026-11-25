@@ -593,6 +593,10 @@ BOUND_AS = {
     # coincidence's claim is `Quieting`, authored as one action by
     # `Doc.assert_quieting`.
     "OpposedPair": "InterferenceFinding.quieting",
+    # Which of the two a loud finding carries: `CheckEvidence.quieting`
+    # or `InterferenceFinding.quieting`, each `None` where it carries
+    # none.
+    "CarriedAssertion": ("CheckEvidence.quieting", "InterferenceFinding.quieting"),
     # The measure builder records one action and answers what it
     # recorded: Python's `Doc.measure` is the builder and takes the
     # outcome up in place, answering its `Measured`.
@@ -1406,8 +1410,15 @@ BOUND_AS = {
     "Index": "VarDecl.index",
     "MemberAt": "Value.members",
     # Why an index is refused as declared crosses at the carrier's
-    # second word (`count_not_count`, `within_no_index`).
+    # second word (`count_not_count`, `after_no_index`, `after_taken`).
     "IndexFault": "EditError.inner_variant",
+    # Why a binder's yields are refused crosses at the carrier's second
+    # word (`not_a_binder`, `yield_is_index`, `yield_twice`,
+    # `yield_elsewhere`).
+    "YieldsFault": "EditError.inner_variant",
+    # Where an index stands in its binder: the binder's first index, or
+    # the index it follows (`VarDecl.index`'s `within`).
+    "IndexSeat": "VarDecl.index",
     # Why a source is refused as declared crosses at the carrier's second
     # word (`unresolved`, `written_in_place`, `kind`, `index_not_count`,
     # `fresh`).
@@ -2336,6 +2347,11 @@ NOT_BOUND = {
     # a sequence of operands or as one family read (`Node.union`'s
     # `members`), and the kernel's two arms are those two shapes.
     "Bodies": SHAPE,
+    # One entry of a spelled list: a read, or a splice `…xs` of a
+    # yield. Python spells a list's entries as operands and a family
+    # whole as `Node.union(xs)`; a splice beside an individual has no
+    # Python spelling.
+    "Spell": SHAPE,
     # A read at a body seat: Python writes a plain one as a `NodeId` or
     # a `Var` and an indexed one as `op[i]` (`IndexedRead`).
     "BodyRead": SHAPE,
@@ -2424,6 +2440,25 @@ NOT_BOUND = {
     # A space as a refusal speaks it: the world, its name, or the node
     # whose space it is. Python reads a refusal's spaces in its message.
     "SpokenSpace": SHAPE,
+    # A sentence as a value: its words and mentions, and the pieces a
+    # door writes it from. Python reads a
+    # refusal's sentence as the message text, each mention spelled; a
+    # mention's node rides as the payload's `NodeId`.
+    "Mention": SHAPE,
+    "Mentioned": SHAPE,
+    "Put": SHAPE,
+    "Run": SHAPE,
+    "SaidName": SHAPE,
+    "SaidNode": SHAPE,
+    "SaidVar": SHAPE,
+    "Sentence": SHAPE,
+    # A report as lines of sentences: Python takes its text.
+    "Lines": SHAPE,
+    "say": SHAPE,
+    "sentence": SHAPE,
+    "display_said": SHAPE,
+    "node_text": SHAPE,
+    "var_text": SHAPE,
     "VarDef": f"{GAP}: B-VAR-ID a variable's minted identity",
     # The names a deciding predicate's decisions are recorded under:
     # each `Settle` constructor fixes its own, which its docstring
@@ -2607,6 +2642,7 @@ NOT_BOUND = {
     # `str()`, and the stripped sentence is what a Rust carrier renders
     # inside its own. The phrase is read in that text.
     "Labelled": SHAPE,
+    "LabelledBy": SHAPE,
     "Labels": SHAPE,
     "PASS_A_RESOLVER": SHAPE,
     # The one recourse of a run out of its member budget: read in the
@@ -2759,15 +2795,21 @@ NOT_BOUND = {
     # document a carried finding is spoken over (`CarriedCoincidence.finding`).
     "PinnedDoc": INTERIOR,
     "Route": INTERIOR,
+    # One hop of a `Route`: the instance and the document holding it.
+    "RouteHop": INTERIOR,
     # The answers of `Doc::expr_reach` and `Doc::member_envs` (D10
     # `[repetition]`), the reads a reader that evaluates an expression
     # itself makes. Python evaluates through `evaluate`, which makes both
     # reads inside: the members they list cross as `Value.members` (each
     # member's index values beside its value), two unrelated indices as
-    # the `indices_unrelated` tag, and a member's `env` is a `VarEnv`,
+    # the `two_binders` tag, and a member's `env` is a `VarEnv`,
     # itself behind a door.
     "Reached": INTERIOR,
     "MemberEnv": INTERIOR,
+    # A document's binders read once (D10 `[repetition]`), the memo a
+    # pass that spells many list entries reads (`Binders::spell`): no
+    # value a Python caller holds.
+    "Binders": INTERIOR,
     "Chamfered": INTERIOR,
     "ContactRecords": INTERIOR,
     # What a contact record cites (D1 (ii)): its `ContactRecords`
@@ -2959,6 +3001,12 @@ NOT_BOUND = {
     # PROSE about a foreign prior, which `pncad.pyi`'s own paragraph
     # owns, not a missing binding for this payload.
     "Mispaired": INTERIOR,
+    # Why the memo took nothing from a prior: another document's
+    # (`Mispaired`, above), or a run under other options an op reads
+    # and no key hashes. The `evaluate` door here fixes those options,
+    # so only the first arm is reachable from Python, and it reaches
+    # Python as `Mispaired`'s does.
+    "PriorRefusal": INTERIOR,
     # A body value and the frame it computed in (D10 `[placement.frame]`):
     # Python reads a value's body as its `Body` handle, so the frame is
     # never a value there; `in_space` and its argument (`Composing`) are
@@ -3632,10 +3680,6 @@ MEMBERS_BOUND_AS = {
     # --- an interference finding's overlap and quieting assertion ---
     "InterferenceFinding::overlap": ("InterferenceFinding.faces", "InterferenceFinding.unlocalized"),
     "InterferenceFinding::quiet": "InterferenceFinding.quiet_by",
-    # A reference that is a cell crosses flat: the body read beside the
-    # entity's name and the pose read off it, `name` being `None` on
-    # the other arm.
-    "QuietingRef::Entity": ("QuietingRef.name", "QuietingRef.pose"),
     # --- a one-of subject spelled as its arms' attributes ---------
     # A finding is about one placement output or one node; Python reads the
     # subject as three attributes, `None` for the arm it is not.
@@ -3721,6 +3765,7 @@ MEMBERS_BOUND_AS = {
     # A re-target of the copy the product slot reads makes one appear.
     "Maintenance::ProductOutsideWorld": "Maintenance.variant",
     "Maintenance::AnonymousVarRemoved": "Maintenance.variant",
+    "Maintenance::YieldRemoved": "Maintenance.variant",
     "Maintenance::ValueDropped": "Maintenance.variant",
     "DistributionFault::NonFinite": "DistributionFault.variant",
     "DistributionFault::SigmaNotPositive": "DistributionFault.variant",
@@ -3742,6 +3787,7 @@ MEMBERS_BOUND_AS = {
     "EditError::SelectionNameKind": "EditError.variant",
     "EditError::PoseShape": "EditError.variant",
     "EditError::IndexedRead": "EditError.variant",
+    "EditError::Yields": "EditError.variant",
     "EditError::SetMembersOnNonList": "EditError.variant",
     "EditError::SetLoftSectionsOnNonLoft": "EditError.variant",
     "EditError::LoftShape": "EditError.variant",
@@ -3818,7 +3864,7 @@ MEMBERS_BOUND_AS = {
     "EditError::MetaNonFinite": "EditError.variant",
     "EditError::MetaNotSet": "EditError.variant",
     "EditError::RebindMetadataCollision": "EditError.variant",
-    "EditError::IndicesUnrelated": "EditError.variant",
+    "EditError::TwoBinders": "EditError.variant",
     "EditError::PlacementAxis": "EditError.variant",
     "EditError::MateRefused": "EditError.variant",
     "EditError::UpdateOnNonInstance": "EditError.variant",
@@ -3872,6 +3918,7 @@ MEMBERS_BOUND_AS = {
     "MateFault::PosesOfAnotherDocument": "MateFault.variant",
     "MateFault::Overconstrained": "MateFault.variant",
     "MateFault::NotOnTheCopy": "MateFault.variant",
+    "MateFault::NotTheDatumsOwn": "MateFault.variant",
     "MateFault::KindsDiffer": "MateFault.variant",
     "MateFault::NoChart": "MateFault.variant",
     "MateFault::Backwards": "MateFault.variant",
@@ -3950,6 +3997,7 @@ MEMBERS_BOUND_AS = {
     "PersistError::Parse": "PersistError.variant",
     "PersistError::Unreadable": "PersistError.variant",
     "PersistError::Dimension": "PersistError.variant",
+    "PersistError::IndexBeforeBinders": "PersistError.variant",
     "PersistError::ToleranceConflict": "PersistError.variant",
     "PersistError::ToleranceInvalid": "PersistError.variant",
     "ProductError::EvaluationOfAnotherDocument": "ProductError.variant",
@@ -4246,7 +4294,7 @@ MEMBERS_BOUND_AS = {
     # (document, evaluation) pair. Four of its ten fields carry names
     # the pair spells anyway (`order`, `recomputed`, `reused`,
     # `part_evaluations`); these are the rest. `prior_refused` is the
-    # `Mispaired` entry's sentence in `NOT_BOUND` — the fact reaches
+    # `PriorRefusal` entry's sentence in `NOT_BOUND` — the fact reaches
     # Python as `reused` being 0 with every node recomputed.
     "Evaluation::document": "Doc.id",
     "Evaluation::prior_refused": "Evaluation.reused",
@@ -4325,10 +4373,6 @@ ARMS_SPELLED_BY_A_PROPERTY = {
     # "read_failed"`, `"read_poisoned"`, `"unknown_node"`), with its
     # node as `node`.
     "ProductError::Read": "ProductError.read",
-    # The arm's PAYLOAD: the variable the measure reads as it is. The
-    # same getter answers the body read on the `Entity` arm, and `name`
-    # being `None` is what says which arm it is.
-    "QuietingRef::Read": "QuietingRef.read",
 }
 
 #: Members with no Python spelling at all, by family — `NOT_BOUND`'s three

@@ -316,7 +316,9 @@ fn a_vanished_pick_degrades_the_tool_one_step_typed() {
     );
     assert!(held_line.ends_with(&format!("to: {said}")), "{held_line:?}");
     assert_eq!(
-        Said(&events[0], viewer::frame::landed_speaker(Some((doc, eval)))).to_string(),
+        Said(&events[0], viewer::frame::landed_speaker(Some((doc, eval))))
+            .sentence()
+            .to_string(),
         format!("the mate 1 to pick ({said}) no longer resolves; the tool dropped it")
     );
     let row = &tool.rows()[0];
@@ -596,7 +598,7 @@ fn a_pick_on_a_union_of_instances_stands_on_the_member() {
     let union = common::insert_into(
         &mut doc,
         pncad::document::Node::Union {
-            members: pncad::document::Bodies::Spelled(members),
+            members: pncad::document::Bodies::spelled(members),
         },
         tol,
     );
@@ -668,7 +670,7 @@ fn the_transform_tool_reaches_an_instance_through_a_unions_name() {
     let union = common::insert_into(
         &mut doc,
         pncad::document::Node::Union {
-            members: pncad::document::Bodies::Spelled(members.clone()),
+            members: pncad::document::Bodies::spelled(members.clone()),
         },
         tol,
     );
@@ -865,14 +867,16 @@ fn nested_session(bench: &asm::Bench, tag: &str, tol: Tol) -> (DocSession, [Reci
             Vec::new(),
             crate::fixture::slides_along(k, dir, NEST_STEP),
         );
-        crate::fixture::insert(
+        let (doc, copies) = crate::fixture::insert(
             doc,
             Node::place(
                 BodyRead::plain(Operand::Node(of)),
                 room.clone(),
                 placed.bundle(),
             ),
-        )
+        );
+        // The copies are the binder's yield (D10 `[repetition]`).
+        (crate::fixture::yielded(doc, copies), copies)
     };
     let read = |doc: Doc<ProfileProgram>, of: RecipeNodeId, at: i64, into: Operand| {
         crate::fixture::insert(
