@@ -334,20 +334,19 @@ pub fn two_arc_sphere() -> Body<f64> {
 }
 
 /// The axial door's cavity of `body` at wall thickness `t` — every
-/// chart moved inward through `offset_charts_together` — asserted
-/// tier-3 valid, which is the door's own contract and the premise of
-/// every row that reverts or grafts the cavity.
+/// chart moved inward through `offset_charts_together` — finished, its
+/// rows completed, which is the premise of every row that reverts or
+/// grafts the cavity.
 pub fn door_cavity(body: &Body<f64>, t: f64) -> Body<f64> {
     let mut cavity = body.clone();
     let band = geom_core::Band::linear(Tol::witness()).expect("band");
     topo::offset_charts_together(&mut cavity, &hollow_moves(body, t), band, Tol::witness())
         .expect("the door takes it");
-    assert_eq!(
-        topo::validate_geometric(&cavity, Tol::witness()),
-        Ok(()),
-        "cavity tier 3"
-    );
-    cavity
+    // The finish completes the rows the door left for it, as the shell
+    // completes its cavity before it is grafted.
+    let cavity =
+        topo::finish(cavity, Tol::witness()).unwrap_or_else(|e| panic!("cavity tier 3: {e:?}"));
+    topo::FinishedBody::into_body(cavity)
 }
 
 /// Every edge of `body` re-certified as `graft_solid`'s re-certifying

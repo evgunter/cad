@@ -2,10 +2,12 @@
 id: producer-closing-mint-is-a-convention-with-thirteen-copies
 kind: issue
 title: every producer's closing pcurve mint is a prose convention spelled thirteen times, unenforced, and it launders a stale operand row
-status: open
+status: review
 opened: 2026-09-08
 priority: P1
 cost: M
+branch: walks/finish-completes
+pr: 7497
 ---
 
 
@@ -85,3 +87,21 @@ Two designers weighed it and converged after one round: the obligation moves off
 ## Decided (Ev, 2026-11-22, PR 7420)
 
 "sounds great! the DESIGN.md edit could possibly be folded into the one about `finish` in general, but either way is fine." Completion approved; the binding sentence is folded into `[one-way.places]`'s at-rest validity row rather than a row of its own.
+
+## Implemented (WALKS, `walks/finish-completes`)
+
+The finish completes a body's rows (`crates/topo/src/pcurves/complete.rs`,
+`complete_pcurves`), in one preamble every `AtRestPolicy::finish` and
+`::leaf` runs: the required methods take a `Completed<T>` only that
+preamble constructs. It asks tiers 1 and 2 first, drops rows on dead
+half-edges, keeps every stored row, derives a rowless face whole
+(`derive_face`) and fills a half-minted loop by the site mint's rule
+(`walk_cycle` with the stored images and elements kept). A face that
+refuses is left as found and its refusal reported beside the verdict's
+findings. The reflection arm of `FinishedBody::moved_by` completes the
+mirror's rowless image. Every closing mint and its `Pcurve` arm is
+gone; two readers that read stored rows mid-pipeline (the result sort,
+`crate::pieces`, and the shell's cavity questions) read them through
+the same completion, strict, since neither has a closed-form route to a
+spline face's rows. The PR body carries the sweep and the reds it
+measured.

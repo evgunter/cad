@@ -129,8 +129,8 @@ pub(crate) enum SplitRefusal {
 /// # `None`
 ///
 /// `half_edge` carries no row (an all-planar body, a face of an
-/// uncovered class, or one a door has left rowless for its producer's
-/// closing mint). The caller writes nothing, so the map is left exactly
+/// uncovered class, or one a door has left rowless for the finish to
+/// complete). The caller writes nothing, so the map is left exactly
 /// as found. A key that does not resolve is NOT one of them: it
 /// panics (below).
 ///
@@ -853,10 +853,8 @@ pub(crate) fn releases_a_gap<T: Decide>(
 ///   face is unminted, never half-minted. Where the minting pass would
 ///   RAISE on that face, the operator does not: it runs mid-surgery, on
 ///   states a later door finishes describing (C4: a door may drop rows
-///   mid-surgery), and a producer's final pass is where such a face is
-///   minted or refused. A body left at rest without that pass reads
-///   loud at tier 3, which re-derives the rowless face and reports the
-///   refusal the mint would raise ([`validate_pcurves`]).
+///   mid-surgery), and the finish is where such a face is completed or
+///   refused.
 ///
 /// **Cost.** One derivation and certification per image the surgery
 /// creates and one joint decision per joint it makes, whatever the

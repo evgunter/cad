@@ -822,7 +822,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     };
 
     // ---- Mutation, on a clone. From here on every step is an Euler
-    // operator or a certified setter; refusals map to Op/PcurveMint. ----
+    // operator or a certified setter; refusals map to Op. ----
     // **The one snapshot.** Every face the surgery may NOT kill is a
     // face of the body it was handed, so the set is read once, here,
     // before the clone — not re-assembled per phase from whatever that
@@ -990,7 +990,6 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     for (edge, carrier, link) in described {
         attach_contact(&mut body, edge, carrier, link, band, tol)?;
     }
-    topo::mint_pcurves(&mut body, tol).map_err(|source| BlendError::PcurveMint { source })?;
 
     body.close_already_checked();
     let mut body = blended;

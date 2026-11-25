@@ -2,11 +2,14 @@
 id: set-face-surfaces-describing-keeps-a-moved-edges-rows-on-a-kept-chart
 kind: issue
 title: set_face_surfaces_describing keeps a listed edge's rows on a face that keeps its chart, across a spec that moves the carrier or interval
-status: open
+status: review
 opened: 2026-10-06
 priority: P3
 refs: [set-edge-curve-keeps-a-certified-edges-rows-across-a-reparameterization]
 cost: M
+parent: producer-closing-mint-is-a-convention-with-thirteen-copies
+branch: walks/finish-completes
+pr: 7497
 ---
 
 
@@ -48,3 +51,15 @@ call, so `offset_together` and `offset_axial` get the same rule and
 `replace_faces_offset`'s hand-written drop goes away.
 
 - 2026-11-02 — moved from RESTATE to TOPO by `git mv` when RESTATE merged into TOPO, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and RESTATE had fallen far under it).
+
+## Discharged (WALKS, `walks/finish-completes`)
+
+Taken by the second option: `set_face_surfaces_certifying` drops a
+listed edge's rows on every face where its spec moves the stored carrier
+or interval (`Curve3::same_content_by` under `Real::same_value`, the
+comparison a row certificate's support reads), so a kept-chart face
+holds no row stated over what the spec replaced; the finish completes
+it. A spec that restates both, as a carried redescription does, keeps
+its rows. `replace_faces_offset`'s
+hand-written drop at a moved vertex stays: it also covers the re-anchored
+edges, which the door does not list.

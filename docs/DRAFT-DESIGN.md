@@ -66,7 +66,7 @@ pass**, and the kernel has partial vocabulary for it:
 
 - `set_face_surface` / `set_edge_curve` exist (attach layer), with
   the documented ordering obligation (surfaces before edge
-  descriptions, then whole-body `mint_pcurves`) and the
+  descriptions; the finish completes the pcurve rows) and the
   no-certification-here contract — the caller owns re-description.
 - **The vertex half has no public door**: `get_vertex_mut` is
   `pub(crate)`; the only whole-body point rewriter is

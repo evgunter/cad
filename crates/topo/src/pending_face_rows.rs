@@ -51,7 +51,7 @@ fn doors_that_panic(body: &crate::Body<f64>, tol: Tol) -> Vec<String> {
                 tol,
             )
             .unwrap();
-            crate::mirror::mirror_body(body, &r, tol)
+            crate::mirror::mirror_body(body, &r)
         }),
     );
     door("reverted", panicked(|| body.reverted()));
