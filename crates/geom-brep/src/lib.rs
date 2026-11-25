@@ -189,6 +189,7 @@ pub use edge_nurbs::{
 };
 pub use edge_wedge::{
     Bend, WedgeClass, WedgeRefusal, WedgeVerdict, WedgeWalk, edge_wedge_over, edge_wedge_over_as,
+    rim_routing_wedge,
 };
 pub use enters::{
     EntersMaterial, LeverEscalation, LeverRung, NormalAlignment, OutwardNormal, ParallelNormal,
@@ -254,17 +255,17 @@ pub use pair_section::{
     ApexContact, ArcPlace, AxisPose, CarriedComponent, CarriedSection, CarryError, CarryRefusal,
     CcDecision, CcNode, CcStance, ChartReach, ClassCarrier, Coincident, ComponentEnds,
     ComponentShape, Components, ConeTorusPose, ConeTorusRefusal, CsDecision, CsStance, CtStance,
-    CylinderCylinderPose, CylinderSpherePose, CylinderTorusPose, FittedCarrier, Gap, KnownPair,
-    KnownRow, KtQuestion, KtStance, LoopTubeRefusal, NoCarrier, NodeEnd, NodeEnds, NodeLine,
-    NodeSet, PadBox, PairPose, PairSection, PairSide, PlaneTorusMeridian, PlaneTorusPose,
+    CylinderCylinderPose, CylinderSpherePose, CylinderTorusPose, FittedCarrier, Gap, HeldRead,
+    KnownPair, KnownRow, KtQuestion, KtStance, LoopTubeRefusal, NoCarrier, NodeEnd, NodeEnds,
+    NodeLine, NodeSet, PadBox, PairPose, PairSection, PairSide, PlaneTorusMeridian, PlaneTorusPose,
     PoseRefusal, PtCut, PtPinch, PtStance, RaySense, Reached, RegionPlacement, Ring,
     SectionComponent, SectionDecision, SectionNode, SectionPick, SectionRead, SiteFoot,
     SiteReading, SiteRefusal, SpanEnd, SphereTorusPose, SplineImplicitPose, SplinePairPose,
     SquareWall, SsiLane, SsiLaneOf, StStance, TT_COINCIDENT, TT_COINCIDENT_FLOOR, TorusCoincidence,
     TorusData, TorusDatum, TorusDisplacement, TorusGap, TorusPoseRefusal, TorusQuestion,
     TorusTorusPose, TtStance, Turn, Winding, WindsRefusal, ZeroKind, ZeroVerdict, axis_pose,
-    coaxial_tangent_circle, line_tilt, pair_section, spline_pair_section, square_part,
-    tori_coincide,
+    coaxial_tangent_circle, line_tilt, pair_section, pair_section_held, plane_torus_closed_form,
+    spline_pair_section, square_part, tori_coincide,
 };
 /// [`CarryError`]'s and [`CarryRefusal`]'s compiler-derived kinds, for a
 /// roster that samples every arm.

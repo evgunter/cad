@@ -2994,6 +2994,7 @@ fn plan_edge<'s, T: Decide>(
                 other @ (geom_brep::SectionError::WrongLane { .. }
                 | geom_brep::SectionError::NoRegion { .. }
                 | geom_brep::SectionError::DegenerateOperand { .. }
+                | geom_brep::SectionError::RadiusNotPositive { .. }
                 | geom_brep::SectionError::ConeAtTheBand { .. }
                 | geom_brep::SectionError::BeyondOperandExtent { .. }
                 | geom_brep::SectionError::CoincidentSurfaces
@@ -3471,6 +3472,7 @@ fn derive_edge<'w, 's, T: Decide>(
         other @ (geom_brep::SectionError::WrongLane { .. }
         | geom_brep::SectionError::NoRegion { .. }
         | geom_brep::SectionError::DegenerateOperand { .. }
+        | geom_brep::SectionError::RadiusNotPositive { .. }
         | geom_brep::SectionError::ConeAtTheBand { .. }
         | geom_brep::SectionError::BeyondOperandExtent { .. }
         | geom_brep::SectionError::CoincidentSurfaces
@@ -4362,53 +4364,26 @@ fn carrier_foot<T: Decide>(
 /// is decided over the section's whole domain, which on a fit wider
 /// than the face reaches past the edge. On any other carrier the
 /// verdict refuses the corner.
-#[allow(clippy::too_many_arguments, clippy::type_complexity)]
-fn spline_corner_root<T: Decide>(
-    root: Result<crate::offset_derive::SplineRoot, crate::offset_derive::CornerVerdict<T>>,
-    spline: &NurbsCurve3<T>,
-    (vertex, edge, derived): (VertexKey, EdgeKey, bool),
-    d: T,
-    band: Band,
-    tol: Tol,
-) -> Result<Result<T, crate::offset_derive::CornerVerdict<T>>, ReplaceFaceError<T>> {
-    corner_of_root(
-        root,
-        (vertex, edge, derived),
-        d,
-        band,
-        tol,
-        spline.knot_values(),
-    )
-}
-
-/// [`spline_corner_root`]'s reading of the lane's verdict. The lane
-/// measures in `f64`, so its root and its gap enter as computed values;
-/// a short root stops at a domain end, which is the carrier's own held
-/// end knot (`held`; a value no breakpoint carries enters as computed).
+///
+/// The root and a short root's end are the lane's own numbers
+/// ([`crate::offset_derive::SplineRoot`]); the lane measures its gap in
+/// `f64`, so the gap enters as a computed value.
 #[allow(clippy::type_complexity)]
 fn corner_of_root<T: Decide>(
-    root: Result<crate::offset_derive::SplineRoot, crate::offset_derive::CornerVerdict<T>>,
+    root: Result<crate::offset_derive::SplineRoot<T>, crate::offset_derive::CornerVerdict<T>>,
     (vertex, edge, derived): (VertexKey, EdgeKey, bool),
     d: T,
     band: Band,
     tol: Tol,
-    held: &geom_core::spline::Knots<T>,
 ) -> Result<Result<T, crate::offset_derive::CornerVerdict<T>>, ReplaceFaceError<T>> {
-    // `held` is a carrier's knots, which are points (`net::carrier_knots`).
-    let held_end = |v: f64| match held.value_at(v) {
-        Ok(k) => k.unwrap_or_else(|| T::from_computed(v)),
-        Err(e) => {
-            unreachable!("a carrier's door admits only point knots (`CarrierKnotNotAPoint`): {e}")
-        }
-    };
     use crate::offset_derive::SplineRoot;
     match root {
-        Ok(SplineRoot::At(t)) => Ok(Ok(T::from_computed(t))),
+        Ok(SplineRoot::At(t)) => Ok(Ok(t)),
         Ok(SplineRoot::Short {
             end,
             near_gap,
             near: true,
-        }) if bound_within_eps::<T>(near_gap, tol, band)? => Ok(Ok(held_end(end))),
+        }) if bound_within_eps::<T>(near_gap, tol, band)? => Ok(Ok(end)),
         Ok(SplineRoot::Short {
             near_gap,
             near: true,
@@ -4610,9 +4585,8 @@ fn solve_corners<T: Decide>(
                                         edge,
                                         scalar: T::NAME,
                                     })?;
-                                match spline_corner_root(
+                                match corner_of_root(
                                     lane.root(surface, spline, seed, inc.extent, band),
-                                    spline,
                                     (vertex, edge, inc.derived),
                                     d,
                                     band,
@@ -5933,7 +5907,7 @@ mod pair_over_its_span_rows {
     }
 }
 
-/// [`spline_corner_root`] on one spline carrier, the straight segment
+/// [`corner_of_root`] on one spline carrier, the straight segment
 /// `(-1, 0, 0) → (0, 0, 0)` on `[0, 1]`: where a plane past its end is
 /// taken as the corner, and what a surface the lane does not root does.
 #[cfg(test)]
@@ -5943,7 +5917,7 @@ mod spline_corner {
     use geom_core::spline::KnotVector;
     use geom_core::{Band, Point3, Tol, Vec3};
 
-    use super::{ReplaceFaceError, spline_corner_root};
+    use super::{ReplaceFaceError, corner_of_root};
     use crate::entity::{EdgeKey, VertexKey};
     use crate::offset_derive::{CornerVerdict, SectionLane, SectionLaneOf};
 
@@ -5973,9 +5947,8 @@ mod spline_corner {
         let tol = Tol::witness();
         let (spline, band) = (segment(), Band::linear(tol).unwrap());
         let extent = geom_core::test_support::fixture_lever(1.0);
-        spline_corner_root(
+        corner_of_root(
             SectionLaneOf::root(SectionLane::f64(), surface, &spline, 1.0, extent, band),
-            &spline,
             (VertexKey::default(), EdgeKey::default(), derived),
             0.1,
             band,
@@ -6144,137 +6117,10 @@ mod from_computed_rows {
     #![allow(clippy::unwrap_used, clippy::panic)]
     use geom::NurbsCurve3;
     use geom_core::spline::KnotVector;
-    use geom_core::{Band, Point3, Real, Tol};
+    use geom_core::{Point3, Real};
 
-    use super::{ReplaceFaceError, carrier_foot, corner_of_root};
-    use crate::entity::{EdgeKey, VertexKey};
-    use crate::offset_derive::{CornerVerdict, SplineRoot};
+    use super::carrier_foot;
     use crate::revalue_pin::{Revalued, S, revalued};
-
-    fn band() -> Band {
-        Band::linear(Tol::witness()).unwrap()
-    }
-
-    /// The corner a lane verdict reads as.
-    fn corner(root: SplineRoot) -> Result<Result<S, CornerVerdict<S>>, ReplaceFaceError<S>> {
-        corner_of_root(
-            Ok(root),
-            (VertexKey::default(), EdgeKey::default(), false),
-            S::from_f64(0.1),
-            band(),
-            Tol::witness(),
-            &unit_knots(),
-        )
-    }
-
-    /// The unit segment's knots, constants: a short root's end `1.0`
-    /// is its held end.
-    fn unit_knots() -> geom_core::spline::Knots<S> {
-        geom_core::spline::Knots::from(KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap())
-            .lift(S::from_f64)
-    }
-
-    /// The lane's root enters as a computed value: a root the lane
-    /// measures where the parameter moves it does not re-value to the
-    /// root `p0` measured.
-    #[test]
-    fn the_lanes_root_enters_as_computed() {
-        let found = revalued([0.5, 0.5 + 1.0e-3], |p, _| {
-            vec![corner(SplineRoot::At(p)).unwrap().unwrap()]
-        });
-        assert_eq!(
-            found,
-            Revalued {
-                kept: 0,
-                opaque: 1,
-                laundered: 0,
-            }
-        );
-    }
-
-    /// A short root's end is the carrier's held end knot, read off its
-    /// `Knots` as `spline_corner_root` hands them over: with the end
-    /// knot a variable, the corner re-values with it to
-    /// the bits the `p1` build computes (`kept`), where the `f64` end
-    /// entered as a constant would launder it. The ε decision on the
-    /// near gap reads the lane's measured gap, a computed value
-    /// (`opaque`).
-    #[test]
-    fn a_short_roots_end_is_the_held_end_knot() {
-        let found = revalued([1.0, 1.0 + 1.0e-3], |p, end_knot| {
-            let two = core::num::NonZeroUsize::new(2).unwrap();
-            let held =
-                geom_core::spline::Knots::new(vec![(S::from_f64(0.0), two), (end_knot, two)], 1)
-                    .unwrap();
-            let root = SplineRoot::Short {
-                end: p,
-                near_gap: 0.0,
-                near: true,
-            };
-            let corner = corner_of_root(
-                Ok(root),
-                (VertexKey::default(), EdgeKey::default(), false),
-                S::from_f64(0.1),
-                band(),
-                Tol::witness(),
-                &held,
-            )
-            .unwrap()
-            .unwrap();
-            vec![corner]
-        });
-        assert_eq!(
-            found,
-            Revalued {
-                kept: 1,
-                opaque: 1,
-                laundered: 0,
-            }
-        );
-    }
-
-    /// A short root's near gap enters as a computed value, both where ε
-    /// takes the end (`offset_vertex_agreement` decides it) and where it
-    /// refuses with the gap.
-    #[test]
-    fn a_short_roots_gap_enters_as_computed() {
-        let short = |near_gap| SplineRoot::Short {
-            end: 1.0,
-            near_gap,
-            near: true,
-        };
-        let eps = band().zero();
-        let found = revalued([0.5 * eps, 0.5 * eps * (1.0 + 1.0e-3)], |p, _| {
-            let end = corner(short(p)).unwrap().unwrap();
-            assert_eq!(end.value(), 1.0, "a gap within ε takes the end");
-            Vec::new()
-        });
-        assert_eq!(
-            found,
-            Revalued {
-                kept: 0,
-                opaque: 1,
-                laundered: 0,
-            },
-            "ε decides the gap as the lane measured it"
-        );
-        let past = 2.0 * (band().zero() + band().escalate());
-        let found = revalued([past, past * (1.0 + 1.0e-3)], |p, _| {
-            match corner(short(p)) {
-                Err(ReplaceFaceError::ReanchorPastCarrierEnd { gap, .. }) => vec![gap],
-                other => panic!("a gap past the band refuses with it, got {other:?}"),
-            }
-        });
-        assert_eq!(
-            found,
-            Revalued {
-                kept: 0,
-                opaque: 2,
-                laundered: 0,
-            },
-            "the decision and the refusal both carry the gap as the lane measured it"
-        );
-    }
 
     /// A carrier foot enters as a computed value: the lane's foot of a
     /// point the parameter moves along a spline segment at `Sym<f64>`

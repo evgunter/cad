@@ -74,6 +74,8 @@ mod a_closed_cut_leaves_each_ball_one_face;
 mod a_closed_rider_lying_in_a_face_refuses_its_slit_form;
 #[path = "a_cone_on_a_torus_meridian_in_every_order.rs"]
 mod a_cone_on_a_torus_meridian_in_every_order;
+#[path = "a_cone_with_a_ball_or_a_cone_in_every_order.rs"]
+mod a_cone_with_a_ball_or_a_cone_in_every_order;
 #[path = "a_conical_ended_football_revolves.rs"]
 mod a_conical_ended_football_revolves;
 #[path = "a_corner_cut_on_a_far_wall_reads_its_sections_width.rs"]
@@ -136,6 +138,8 @@ mod a_plane_along_an_elliptic_cut;
 mod a_plane_holding_a_conic_tangent_at_a_vertex;
 #[path = "a_plane_moved_to_a_cone_apex.rs"]
 mod a_plane_moved_to_a_cone_apex;
+#[path = "a_plane_nearly_through_a_torus_axis_cuts_it_at_any_face_size.rs"]
+mod a_plane_nearly_through_a_torus_axis_cuts_it_at_any_face_size;
 #[path = "a_plane_through_a_cones_apex.rs"]
 mod a_plane_through_a_cones_apex;
 #[path = "a_plane_through_a_pole_cuts_a_cap.rs"]
