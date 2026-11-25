@@ -1194,10 +1194,10 @@ fn read_far<T: Decide>(
 
 /// The joined edge's spec: `kept`'s carrier over its interval run on
 /// through `w` to `gone`'s far end, its description restated over the
-/// new interval. The far end's parameter is `gone`'s own where `gone`
-/// lies on `kept`'s very carrier ([`carried_far`]); otherwise it is read
-/// off the carrier: a whole period where the join closes, the point's
-/// parameter ([`geom::Curve3::param_near`]) where it does not.
+/// new interval. The far end's parameter is a whole period on where the
+/// join closes; otherwise `gone`'s own where `gone` lies on `kept`'s
+/// very carrier ([`carried_far`]), or the point's parameter read off the
+/// carrier ([`read_far`]).
 fn joined_spec<T: Decide>(
     body: &Body<T>,
     w: VertexKey,
@@ -1226,11 +1226,12 @@ fn joined_spec<T: Decide>(
     let gone_from_w = body.get_half_edge(gd.he_plus).map(|h| h.start) == Some(w);
     let at_w = if gone_from_w { (g0, g1) } else { (g1, g0) };
     let carried = carried_far(carrier, tw, backward, gone.stored_carrier(), at_w);
-    let tx = if let Some(tx) = carried {
-        tx
-    } else if join.closed {
-        // The carrier's own period (`Curve3::period`), which a closed
-        // join runs once round: at `Interval`, τ's enclosure.
+    // A closed join runs once round, so its far end is a whole period
+    // on, by the carrier's own period (`Curve3::period`; at `Interval`,
+    // τ's enclosure), even where `gone` is on the very carrier: its own
+    // far end names the same point only up to rounding, and a span a unit
+    // in the last place past a turn is no view of the loop.
+    let tx = if join.closed {
         match carrier.period() {
             Some(period) => {
                 if backward {
@@ -1247,6 +1248,8 @@ fn joined_spec<T: Decide>(
                 });
             }
         }
+    } else if let Some(tx) = carried {
+        tx
     } else {
         read_far(carrier, gone.stored_carrier(), (g0, g1), far, tw).ok_or(
             BooleanError::JoinCarrierUnsupported {
