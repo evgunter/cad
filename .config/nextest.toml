@@ -568,7 +568,8 @@ not (
   (binary_id(topo::all) & test(=an_off_iso_straight_edge_takes_its_general_row::an_in_band_seam_takes_the_general_image_at_interval)) |
   (binary_id(geom-brep) & test(=pcurve_cache::line_incidence_rows::no_parameter_of_the_span_is_farther_than_the_read)) |
   (binary_id(geom-brep) & test(=curve_face::pose_rows::a_graze_of_a_far_centred_conic_is_read_wrong_nowhere)) |
-  (binary_id(geom-brep) & (test(=curve_face::spline_face::crossing_parameter_rows::at_f64_the_walks_box_is_far_narrower_than_the_band) | test(=curve_face::spline_face::crossing_parameter_rows::at_interval_the_leafs_box_is_bands_wide_and_its_middle_is_its_witnesss))) |
+  (binary_id(geom-brep) & (test(=curve_face::spline_face::crossing_parameter_rows::at_f64_the_walks_box_is_far_narrower_than_the_band) | test(=curve_face::spline_face::crossing_parameter_rows::at_interval_the_leaf_places_its_meeting_as_its_witness_does_or_refuses))) |
+  (binary_id(topo) & test(=contain::reach_rows::a_shallow_crossings_containment_answers_one_way_or_refuses)) |
   (binary_id(topo) & test(=chord_join::torus_ring_rows::a_ring_on_a_torus_face_is_re_homed_by_a_path)) |
   (binary_id(sweep::all) & test(=join_rc_probes::reflex_corner_struts_past_a_half_turn_build_sound)) |
   (binary_id(geom-brep) & test(=curve_pair::far_graze_rows::a_line_grazing_a_far_centred_conic_is_read_wrong_nowhere_past_the_touchs_placement)) |

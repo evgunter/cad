@@ -26,10 +26,7 @@ fn arc(t: f64) -> Point3<f64> {
 }
 
 /// The scalars the rows run at: the witness's and a leaf's.
-trait Scalar:
-    geom_core::Certifies + geom_core::CertifiedEnclosure + crate::props::AtRestPolicy
-{
-}
+trait Scalar: geom_core::Certifies + crate::props::AtRestPolicy {}
 impl Scalar for f64 {}
 impl Scalar for geom_core::Interval {}
 
@@ -53,14 +50,18 @@ fn placed<T: Scalar>(
 ) -> Result<Result<FaceContainment, BeyondReach>, ContainError> {
     let y = arc(0.25).y;
     let b: Body<T> = brick((-0.5, x1), (y, y + 3.0), (-1.0, 1.0), Tol::witness());
-    let (face, plane) = b
+    // The face is found on the `f64` brick the same call builds, by its
+    // place among the faces.
+    let witness: Body<f64> = brick((-0.5, x1), (y, y + 3.0), (-1.0, 1.0), Tol::witness());
+    let nth = witness
         .faces()
-        .find_map(|(k, _)| {
-            let plane = crate::face_normal::face_plane(&b, k)?;
-            let facing = plane.normal.dot(Vec3::unit_y()).certified_bracket()?;
-            (facing.1 < -0.5).then_some((k, plane))
+        .position(|(k, _)| {
+            crate::face_normal::face_plane(&witness, k)
+                .is_some_and(|plane| plane.normal.dot(Vec3::unit_y()) < -0.5)
         })
         .expect("the brick has the face");
+    let (face, _) = b.faces().nth(nth).expect("the bricks' faces agree");
+    let plane = crate::face_normal::face_plane(&b, face).expect("a brick's face is a plane");
     let p = arc(0.5 * x).map(T::from_f64);
     let off = (p - plane.origin).dot(plane.normal);
     let reach: Option<Reach> = reach.map(|along| {
