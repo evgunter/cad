@@ -105,7 +105,7 @@ mod certified {
                 "determinism"
             );
             for (k, f) in body.faces() {
-                let curved = !matches!(body.face_surface(k), Some(Surface::Plane { .. }));
+                let curved = !matches!(body.face_surface(k), Ok(Surface::Plane { .. }));
                 let now = rev.get_face(k).unwrap().sense;
                 assert_eq!(now, if curved { !f.sense } else { f.sense });
                 if curved {
@@ -213,7 +213,7 @@ mod certified {
         );
         let reversed = out
             .faces()
-            .filter(|(fk, _)| !matches!(out.face_surface(*fk), Some(Surface::Plane { .. })))
+            .filter(|(fk, _)| !matches!(out.face_surface(*fk), Ok(Surface::Plane { .. })))
             .filter(|(_, f)| !f.sense)
             .count();
         assert!(

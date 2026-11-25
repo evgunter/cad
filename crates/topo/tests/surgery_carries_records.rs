@@ -46,7 +46,7 @@ fn face_at_x(body: &Body<f64>, x: f64) -> FaceKey {
         .find(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(Surface::Plane { frame, .. })
+                Ok(Surface::Plane { frame, .. })
                     if frame.axis().x.abs() == 1.0 && frame.origin().x == x
             )
         })
@@ -320,16 +320,16 @@ fn a_touch_the_verb_creates_is_refused_at_rest() {
     );
 }
 
-/// **A rim that opens under a resting corner consumes its record.** A
-/// cube balanced on one corner on a slab's top carries one vertex–face
-/// record; opening that top as a rim divides the face into the annulus,
-/// its key kept there, and removes the opening, where the corner now
-/// points. The record lands on no pair, and the shell's lineage states
-/// the removal, so it is consumed (D1): the two solids touch nothing,
-/// and the result passes at rest with no record. Red on the carry that
-/// keeps the record on the face's key, which the census refuses stale.
+/// **A rim that opens under a resting corner refuses its record
+/// stale.** A cube balanced on one corner on a slab's top carries one
+/// vertex–face record; opening that top as a rim divides the face into
+/// the annulus, its key kept there, and the opening, where the corner
+/// now points. The shell names no cell it removed, so the record, landing
+/// on no pair, refuses `Stale` rather than being consumed by a removal
+/// the lineage does not name. Red where a division consumes a record it
+/// names nothing removed under.
 #[test]
-fn a_rim_that_opens_under_a_resting_corner_consumes_its_record() {
+fn a_rim_that_opens_under_a_resting_corner_refuses_its_record_stale() {
     let (base, top) = a_corner_resting_on_a_slab(2.0, 2.0);
     assert_eq!(
         base.contacts.vertex_face().count(),
@@ -338,14 +338,10 @@ fn a_rim_that_opens_under_a_resting_corner_consumes_its_record() {
         base.contacts
     );
     let opened = topo::shell_open(&base.body, 0.1, &[top], tol()).expect("the slab opens");
-    let carried = opened
-        .carry_contacts(&base.contacts, band(), region())
-        .unwrap();
-    assert!(carried.is_empty(), "the record is consumed: {carried:?}");
     assert_eq!(
-        validate_pseudomanifold(&opened.body, &carried, tol()),
-        Ok(()),
-        "the corner touches nothing now"
+        opened.carry_contacts(&base.contacts, band(), region()),
+        Err(topo::CarryRefusal::Stale { record: 0 }),
+        "the corner over the opening refuses"
     );
 }
 
@@ -545,7 +541,7 @@ fn face_at_z(body: &Body<f64>, z: f64) -> FaceKey {
         .find(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(Surface::Plane { frame, .. })
+                Ok(Surface::Plane { frame, .. })
                     if frame.axis().z.abs() == 1.0 && frame.origin().z == z
             )
         })

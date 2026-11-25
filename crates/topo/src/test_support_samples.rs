@@ -234,6 +234,9 @@ fn chart_region_errors() -> Vec<ChartRegionError> {
                 geom::cover::Unknown::Unbounded,
             ),
         )),
+        ChartRegionError::PendingFace {
+            face: crate::FaceKey::default(),
+        },
         ChartRegionError::Corrupt,
         ChartRegionError::NoOutline(crate::NoOutline {
             face: FaceKey::default(),
@@ -281,6 +284,7 @@ fn point_in_solid_errors() -> Vec<crate::solid_contain::PointInSolidError> {
     vec![
         S::Escalated { face, diag: diag() },
         S::RayExhausted,
+        S::RegionRayExhausted { face },
         S::ZeroVolumeBody,
         S::Loop(L::Escalated {
             r#loop,
@@ -307,6 +311,7 @@ fn point_in_solid_errors() -> Vec<crate::solid_contain::PointInSolidError> {
             cause: OffPlaneCause::NormalNotUnit,
         })),
         S::CorruptFace { face },
+        S::PendingFace { face },
         S::KindUnsupported {
             face,
             kind: geom::SurfaceKind::Nurbs,
@@ -349,7 +354,11 @@ pub fn arc_end_clear_of_corners(off_corner: bool) -> ContainError {
     } else {
         [[zero, off], [off, zero]]
     };
-    ContainError::ArcEndClearOfCorners(Box::new(crate::contain::ArcEndGaps { gaps, band: band() }))
+    ContainError::ArcEndClearOfCorners(Box::new(crate::contain::ArcEndGaps {
+        edge: crate::entity::EdgeKey::default(),
+        gaps,
+        band: band(),
+    }))
 }
 
 fn contain_errors() -> Vec<ContainError> {
@@ -390,7 +399,7 @@ fn contain_errors() -> Vec<ContainError> {
     v.extend([
         arc_end_clear_of_corners(true),
         arc_end_clear_of_corners(false),
-        ContainError::RayExhausted,
+        ContainError::RayExhausted(LoopKey::default()),
         ContainError::StaleFace(crate::entity::FaceKey::default()),
         ContainError::EmptyLoop(LoopKey::default()),
         ContainError::LoopUnreadable(LoopKey::default()),
@@ -528,7 +537,6 @@ fn plane_nurbs_refusals() -> Vec<PlaneNurbsRefusal> {
         PlaneNurbsRefusal::Unsupported {
             what: "a rational NURBS surface",
         },
-        PlaneNurbsRefusal::PlaceholderWall,
         PlaneNurbsRefusal::WrongLane {
             expected: "a spline chart as the wall",
         },
@@ -601,6 +609,7 @@ fn certify_errors() -> Vec<CertifyError> {
             Some(geom_brep::OffMargin::InBand(MarginDiag::value(4e-10))),
         )),
         CertifyError::UnresolvedSurface { key },
+        CertifyError::PendingSurface { key },
         CertifyError::Unimplemented,
         CertifyError::PlaneNurbs(PlaneNurbsRefusal::ArcRim(geom_brep::ArcRimRefusal {
             iso: None,
@@ -943,7 +952,6 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
             stored: [Some(1), None],
             derived: [Some(-1), None],
         },
-        PcurveCertifyError::PlaceholderChart,
         PcurveCertifyError::AzimuthPeriodExceeded,
         PcurveCertifyError::PlacementTurnsExceeded,
         PcurveCertifyError::TubePeriodExceeded,
@@ -1073,6 +1081,9 @@ fn mass_props_errors() -> Vec<MassPropsError> {
         },
         MassPropsError::NullScaffoldEdge {
             edge: EdgeKey::default(),
+        },
+        MassPropsError::PendingFace {
+            face: FaceKey::default(),
         },
         MassPropsError::NoOutline(crate::NoOutline {
             face,
@@ -2629,7 +2640,6 @@ mod tests {
                         geom_brep::pcurve_cache::FITTED_GRADE_DOOR_RECOURSE.to_owned()
                     }
                     K::CarrierDomain => geom_brep::CARRIER_DOMAIN_RECOURSE.to_owned(),
-                    K::PlaceholderChart => geom_brep::pcurve_cache::PLACEHOLDER_RECOURSE.to_owned(),
                     K::Band => match &e {
                         C::Band(
                             geom_core::BandError::InvalidValue { .. }
@@ -2839,7 +2849,6 @@ mod tests {
                         P::CarrierDomain(r) => C::CarrierDomain(*r).ending(at),
                         _ => unreachable!("the kind is the arm"),
                     },
-                    PK::PlaceholderWall => C::PlaceholderChart.ending(at),
                     // This door's own checks, by their routing.
                     PK::Limb => match &refusal {
                         P::Limb { limb, margin } => {
@@ -3072,6 +3081,7 @@ mod tests {
             matches!(
                 e,
                 CertifyError::UnresolvedSurface { .. }
+                    | CertifyError::PendingSurface { .. }
                     | CertifyError::Unimplemented
                     | CertifyError::IntersectionSameSurface { .. }
                     | CertifyError::WrapOnNonPeriodic

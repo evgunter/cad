@@ -102,8 +102,6 @@ const CREASE_SNAP: f64 = 1e-13;
 /// Why a carrier has no image on a wall.
 #[derive(Debug)]
 pub(crate) enum ImageRefusal {
-    /// The wall is the placeholder: nothing to project onto.
-    PlaceholderWall,
     /// The carrier's interval is not one the knot door accepts.
     CarrierDomain(CarrierDomainRefusal),
     /// The foot path could not be followed to the carrier's parameter
@@ -129,13 +127,11 @@ pub(crate) enum ImageRefusal {
     Miss(crate::ssi::SsiError),
 }
 
-/// **A lane's vocabulary for an image's refusal**: the five words every
+/// **A lane's vocabulary for an image's refusal**: the four words every
 /// reader of the image states, each handed all the refusal carries.
 /// [`ImageRefusal::into_lane`] is the one conversion; a lane that drops
 /// a datum does so here, where its word is written.
 pub(crate) trait ImageLane: Sized {
-    /// The wall is the placeholder.
-    fn placeholder_wall() -> Self;
     /// The carrier's interval is not one the knot door accepts.
     fn carrier_domain(refusal: CarrierDomainRefusal) -> Self;
     /// The foot path stopped short of the carrier's parameter `t`, at
@@ -153,7 +149,6 @@ impl ImageRefusal {
     /// the mint's and rest's are all read through this one match.
     pub(crate) fn into_lane<E: ImageLane>(self) -> E {
         match self {
-            Self::PlaceholderWall => E::placeholder_wall(),
             Self::CarrierDomain(refusal) => E::carrier_domain(refusal),
             Self::Foot {
                 t,
@@ -214,9 +209,7 @@ const RESOLUTION_ULPS: f64 = 64.0;
 /// The length `f64` resolves at the wall point `p`
 /// ([`RESOLUTION_ULPS`]).
 fn resolution<T: Decide + Bounds>(p: Point3<T>) -> f64 {
-    RESOLUTION_ULPS
-        * f64::EPSILON
-        * mid(p.x).abs().max(mid(p.y).abs()).max(mid(p.z).abs())
+    RESOLUTION_ULPS * f64::EPSILON * mid(p.x).abs().max(mid(p.y).abs()).max(mid(p.z).abs())
 }
 
 /// **The wall's foot of `p` from the seed `(u, v)`**: Newton's
@@ -319,9 +312,6 @@ fn on_unit<T>(
 where
     T: Decide + Bounds + geom_core::CertifiedEnclosure,
 {
-    if wall.is_placeholder() {
-        return Err(ImageRefusal::PlaceholderWall);
-    }
     let (domain, ends) = crate::carrier_net::carrier_span(carrier, params);
     let (t0, t1) = domain;
     // The domain door, asked before any foot: a width that overflows
@@ -382,8 +372,7 @@ where
         // inside, so where its net does it is inside whole, and what the
         // move costs is read with the rest of its miss below.
         let [ud, vd] = rectangle(wall);
-        let image =
-            image.map_points(|p| Point2::new(p.x.clamp(ud.0, ud.1), p.y.clamp(vd.0, vd.1)));
+        let image = image.map_points(|p| Point2::new(p.x.clamp(ud.0, ud.1), p.y.clamp(vd.0, vd.1)));
         // The spans that miss, by the knot each takes (at its middle, or
         // on a line of the wall the path crosses in it), and the largest
         // miss read.
@@ -837,12 +826,7 @@ where
 /// # Errors
 ///
 /// The last distance the projection read, where it does not settle.
-fn follow<T>(
-    read: &Read<'_, T>,
-    wall: &NurbsSurface<T>,
-    last: Foot,
-    at: f64,
-) -> Result<Foot, f64>
+fn follow<T>(read: &Read<'_, T>, wall: &NurbsSurface<T>, last: Foot, at: f64) -> Result<Foot, f64>
 where
     T: Decide + Bounds + geom_core::CertifiedEnclosure,
 {

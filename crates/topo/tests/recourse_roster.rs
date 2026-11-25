@@ -751,7 +751,7 @@ const INDIRECT: &[(&str, &str)] = &[
         NOT_A_NAME,
     ),
     (
-        "pcurves/net_period_rows.rs: a_long_u_domain_crosses_its_seam_by_one_period: DescribedChart::of(&s).unwrap()",
+        "pcurves/net_period_rows.rs: a_long_u_domain_crosses_its_seam_by_one_period: DescribedChart::of(&s)",
         NOT_A_NAME,
     ),
     (
@@ -770,12 +770,20 @@ const INDIRECT: &[(&str, &str)] = &[
     ("pcurves/mint.rs: chart_u_period: payload", CARRIER_CALL),
     ("pcurves/mint.rs: chart_v_period: payload", CARRIER_CALL),
     (
-        "pcurves/net_period_rows.rs: joint: DescribedChart::of(&s).unwrap()",
+        "pcurves/net_period_rows.rs: joint: DescribedChart::of(&s)",
         NOT_A_NAME,
     ),
     ("pcurves/decision.rs: lever_periods: name", FORWARDS),
     (
-        "pcurves/lift_rows.rs: lift: DescribedChart::of(surface).unwrap()",
+        "pcurves/collapsed_side_rows.rs: joint: DescribedChart::of(surface)",
+        NOT_A_NAME,
+    ),
+    (
+        "pcurves/collapsed_side_rows.rs: joint_at: DescribedChart::of(surface)",
+        NOT_A_NAME,
+    ),
+    (
+        "pcurves/lift_rows.rs: lift: DescribedChart::of(surface)",
         NOT_A_NAME,
     ),
     ("pcurves/mint.rs: net_closes_as: name", FORWARDS),
@@ -797,7 +805,7 @@ const INDIRECT: &[(&str, &str)] = &[
     // `ContainError::Escalated` on `ContainDecision::Carrier`.
     ("spline_trim.rs: decide: name", FORWARDS),
     (
-        "pcurves/pole_slit_tests.rs: only_a_net_closed_in_v_decides_a_v_element: super::DescribedChart::of(s).unwrap()",
+        "pcurves/pole_slit_tests.rs: only_a_net_closed_in_v_decides_a_v_element: super::DescribedChart::of(s)",
         NOT_A_NAME,
     ),
     ("pcurves/decision.rs: decide_plain_joint: chart", NOT_A_NAME),
@@ -829,7 +837,7 @@ const INDIRECT: &[(&str, &str)] = &[
     ("pcurves/site.rs: split_cache: chart", NOT_A_NAME),
     ("pcurves/site.rs: turn_element: chart", NOT_A_NAME),
     (
-        "pcurves/net_period_rows.rs: u_crossing: DescribedChart::of(&s).unwrap()",
+        "pcurves/net_period_rows.rs: u_crossing: DescribedChart::of(&s)",
         NOT_A_NAME,
     ),
     ("pcurves/decision.rs: walk_cycle: chart", NOT_A_NAME),

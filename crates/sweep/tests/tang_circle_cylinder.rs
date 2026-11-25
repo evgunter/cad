@@ -141,7 +141,7 @@ fn circle_wall_events(a: &Body<f64>, b: &Body<f64>) -> (usize, usize) {
                         .and_then(|e| x.get_curve_geom(e.curve))
                         .and_then(topo::CurveGeom::certified)
                         .is_some_and(|c| matches!(c.carrier(), topo::Curve3::Circle(..)));
-                    let wall = matches!(y.face_surface(*f), Some(topo::Surface::Cylinder { .. }));
+                    let wall = matches!(y.face_surface(*f), Ok(topo::Surface::Cylinder { .. }));
                     circle && wall
                 })
                 .count()

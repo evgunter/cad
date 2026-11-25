@@ -72,13 +72,13 @@ fn prism(scale: f64) -> Body<f64> {
 /// Is this face's surface a described NURBS wall whose control net lies
 /// exactly on `y = -1` (the planar wall a promotion restates)?
 fn is_flat_wall(body: &Body<f64>, key: topo::SurfaceKey, scale: f64) -> bool {
-    matches!(body.get_surface(key), Some(Surface::Nurbs(n))
-        if !n.is_placeholder() && n.control().iter().all(|p| p.y == -scale))
+    matches!(body.get_surface(key), Ok(Surface::Nurbs(n))
+        if n.control().iter().all(|p| p.y == -scale))
 }
 
 fn is_bowed_wall(body: &Body<f64>, key: topo::SurfaceKey, scale: f64) -> bool {
-    matches!(body.get_surface(key), Some(Surface::Nurbs(n))
-        if !n.is_placeholder() && n.control().iter().any(|p| p.y != -scale)
+    matches!(body.get_surface(key), Ok(Surface::Nurbs(n))
+        if n.control().iter().any(|p| p.y != -scale)
             && n.control().iter().any(|p| p.x.abs() == scale))
 }
 
@@ -309,7 +309,7 @@ fn posture(
 /// The chart the bowed wall's face carries.
 fn chart_of(body: &Body<f64>, key: topo::SurfaceKey) -> NurbsSurface<f64> {
     match body.get_surface(key) {
-        Some(Surface::Nurbs(n)) => (**n).clone(),
+        Ok(Surface::Nurbs(n)) => (**n).clone(),
         other => panic!("the bowed wall is a described NURBS chart: {other:?}"),
     }
 }
@@ -727,7 +727,7 @@ fn seam_plane(body: &Body<f64>, he: topo::HalfEdgeKey) -> (topo::SurfaceKey, Sur
     pair.keys()
         .into_iter()
         .find_map(|k| match body.get_surface(k) {
-            Some(p @ Surface::Plane { .. }) => Some((k, p.clone())),
+            Ok(p @ Surface::Plane { .. }) => Some((k, p.clone())),
             _ => None,
         })
         .expect("one operand is the plane the flat wall was restated as")
@@ -1053,7 +1053,7 @@ fn a_degree_two_widening_tessellates_against_the_oracle() {
     let (gt, gi) = patch_size(&body, &got, key);
     let oracle_walls: Vec<(usize, usize)> = oracle
         .faces()
-        .filter(|(fk, _)| matches!(oracle.face_surface(*fk), Some(geom::Surface::Nurbs(_))))
+        .filter(|(fk, _)| matches!(oracle.face_surface(*fk), Ok(geom::Surface::Nurbs(_))))
         .map(|(_, f)| patch_size(&oracle, &want, f.surface))
         .collect();
     println!(
@@ -1161,7 +1161,7 @@ fn top_rim(
                 .find_map(|(own, other)| {
                     let lp = body.get_half_edge(own).unwrap().parent_loop;
                     let cap = he_surface(body, other);
-                    let on_cap = matches!(body.get_surface(cap), Some(Surface::Plane { .. }));
+                    let on_cap = matches!(body.get_surface(cap), Ok(Surface::Plane { .. }));
                     let ends =
                         [own, other].map(|h| vertex_at(body, body.get_half_edge(h).unwrap().start));
                     (body.get_loop(lp).unwrap().face == wall_face

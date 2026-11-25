@@ -49,7 +49,7 @@ fn top_cap(body: &topo::Body<f64>) -> topo::FaceKey {
         .find(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(geom::Surface::Plane { frame, .. })
+                Ok(geom::Surface::Plane { frame, .. })
                     if frame.axis().z > 0.5 && frame.origin().z > 0.5
             )
         })

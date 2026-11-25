@@ -84,7 +84,7 @@ fn witnessed(
         },
         carrier.eval(t0),
         carrier.eval(t1),
-        move |k| arena.get(k).cloned(),
+        move |k| arena.get(k).cloned().ok_or(crate::SurfaceMiss::Stale),
         fixture_lever(extent),
         band(),
         NurbsLane::certified(),
@@ -693,8 +693,8 @@ fn a_general_row_whose_image_leaves_the_knot_rectangle_is_not_certified() {
         ("the mint's image", &minted, &[3.0, 30.0, 400.0]),
     ];
     for (what, row, dips) in rows {
-        let inside = row(-1e-6)
-            .unwrap_or_else(|e| panic!("{what}: an arc inside the rim certifies: {e:?}"));
+        let inside =
+            row(-1e-6).unwrap_or_else(|e| panic!("{what}: an arc inside the rim certifies: {e:?}"));
         let half = row(0.5 * eps)
             .unwrap_or_else(|e| panic!("{what}: a dip of half the band certifies: {e:?}"));
         assert!(

@@ -2484,11 +2484,6 @@ fn fit_branch(points: &[Point3<f64>]) -> Result<NurbsCurve3<f64>, SsiError> {
 /// could not reach as limb 1's own, the image's miss past its cap as
 /// limb 2's reading of it ([`SsiLimb::ImageMiss`]).
 impl crate::carrier_image::ImageLane for SsiError {
-    fn placeholder_wall() -> Self {
-        Self::UnsupportedCertificate {
-            what: "the wall is the placeholder, which has no foot path",
-        }
-    }
     fn carrier_domain(refusal: crate::CarrierDomainRefusal) -> Self {
         Self::CarrierDomain(refusal)
     }
@@ -4636,7 +4631,7 @@ mod ending_tests {
         );
         let folded = crate::folded_lever_arm(&sphere(0.1), &plane, o, reach(f64::NAN)).length();
         assert!(folded.is_nan(), "folded arm, E poison: {folded:e}");
-        let nurbs = Surface::nurbs_placeholder();
+        let nurbs = geom::test_support::unit_patch();
         let folded = crate::folded_lever_arm(&nurbs, &plane, o, reach(e)).length();
         assert!(folded.is_nan(), "folded arm on a NURBS carrier: {folded:e}");
     }

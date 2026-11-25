@@ -117,7 +117,7 @@ use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 use geom_brep::curve_pair::on_surface::{Charted, SurfaceCurve};
 
 use crate::body::Body;
-use crate::entity::{FaceKey, LoopKey};
+use crate::entity::FaceKey;
 use crate::ray_walk::{self, RayFault, SegmentRows};
 use crate::region::{
     self, End, Fault, Legs, Line, Paths, QueryFoot, Region, RegionEdge, RegionRefusal, Round,
@@ -213,8 +213,6 @@ pub(crate) struct RuledFaceRegion<T: geom_core::Real> {
     /// The face's sense bit: `false` points its outward normal at the
     /// axis.
     sense: bool,
-    /// The face's outer loop, named by an exhaustion.
-    outer: LoopKey,
     /// The lever of the crossing's sine: the cylinder's radius, or a
     /// bound on the farthest a cone face's boundary reaches from the
     /// apex, never under it.
@@ -311,7 +309,10 @@ pub(crate) fn ruled_face_region<T: Decide>(
 ) -> Result<Option<RuledFaceRegion<T>>, PointInSolidError> {
     let corrupt = || PointInSolidError::CorruptFace { face };
     let f = body.proven_face(face);
-    let surface = Ruled::of(f.surface()).ok_or_else(corrupt)?;
+    let stored = f
+        .surface()
+        .map_err(|_| PointInSolidError::PendingFace { face })?;
+    let surface = Ruled::of(stored).ok_or_else(corrupt)?;
     let ruled = [
         geom::CurveKind::Line,
         geom::CurveKind::Circle,
@@ -326,10 +327,9 @@ pub(crate) fn ruled_face_region<T: Decide>(
         .collect();
     let scale = reach_bound(&surface, &covers);
     Ok(Some(RuledFaceRegion {
-        charted: Charted::record(f.record().surface, f.surface()),
+        charted: Charted::record(f.record().surface, stored),
         surface,
         sense: f.sense(),
-        outer: f.record().outer,
         scale,
         edges,
     }))
@@ -384,7 +384,7 @@ impl<T: Decide> RuledFaceRegion<T> {
         if self.on_boundary(foot.at(), band)? {
             return Ok(None);
         }
-        let exhausted = || RegionRefusal::RayExhausted { outer: self.outer };
+        let exhausted = || RegionRefusal::RayExhausted;
         let at_apex = match self.surface {
             Ruled::Cylinder { .. } => false,
             Ruled::Cone { apex, .. } => {
@@ -555,22 +555,11 @@ impl<T: Decide> Region<T> for RuledFaceRegion<T> {
         &mut self.edges
     }
 
-    fn outer(&self) -> LoopKey {
-        self.outer
-    }
-
     /// A line as a segment ([`ray_walk::on_segment`]), a conic on its
     /// own carrier.
     fn on_edge(&self, edge: &Edge<T>, p: Point3<T>, band: Band) -> Result<bool, RegionRefusal> {
         if edge.carrier.is_curved() {
-            circle_edge_hit(
-                &edge.carrier,
-                edge.turn.as_ref(),
-                BOUNDARY,
-                p,
-                self.outer,
-                band,
-            )
+            circle_edge_hit(&edge.carrier, edge.turn.as_ref(), BOUNDARY, p, band)
         } else {
             ray_walk::on_segment(edge.at(edge.t0), edge.at(edge.t1), p, &LINE, band)
                 .map_err(RegionRefusal::Escalated)

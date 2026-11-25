@@ -745,14 +745,14 @@ fn door_spec(
     carrier: Curve3<f64>,
     (t0, t1): (f64, f64),
 ) -> (
-    impl Fn(SurfaceKey) -> Option<Surface<f64>>,
+    impl Fn(SurfaceKey) -> Result<Surface<f64>, geom_brep::SurfaceMiss>,
     EdgeCurveSpec<f64>,
 ) {
     let mut arena: SlotMap<SurfaceKey, Surface<f64>> = SlotMap::with_key();
     let (s1, s2) = (arena.insert(a), arena.insert(b));
     let witness = carrier.eval(0.5 * (t0 + t1));
     (
-        move |k| arena.get(k).cloned(),
+        move |k| arena.get(k).cloned().ok_or(geom_brep::SurfaceMiss::Stale),
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(s1, s2),

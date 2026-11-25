@@ -2417,7 +2417,7 @@ pub enum PcurveCertifyError {
     },
     /// An iso image was offered outside the iso lane's certified
     /// inventory, with the exact boundary named. The refused set is:
-    /// a chart that is still the mvfs placeholder; a non-boundary ROW
+    /// a non-boundary ROW
     /// under the arc-rim class (the seam class certifies an interior
     /// COLUMN by the de Boor collapse, `crate::nurbs_iso`, the cap class
     /// an interior row the same way on the transposed chart, and both
@@ -2539,10 +2539,6 @@ pub enum PcurveCertifyError {
         /// The derivation's.
         derived: [Option<i32>; 2],
     },
-    /// The chart is the placeholder ([`Surface::is_placeholder_chart`]):
-    /// it has no locus, so no lane can image a pcurve on it or meter a
-    /// margin through it. Every lane refuses it with this, at check 1.
-    PlaceholderChart,
     /// The pcurve's azimuth extent definitely exceeds one full period —
     /// the chart-side counterpart of
     /// [`crate::certify::CertifyError::WindingExceeded`].
@@ -2753,11 +2749,6 @@ impl PcurveCertifyError {
                 "pcurve certification: the row winds {stored:?} times, and its carrier \
                  winds {derived:?} times on this chart"
             ),
-            Self::PlaceholderChart => write!(
-                f,
-                "pcurve certification: {}, so nothing can be imaged on its chart",
-                geom::PLACEHOLDER_SURFACE
-            ),
             Self::SectorRefused { piece, channel } => write!(
                 f,
                 "pcurve certification: piece {piece} of the projected image is not in one \
@@ -2914,7 +2905,6 @@ impl PcurveCertifyError {
             Self::CarrierDomain(_) => Decision::Lever(Lever::CarrierDomain),
             Self::FittedLaneUnsupported { .. } => Decision::Lever(Lever::FittedDoor),
             Self::FittedGradeAtClosedFormDoor { .. } => Decision::Lever(Lever::FittedGradeDoor),
-            Self::PlaceholderChart => Decision::Lever(Lever::Placeholder),
             // The run's linear band: K·ε overflowed or rounded back onto
             // ε (`Band::linear`), so a smaller tolerance; a lever arm is
             // no linear band's, so a band its caller built, by its own.
@@ -3495,11 +3485,6 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
 /// The image's refusal, in the mint's vocabulary
 /// ([`crate::carrier_image::ImageRefusal::into_lane`]).
 impl crate::carrier_image::ImageLane for PcurveCertifyError {
-    // The wall this door was handed, as the foot producer refuses it
-    // (`chart_foot_lane`): one lever at both doors.
-    fn placeholder_wall() -> Self {
-        Self::PlaceholderChart
-    }
     fn carrier_domain(refusal: crate::edge_nurbs::CarrierDomainRefusal) -> Self {
         Self::CarrierDomain(refusal)
     }
@@ -3553,13 +3538,9 @@ pub(crate) fn chart_foot_lane<T: Decide + geom_core::Bounds + geom_core::Certifi
             magnitude: Some(FittedMagnitude::EndpointFootDistance { last_distance }),
             ending: FittedEnding::FootUnsettled,
         }),
-        Err(crate::edge_nurbs::PlaneNurbsRefusal::PlaceholderWall) => {
-            Err(PcurveCertifyError::PlaceholderChart)
+        Err(other) => {
+            unreachable!("the chart foot producer refuses an unsettled foot alone: {other:?}")
         }
-        Err(other) => unreachable!(
-            "the chart foot producer refuses an unsettled foot or the placeholder wall \
-             alone: {other:?}"
-        ),
     }
 }
 
@@ -7624,7 +7605,7 @@ fn placement_terms<T: Decide>(
     if period_u.is_none() && period_v.is_none() {
         return Ok((T::zero(), T::zero()));
     }
-    let (arm_u, arm_v) = chart_sup_arms_at(surface, &stored.chart_box(t0, t1))?;
+    let (arm_u, arm_v) = chart_sup_arms_at(surface, &stored.chart_box(t0, t1));
     // A row read off a pole end is placed against the image derived off
     // that same end, at the parameter the row stores.
     let pole = match stored {
@@ -7748,7 +7729,7 @@ fn fidelity<T: Decide>(
         harmonic_span_box(p0, pa, pb, pl, t0, t1)
             .v_reach()
             .min(harmonic_span_box(q0, qa, qb, ql, t0, t1).v_reach())
-    })?;
+    });
     // The stored row is placed as its derivation is (C4: the mint and
     // check 4 place one image over one span, `Placement`), so its
     // constants ARE the derived ones, or on a sphere those of the
@@ -8648,12 +8629,6 @@ pub enum NoChartSup {
     /// supplies (`v_sup·sin α`). The `v` channel still has an exact
     /// answer and [`chart_stretch_sup_v`] is the door for it.
     ConeAzimuthGrowsWithV,
-    /// The chart is the placeholder ([`Surface::is_placeholder_chart`]):
-    /// its control net is all-poison, so every evaluation of it is
-    /// poison and there is no locus for either arm to be an arm of.
-    /// Both channels refuse, [`chart_stretch_sup_v`] included — the
-    /// sup-side twin of [`chart_stretch_inf`]'s all-zero answer.
-    Placeholder,
 }
 
 /// **`(sup |S_u|, sup |S_v|)`** — the chart's UPPER stretch bounds:
@@ -8667,9 +8642,7 @@ pub enum NoChartSup {
 /// every `(u, v)` of the chart's domain. That is what a [`SupSpeed`]
 /// asserts, so the kind that cannot honour it **refuses**: a cone has
 /// no surface-level azimuth arm and this door answers
-/// [`NoChartSup::ConeAzimuthGrowsWithV`] rather than a number, and the
-/// placeholder has no locus at all and answers
-/// [`NoChartSup::Placeholder`]. A cone
+/// [`NoChartSup::ConeAzimuthGrowsWithV`] rather than a number. A cone
 /// caller goes through [`chart_sup_arms_at`], which supplies
 /// `v_sup·sin α` from the row's own box, or through
 /// [`chart_stretch_sup_v`] for the `v` channel alone, which is exact
@@ -8701,9 +8674,6 @@ pub enum NoChartSup {
 pub fn chart_stretch_sup<T: Real>(
     surface: &Surface<T>,
 ) -> Result<(SupSpeed<T>, SupSpeed<T>), NoChartSup> {
-    if surface.is_placeholder_chart() {
-        return Err(NoChartSup::Placeholder);
-    }
     // [`azimuth_lever`] reads no `v` reach off a cylinder, sphere or
     // torus, the kinds that ask it here.
     let azimuth = || SupSpeed::new(azimuth_lever(surface, T::zero()));
@@ -8794,22 +8764,16 @@ pub fn spline_net_closes<T: Decide>(
 /// cone's `v` is a SLANT LENGTH along the ruling, so `|S_v| = 1`
 /// exactly, everywhere. The tag is minted here because here it is
 /// true. Every other kind answers the pair's second component, which
-/// is where that answer lives — and the placeholder, which has no
-/// second channel either, refuses here exactly as it does there.
+/// is where that answer lives.
 ///
 /// The direction argument is [`chart_stretch_sup`]'s in every
 /// respect: this is the escape side, unsafe for a positive-extent
 /// claim.
 ///
-/// # Errors
-///
-/// [`NoChartSup::Placeholder`] for the placeholder chart, and nothing
-/// else.
-pub fn chart_stretch_sup_v<T: Real>(surface: &Surface<T>) -> Result<SupSpeed<T>, NoChartSup> {
+pub fn chart_stretch_sup_v<T: Real>(surface: &Surface<T>) -> SupSpeed<T> {
     match chart_stretch_sup(surface) {
-        Ok((_, v)) => Ok(v),
-        Err(NoChartSup::ConeAzimuthGrowsWithV) => Ok(SupSpeed::new(T::one())),
-        Err(NoChartSup::Placeholder) => Err(NoChartSup::Placeholder),
+        Ok((_, v)) => v,
+        Err(NoChartSup::ConeAzimuthGrowsWithV) => SupSpeed::new(T::one()),
     }
 }
 
@@ -8819,15 +8783,10 @@ pub fn chart_stretch_sup_v<T: Real>(surface: &Surface<T>) -> Result<SupSpeed<T>,
 /// (dominating the local arm everywhere in the window — the safe
 /// direction); every other kind answers as [`chart_stretch_sup`], a
 /// sup over the whole chart and so over any window of it.
-///
-/// # Errors
-///
-/// [`PcurveCertifyError::PlaceholderChart`] for the placeholder chart,
-/// which has arms nowhere, and nothing else.
 pub fn chart_sup_arms_at<T: Real>(
     surface: &Surface<T>,
     window: &ChartWindow<T>,
-) -> Result<(SupSpeed<T>, SupSpeed<T>), PcurveCertifyError> {
+) -> (SupSpeed<T>, SupSpeed<T>) {
     chart_sup_arms_over(surface, || window.v_reach())
 }
 
@@ -8836,14 +8795,13 @@ pub fn chart_sup_arms_at<T: Real>(
 fn chart_sup_arms_over<T: Real>(
     surface: &Surface<T>,
     v_sup: impl FnOnce() -> T,
-) -> Result<(SupSpeed<T>, SupSpeed<T>), PcurveCertifyError> {
+) -> (SupSpeed<T>, SupSpeed<T>) {
     match chart_stretch_sup(surface) {
-        Ok(pair) => Ok(pair),
-        Err(NoChartSup::ConeAzimuthGrowsWithV) => Ok((
+        Ok(pair) => pair,
+        Err(NoChartSup::ConeAzimuthGrowsWithV) => (
             SupSpeed::new(azimuth_lever(surface, v_sup())),
             SupSpeed::new(T::one()),
-        )),
-        Err(NoChartSup::Placeholder) => Err(PcurveCertifyError::PlaceholderChart),
+        ),
     }
 }
 
@@ -8969,10 +8927,6 @@ pub fn chart_stretch_inf<T: Real>(surface: &Surface<T>) -> ChartStretchInf<T> {
         sup_v: T::zero(),
         area_inf: T::zero(),
     };
-    if surface.is_placeholder_chart() {
-        // No net to bound: the placeholder certifies nothing.
-        return zero;
-    }
     match *surface {
         Surface::Nurbs(ref payload) => nurbs_stretch_inf(payload),
         Surface::Approx(ref a) => nurbs_stretch_inf(a.fit()),
@@ -9178,9 +9132,6 @@ fn fitted_defects<T: Decide>(
     band: Band,
 ) -> Result<T, PcurveCertifyError> {
     // ---- Check 1: the lane. ----
-    if surface.is_placeholder_chart() {
-        return Err(PcurveCertifyError::PlaceholderChart);
-    }
     if crate::edge_nurbs::is_analytic(surface) {
         return Err(PcurveCertifyError::ImageMismatch {
             image: PcurveKind::Fitted,
@@ -9462,9 +9413,6 @@ fn run_iso_arc_checks<T: Decide>(
             chart: surface.kind(),
         });
     };
-    if surface.is_placeholder_chart() {
-        return Err(PcurveCertifyError::PlaceholderChart);
-    }
     let Curve3::Circle(circle) = carrier else {
         return Err(PcurveCertifyError::IsoUnsupported {
             what: "an arc-rim iso over a non-Circle carrier — the class IS the circle's \
@@ -9935,9 +9883,6 @@ fn run_iso_checks<T: Decide>(
             chart: surface.kind(),
         });
     };
-    if surface.is_placeholder_chart() {
-        return Err(PcurveCertifyError::PlaceholderChart);
-    }
 
     // ---- Check 2: the parameter interval, metered into metres. ----
     let span = t1 - t0;
@@ -11218,8 +11163,7 @@ fn covers<T: Decide>((c0, c1): (T, T), (a0, a1): (T, T)) -> bool {
 /// which is shown off the chart, and read in band
 /// ([`IncidenceRead::Undecided`]) where none is and some sample is
 /// read in band, unsettled at the walk's caps, or unreadable (a net that
-/// does not cut, a weight not shown positive); and
-/// [`PcurveCertifyError::PlaceholderChart`] on the placeholder chart.
+/// does not cut, a weight not shown positive).
 pub fn read_edge_incidence<T: Decide>(
     carrier: &Curve3<T>,
     t0: T,
@@ -13733,9 +13677,6 @@ mod incidence {
         band: Band,
     ) -> Result<Incidence, PcurveCertifyError> {
         if let Some(chart) = surface.spline_chart() {
-            if surface.is_placeholder_chart() {
-                return Err(PcurveCertifyError::PlaceholderChart);
-            }
             #[cfg(test)]
             if super::mutants::spline_shown_unread() {
                 return Ok(Incidence::On(None));
@@ -13781,9 +13722,6 @@ mod incidence {
         // A spline chart is a bounded patch, so the read is the span's
         // whatever the carrier ([`super::spline_incidence`]).
         if let Some(chart) = surface.spline_chart() {
-            if surface.is_placeholder_chart() {
-                return Err(PcurveCertifyError::PlaceholderChart);
-            }
             let name = match surface {
                 Surface::Approx(_) => "pcurve_approx_chart_incident",
                 _ => "pcurve_nurbs_chart_incident",
@@ -15990,7 +15928,7 @@ mod tests {
             v_min: -3.0,
             v_max: 1.5,
         };
-        let (arm, v_arm) = chart_sup_arms_at(&cone, &boxed).unwrap();
+        let (arm, v_arm) = chart_sup_arms_at(&cone, &boxed);
         let (arm, v_arm) = (arm.get(), v_arm.get());
         assert!(
             (v_arm - 1.0).abs() < 1e-15,
@@ -16506,7 +16444,7 @@ mod cone_azimuth_sup {
     #[test]
     fn a_cones_second_channel_is_exactly_unit_and_stays_minted() {
         let (cone, _) = cone();
-        let rate = chart_stretch_sup_v(&cone).unwrap();
+        let rate = chart_stretch_sup_v(&cone);
         assert_eq!(rate.get(), 1.0);
         let (v, dv) = (4.0_f64, 0.25_f64);
         let chord = cone.eval(0.0, v).distance(cone.eval(0.0, v + dv));
@@ -16514,50 +16452,6 @@ mod cone_azimuth_sup {
             (chord - rate.to_meters(dv)).abs() <= 4.0 * f64::EPSILON * dv,
             "a slant step of {dv} moves {chord} m, metred as {} m",
             rate.to_meters(dv)
-        );
-    }
-}
-
-/// **The placeholder chart has no sup arms, and both doors say so.**
-#[cfg(test)]
-mod placeholder_sup {
-    use super::{
-        ChartWindow, NoChartSup, PcurveCertifyError, chart_stretch_inf, chart_stretch_sup,
-        chart_stretch_sup_v, chart_sup_arms_at,
-    };
-    use geom::{NurbsSurface, Surface};
-    use std::sync::Arc;
-
-    /// The placeholder refuses on both sup doors and on the boxed one,
-    /// where it used to answer unit arms; the inf door's all-zero
-    /// answer is the same statement on the other side.
-    #[test]
-    fn the_placeholder_refuses_every_sup_door() {
-        let ph: Surface<f64> = Surface::Nurbs(Arc::new(NurbsSurface::placeholder()));
-        assert!(
-            matches!(chart_stretch_sup(&ph), Err(NoChartSup::Placeholder)),
-            "pair"
-        );
-        assert!(
-            matches!(chart_stretch_sup_v(&ph), Err(NoChartSup::Placeholder)),
-            "v only"
-        );
-        let unit = ChartWindow {
-            u_min: 0.0,
-            u_max: 1.0,
-            v_min: 0.0,
-            v_max: 1.0,
-        };
-        assert_eq!(
-            chart_sup_arms_at(&ph, &unit).err(),
-            Some(PcurveCertifyError::PlaceholderChart),
-            "the boxed door, which the azimuth headroom reads"
-        );
-        let inf = chart_stretch_inf(&ph);
-        assert_eq!(
-            (inf.inf_u, inf.inf_v, inf.sup_u, inf.sup_v, inf.area_inf),
-            (0.0, 0.0, 0.0, 0.0, 0.0),
-            "the inf door certifies nothing for it"
         );
     }
 }

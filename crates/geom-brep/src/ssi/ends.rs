@@ -162,12 +162,7 @@ impl<'a> Operands<'a> {
                 let image =
                     crate::carrier_image::carrier_image(&carrier, params, wall.surface(), band)
                         .map_err(|e| {
-                            certify::located_before_image_miss(
-                                e.into_lane(),
-                                fitted,
-                                partner,
-                                band,
-                            )
+                            certify::located_before_image_miss(e.into_lane(), fitted, partner, band)
                         })?;
                 Ok((None, Some(image)))
             }

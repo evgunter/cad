@@ -125,7 +125,7 @@ fn a_rim_against_the_charts_u_takes_its_reversed_row() {
     let mut reversed = body.clone();
     let face = reversed.get_face(wall).unwrap();
     let (key, sense) = (face.surface, face.sense);
-    let Some(Surface::Nurbs(net)) = reversed.get_surface(key).cloned() else {
+    let Ok(Surface::Nurbs(net)) = reversed.get_surface(key).cloned() else {
         panic!("the arc wall is a spline chart")
     };
     // Lifts RechartUnvouched and RechartStrandsDescriptions: the wall
@@ -312,7 +312,7 @@ fn seam_tube() -> (Body<f64>, FaceKey, [HalfEdgeKey; 2]) {
     let on_torus = |body: &Body<f64>, h: HalfEdgeKey| {
         matches!(
             body.face_surface(body.face_of_half_edge(h).unwrap()),
-            Some(Surface::Torus { .. })
+            Ok(Surface::Torus { .. })
         )
     };
     let equators: Vec<_> = body

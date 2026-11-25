@@ -11,6 +11,8 @@
 //! curve or over a patch is read from the two cells' geometry by the
 //! census.
 
+use std::collections::BTreeMap;
+
 use geom_core::Real;
 
 use super::{
@@ -81,10 +83,11 @@ pub enum CarryRefusal {
         cells: [Cell; 2],
     },
     /// Input record `record`'s two cells do not meet where the op put
-    /// them, and the op removed and moved neither: a touch the op's
-    /// lineage says is still there, and the result says is not. The
-    /// carry raises it for a record on a divided cell that lands on no
-    /// pair of its images, every pair read definitely; the boolean's
+    /// them, nor on a cell the op removed, and the op moved neither
+    /// whole: a touch the op's lineage says is still there, and the
+    /// result says is not. The carry raises it for a record that lands
+    /// on no pair of its images nor of its removed members, every pair
+    /// read definitely; the boolean's
     /// output stage for a carried vertex pair whose two points it reads
     /// apart.
     Stale {
@@ -152,8 +155,8 @@ impl core::fmt::Display for CarryRefusal {
             ),
             Self::Stale { record } => write!(
                 f,
-                "record {record}'s cells do not meet where the op put them, and the op \
-                 removed and moved neither"
+                "record {record}'s cells do not meet where the op put them nor on a cell \
+                 the op removed, and the op moved neither whole"
             ),
             Self::MintedMeeting { record, cells } => write!(
                 f,
@@ -491,10 +494,15 @@ impl ContactRecords {
     /// pair are one record citing both.
     ///
     /// A record that lands on no pair, every pair read definitely, is
-    /// **consumed** where the op removed one of its cells or divided one
-    /// with its remainder removed; so too a vertex–vertex record whose
-    /// two vertices the op made one (D1's strict record-drop rule). It is
-    /// never dropped because no witness turned up: otherwise it refuses.
+    /// read against the cells a division names removed, and is
+    /// **consumed** where it lands on them, where the op removed one of
+    /// its cells whole, or where the op moved one of them whole; so too
+    /// a vertex–vertex record whose two vertices the op made one (D1's
+    /// strict record-drop rule). It is never dropped because no witness
+    /// turned up: a removal elsewhere on its cells does not consume it,
+    /// and otherwise it refuses. This door has no body holding removed
+    /// members, so a division that names one refuses `Unread`
+    /// ([`Self::carried_through_removing`] reads them).
     ///
     /// # Errors
     ///
@@ -503,8 +511,9 @@ impl ContactRecords {
     /// that the confirm cannot read; [`CarryRefusal::MintedMeeting`] for
     /// two cells the op minted on the record's two cells meeting at a
     /// point it cannot back;
-    /// [`CarryRefusal::Stale`] for a record that lands nowhere with no
-    /// removal to consume it, and [`CarryRefusal::Pair`] for one whose
+    /// [`CarryRefusal::Stale`] for a record that lands nowhere, neither
+    /// on a removed member nor on a cell removed whole, and
+    /// [`CarryRefusal::Pair`] for one whose
     /// every pair of images is one cell or incident.
     pub fn carried_through<T: crate::props::AtRestPolicy>(
         &self,
@@ -520,6 +529,38 @@ impl ContactRecords {
             &[result],
             band,
             region,
+            None,
+        )?)
+        .unwrap_or_else(|_| unreachable!("one side carries one list"));
+        Ok(out)
+    }
+
+    /// These records carried onto `result` as [`Self::carried_through`]
+    /// carries them, the members each division names removed being
+    /// cells of `removed` (the op's input, or a body the op cut it in),
+    /// where each record's two cells are read as themselves.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::carried_through`].
+    pub fn carried_through_removing<T: crate::props::AtRestPolicy>(
+        &self,
+        input: u32,
+        lineage: &crate::Lineage,
+        result: &Body<T>,
+        removed: &Body<T>,
+        band: geom_core::Band,
+        region: Option<T::RegionLane>,
+    ) -> Result<Self, CarryRefusal> {
+        let removed = RemovedIn {
+            body: removed,
+            cells: BTreeMap::new(),
+        };
+        let [out] = <[Self; 1]>::try_from(self.placed(
+            input,
+            lineage,
+            (&[result], Some(&removed)),
+            (band, region),
             None,
         )?)
         .unwrap_or_else(|_| unreachable!("one side carries one list"));
@@ -544,9 +585,29 @@ impl ContactRecords {
         region: Option<T::RegionLane>,
         parted: Option<&mut Vec<Parting>>,
     ) -> Result<Vec<Self>, CarryRefusal> {
+        self.placed(input, lineage, (sides, None), (band, region), parted)
+    }
+
+    /// [`Self::carried_onto`], removed members read in `removed`.
+    fn placed<T: crate::props::AtRestPolicy>(
+        &self,
+        input: u32,
+        lineage: &crate::Lineage,
+        (sides, removed): (&[&Body<T>], Option<&RemovedIn<'_, T>>),
+        (band, region): (geom_core::Band, Option<T::RegionLane>),
+        parted: Option<&mut Vec<Parting>>,
+    ) -> Result<Vec<Self>, CarryRefusal> {
         let rows: Vec<[Cell; 2]> = self.rows.iter().map(|r| r.cells()).collect();
         let mut confirms = Confirms::new(sides.len());
-        let landed = landings(&rows, lineage, sides, &mut confirms, band, region, parted)?;
+        let landed = landings(
+            &rows,
+            lineage,
+            (sides, removed),
+            &mut confirms,
+            band,
+            region,
+            parted,
+        )?;
         let mut out: Vec<Self> = sides.iter().map(|_| Self::default()).collect();
         for landing in landed {
             let record = super::reduce::index(landing.row);
@@ -697,14 +758,34 @@ pub(crate) struct Landing {
     pub(crate) minted: bool,
 }
 
-/// Each side's census confirm, read at most once per side.
-pub(crate) struct Confirms<'b, T: crate::props::AtRestPolicy>(
-    Vec<Option<crate::census::RecordConfirm<'b, T>>>,
-);
+/// Each side's census confirm, and the removed members' body's, each
+/// read at most once.
+pub(crate) struct Confirms<'b, T: crate::props::AtRestPolicy> {
+    sides: Vec<Option<crate::census::RecordConfirm<'b, T>>>,
+    removed: Option<crate::census::RecordConfirm<'b, T>>,
+}
 
 impl<T: crate::props::AtRestPolicy> Confirms<'_, T> {
     pub(crate) fn new(sides: usize) -> Self {
-        Self((0..sides).map(|_| None).collect())
+        Self {
+            sides: (0..sides).map(|_| None).collect(),
+            removed: None,
+        }
+    }
+}
+
+/// **The body a carry reads removed members in** ([`crate::Division`]'s
+/// `removed`), and each record cell's cells there: every cell the op
+/// made of it, kept or removed. A cell `cells` does not list is itself
+/// there (the op's input).
+pub(in crate::boolean) struct RemovedIn<'b, T: Real> {
+    pub(in crate::boolean) body: &'b Body<T>,
+    pub(in crate::boolean) cells: BTreeMap<Cell, Vec<Cell>>,
+}
+
+impl<T: Real> RemovedIn<'_, T> {
+    fn of(&self, cell: Cell) -> Vec<Cell> {
+        self.cells.get(&cell).cloned().unwrap_or_else(|| vec![cell])
     }
 }
 
@@ -720,27 +801,36 @@ impl<T: crate::props::AtRestPolicy> Confirms<'_, T> {
 /// through `region`. The sides hold disjoint keys. A conventional
 /// vertex reads as its closed edge.
 ///
-/// A row that lands nowhere, every pair read definitely, is consumed
-/// where the lineage removed one of its cells or part of one, where an
-/// image does not hold its cell's geometry (the touch went with what
-/// the op moved), where its
-/// two vertices became one vertex (D1's strict record-drop rule), or,
-/// for an op that glues cells ([`crate::Lineage::glued`]), where every
-/// pair of its images is structure.
+/// A row that lands nowhere, every pair read definitely, is **consumed**
+/// where:
+///
+/// - it lands on a member its cells' divisions name removed, read the
+///   same way, each member against every cell `removed` holds of the
+///   other record cell, in `removed`'s body;
+/// - the lineage removed one of its cells whole;
+/// - a cell kept or substituted whole has an image that does not hold
+///   its geometry (the touch went with what the op moved; a moved piece
+///   of a division consumes nothing);
+/// - its two vertices became one vertex (D1's strict record-drop rule);
+/// - for an op that glues cells ([`crate::Lineage::glued`]), every pair
+///   of its images is structure, or a cell the op minted in one record
+///   cell is itself an image of the other (the record's edge, now the
+///   section the cut ran along it: structure needs no record).
 ///
 /// # Errors
 ///
-/// [`CarryRefusal::Unread`] for a pair the confirm cannot read; for a
+/// [`CarryRefusal::Unread`] for a pair the confirm cannot read, and for
+/// a removed member with no `removed` body to read it in; for a
 /// row that lands nowhere and is not consumed, [`CarryRefusal::Stale`]
 /// where some pair was read, [`CarryRefusal::Pair`] where every pair is
 /// one cell or incident, [`CarryRefusal::Parted`] where its two cells'
 /// images are held by different sides only (listed in `parted` instead
 /// where it is given), and
 /// [`CarryRefusal::Unmapped`] for a cell with no image held anywhere.
-pub(crate) fn landings<'b, T: crate::props::AtRestPolicy>(
+pub(in crate::boolean) fn landings<'b, T: crate::props::AtRestPolicy>(
     rows: &[[Cell; 2]],
     lineage: &crate::Lineage,
-    sides: &[&'b Body<T>],
+    (sides, removed): (&[&'b Body<T>], Option<&RemovedIn<'b, T>>),
     confirms: &mut Confirms<'b, T>,
     band: geom_core::Band,
     region: Option<T::RegionLane>,
@@ -759,7 +849,8 @@ pub(crate) fn landings<'b, T: crate::props::AtRestPolicy>(
                 .map(|&p| lineage.joined(p))
                 .collect();
             fates[i]
-                .minted()
+                .division()
+                .map_or(&[][..], |d| &d.minted)
                 .iter()
                 .map(|&m| lineage.joined(m))
                 .filter(|m| !pieces.contains(m))
@@ -769,8 +860,8 @@ pub(crate) fn landings<'b, T: crate::props::AtRestPolicy>(
         // An image that does not hold its input cell's geometry, where the
         // op handed its input's geometry over: the op moved what the
         // record's touch lay on.
-        let moved = lineage.source().is_some_and(|source| {
-            (0..2).any(|i| {
+        let moved_cell = [0, 1].map(|i| {
+            lineage.source().is_some_and(|source| {
                 images[i].iter().any(|&c| {
                     sides
                         .iter()
@@ -778,6 +869,16 @@ pub(crate) fn landings<'b, T: crate::props::AtRestPolicy>(
                         .is_some_and(|b| !source.holds_as(cells[i], c, b))
                 })
             })
+        });
+        let moved = moved_cell.contains(&true);
+        // A cell kept or substituted whole that moved took the touch
+        // with it; a moved piece of a division is only read.
+        let moved_whole = (0..2).any(|i| {
+            moved_cell[i]
+                && matches!(
+                    fates[i],
+                    crate::Fate::Kept { .. } | crate::Fate::Substituted(_)
+                )
         });
         // Cells the op kept or substituted, unmoved, hold the touch, and
         // the record was read where it was minted: it lands by lineage.
@@ -788,9 +889,10 @@ pub(crate) fn landings<'b, T: crate::props::AtRestPolicy>(
         let mut landed = false;
         let mut read = false;
         let mut structure: Option<ContactPairError> = None;
+        let mut on_structure = false;
         let mut held_by: [bool; 2] = [false, false];
         let mut held_at: [Vec<(usize, Cell)>; 2] = [Vec::new(), Vec::new()];
-        for (s, (&body, confirm)) in sides.iter().zip(&mut confirms.0).enumerate() {
+        for (s, (&body, confirm)) in sides.iter().zip(&mut confirms.sides).enumerate() {
             // Each held image as the cell a record lands on, whether the
             // op minted it, and whether it is a point: read before a
             // conventional vertex becomes its closed edge.
@@ -820,6 +922,15 @@ pub(crate) fn landings<'b, T: crate::props::AtRestPolicy>(
                     let pair = match Contact::new(body, a, b) {
                         Ok(pair) => pair,
                         Err(error) => {
+                            // A cell the op minted in one record cell that
+                            // is itself an image of the other (the record's
+                            // edge, now the section the cut ran along it)
+                            // holds the touch as structure, which needs no
+                            // record (D1). A minted cell merely incident to
+                            // an image of the other cell holds nothing.
+                            on_structure |= lineage.glues()
+                                && matches!(error, ContactPairError::OneCell(_))
+                                && (a_minted || b_minted);
                             structure.get_or_insert(error);
                             continue;
                         }
@@ -847,13 +958,60 @@ pub(crate) fn landings<'b, T: crate::props::AtRestPolicy>(
                 }
             }
         }
-        if landed {
+        if landed || on_structure {
             continue;
         }
-        let removed = fates.iter().any(crate::Fate::removes);
+        // The touch read against what the op removed: the members each
+        // division names, against every cell of the other record cell,
+        // where both record cells have images (a cell with none is
+        // unmapped or removed whole, below).
+        let mut on_removed = false;
+        let mut removed_read = false;
+        'members: for i in (0..2).filter(|_| held_by == [true, true]) {
+            for &r in fates[i].division().map_or(&[][..], |d| &d.removed) {
+                let Some(removed) = removed else {
+                    return Err(CarryRefusal::Unread {
+                        record,
+                        cells: [r, cells[1 - i]],
+                    });
+                };
+                if confirms
+                    .removed
+                    .as_ref()
+                    .is_none_or(|c| !core::ptr::eq(c.body(), removed.body))
+                {
+                    confirms.removed =
+                        Some(crate::census::RecordConfirm::of(removed.body, band, region));
+                }
+                let confirm = confirms
+                    .removed
+                    .as_ref()
+                    .unwrap_or_else(|| unreachable!("the removed body's confirm was just read"));
+                let r = conventional_edge(removed.body, r);
+                for o in removed.of(cells[1 - i]) {
+                    let o = conventional_edge(removed.body, o);
+                    let Ok(pair) = Contact::new(removed.body, r, o) else {
+                        continue;
+                    };
+                    removed_read = true;
+                    if confirm.meets(pair).map_err(|_| CarryRefusal::Unread {
+                        record,
+                        cells: pair.cells(),
+                    })? {
+                        on_removed = true;
+                        break 'members;
+                    }
+                }
+            }
+        }
+        if on_removed {
+            continue;
+        }
+        let whole = fates.iter().any(crate::Fate::removes);
         if read {
-            // A touch on geometry the op moved went with it.
-            if removed || moved {
+            // A touch on a cell the op removed whole, or on one it moved
+            // whole, went with it.
+            if whole || moved_whole {
                 continue;
             }
             return Err(CarryRefusal::Stale { record });
@@ -867,6 +1025,9 @@ pub(crate) fn landings<'b, T: crate::props::AtRestPolicy>(
                 continue;
             }
             return Err(CarryRefusal::Pair { record, error });
+        }
+        if removed_read {
+            return Err(CarryRefusal::Stale { record });
         }
         if held_by == [true, true] {
             let Some(parted) = parted.as_deref_mut() else {
@@ -908,7 +1069,7 @@ impl FromIterator<Cited<Contact>> for ContactRecords {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::{Cell, Contact, ContactKind, ContactPairError, ContactRecords};
     use crate::boolean::{CarriedRecord, EfContact, FfContact};
@@ -1057,6 +1218,68 @@ mod tests {
             carried.vf.len(),
             1,
             "the vertex record stays filed as before"
+        );
+    }
+
+    /// **Structure consumes a glued record only where a cell the op
+    /// minted in one record cell is an image of the other.** A
+    /// bookkeeping vertex–face record (the prism's top corner against
+    /// its bottom, no touch) through glued hand lineages that keep the
+    /// corner and divide the bottom into itself and one minted cell. The
+    /// minted cell the corner's strut, incident to the corner: no
+    /// structure holds the touch, and the record refuses `Stale`. Red
+    /// where any incident pair consumes. The minted cell the corner
+    /// itself: the record's vertex now lies in the division as one of
+    /// its cells, and the record is consumed. Red where structure never
+    /// consumes.
+    #[test]
+    fn structure_consumes_only_on_a_minted_image_of_the_other_cell() {
+        use crate::props::AtRestPolicy;
+        let p = prism();
+        let corner = Cell::Vertex(p.top[0]);
+        let strut = p
+            .body
+            .edges()
+            .map(|(e, _)| e)
+            .find(|&e| {
+                p.body.edge_vertices(e).is_some_and(|(a, b)| {
+                    [a, b] == [p.bottom[0], p.top[0]] || [a, b] == [p.top[0], p.bottom[0]]
+                })
+            })
+            .expect("the corner's strut");
+        let band = geom_core::Band::linear(Tol::witness()).unwrap();
+        let carry = |minted: Cell| {
+            let lineage = crate::Lineage::new()
+                .glued()
+                .with(
+                    Cell::Face(p.bottom_face),
+                    crate::Fate::Divided(crate::Division {
+                        pieces: vec![Cell::Face(p.bottom_face)],
+                        minted: vec![minted],
+                        removed: vec![],
+                    }),
+                )
+                .unwrap();
+            super::landings(
+                &[[corner, Cell::Face(p.bottom_face)]],
+                &lineage,
+                (&[&p.body], None),
+                &mut super::Confirms::new(1),
+                band,
+                <f64 as AtRestPolicy>::region_lane(),
+                None,
+            )
+            .map(|landed| landed.len())
+        };
+        assert_eq!(
+            carry(Cell::Edge(strut)),
+            Err(super::CarryRefusal::Stale { record: 0 }),
+            "a minted cell incident to the corner holds nothing"
+        );
+        assert_eq!(
+            carry(corner),
+            Ok(0),
+            "the corner, minted in the bottom's division, is structure"
         );
     }
 }

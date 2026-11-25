@@ -95,3 +95,16 @@ refusal over the whole study is the wedge (`dihedral_wedge`,
 `EdgeKey(1v1)`, sample 4) at two, three and four links alike; the cell
 gates that. The straddle itself is not shown gone, only no longer
 first, so this item stands.
+
+## Note (2026-11-25): the chain no longer reaches it
+
+Since ONEHOME stage 2 (PR 6820) a moved link carries its certificates
+(`topo::FinishedBody::moved`), so no joint's transform re-certifies an
+edge, and the chain's certified cell certifies the whole study at one
+to four links on both lanes (measured on main `c88674548`,
+`demo-tour certified`; the numbers are in
+`tang/the-faces-reach-lever-moves-the-chain-demos-first-refusal`'s
+Closed note). The straddle is therefore no longer shown by the
+construction that found it, and is not shown gone either: the question
+under "What answers it", the predicate's true range at that rim, is
+unanswered, so the row stands.

@@ -101,7 +101,7 @@ fn ring_hosts<T: Decide + Bounds>(body: &Body<T>) -> Vec<(Point3<f64>, usize)> {
     body.faces()
         .filter(|(_, fd)| !fd.rings.is_empty())
         .map(|(f, fd)| match body.face_surface(f) {
-            Some(Surface::Plane { frame, .. }) => {
+            Ok(Surface::Plane { frame, .. }) => {
                 let normal = frame.axis();
                 (
                     Point3::new(

@@ -520,10 +520,7 @@ pub trait Real:
     ///
     /// This is a *value-channel* question — the one every scalar can
     /// answer without a bracket — and it exists for **structure
-    /// discrimination**, not for deciding geometry: the first consumer
-    /// is `NurbsSurface::is_placeholder` (M6-3), which must tell the
-    /// all-poison "no description yet" placeholder from a described
-    /// control net at every evaluation scalar. Predicates on real
+    /// discrimination**, not for deciding geometry. Predicates on real
     /// margins keep going through `Decide`, whose poison arm carries
     /// the diagnostic; this method never replaces one.
     fn is_poison(self) -> bool;

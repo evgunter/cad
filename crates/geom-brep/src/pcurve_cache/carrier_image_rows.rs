@@ -914,7 +914,10 @@ fn a_periodic_carriers_image_is_on_its_own_knots() {
         .filter(|k| *k > span.0 && *k < span.1)
         .map(f64::to_bits)
         .collect();
-    assert!(own.len() >= 5, "the span holds knots of the carrier: {own:?}");
+    assert!(
+        own.len() >= 5,
+        "the span holds knots of the carrier: {own:?}"
+    );
     let carrier = Curve3::Periodic(Arc::new(closed));
     let wall = flat_wall();
     // The mint's producer alone: its certificate has no enclosure of a
@@ -990,7 +993,10 @@ fn a_pairs_image_is_the_single_image_on_the_union_of_knots() {
         union == knots(&beside_plane),
         "the pair's two images share one list of knots"
     );
-    for (what, single) in [("the ring wall's", &alone_ring), ("the plane's", &alone_plane)] {
+    for (what, single) in [
+        ("the ring wall's", &alone_ring),
+        ("the plane's", &alone_plane),
+    ] {
         assert!(
             knots(single)
                 .iter()

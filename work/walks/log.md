@@ -55,3 +55,28 @@ Review tiers at dispatch (letter, tier, reason): refusal-split M single FULL (er
 
 Friction: (1) the hosted runner queue held 28 runs at once on 2026-11-22; a tracker-only PR waited ~1 h for its lint job. (2) Every lane and designer stopped on the weekly usage limit at the same moment and resumed after the reset; cloud sessions had to be messaged one by one. (3) `git add -A && git commit` after a conflicted merge staged conflict markers once (caught at the next merge, fixed in a follow-up commit) — the hazard `memories/agent-lane-operations.md` names.
 Seam notes owed to other programs' logs: ONECOPY (its parked `not-crossed-means-one-side-at-a-pinch` waits on 6592, which merged with `Alike` dropped; and `walks/face-region` builds on its dispatched `loop-doors-resolve-a-records-loop-key-through-proven-or-typed`).
+
+## 2026-11-23/25 — the units land
+
+Merged (each after its review tier's reports were adjudicated and its fix pass taken; CI green apart from inherited main reds, annotated on each PR):
+- 7418 E-bundle (single STYLE), 7433 curve placeholder deleted (single STYLE), 7477 refusal variants one-per-meaning (single FULL), 7438 one glue routine for movefac/seqgen/shell.rs (single FULL), 7430 the component Euler–Poincaré as a pinned theorem and `genus()`→`h()` (single FULL; pass 11's count gated on 1–7 only, refining 7424's "1–7 and 10" because the arm it was gating is gone), 7437 `EdgeView` (DUAL), 7474 one meaning per non-Cycle loop / `CycleLoop` / `area_loops` (DUAL), 7475 loop-in-loop in `loop_side.rs` (single FULL).
+- `[ev]` 7420 (finish completes rows), 7423 (pending surface slot), 7424 (Euler theorem + `h()`), all answered 2026-11-22; 7547 (topo README clause: what a non-Cycle loop means) merged by Ev 2026-11-23.
+- In flight at this entry: 7497 finish-completes (DUAL, then one re-review: APPROVE-WITH-FIXES, last fix pass out), 7495 surface-slot (DUAL with a NOT-MERGEABLE first review, re-review APPROVE-WITH-FIXES, last CI fixes in).
+
+Main reds found and fixed by WALKS (merged ahead of CI, each a one-line verified fix of a red that failed every PR): 7544 (a topo test named `EulerOpError::Certification` after 7477 renamed it — WALKS's own race), 7567 (a slow-set entry still named a renamed editor-core test). Main reds filed for their owners: EXPORT `main-red-one-record-folds-the-face-sense-by-hand`, GREEN `main-red-the-near-node-poses-at-the-witness-band-again`, TALLY `main-red-payload-rung-sweep-flags-node-error-class-half-of-a-family`; two new `square_search` seeds added to GERM's open row.
+
+Model-compare: every arm was forced to Opus 5.5 (Fable unavailable, Ev in chat), so no draws were taken and no rows written; the units are not in the comparison's population.
+
+Friction:
+- The hosted runner queue held 80–94 runs for most of 2026-11-23; WALKS merged tracker-only PRs on a clean local `work.py lint` rather than wait hours, and merged code PRs whose every job was green while only the aggregate `gate ok` waited for a runner.
+- A cloud session's `source_revision` must be a full sha: a short one fails `ref_not_found` at init and the session sits PENDING with no error surfaced (the first 7497 re-review was lost to this for ~35 hours across a usage-limit stop).
+- Lanes twice reported "all tests pass" from default-filter runs that skip the slow set, doctests and the release profile; briefs now name those runs explicitly.
+- The orchestrator ran `payload-rung-sweep.py` without CI's `--check` flag and wrongly told a lane main was green; the lane was right.
+
+## 2026-11-25 — sitting closed
+
+All of this sitting's units are merged: 7495 surface-slot (Ev's pending slot, PR 7423) and 7497 finish-completes (Ev's completion clause, PR 7420) were the last, each merged on its lane's local verification of a final main merge (clippy workspace all-targets, tour, fmt, run-gates, the affected crates' ci-profile suites) after hosted CI on the reviewed content was green apart from inherited main reds — main landed faster than CI could turn either PR around, and the merge commits record the basis. 7497's last pass also fixed a stale-row door the new contract exposed: the boolean fallback's join grew an edge through `kev_describing` and left a sphere face's row about the old interval, which the old clearing mint had hidden; the join now drops and re-derives the faces a grown edge bounds.
+
+Main reds fixed by WALKS this sitting: 7544, 7567, 7751 (slit's `pole_beyond` read an edge's curve raw past 7437's source pin). Filed for owners: EXPORT one_record sense fold, GREEN bisector_nodes, TALLY payload-rung-sweep, IMPORTGATE `main-red-halfcap-eps6-pole-margin-moved-one-ulp`, GERM square_search seeds.
+
+No P0 or P1 row remains on WALKS. Tail: `pending-face-refusals-keep-the-placeholder-name` (P3), `unclaimed-half-edge-reads-the-3532-table-does-not-list` (P3), `sweep-reach-respells-a-loops-vertices` (P3), `three-unread-arms-lost-their-lone-ring-witness` (P3), `not-valids-pcurve-finding-names-no-edge-…` (P3), `point-in-loop-certifies-a-unit-axis-…` (P4); `void-birth-marking-at-insert-void` deferred. Track handed back `ready` per the sitting rule.

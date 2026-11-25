@@ -107,7 +107,7 @@ pub fn walls_at(body: &Body<f64>, r: f64) -> Vec<FaceKey> {
         .filter(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(geom::Surface::Cylinder { radius, .. }) if (radius - r).abs() < 1e-9
+                Ok(geom::Surface::Cylinder { radius, .. }) if (radius - r).abs() < 1e-9
             )
         })
         .map(|(k, _)| k)
@@ -120,7 +120,7 @@ pub fn spheres_at(body: &Body<f64>, r: f64) -> Vec<FaceKey> {
         .filter(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(geom::Surface::Sphere { radius, .. }) if (radius - r).abs() < 1e-9
+                Ok(geom::Surface::Sphere { radius, .. }) if (radius - r).abs() < 1e-9
             )
         })
         .map(|(k, _)| k)
@@ -132,7 +132,7 @@ pub fn plane_face(body: &Body<f64>, z: f64, up: bool) -> topo::FaceKey {
     let hits: Vec<_> = body
         .faces()
         .filter(|(fk, _)| match body.face_surface(*fk) {
-            Some(geom::Surface::Plane { frame, .. }) => {
+            Ok(geom::Surface::Plane { frame, .. }) => {
                 let (origin, normal) = (frame.origin(), frame.axis());
                 (origin.z - z).abs() < 1e-12 && (normal.z > 0.5) == up
             }
