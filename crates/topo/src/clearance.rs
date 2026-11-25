@@ -127,6 +127,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::ops::ControlFlow;
 
 use bvh::{Aabb, Bvh};
+use geom::cover::Cover;
 use geom::{NurbsSurface, Surface};
 use geom_brep::{Channel, Pcurve, SpiricImage, WallTorus};
 use geom_core::interval::Interval;
@@ -3707,20 +3708,22 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
         return unsupported("an unreadable face");
     };
     let stored = f.surface();
-    let Some((bounds, boundary)) = boundary_of(body, face) else {
+    let Some((region, boundary)) = boundary_of(body, face) else {
         return unsupported("a face whose boundary carries no sound enclosure");
     };
-    let extent = Point3::new(
-        Interval::from_bounds(bounds.min_x, bounds.max_x),
-        Interval::from_bounds(bounds.min_y, bounds.max_y),
-        Interval::from_bounds(bounds.min_z, bounds.max_z),
-    );
-    // The box's range of a chart parameter that the carrier evaluates
-    // as `origin + dir·v`: `Line::param`, correct for any `dir`.
+    // The boundary's range of `(x − origin)·dir`, each piece's support
+    // along `dir`. Read off the boundary's world box it would reach past
+    // the boundary wherever `dir` is off the world's axes.
+    let offset = |origin: Point3<Interval>, dir: Vec3<Interval>| -> Interval {
+        let (lo, hi) = region.range_along(dir);
+        Interval::from_bounds(lo.lo(), hi.hi()) - (origin - Point3::origin()).dot(dir)
+    };
+    // The boundary's range of a chart parameter that the carrier
+    // evaluates as `origin + dir·v`: `Line::param`, correct for any `dir`.
     let along = |origin: Point3<Interval>, dir: Vec3<Interval>| -> (f64, f64) {
         // `Line::param`'s coefficient, spelled out: `dir` is the chart's
         // own, not a unit direction.
-        let d = (extent - origin).dot(dir) / dir.norm_squared();
+        let d = offset(origin, dir) / dir.norm_squared();
         (d.lo(), d.hi())
     };
     match stored {
@@ -3757,7 +3760,7 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
             // homologous, on the punctured nappe, to the whole boundary,
             // which would wind once. So a boundary winding nowhere
             // leaves the apex off the face, or `0` inside `slant`.
-            let slant = (extent - apex).dot(axis) / half_angle.cos();
+            let slant = offset(apex, axis) / half_angle.cos();
             let v = if winds_nowhere(body, f) {
                 (slant.lo(), slant.hi())
             } else {
@@ -4079,9 +4082,9 @@ pub(crate) fn posed_extents_holding(
     ))
 }
 
-/// The face's boundary enclosure, and the boundary itself lifted.
+/// The face's boundary region, and the boundary itself lifted.
 ///
-/// The enclosure is the hull of every boundary edge's region — its
+/// The region is the hull of every boundary edge's region — its
 /// lifted carrier's cover over its own span ([`crate::cover::arc_cover`],
 /// so a curved edge's bulge is enclosed rather than chorded away, and a
 /// spline edge's by its pieces' control nets) — together with the
@@ -4102,11 +4105,12 @@ pub(crate) fn posed_extents_holding(
 fn boundary_of<T: Decide + CertifiedBounds>(
     body: &Body<T>,
     face: FaceKey,
-) -> Option<(Aabb, Boundary)> {
-    certified_lift(|lift: Lift<'_, T>| -> Option<(Aabb, Boundary)> {
+) -> Option<(Cover<Interval>, Boundary)> {
+    certified_lift(|lift: Lift<'_, T>| -> Option<(Cover<Interval>, Boundary)> {
         let f = body.face(face)?;
         let point = |p: &Point3<T>| p.map(|x| lift.of(x));
         let mut pts: Vec<Point3<Interval>> = Vec::new();
+        let mut arcs: Vec<Cover<Interval>> = Vec::new();
         let mut out = Boundary {
             sense: f.sense(),
             ..Boundary::default()
@@ -4185,17 +4189,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
             let (t0, t1) = curve.params();
             let span = (lift.of(t0), lift.of(t1));
             let carrier = curve.carrier().map_scalar(|x| lift.of(x)).with_span_memo();
-            // The edge's region over its span, as the low and high
-            // corners of its world box: bracket ends, read by
-            // `Aabb::from_points` as the vertices are. No pad is owed:
-            // each corner is the cover's own enclosure at this scalar, and
-            // `Cover::aabb`'s pad would step every side out by an ulp even
-            // at zero, which moves every window off the points its splits
-            // land on.
-            let (lo, hi) = crate::cover::arc_cover(&carrier, span)
-                .ok()?
-                .box_in(&geom::cover::BoxAxes::World);
-            pts.extend([lo, hi]);
+            arcs.push(crate::cover::arc_cover(&carrier, span).ok()?);
             let ends = <[_; 2]>::from(crate::query::edge_ends(body, ek));
             let uses = hes
                 .iter()
@@ -4235,7 +4229,8 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                 })
                 .collect()
         });
-        Aabb::from_points(pts).map(|b| (b, out))
+        let region = arcs.into_iter().fold(Cover::points(pts)?, Cover::hull);
+        Some((region, out))
     })
     .flatten()
 }
@@ -5818,6 +5813,43 @@ mod cone_window {
                 w.v
             );
         }
+    }
+
+    /// **A cone face's window ends where its boundary does in a turned
+    /// frame too**: the wall and the cap above, turned about a generic
+    /// axis and moved. Each `v` end is its rims' slant, or the apex's
+    /// `0` for the cap. Red if the window is read off a box of the
+    /// boundary in world axes, which reaches past the rims along an
+    /// axis off the world's.
+    #[test]
+    fn a_cone_window_ends_at_its_boundary_in_a_turned_frame() {
+        use geom_core::{Affine3, Point3, Vec3};
+        let turn = Affine3::rotation_about_axis(
+            Point3::new(0.3, -1.1, 2.9),
+            Vec3::new(1.0, 2.0, 3.0),
+            0.7,
+        );
+        let turned = |body: &Body<f64>| {
+            crate::transform::transform_rigid(
+                body,
+                &geom_core::test_support::rigid(&turn, Tol::witness()),
+            )
+            .unwrap()
+        };
+        let (wall, face) = crate::boxes::tests::cone_wall(ALPHA, 0.0, 1.0, 0.5, 1.0);
+        let w = window_of(&turned(&wall), face, Which::First, None).unwrap();
+        assert!(
+            (w.v.0 - slant(0.5)).abs() < 1e-12 && (w.v.1 - slant(1.0)).abs() < 1e-12,
+            "the turned wall's window ends at its rims: {:?}",
+            w.v
+        );
+        let (cap, face) = cone_cap(1.0);
+        let w = window_of(&turned(&cap), face, Which::First, None).unwrap();
+        assert!(
+            w.v.0 == 0.0 && (w.v.1 - slant(1.0)).abs() < 1e-12,
+            "the turned cap's window runs from the apex to its rim: {:?}",
+            w.v
+        );
     }
 }
 

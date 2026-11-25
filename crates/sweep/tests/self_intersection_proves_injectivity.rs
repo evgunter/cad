@@ -5706,20 +5706,6 @@ fn try_cone_tip<T: Scalar>(y0: f64, r: f64, h: f64, up: bool) -> Result<Body<T>,
         .map_err(|e| format!("{e:?}"))
 }
 
-/// **The report is a refusal on the departure arm between `pair`**: the
-/// two faces and the cell they share, as the refusal's `Debug` spells
-/// them (`a: FaceKey(1v1), b: FaceKey(2v1), shared: Edge(EdgeKey(1v1))`).
-fn assert_refuses_departure(what: &str, report: &BoundReport<Witness>, pair: &str) {
-    let verdict = format!("{:?}", report.verdict);
-    assert!(
-        verdict.starts_with("Refused(Uncertified {")
-            && verdict.contains(pair)
-            && verdict.contains("arm: Departure"),
-        "{what} refuses on the departure arm between {pair}: {verdict} {:?}",
-        report.receipt
-    );
-}
-
 /// A rigid turn about a generic axis and a translation, as a sketch
 /// plane: three frames, and the plain one at `0`.
 fn turned_plane(k: usize) -> SketchPlane<f64> {
@@ -5833,17 +5819,20 @@ fn cones_far_from_the_origin_hold_across_their_apexes() {
 /// parted at its poles by `departure`'s plane through the pair's one
 /// shared vertex (before that arm they refused there, each seam meridian
 /// listed in a plane of its own); the
-/// unit cone tip on the first and second of three sketch planes turned
-/// about a generic axis and moved ([`turned_plane`]); and the slender
-/// cone (`r = 0.37`, `h = 2.3`, apex at `y = 103.6`) on all three, at
-/// `f64`. A sphere's poles and a cone's apex are read off the face's own
-/// vertices wherever the body is. The unit cone on the third plane
-/// refuses, on a row of its own below.
+/// unit cone tip on each of three sketch planes turned about a generic
+/// axis and moved ([`turned_plane`]); and the slender cone (`r = 0.37`,
+/// `h = 2.3`, apex at `y = 103.6`) on all three, at `f64`. A sphere's
+/// poles and a cone's apex are read off the face's own vertices wherever
+/// the body is.
 ///
-/// Which turned cones hold has moved with main, not with this reading:
-/// the table on
-/// `work/embed/two-half-cones-sharing-both-rulings-refuse-departure-at-their-apex-in-a-turned-frame.md`
-/// gives each main's. A cone here that refuses is that row's evidence.
+/// The unit cone holds in each frame within 400 splits, as in the plain
+/// frame's 174: its half-cones' windows end at the apex. Red where a
+/// window reaches past the apex into the other nappe, as one read off
+/// the boundary's world box does in a turned frame (thousands of splits
+/// on the first plane, a `Departure` refusal on the third). A cone here
+/// that refuses otherwise is
+/// `work/embed/two-half-cones-sharing-both-rulings-refuse-departure-at-their-apex-in-a-turned-frame.md`'s
+/// evidence.
 #[test]
 fn singular_points_hold_far_from_the_origin_and_in_turned_frames() {
     fn ball<T: Scalar>(y0: f64) -> Body<T> {
@@ -5883,12 +5872,13 @@ fn singular_points_hold_far_from_the_origin_and_in_turned_frames() {
             (at(0.0, 103.6), 0.0),
         ]
     };
-    for (what, k, verts) in [
-        ("the unit cone", 1, unit()),
-        ("the unit cone", 2, unit()),
-        ("the slender cone", 1, slender()),
-        ("the slender cone", 2, slender()),
-        ("the slender cone", 3, slender()),
+    for (what, k, verts, ceiling) in [
+        ("the unit cone", 1, unit(), 400),
+        ("the unit cone", 2, unit(), 400),
+        ("the unit cone", 3, unit(), 400),
+        ("the slender cone", 1, slender(), usize::MAX),
+        ("the slender cone", 2, slender(), usize::MAX),
+        ("the slender cone", 3, slender(), usize::MAX),
     ] {
         let cone = revolved_on(turned_plane(k), verts);
         let report = injective(&cone, None, BUDGET);
@@ -5898,36 +5888,12 @@ fn singular_points_hold_far_from_the_origin_and_in_turned_frames() {
             "{what} in frame {k}: {:?}",
             report.receipt
         );
+        assert!(
+            report.receipt.splits < ceiling,
+            "{what} in frame {k} within {ceiling} splits: {:?}",
+            report.receipt
+        );
     }
-}
-
-/// **The unit cone on the third turned plane refuses on the departure
-/// arm at its apex**: the triangle `(0, 0) (1, 0) (0, 1)` revolved on
-/// [`turned_plane`]`(3)`. Its apex is placed and its meridians run on to
-/// it; the two half-cones, which share both rulings, are then not parted
-/// at the apex: `zero_of` reads `Local` in the cells there, 90,849 times
-/// in the run, with both rulings zero sides of one cell
-/// (`work/embed/two-half-cones-sharing-both-rulings-refuse-departure-at-their-apex-in-a-turned-frame.md`,
-/// exit A). The refusal names the two half-cones across a shared
-/// ruling, at every ε. Red when it holds, and that row's reading has
-/// landed.
-#[test]
-fn the_unit_cone_on_the_third_turned_plane_refuses_departure_at_its_apex() {
-    let at = |x: f64, y: f64| Point2::new(x, y);
-    let cone = revolved_on(
-        turned_plane(3),
-        vec![
-            (at(0.0, 0.0), 0.0),
-            (at(1.0, 0.0), 0.0),
-            (at(0.0, 1.0), 0.0),
-        ],
-    );
-    let report = injective(&cone, None, BUDGET);
-    assert_refuses_departure(
-        "the unit cone in frame 3",
-        &report,
-        "a: FaceKey(1v1), b: FaceKey(2v1), shared: Edge(EdgeKey(4v1))",
-    );
 }
 
 /// **Review sweep (PR 7115): cone tips revolved off the origin, and their
