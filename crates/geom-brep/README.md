@@ -1482,9 +1482,11 @@ combination coefficients the knot algebra derives from them. Values are
 held in the scalar, each entered where it is made as what it is: a
 constant of the construction's form (π as `T::pi()`, never as the
 arithmetic that computes it) or of an imported file through `from_f64`;
-a numerical routine's output (a fit's knots, weights and poles) once, at
-the fit, through `Real::from_computed`; a value the model determines
-computed in the scalar. At an enclosure scalar a carrier stands for the
+a value the model determines (a skin through its sections among them)
+computed in the scalar; a fit that proposes one description of
+something already described (an edge's image in a spline wall's chart)
+`f64` until the certificate that checks it admits it, once, through the
+door of `crates/geom-core/README.md` DL5.2. At an enclosure scalar a carrier stands for the
 family of its members, so its knot positions and weights may be
 enclosures as its poles are. Structure is decided once for every member:
 at a point scalar it is read off the values; at an enclosure scalar it
