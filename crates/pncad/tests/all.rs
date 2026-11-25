@@ -1520,7 +1520,6 @@ fn normalization_kind_is_readable(kind: &NormalizationKind) -> &'static str {
         NormalizationKind::ChartSingularityVertex { found } => match found {
             SingularityFound::Interior => "chart_singularity_vertex_interior",
             SingularityFound::InsideEdge => "chart_singularity_vertex_inside_edge",
-            SingularityFound::ValenceOneVertex => "chart_singularity_vertex_valence_one",
         },
         NormalizationKind::SeamlessPeriodicBand => "seamless_periodic_band",
         NormalizationKind::CollapsedSideMadeOne { moved_by } => {

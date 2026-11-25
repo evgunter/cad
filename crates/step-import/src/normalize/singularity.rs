@@ -690,7 +690,7 @@ fn first_hit(
     best.map(|(_, hit, p)| (hit, p))
         .ok_or(StepImportError::Topology {
             id: face.id,
-            what: "internal: a pole-form meridian minted inside a face meets none of its \
+            what: "internal: a wrap edge's meridian minted inside a face meets none of its \
                    boundary",
         })
 }

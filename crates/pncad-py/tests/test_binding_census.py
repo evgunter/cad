@@ -916,7 +916,7 @@ BOUND_AS = {
     # `NormalizationKind::ChartSingularityVertex`'s payload, at the same
     # spelling one attribute over: where the file put the pole or apex
     # import made a vertex, as `singularity` beside the `kind` word
-    # (`interior`, `inside_edge`, `valence_one_vertex`; `None` on every
+    # (`interior`, `inside_edge`; `None` on every
     # other arm), the way `promoted_to` carries `surface_promotion`'s.
     "SingularityFound": "StructureNormalization.singularity",
     # `NormalizationKind::Snapped`'s payload, at the same spelling: which
