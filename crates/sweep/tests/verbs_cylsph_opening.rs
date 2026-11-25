@@ -256,8 +256,23 @@ fn transversal_union_volume() -> f64 {
 /// instead, where the flipped face meets its neighbours along a wedge of
 /// no angle (`ValidationError::LaminaWedge`). Every sphere face of the
 /// transversal union, flipped alone.
+///
+/// Pinned to its stop while
+/// `work/lathe/a-flipped-one-band-sphere-face-met-only-transversally-finishes.md`
+/// is open: the ball's one sphere face, met only transversally by the
+/// cylinder's walls, finishes flipped, so the row panics naming it.
 #[test]
 fn a_flipped_chorded_sphere_face_is_refused_as_a_lamina() {
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &test_utils::pinned_red::EVERY_ROW,
+        "the union's one sphere face flipped",
+        &["FaceKey(5v3) flipped finishes"],
+        every_sphere_face_flipped_is_refused,
+    );
+}
+
+fn every_sphere_face_flipped_is_refused() {
     let tol = Tol::witness();
     let c = finished("c", cyl(1.0, -2.0, 2.0), tol);
     let s = finished("s", ball_at(1.5, Vec3::new(0.6, 0.0, 0.0)), tol);

@@ -8,7 +8,7 @@
 //! caller from its own identities: half-edge keys and their mates in a
 //! body (`topo::surface_boundary::chart_image`), `EDGE_CURVE` ids and
 //! orientations in a STEP file (`step-import`'s normalization). This
-//! home holds the two rules both read:
+//! home holds the three rules they read:
 //!
 //! - **the reduction** ([`without_reversals`]): a pair of consecutive
 //!   traversals the caller reads as one walked back is taken out, again
@@ -18,7 +18,10 @@
 //! - **the loops that bound** ([`bounds_area`]): a loop whose image is
 //!   empty, all spurs, bounds nothing and is left out of every reading.
 //!   A face none of whose loops bound is the whole of its surface where
-//!   that surface is closed (`crate::props::whole_surface`).
+//!   that surface is closed (`crate::props::whole_surface`);
+//! - **the traversals a loop walks both ways** ([`walked_both_ways`]),
+//!   read off the identities a props flattening stamps, for a reader that
+//!   takes a loop's surface boundary rather than its chart image.
 
 use crate::props::LoopEdge;
 use geom_core::Real;
@@ -54,6 +57,17 @@ pub fn without_reversals<E: Clone>(cycle: &[E], back: impl Fn(&E, &E) -> bool) -
 /// built without a body carries no identity, and none of its members is
 /// read as walked back. Such an edge bounds nothing on the surface: the
 /// face's surface boundary drops it (DESIGN `[topology.tiers]`).
+///
+/// `topo` states the same fact from half-edge identity
+/// (`Body::both_sides_face`), which this crate sits below and cannot
+/// read: a loop reaches props as [`LoopEdge`]s alone. The two differ for
+/// an edge whose two traversals lie in two loops of one face, which
+/// `both_sides_face` answers and this, reading one loop, does not. No
+/// reader here can see the difference: the one reader of this rule
+/// (`props::curved`'s cone loop check) asks whether one loop meets
+/// itself at a vertex, and an edge one loop walks once makes no second
+/// visit of that loop's vertices; and the vertex tags are minted per
+/// loop, so no two loops' vertices are compared.
 #[must_use]
 pub fn walked_both_ways<T: Real>(lp: &[LoopEdge<T>]) -> Vec<bool> {
     lp.iter()

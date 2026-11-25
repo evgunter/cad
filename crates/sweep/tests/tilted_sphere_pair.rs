@@ -234,8 +234,8 @@ fn a_tilted_sphere_pair_builds_at_the_interval_scalar() {
 }
 
 /// **A pierce ring builds.** An offset with a component off the seam
-/// plane drives B's boundary through the interior of one of A's
-/// half-bands, where the section lands as a ring of that face, joined
+/// plane drives B's boundary through the interior of A's sphere face,
+/// clear of its seam, where the section lands as a ring of that face, joined
 /// to its outer loop by `mekr`. Its chord co-bounds no run, and takes
 /// the arc the pierce germs' directions name: an equal ball off the seam
 /// plane, and a smaller one off every axis.

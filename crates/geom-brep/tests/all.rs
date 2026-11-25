@@ -56,6 +56,8 @@ mod shared;
 mod a_blend_section_is_a_shared_row_of_its_bands;
 #[path = "a_shared_row_is_certified_per_wall.rs"]
 mod a_shared_row_is_certified_per_wall;
+#[path = "a_thin_lemons_volume_keeps_its_digits.rs"]
+mod a_thin_lemons_volume_keeps_its_digits;
 #[path = "an_iso_family_reads_the_edges_span.rs"]
 mod an_iso_family_reads_the_edges_span;
 #[path = "an_iso_lines_stated_ends.rs"]

@@ -2,12 +2,12 @@
 //! relative to the operand's own chart.
 //!
 //! `ball_at` revolves an XY-plane profile about world Y, so the polar
-//! axis is **Y** and the seam great circle is the circle of radius `r`
-//! in the plane `z = c_z` (azimuth 0 = +X and its π copy). That single
-//! fact splits the configuration space in two, and the split is
+//! axis is **Y** and the seam is the meridian at azimuth 0 (+X), half
+//! the circle of radius `r` in the plane `z = c_z`. That single fact
+//! splits the configuration space in two, and the split is
 //! geometric, not tolerance-shaped:
 //!
-//! * **Offset along Z.** Every point of one ball's seam circle sits at
+//! * **Offset along Z.** Every point of one ball's seam sits at
 //!   the *same* distance `√(r² + Δz²)` from the other centre, so the
 //!   seam is wholly inside or wholly outside the other sphere and can
 //!   never cross it — at any depth and at any radius ratio. No crossing
@@ -15,7 +15,7 @@
 //!   scan re-charts each ball with its pole on the centre line, so the
 //!   re-entered pipeline finds the seams crossing the circle the
 //!   spheres meet in and joins it.
-//! * **Offset along X or Y.** The seam circle now meets the other
+//! * **Offset along X or Y.** The seam now meets the other
 //!   sphere, so a seam edge crosses a CURVED face and the circle ×
 //!   sphere roots pierce it. The pair reaches the join, which hands each
 //!   side the pair's radical plane. Offset along Y (the polar axis) the
@@ -24,7 +24,7 @@
 //!   paired germs leave along, and the union builds, because
 //!   both balls are revolved from the same seam — each seam meridian
 //!   pierces the other sphere ON the other's seam. Spin either ball
-//!   about Y and the pierce lands inside a half-band: the pierce-ring
+//!   about Y and the pierce lands inside the sphere face: the pierce-ring
 //!   door (`snowman.rs`).
 //!
 //! Nested balls answer, and must keep answering.

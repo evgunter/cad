@@ -8,9 +8,10 @@
 //! - an **annular** profile revolves to ONE self-closed rim edge per
 //!   segment boundary, which is the closed-rim (annulus) band's own
 //!   input, and
-//! - a **pole-touching** profile revolves to walls split into two
-//!   half-bands, so every latitude rim is TWO arcs meeting at two
-//!   chart-seam vertices — the shape #319's second finding met.
+//! - a **pole-touching** profile revolves each wall as one band, so
+//!   every latitude rim is one closed edge, met at its one vertex by the
+//!   walls' seam meridians — the body #319's second finding was probed
+//!   on.
 //!
 //! What makes each row go red:
 //!
@@ -25,17 +26,14 @@
 //! - **Both material configurations** put the ball centre where the
 //!   symmetric closed form `s = √((R ∓ r)² − c²)` says, at every
 //!   combination of the two stored sense bits.
-//! - **A chain stopping at a seam vertex refuses `UnbuiltEnd::Seam`**,
-//!   naming no end rule, and its recourse is the seam one rather than
-//!   the corner one. The vertex's own structure is asserted beside it:
-//!   valence four, two co-surface seam meridians (one surface on both
-//!   sides — dihedral zero by construction, and each refuses
-//!   `KnifeEdge` at margin exactly zero in its own right), and two
-//!   rim arcs carrying ONE support pair between them.
+//! - **The seam vertex's own structure**: valence three, the rim and
+//!   two co-surface seam meridians (one surface on both sides —
+//!   dihedral zero by construction, and each read smooth by identity in
+//!   its own right).
 //! - **Asking for the rim whole gets past the seam** — no corner
-//!   refusal at all — and carves: one annulus band over both arcs, the
-//!   walk carrying through the seam vertices rather than stopping at
-//!   them, which is what makes the tag's recourse true.
+//!   refusal at all — and carves: one annulus band over the one rim
+//!   edge, its seam vertex retired with it, which is what makes the
+//!   `UnbuiltEnd::Seam` tag's recourse true.
 //! - **A one-edge rim registers no seam vertex**, so the new tag cannot
 //!   fire on a rim the charts did not split.
 
@@ -90,12 +88,11 @@ fn lentil() -> Body<f64> {
     )
 }
 
-/// **The seam-split lantern**: the same shapes on a POLE-TOUCHING
-/// profile, whose full revolve splits every wall into two half-bands.
-///
-/// That is the body #319's second finding was probed on: each latitude
-/// rim is two arcs, and the two vertices where they meet are the points
-/// at which the charts' seam meridians cross the rim.
+/// **The pole-touching lantern**: the same shapes on a POLE-TOUCHING
+/// profile, the body #319's second finding was probed on. Its full
+/// revolve sweeps each wall as one band, so each latitude rim is one
+/// closed edge, met by the wall's one seam meridian at its conventional
+/// vertex.
 fn lantern() -> Body<f64> {
     let bulge = (0.6f64.asin() / 4.0).tan();
     revolved_about_y(
@@ -328,10 +325,10 @@ fn the_seam_vertex_is_two_co_surface_seams_crossing_one_smooth_rim() {
 ///
 /// That is what makes the `UnbuiltEnd::Seam` recourse true rather than a
 /// pointer at a door that is not there. The band is ONE annulus over
-/// both arcs: the walk carries THROUGH the seam vertices, and the row
-/// above is the licence for it — the surface is smooth there, the two
-/// extra edges are co-surface meridians of dihedral zero, and the
-/// vertex is retired with the arcs it joined.
+/// the rim, and the row above is the licence for carrying it through
+/// the seam vertex — the surface is smooth there, the two other edges
+/// are co-surface meridians of dihedral zero, and the vertex is retired
+/// with the rim.
 #[test]
 fn requesting_the_rim_whole_gets_past_the_seam() {
     let body = lantern();
@@ -344,11 +341,7 @@ fn requesting_the_rim_whole_gets_past_the_seam() {
     )
     .unwrap_or_else(|e| panic!("the whole rim carves, got {e:?}"));
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("tier-3 valid, got {e:?}"));
-    assert_eq!(
-        out.band_faces.len(),
-        1,
-        "the two arcs of ONE rim share ONE annulus band"
-    );
+    assert_eq!(out.band_faces.len(), 1, "the ONE rim is ONE annulus band");
     let naming = out
         .naming
         .as_ref()
@@ -361,10 +354,10 @@ fn requesting_the_rim_whole_gets_past_the_seam() {
     banded.sort_unstable();
     let mut want = arcs.clone();
     want.sort_unstable();
-    assert_eq!(banded, want, "both arcs are named by the one band");
+    assert_eq!(banded, want, "the rim is named by the one band");
     assert!(
         naming.dead.vertices.contains(&vertex),
-        "the seam vertex a chain used to STOP at is retired with the rim"
+        "the seam vertex is retired with the rim"
     );
 }
 

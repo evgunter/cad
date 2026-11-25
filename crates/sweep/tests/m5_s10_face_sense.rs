@@ -133,7 +133,7 @@ fn refused_at_the_door(body: &topo::Body<f64>) {
     );
 }
 
-/// **Acceptance row (props).** The unit ball's two half-bands are the
+/// **Acceptance row (props).** The unit ball's two lunes are the
 /// one face population in the kernel whose flux sign the BOUNDARY does
 /// not encode: a rimless band has no rim to recover `s_f` from, and
 /// its two meridians are traversed identically whichever side is

@@ -138,11 +138,12 @@ fn the_whole_frustum_refuses_in_its_window_and_meshes_outside_it() {
 /// **The cut frustum does not refuse: a triangle may be thin, and small
 /// beside ε.** [`needle_frustum`] split by the tilted plane through
 /// `(0, 0.5, 0)` meshes on both sides at `δ = 10⁻⁴`, and the mesh is the
-/// body's ([`geometry`]). At the default ε the half above keeps 225
+/// body's ([`geometry`]). At the default ε the half above keeps 229
 /// certified triangles with a lattice corner whose height is at or under
-/// ε (the least `5.6·10⁻¹⁰` m, 4·10³ rounding allowances): the small rim's
+/// ε (the least `5.2·10⁻¹⁰` m, about 4·10³ rounding allowances): the small rim's
 /// chords are `r·θ` long, so no clearance in lattice steps makes them
-/// taller, and the promise does not ask it to.
+/// taller, and the promise does not ask it to. The trimmed lane's rows
+/// graded beside that rim (`trimmed::reach_graded`) lay four of them.
 ///
 /// **By ε.** The count is the default row's. At ε `10⁻⁶` and `10⁻¹²`
 /// the rim is another width and the row asserts the mesh and its
@@ -176,7 +177,7 @@ fn the_cut_frustum_meshes_with_thin_triangles_resolved() {
             let least = thin.iter().copied().fold(f64::INFINITY, f64::min);
             assert_eq!(
                 thin.len(),
-                225,
+                229,
                 "triangles with a lattice corner at or under ε in height"
             );
             assert!(

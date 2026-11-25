@@ -63,13 +63,9 @@ pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
 /// both its halves bound its one curved wall, which closes on itself
 /// across it. A plane wall's meridian is a slit the revolve kills before
 /// this, so none reaches here; the restatement refuses an edge whose
-/// halves bound two faces. Carrier and interval kept verbatim.
-///
-/// The stored certificate is the run over the description as stored:
-/// the first restatement derives the wrap's chart image, and a run over
-/// a derived image can differ in the last bits from a run over the same
-/// image stated, so the edge is restated once more from what it stores,
-/// which is the run a fresh re-certification of it mints.
+/// halves bound two faces. Carrier and interval kept verbatim, and the
+/// stored certificate the one a fresh run mints
+/// ([`crate::swept::describe_wrap_edge`]).
 pub(super) fn upgrade_meridian_wrap<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     edge: EdgeKey,
@@ -77,13 +73,5 @@ pub(super) fn upgrade_meridian_wrap<T: Decide + topo::AtRestPolicy>(
     tol: Tol,
 ) -> Result<(), RevolveError> {
     crate::swept::describe_wrap_edge(body, edge, wall, tol)?;
-    let stored = body
-        .get_edge(edge)
-        .and_then(|e| body.get_curve_geom(e.curve))
-        .and_then(topo::CurveGeom::certified)
-        .unwrap_or_else(|| unreachable!("the meridian was restated certified just above"))
-        .restated_spec()
-        .description;
-    body.restate_stored_edge(edge, stored, tol)?;
     Ok(())
 }

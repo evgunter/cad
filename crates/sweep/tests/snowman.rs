@@ -1,9 +1,8 @@
 //! **The snowman**: two balls of revolution on distinct centres along
 //! one axis, meeting in a real circle, under every boolean.
 //!
-//! Each ball is the canonical full revolve of a semicircle: two
-//! half-bands on one sphere key, their seam meridians crossing the
-//! partner sphere. The section is the radical-plane circle, and the
+//! Each ball is the canonical full revolve of a semicircle: one sphere
+//! face, its seam meridian a wrap edge crossing the partner sphere. The section is the radical-plane circle, and the
 //! rows reach it through the crossing layer's circle × sphere roots and
 //! the sphere pair's join. Every body is held to all three validation
 //! tiers and to its volume against the two spherical caps the radical
@@ -12,8 +11,8 @@
 //! **The seams need not be coplanar.** Both balls are revolved from the
 //! same seam, so each seam meridian pierces the other sphere on the
 //! other's seam meridian and every chord runs seam to seam. Spin one
-//! ball about the shared axis and the pierce lands inside a half-band
-//! instead, a pierce ring, which joins: that pose builds too.
+//! ball about the shared axis and the pierce lands inside the sphere face
+//! off its seam instead, a pierce ring, which joins: that pose builds too.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -689,8 +688,8 @@ fn a_hemisphere_against_a_ball_crossing_its_cap_and_dome_builds() {
 }
 
 /// **The snowman builds spun, too.** Spin B about the shared axis by any
-/// angle off `0` and `π` and A's seam meridian pierces B's sphere at a
-/// point INSIDE B's half-band rather than on B's seam: that pierced face
+/// angle off `0` and A's seam meridian pierces B's sphere at a point
+/// INSIDE B's sphere face rather than on B's seam: that pierced face
 /// carries a pierce ring, and its chords take the arc the pierce germs'
 /// directions name. The spin moves no volume, so every op meets the
 /// coplanar pose's closed form.
@@ -1129,9 +1128,9 @@ fn a_slab_tilted_across_the_lens_seams_builds() {
 }
 
 /// **A cap off a banded ball**: the unit ball kept between the planes
-/// `y = ±0.6`, a trimmed group whose two half-bands run rim to rim, cut
+/// `y = ±0.6`, a trimmed group whose one sphere face runs rim to rim, cut
 /// by a slab whose plane lies 0.985 from the centre toward latitude 10°
-/// at azimuth π/2. The circle lies inside one half-band, and the
+/// at azimuth π/2. The circle lies inside that face, and the
 /// meridian cut through it runs from the lower rim to the upper, so both
 /// of its ends split a rim. Every op builds against the band's
 /// `π(2·0.6 − 2·0.6³/3)` and the cap of height 0.015.
@@ -1256,7 +1255,7 @@ fn a_pole_to_pole_cut_of_a_ball_wedge_builds() {
 ///   operand in both orders.
 /// - The banded ball against a cube of half-side 0.985 turned 45° and
 ///   135° about y: the same point set, whose four side faces cut four
-///   caps, two on each half-band, met in different orders.
+///   caps on its one sphere face, met in different orders.
 ///
 /// Every op builds against the closed forms.
 #[test]
@@ -1315,7 +1314,7 @@ fn two_cut_ins_on_one_face_build_in_either_order() {
 /// latitudes 20° and −20°: at azimuth 90° for both, the second circle's
 /// crossings lie on the first cut's meridian, which the crossing layer
 /// meets as a seam, so it takes no cut of its own; at 90° and 92°, on
-/// the piece of the half-band the first cut left it. Every op builds
+/// the piece of the sphere face the first cut left it. Every op builds
 /// against the closed forms.
 #[test]
 fn a_circle_across_an_earlier_cut_takes_none_of_its_own() {

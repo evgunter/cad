@@ -335,7 +335,21 @@ fn every_op_on_a_cone_wall_answers_its_truth_or_refuses_typed() {
             ("widening", WIDENING, CUBE_ON_THE_WIDENING_WALL),
             ("narrowing", NARROWING, CUBE_ON_THE_NARROWING_WALL),
         ] {
-            let cone = f.body();
+            // The frustum's one seam meridian, at azimuth 0 as revolved,
+            // turned a half turn about the axis to lie under the cube
+            // placed across it at `−x`.
+            let cone = finished(
+                "the turned frustum",
+                topo::transform_rigid(
+                    &f.body(),
+                    &geom_core::test_support::rigid(
+                        &Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), PI),
+                        tol,
+                    ),
+                )
+                .unwrap(),
+                tol,
+            );
             let frustum = Solid::Revolved {
                 y0: f.y0,
                 y1: f.y1,

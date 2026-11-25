@@ -443,9 +443,9 @@ fn compose_two_rims(
 
 /// **Two hostless rims of one body on a SHARED mate wall, in one call.**
 /// The repaired pole-touching cylinder's two discs are each one plane
-/// face; both rims are hostless and both rest on the cylinder's two
-/// half-bands, so the second rim's `refresh_annulus_seams` re-reads
-/// mate seams the first band split while carrying a `Strut` through on
+/// face; both rims are hostless and both rest on the cylinder's one
+/// band, so the second rim's `refresh_annulus_seams` re-reads the mate
+/// seam the first band split while carrying a `Strut` through on
 /// the host side. Both sequential orders must agree bit for bit.
 #[test]
 fn two_hostless_rims_on_a_shared_mate_wall_compose_in_one_call() {

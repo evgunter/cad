@@ -17,8 +17,9 @@
 //! - **The routing boundary** (claim 2): what a multi-link closed chain
 //!   that is NOT a seam-split rim meets, now that the two refusals the
 //!   issue measured became the routing test.
-//! - **Resolution violations** (claim 4): a planted ring on a half-band
-//!   support; a request that adds a seam meridian to the rim's arcs.
+//! - **Resolution violations** (claim 4): the neck rim, one closed edge
+//!   on one plane support; a request that adds a seam meridian to the
+//!   rim's arcs.
 //!
 //! Authored in the review lane and ADOPTED into the unit at its fix
 //! pass, so the findings below are re-taken by the suite on every run
@@ -303,7 +304,7 @@ fn p3_a_petrie_hexagon_cycle_never_assembles_into_a_closed_chain() {
 }
 
 // ------------------------------------------------------------------
-// P4 — a planted ring on a half-band support (claim 4).
+// P4 — the neck rim on its one plane support (claim 4).
 // ------------------------------------------------------------------
 
 /// **The lantern's neck rim CARVES** — measured on the body a consumer

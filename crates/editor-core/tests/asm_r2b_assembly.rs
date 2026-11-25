@@ -1625,7 +1625,7 @@ fn copies_filling_one_volume_are_one_interference() {
 
 /// A one-revolve part document: the unit square on its own `xy`
 /// revolved a full turn about its `y`, a cylinder of radius 1 and
-/// height 1 whose walls are two half-bands and whose caps are two discs.
+/// height 1 whose wall is one band and whose caps are two discs.
 fn cylinder_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
     let (doc, p) = on_frame(
         ProfileDoc::empty(DocumentId::derive(label), Tol::witness()),
@@ -1652,14 +1652,13 @@ fn cylinder_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
 /// their walls, on two keys, each lie on one carrier facing the same way
 /// sharing interior: the finding carries the `SameSideInterference`. Its
 /// overlap is bounded by the copies' intersection, the one cylinder,
-/// and named by the first copy's four faces, the ones it keeps. It
+/// and named by the first copy's three faces, the ones it keeps. It
 /// is loud, and unquietable, since no face of one copy opposes a face of
 /// the other for a gap to hold over, so stage 5's check never refuses
 /// it. What the census leaves undecidable between
 /// the two copies rides the finding as evidence and is never refused on
 /// its own: a disc against the other copy's wall, two carriers meeting
-/// along the rim. The two half-bands, one of each copy, that share a seam
-/// ruling and no interior are certified apart, and ride it no longer.
+/// along the rim.
 ///
 /// Red if the copies read as could-not-look again (a refusal, or a
 /// finding with no same-side evidence), if the overlap goes unbounded,
@@ -1714,7 +1713,7 @@ fn copies_of_one_cylinder_filling_one_volume_are_one_interference() {
         let undecided = count(|e| matches!(e, topo::ValidationError::CensusUndecidable { .. }));
         assert_eq!(
             (same_side, undecided, finding.evidence.len()),
-            // Half the rim pairs of two half-band walls per copy.
+            // Each copy's two discs against the other copy's wall.
             (1, 4, 5),
             "{label}: one decided pair, and the rim pairs riding it: {:?}",
             finding.evidence

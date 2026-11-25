@@ -76,9 +76,15 @@ surface. The census's cure, dropping the triangle's grid corners, re-joins the
 pair to the next far node, round after round, to the budget. On a half-turn
 face the same zipper reaches half as far round, which is why `h = 1e-3` meshed.
 
-Tried and not kept: splitting each fold that reaches past a quarter turn at
-its developed centroid (the shared-side cure's point) clears the folds in 7
-rounds against the budget of 6, and then trips the identified-vertex fan
-census (`trimmed.rs`, issue #678). The cure is TESSLANE's choice: rows inside
-the certified radius where a zipper would reach far round, or a split cure for
-a far-reaching fold that the fan census admits.
+Fixed on `lathe/mesh-budget-one-band` (LATHE's mesh-budget PR): the cone
+arm's rows now grade every gap to its lower radius
+(`crates/mesh/src/chart_table.rs`, `reach_rows`, read by
+`AnalyticRow::lattice_rows`): no gap's slant is longer than the developed arc
+an eighth of a turn spans at its lower slant, from the small end outward, so a
+triangle across it no longer reaches far round. Both `h = 1e-3` and `h = 1e-5`
+then mesh at every δ of the row, both halves, each mesh the body's, the
+halves' volumes summing to the cone's within the chord loss
+(`reach_probes::a_needle_funnel_cut_at_its_apex_meshes_at_every_delta`).
+Splitting each far-reaching fold at its developed centroid instead was tried
+and not kept: it clears in 7 rounds against the budget of 6 and then trips the
+identified-vertex fan census (#678).

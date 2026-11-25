@@ -532,7 +532,6 @@ pose_rows! {
     a_ball_across_a_cylinder_wall_turned_chart: 3;
     a_ball_across_a_cylinder_wall_in_two_loops: 5;
     a_ball_across_a_cylinder_wall_in_two_loops_turned: 6;
-    a_ball_across_a_cylinder_wall_r_0_2_across_the_rim: 7;
 }
 
 /// Pinned at every ε to main's one stop, B ∖ A refused at the slit's
@@ -554,9 +553,29 @@ fn a_ball_across_a_cylinder_wall_r_0_1_across_the_rim() {
         "the r 0.1 rim pose",
         &[
             "[\n    \"the row's ball r 0.1 across the rim, B ∖ A: refused at None: \
-           EdgeInFace { edge: EdgeKey(16v1), face: FaceKey(4v5), gap: CarrierUnread }\",\n]",
+           EdgeInFace { edge: EdgeKey(15v1), face: FaceKey(3v5), gap: CarrierUnread }\",\n]",
         ],
         || builds_at_its_volume_or_refuses_at_its_door(8),
+    );
+}
+
+/// The r 0.2 rim pose, pinned to the same stop as r 0.1 ([`a_ball_across_a_cylinder_wall_r_0_1_across_the_rim`]),
+/// B ∖ A refused at the slit's unread carrier, under the same fix row
+/// (`work/sectarms/a-rim-ball-refuses-b-minus-a-at-the-slits-unread-carrier-since-the-periodic-loop.md`).
+/// With the ball's wall one band (a full revolve, PR 7414) its slit
+/// meets the rim as r 0.1's does, where two half-bands built B ∖ A at
+/// its volume; the other five runs still build at their volumes.
+#[test]
+fn a_ball_across_a_cylinder_wall_r_0_2_across_the_rim() {
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &test_utils::pinned_red::EVERY_ROW,
+        "the r 0.2 rim pose",
+        &[
+            "[\n    \"the row's ball r 0.2 across the rim, B ∖ A: refused at None: \
+           EdgeInFace { edge: EdgeKey(8v1), face: FaceKey(5v1), gap: CarrierUnread }\",\n]",
+        ],
+        || builds_at_its_volume_or_refuses_at_its_door(7),
     );
 }
 

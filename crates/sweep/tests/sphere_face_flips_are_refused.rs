@@ -184,7 +184,11 @@ fn every_sphere_face_flip_is_refused_and_named() {
         let mut control = Body::clone(&ball);
         split_meridians_at_equator(&mut control, tol);
         split_faces_at_equator(&mut control, tol);
+        // The double cover needs a face a meridian passes outside: the
+        // ball's one face holds every meridian but its seam, so it is
+        // first cut into its two lunes.
         let mut cover = Body::clone(&ball);
+        crate::seam_region_common::two_lunes(&mut cover, tol);
         assert!(split_outside(&mut cover, v([0.0, 1.0, 0.0]), tol));
         split_meridians_at_equator(&mut cover, tol);
         split_faces_at_equator(&mut cover, tol);

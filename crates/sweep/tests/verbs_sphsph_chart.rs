@@ -410,10 +410,9 @@ fn boundary_edges(body: &Body<f64>, face: FaceKey, meridian: bool) -> Vec<topo::
         .collect()
 }
 
-/// The whole ball's two half-bands are the same class — meridian-bounded
-/// lunes, half a period each — and the face door now answers on them
-/// too, each for its own half. Exactly one band contains any given
-/// off-seam point.
+/// The whole ball is one face, its meridian walked out and back, and the
+/// face door answers on it as on a lune: it contains every off-seam
+/// point, so exactly one sphere face contains any given one.
 #[test]
 fn the_balls_two_bands_each_answer_for_their_own_half() {
     let body = lune(Revolution::Full);

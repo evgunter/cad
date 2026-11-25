@@ -279,35 +279,16 @@ fn support_surface_key(body: &Body<f64>, e: EdgeKey) -> SurfaceKey {
     }
 }
 
-/// **The seam-split rim: several arcs, ONE pair of roles.** A
-/// profile touching the axis at BOTH ends splits every wall into
-/// half-bands, so this rim reaches the surgery as TWO arcs meeting at
-/// chart-seam vertices and must be requested whole (the ARMS-3
-/// recourse). It is carved by `resolve_seam_split_rim`, the THIRD site
-/// that decides the host — the one the other rows here do not reach.
+/// **The pole-to-pole revolve's base rim: ONE pair of roles.** A
+/// profile touching the axis at BOTH ends sweeps every wall as one face
+/// and every rim as one closed edge, so this rim reaches the surgery
+/// whole: one trimline per support, `Host` on one surface and `Mate` on
+/// the other.
 ///
-/// **The rim is chosen so its two links DISAGREE on slot order**,
-/// which is what gives this row its discrimination. That site picks a
-/// host SURFACE once for the whole chain and then re-tests, per link,
-/// which slot carries it, precisely because the links need not agree.
-/// On this rim they do not: the base disk is `face_a` of one link and
-/// `face_b` of the other. So the claim is not "each arc has two roles"
-/// (trivially true) but that the two arcs AGREE ON GEOMETRY — both
-/// `Host` trims on one support surface, both `Mate` trims on the
-/// other.
-///
-/// Verified by mutation, both ways, because the first draft of this
-/// row used a rim whose links happened to agree and discriminated
-/// nothing:
-///
-/// * delete the per-link slot re-test (`a_is_host = true` always) and
-///   this row goes RED — on the earlier fixture all 21 rows stayed
-///   green;
-/// * delete the planar preference from
-///   `naming::second_support_is_host` and it goes RED too, because
-///   this rim HAS a planar support (the base disk) and the surgery
-///   must prefer it. That is the seam-split arm's own spelling of the
-///   host rule, which no other row here reaches.
+/// **The rim has a planar support** (the base disk), and the surgery
+/// must prefer it: delete the planar preference from
+/// `naming::second_support_is_host` and this row goes RED. That is the
+/// host rule's spelling no other row here reaches.
 #[test]
 fn a_seam_split_rim_gives_all_its_arcs_one_pair_of_roles() {
     let doc = ProfileDoc::empty_derived("blend5_seam_split", Tol::witness());
@@ -339,8 +320,8 @@ fn a_seam_split_rim_gives_all_its_arcs_one_pair_of_roles() {
             ang(std::f64::consts::TAU),
         ),
     );
-    // The BASE rim (disk meets the lower cone): the one whose two
-    // links disagree on slot order, and which has a planar support.
+    // The BASE rim (disk meets the lower cone): the one with a planar
+    // support.
     let pv = crate::fixture::vpiece(&doc, revolve, 0, 1);
     // The rim WHOLE: one full-period circle on the one-band revolve.
     let selection = vec![editor_core::band_rim(revolve, pv)];

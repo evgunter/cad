@@ -301,7 +301,7 @@ fn check_result(what: &str, body: &Body<f64>, want: f64, tol_abs: f64) {
 /// beside a (hollow) vessel, opened on the vessel's void ceiling.
 #[test]
 fn r1_end_to_end() {
-    // 1. The pole-touching ball: one wall in two π-bands, no seam ring.
+    // 1. The pole-touching ball: one wall in one band, no seam ring.
     let (r, t): (f64, f64) = (1.0, 0.05);
     let sphere = unit_ball();
     let out = topo::shell(&finished("the operand", sphere.clone(), tol()), t, tol())

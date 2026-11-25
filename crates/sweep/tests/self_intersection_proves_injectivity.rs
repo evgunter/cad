@@ -574,8 +574,8 @@ fn a_revolved_ball_holds_only_after_it_splits() {
 }
 
 /// **A cone holds**: the triangle `(0,0) (1,0) (0,1)` revolved a full
-/// turn about `y` — two half-cones sharing their two meridians and the
-/// apex, each sharing a half rim with the base disc.
+/// turn about `y` — one cone face, its meridian walked out from the apex
+/// and back, sharing its closed rim with the base disc.
 #[test]
 fn a_revolved_cone_holds() {
     fn cone<T: Scalar>() -> Body<T> {
@@ -3109,25 +3109,21 @@ fn the_walk_reads_its_charts_and_edges_through_their_memos() {
 // ------------------------------------------------ a sphere's pole
 
 /// **Two coaxial balls' union holds, its poles read**: the snowman of
-/// `snowman.rs`, radii 1 and 0.8 on centres 1.4 apart. Each ball is two
-/// half-bands of one sphere meeting along a meridian circle and at the
-/// two poles, and the union keeps one pole of each. A cell holding a
-/// pole is near both meridians and the pole, and the pole is the whole
-/// latitude line `v = ±π/2` of the chart, so no split moves a cell off
-/// it. Read as a collapsed side, the polar cells certify against the
-/// meridians' plane; read as a loose vertex, every polar strip of one
-/// half-band against every one of the other split until the walk ran
-/// out of its 65,536 pairs, at depth 32.
+/// `snowman.rs`, radii 1 and 0.8 on centres 1.4 apart. Each ball is one
+/// sphere face, its one meridian walked out from a pole and back, and
+/// the union keeps one pole of each. A cell holding a pole is near the
+/// meridian and the pole, and the pole is the whole latitude line
+/// `v = ±π/2` of the chart, so no split moves a cell off it. Read as a
+/// collapsed side, the polar cells certify against the meridian's
+/// plane; read as a loose vertex, every polar strip split until the walk
+/// ran out of its 65,536 pairs, at depth 32.
 ///
-/// At a pole one half-band's corner is on one meridian and the other's
-/// on the other, and the corner is zero under the plane only where the
-/// plane lists both. The revolve stores the two in one plane, so at
-/// `f64` the plane built from either does. At `Interval` the small
-/// ball's centre is a bracket (its profile arc's centre rounds), and
-/// two meridians stored in one bracket need not lie in one plane for
-/// every member, so its plane lists its own meridian alone and its pole
-/// refuses `Departure` there. Red at `f64` if the meridians are stored
-/// in two planes, or if the corner is read as zero off the list.
+/// At a pole the face's corner is on its one meridian, and the corner is
+/// zero under the plane only where the plane lists that meridian, which
+/// the plane built from it does at both scalars: at `Interval` too, where
+/// the small ball's centre is a bracket (its profile arc's centre
+/// rounds), the union holds. Red if the corner is read as zero off the
+/// list, or if either scalar refuses.
 #[test]
 fn a_two_ball_union_holds_with_its_poles_read() {
     fn snowman<T: Scalar>() -> Body<T> {
@@ -3161,27 +3157,10 @@ fn a_two_ball_union_holds_with_its_poles_read() {
         report.receipt
     );
     let twin = snowman::<Interval>();
-    let verdict = injective(&twin, None, BUDGET).verdict;
-    let BoundVerdict::Refused(EngineRefusal::Uncertified {
-        shared: SharedCell::Edge(edge),
-        arm: CertificateArm::Departure,
-        ..
-    }) = verdict
-    else {
-        panic!("the snowman at Interval refuses Departure on a meridian: {verdict:?}");
-    };
-    let curve = twin.get_edge(edge).expect("a live edge").curve;
-    let carrier = twin
-        .get_curve_geom(curve)
-        .and_then(|g| g.certified())
-        .map(|c| c.carrier().clone());
-    let Some(geom::Curve3::Circle(conic_k)) = carrier else {
-        panic!("the refusing edge is a meridian circle: {carrier:?}");
-    };
-    let radius = conic_k.radius();
-    let frame = conic_k.frame();
+    let report = injective(&twin, None, BUDGET);
     assert!(
-        (mid(radius) - 0.8).abs() < 1e-9 && frame.origin().y.lo() < frame.origin().y.hi(),
-        "on the small ball, whose centre is a bracket: {radius:?} {frame:?}"
+        matches!(report.verdict, BoundVerdict::Holds),
+        "the snowman at Interval holds: {:?}",
+        report.verdict
     );
 }

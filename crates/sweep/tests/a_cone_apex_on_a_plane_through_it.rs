@@ -280,14 +280,17 @@ fn a_tilted_plane_through_the_apex_cuts_each_revolved_cone_at_its_closed_form() 
 
 /// **A cut along two rulings through a wrap-tipped apex refuses the
 /// pinch by name**: the box `[−0.3, 0] × [0.95, 1.2] × [−0.3, 0.3]`, its
-/// face `x = 0` through the apex, cuts the tipped cone's one face along
-/// the two rulings in that plane, leaving one face whose loop is two
-/// lobes meeting only at the apex. The body is well formed, but props
-/// cannot yet measure such a loop
+/// face `x = 0` through the apex, cuts the cone's one face along the two
+/// rulings in that plane, leaving one face whose loop is two lobes
+/// meeting only at the apex. The body is well formed, but props cannot
+/// yet measure such a loop
 /// (`work/spiricarm/props-measures-a-cone-loop-pinched-at-its-apex.md`),
-/// so the Boolean refuses `ResultPinchedAtConeApex` before the gate. On
-/// the revolved cone the seam parts the lobes into two faces, and every
-/// op builds: the box holds half the cone's tip of height `0.05`.
+/// so the Boolean refuses `ResultPinchedAtConeApex` before the gate, on
+/// the tipped cone and on the revolved one alike: a full revolve sweeps
+/// the cone wall as one band, whose one seam meridian (at azimuth 0, in
+/// neither lobe's plane) parts nothing. The revolved arm built when the
+/// revolve split its wall at a second meridian
+/// (`work/lathe/a-revolved-cone-cut-along-two-rulings-through-its-apex-refuses-the-pinch.md`).
 #[test]
 fn a_cut_along_two_rulings_through_a_wrap_tipped_apex_refuses_the_pinch_by_name() {
     let (lo, hi) = (Point3::new(-0.3, 0.95, -0.3), Point3::new(0.0, 1.2, 0.3));
@@ -296,61 +299,17 @@ fn a_cut_along_two_rulings_through_a_wrap_tipped_apex_refuses_the_pinch_by_name(
         topo::test_support::brick::<f64>((lo.x, hi.x), (lo.y, hi.y), (lo.z, hi.z), tol()),
         tol(),
     );
-    let the_box = move |p: Point3<f64>| {
-        (p.x - lo.x)
-            .min(hi.x - p.x)
-            .min(p.y - lo.y)
-            .min(hi.y - p.y)
-            .min(p.z - lo.z)
-            .min(hi.z - p.z)
-    };
     for alpha in [15.0f64, 30.0, 45.0] {
-        let r = alpha.to_radians().tan();
-        let t = tipped(alpha);
-        for (op, result) in [
-            ("t ∪ b", union(&t, &b, tol())),
-            ("b ∪ t", union(&b, &t, tol())),
-            ("t ∖ b", subtract(&t, &b, tol())),
-        ] {
-            assert!(
-                matches!(result, Err(BooleanError::ResultPinchedAtConeApex { .. })),
-                "{alpha}°, tipped, {op}: {result:?}"
-            );
-        }
-        let c = revolved(alpha);
-        let (vc, vb) = (PI * r * r / 3.0, 0.3 * 0.25 * 0.6);
-        let tip = PI * (r * 0.05).powi(2) * 0.05 / 6.0;
-        let lattice = (
-            Point3::new(-r - 0.25, -0.25, -r - 0.25),
-            Point3::new(r + 0.25, 1.25, r + 0.25),
-        );
-        let cone = move || the_cone(r);
-        for (op, result, want, region) in [
-            (
-                "c ∪ b",
-                union(&c, &b, tol()),
-                vc + vb - tip,
-                Box::new(move |p| cone()(p).max(the_box(p))) as Region,
-            ),
-            (
-                "b ∪ c",
-                union(&b, &c, tol()),
-                vc + vb - tip,
-                Box::new(move |p| cone()(p).max(the_box(p))),
-            ),
-            (
-                "c ∖ b",
-                subtract(&c, &b, tol()),
-                vc - tip,
-                Box::new(move |p| cone()(p).min(-the_box(p))),
-            ),
-        ] {
-            let what = format!("{alpha}°, revolved, {op}");
-            match result {
-                Ok(BooleanResult::Body(body)) => {
-                    membership::holds(&what, &body.body, want, &region, lattice, 7);
-                }
-                other => panic!("{what}: {other:?}"),
+        for (form, t) in [("tipped", tipped(alpha)), ("revolved", revolved(alpha))] {
+            for (op, result) in [
+                ("t ∪ b", union(&t, &b, tol())),
+                ("b ∪ t", union(&b, &t, tol())),
+                ("t ∖ b", subtract(&t, &b, tol())),
+            ] {
+                assert!(
+                    matches!(result, Err(BooleanError::ResultPinchedAtConeApex { .. })),
+                    "{alpha}°, {form}, {op}: {result:?}"
+                );
             }
         }
     }
@@ -446,7 +405,8 @@ fn a_plane_grazing_a_tipped_cone_along_a_ruling_refuses_typed() {
     }
 }
 
-/// The 3° needle (`revolve_common::needle`, two meridians at its apex)
+/// The 3° needle (`revolve_common::needle`, its one meridian a wrap
+/// edge whose tip is the apex)
 /// against the block below the plane through the point `k·ε` down its
 /// seam ruling, the plane's normal tilted `tilt` off the axis toward
 /// azimuth 0.

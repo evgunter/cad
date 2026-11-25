@@ -149,11 +149,10 @@ fn a_split_wrap_edge_is_one_strip_whichever_half_the_walk_opens_on() {
 
 /// **The one-face spindle meshes as its revolve.** A lemon, a spindle
 /// torus's outer sheet whose two apexes are the singular points, revolved
-/// in two bands and made one face with one wrap edge from either apex: the
-/// strip's turn round each apex is the lift's, on a chart whose singular
-/// points are sheet apexes, not a sphere's poles. It meshes watertight
-/// with its two-band revolve's volume, and reverted as its void, at three
-/// bulges.
+/// fully into one face with one wrap edge from either apex: the strip's
+/// turn round each apex is the lift's, on a chart whose singular points
+/// are sheet apexes, not a sphere's poles. It meshes watertight with its
+/// revolve's volume, and reverted as its void, at three bulges.
 #[test]
 fn the_one_face_spindle_meshes_as_its_revolve() {
     for bulge in [0.3, 0.6, 0.9] {
@@ -169,7 +168,7 @@ fn the_one_face_spindle_meshes_as_its_revolve() {
                 )
             };
             let two_bands = mesh::validate::signed_volume(
-                &mesh::tessellate(&lemon(), DELTA, tol()).expect("the two-band lemon meshes"),
+                &mesh::tessellate(&lemon(), DELTA, tol()).expect("the lemon meshes"),
             );
             let one = one_wrap_edge(lemon(), pole);
             let mesh = mesh::tessellate(&one, DELTA, tol())
@@ -182,7 +181,7 @@ fn the_one_face_spindle_meshes_as_its_revolve() {
             let volume = mesh::validate::signed_volume(&mesh);
             assert!(
                 (volume - two_bands).abs() < 0.05 * two_bands,
-                "bulge {bulge} {name}: volume {volume} against the two-band {two_bands}"
+                "bulge {bulge} {name}: volume {volume} against the revolve's {two_bands}"
             );
             let void = mesh::tessellate(&one.revert().expect("reverts"), DELTA, tol())
                 .unwrap_or_else(|e| panic!("bulge {bulge} {name}: the reverted lemon: {e:?}"));

@@ -76,3 +76,11 @@ spelled on the old string, so it was red in the nightly from that merge
 (the test is in the slow set and PR 6648 did not edit its file); GREEN's
 default-eps lane re-spelled it on the typed cause. Nothing about the
 residue moved.
+
+- 2026-11-23 (LATHE one-band lane, PR 7414): with a full revolve's cone
+  one band, its one seam ruling at azimuth 0 where two ran at 0 and π,
+  the residue narrows. At `spin = 0`, `tilt = 1.5` tier 3′ still refuses
+  `CensusUnsupported` (`Meeting`, `Unsettled::Meter`) on both parts at
+  1° and on the part above the plane at 3°; the 3° part below the plane
+  now passes tier 3′. `a_needle_cone_cut_off_its_apex_lands_its_closed_forms`
+  pins exactly that. The witness is not gone.

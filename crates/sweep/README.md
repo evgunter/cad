@@ -1062,7 +1062,7 @@ that is the boolean's ground, not the band's.
 
 ## Conventions every sweep keeps
 
-Moved from DESIGN `[topology]` on 2026-10-17, verbatim. Bracketed ids (`[topology]`, `[coincidence]` …) are `docs/DESIGN.md`'s clauses.
+Moved from DESIGN `[topology]` on 2026-10-17. Bracketed ids (`[topology]`, `[coincidence]` …) are `docs/DESIGN.md`'s clauses.
 
 - **The minimal sphere at rest is V2/E1/F1**: one face, one meridian,
   two pole vertices. A full revolve sweeps every wall in one band, so a

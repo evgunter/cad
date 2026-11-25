@@ -1689,6 +1689,25 @@ fn a_ring_sits_in_its_outer_loops_polygon_but_on_the_ball_less_the_tube() {
         "the displaced ring is one whole projected circle, a period below its outer loop\n{}",
         ring_table(&rings)
     );
+    let cone: Vec<_> = rings
+        .iter()
+        .filter(|r| r.body.starts_with("T1, "))
+        .collect();
+    assert_eq!(cone.len(), 3, "T1's three ops each hold one cone ring");
+    for r in cone {
+        let (u, o) = (r.ring_hull.0, r.outer_hull.0);
+        assert!(
+            r.forms == ["FocalSection", "FocalSection"]
+                && u.0 > 0.6
+                && u.1 < 2.6
+                && (o.0 - PI).abs() < MEET
+                && (o.1 - 3.0 * PI).abs() < MEET,
+            "{}: the cone ring's two arcs on u ∈ (0.6, 2.6), its outer loop from the seam on \
+             [π, 3π]\n{}",
+            r.body,
+            ring_table(&rings)
+        );
+    }
 }
 
 /// **The spiric-bounded torus wall's outer loop is a simple polygon.**
@@ -1807,8 +1826,7 @@ fn a_lift_runs_along_the_apex_row_through_the_faces_turn() {
     }
     let want = [
         // A full revolve's wall is one face reaching its apex or pole by
-        // one wrap edge: one whole turn there, where two half-bands took
-        // half a turn each.
+        // one wrap edge: one whole turn there.
         ("common::cone (outer)", 0.0, -TAU),
         ("the T1 cone (outer)", 0.0, -TAU),
         ("the funnel (outer)", 0.0, TAU),

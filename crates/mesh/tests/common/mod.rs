@@ -126,7 +126,7 @@ pub fn rounded_prism() -> Body<f64> {
     sweep::test_support::extruded(SketchPlane::xy(), vec![lp], 1.0, Tol::witness())
 }
 
-/// The ball: unit half-disc revolved fully (two-band sphere, poles).
+/// The ball: unit half-disc revolved fully (one-face sphere, poles).
 pub fn ball() -> Body<f64> {
     let lp = bulge_loop(vec![
         (Point2::new(0.0, -1.0), 1.0),

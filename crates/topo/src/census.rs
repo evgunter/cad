@@ -1986,10 +1986,18 @@ fn face_cone<T: Decide>(
             let [(leaving, before)] = corners[..] else {
                 return Err(Unread::Unbuilt);
             };
-            // A tip: the loop walks one edge out of the vertex and
-            // straight back, so the face is the full turn round it.
-            let edge_of = |he| body.half_edges.get(he).map(|h| h.edge);
-            if edge_of(leaving).is_some() && edge_of(leaving) == edge_of(before) {
+            // A wrap edge's tip: the loop walks the wrap edge out of the
+            // vertex and straight back, so the face is the full turn
+            // round it. Read through the shared tip reader, which asks
+            // for a wrap edge of two ends: a closed rim's one-edge loop
+            // also leaves and arrives by one edge, and its conventional
+            // vertex is a corner like any other.
+            let leaving_edge = body.half_edges.get(leaving).map(|h| (h.start, h.edge));
+            let before_edge = body.half_edges.get(before).map(|h| h.edge);
+            if let Some((at, edge)) = leaving_edge
+                && before_edge == Some(edge)
+                && crate::validate::wrap_tip_at(body, at, edge)
+            {
                 return Ok(Cone::Full);
             }
             let departure = |he| crate::validate::side(body, he).and_then(|(_, _, d)| d);
@@ -23252,6 +23260,42 @@ mod lone_vertex_rows {
             super::face_vertices(&body, top).contains(&lone),
             "face_vertices holds it"
         );
+    }
+
+    /// **A closed rim's conventional vertex reads a corner, not the full
+    /// turn**: on the seamless drum ([`crate::test_support_fixtures::seamless_drum`])
+    /// each rim is one closed edge, so the top cap's loop leaves its one
+    /// vertex by the rim and arrives back by it, as a wrap edge's tip
+    /// does. The tip reading is the shared one
+    /// (`validate::wrap_tip_at`: a wrap edge of two ends), so the cap's
+    /// cone at the rim vertex is its half plane, a `Corner`, on both the
+    /// cap and the wall. Red where the cone took one edge out and back
+    /// for a tip.
+    #[test]
+    fn a_closed_rims_vertex_reads_a_corner_not_the_full_turn() {
+        use super::FaceContainment::OnVertex;
+        let body: crate::body::Body<f64> =
+            crate::test_support_fixtures::seamless_drum(1.0, 2.0, Tol::witness());
+        let band = geom_core::Band::linear(Tol::witness()).expect("a band");
+        let geo = super::snapshot(&body);
+        let mut read = 0;
+        for (face, _) in body.faces() {
+            for v in body.unchecked_face_vertices(body.get_face(face).expect("a face")) {
+                let q = geo.vmap.get(&v).copied().expect("a vertex of the snapshot");
+                let cone = super::face_cone(&body, &geo, face, OnVertex(v), q, band);
+                assert!(
+                    matches!(cone, Ok(super::Cone::Corner(_))),
+                    "face {face:?} at the rim vertex {v:?}: {}",
+                    if matches!(cone, Ok(super::Cone::Full)) {
+                        "the full turn"
+                    } else {
+                        "unread"
+                    }
+                );
+                read += 1;
+            }
+        }
+        assert_eq!(read, 4, "two caps and the wall's two rims, one vertex each");
     }
 
     /// **A lone-vertex loop is skipped away from the point and refused at

@@ -4894,8 +4894,8 @@ fn rim_holding<T: Decide>(
 /// Whether edge `e` of `body` is carried by a line
 /// ([`geom::Curve3::is_curved`]), the one straightness test the flush
 /// readings share. The flush tests are straight-segment tests, and a curved
-/// edge's chord is not its locus (a sphere's two meridians share both
-/// ends and both faces).
+/// edge's chord is not its locus (the two meridians between a sphere's
+/// lunes share both ends and both faces).
 pub(super) fn is_straight<T: Decide>(body: &Body<T>, e: EdgeKey) -> bool {
     topo::readback::edge_carrier_ref(body, e).is_ok_and(|c| !c.is_curved())
 }

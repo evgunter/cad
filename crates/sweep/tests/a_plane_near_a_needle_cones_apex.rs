@@ -135,8 +135,10 @@ fn a_needle_cone_cut_in_band_of_its_apex_refuses_with_its_lever() {
 /// **Off the apex the same planes land their closed forms**, both sides,
 /// each passing tiers 3 and 3′ — the refusals' lever (move the geometry)
 /// taken: the plane meets the seam a hundred times farther down. Where
-/// the ellipse's vertices sit on the seams (`spin = 0`) at `tilt = 1.5`,
-/// tier 3′ refuses as measured, a census residue filed on its own row.
+/// the ellipse's vertex sits on the cone's one seam (`spin = 0`) at
+/// `tilt = 1.5`, tier 3′ refuses as measured, a census residue filed on
+/// its own row, on both sides at 1° and above the plane at 3°; the 3°
+/// part below the plane passes.
 #[test]
 fn a_needle_cone_cut_off_its_apex_lands_its_closed_forms() {
     let tol = Tol::witness();
@@ -159,8 +161,8 @@ fn a_needle_cone_cut_off_its_apex_lands_its_closed_forms() {
                 );
                 assert_eq!(topo::validate_geometric(b, tol), Ok(()), "{what}: tier 3");
                 let t3p = topo::validate_pseudomanifold(b, &ContactRecords::default(), tol);
-                if spin == 0.0 && tilt == 1.5 {
-                    // The ellipse's vertices on the seams: the census
+                if spin == 0.0 && tilt == 1.5 && (deg == 1.0 || side == "above") {
+                    // The ellipse's vertex on the seam: the census
                     // cannot settle a ruling against the half ending on
                     // it, the meeting unread on a meter (the line ×
                     // ellipse pose's basin), filed as

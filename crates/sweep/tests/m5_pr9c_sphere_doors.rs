@@ -7,9 +7,10 @@
 //! the cylinder×sphere boolean arm stands on. The arm this unit lands
 //! covers the CLOSED sphere class: the faces sharing one sphere
 //! surface close on each other, so their union is the whole chart and
-//! no per-face chart trim is needed. That is exactly the ball the M5
-//! inventory mints (`revolve_ball`'s V2 E2 F2: two half-bands on one
-//! sphere key, joined along the seam meridian and its angle-π copy).
+//! no per-face chart trim is needed. A full revolve's ball is one face
+//! (`revolve_ball`'s V2 E1 F1, its meridian a wrap edge); the ball cut
+//! into its two lunes, or an import's half-turn pair, is the class's
+//! several-face form.
 //!
 //! Rows here:
 //!
