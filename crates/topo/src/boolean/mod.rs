@@ -5497,11 +5497,10 @@ impl BooleanError {
             } => write!(
                 f,
                 "an edge of the {} operand ends on a rim where its face and a face of the other \
-                 join smoothly, close to where the two faces curve alike across it, and another \
-                 edge of the other face lies too near that end for the Boolean to read which \
-                 face the edge meets there. Moving that edge farther from the end, or turning \
-                 the parts so the edge ends farther from where the faces curve alike, may let \
-                 it through",
+                 join smoothly, and another edge or a lone vertex of the other face lies too \
+                 near that end for the Boolean to read that the edge leaves that face there. \
+                 Making the other face longer past the rim, or moving the edge's end away from \
+                 that edge or vertex, may let it through",
                 operand_word(*operand),
             ),
             Self::JunctionEndUnread {
@@ -5702,14 +5701,21 @@ impl BooleanError {
                          outline (a whole-turn construction circle, or an arc wound past a \
                          full turn, is one it cannot read)"
                     ),
-                    ContainError::RayExhausted => {
+                    ContainError::RayExhausted(_)
+                    | ContainError::Curved(PointInSolidError::RegionRayExhausted { .. }) => {
                         write!(f, "{preamble}: {}", crate::ray_walk::NoRaySettled)
                     }
+                    ContainError::Uncrossable(u) => {
+                        write!(f, "{preamble}: {u}. Recourse: {CONIC_OUTLINE_RECOURSE}")
+                    }
+                    ContainError::ArcEndClearOfCorners(gaps) => write!(
+                        f,
+                        "{preamble}: the point lies at an arc's end clear of its corners: \
+                         {gaps}. Recourse: {}",
+                        placement_lever(Some(ContainDecision::ArcEnd))
+                    ),
                     ContainError::Curved(e) => write!(f, "the Boolean {}", read_at(e, at)),
-                    ContainError::Escalated { .. }
-                    | ContainError::StaleFace(_)
-                    | ContainError::Uncrossable(_)
-                    | ContainError::ArcEndClearOfCorners(_) => {
+                    ContainError::Escalated { .. } | ContainError::StaleFace(_) => {
                         write!(f, "{preamble}: {}", read_at(refusal, at))
                     }
                 }
@@ -8097,10 +8103,9 @@ pub enum JunctionEndGap {
     Window,
     /// The edge is closed, both its ends at the one point on the rim.
     Closed,
-    /// The window was read past the order's own term, so its spread holds
-    /// roots of the edge on the other face's carrier, and some boundary of
-    /// that face other than the rim is not decided farther from the end
-    /// than the spread: the face may reach such a root from there.
+    /// Some boundary of the other face, other than the rim, is not decided
+    /// farther from the end than the window's spread: the face may reach a
+    /// root of the edge on its carrier there.
     NearBoundary,
     /// The end lies where two stretches of the junction meet, ridden
     /// opposite ways: the rim names no side of it.
@@ -10206,7 +10211,7 @@ mod tests {
             BooleanError::PointInFaceRefused {
                 operand: Operand::B,
                 face,
-                refusal: ContainError::RayExhausted,
+                refusal: ContainError::RayExhausted(crate::entity::LoopKey::default()),
             },
             BooleanError::InsideOutOperand {
                 operand: Operand::B,
@@ -10588,7 +10593,9 @@ mod tests {
         };
         let door = refused(crate::rim_wedge::RimUnread::Unplaced {
             side: geom_brep::PairSide::Second,
-            why: crate::rim_wedge::Unplaced::Door(ContainError::RayExhausted),
+            why: crate::rim_wedge::Unplaced::Door(ContainError::RayExhausted(
+                crate::entity::LoopKey::default(),
+            )),
         });
         assert!(
             matches!(
@@ -10596,7 +10603,7 @@ mod tests {
                 BooleanError::PointInFaceRefused {
                     operand: Operand::B,
                     face,
-                    refusal: ContainError::RayExhausted,
+                    refusal: ContainError::RayExhausted(_),
                 } if face == fb
             ),
             "the door's refusal on the B face: {door:?}"
