@@ -284,3 +284,12 @@
 - 2026-11-25 PR 7745 merged (0ac627ec92) on local evidence after its fix pass (head a27ce80982). The structure rule now consumes only on a minted cell that is the other record cell's own image (OneCell), pinned so ANYINC goes red. Pre-existing cells are excluded from section naming. PROBE_GAP=face on rod/plate still returns Ok at the bridge union, through a positive witness: the circle's image IS the plate's named section edge. The face–face record lands as edge–face and stays loud downstream. I accept this as R1 NOTE 1's inherent shape, listed in the PR's limits. Row closed. Dispatched lane `heldrecords/one-list` (session_018u3gVJFgxeA2QH7xDjFq2y) for carried-records-keep-per-kind-vectors, behaviour-neutral, single FULL review.
 
 - 2026-11-25 PR 7757 merged (39ccba40ee) on local evidence, `gate ok` green on f00a33b40b, after a single FULL review: MERGEABLE, all claims held, a 432-pose far-rim sweep built 0 wrong bodies. In the fix pass, NearBoundary now names its real cause, the README was mended, and the unreachable conormal-None now refuses as ClassificationInvariant. Row the-junction-side-reading-... closed. Filed P2 `the-junction-boundary-guard-refuses-a-target-seam-within-its-reach`: liveness, no seam exemption.
+
+- 2026-11-25 parting-division done as PR 7783 (head e7429ceda2, base split-on). What it does:
+  - `CurvedFace` is narrowed to a slit or zero-area ring and read on the final state.
+  - A new `PartsTouch` gap refuses a curved division that leaves two pieces touching along the parting, since the census can't record a curved seat between solids.
+  - A closed conic inside a ringless face divides it.
+  - Results: no built → refused moves. The pierce rows, keel and ball∖keel now build. The tube witnesses wait on the stack taking main (PR 7602).
+  - The gate is red only from the stack.
+  - Rows filed: the-parting-re-decides-an-edge-lying-in-a-face-the-sweep-decided and a-rim-whose-vertex-lies-on-a-wrap-edge-refuses-shared.
+  - Single FULL review dispatched (session_018u3gVFWHiYZyakWSYnoknS).
