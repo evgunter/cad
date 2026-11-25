@@ -409,7 +409,7 @@ pub(crate) fn landings<T: Decide, D: Legs<T>>(
 /// the door's spline reader ([`Legs::splines`]). Its crossings strictly
 /// inside the span are landings that read a side. An end the composite
 /// reads near the plane
-/// ([`EndReading::Within`](geom_brep::curve_face::composite::EndReading::Within))
+/// ([`EndReading::Within`](geom_brep::curve_face::EndReading::Within))
 /// holds the end's meeting somewhere on its stretch to `until`, a
 /// decision the composite made once, on its own margin, and this reads
 /// no other. Where the stretch is the end itself (a crossing the
@@ -439,7 +439,8 @@ fn spline_landings<T: Decide, D: Legs<T>>(
     on_leg: impl Fn(Point3<T>) -> Result<bool, Fault>,
     band: Band,
 ) -> Result<Vec<Landing<T>>, Fault> {
-    use geom_brep::curve_face::composite::{CompositeRefusal, EndReading};
+    use geom_brep::curve_face::EndReading;
+    use geom_brep::curve_face::composite::CompositeRefusal;
     use geom_brep::roots::Unsettled;
     let blocked = || RayFault::Blocked(edge.uncrossable(UncrossableCarrier::Spline));
     let (Some(crossings), geom::Curve3::Nurbs(net)) = (door.splines(), &edge.carrier) else {
@@ -493,7 +494,7 @@ pub(crate) type SplineCrossings<T> = fn(
     &geom::Surface<T>,
     Band,
 ) -> Result<
-    geom_brep::curve_face::composite::SpanCrossings<T>,
+    geom_brep::curve_face::SpanCrossings<T>,
     geom_brep::curve_face::composite::CompositeRefusal,
 >;
 

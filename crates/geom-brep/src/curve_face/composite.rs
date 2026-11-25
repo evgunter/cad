@@ -63,6 +63,7 @@ use geom_core::solved::decide_admit;
 use geom_core::spline::compose::{CanonicalSurface, CurveCertData, canonical_composite};
 use geom_core::{Band, Bounds, Indeterminate, Interval, Margin, Point3, Real, Sign, Vec3};
 
+use super::{EndReading, SpanCrossings};
 use crate::half_angle::SPLITS;
 use crate::ladder::{Answering, Rung, climb};
 use crate::pcurve_cache::projected::Meters;
@@ -159,35 +160,6 @@ impl Reading {
             Self::Past(_) => Unsettled::Tangency.into(),
         }
     }
-}
-
-/// **How a spline span stands at one of its ends**, as [`crossings`]
-/// reads it there, on the one margin it reads every piece end on.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum EndReading {
-    /// The span's end is definitely past the band, on this side of the
-    /// surface: no meeting is the end's.
-    Past(Sign),
-    /// The span's end is not definitely past the band (within it, or in
-    /// its gap). A meeting of the span near that end is the end's and is
-    /// not among the crossings: it lies on the stretch from the end to
-    /// the parameter `until`, past which the span is definitely off the
-    /// surface. `until` is the end's own parameter where a located
-    /// crossing was decided at the end.
-    Within {
-        /// The far side of the end's stretch, a parameter of the span.
-        until: f64,
-    },
-}
-
-/// What [`crossings`] reads of a span: its crossings strictly inside the
-/// span, and how it stands at each end (start, stop).
-#[derive(Clone, Debug)]
-pub struct SpanCrossings<T: Real> {
-    /// The crossings strictly inside the span, ascending.
-    pub roots: Vec<T>,
-    /// The span's start and stop against the surface.
-    pub ends: [EndReading; 2],
 }
 
 /// **The crossings of a spline span with an analytic face's carrier**:

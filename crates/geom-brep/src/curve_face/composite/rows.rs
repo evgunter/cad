@@ -286,7 +286,7 @@ fn a_cubic_leaves_a_sphere_through_the_door() {
         "the span's start on the sphere is its end vertex's"
     );
     assert!(
-        matches!(from_it.ends, [super::EndReading::Within { until }, super::EndReading::Past(_)] if 0.5 < until && until < 1.0),
+        matches!(from_it.ends, [crate::curve_face::EndReading::Within { until }, crate::curve_face::EndReading::Past(_)] if 0.5 < until && until < 1.0),
         "the start reads near, and its stretch stops short of the stop: {:?}",
         from_it.ends
     );

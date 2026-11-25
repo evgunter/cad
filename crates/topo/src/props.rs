@@ -7312,7 +7312,7 @@ pub trait AtRestPolicy: Decide {
         band: geom_core::Band,
     ) -> Option<
         Result<
-            geom_brep::curve_face::composite::SpanCrossings<Self>,
+            geom_brep::curve_face::SpanCrossings<Self>,
             geom_brep::curve_face::composite::CompositeRefusal,
         >,
     > {
