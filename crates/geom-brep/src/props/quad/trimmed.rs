@@ -399,10 +399,7 @@ fn polygon_variation(block: &[RPt2]) -> (f64, f64) {
 /// The lune's chart area for one bracketed control block over its own
 /// chord: the extent ALONG the chord times the extent ACROSS it, both
 /// taken outward off the brackets. Exactly zero for a two-point block
-/// — a degree-1 arc IS its chord, so there is no lune at all, which is
-/// every image this head's producer mints where a carrier's feet run
-/// straight in the chart (`PXN_IMAGE_DEGREE = 1`; a path that bends
-/// takes `edge_nurbs::general_chart_image`'s finer rungs).
+/// — a degree-1 arc IS its chord, so there is no lune at all.
 fn lune_area(block: &[RPt2], a: (f64, f64), b: (f64, f64)) -> f64 {
     let (cu, cv) = (b.0 - a.0, b.1 - a.1);
     let len = (cu.powi(2) + cv.powi(2)).sqrt();
@@ -1914,9 +1911,7 @@ mod tests {
     /// **Q1 — a flat patch with a DIAGONAL `General` trim.**
     ///
     /// The loop `(0,0) → (1,0) → (1,1) → (0,0)` closes with a
-    /// degree-1 `General` image, which is the class this head's
-    /// producer mints for a line whose feet run straight in the chart
-    /// (`PXN_IMAGE_DEGREE = 1`): the region is
+    /// degree-1 `General` image: the region is
     /// half the unit square, so `flux = c/2` and `area = 1/2`
     /// exactly. The rectangle lane cannot answer it at all — it reads
     /// endpoints and calls a diagonal a refusal — so this row is the

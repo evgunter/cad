@@ -3469,6 +3469,11 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             ..
         }
         | CertifyError::PlaneNurbs(P::PcurveFit) => MISMATCH,
+        // The image stored for an arc rim was refused by its own
+        // certificate: the edge's stated image is not its image.
+        CertifyError::PlaneNurbs(P::StatedImage { .. }) => {
+            "the chart image it states does not follow its carrier"
+        }
         // A row image's escalation reads as its decision's check, routed
         // as an arc rim's is (`RowRefusal::decision`).
         CertifyError::Row {

@@ -41,14 +41,12 @@
 //!
 //! # The chart image is derived, and therefore checked
 //!
-//! The pcurve `P(t)` is not in the file. This lane derives it from foot
-//! points at the fixed schedule, on the carrier's own parameter (the OQ4
-//! identity: `P(t)` and `C(t)` are the same `t` by construction):
-//! beside a plane their degree-1 interpolant (`chart_image`); beside a
-//! curved partner, whose arc bends in the chart, the image the pcurve
-//! mint climbs to for the same carrier (`general_chart_image`), whose
-//! nodes depend on the band. Either is a **structure** selection in
-//! C6's `f64` lane, lifted to the caller's scalar, and certifies nothing
+//! The pcurve `P(t)` is not in the file. This lane derives it as the
+//! trace and the pcurve mint do (`crate::carrier_image`): the wall's
+//! foot path of the carrier, interpolated on the carrier's own knots and
+//! parameter (the OQ4 identity: `P(t)` and `C(t)` are the same `t` by
+//! construction), whatever the edge's other surface. It is a
+//! **structure** selection in C6's `f64` lane, lifted to the caller's scalar, and certifies nothing
 //! by itself. Limb 2 bounds `sup_t |S(P(t)) − C(t)|` over the whole
 //! span, so an image that wanders off the true foot path inside the
 //! wall's knot rectangle enlarges the bound it must pass. Limb 2 alone
@@ -89,7 +87,6 @@
 //! a bound says that without an impl to write.
 
 use crate::pcurve_cache::Pcurve;
-use core::num::NonZeroUsize;
 use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::spline::{KnotVector, SpanLocate, SplineError};
@@ -98,7 +95,7 @@ use geom_core::{
     Vec3,
 };
 
-use crate::certify::{CERT_SAMPLES, CertCheck, schedule_fraction};
+use crate::certify::{CERT_SAMPLES, CertCheck};
 use crate::recourse::{Decision, ReadAt, Refused, RefusedArm};
 use crate::ssi::enclose::CellGrid;
 use crate::ssi::{
@@ -141,10 +138,15 @@ pub struct PlaneNurbsLimbs<T: Real> {
     strum_discriminants(name(PlaneNurbsRefusalKind), derive(strum::EnumIter), doc(hidden))
 )]
 pub enum PlaneNurbsRefusal {
-    /// The foot-point projection did not converge at a schedule
-    /// sample. Never a best-effort foot.
+    /// The foot-point projection did not converge at a foot. Never a
+    /// best-effort foot.
     FootPointInconclusive {
-        /// The schedule sample index.
+        /// Which foot, by its index among those its reader placed: a
+        /// foot of the carrier's image on the chain the image had when
+        /// it stopped ([`crate::carrier_image`]; the chain grows by
+        /// round, so the index is no fixed station of the carrier), the
+        /// count of the certificate's samples for its own re-projection,
+        /// and `0` for a single point's foot ([`chart_foot`]).
         sample: u32,
         /// `|S − P|` at the last iterate (NaN when poisoned).
         last_distance: f64,
@@ -161,9 +163,9 @@ pub enum PlaneNurbsRefusal {
         /// The verdict on the levered angle, with its reporting margin.
         verdict: Refused,
     },
-    /// The interpolation through the schedule's foot points refused
-    /// ([`PCURVE_FIT_REFUSAL`]). The parameters are the schedule's own,
-    /// fixed and strictly ascending, so nothing a caller sets reaches it.
+    /// The interpolation through the image's feet refused
+    /// ([`PCURVE_FIT_REFUSAL`]). The parameters are the chain's own
+    /// abscissae, strictly ascending, so nothing a caller sets reaches it.
     PcurveFit,
     /// The interpolated image could not be re-expressed on the
     /// carrier's own parameter domain: the domain door's refusal,
@@ -239,6 +241,18 @@ pub enum PlaneNurbsRefusal {
     /// ([`ArcRimRefusal`]), on the plane lane's wall or either chart of
     /// the pair lane.
     ArcRim(ArcRimRefusal),
+    /// The image the caller stated for an arc rim on its wall
+    /// ([`plane_nurbs_incidence`]'s `stated`) was refused definitely by
+    /// its own certificate. A stated image is certified as it stands or
+    /// not at all: the lane derives no other image in its place, so an
+    /// `Ok` never covers an image that was refused.
+    StatedImage {
+        /// The check of the stated image's certificate that refused,
+        /// `None` where the refusal was no check's.
+        iso: Option<crate::pcurve_cache::PcurveCheck>,
+        /// The margin it refused by, where the certificate kept one.
+        read: Option<MarginDiag>,
+    },
     /// The reported transversality — the minimum sine over interior
     /// samples that each decided transverse — came out poisoned. No
     /// geometry and no tolerance reaches it, so it is a kernel defect.
@@ -393,8 +407,8 @@ fn after_exact(
 /// What [`PlaneNurbsRefusal::PcurveFit`] states, and the pcurve mint's
 /// refusal for the same failure of the same producer
 /// ([`crate::FittedLane::general_image`]).
-pub(crate) const PCURVE_FIT_REFUSAL: &str = "the chart image could not be interpolated through the schedule's foot points: on the \
-     schedule's fixed, strictly ascending parameters the interpolation refuses only a foot it \
+pub(crate) const PCURVE_FIT_REFUSAL: &str = "the chart image could not be interpolated through its foot points: on the \
+     chain's strictly ascending parameters the interpolation refuses only a foot it \
      cannot take (a non-finite one) or a collocation system it cannot solve";
 
 pub use crate::recourse::{
@@ -448,7 +462,7 @@ impl CarrierDomainRefusal {
     /// validated net and weights over verbatim, its re-expressed
     /// breakpoints are `f64` points, and `Knots::new` refuses any two
     /// that collide before a clamp clause could.
-    fn of(lo: f64, hi: f64, e: &SplineError) -> Self {
+    pub(crate) fn of(lo: f64, hi: f64, e: &SplineError) -> Self {
         let fault = match e {
             // An end past half the largest finite number: no knot
             // vector admits the domain, which is the interval's fault.
@@ -634,6 +648,16 @@ impl PlaneNurbsRefusal {
                 let (check, arm) = refusal.decision();
                 Decision::Check(check, arm)
             }
+            // The stated image's own check where that restates an
+            // incidence limb; any other check of it says the image is
+            // not the edge's on this chart, which is the chart's value
+            // limb with no margin kept.
+            Self::StatedImage { iso, read } => {
+                match iso.and_then(crate::pcurve_cache::PcurveCheck::incidence_limb) {
+                    Some(limb) => Decision::Check(limb.check(), RefusedArm::SignCertain(*read)),
+                    None => Decision::Check(SsiLimb::HullValueChart.check(), definite),
+                }
+            }
             Self::ReportedTransversalityPoisoned(cause) => Decision::Check(
                 CertCheck::PlaneNurbsReportedTransversality,
                 RefusedArm::Undecided(cause),
@@ -689,7 +713,7 @@ impl core::fmt::Display for PlaneNurbsRefusal {
                 last_distance,
             } => write!(
                 f,
-                "the foot-point projection did not converge at schedule sample {sample} \
+                "the foot-point projection did not converge at foot {sample} of those it placed \
                  (last distance {last_distance:e} m)"
             ),
             // One decision, one sentence: certification's, which this
@@ -776,6 +800,11 @@ impl core::fmt::Display for PlaneNurbsRefusal {
                 write!(f, "{} escalated: {}", limb.name(), cause.payload())
             }
             Self::ArcRim(refusal) => write!(f, "{refusal}"),
+            Self::StatedImage { iso, .. } => write!(
+                f,
+                "the image stated for an arc rim on its spline wall did not certify: {}",
+                exact_arc_rim_words(*iso)
+            ),
             Self::TubeNotOneArc { rungs, cause } => write!(
                 f,
                 "the tube was not proved to hold one arc spanning the carrier at {rungs} rungs; \
@@ -823,11 +852,11 @@ impl core::fmt::Display for PlaneNurbsRefusal {
 /// `certify_branch` reads the chart image of `b`, and the image this
 /// lane derives is the carrier's foot path on the wall.
 ///
-/// The image is re-derived here on a fixed schedule of foot points, not
-/// read from the pcurve the trace fitted, so on a carrier of many spans
-/// its limb-2 bound is this lane's own: it need not reproduce the SSI
-/// door's certificate bit for bit. The door that re-certifies the
-/// trace's own triple is [`crate::ssi::certify_rung3`].
+/// The image is re-derived here by the one image function
+/// ([`crate::carrier_image`]), which the trace's certificate reads too,
+/// so on a traced carrier this lane's certificate is the SSI door's bit
+/// for bit, at the scalar the trace ran at. The door that re-certifies a
+/// trace's stored triple is [`crate::ssi::certify_rung3`].
 ///
 /// # Errors
 ///
@@ -1004,11 +1033,8 @@ pub(crate) fn is_residual_partner<T: Real>(s: &Surface<T>) -> bool {
 /// door: limbs 1 and 2 read the partner's implicit residual in metres
 /// and the wall's chart, and limb 3 is the chart tube read against the
 /// partner's form, the theorem the residual × NURBS search certifies its
-/// branch by. The wall's image of the carrier is not the plane lane's
-/// degree-1 interpolant, which misses an arc that bends in the chart by
-/// its chords' sag: it is the image the pcurve mint climbs to for the
-/// same carrier (`general_chart_image`), through the same schedule's
-/// feet. An interior sample's angle is between the partner's gradient at
+/// branch by. The wall's image of the carrier is the plane lane's
+/// (`crate::carrier_image`). An interior sample's angle is between the partner's gradient at
 /// the wall's foot and the wall's normal, its arm the shorter of the
 /// extent and either surface's curvature radius there.
 ///
@@ -1093,28 +1119,18 @@ pub(crate) fn residual_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEncl
             expected: "a plane, sphere, cylinder or torus as the analytic operand",
         });
     };
-    // The wall the tube localizes on, with its chart speeds minted at the
-    // door: a wall constant along an axis, or with no finite speed bound
-    // along one, has no chart a length in metres can cross into, and the
-    // schedule below would only meet that as a foot point or a sine that
-    // cannot be stated.
-    let grid = wall_grid(wall);
-    let wall_op = match &grid {
-        Some(g) => SsiOperand::nurbs_on(wall, g),
-        None => SsiOperand::nurbs(wall),
-    }
-    .map_err(refusal)?;
+    // The wall's chart speeds minted at the door: a wall constant along
+    // an axis, or with no finite speed bound along one, has no chart a
+    // length in metres can cross into, and the image below would only
+    // meet that as a foot point or a sine that cannot be stated. The
+    // certificate's limb 3 reads the chart on its own cells and, where
+    // those refuse, on its grid (`ChartedNurbs::certificate_grid`), as a
+    // trace's does.
+    let wall_op = SsiOperand::nurbs(wall).map_err(refusal)?;
 
-    // ---- The fixed schedule: foot points, and the normal angle. ----
-    // The feet are `chart_image`'s, which is also the pcurve mint's
-    // first rung (`general_chart_image`), so either image below walks
-    // them once and in the same order.
-    // The transversality sweep rides the same walk as a per-sample
-    // hook, so the ORDER in which the two refusals can fire is exactly
-    // what it was when the two loops were one.
+    // ---- The wall's image of the carrier, and the normal angle. ----
+    // The transversality sweep reads the image at the fixed schedule.
     let mut min_sin = T::from_f64(f64::MAX);
-    let eval = |t| carrier.eval(t);
-    let (domain, ends) = crate::carrier_net::carrier_span(carrier, params);
     let per_sample = |i: u32, foot: Point2<f64>| {
         // Transversality at the INTERIOR samples only: an endpoint is
         // shared with the neighbouring edges, where a vanishing angle
@@ -1149,17 +1165,9 @@ pub(crate) fn residual_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEncl
         min_sin = min_sin.min(sin_theta);
         Ok(())
     };
-    // Beside a plane the image is the degree-1 interpolant of the
-    // schedule's feet. A curved partner's arc bends in the chart
-    // wherever the partner does, which that interpolant misses by its
-    // chords' sag, so its image is the one the pcurve mint climbs to for
-    // the same carrier, whose nodes depend on `band`. Read here and not
-    // on `Partner`, whose methods carry no certification bound.
-    let schedule = Schedule::new(&eval, domain, ends);
-    let pcurve = match read {
-        Partner::Plane(_) => chart_image(schedule, wall, per_sample),
-        Partner::Curved(_) => general_chart_image(schedule, wall, band, per_sample),
-    }?;
+    // An image that misses past its cap reads the partner's limbs first,
+    // by the one rule.
+    let pcurve = chart_image(carrier, params, (wall, Some(partner)), band, per_sample)?;
     // FAIL LOUD on a poisoned aggregate. A NaN sine cannot reach here
     // today — the per-sample `decide` above escalates on its levered
     // margin first — but the reported transversality must not depend on
@@ -1624,12 +1632,14 @@ pub fn first_within<C, T: Decide>(
 ///   ([`arc_rim_measured`]). Its one limit is **an `f64` read**: the
 ///   row's weight pattern is read on the `f64` value channel.
 ///
-///   Where it does not certify, [`ArcRimRefusal`]'s policy decides: the
-///   carrier reads the fitted path below, a sound certificate of its own,
-///   whether the exact image refused or read in band.
+///   A stated image its certificate refuses definitely refuses the edge
+///   ([`PlaneNurbsRefusal::StatedImage`]): `Ok` certifies the image the
+///   caller stated, never another in its place. Where a picked image
+///   does not certify, or a stated one reads in band,
+///   [`ArcRimRefusal`]'s policy decides: the carrier reads the image
+///   derived below, a sound certificate of its own.
 /// - **Any other carrier**: the carrier's fitted chart image
-///   ([`chart_image`], from the same fixed schedule of foot points as
-///   the full lane's) and limbs 1 and 2 over it.
+///   ([`chart_image`], the full lane's) and limbs 1 and 2 over it.
 ///
 /// Incidence on an `Approx` wall's description is this bound plus the
 /// fit's own recorded distance from it, which the surface carries
@@ -1677,24 +1687,31 @@ pub fn plane_nurbs_incidence<T: Decide + Bounds + geom_core::CertifiedEnclosure>
             hull_sup: hull.max(c.envelope),
         });
     }
+    // A stated image is certified as it stands or not at all: one its
+    // certificate refused definitely is not replaced by an image derived
+    // here, or `Ok` would cover an image that was refused.
+    if let (Some(_), Some(ExactRim::Refused(iso, read))) = (stated, &exact) {
+        return Err(PlaneNurbsRefusal::StatedImage {
+            iso: *iso,
+            read: *read,
+        });
+    }
     // The carrier's fitted chart image alone: the wall's grid and chart
     // speeds are the tube's, which incidence does not ask.
-    let eval = |t| carrier.eval(t);
-    let (domain, ends) = crate::carrier_net::carrier_span(carrier, params);
-    let fitted =
-        chart_image(Schedule::new(&eval, domain, ends), chart, |_, _| Ok(())).and_then(|pcurve| {
-            crate::ssi::certify::incidence_limbs(
-                carrier,
-                params,
-                &[
-                    IncidenceOperand::Analytic(plane),
-                    IncidenceOperand::Chart(chart, &pcurve),
-                ],
-                band,
-                &mut crate::ssi::certify::Refused::default(),
-            )
-            .map_err(refusal)
-        });
+    let image = chart_image(carrier, params, (chart, Some(plane)), band, |_, _| Ok(()));
+    let fitted = image.and_then(|pcurve| {
+        crate::ssi::certify::incidence_limbs(
+            carrier,
+            params,
+            &[
+                IncidenceOperand::Analytic(plane),
+                IncidenceOperand::Chart(chart, &pcurve),
+            ],
+            band,
+            &mut crate::ssi::certify::Refused::default(),
+        )
+        .map_err(refusal)
+    });
     let (on_locus_max, hull_sup) =
         fitted.map_err(|e| after_exact(e, exact.as_ref().and_then(ExactRim::refused)))?;
     Ok(PlaneNurbsIncidence {
@@ -1765,9 +1782,9 @@ fn exact_arc_rim<T: Decide>(
 
 /// **The certified NURBS × NURBS derivation** — [`plane_nurbs_limbs`]
 /// for an edge between two spline charts, a described wall or a fit on
-/// either side: the carrier's chart image on EACH chart, from the same
-/// fixed schedule of foot points ([`chart_image`], the edge
-/// certificates' producer of that image), the normal angle between the two charts at each
+/// either side: the carrier's chart image on EACH chart
+/// (`carrier_image::carrier_images`, the two on one list of spans), the
+/// normal angle between the two charts at each
 /// interior sample's feet decided definitely transverse, and C2's
 /// certificate against both, its limb 3 the two-chart tube
 /// ([`crate::ssi::SsiTube::TwoChart`]).
@@ -1807,45 +1824,30 @@ pub fn nurbs_pair_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     extent: geom_core::Lever<T>,
     band: Band,
 ) -> Result<PlaneNurbsLimbs<T>, PlaneNurbsRefusal> {
-    // Each chart localized on its own cell grid, as the plane lane's wall.
-    let (grid_a, grid_b) = (wall_grid(a), wall_grid(b));
-    let op_a = match &grid_a {
-        Some(g) => SsiOperand::nurbs_on(a, g),
-        None => SsiOperand::nurbs(a),
-    }
-    .map_err(refusal)?;
-    let op_b = match &grid_b {
-        Some(g) => SsiOperand::nurbs_on(b, g),
-        None => SsiOperand::nurbs(b),
-    }
-    .map_err(refusal)?;
-    let mut feet_a: Vec<Point2<f64>> = Vec::with_capacity(PXN_FIT_SAMPLES as usize);
-    let eval = |t| carrier.eval(t);
-    let (domain, ends) = crate::carrier_net::carrier_span(carrier, params);
-    let pcurve_a = chart_image(Schedule::new(&eval, domain, ends), a, |_, foot| {
-        feet_a.push(foot);
-        Ok(())
-    })?;
+    // Each chart is read as the plane lane's wall is: its own cells,
+    // then the certificate's grid.
+    let op_a = SsiOperand::nurbs(a).map_err(refusal)?;
+    let op_b = SsiOperand::nurbs(b).map_err(refusal)?;
+    // The two images on one list of spans, which the two-chart tube pairs.
+    let (pcurve_a, pcurve_b) = crate::carrier_image::carrier_images(carrier, params, (a, b), band)
+        .map_err(crate::carrier_image::ImageRefusal::into_lane)?;
+    let (feet_a, feet_b) = (
+        schedule_feet(carrier, params, &pcurve_a),
+        schedule_feet(carrier, params, &pcurve_b),
+    );
     let mut min_sin = T::from_f64(f64::MAX);
-    let pcurve_b = chart_image(Schedule::new(&eval, domain, ends), b, |i, foot| {
-        // Interior samples only, as the plane lane reads them.
-        if i == 0 || i == PXN_FIT_SAMPLES - 1 {
-            return Ok(());
-        }
-        let Some(fa) = feet_a.get(i as usize) else {
-            return Err(PlaneNurbsRefusal::PcurveFit);
-        };
+    // Interior samples only, as the plane lane reads them.
+    for i in 1..PXN_FIT_SAMPLES - 1 {
         let sin_theta = feet_transversality(
-            (a, measured_foot(*fa)),
-            (b, measured_foot(foot)),
+            (a, measured_foot(feet_a[i as usize])),
+            (b, measured_foot(feet_b[i as usize])),
             extent,
             i,
             band,
         )
         .map_err(FeetRefusal::lane)?;
         min_sin = min_sin.min(sin_theta);
-        Ok(())
-    })?;
+    }
     let min_sin =
         geom_core::k_stats::gate_measured("nurbs_pair_transversality_reported", min_sin, band)
             .map_err(PlaneNurbsRefusal::ReportedTransversalityPoisoned)?;
@@ -2015,14 +2017,12 @@ pub(crate) fn row_transversality<T: Decide>(
 /// chart to its fitted image). `None` for any other carrier.
 ///
 /// The polyline runs through the image's points at the fitted image's
-/// knots, `Q(tₖ) = E(tₖ)`, each read at `T`. The image is the segment
+/// breaks, `Q(tₖ) = E(tₖ)`, each read at `T`. The image is the segment
 /// `p₀ → p₀ + p_d` traversed monotonically ([`Pcurve::chart_box`]), so
 /// over a knot span it lies in the hull of its two ends: inside the
 /// span's window, which is what the tube padded about `Q` proves over.
-/// The polyline shares the fitted image's knots, so the two charts'
-/// windows pair span for span. That reading needs the fitted image to be
-/// degree 1 with a knot per control point ([`PXN_IMAGE_DEGREE`]), which is
-/// checked.
+/// The polyline shares the fitted image's breaks, so the two charts'
+/// windows pair span for span.
 ///
 /// The image lies on the chart's own knot rectangle: the pick reads its
 /// candidates off the rectangle's boundary rows, and the certificate
@@ -2035,8 +2035,8 @@ pub(crate) fn row_transversality<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`PlaneNurbsRefusal::Unsupported`] where the fitted image is not the
-/// degree-1 polyline the tube's reading needs.
+/// [`PlaneNurbsRefusal::Unsupported`] where the fitted image's breaks
+/// form no polyline.
 #[allow(clippy::type_complexity)]
 fn exact_chart_image<T: Decide>(
     carrier: &Curve3<T>,
@@ -2056,30 +2056,34 @@ fn exact_chart_image<T: Decide>(
         ExactRim::Refused(iso, read) => return Ok(Some(ExactRim::Refused(iso, read))),
         ExactRim::InBand => return Ok(Some(ExactRim::InBand)),
     };
-    let knots = fitted.knot_values();
-    if knots.degree() != 1 || knots.runs().count() != fitted.control().len() {
-        return Err(PlaneNurbsRefusal::Unsupported {
-            what: EXACT_TUBE_NEEDS_A_POLYLINE,
-        });
-    }
-    let control = knots
-        .breakpoints()
-        .map(|t| cache.pcurve().eval(t))
+    let unsupported = || PlaneNurbsRefusal::Unsupported {
+        what: EXACT_TUBE_NEEDS_A_POLYLINE,
+    };
+    let breaks: Vec<T> = fitted.knot_values().breakpoints().collect();
+    let last = breaks.len().saturating_sub(1);
+    let runs = breaks
+        .iter()
+        .enumerate()
+        .map(|(i, t)| {
+            let m = if i == 0 || i == last { 2 } else { 1 };
+            core::num::NonZeroUsize::new(m).map(|m| (*t, m))
+        })
+        .collect::<Option<Vec<_>>>()
+        .ok_or_else(unsupported)?;
+    let knots = geom_core::spline::Knots::new(runs, 1).map_err(|_| unsupported())?;
+    let control = breaks
+        .iter()
+        .map(|t| cache.pcurve().eval(*t))
         .collect::<Vec<_>>();
     let weights = vec![T::one(); control.len()];
-    let polyline = NurbsCurve2::new(knots.clone(), control, weights).map_err(|_| {
-        PlaneNurbsRefusal::Unsupported {
-            what: EXACT_TUBE_NEEDS_A_POLYLINE,
-        }
-    })?;
+    let polyline = NurbsCurve2::new(knots, control, weights).map_err(|_| unsupported())?;
     Ok(Some(ExactRim::Certified((cache, polyline))))
 }
 
-/// [`exact_chart_image`]'s refusal where the fitted image is no degree-1
-/// polyline with a knot per control point.
+/// [`exact_chart_image`]'s refusal where the fitted image's breaks form
+/// no polyline.
 const EXACT_TUBE_NEEDS_A_POLYLINE: &str = "the tube about an exact arc-rim image is the polyline \
-     through it at the fitted image's knots, which needs that image to be degree 1 with a knot per \
-     control point";
+     through it at the fitted image's breaks, which do not form a knot vector";
 
 /// Whether `surface` is an analytic operand: one with an implicit form
 /// and a chart frame, which the analytic rung-3 certificate reads
@@ -3057,152 +3061,110 @@ impl core::fmt::Display for AnalyticRung3Refusal {
     }
 }
 
-/// What [`chart_image`] reads of a carrier: its evaluator, the `f64`
-/// domain the schedule spans, and that domain's ends as the carrier
-/// holds them. A spline's domain is its own knot domain
-/// (`Schedule::new(&eval, net.domain(), net.knot_values().domain())`);
-/// a closed-form carrier's is the one its caller states.
+/// **The chart image of a declared carrier on a NURBS wall**, in this
+/// lane's vocabulary: [`crate::carrier_image::carrier_image`], the one
+/// image of a carrier on a wall, which the trace's certificate and the
+/// pcurve mint read too.
 ///
-/// Bounded `CertifiedEnclosure`: its consumers are the chart image's
-/// certification doors, and a station is a place handed to the
-/// carrier's evaluator at a scalar that carries no tangent.
-#[derive(Clone, Copy)]
-pub(crate) struct Schedule<'a, T: geom_core::CertifiedEnclosure> {
-    eval: &'a dyn Fn(T) -> geom_core::Point3<T>,
-    domain: (f64, f64),
-    ends: (T, T),
-}
-
-impl<'a, T: geom_core::CertifiedEnclosure> Schedule<'a, T> {
-    /// The schedule of `eval` over `domain`, held at `ends`.
-    pub(crate) fn new(
-        eval: &'a dyn Fn(T) -> geom_core::Point3<T>,
-        domain: (f64, f64),
-        ends: (T, T),
-    ) -> Self {
-        Self { eval, domain, ends }
-    }
-
-    /// The `f64` domain the schedule spans.
-    pub(crate) fn domain(&self) -> (f64, f64) {
-        self.domain
-    }
-
-    /// The carrier's parameter at schedule fraction `at`: its held ends
-    /// at `0` and `1`, and inside them the point at the `f64` station,
-    /// as [`crate::certify::held_station`]'s interior station is a point
-    /// (a read at a chosen point has no use for the station's own
-    /// width). `at` is a schedule fraction, a bisection iterate or a
-    /// midpoint of two (`general_chart_image`), so the station is a
-    /// place, its own unknown at `Sym`; `held_station`'s fractions are
-    /// the fixed schedule's alone, constants.
-    fn station(&self, at: f64) -> T {
-        let (t0, t1) = self.domain;
-        if at <= 0.0 {
-            self.ends.0
-        } else if at >= 1.0 {
-            self.ends.1
-        } else {
-            T::from_computed(t0 + (t1 - t0) * at)
-        }
-    }
-}
-
-/// **The degree-1 chart image of a declared carrier on a NURBS wall**:
-/// the edge certificates' image of any carrier, and the pcurve mint's
-/// first rung ([`general_chart_image`]).
+/// `partner` is the analytic surface the carrier is read beside, where
+/// there is one: an image that misses past its cap then reads the
+/// partner's limbs first
+/// ([`crate::ssi::certify::partner_before_image_miss`]).
 ///
-/// The foot points of the D9-fixed [`PXN_FIT_SAMPLES`] schedule,
-/// interpolated (not approximated, so the image is exact at every foot)
-/// at [`PXN_IMAGE_DEGREE`] on the carrier's own parameter: the OQ4
-/// identity, `P(t)` and `C(t)` the same `t` by construction. The
-/// interpolation runs in C6's `f64` structure lane and is lifted to
-/// `T`; nothing here is certified, and nothing here needs to be — the
-/// image is EVIDENCE, and what makes it sound is that its consumer
-/// bounds `sup_t |S(P(t)) − C(t)|` over the whole span (module docs).
-///
-/// **Two consumers, one producer.** [`plane_nurbs_limbs`] certifies the
-/// image as part of the plane × NURBS edge certificate at ADOPT time;
-/// [`crate::FittedLane::general_image`] hands the same image to the pcurve mint
-/// wherever its miss asks for no finer rung, where it becomes a stored
-/// [`crate::Pcurve::General`] cache certified through
-/// [`crate::PcurveCache::certify_general`]. They are the same bits, so
-/// there the row the edge certificate read is the row the body stores.
-///
-/// `per_sample` is a hook run at every schedule sample in order, with
-/// the sample index and its foot; it is where [`plane_nurbs_limbs`] puts its
-/// transversality sweep, so that adding this second consumer did not
-/// move the order in which two refusals of the same run can fire. The
-/// mint passes a hook that does nothing.
+/// `per_sample` is a hook run at every sample of the D9-fixed
+/// [`PXN_FIT_SAMPLES`] schedule in order, with the sample index and the
+/// image's chart point there; it is where the edge lanes put their
+/// transversality sweep. The mint passes a hook that does nothing.
 ///
 /// # Errors
 ///
-/// [`PlaneNurbsRefusal::CarrierDomain`] before any sample when the
-/// carrier's domain is not an interval the door accepts, or after the
-/// fit when the image's knots collapse on it;
-/// [`PlaneNurbsRefusal::FootPointInconclusive`] at the first sample
-/// whose projection does not converge (never a best-effort foot);
-/// [`PlaneNurbsRefusal::PcurveFit`] when the interpolation refuses; or
+/// [`PlaneNurbsRefusal::CarrierDomain`] when the carrier's domain is not
+/// an interval the door accepts;
+/// [`PlaneNurbsRefusal::FootPointInconclusive`] where the foot path
+/// could not be followed (never a best-effort foot), naming the chain's
+/// foot; [`PlaneNurbsRefusal::PcurveFit`] when the interpolation
+/// refuses; [`PlaneNurbsRefusal::Limb`] with [`SsiLimb::ImageMiss`]
+/// where the image still missed the foot path past its cap, carrying the
+/// miss; or
 /// whatever `per_sample` returns.
-///
-/// The carrier enters as its [`Schedule`]: `net_schedule` for a
-/// spline, its own knot domain and held ends.
 pub(crate) fn chart_image<T, F>(
-    schedule: Schedule<'_, T>,
-    wall: &NurbsSurface<T>,
+    carrier: &Curve3<T>,
+    params: (T, T),
+    (wall, partner): (&NurbsSurface<T>, Option<&Surface<T>>),
+    band: Band,
     mut per_sample: F,
 ) -> Result<NurbsCurve2<T>, PlaneNurbsRefusal>
 where
     T: Decide + Bounds + geom_core::CertifiedEnclosure,
     F: FnMut(u32, Point2<f64>) -> Result<(), PlaneNurbsRefusal>,
 {
-    let Schedule {
-        eval,
-        domain: (t0, t1),
-        ends: (h0, h1),
-    } = schedule;
-    let domain_refusal = |e| PlaneNurbsRefusal::CarrierDomain(CarrierDomainRefusal::of(t0, t1, &e));
-    // The domain door, asked first on a vector with no interior knots
-    // (so only the interval itself can refuse): a domain whose width
-    // overflows would otherwise reach the schedule as NaN parameters and
-    // refuse as a foot that did not converge, hiding the carrier's own
-    // fault behind the projection's.
-    KnotVector::unit_segment(NonZeroUsize::MIN)
-        .on_domain(t0, t1)
-        .map_err(domain_refusal)?;
-    // The schedule is a SUPERSET of the certificate's own
-    // ([`CERT_SAMPLES`] divides it) and both are `schedule_param`, so
-    // limb 1 re-projects at parameters the image passes through
-    // exactly, its assigned ends included: the image is re-expressed
-    // on `[t0, t1]` exactly (`on_carrier_domain`), so the foot its last
-    // knot carries is the projection at `t1` itself.
-    // The fit's parameters are the schedule's `f64` fractions (the
-    // image's knots are the fit's); the carrier is read at the same
-    // station, its ends held (`held_station`).
-    let mut uv = Vec::with_capacity(PXN_FIT_SAMPLES as usize);
-    let mut params = Vec::with_capacity(PXN_FIT_SAMPLES as usize);
-    for i in 0..PXN_FIT_SAMPLES {
-        let frac = schedule_fraction(i, PXN_FIT_SAMPLES);
-        let p = eval(crate::certify::held_station(
-            (t0, t1),
-            (h0, h1),
-            i,
-            PXN_FIT_SAMPLES,
-        ));
-        let proj = wall
-            .project(p)
-            .map_err(|e| PlaneNurbsRefusal::FootPointInconclusive {
-                sample: i,
-                last_distance: e.last_distance,
-            })?;
-        let foot = Point2::new(proj.u, proj.v);
-        uv.push(foot);
-        params.push(frac);
+    use crate::carrier_image::ImageRefusal;
+    let image = crate::carrier_image::carrier_image(carrier, params, wall, band).map_err(|e| {
+        match (e, partner) {
+            // Beside an analytic partner, a miss past the cap stands
+            // behind what the partner's limbs refuse of the carrier
+            // alone, by the one rule.
+            (ImageRefusal::Miss(missed), Some(partner)) => {
+                refusal(crate::ssi::certify::partner_before_image_miss(
+                    missed,
+                    carrier,
+                    params,
+                    partner,
+                    band,
+                    &mut crate::ssi::certify::Refused::default(),
+                ))
+            }
+            (e, _) => e.into_lane(),
+        }
+    })?;
+    for (i, foot) in (0..).zip(schedule_feet(carrier, params, &image)) {
         per_sample(i, foot)?;
     }
-    let image = NurbsCurve2::<f64>::interpolate_with_params(&uv, PXN_IMAGE_DEGREE, &params)
-        .map_err(|_| PlaneNurbsRefusal::PcurveFit)?;
-    on_carrier_domain(&image, t0, t1).map_err(domain_refusal)
+    Ok(image)
+}
+
+/// An image's chart points at the [`PXN_FIT_SAMPLES`] schedule over the
+/// carrier's span, the ends read where the carrier holds them.
+fn schedule_feet<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
+    carrier: &Curve3<T>,
+    params: (T, T),
+    image: &NurbsCurve2<T>,
+) -> Vec<Point2<f64>> {
+    let (domain, ends) = crate::carrier_net::carrier_span(carrier, params);
+    let at = |x: T| geom::mid_param(x.lo(), x.hi());
+    (0..PXN_FIT_SAMPLES)
+        .map(|i| {
+            let p = image.eval(crate::certify::held_station(
+                domain,
+                ends,
+                i,
+                PXN_FIT_SAMPLES,
+            ));
+            Point2::new(at(p.x), at(p.y))
+        })
+        .collect()
+}
+
+/// The image's refusal, in this lane's vocabulary
+/// ([`crate::carrier_image::ImageRefusal::into_lane`]).
+impl crate::carrier_image::ImageLane for PlaneNurbsRefusal {
+    fn carrier_domain(refusal: CarrierDomainRefusal) -> Self {
+        Self::CarrierDomain(refusal)
+    }
+    // The lane names a foot by its index; the parameter is the trace's
+    // and the mint's word for the same foot.
+    fn foot(_t: f64, node: u32, last_distance: f64) -> Self {
+        Self::FootPointInconclusive {
+            sample: node,
+            last_distance,
+        }
+    }
+    fn fit() -> Self {
+        Self::PcurveFit
+    }
+    fn miss(read: SsiError) -> Self {
+        refusal(read)
+    }
 }
 
 /// **The certified foot of ONE point** on a NURBS wall, in the wall's
@@ -3238,380 +3200,6 @@ where
             last_distance: e.last_distance,
         })?;
     Ok(Point2::new(proj.u, proj.v))
-}
-
-/// **The pcurve mint's chart image of a carrier on a NURBS wall**: the
-/// degree-1 [`chart_image`] where it follows the path its feet trace, and
-/// otherwise those feet at the structure the path asks for.
-///
-/// The climb reads the path, not the carrier's class: a line on a wall
-/// whose chart is not affine along it bends there, a curved spline bends
-/// wherever its curve does, and an arc whose chords follow it does not.
-/// A rung's **miss** is read midway between each pair of its nodes, net
-/// of the carrier's standoff there: the image's gap from the carrier at
-/// the middle, less the mean of the two nodes' gaps, as vectors. A node
-/// is the wall's nearest point, so its gap is the carrier's offset from
-/// the wall, which no finer image lowers; subtracting it as a vector
-/// leaves a chord miss across that offset whole. A rung whose miss is
-/// within [`GENERAL_IMAGE_MISS`] of `band.zero()` stops the climb. The degree-1 image is the first rung, and where it stops the
-/// mint stores the bits [`plane_nurbs_limbs`] reads for the same carrier.
-/// A degree-1 image misses a foot path that bends in the chart between
-/// feet by `O(h²·κ)`; past it the image climbs [`GENERAL_IMAGE_FEET`] at
-/// degree [`GENERAL_IMAGE_DEGREE`], and otherwise keeps its finest.
-///
-/// **Broken where the path crosses a knot line.** Across an interior knot
-/// line of the wall whose continuity is below the image's degree
-/// ([`knot_lines`]) the path is only as smooth as the wall, and one
-/// interpolant across it misses the path by `O(h²)` at any degree. So the
-/// image breaks there (a knot of full multiplicity, `C⁰`), at the
-/// crossing itself: each crossing is solved once, on the first rung's
-/// schedule ([`crossings`]), and is a node of every rung. A regular foot
-/// within [`CROSSING_CLEARANCE`] of a step of a crossing gives way to it,
-/// so no two nodes of one fit lie closer than that; a piece between two
-/// breaks holding fewer than `degree + 1` nodes takes its own uniform
-/// nodes ([`pieces`]). Two blind spots, both a coarser image the
-/// certificate then reads: a crossing within the clearance of the
-/// domain's end is no break, and a path that crosses one line twice
-/// within one first-rung step shows no crossing there.
-///
-/// The rung is a **structure** choice, read in `f64` at the scalar's
-/// midpoint: the image is evidence, and its certificate decides.
-///
-/// Only the midpoints are read, so a path that wanders between a node and
-/// the next midpoint and returns by it reads straight, and keeps the
-/// coarser image its certificate then refuses
-/// (`a-general-images-climb-reads-only-midpoints-between-feet`).
-///
-/// # Errors
-///
-/// [`chart_image`]'s. Past the degree-1 image nothing refuses: a climb
-/// whose foot will not converge, whose knot-line crossing search fails
-/// or whose fit will not solve keeps the coarser rung's image (the
-/// degree-1 one at the first), and the certificate's refusal of that
-/// image ends the lane's gap, "not yet", where the foot's own refusal
-/// would have ended unsettled, also "not yet".
-///
-/// `per_sample` is [`chart_image`]'s hook, run at the first rung's feet.
-pub(crate) fn general_chart_image<T, F>(
-    schedule: Schedule<'_, T>,
-    wall: &NurbsSurface<T>,
-    band: Band,
-    per_sample: F,
-) -> Result<NurbsCurve2<T>, PlaneNurbsRefusal>
-where
-    T: Decide + Bounds + geom_core::CertifiedEnclosure,
-    F: FnMut(u32, Point2<f64>) -> Result<(), PlaneNurbsRefusal>,
-{
-    let straight = chart_image(schedule, wall, per_sample)?;
-    let (t0, t1) = schedule.domain;
-    let mid = |x: T| geom::mid_param(x.lo(), x.hi());
-    // An image's gap at a fraction: its chart point mapped through the
-    // wall, less the carrier's point there.
-    let gap = |at: f64, p: Point2<f64>| {
-        let gap = wall.eval_at(p.x, p.y) - (schedule.eval)(schedule.station(at));
-        Vec3::new(mid(gap.x), mid(gap.y), mid(gap.z))
-    };
-    // The miss midway between two nodes, net of the standoff they carry:
-    // the gap there less the mean of the nodes' gaps, as vectors. Poison
-    // reads `+∞`.
-    let excess = |a: PathFoot, b: PathFoot, p: Point2<f64>| {
-        let d =
-            (gap(0.5 * (a.at + b.at), p) - (gap(a.at, a.foot) + gap(b.at, b.foot)) * 0.5).norm();
-        if d.is_nan() { f64::INFINITY } else { d }
-    };
-    // Whether a rung, its nodes cut into `pieces` and its image read at a
-    // fraction by `image`, stops the climb.
-    let stops = |pieces: &[Vec<PathFoot>], image: &dyn Fn(f64) -> Point2<f64>| {
-        pieces
-            .iter()
-            .flat_map(|piece| piece.windows(2))
-            .map(|pair| excess(pair[0], pair[1], image(0.5 * (pair[0].at + pair[1].at))))
-            .fold(0.0_f64, f64::max)
-            <= GENERAL_IMAGE_MISS * band.zero()
-    };
-    let on_straight = |at: f64| {
-        let p = straight.eval(schedule.station(at));
-        Point2::new(mid(p.x), mid(p.y))
-    };
-    // `chart_image`'s feet, read back off the image that interpolates
-    // them: the first curved rung's nodes, projected once.
-    let first: Vec<PathFoot> = (0..PXN_FIT_SAMPLES)
-        .map(|i| {
-            let at = schedule_fraction(i, PXN_FIT_SAMPLES);
-            PathFoot {
-                at,
-                foot: on_straight(at),
-            }
-        })
-        .collect();
-    if stops(std::slice::from_ref(&first), &on_straight) {
-        return Ok(straight);
-    }
-    // A foot at a schedule fraction, and its refusal named by the first
-    // rung's nearest sample.
-    let foot = |at: f64| {
-        wall.project((schedule.eval)(schedule.station(at)))
-            .map(|p| Point2::new(p.u, p.v))
-            .map_err(|e| PlaneNurbsRefusal::FootPointInconclusive {
-                sample: first_rung_sample(at),
-                last_distance: e.last_distance,
-            })
-    };
-    let climb = || -> Option<NurbsCurve2<T>> {
-        let breaks = crossings(&foot, &first, &knot_lines(wall, GENERAL_IMAGE_DEGREE)).ok()?;
-        let mut kept = None;
-        for (rung, &feet) in GENERAL_IMAGE_FEET.iter().enumerate() {
-            let path = match rung {
-                0 => first.clone(),
-                _ => match rung_feet(&foot, feet) {
-                    Ok(path) => path,
-                    Err(_) => break,
-                },
-            };
-            let Ok(pieces) = pieces(&foot, &path, &breaks, GENERAL_IMAGE_DEGREE) else {
-                break;
-            };
-            let Ok(image) = broken_interpolant(&pieces, GENERAL_IMAGE_DEGREE) else {
-                break;
-            };
-            let done = stops(&pieces, &|at| image.eval(at));
-            kept = Some(image);
-            if done {
-                break;
-            }
-        }
-        on_carrier_domain(&kept?, t0, t1).ok()
-    };
-    Ok(climb().unwrap_or(straight))
-}
-
-/// The rungs [`general_chart_image`] climbs: each doubles the schedule's
-/// steps, and every one holds [`PXN_FIT_SAMPLES`]' feet.
-pub const GENERAL_IMAGE_FEET: [u32; 4] = [33, 65, 129, 257];
-
-/// [`general_chart_image`]'s degree. The miss of a degree-`p` interpolant
-/// falls as `h^(p+1)` between breaks.
-pub const GENERAL_IMAGE_DEGREE: usize = 5;
-
-/// The share of `band.zero()` a rung's miss, read midway between its
-/// nodes net of the carrier's standoff, must fall within for
-/// [`general_chart_image`] to stop there: the certificate's hull reads the
-/// miss between those midpoints too, and over-reads it.
-const GENERAL_IMAGE_MISS: f64 = 1.0 / 16.0;
-
-/// How close, in steps of a rung's schedule, a regular foot may lie to a
-/// crossing node before it gives way to it ([`pieces`]): two collocation
-/// nodes much closer than a step make the fit's system ill-conditioned.
-const CROSSING_CLEARANCE: f64 = 0.25;
-
-/// How many halvings place a crossing ([`crossings`]): to `f64`'s
-/// resolution of the schedule's unit.
-const CROSSING_HALVINGS: u32 = 60;
-
-/// The first rung's sample nearest the schedule fraction `at`: the
-/// sample a foot's refusal names ([`PlaneNurbsRefusal::FootPointInconclusive`]).
-fn first_rung_sample(at: f64) -> u32 {
-    let steps = f64::from(GENERAL_IMAGE_FEET[0] - 1);
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-    let sample = (at.clamp(0.0, 1.0) * steps).round() as u32;
-    sample
-}
-
-/// A node of [`general_chart_image`]'s path: its schedule fraction and its
-/// chart foot.
-#[derive(Clone, Copy, Debug)]
-struct PathFoot {
-    at: f64,
-    foot: Point2<f64>,
-}
-
-/// One rung's uniform schedule of `feet` feet.
-fn rung_feet(
-    foot: &dyn Fn(f64) -> Result<Point2<f64>, PlaneNurbsRefusal>,
-    feet: u32,
-) -> Result<Vec<PathFoot>, PlaneNurbsRefusal> {
-    (0..feet)
-        .map(|i| {
-            let at = schedule_fraction(i, feet);
-            foot(at).map(|foot| PathFoot { at, foot })
-        })
-        .collect()
-}
-
-/// A wall's interior knot line: the chart axis it is constant on (`0`
-/// for `u`) and its value.
-type KnotLine = (usize, f64);
-
-/// The wall's interior knot lines across which its continuity, `C^(p−m)`
-/// at a run of multiplicity `m` in a degree-`p` direction, is below
-/// `C^degree`: the lines a degree-`degree` interpolant cannot follow the
-/// path across. Read off the held runs, at their midpoints.
-fn knot_lines<T: Bounds>(wall: &NurbsSurface<T>, degree: usize) -> Vec<KnotLine> {
-    [wall.knot_values_u(), wall.knot_values_v()]
-        .into_iter()
-        .enumerate()
-        .flat_map(|(axis, knots)| {
-            let p = knots.degree();
-            let runs: Vec<(f64, usize)> = knots
-                .runs()
-                .map(|(k, m)| (geom::mid_param(k.lo(), k.hi()), m))
-                .collect();
-            let interior = runs
-                .get(1..runs.len().saturating_sub(1))
-                .unwrap_or(&[])
-                .to_vec();
-            interior
-                .into_iter()
-                .filter(move |&(_, m)| p.saturating_sub(m) < degree)
-                .map(move |(k, _)| (axis, k))
-        })
-        .collect()
-}
-
-/// Where the first rung's path crosses each of `lines`, each found by
-/// halving between the two feet it falls between, to `f64`'s resolution:
-/// the node on the far side of the line nearest it. In fraction order,
-/// one node per fraction.
-///
-/// # Errors
-///
-/// A foot the halving asks for that will not converge.
-fn crossings(
-    foot: &dyn Fn(f64) -> Result<Point2<f64>, PlaneNurbsRefusal>,
-    path: &[PathFoot],
-    lines: &[KnotLine],
-) -> Result<Vec<PathFoot>, PlaneNurbsRefusal> {
-    let mut found = Vec::new();
-    for pair in path.windows(2) {
-        for &(axis, k) in lines {
-            let side = |p: Point2<f64>| if axis == 0 { p.x > k } else { p.y > k };
-            let start = side(pair[0].foot);
-            if start == side(pair[1].foot) {
-                continue;
-            }
-            let (mut lo, mut far) = (pair[0].at, pair[1]);
-            for _ in 0..CROSSING_HALVINGS {
-                let at = 0.5 * (lo + far.at);
-                if at <= lo || at >= far.at {
-                    break;
-                }
-                let node = PathFoot {
-                    at,
-                    foot: foot(at)?,
-                };
-                if side(node.foot) == start {
-                    lo = at;
-                } else {
-                    far = node;
-                }
-            }
-            found.push(far);
-        }
-    }
-    found.sort_by(|a, b| a.at.total_cmp(&b.at));
-    found.dedup_by(|a, b| a.at == b.at);
-    Ok(found)
-}
-
-/// One rung's nodes, cut at `breaks` into the pieces the image is broken
-/// between: each piece runs from one break (or the domain's end) to the
-/// next, and holds the rung's feet farther than [`CROSSING_CLEARANCE`] of
-/// a step from its ends. A break that close to the domain's end is no
-/// break. A piece holding fewer than `degree + 1` nodes takes the
-/// piece's own `degree + 1` uniform nodes instead.
-///
-/// # Errors
-///
-/// A foot such a piece asks for that will not converge.
-fn pieces(
-    foot: &dyn Fn(f64) -> Result<Point2<f64>, PlaneNurbsRefusal>,
-    path: &[PathFoot],
-    breaks: &[PathFoot],
-    degree: usize,
-) -> Result<Vec<Vec<PathFoot>>, PlaneNurbsRefusal> {
-    #[allow(clippy::cast_precision_loss)]
-    let clear = CROSSING_CLEARANCE / (path.len() - 1) as f64;
-    let (first, last) = (path[0], path[path.len() - 1]);
-    let mut ends = vec![first];
-    ends.extend(
-        breaks
-            .iter()
-            .filter(|b| b.at - first.at > clear && last.at - b.at > clear),
-    );
-    ends.push(last);
-    let mut pieces = Vec::with_capacity(ends.len() - 1);
-    for pair in ends.windows(2) {
-        let [a, b] = [pair[0], pair[1]];
-        let mut piece = vec![a];
-        piece.extend(
-            path.iter()
-                .filter(|f| f.at - a.at > clear && b.at - f.at > clear),
-        );
-        piece.push(b);
-        if piece.len() <= degree {
-            #[allow(clippy::cast_precision_loss)]
-            let step = (b.at - a.at) / degree as f64;
-            piece = (0..=degree)
-                .map(|i| match i {
-                    0 => Ok(a),
-                    _ if i == degree => Ok(b),
-                    #[allow(clippy::cast_precision_loss)]
-                    _ => {
-                        let at = a.at + step * i as f64;
-                        foot(at).map(|foot| PathFoot { at, foot })
-                    }
-                })
-                .collect::<Result<_, _>>()?;
-        }
-        pieces.push(piece);
-    }
-    Ok(pieces)
-}
-
-/// The degree-`degree` interpolant through `pieces` on their fractions,
-/// each piece fitted on its own and the pieces joined at full
-/// multiplicity, so `C⁰` at each break.
-fn broken_interpolant(
-    pieces: &[Vec<PathFoot>],
-    degree: usize,
-) -> Result<NurbsCurve2<f64>, PlaneNurbsRefusal> {
-    let fit = |_| PlaneNurbsRefusal::PcurveFit;
-    let (mut knots, mut control) = (Vec::new(), Vec::new());
-    for (j, run) in pieces.iter().enumerate() {
-        let (a, b) = (run[0].at, run[run.len() - 1].at);
-        let params: Vec<f64> = run
-            .iter()
-            .enumerate()
-            .map(|(i, f)| match i {
-                0 => 0.0,
-                _ if i == run.len() - 1 => 1.0,
-                _ => (f.at - a) / (b - a),
-            })
-            .collect();
-        let points: Vec<Point2<f64>> = run.iter().map(|f| f.foot).collect();
-        let curve = NurbsCurve2::<f64>::interpolate_with_params(&points, degree, &params)
-            .map_err(|e: geom::FitError| fit(e.to_string()))?
-            .on_domain(a, b)
-            .map_err(|e| fit(e.to_string()))?;
-        let ks: Vec<f64> = curve
-            .knot_values()
-            .runs()
-            .flat_map(|(k, m)| core::iter::repeat_n(k, m))
-            .collect();
-        let cs = curve.control();
-        if j == 0 {
-            knots.extend_from_slice(&ks[..ks.len() - 1]);
-            control.extend_from_slice(cs);
-        } else {
-            knots.extend_from_slice(&ks[degree + 1..ks.len() - 1]);
-            control.extend_from_slice(&cs[1..]);
-        }
-    }
-    knots.push(1.0);
-    let weights = vec![1.0; control.len()];
-    KnotVector::clamped(knots, degree)
-        .and_then(|kv| NurbsCurve2::new(kv, control, weights))
-        .map_err(|e| fit(e.to_string()))
 }
 
 /// How many knot spans per direction the tube reads the wall's cells
@@ -3650,7 +3238,7 @@ fn wall_breaks(kv: &KnotVector) -> Vec<f64> {
 /// point or the refinement refuses: a coarser enclosure can only make
 /// the certificate harder to pass, never unsound. Limb 2's hull and the
 /// evaluations read the wall itself.
-fn wall_grid<T: geom_core::CertifiedBounds>(wall: &NurbsSurface<T>) -> Option<CellGrid> {
+pub(crate) fn wall_grid<T: geom_core::CertifiedBounds>(wall: &NurbsSurface<T>) -> Option<CellGrid> {
     let (bu, bv) = (
         wall_breaks(wall.knots_u_f64_interim()),
         wall_breaks(wall.knots_v_f64_interim()),
@@ -3661,40 +3249,13 @@ fn wall_grid<T: geom_core::CertifiedBounds>(wall: &NurbsSurface<T>) -> Option<Ce
     CellGrid::refined(wall, &bu, &bv)
 }
 
-/// The chart image's own D9-fixed schedule: how many foot points the
-/// image is interpolated through.
+/// The D9-fixed schedule the edge lanes' transversality sweep reads the
+/// image at ([`chart_image`]'s hook).
 ///
 /// A **superset** of the certificate's [`CERT_SAMPLES`] schedule
-/// (`CERT_SAMPLES − 1` divides `PXN_FIT_SAMPLES − 1`), so limb 1
-/// re-projects at parameters the image was built to pass through
-/// exactly, and the transversality sweep below sees every certificate
-/// sample and more. Denser is strictly stricter: it can only tighten
-/// the image and add transversality samples.
+/// (`CERT_SAMPLES − 1` divides `PXN_FIT_SAMPLES − 1`), so the sweep sees
+/// every certificate sample and more.
 pub const PXN_FIT_SAMPLES: u32 = 33;
-
-/// The chart image's degree: **1**, the piecewise-linear interpolant
-/// through the foot schedule.
-///
-/// Measured, not assumed. Limb 2 bounds `sup_t |S(P(t)) − C(t)|` by
-/// hulling the composite per span, and that bound has two error
-/// sources — the image's own deviation from the true foot path
-/// (`O(h²·κ_uv)` at degree 1, `O(h⁴·κ_uv)` at degree 3) and the hull's
-/// per-span widening, which GROWS with the composite's degree. On the
-/// certifying fixture the cubic image measures `9.8e-11 m` and the
-/// piecewise-linear one `1.1e-13 m`: at the residual scales this lane
-/// exists for, the hull widening dominates and the low degree wins by
-/// ~10³. A higher-degree rung would only pay off in a residual window
-/// (`1e-10`…`1e-5`) that lies entirely above its own widening floor,
-/// so there is no second rung — one structure, fixed.
-///
-/// The consequence is a stated class boundary, not a hidden one: the
-/// edges this lane certifies are those whose foot path is straight in
-/// the wall's chart to within `ε` over a schedule step — planar
-/// sections along iso-structured walls, which is the seam class. A
-/// genuinely curved plane × NURBS locus refuses with its MEASURED
-/// bound in the payload (never a widened gate). The pcurve mint images
-/// such a carrier at [`general_chart_image`]'s rungs instead.
-pub const PXN_IMAGE_DEGREE: usize = 1;
 
 /// A chart foot the projection measured, at the caller's scalar: two
 /// computed values, so at `Sym` two unknowns.
@@ -3734,7 +3295,7 @@ fn normal_angle_sine<T: Real>(plane_normal: Vec3<T>, wall_normal: Vec3<T>) -> T 
 /// The knot map's own rounding is not a soundness question — the image
 /// is evidence that limb 2 bounds, not a certified quantity (module
 /// docs).
-fn on_carrier_domain<T: SpanLocate>(
+pub(crate) fn on_carrier_domain<T: SpanLocate>(
     image: &NurbsCurve2<f64>,
     t0: f64,
     t1: f64,
@@ -3766,8 +3327,8 @@ fn refusal(e: SsiError) -> PlaneNurbsRefusal {
         }
         SsiError::FootPointInconclusive { t, last_distance } => {
             // The limb re-projects warm-started from the image; a
-            // divergence there is the same class as the schedule's own,
-            // reported at the sample the parameter names.
+            // divergence there is the same class as the image's own,
+            // reported under the count of the certificate's samples.
             let _ = t;
             PlaneNurbsRefusal::FootPointInconclusive {
                 sample: CERT_SAMPLES,
@@ -3777,6 +3338,7 @@ fn refusal(e: SsiError) -> PlaneNurbsRefusal {
         SsiError::UnsupportedCertificate { what } => PlaneNurbsRefusal::Unsupported { what },
         SsiError::ChartSpeed(r) => PlaneNurbsRefusal::ChartSpeed(r),
         SsiError::CarrierEnclosure(r) => PlaneNurbsRefusal::CarrierEnclosure(r),
+        SsiError::CarrierDomain(r) => PlaneNurbsRefusal::CarrierDomain(r),
         // The tube's structural refusals, ended as the SSI door ends them;
         // any other arm is one no producer of this lane returns.
         e => TubeRefusal::of(&e).map_or(

@@ -162,20 +162,6 @@ use exhaust::{RateClause, SweepFloor, UvRect};
 use march::{MarchContext, MarchTol, Readout, SlabEnd, Trace, march_both, trace_points};
 use system::ImplicitPairR3;
 
-/// The chart-parameter sample sequences of a trace, one per operand
-/// with a chart — the feet that become the pcurves, on the carrier's own
-/// parameter (the OQ4 identity).
-type ChartSamples<'a> = [Option<&'a [geom_core::Point2<f64>]>; 2];
-
-/// A fitted rung-3 branch's curves: the 3-D carrier, and the pcurves the
-/// trace shape produced (both on the ℝ⁴ pair, the wall's alone on the
-/// 1×2 trace; the ℝ³ shape has no chart to project onto).
-pub(crate) type FittedBranch = (
-    NurbsCurve3<f64>,
-    Option<NurbsCurve2<f64>>,
-    Option<NurbsCurve2<f64>>,
-);
-
 /// The plane × NURBS trace's fitted triple: the carrier, the plane's
 /// pcurve (the carrier's affine image on the plane's chart) and the
 /// wall's, on one shared parameter.
@@ -222,20 +208,6 @@ impl<'a, T: geom_core::CertifiedBounds> SsiOperand<'a, T> {
     /// not finite.
     pub fn nurbs(surface: &'a NurbsSurface<T>) -> Result<Self, SsiError> {
         ChartedNurbs::mint(surface).map(Self::Nurbs)
-    }
-
-    /// A NURBS operand whose chart enclosures read `grid`, a refinement
-    /// of `surface`'s net in certification arithmetic
-    /// ([`ChartedNurbs::mint_on`]).
-    ///
-    /// # Errors
-    ///
-    /// As [`SsiOperand::nurbs`].
-    pub(crate) fn nurbs_on(
-        surface: &'a NurbsSurface<T>,
-        grid: &'a enclose::CellGrid,
-    ) -> Result<Self, SsiError> {
-        ChartedNurbs::mint_on(surface, grid).map(Self::Nurbs)
     }
 }
 
@@ -742,6 +714,11 @@ pub enum SsiError {
     /// kind and the span, from the one door every composite reads a
     /// carrier through.
     CarrierEnclosure(crate::CarrierEnclosureRefusal),
+    /// A wall's image of the traced carrier could not be put on the
+    /// carrier's own interval ([`crate::CarrierDomainRefusal`]): the knot
+    /// door refused it, and its interval and fault ride here. The carrier
+    /// is the trace's own fit, so nothing the caller changes moves it.
+    CarrierDomain(crate::CarrierDomainRefusal),
     /// A NURBS wall's boundary row would not re-wrap as a curve: a
     /// weight on it is not positive and finite. Unreachable for a wall
     /// that validated, and surfaced with the spline layer's own
@@ -1275,6 +1252,7 @@ impl core::fmt::Display for SsiError {
                 write!(f, "ssi: {what}")
             }
             Self::CarrierEnclosure(r) => write!(f, "ssi: {r}"),
+            Self::CarrierDomain(r) => write!(f, "ssi: {r}"),
             Self::ChartRow { source } => write!(
                 f,
                 "ssi: a NURBS wall's boundary row is not valid spline structure: {source}"
@@ -1629,11 +1607,13 @@ impl SsiError {
             Self::Fit(FitError::TooFewPoints { .. }) => defect_ending(reading).to_owned(),
             // Interpolation takes no tolerance, runs no knot algebra and
             // reads no rows: these are the approximating fits' refusals,
-            // and the march asks no degree 0 (`Structure`).
+            // and the march asks no degree 0 (`Structure`) and names no
+            // knots for its fits (`ParamOffSupport`).
             Self::Fit(
                 FitError::InvalidTolerance { .. }
                 | FitError::Structure(_)
                 | FitError::KnotAlgebra(_)
+                | FitError::ParamOffSupport { .. }
                 | FitError::RaggedRows { .. }
                 | FitError::BudgetExhausted { .. },
             ) => defect_ending(reading).to_owned(),
@@ -1743,7 +1723,8 @@ impl SsiError {
             // Nothing the caller changes settles it today.
             Self::FootPointInconclusive { .. }
             | Self::UnsupportedCertificate { .. }
-            | Self::CarrierEnclosure(_) => NOT_YET_ENDING.to_owned(),
+            | Self::CarrierEnclosure(_)
+            | Self::CarrierDomain(_) => NOT_YET_ENDING.to_owned(),
             Self::WrongLane { .. } => WRONG_LANE_RECOURSE.to_owned(),
         }
     }
@@ -1949,8 +1930,7 @@ thread_local! {
     static CHART_MINTS: core::cell::Cell<usize> = const { core::cell::Cell::new(0) };
 }
 
-/// Test-only: how many charts ([`ChartedNurbs::mint`] and its grid
-/// form) this thread has minted. An operation that mints each wall
+/// Test-only: how many charts ([`ChartedNurbs::mint`]) this thread has minted. An operation that mints each wall
 /// once is pinned by the count, which timing alone would otherwise
 /// carry.
 #[cfg(any(test, feature = "test-support"))]
@@ -2008,9 +1988,8 @@ impl<'a, T: geom_core::CertifiedBounds> ChartedNurbs<'a, T> {
         })
     }
 
-    /// [`ChartedNurbs::mint`] with every chart enclosure, the speeds
-    /// among them, read off `grid`'s finer cells
-    /// ([`enclose::CellGrid`]).
+    /// This chart with every chart enclosure, the speeds among them,
+    /// read off `grid`'s finer cells ([`enclose::CellGrid`]).
     ///
     /// The two refusals are read on the surface's own cells first. They
     /// are facts of the described net: a net constant along an axis
@@ -2021,11 +2000,16 @@ impl<'a, T: geom_core::CertifiedBounds> ChartedNurbs<'a, T> {
     ///
     /// As [`ChartedNurbs::mint`], on the surface's own cells or on the
     /// grid's.
-    pub(crate) fn mint_on(
+    ///
+    /// Not counted as a mint (`count_mint`): the count's rows pin that a
+    /// door mints each wall once, and this is the certificate's second
+    /// reading of an operand already minted, taken only where limb 3
+    /// refuses on the chart's own cells. Its cost is its own: the grid's
+    /// enclosures are built again for each certificate that reaches it.
+    fn charted_on(
         surface: &'a NurbsSurface<T>,
         grid: &'a enclose::CellGrid,
     ) -> Result<Self, SsiError> {
-        count_mint();
         let own = NurbsBoxes::new(surface);
         own.chart_speeds()?;
         let boxes = NurbsBoxes::on_grid(surface, grid);
@@ -2036,6 +2020,34 @@ impl<'a, T: geom_core::CertifiedBounds> ChartedNurbs<'a, T> {
             own: Rc::new(own),
             on_grid: Some(Rc::new(boxes)),
         })
+    }
+
+    /// **The grid a certificate's limb 3 reads this chart on where its
+    /// own cells refuse** ([`crate::edge_nurbs::wall_grid`]): the one
+    /// rule for a trace's certificate and the edge certificate at rest,
+    /// so the two read one chart operand. `None` for a chart already on a
+    /// grid, or one the grid leaves on its own cells.
+    pub(crate) fn certificate_grid(&self) -> Option<enclose::CellGrid> {
+        match self.on_grid {
+            Some(_) => None,
+            None => crate::edge_nurbs::wall_grid(self.surface),
+        }
+    }
+
+    /// This chart read on `grid` ([`Self::certificate_grid`]), or as it
+    /// stands where there is none.
+    ///
+    /// # Errors
+    ///
+    /// As [`ChartedNurbs::mint`], on the grid's cells.
+    pub(crate) fn on_certificate_grid(
+        &self,
+        grid: Option<&'a enclose::CellGrid>,
+    ) -> Result<Self, SsiError> {
+        match grid {
+            Some(grid) => Self::charted_on(self.surface, grid),
+            None => Ok(self.clone()),
+        }
     }
 
     /// The chart enclosures, over the cells it was minted on.
@@ -2442,16 +2454,11 @@ const WALL_COLLAPSED_RECOURSE: &str = geom_core::move_recourse!(
     "so the spline face does not collapse to a point or a curve where the surfaces meet"
 );
 
-/// Fit a marched polyline into a cubic NURBS carrier and its pcurves,
-/// on **one shared parameter** (the OQ4 contract).
-///
-/// The 3-D curve's own chord-length parameters are computed once and
-/// then *given* to the pcurve interpolations, so `P(t)` and `C(t)` are
-/// the same `t` by construction rather than by coincidence. That is
-/// exactly what PR 6's cache door checks
-/// (`|S(P(t)) − C(t)| ≤ ε`), and it is why the ℝ⁴ trace discharges OQ4
-/// without any re-plumbing.
-fn fit_branch(points: &[Point3<f64>], charts: ChartSamples<'_>) -> Result<FittedBranch, SsiError> {
+/// Fit a marched polyline into a cubic NURBS carrier, on its chord
+/// parameters. Its wall images are derived from it
+/// ([`crate::carrier_image`]) on its own knots, so `P(t)` and `C(t)` are
+/// the same `t` by construction (the OQ4 contract).
+fn fit_branch(points: &[Point3<f64>]) -> Result<NurbsCurve3<f64>, SsiError> {
     let params = NurbsCurve3::<f64>::chord_parameters(points)?;
     // **Interpolation, not approximation, and the reason is
     // refinement.** The march aims its spacing at a cubic within ε of
@@ -2468,23 +2475,31 @@ fn fit_branch(points: &[Point3<f64>], charts: ChartSamples<'_>) -> Result<Fitted
     // through `approximate_with_params` (which exists, and takes the
     // same shared parameters) is a profiled optimization for a later
     // PR, not a semantic change.
-    // One collocation system for every fit, the carrier's and each
-    // pcurve's: they share the parameters, so they share the matrix,
-    // factored once.
     let collocation = Collocation::new(&params, SSI_FIT_DEGREE)?;
-    let carrier = NurbsCurve3::<f64>::interpolate_on(points, &collocation)?;
-    // Pcurves interpolate the traced parameter samples ON THE CARRIER'S
-    // PARAMETERS, one per side that has a chart. Interpolation (not
-    // approximation) so the map is exact at every sample; compaction of
-    // a pcurve is an optimization, and the certificate is what governs.
-    let [a, b] = charts;
-    let pa = a
-        .map(|a| NurbsCurve2::<f64>::interpolate_on(a, &collocation))
-        .transpose()?;
-    let pb = b
-        .map(|b| NurbsCurve2::<f64>::interpolate_on(b, &collocation))
-        .transpose()?;
-    Ok((carrier, pa, pb))
+    Ok(NurbsCurve3::<f64>::interpolate_on(points, &collocation)?)
+}
+
+/// A wall image's refusal, in the trace's vocabulary
+/// ([`crate::carrier_image::ImageRefusal::into_lane`]): a foot the path
+/// could not reach as limb 1's own, the image's miss past its cap as
+/// limb 2's reading of it ([`SsiLimb::ImageMiss`]).
+impl crate::carrier_image::ImageLane for SsiError {
+    fn carrier_domain(refusal: crate::CarrierDomainRefusal) -> Self {
+        Self::CarrierDomain(refusal)
+    }
+    // The trace names a foot by its parameter; the chain's index is
+    // rest's word for the same foot.
+    fn foot(t: f64, _node: u32, last_distance: f64) -> Self {
+        Self::FootPointInconclusive { t, last_distance }
+    }
+    fn fit() -> Self {
+        Self::UnsupportedCertificate {
+            what: crate::edge_nurbs::PCURVE_FIT_REFUSAL,
+        }
+    }
+    fn miss(read: Self) -> Self {
+        read
+    }
 }
 
 /// **A closed marched polyline's carrier**: the periodic cubic through
@@ -2520,7 +2535,7 @@ impl FittedR3 {
             })
         } else {
             Ok(Self {
-                net: fit_branch(points, [None, None])?.0,
+                net: fit_branch(points)?,
                 periodic: None,
             })
         }
@@ -4298,7 +4313,17 @@ fn trace_plane_nurbs_within(
     // as limbs 1 and 2 locate a refusal: the limb-3 ask, which would end
     // refinement on a coarser triple, passes here.
     let densified = refine::refine_by_certificate(&sys, states, &ctx, band, |states, limbs| {
-        let fitted = ends::fit_states(&sys, states)?;
+        let carrier = ends::fit_states(&sys, states)?;
+        // An image that misses past its cap reads the partner's limbs
+        // first, by the one rule.
+        let image = crate::carrier_image::carrier_image(
+            &Curve3::Nurbs(std::sync::Arc::new(carrier.clone())),
+            carrier.knot_values().domain(),
+            wall,
+            band,
+        )
+        .map_err(|e| certify::located_before_image_miss(e.into_lane(), &carrier, plane, band))?;
+        let fitted = (carrier, image);
         if limbs == certify::Limbs::Tube {
             return Ok(fitted);
         }
@@ -4308,7 +4333,7 @@ fn trace_plane_nurbs_within(
                 a: &SsiOperand::Analytic(plane),
                 b: &wall_op,
                 pcurve_a: None,
-                pcurve_b: fitted.2.as_ref(),
+                pcurve_b: Some(&fitted.1),
             },
             domain.extent,
             band,
@@ -4321,15 +4346,10 @@ fn trace_plane_nurbs_within(
             }
         }
     });
-    let (carrier, _, pb) = match densified {
+    let (carrier, pb) = match densified {
         Ok(fitted) => fitted,
         // A refusal before any triple was fitted is the fit's own.
         Err(e) => refused.ok_or(e)?,
-    };
-    let Some(pb) = pb else {
-        return Err(SsiError::UnsupportedCertificate {
-            what: "the 1×2 trace must produce the wall's pcurve",
-        });
     };
     let pa = plane_pcurve(&carrier, (origin, normal, u_ref))?;
     Ok((carrier, pa, pb))
@@ -5100,6 +5120,7 @@ mod ending_tests {
             ("unsupported, routing", NOT_YET_ENDING, NOT_YET_ENDING),
             ("unsupported, pcurve", NOT_YET_ENDING, NOT_YET_ENDING),
             ("carrier enclosure", NOT_YET_ENDING, NOT_YET_ENDING),
+            ("carrier domain", NOT_YET_ENDING, NOT_YET_ENDING),
             (
                 "wall collapsed",
                 super::WALL_COLLAPSED_RECOURSE,
@@ -5207,7 +5228,7 @@ mod ending_tests {
             Point3::new(2.0, 0.0, 0.0),
             Point3::new(3.0, 0.0, 0.0),
         ];
-        let error = super::fit_branch(&points, [None, None]).err();
+        let error = super::fit_branch(&points).err();
         assert!(
             matches!(
                 error,
@@ -5222,7 +5243,7 @@ mod ending_tests {
     }
 
     /// How many arms [`SsiError`] has: [`arm`]'s numbering.
-    const ARMS: usize = 50;
+    const ARMS: usize = 51;
 
     /// Each arm's number. No wildcard: a new arm does not compile until
     /// it is numbered, and [`each_ssi_ending_is_its_decisions`] then
@@ -5279,6 +5300,7 @@ mod ending_tests {
             SsiError::CoincidentTori => 47,
             SsiError::PairRowTangent => 48,
             SsiError::DegenerateCone { .. } => 49,
+            SsiError::CarrierDomain(_) => 50,
         }
     }
 
@@ -5630,6 +5652,14 @@ mod ending_tests {
                 SsiError::CarrierEnclosure(crate::CarrierEnclosureRefusal {
                     kind: geom::CurveKind::Spiric,
                     span: (3.1, 3.2),
+                }),
+            ),
+            (
+                "carrier domain",
+                SsiError::CarrierDomain(crate::CarrierDomainRefusal {
+                    lo: 1.0e300,
+                    hi: 1.0e300 + 1.0e285,
+                    fault: crate::CarrierDomainFault::Merge,
                 }),
             ),
             (

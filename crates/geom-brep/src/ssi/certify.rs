@@ -1159,6 +1159,26 @@ const CHART_IMAGE_HULL: HullArm = HullArm {
     ..CHART_HULL
 };
 
+/// **A wall image's miss of its foot path past its cap, as limb 2 reads
+/// it** at a break where the miss is the image's
+/// ([`SsiLimb::ImageMiss`], [`CHART_IMAGE_HULL`]'s value). `miss` is the
+/// largest the image sampled midway between its feet: a reading, not a
+/// bound. The refusal carries what the classifier saw of it:
+/// [`SsiError::CertificateLimb`] where it decides (past the band, or
+/// within it: the image is refused past its cap either way), and
+/// [`SsiError::CertificateEscalated`] in the band.
+pub(crate) fn image_miss<T: Decide>(miss: f64, band: Band) -> SsiError {
+    let limb = CHART_IMAGE_HULL.value_limb;
+    match decide_reported(
+        CHART_IMAGE_HULL.value,
+        Margin::of(T::from_computed(miss)),
+        band,
+    ) {
+        Ok(Decided { margin, .. }) => SsiError::CertificateLimb { limb, margin },
+        Err(cause) => SsiError::CertificateEscalated { limb, cause },
+    }
+}
+
 /// Limb 2's verdict on where [`subdivide`] stopped, and its bound: the
 /// bound or the break's value, each decided at `arm`'s predicate.
 /// Interval arithmetic answers with `f64` bounds, lifted here so the
@@ -2588,7 +2608,13 @@ pub(crate) fn certify_located(
         carrier.domain(),
         Curve3::Nurbs(std::sync::Arc::new(carrier.clone())),
     );
-    certify_branch(&carrier, params, lane, extent, band, limbs, &mut refused).map_err(|error| {
+    certify_branch(&carrier, params, lane, extent, band, limbs, &mut refused)
+        .map_err(|error| Located::of(error, refused))
+}
+
+impl Located {
+    /// `error` with what the refusing limb recorded of it in `refused`.
+    fn of(error: SsiError, refused: Refused) -> Self {
         let at = match refused.refusal {
             Some(refusal) if !refused.spans.is_empty() => Some(Box::new(Spans {
                 refusal,
@@ -2596,8 +2622,69 @@ pub(crate) fn certify_located(
             })),
             _ => None,
         };
-        Located { error, at }
-    })
+        Self { error, at }
+    }
+}
+
+/// **The one refusal order of an image that missed past its cap**
+/// ([`SsiLimb::ImageMiss`], decided or escalated), wherever a carrier is
+/// read against an analytic partner and a spline wall: the trace, the
+/// residual lane and the incidence lane. The miss may be the carrier's
+/// own fault (one no net encloses, one off the partner), so what the
+/// partner's limbs 1 and 2 refuse of the carrier alone stands first, and
+/// the miss stands where they hold. Any other refusal stands as itself.
+/// A spline pair has no analytic partner, and its image's miss stands.
+pub(crate) fn partner_before_image_miss<T: Decide + Bounds + CertifiedEnclosure>(
+    missed: SsiError,
+    carrier: &Curve3<T>,
+    params: (T, T),
+    partner: &Surface<T>,
+    band: Band,
+    at: &mut Refused,
+) -> SsiError {
+    if !matches!(
+        missed,
+        SsiError::CertificateLimb {
+            limb: SsiLimb::ImageMiss,
+            ..
+        } | SsiError::CertificateEscalated {
+            limb: SsiLimb::ImageMiss,
+            ..
+        }
+    ) {
+        return missed;
+    }
+    match incidence_limbs(
+        carrier,
+        params,
+        &[IncidenceOperand::Analytic(partner)],
+        band,
+        at,
+    ) {
+        Err(partner) => partner,
+        Ok(_) => missed,
+    }
+}
+
+/// [`partner_before_image_miss`] for a traced carrier, the partner's
+/// refusal located on it as [`certify_located`] locates one, so
+/// refinement reads it as it reads a certificate's.
+pub(crate) fn located_before_image_miss(
+    missed: SsiError,
+    carrier: &NurbsCurve3<f64>,
+    partner: &Surface<f64>,
+    band: Band,
+) -> Located {
+    let mut refused = Refused::default();
+    let error = partner_before_image_miss(
+        missed,
+        &Curve3::Nurbs(std::sync::Arc::new(carrier.clone())),
+        carrier.domain(),
+        partner,
+        band,
+        &mut refused,
+    );
+    Located::of(error, refused)
 }
 
 /// Certify a fitted rung-3 carrier on its [`Lane`] — all three limbs, in
@@ -2712,59 +2799,104 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
     // The extent levers the clearance; its upper end is the ladder's
     // widest rung.
     let widest = Bounds::hi(extent);
-    let three = match (a, b) {
-        (SsiOperand::Analytic(s1), SsiOperand::Analytic(s2)) => {
-            let Curve3::Nurbs(net) = carrier else {
-                return Err(SsiError::UnsupportedCertificate {
-                    what: BOX_CHAIN_NEEDS_SPLINE,
-                });
+    let tube = |a: &SsiOperand<'_, T>, b: &SsiOperand<'_, T>| -> Result<_, SsiError> {
+        Ok(match (a, b) {
+            (SsiOperand::Analytic(s1), SsiOperand::Analytic(s2)) => {
+                let Curve3::Nurbs(net) = carrier else {
+                    return Err(SsiError::UnsupportedCertificate {
+                        what: BOX_CHAIN_NEEDS_SPLINE,
+                    });
+                };
+                let chain = box_chain(net);
+                limb_three((widest, extent), band, |radius| {
+                    Ok(probe_tube_analytic(
+                        &chain,
+                        s1,
+                        s2,
+                        radius,
+                        (slab, ends, band.zero()),
+                    ))
+                })?
+            }
+            (SsiOperand::Analytic(partner), SsiOperand::Nurbs(n))
+            | (SsiOperand::Nurbs(n), SsiOperand::Analytic(partner)) => {
+                let Some(p) = pcurve_b else {
+                    return Err(SsiError::UnsupportedCertificate {
+                        what: "the chart uniqueness tube needs the traced pcurve",
+                    });
+                };
+                let form = chart_partner_form(partner, CertifiedEnclosure::certified_bracket)?;
+                let phi = ChartPhi(&form);
+                let nodes = node_ends(p, n, &form, band);
+                limb_three((widest, extent), band, |radius| {
+                    // The pad per axis: the rung ÷ the operand's minted chart
+                    // speed along that axis. The padded windows are the
+                    // proved region and the certificate records them; the
+                    // rung is the ladder's label, not a metre bound on that
+                    // region (a window's corner can sit farther than the rung
+                    // from the carrier).
+                    let pad = n.speeds().pad(radius);
+                    probe_tube_chart(p, n.boxes(), phi, (radius, pad, nodes), (ends, band))
+                })?
+            }
+            (SsiOperand::Nurbs(na), SsiOperand::Nurbs(nb)) => {
+                let (Some(pa), Some(pb)) = (pcurve_a, pcurve_b) else {
+                    return Err(SsiError::UnsupportedCertificate {
+                        what: "the two-chart uniqueness tube needs both traced pcurves",
+                    });
+                };
+                limb_three((widest, extent), band, |radius| {
+                    Ok(probe_tube_pair(
+                        (pa, pb),
+                        (na, nb),
+                        (radius, (na.speeds().pad(radius), nb.speeds().pad(radius))),
+                        band,
+                    ))
+                })?
+            }
+        })
+    };
+    // Limb 3 on each chart's own cells first, and where that refuses, on
+    // the certificate's grid (`ChartedNurbs::certificate_grid`), whose
+    // finer cells read the chart's speeds and enclosures tighter. A
+    // trace's certificate and the edge certificate at rest take the same
+    // two steps, so the two read one chart operand.
+    let three = match tube(a, b) {
+        Ok(three) => three,
+        Err(own) => {
+            let grid_of = |op: &SsiOperand<'_, T>| match op {
+                SsiOperand::Nurbs(n) => n.certificate_grid(),
+                SsiOperand::Analytic(_) => None,
             };
-            let chain = box_chain(net);
-            limb_three((widest, extent), band, |radius| {
-                Ok(probe_tube_analytic(
-                    &chain,
-                    s1,
-                    s2,
-                    radius,
-                    (slab, ends, band.zero()),
-                ))
-            })?
-        }
-        (SsiOperand::Analytic(partner), SsiOperand::Nurbs(n))
-        | (SsiOperand::Nurbs(n), SsiOperand::Analytic(partner)) => {
-            let Some(p) = pcurve_b else {
-                return Err(SsiError::UnsupportedCertificate {
-                    what: "the chart uniqueness tube needs the traced pcurve",
-                });
-            };
-            let form = chart_partner_form(partner, CertifiedEnclosure::certified_bracket)?;
-            let phi = ChartPhi(&form);
-            let nodes = node_ends(p, n, &form, band);
-            limb_three((widest, extent), band, |radius| {
-                // The pad per axis: the rung ÷ the operand's minted chart
-                // speed along that axis. The padded windows are the
-                // proved region and the certificate records them; the
-                // rung is the ladder's label, not a metre bound on that
-                // region (a window's corner can sit farther than the rung
-                // from the carrier).
-                let pad = n.speeds().pad(radius);
-                probe_tube_chart(p, n.boxes(), phi, (radius, pad, nodes), (ends, band))
-            })?
-        }
-        (SsiOperand::Nurbs(na), SsiOperand::Nurbs(nb)) => {
-            let (Some(pa), Some(pb)) = (pcurve_a, pcurve_b) else {
-                return Err(SsiError::UnsupportedCertificate {
-                    what: "the two-chart uniqueness tube needs both traced pcurves",
-                });
-            };
-            limb_three((widest, extent), band, |radius| {
-                Ok(probe_tube_pair(
-                    (pa, pb),
-                    (na, nb),
-                    (radius, (na.speeds().pad(radius), nb.speeds().pad(radius))),
-                    band,
-                ))
-            })?
+            let (grid_a, grid_b) = (grid_of(a), grid_of(b));
+            if grid_a.is_none() && grid_b.is_none() {
+                return Err(own);
+            }
+            fn on_grid<'g, T: geom_core::CertifiedBounds>(
+                op: &SsiOperand<'g, T>,
+                grid: Option<&'g super::enclose::CellGrid>,
+            ) -> Result<SsiOperand<'g, T>, SsiError> {
+                match op {
+                    SsiOperand::Nurbs(n) => n.on_certificate_grid(grid).map(SsiOperand::Nurbs),
+                    SsiOperand::Analytic(s) => Ok(SsiOperand::Analytic(s)),
+                }
+            }
+            match tube(&on_grid(a, grid_a.as_ref())?, &on_grid(b, grid_b.as_ref())?) {
+                Ok(three) => three,
+                // A straddle on either step is the certificate's straddle:
+                // a node end's grading climbs on it (`ends::Ends::finish`),
+                // whichever cells read it.
+                Err(grid) => {
+                    return Err(match (&own, &grid) {
+                        (SsiError::TubeStraddles { .. }, g)
+                            if !matches!(g, SsiError::TubeStraddles { .. }) =>
+                        {
+                            own
+                        }
+                        _ => grid,
+                    });
+                }
+            }
         }
     };
     Ok(certificate((on_locus, hull_sup), three))
@@ -4301,7 +4433,9 @@ mod tests {
     /// **An operand's cells are built once for its life, not once per
     /// rung**: the mint reads the one-cell fold's speeds, limb 3 walks
     /// its ladder with every rung reading the wall's chart enclosures,
-    /// and the cell's net is built once over all of it.
+    /// on its own cell and then, that ladder refusing, on the
+    /// certificate's grid, and each cell's net is built at most once
+    /// over all of it, the wall's own at each of its two readings.
     #[test]
     #[allow(clippy::unwrap_used)]
     fn every_rung_reads_the_operands_one_build_of_each_cell() {
@@ -4328,9 +4462,13 @@ mod tests {
             rungs >= 2,
             "the ladder probed {rungs} rungs: the row reads nothing"
         );
-        assert_eq!(
-            built, 1,
-            "the one-cell wall's net was built {built} times over {rungs} rungs"
+        let cells = crate::edge_nurbs::PXN_WALL_SPANS.pow(2);
+        // More than the wall's own cell at its two readings: the grid's
+        // cells were read, each at most once.
+        assert!(
+            (3..=cells + 2).contains(&built),
+            "the one-cell wall's net and its {cells} grid cells were built {built} times over \
+             {rungs} rungs"
         );
     }
 

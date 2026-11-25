@@ -124,6 +124,12 @@ re-posing that empties a file lowers or drops its row in the same change.
   reading of it is gone (2026-11-21, the search's limb 2 reads through
   the edge certificate's enclosure-valued reader); the chart tube's
   partner form (`chart_partner_form`) is its one reader now.
+- `geom_brep::carrier_image::resolution` (`RESOLUTION_ULPS`, `re-pose`):
+  a wall image's foot is settled, and its miss asks no knot, within 64
+  ulps of the wall point's largest coordinate; owed the projection's
+  acceptance posed at the wall's own scale
+  (`work/sectarms/the-wall-images-foot-resolution-counts-ulps-at-the-walls-point.md`,
+  which records what goes red without it).
 - `geom_brep::pair_section::spline_implicit::bracket`,
   `pair_section::torus` (`decide`, `sphere_gap`),
   `pair_section::torus_arms` (`square_pose`, `square_folds`).

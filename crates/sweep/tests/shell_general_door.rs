@@ -117,13 +117,9 @@ fn a_spline_capped_box_moves_every_chart_onto_its_closed_form() {
 /// it meets hold.** The cap's middle control point is raised 0.01. At
 /// ε = 1e-6 every chart moves: every corner lies on the moved side
 /// planes, the four bottom corners on the moved floor, and the four top
-/// corners `T` from the cap, within the fit's certified ε. Tighter, the cap's offset fit certifies at 1e-9, and the side
-/// plane's section of it, which is no row of the fit, refuses at the
-/// plane × NURBS certificate's limb 2: on its bound, or, once the
-/// subdivision reaches a break past the band, on that break's value,
-/// where the section's own foot is on the wall (3.5e-16 m there), so the
-/// miss is its pcurve's (`ImageMiss`, about 4.4e-7 m at 1e-9)
-/// (`work/ssiedge/plane-nurbs-limb-two-refuses-a-non-row-section.md`).
+/// corners `T` from the cap, within the fit's certified ε. So it does at
+/// 1e-9: the cap's offset fit certifies, and the side plane's section of
+/// it, which is no row of the fit, certifies on the fit's image of it.
 /// At 1e-12 the fit stops short, at the sample cap: 3.2795e-12 m on a
 /// 45 x 48 grid.
 #[test]
@@ -173,28 +169,6 @@ fn a_curved_spline_cap_moves_with_its_sides_where_its_certificates_hold_row() {
                 panic!("eps {eps:e}: expected the cap's fit to reach the sample cap, got {other:?}")
             }
         }
-        return;
-    }
-    if eps < 1e-7 {
-        assert!(
-            matches!(
-                &moved,
-                Err(ReplaceFaceError::Op {
-                    error: topo::EulerOpError::DescriptionUncertified {
-                        error: geom_brep::CertifyError::PlaneNurbs(
-                            geom_brep::PlaneNurbsRefusal::Limb {
-                                limb: geom_brep::ssi::SsiLimb::HullSupChart
-                                    | geom_brep::ssi::SsiLimb::ImageMiss,
-                                ..
-                            }
-                        ),
-                        ..
-                    },
-                    ..
-                })
-            ),
-            "eps {eps:e}: expected the rim certificate's limb-2 refusal, got {moved:?}"
-        );
         return;
     }
     moved.unwrap_or_else(|e| {

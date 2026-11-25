@@ -1001,6 +1001,88 @@ fn a_node_is_listed_and_carried_to_at_every_scale() {
     }
 }
 
+/// The edge certificate of `carrier` over `(t0, t1)` as the
+/// `Intersection` of `partner` and `wall`, at rest.
+fn chord_at_rest(
+    carrier: &geom::Curve3<f64>,
+    (t0, t1): (f64, f64),
+    (partner, wall): (&Surface<f64>, &Surface<f64>),
+    extent: f64,
+) -> Result<crate::certify::EdgeCurve<f64>, crate::certify::CertifyError> {
+    use crate::certify::{EdgeCurve, EdgeCurveSpec, NurbsLane};
+    use crate::description::{CurveSelector, EdgeDescriptionSpec, SurfacePair};
+    let mut arena = slotmap::SlotMap::<crate::keys::SurfaceKey, Surface<f64>>::with_key();
+    let (k_a, k_b) = (arena.insert(partner.clone()), arena.insert(wall.clone()));
+    EdgeCurve::certify(
+        EdgeCurveSpec {
+            description: EdgeDescriptionSpec::Intersection {
+                pair: SurfacePair::new(k_a, k_b),
+                selector: CurveSelector::Witness(carrier.mid_point(t0, t1)),
+            },
+            carrier: carrier.clone(),
+            param_start: t0,
+            param_end: t1,
+        },
+        carrier.eval(t0),
+        carrier.eval(t1),
+        move |k| arena.get(k).cloned().ok_or(crate::SurfaceMiss::Stale),
+        geom_core::test_support::fixture_lever(extent),
+        band(),
+        NurbsLane::certified(),
+    )
+}
+
+/// **A chord of a carried node arc certifies at rest** (C2's node end,
+/// read again about the edge's end vertex): each of the four arcs the
+/// cross and the 78° node carry to their node, over its whole span, the
+/// half that ends at the node and the tenth that does, at walls a
+/// hundredth, one and a hundred units across. The wall's image of the
+/// arc is built on the arc's own knots, graded toward the node as the
+/// trace graded them, so its end span lies in the node's box as the
+/// trace's did.
+///
+/// Red against: the image built on a uniform chain
+/// (`carrier_image::chain` reading every carrier as a closed form),
+/// whose end span is far wider than the node's box: every chord refuses
+/// `TubeStraddles`.
+#[test]
+fn a_carried_node_arcs_chord_certifies_at_rest() {
+    for s in [0.01, 1.0, 100.0] {
+        for (what, wall) in scaled(s) {
+            let what = format!("{what} at {s}");
+            if what == "the 78° node at 100" && Tol::witness().eps() <= 1e-12 {
+                continue;
+            }
+            let partner = level(0.0);
+            let carried = built(&partner, &wall)
+                .unwrap_or_else(|e| panic!("{what}: {e:?}"))
+                .carry(Some(SsiLane::marched()), band())
+                .unwrap_or_else(|e| panic!("{what}: carries: {e:?}"));
+            for (k, arc) in carried.components().iter().enumerate() {
+                let (t0, t1) = arc.span;
+                let [start, _] = arc.shape.nodes();
+                // The chord's far end from the node, `share` of the span.
+                let toward = |share: f64| match start {
+                    Some(_) => (t0, t0 + share * (t1 - t0)),
+                    None => (t1 - share * (t1 - t0), t1),
+                };
+                for (chord, span) in [
+                    ("whole", (t0, t1)),
+                    ("the node's half", toward(0.5)),
+                    ("the node's tenth", toward(0.1)),
+                ] {
+                    let read = chord_at_rest(&arc.carrier, span, (&partner, &wall), s);
+                    assert!(
+                        read.is_ok(),
+                        "{what}, arc {k}, {chord}: certifies at rest: {:?}",
+                        read.err()
+                    );
+                }
+            }
+        }
+    }
+}
+
 /// **A lemniscate a hundredth of a unit across is listed and carried**:
 /// its node's two loops each carried to it at both ends. Red against the
 /// node's fine pad reaching past `ssi::certify::NODE_PAD_REACH` of one

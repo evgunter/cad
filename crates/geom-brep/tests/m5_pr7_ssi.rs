@@ -4792,7 +4792,7 @@ fn a_curved_domes_level_loop_certifies_at_every_eps() {
             panic!("{at}: expected one branch, got {}", out.branches.len());
         };
         assert_eq!(branch.end, BranchEnd::Closed, "{at}: a loop");
-        let n = branch.pcurve_b.as_ref().map_or(0, |c| c.control().len());
+        let n = marched_samples(&branch.carrier);
         assert!(
             samples.contains(&n),
             "{at}: {n} samples, against {samples:?} at the carrier's curvature"
@@ -4845,7 +4845,7 @@ fn a_curved_domes_oblique_arc_certifies_across_its_inflections() {
         "{at}: an arc between two crossings: {:?}",
         branch.end
     );
-    let n = branch.pcurve_b.as_ref().map_or(0, |c| c.control().len());
+    let n = marched_samples(&branch.carrier);
     assert!(samples.contains(&n), "{at}: {n} samples");
 }
 
@@ -4875,8 +4875,168 @@ fn a_curved_domes_open_arc_certifies_on_the_marchs_samples() {
         let [branch] = out.branches.as_slice() else {
             panic!("d = {d}: expected one branch, got {}", out.branches.len());
         };
-        let n = branch.pcurve_b.as_ref().map_or(0, |c| c.control().len());
+        let n = marched_samples(&branch.carrier);
         assert!(samples.contains(&n), "d = {d}: {n} samples");
+    }
+}
+
+/// **A traced arc's certificate is rest's, bit for bit** (C2). The dome's
+/// `z = 0.2` arc and its oblique one, each traced and then read again
+/// from the carrier alone: the wall's image the trace certified is the
+/// image the pcurve mint derives for that carrier, and the edge
+/// certificate at rest reads the trace's three limbs to the bit, the
+/// tube's pads and node boxes among them. So a body that holds the
+/// carrier and nothing else of the trace (an imported copy, or a fresh
+/// adoption of the same carriers) is certified as the traced one was.
+///
+/// Red against: the trace keeping a pcurve fitted through its own
+/// marched chart points; the trace reading the wall's chart on its own
+/// cells where rest reads the certificate's grid.
+#[test]
+fn a_traced_arcs_certificate_is_rests_bit_for_bit() {
+    let d = 1.0;
+    let (oblique, dom) = dome_tilt(d);
+    let zcut = Surface::Plane {
+        frame: geom::Frame::new(
+            Point3::new(0.5, -d / 8.0, 0.2),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
+    };
+    let wall = dome_wall(d);
+    for (what, plane) in [("the z cut", zcut), ("the oblique cut", oblique)] {
+        let out = ssi::plane_nurbs_ssi(&plane, &wall, dom, band())
+            .unwrap_or_else(|e| panic!("{what}: the arc certifies: {e}"));
+        let [branch] = out.branches.as_slice() else {
+            panic!("{what}: expected one branch, got {}", out.branches.len());
+        };
+        let traced = branch.pcurve_b.as_ref().expect("the wall's image");
+        let minted = geom_brep::FittedLane::<f64>::certified()
+            .general_image(&branch.carrier, branch.params, &wall, band())
+            .unwrap_or_else(|e| panic!("{what}: the mint images the carrier: {e:?}"));
+        let bits = |c: &geom::NurbsCurve2<f64>| -> Vec<u64> {
+            c.knot_values()
+                .runs()
+                .flat_map(|(k, m)| core::iter::repeat_n(k, m))
+                .chain(c.control().iter().flat_map(|p| [p.x, p.y]))
+                .map(f64::to_bits)
+                .collect()
+        };
+        assert!(
+            bits(traced) == bits(&minted),
+            "{what}: the image the trace certified is the image the mint derives"
+        );
+        let rest = geom_brep::plane_nurbs_limbs(
+            &branch.carrier,
+            branch.params,
+            &plane,
+            &wall,
+            fixture_lever(dom.extent),
+            band(),
+        )
+        .unwrap_or_else(|e| panic!("{what}: the arc certifies at rest: {e:?}"));
+        let cert = &branch.certificate;
+        assert_eq!(
+            (
+                cert.on_locus_max.to_bits(),
+                cert.hull_sup.to_bits(),
+                cert.tube_transversality.to_bits(),
+                cert.tube_boxes,
+                format!("{:?}", cert.tube),
+            ),
+            (
+                rest.on_locus_max.to_bits(),
+                rest.hull_sup.to_bits(),
+                rest.tube_transversality.to_bits(),
+                rest.tube_boxes,
+                format!("{:?}", rest.tube),
+            ),
+            "{what}: rest reads the trace's certificate"
+        );
+    }
+}
+
+/// **A traced loop's certificate is rest's, bit for bit** (C2): the
+/// dome's closed level loop at `d = 1` and `d = 3`, a carrier of about a
+/// thousand spans that closes on itself, read as
+/// [`a_traced_arcs_certificate_is_rests_bit_for_bit`] reads an arc. The
+/// image the trace certified is the image the mint derives from the
+/// carrier alone, and rest reads the trace's three limbs to the bit.
+///
+/// Red against: as the arc's row, on a carrier whose image starts and
+/// ends at one point of the wall.
+#[test]
+fn a_traced_loops_certificate_is_rests_bit_for_bit() {
+    for d in [1.0, 3.0] {
+        let (_, dom) = dome_tilt(d);
+        let level = Surface::Plane {
+            frame: geom::Frame::new(
+                dom.center,
+                Vec3::new(0.0, 1.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
+        };
+        let wall = dome_wall(d);
+        let out = ssi::plane_nurbs_ssi(&level, &wall, dom, band())
+            .unwrap_or_else(|e| panic!("d = {d}: the loop certifies: {e}"));
+        let [branch] = out.branches.as_slice() else {
+            panic!("d = {d}: expected one branch, got {}", out.branches.len());
+        };
+        let traced = branch.pcurve_b.as_ref().expect("the wall's image");
+        let minted = geom_brep::FittedLane::<f64>::certified()
+            .general_image(&branch.carrier, branch.params, &wall, band())
+            .unwrap_or_else(|e| panic!("d = {d}: the mint images the loop: {e:?}"));
+        let bits = |c: &geom::NurbsCurve2<f64>| -> Vec<u64> {
+            c.knot_values()
+                .runs()
+                .flat_map(|(k, m)| core::iter::repeat_n(k, m))
+                .chain(c.control().iter().flat_map(|p| [p.x, p.y]))
+                .map(f64::to_bits)
+                .collect()
+        };
+        assert!(
+            bits(traced) == bits(&minted),
+            "d = {d}: the image the trace certified is the image the mint derives ({} and {} \
+             control points)",
+            traced.control().len(),
+            minted.control().len()
+        );
+        let rest = geom_brep::plane_nurbs_limbs(
+            &branch.carrier,
+            branch.params,
+            &level,
+            &wall,
+            fixture_lever(dom.extent),
+            band(),
+        )
+        .unwrap_or_else(|e| panic!("d = {d}: the loop certifies at rest: {e:?}"));
+        let cert = &branch.certificate;
+        assert_eq!(
+            (
+                cert.on_locus_max.to_bits(),
+                cert.hull_sup.to_bits(),
+                cert.tube_transversality.to_bits(),
+                cert.tube_boxes,
+                format!("{:?}", cert.tube),
+            ),
+            (
+                rest.on_locus_max.to_bits(),
+                rest.hull_sup.to_bits(),
+                rest.tube_transversality.to_bits(),
+                rest.tube_boxes,
+                format!("{:?}", rest.tube),
+            ),
+            "d = {d}: rest reads the trace's certificate"
+        );
+    }
+}
+
+/// The samples a marched carrier was fitted through: its net's control
+/// points, one per sample.
+fn marched_samples(carrier: &geom::Curve3<f64>) -> usize {
+    match carrier {
+        geom::Curve3::Nurbs(net) => net.control().len(),
+        _ => 0,
     }
 }
 
@@ -4927,8 +5087,8 @@ fn rounds_at_the_wall(
 /// **A loop past the step budget refuses typed at the wall.** At ε 8e-15
 /// the dome's level loop takes about 19 350 marched samples, inside the
 /// branch's 20 000 steps, and limb 2 reads it in band at about 8.4e-15 m.
-/// One refinement round fits the budget, to about 19 860 samples, and its
-/// refused residual does not fall (8.38e-15 to 8.39e-15 m), so the wall
+/// One refinement round fits the budget, to about 19 996 samples, and its
+/// refused residual does not fall (8.38e-15 to 8.48e-15 m), so the wall
 /// refuses before the next round, naming the two refused rounds and the
 /// arithmetic's floor. At 9e-15 the loop certifies on its marched
 /// samples, so 8e-15 is where this row's subject is. A branch never
@@ -4980,8 +5140,10 @@ fn a_loop_past_the_step_budget_refuses_typed_at_the_wall() {
 /// doubles the samples and leaves the margin where it was. At 9e-15 the
 /// arc certifies, so the floor sits between the two. The rounds
 /// run from about 4 490 samples until the next would overrun the
-/// branch's step budget, every one in band on limb 2 at the same width,
-/// and the refusal is the wall's, its ending naming the floor.
+/// branch's step budget, every one in band: on limb 2 at the same width,
+/// or on limb 1 where the wall image's own resolution, a few `f64` ulps
+/// of the wall's point and above this ε, is what the foot reads. The
+/// refusal is the wall's, its ending naming the floor.
 ///
 /// "The same width" is read against what the alternative would show: a
 /// between-sample error falls at least as fast as the gaps, so over a
@@ -5023,16 +5185,21 @@ fn refinement_past_the_arithmetics_floor_meets_the_wall_typed() {
     );
     let margins: Vec<f64> = rounds
         .iter()
-        .map(|round| match round.margin {
+        .filter_map(|round| match round.margin {
             RoundMargin::InBand(m) if round.limb == SsiLimb::HullSupChart => {
                 match m.diagnostic_f64_for_error_text() {
-                    geom_core::ErrorTextReading::Value(m) => m,
+                    geom_core::ErrorTextReading::Value(m) => Some(m),
                     other => panic!("a point margin: {other:?}"),
                 }
             }
-            _ => panic!("limb 2 in band every round: {rounds:?}"),
+            RoundMargin::InBand(_) if round.limb == SsiLimb::OnLocus => None,
+            _ => panic!("limb 1 or 2 in band every round: {rounds:?}"),
         })
         .collect();
+    assert!(
+        margins.len() >= 3,
+        "limb 2 reads the floor in three rounds or more: {rounds:?}"
+    );
     #[allow(clippy::cast_precision_loss)]
     let growth = last as f64 / first as f64;
     let (lo, hi) = margins.iter().fold((f64::INFINITY, 0.0f64), |(lo, hi), m| {
@@ -5235,7 +5402,7 @@ fn a_straight_marched_branch_takes_the_fits_four_samples() {
     let [first, second] = out.branches.as_slice() else {
         panic!("{at}: expected two branches, got {}", out.branches.len());
     };
-    let n = first.pcurve_b.as_ref().map_or(0, |c| c.control().len());
+    let n = marched_samples(&first.carrier);
     assert_eq!(n, 4, "{at}: the marched metre's samples");
     assert!(one_cubic_span(&at, second), "{at}: the second branch");
 }
@@ -5494,7 +5661,7 @@ fn a_branch_beside_a_close_crossing_is_sampled_by_its_own_curvature() {
         let n: Vec<usize> = out
             .branches
             .iter()
-            .map(|b| b.pcurve_b.as_ref().map_or(0, |c| c.control().len()))
+            .map(|b| marched_samples(&b.carrier))
             .collect();
         let [a, b] = n[..] else {
             panic!("{at}: expected two branches, got {n:?}");

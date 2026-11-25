@@ -1050,7 +1050,14 @@ BOUNDS_ALLOWLIST=(
   # at its domain middle and read no bracket, and its callers in
   # `ssi.rs` now take `Curve3::mid_point`, the witness pin's own point.
   # The seam is unmoved: the branch certificate keeps its bounds.
-  'crates/geom-brep/src/ssi/certify.rs 20 M6-2, the SSI rung-3 certificate; its two-chart tube (probe_tube_pair, pair_tube_chain) at the same bound; its limbs 1-2 alone (incidence_limbs), which certify_branch now calls, at the same bound; limb 2s hold of the image to its chart knot rectangle (chart_domain_limb), read by limb 2 and by the fitted pcurve door, at the same bound'
+  # 20 -> 22: `partner_before_image_miss` (`Decide + Bounds +
+  # CertifiedEnclosure`, two occurrences), the one refusal order of a
+  # wall image's miss past its cap beside an analytic partner. It reads
+  # no bracket of its own: it matches the refusal it is handed and calls
+  # `incidence_limbs` on the partner, at that function's bound and
+  # nothing wider (necessity in geom-core real.rs, the `carrier_image`
+  # entry).
+  'crates/geom-brep/src/ssi/certify.rs 22 M6-2, the SSI rung-3 certificate; its two-chart tube (probe_tube_pair, pair_tube_chain) at the same bound; its limbs 1-2 alone (incidence_limbs), which certify_branch now calls, at the same bound; limb 2s hold of the image to its chart knot rectangle (chart_domain_limb), read by limb 2 and by the fitted pcurve door, at the same bound; the refusal order of an image miss beside an analytic partner (partner_before_image_miss), which calls incidence_limbs and reads no bracket, at the same bound'
   # M7-8, the declare-and-check edge lane.
   # 6 -> 8: the edge lane's door value (`NurbsLane`) gained a second
   # body, `analytic_rung3` (`Decide + Bounds + CertifiedEnclosure`, two
@@ -1064,7 +1071,8 @@ BOUNDS_ALLOWLIST=(
   # it is public so the at-rest rows can run the limb directly.
   # C2 as ratified on PR 5652 adds `analytic_edge_limbs`, the analytic
   # pair's limbs for a carrier of every kind, at `analytic_rung3`'s bound.
-  'crates/geom-brep/src/edge_nurbs.rs 20 M7-8, the declare-and-check edge lane; the rung-3 tube body at M6-2; its NURBS x NURBS twin (nurbs_pair_limbs) at the same bound; its incidence alone for OnPair (plane_nurbs_incidence) at the same bound; C2 2026-10-24 (PR 5652), the analytic limbs for every carrier kind at the same bound; the pcurve mint'"'"'s image of every carrier on a spline chart (general_chart_image) at chart_image'"'"'s bound, PR 6532 under the M7-8 / C2 precedent, retroactive Ev review; the lane'"'"'s curved-partner twin (curved_nurbs_limbs) and the body the two share (residual_nurbs_limbs) at plane_nurbs_limbs'"'"'s bound, 2026-11-12 under the M7-8 / C2 precedent, retroactive Ev review; necessity in geom-core real.rs'
+  'crates/geom-brep/src/carrier_image.rs 32 the image of every carrier on a spline chart (carrier_image) and the helpers its one body is split into, which the trace, the pcurve mint and the edge certificate read, at chart_image'"'"'s bound, PR 6532 and PR 7032 under the M7-8 / C2 precedent, retroactive Ev review; necessity in geom-core real.rs'
+  'crates/geom-brep/src/edge_nurbs.rs 20 M7-8, the declare-and-check edge lane; the rung-3 tube body at M6-2; its NURBS x NURBS twin (nurbs_pair_limbs) at the same bound; its incidence alone for OnPair (plane_nurbs_incidence) at the same bound; C2 2026-10-24 (PR 5652), the analytic limbs for every carrier kind at the same bound; the lane'"'"'s curved-partner twin (curved_nurbs_limbs) and the body the two share (residual_nurbs_limbs) at plane_nurbs_limbs'"'"'s bound, 2026-11-12 under the M7-8 / C2 precedent, retroactive Ev review; necessity in geom-core real.rs'
   # M7-8's 2026-09-02 amendment, the lane's split as a BOUND: the one
   # DOOR that names the certified body `plane_nurbs_limbs`, the lane's
   # door value `NurbsLane::certified`'s block (`Decide +

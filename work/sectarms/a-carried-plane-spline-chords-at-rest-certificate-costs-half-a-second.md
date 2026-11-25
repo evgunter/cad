@@ -70,3 +70,14 @@ PR 7032: one image function on the carrier's own knots, with the
 uniform 33-to-257-sample climb gone. Its build is briefed to measure
 at-rest cost against main. Re-measure this row when
 `a-node-arcs-chord-misses-its-at-rest-chart-image` closes.
+
+## Re-measured on `sectarms/one-image-function` (2026-11-23)
+
+Debug, local, one run, default ε: the carry rows' wall against the
+level plane `z = 1` (`spline_implicit::rest_rows`' fixtures), whose arc
+is straight in the chart: the whole reading 0.19 s, the image 0.9 ms
+(one cubic span), the at-rest certificate 0.038 s. The brick across the
+loft prism's walls was not timed chord by chord; its row
+(`a_brick_across_a_lofted_wall_is_joined_on_its_carried_arcs`, both
+bricks, to the containment refusal) runs in 11 s. The census was not
+re-run.

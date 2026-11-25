@@ -2052,17 +2052,33 @@ pub mod bounds_allowlist {
     //! and `geom_brep::pcurve_cache`'s `limb2_offset_sup` ride the
     //! M6-2/M7-8 entries above with nothing wider.
     //!
-    //! **2026-11 (PR 6532; under the M7-8 / C2 precedent; retroactive Ev
-    //! review) — `geom_brep::edge_nurbs`'s `general_chart_image`**, the
-    //! pcurve mint's image of every carrier on a spline chart, rides at
+    //! **2026-11 (PR 6532, PR 7032; under the M7-8 / C2 precedent;
+    //! retroactive Ev review) — `geom_brep::carrier_image`'s
+    //! `carrier_image`**, the image of every carrier on a spline chart,
+    //! which the trace's certificate, the pcurve mint and the edge
+    //! certificate at rest all read, rides at
     //! `Decide + `[`Bounds`](super::Bounds)` + `[`CertifiedEnclosure`](super::CertifiedEnclosure),
-    //! `chart_image`'s bound and nothing wider. Necessity: its first rung
-    //! IS `chart_image` at that bound, and whether it climbs, its rungs and
-    //! its breaks are structure read in `f64` (the wall's held knot lines,
-    //! the miss at the scalar's midpoint), which [`Real`](super::Real) offers no read for
-    //! but `Bounds::lo`/`hi`. Those reads place rungs and breaks and decide
-    //! nothing; `CertifiedEnclosure` is `chart_image`'s, which the first
-    //! rung calls.
+    //! `chart_image`'s bound and nothing wider. Necessity: its chain, its
+    //! feet and its miss are structure read in `f64` (the carrier's held
+    //! knots, a foot's chart point and the miss at the scalar's
+    //! midpoint), which [`Real`](super::Real) offers no read for but
+    //! `Bounds::lo`/`hi`. Those reads place feet and knots, and three of
+    //! them are compared with the band's zero as raw `f64`: the miss
+    //! against the image's share of it (whether a span takes a knot),
+    //! and, at a start on a closed wall's seam, whether the two chart
+    //! points are one point of the wall (`closes`) and whether their
+    //! standoffs tie (`tied`). Each chooses structure, never a
+    //! certificate's verdict: the image is evidence its consumer bounds.
+    //! Past its cap the function refuses on the last round's sampled miss,
+    //! through the classifier, in limb 2's words
+    //! (`ssi::certify::image_miss`): a refusal, never a certificate. The
+    //! image is one per scalar, since the midpoints differ in the last
+    //! places between `f64` and `Interval`. `CertifiedEnclosure` is the
+    //! projection's.
+    //! `geom_brep::ssi::certify`'s `partner_before_image_miss`, the one
+    //! order in which that refusal and an analytic partner's limbs are
+    //! read, rides at the same bound: it reads no bracket, and the bound
+    //! is `incidence_limbs`'s, which it calls on the partner.
     //!
     //! **2026-11-12 (under the M7-8 / C2 precedent; retroactive Ev review)
     //! — `geom_brep::edge_nurbs`'s `curved_nurbs_limbs`**, the lane's

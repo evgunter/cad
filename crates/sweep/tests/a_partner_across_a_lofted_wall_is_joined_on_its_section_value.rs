@@ -72,10 +72,6 @@ fn stops_past_the_join(refusal: &BooleanError, t: Tol) -> bool {
 /// spline face
 /// (`work/inside/point-containments-ray-test-has-no-spline-arm.md`).
 ///
-/// At `ε = 1e-12` the chord stops at its certificate instead: the lane's
-/// image of the arc on the wall misses its foot path by more than that ε
-/// (`work/sectarms/a-curved-partners-arc-is-imaged-at-rest-no-finer-than-the-mints-finest-rung.md`).
-///
 /// Red against: a certificate with no arm for a sphere beside a spline
 /// (`CertifyError::Unimplemented`); the join reading a spline × sphere
 /// germ through a frame (`GermFrameUnsupported`); a table that does not
@@ -95,11 +91,10 @@ fn a_ball_across_a_lofted_wall_is_joined_and_its_chord_certifies_at_rest() {
         );
         let refusal =
             topo::union(&prism, &ball, t).expect_err("no ray crosses the prism's spline walls");
-        let read = stops_past_the_join(&refusal, t);
         assert!(
-            read,
+            stops_at_containment(&refusal),
             "{what}: the chord certifies at rest and the join completes, the inside/outside \
-             test refusing the wall (at ε = 1e-12, the chord's image misses): {refusal:?}"
+             test refusing the wall: {refusal:?}"
         );
     }
 }
@@ -153,8 +148,9 @@ fn a_ball_across_two_close_arcs_of_a_lofted_wall_passes_the_carry_and_the_join()
 /// completes, and the union stops past it at the inside/outside test,
 /// which cannot cross a spline face; a brick wholly inside the prism
 /// stops there too, but with no pair crossing the wall. Across the
-/// flared wall the plane × spline certificate refuses the chord, its own
-/// image missing it (at `ε = 1e-6`, its hull value escalating first).
+/// flared wall the plane × spline certificate holds the chord, on the
+/// wall's image of the arc built on the arc's own knots, and the union
+/// stops at the same test.
 ///
 /// Red against: a carried chord refused on a planar face; the join
 /// reading a plane × spline germ through a frame.
@@ -196,21 +192,11 @@ fn a_brick_across_a_lofted_wall_is_joined_on_its_carried_arcs() {
          wall: {refusal:?}"
     );
     let flared = brick((-0.25, 0.35), (-1.3, -0.8), (0.75, 1.25));
-    let refusal = topo::union(&prism, &flared, t).expect_err("the plane × spline lane refuses");
-    // At `ε = 1e-6` the lane's hull value escalates before its image is
-    // read; at every other row the image misses the chord.
-    let read = match chord_certificate(&refusal) {
-        Some(geom_brep::CertifyError::Escalated {
-            check: geom_brep::CertCheck::PlaneNurbsHullValue,
-            ..
-        }) => t.eps() == 1e-6,
-        Some(geom_brep::CertifyError::PlaneNurbs(_)) => t.eps() != 1e-6,
-        _ => false,
-    };
+    let refusal = topo::union(&prism, &flared, t).expect_err("the result's containment refuses");
     assert!(
-        read,
-        "the flared wall: the join mints the carried chord, which the plane × spline lane \
-         reads: {refusal:?}"
+        stops_at_containment(&refusal),
+        "the flared wall: the carried chord certifies at rest, the join completes, and the \
+         inside/outside test cannot cross the wall: {refusal:?}"
     );
 }
 

@@ -40,3 +40,14 @@ start vertex's stored chart point, across a closed wall's seam. The
 build of that decision (`a-node-arcs-chord-misses-its-at-rest-chart-image`
 and its two siblings) is briefed to say which projection defects it
 fixes. Re-read this row when that item closes.
+
+## Beside `sectarms/one-image-function` (2026-11-23)
+
+Not fixed there. That lane's wall image of a carrier
+(`geom_brep::carrier_image`) reads a closed wall's seam from the side
+its foot path runs on (each foot is Newton's from the last, and a start
+on the seam takes the far side of the rectangle where the path leaves
+into it from there; `carrier_image_rows::the_foot_path_reads_a_closed_walls_seam_from_the_side_it_runs_on`).
+`ring_path::SplineWall::foot` is a point's own foot by
+`NurbsSurface::project`, which that lane does not touch: a point just
+below the seam still has no foot here.

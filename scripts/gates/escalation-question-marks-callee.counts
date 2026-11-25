@@ -36,6 +36,10 @@ crates/geom-brep/src/props/quad/trimmed.rs 1
 # ssi certify: limb_three's ladder over radii, the rung that certifies is
 # the certificate's tube: WHICH.
 crates/geom-brep/src/ssi/certify.rs 1
+# ends: finish images the carrier at each grade of a node end; a foot
+# path that cannot be followed, or an image past its cap, is the
+# candidate's refusal at every grade: NOT A SEARCH.
+crates/geom-brep/src/ssi/ends.rs 1
 # ssi march and refine: each step's or round's read is the next one's
 # premise: NOT A SEARCH.
 crates/geom-brep/src/ssi/march.rs 1

@@ -39,7 +39,7 @@
 use geom::{Curve3, NurbsCurve2, NurbsCurve3, Surface};
 use geom_core::linalg::svd::Svd;
 use geom_core::spline::KnotVector;
-use geom_core::{Band, Margin, Point2, Point3};
+use geom_core::{Band, Margin, Point3};
 
 use super::boundary::Crossing;
 use super::exhaust::UvRect;
@@ -50,9 +50,7 @@ use super::march::{
 use super::refine::refine_by_certificate;
 use super::section::{BandVerdict, band_verdict};
 use super::system::{ImplicitChartR2, LocalSystem, ParametricPairR4, SectionSystem};
-use super::{
-    BranchBound, FittedBranch, SsiBranch, SsiError, SsiOperand, certify, fit_branch, seam_tol,
-};
+use super::{BranchBound, SsiBranch, SsiError, SsiOperand, certify, fit_branch, seam_tol};
 
 /// The most knots [`Ends::graded`] inserts toward one node end (D9).
 pub(crate) const NODE_GRADES: usize = 512;
@@ -140,6 +138,47 @@ pub(crate) enum Operands<'a> {
 }
 
 impl<'a> Operands<'a> {
+    /// **The wall images of a fitted carrier**, one per NURBS operand
+    /// ([`crate::carrier_image`]): the image the pcurve mint and the
+    /// at-rest certificate derive for the same carrier, so what a branch
+    /// is certified on is what rest reads again.
+    ///
+    /// # Errors
+    ///
+    /// The image's refusal ([`crate::carrier_image::ImageRefusal::into_lane`]);
+    /// against an analytic partner, a miss past the cap after the
+    /// partner's own limbs ([`certify::partner_before_image_miss`]).
+    fn images(&self, carrier: &NurbsCurve3<f64>, band: Band) -> Result<Pcurves, certify::Located> {
+        let params = carrier.knot_values().domain();
+        let fitted = carrier;
+        let carrier = Curve3::Nurbs(std::sync::Arc::new(carrier.clone()));
+        match self {
+            Self::Implicit { wall, partner } => {
+                let SsiOperand::Nurbs(wall) = wall else {
+                    return Ok((None, None));
+                };
+                // An image that misses past its cap reads the partner's
+                // limbs first, by the one rule.
+                let image =
+                    crate::carrier_image::carrier_image(&carrier, params, wall.surface(), band)
+                        .map_err(|e| {
+                            certify::located_before_image_miss(e.into_lane(), fitted, partner, band)
+                        })?;
+                Ok((None, Some(image)))
+            }
+            Self::Pair { a, b } => {
+                let (pa, pb) = crate::carrier_image::carrier_images(
+                    &carrier,
+                    params,
+                    (a.surface(), b.surface()),
+                    band,
+                )
+                .map_err(crate::carrier_image::ImageRefusal::into_lane::<SsiError>)?;
+                Ok((Some(pa), Some(pb)))
+            }
+        }
+    }
+
     /// The certificate's lane for a fitted triple's pcurves.
     fn lane<'b>(
         &self,
@@ -178,7 +217,10 @@ impl<'a> Operands<'a> {
     }
 }
 
-/// The fitted triple of a state polyline, on one shared parameter.
+/// The wall images of a fitted carrier, the first operand's first.
+type Pcurves = (Option<NurbsCurve2<f64>>, Option<NurbsCurve2<f64>>);
+
+/// The fitted carrier of a state polyline.
 ///
 /// # Errors
 ///
@@ -186,12 +228,9 @@ impl<'a> Operands<'a> {
 pub(crate) fn fit_states<const M: usize, const N: usize, S: SectionSystem<M, N>>(
     sys: &S,
     states: &[[f64; N]],
-) -> Result<FittedBranch, SsiError> {
+) -> Result<NurbsCurve3<f64>, SsiError> {
     let points: Vec<Point3<f64>> = states.iter().map(|s| sys.point(s)).collect();
-    let chart =
-        |k: usize| -> Option<Vec<Point2<f64>>> { states.iter().map(|s| sys.feet(s)[k]).collect() };
-    let (chart_a, chart_b) = (chart(0), chart(1));
-    fit_branch(&points, [chart_a.as_deref(), chart_b.as_deref()])
+    fit_branch(&points)
 }
 
 /// Ends a marched half-branch `states` (its last state the last one
@@ -736,7 +775,8 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
                 // (Self::graded); every other refusal stands at once.
                 let mut level = 0;
                 loop {
-                    let (carrier, pa, pb) = self.graded((end, level), states, fitted.clone())?;
+                    let carrier = self.graded((end, level), states, fitted.clone())?;
+                    let (pa, pb) = self.operands.images(&carrier, self.band)?;
                     let lane = self.operands.lane(pa.as_ref(), pb.as_ref())?;
                     match certify::certify_located(
                         &carrier,
@@ -762,9 +802,9 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
         Ok(self.branch(carrier, pa, pb, cert, end, march_tol))
     }
 
-    /// **A fitted triple graded toward its node ends**, at grade `level`:
-    /// knots inserted into the carrier and both pcurves alike
-    /// (evaluation-invariant in ℝ, so the spans stay one list), at
+    /// **A fitted carrier graded toward its node ends**, at grade `level`:
+    /// knots inserted into the carrier (evaluation-invariant in ℝ), which
+    /// its wall images are then built on, at
     /// `t_n ± L·rᵏ` from each node end `t_n`, `L` the domain's length and
     /// `r = 1 − 1/(3·2^level)`, and [`NODE_GRADE_FINE`] grades finer
     /// within [`NODE_FINE_CHORDS`] of the states' last chord of the node,
@@ -790,15 +830,14 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
         &self,
         (end, level): (BranchEnd, u32),
         states: &[[f64; N]],
-        triple: FittedBranch,
-    ) -> Result<FittedBranch, SsiError> {
+        carrier: NurbsCurve3<f64>,
+    ) -> Result<NurbsCurve3<f64>, SsiError> {
         let BranchEnd::Node { from, to } = end else {
-            return Ok(triple);
+            return Ok(carrier);
         };
         let (Some(&[a0, a1]), Some(&[b0, b1])) = (states.first_chunk(), states.last_chunk()) else {
-            return Ok(triple);
+            return Ok(carrier);
         };
-        let (carrier, pa, pb) = triple;
         let (t0, t1) = carrier.domain();
         let chord = |a: &[f64; N], b: &[f64; N]| (b[0] - a[0]).hypot(b[1] - a[1]);
         let length: f64 = states.windows(2).map(|w| chord(&w[0], &w[1])).sum();
@@ -827,7 +866,7 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
             }
         }
         if add.is_empty() {
-            return Ok((carrier, pa, pb));
+            return Ok(carrier);
         }
         add.sort_by(f64::total_cmp);
         add.dedup();
@@ -838,27 +877,20 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
         let refused = |_| SsiError::UnsupportedCertificate {
             what: "the node grading's knot insertion refused distinct interior knots",
         };
-        let carrier = carrier.refine_knots(&add).map_err(refused)?;
-        let pa = pa
-            .map(|p| p.refine_knots(&add))
-            .transpose()
-            .map_err(refused)?;
-        let pb = pb
-            .map(|p| p.refine_knots(&add))
-            .transpose()
-            .map_err(refused)?;
-        Ok((carrier, pa, pb))
+        carrier.refine_knots(&add).map_err(refused)
     }
 
-    /// The certificate on a fitted triple, and the branch.
+    /// The certificate on a carrier and its wall images, and the branch.
     fn certified(
         &self,
         carrier: NurbsCurve3<f64>,
-        pa: Option<NurbsCurve2<f64>>,
-        pb: Option<NurbsCurve2<f64>>,
         end: BranchEnd,
         march_tol: f64,
     ) -> Result<SsiBranch, SsiError> {
+        let (pa, pb) = self
+            .operands
+            .images(&carrier, self.band)
+            .map_err(|located| located.error)?;
         let lane = self.operands.lane(pa.as_ref(), pb.as_ref())?;
         let cert = certify::certify_branch(
             &Curve3::Nurbs(std::sync::Arc::new(carrier.clone())),
@@ -898,8 +930,8 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
     }
 
     /// **The Hermite candidate**: the cubic from `a` to `b`
-    /// through their tangents, each scaled to the ends' distance, as one
-    /// cubic Bézier per chart on a shared parameter, and the carrier the
+    /// through their tangents, each scaled to the ends' distance: the
+    /// carrier is the
     /// Bézier through the system's images of the control states. A
     /// plane's chart is affine, so where the system reads its point on a
     /// plane's chart the carrier is that chart's image of its own
@@ -940,18 +972,9 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
                 ctrl.iter().map(|s| self.sys.point(s)).collect(),
                 vec![1.0; 4],
             )?;
-            let pcurve = |k: usize| {
-                ctrl.iter()
-                    .map(|s| self.sys.feet(s)[k])
-                    .collect::<Option<Vec<_>>>()
-                    .map(|feet| NurbsCurve2::new(bezier()?, feet, vec![1.0; 4]))
-                    .transpose()
-            };
-            let pa = pcurve(0)?;
-            let pb = pcurve(1)?;
-            Ok::<_, geom_core::spline::SplineError>((carrier, pa, pb))
+            Ok::<_, geom_core::spline::SplineError>(carrier)
         })();
-        let Ok((carrier, pa, pb)) = built else {
+        let Ok(carrier) = built else {
             // A non-finite tangent scale: the certificate has nothing to
             // decide.
             return Err(SsiError::UnsupportedCertificate {
@@ -962,7 +985,7 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
             from: a.at,
             to: b.at,
         };
-        self.certified(carrier, pa, pb, end, march_tol)
+        self.certified(carrier, end, march_tol)
     }
 }
 

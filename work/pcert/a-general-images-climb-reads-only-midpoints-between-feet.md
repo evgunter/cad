@@ -45,3 +45,12 @@ evaluations, not projections). Two candidates:
 
 The certificate reads the whole span, so no reading here is unsound.
 Each blind spot only keeps a coarse image the certificate then refuses.
+
+
+**A fresh instance, not a closure (2026-11-25, PR 7537).** The climb is
+gone: the image is `geom_brep::carrier_image`, on the carrier's own
+knots. Its refinement reads the same place. `carrier_image::miss` is
+taken midway between each pair of feet and nowhere else, so a path that
+wanders between a foot and that midpoint still keeps a chain its
+certificate refuses. The second blind spot above is narrower than it
+was, since a spline carrier's knots are now the chain's.

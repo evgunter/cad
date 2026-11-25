@@ -2,10 +2,12 @@
 id: a-node-arcs-chord-misses-its-at-rest-chart-image
 kind: issue
 title: A node arc's chord does not certify at rest, the fixed foot schedule's spans too coarse at the node for limb 3
-status: open
+status: review
 opened: 2026-11-13
 priority: P1
 cost: M
+branch: sectarms/one-image-function
+pr: 7537
 ---
 
 Filed by the `sectarms/spline-node-carry` lane

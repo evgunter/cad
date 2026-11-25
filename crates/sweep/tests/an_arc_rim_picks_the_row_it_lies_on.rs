@@ -18,7 +18,7 @@
 
 use core::f64::consts::{FRAC_1_SQRT_2, FRAC_PI_2};
 use geom::{NurbsSurface, Surface};
-use geom_brep::{CertifyError, EdgeDescriptionSpec, PlaneNurbsRefusal, SsiLimb, SurfacePair};
+use geom_brep::{EdgeDescriptionSpec, SurfacePair};
 use geom_core::spline::{KnotVector, Knots};
 use geom_core::{Band, Point2, Point3, Tol, Vec3};
 use profile::test_support::bulge_loop;
@@ -27,7 +27,7 @@ use sweep::{TubeWindow, tube_along_arc};
 use topo::construction::Construct;
 use topo::construction::FaceSurface;
 use topo::pcurves::PcurveMintError;
-use topo::{Body, EulerOpError, FaceKey, HalfEdgeKey, Pcurve};
+use topo::{Body, FaceKey, HalfEdgeKey, Pcurve};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -211,18 +211,13 @@ fn a_half_rim_takes_its_rows_arc() {
     }
 }
 
-/// **An `Intersection` circle on a spline chart is refused at the
-/// door, on the certificate's own image.** The spline Intersection certificate
-/// takes a circle carrier and reads it as it reads a spline, so the
-/// rim's circle restated as the cap × wall `Intersection` reaches limb
-/// 2: its chart image, degree 1 over the schedule's feet, misses the
-/// semicircle by its chord error, and the hull measures that past ε at
-/// a break where the circle's own foot is on the wall. The refusal says
-/// the image misses, not that the exact circle is off its surfaces.
-/// `nurbs_iso_derive` offers an `Intersection` circle the door does
-/// certify to the arc rim, and keeps the rim only where it certifies.
+/// **An `Intersection` circle on a spline chart certifies at the door.**
+/// The spline Intersection certificate takes a circle carrier and reads
+/// it as it reads a spline, so the rim's circle restated as the cap ×
+/// wall `Intersection` reaches limb 2 on the wall's image of it, which
+/// follows the semicircle's bend in the chart, and the three limbs hold.
 #[test]
-fn an_intersection_circle_on_a_spline_wall_is_refused_at_the_door() {
+fn an_intersection_circle_on_a_spline_wall_certifies_at_the_door() {
     let mut body = semicircle_prism();
     let (_, [bottom, _]) = arc_wall(&body);
     let edge = body.get_half_edge(bottom).unwrap().edge;
@@ -238,34 +233,11 @@ fn an_intersection_circle_on_a_spline_wall_is_refused_at_the_door() {
         pair: SurfacePair::new(s1, s2),
         selector: geom_brep::CurveSelector::Witness(geom.carrier().eval(0.5 * (t0 + t1))),
     };
-    let before = format!("{body:?}");
-    let refused = body.set_edge_curve(edge, spec, tol());
-    let Err(EulerOpError::DescriptionUncertified {
-        error: ref error @ CertifyError::PlaneNurbs(PlaneNurbsRefusal::Limb { limb, margin }),
-        ..
-    }) = refused
-    else {
-        panic!(
-            "the rim's circle is refused at a limb of the spline Intersection certificate: {refused:?}"
-        )
-    };
-    assert_eq!(
-        limb,
-        SsiLimb::ImageMiss,
-        "limb 2 refuses it at a break where the circle is on the wall"
-    );
-    let miss = margin.diagnostic_f64_for_error_text().value();
+    let restated = body.set_edge_curve(edge, spec, tol());
     assert!(
-        miss.is_some_and(|m| (band().zero()..1e-2).contains(&m)),
-        "the chord error, measured past ε: {miss:?}"
+        restated.is_ok(),
+        "the rim's circle certifies as the spline Intersection: {restated:?}"
     );
-    let words = error.to_string();
-    assert!(
-        words.contains("own image of the carrier misses the carrier's foot path")
-            && words.contains("not shown off its surfaces"),
-        "the refusal names the image, not the carrier: {words}"
-    );
-    assert_eq!(format!("{body:?}"), before, "the body is untouched");
 }
 
 /// The quarter tube's major and minor radii.

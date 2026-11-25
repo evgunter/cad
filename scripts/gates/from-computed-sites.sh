@@ -153,7 +153,7 @@ FROM_COMPUTED_CLASS_RE='^(door|scalar|place-step|owed[(][A-Za-z0-9_.-]+[)])$'
 FROM_COMPUTED_DOOR_RE='^crates/geom-core/src/solved([.]rs$|/)'
 FROM_COMPUTED_PLACE_STEPS=(
   crates/geom/src/places.rs:at_place
-  crates/geom-brep/src/edge_nurbs.rs:station
+  crates/geom-brep/src/carrier_image.rs:point
   crates/topo/src/spline_trim.rs:split
   crates/topo/src/spline_trim.rs:refined
 )

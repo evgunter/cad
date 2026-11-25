@@ -20,7 +20,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::test_support::upper;
 use geom_core::{Dual64, Tol, Vec3};
 use topo::construction::Construct;
 use topo::{Body, EdgeKey, FaceKey, ReplaceFaceError, ShellError};
@@ -205,14 +204,11 @@ fn the_curved_lofts_cap_moves_its_corners_along_the_slanted_seams() {
 /// wall's offset fit before any edge. Where ε is tighter than the fit
 /// reaches it refuses at a wall's fit. Where the fit certifies, every
 /// wall–wall seam derives as the NURBS × NURBS section of its two moved
-/// fits, and the shell refuses at a top rim's at-rest certificate: the
-/// plane × fit lane's chart image of the rim is the degree-1 interpolant
-/// of its fixed foot schedule, and on this twisted wall limb 2's value
-/// at a break is about 1e-6 m: in the band at 1e-6, where it escalates,
-/// and past it at 1e-9, where it refuses outright
-/// (`work/isotail/a-moved-lofts-top-rim-refuses-its-at-rest-certificate.md`).
+/// fits, every rim certifies at rest on its wall's image of it, and the
+/// thin solid is assembled; tier 3 then discards it, a fitted face's
+/// volume being one the kernel does not yet measure.
 #[test]
-fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
+fn shelling_the_curved_loft_refuses_at_a_walls_fit_or_at_tier_three() {
     let body = twisted_loft(0.3);
     let e = topo::shell(
         &finished("the operand", body.clone(), Tol::witness()),
@@ -220,97 +216,66 @@ fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
         Tol::witness(),
     )
     .expect_err("a spline-walled body does not shell today");
+    // Which door answers first depends on ε: a wall's fit reaches
+    // `SADDLE_WALL_CAP_REACH` on a 62 x 35 grid, the last within the sample cap,
+    // so below that the fit refuses at the cap, and above it the fit
+    // certifies and the shell is assembled.
+    let eps = Tol::witness().eps();
+    if eps >= SADDLE_WALL_CAP_REACH {
+        let ShellError::NotValid { findings } = &e else {
+            panic!(
+                "eps {eps:e}: expected the thin solid's tier-3 refusal, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            );
+        };
+        assert!(
+            !findings.is_empty()
+                && findings.iter().all(|f| matches!(
+                    f,
+                    topo::ValidationError::VolumeUncomputable {
+                        source: topo::MassPropsError::Face {
+                            source: geom_brep::PropsError::QuadratureUnsupported { .. },
+                            ..
+                        },
+                        ..
+                    }
+                )),
+            "eps {eps:e}: expected only faces whose quadrature is not built, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        );
+        return;
+    }
     let ShellError::Face { face, error } = &e else {
         panic!(
             "expected a per-face offset refusal, got {e_at}",
             e_at = e.render(geom_brep::recourse::Reading::Build)
         );
     };
-    // Which door answers first depends on ε: a wall's fit reaches
-    // `SADDLE_WALL_CAP_REACH` on a 62 x 35 grid, the last within the sample cap,
-    // so below that the fit refuses at the cap, and above it the fit
-    // certifies and the seams derive.
-    let eps = Tol::witness().eps();
-    if eps < SADDLE_WALL_CAP_REACH {
-        assert!(
-            is_spline_wall(&nurbs_walls(&body), *face),
-            "the refusing face is not a wall: {e_at}",
+    assert!(
+        is_spline_wall(&nurbs_walls(&body), *face),
+        "the refusing face is not a wall: {e_at}",
+        e_at = e.render(geom_brep::recourse::Reading::Build)
+    );
+    let ReplaceFaceError::Fit {
+        error:
+            geom_brep::OffsetFitError::WallReached {
+                wall: geom_brep::OffsetFitWall::SampleCap { .. },
+                achieved,
+                grid,
+                ..
+            },
+        ..
+    } = error.as_ref()
+    else {
+        panic!(
+            "eps {eps:e}: expected the wall's fit to reach the sample cap, got {e_at}",
             e_at = e.render(geom_brep::recourse::Reading::Build)
         );
-        let ReplaceFaceError::Fit {
-            error:
-                geom_brep::OffsetFitError::WallReached {
-                    wall: geom_brep::OffsetFitWall::SampleCap { .. },
-                    achieved,
-                    grid,
-                    ..
-                },
-            ..
-        } = error.as_ref()
-        else {
-            panic!(
-                "eps {eps:e}: expected the wall's fit to reach the sample cap, got {e_at}",
-                e_at = e.render(geom_brep::recourse::Reading::Build)
-            );
-        };
-        assert!(
-            *grid == (62, 35) && (achieved - SADDLE_WALL_CAP_REACH).abs() < 1e-14,
-            "eps {eps:e}: the fit stopped at {achieved:e} on {grid:?}"
-        );
-    } else {
-        // Limb 2's hull value at a break on the rim: 1.5994e-6 m at 1e-9,
-        // past the band, so it refuses outright; 1.02e-6 m at 1e-6, in the
-        // band, so it escalates. The rim's own foot reads 2.2e-16 m at
-        // that break, so the miss is its pcurve's (`ImageMiss`). It moves when the rim's derivation does,
-        // so the 1e-9 arm reads it within 5%.
-        let ReplaceFaceError::Op {
-            error:
-                topo::EulerOpError::DescriptionUncertified {
-                    edge: topo::EdgeSubject::Keyed(edge),
-                    error,
-                },
-            ..
-        } = error.as_ref()
-        else {
-            panic!("eps {eps:e}: expected a rim's at-rest certificate to refuse, got {error:?}");
-        };
-        if eps < 1e-7 {
-            let geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
-                limb: geom_brep::ssi::SsiLimb::ImageMiss,
-                margin,
-            }) = error
-            else {
-                panic!("eps {eps:e}: expected limb 2's value to refuse outright, got {error:?}");
-            };
-            let value = margin.diagnostic_f64_for_error_text().value();
-            assert!(
-                value.is_some_and(|v| (v - 1.5994e-6).abs() <= 0.05 * 1.5994e-6),
-                "eps {eps:e}: limb 2 reads {value:?}"
-            );
-        } else {
-            assert!(
-                matches!(
-                    error,
-                    geom_brep::CertifyError::Escalated {
-                        check: geom_brep::CertCheck::PlaneNurbsHullValue,
-                        ..
-                    }
-                ),
-                "eps {eps:e}: expected limb 2 to escalate in the band, got {error:?}"
-            );
-        }
-        // The refusing edge is a top rim: the top cap's edge with a wall.
-        let halves = body.get_edge(*edge).expect("the refused edge resolves");
-        let sides: Vec<FaceKey> = [halves.he_plus, halves.he_minus]
-            .into_iter()
-            .filter_map(|he| body.face_of_half_edge(he))
-            .collect();
-        let walls = nurbs_walls(&body);
-        assert!(
-            sides.contains(&top_cap(&body)) && sides.iter().any(|k| is_spline_wall(&walls, *k)),
-            "eps {eps:e}: {edge:?} is not a top rim, its faces are {sides:?}"
-        );
-    }
+    };
+    assert!(
+        *grid == (62, 35) && (achieved - SADDLE_WALL_CAP_REACH).abs() < 1e-14,
+        "eps {eps:e}: the fit stopped at {achieved:e} on {grid:?}"
+    );
 }
 
 /// An OUTWARD cap offset runs each seam's corner past the end of the
@@ -714,18 +679,14 @@ fn tilted_top_prism() -> Body<f64> {
         .into_body()
 }
 
-/// The march arm builds nothing yet: the moved tilted cap's section of
-/// each polynomial wall is certified by the march, and the plane ×
-/// NURBS edge certificate's limb 2 reads its composite a few
-/// micrometres at a break where the marched branch's own foot is on the
-/// wall (its foot reads 8.3e-17 and 2.8e-17 m at the two refusing
-/// breaks at 1e-9): the pcurve's own miss (`SsiLimb::ImageMiss`), the
-/// branch lying on both surfaces to ~5e-11
-/// (`work/ssiedge/plane-nurbs-limb-two-refuses-a-non-row-section.md`).
-/// The gap is a length, not a multiple of ε, so which verdict it earns
-/// is ε's: past the band it refuses, inside the band it escalates.
+/// **A tilted cap moves along its marched rims.** The moved tilted cap's
+/// section of each polynomial wall is no row of the wall, so the section
+/// lane marches it, and the plane × NURBS edge certificate holds the
+/// marched branch at rest on the wall's image of it, built on the
+/// branch's own knots. The move builds, and the four top corners stand
+/// on the moved cap's plane.
 #[test]
-fn a_tilted_caps_marched_rim_refuses_at_its_certificate() {
+fn a_tilted_caps_marched_rim_certifies_and_the_cap_moves() {
     let body = tilted_top_prism();
     let cap = body
         .faces()
@@ -737,57 +698,34 @@ fn a_tilted_caps_marched_rim_refuses_at_its_certificate() {
         })
         .map(|(k, _)| k)
         .expect("the tilted top cap");
-    // The march's own tolerance is ε's, so the gap moves with it (about
-    // 3.1e-6 to 3.7e-6 at d = -0.05 and 1.4e-5 to 1.5e-5 at d = -0.2
-    // over ε in [1e-12, 1e-6]); it stays micrometres.
     let eps = Tol::witness().eps();
-    let micrometres = 1e-6..1e-4;
+    // The cap's plane: through the prism's centre at its top, tilted 0.2
+    // rad about `x`.
+    let (centre, normal) = (
+        geom_core::Point3::new(1.0, 1.0, 1.0),
+        Vec3::new(0.0, -0.2_f64.sin(), 0.2_f64.cos()),
+    );
     for d in [-0.05, -0.2] {
         let mut moved = body.clone();
-        let e = topo::replace_face_offset(&mut moved, cap, d, Tol::witness())
-            .expect_err("the marched rim does not certify");
-        let ReplaceFaceError::Op {
-            error: topo::EulerOpError::DescriptionUncertified { error, .. },
-            ..
-        } = &e
-        else {
+        topo::replace_face_offset(&mut moved, cap, d, Tol::witness()).unwrap_or_else(|e| {
             panic!(
-                "d {d}: expected the marched rim's certificate to refuse, got {e_at}",
+                "eps {eps:e}, d {d}: the tilted cap moves: {e_at}",
                 e_at = e.render(geom_brep::recourse::Reading::Build)
-            );
-        };
-        match error {
-            geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
-                limb: geom_brep::ssi::SsiLimb::ImageMiss,
-                margin,
-            }) => {
-                let value = upper(*margin);
+            )
+        });
+        let mut top = 0;
+        for (_, v) in moved.vertices() {
+            let p = *moved.get_point(v.point).expect("a live vertex's point");
+            if p.z > 0.25 {
+                let height = ((p - centre).dot(normal) - d).abs();
                 assert!(
-                    micrometres.contains(&value) && value > 10.0 * eps,
-                    "eps {eps:e}, d {d}: limb 2 read {margin:e} at a break"
+                    height <= eps,
+                    "eps {eps:e}, d {d}: a top corner at {p:?} is {height:e} off the moved cap"
                 );
+                top += 1;
             }
-            // The door's escalation carries the check and the cause, not
-            // the limb, and `ImageMiss` shares `HullValueChart`'s check and
-            // predicate, so this arm pins the break's value as what
-            // escalated; the limb is pinned where a refusal is definite.
-            geom_brep::CertifyError::Escalated { check, cause, .. } => {
-                assert_eq!(*check, geom_brep::ssi::SsiLimb::ImageMiss.check());
-                assert_eq!(
-                    cause.predicate,
-                    Some("ssi_hull_value_chart"),
-                    "eps {eps:e}, d {d}: the break's value escalated, not the bound"
-                );
-                assert!(
-                    10.0 * eps > micrometres.start,
-                    "eps {eps:e}, d {d}: limb 2 escalated with no micrometre in the band"
-                );
-            }
-            _ => panic!(
-                "eps {eps:e}, d {d}: expected limb 2 to answer, got {e_at}",
-                e_at = e.render(geom_brep::recourse::Reading::Build)
-            ),
         }
+        assert_eq!(top, 4, "eps {eps:e}, d {d}: the moved cap has four corners");
     }
 }
 
@@ -1169,14 +1107,11 @@ fn a_moved_fitted_cap_stands_its_corners_on_the_held_sides() {
 /// box's cap is swapped for a biquadratic NURBS bump over `[-1, 3]²`
 /// (its middle control point raised 0.1 above `z = 1`) and moved by
 /// `±0.05`. Where ε is looser than the offset fit reaches (4.382e-11
-/// m within the sample cap) and the moved rims certify (not at 1e-9)
-/// the move builds: its corners are the
+/// m within the sample cap) the move builds: its corners are the
 /// side planes' roots along the plane × fit sections, tier 3 refuses the
 /// cap's volume alone
 /// (`work/quad/a-fitted-cap-cut-by-planes-has-a-sub-range-trim-image.md`),
-/// and the moved body maps rigidly. Tighter, the fit refuses first; at
-/// 1e-9 the moved rim refuses at limb 2's value at a break where its own
-/// foot reads 1.4e-15 and 6.5e-16 m (`ImageMiss`).
+/// and the moved body maps rigidly. Tighter, the fit refuses first.
 #[test]
 fn a_moved_curved_fitted_cap_builds_where_its_fit_certifies() {
     // Pinned red: at ε = 1e-12 the cap's fit stops on (45, 48), not the
@@ -1224,9 +1159,7 @@ fn a_moved_curved_fitted_cap_builds_where_its_fit_certifies_row() {
         .expect("the cap takes a NURBS surface");
         let moved = topo::replace_face_offset(&mut body, cap, d, Tol::witness());
         // The cap's fit reaches 4.382e-11 m on a 45 x 45 grid, the last
-        // within the sample cap. Above that it certifies, and at 1e-9 the
-        // moved cap's rim then refuses at its plane × fit limb 2
-        // (6.75e-7 m, above the band).
+        // within the sample cap. Above that it certifies.
         if eps < 4.382e-11 {
             match &moved {
                 Err(ReplaceFaceError::Fit {
@@ -1246,27 +1179,6 @@ fn a_moved_curved_fitted_cap_builds_where_its_fit_certifies_row() {
                     "eps {eps:e}, d = {d}: expected the cap's fit to reach the sample cap, got {other:?}"
                 ),
             }
-            continue;
-        }
-        if eps < 2e-9 {
-            assert!(
-                matches!(
-                    moved,
-                    Err(ReplaceFaceError::Op {
-                        error: topo::EulerOpError::DescriptionUncertified {
-                            error: geom_brep::CertifyError::PlaneNurbs(
-                                geom_brep::PlaneNurbsRefusal::Limb {
-                                    limb: geom_brep::ssi::SsiLimb::ImageMiss,
-                                    ..
-                                }
-                            ),
-                            ..
-                        },
-                        ..
-                    })
-                ),
-                "eps {eps:e}, d = {d}: expected the moved cap's rim to refuse its limb 2, got {moved:?}"
-            );
             continue;
         }
         moved.unwrap_or_else(|e| {

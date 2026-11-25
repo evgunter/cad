@@ -2550,7 +2550,10 @@ impl<T: geom_core::Certifies + geom_core::CertifiedBounds> EdgeCurve<T> {
     /// stored there. An `OnPair` on a plane × NURBS pair whose wall is
     /// that surface certifies its wall side through that image as it
     /// stands, rather than one derived here
-    /// ([`crate::plane_nurbs_incidence`]); any other description ignores
+    /// ([`crate::plane_nurbs_incidence`]): an image its certificate
+    /// refuses definitely refuses the edge
+    /// ([`crate::PlaneNurbsRefusal::StatedImage`]), so `Ok` never covers
+    /// a stated image that was refused. Any other description ignores
     /// it.
     ///
     /// # Errors
@@ -3834,9 +3837,8 @@ pub(crate) fn schedule_fraction(i: u32, samples: u32) -> f64 {
 /// reads this: the certification schedule ([`sample_param`], and
 /// through it the SSI certificate's limb 1, tier 3, the contact
 /// verifier, the importer's plane and arc-rim checks and the blend
-/// battery), the plane × NURBS chart image's foot schedule and the
-/// parameter its refusals report, and the ellipse-on-cylinder pcurve
-/// fit. A tessellation's chords and a quadrature's pieces partition an
+/// battery), the schedule the plane × NURBS lanes read a chart image's
+/// transversality at, and the ellipse-on-cylinder pcurve fit. A tessellation's chords and a quadrature's pieces partition an
 /// interval rather than sample it, and assign their ends themselves.
 ///
 /// # Panics

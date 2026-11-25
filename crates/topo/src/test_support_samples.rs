@@ -494,6 +494,14 @@ fn plane_nurbs_refusals() -> Vec<PlaneNurbsRefusal> {
             limb: geom_brep::SsiLimb::HullValueChart,
             bound: MarginDiag::value(4.6e-4),
         }),
+        PlaneNurbsRefusal::StatedImage {
+            iso: Some(geom_brep::PcurveCheck::MapResidual),
+            read: Some(MarginDiag::value(4.6e-4)),
+        },
+        PlaneNurbsRefusal::StatedImage {
+            iso: Some(geom_brep::PcurveCheck::ParamSpan),
+            read: None,
+        },
         PlaneNurbsRefusal::TubeNotOneArc {
             rungs: 3,
             cause: geom_brep::ssi::OneArcRefusal::Short,
@@ -2877,6 +2885,15 @@ mod tests {
                         P::ArcRim(r) => {
                             let (c, arm) = r.decision();
                             check(c, arm)
+                        }
+                        _ => unreachable!("the kind is the arm"),
+                    },
+                    PK::StatedImage => match &refusal {
+                        P::StatedImage { iso, read } => {
+                            match iso.and_then(geom_brep::PcurveCheck::incidence_limb) {
+                                Some(limb) => check(limb.check(), RefusedArm::SignCertain(*read)),
+                                None => check(geom_brep::SsiLimb::HullValueChart.check(), definite),
+                            }
                         }
                         _ => unreachable!("the kind is the arm"),
                     },

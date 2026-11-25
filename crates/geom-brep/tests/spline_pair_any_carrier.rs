@@ -4,11 +4,11 @@
 //! (`geom_brep::carrier_net`) exactly as they read a spline, and a
 //! closed form refuses where, and by what, its spline twin does.
 //!
-//! The verdicts are the lanes' own: a line's degree-1 chart image
-//! certifies on a flat wall, and a circle's or an ellipse's refuses at
-//! the hull wherever its degree-1 image's chord error passes the band,
-//! with that error measured. Each row offers the same locus as a
-//! spline carrier and asks the same verdict of it.
+//! The verdicts are the lanes' own: a line's chart image certifies on a
+//! flat wall, and a circle's or an ellipse's takes the knots its bend
+//! asks for and certifies or refuses at a limb with its bound. Each row
+//! offers the same locus as a spline carrier and asks the same verdict
+//! of it.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -20,9 +20,8 @@ use crate::shared::tol::{band, eps};
 use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
 use geom_brep::keys::SurfaceKey;
 use geom_brep::{
-    CarrierEnclosureRefusal, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec,
-    NurbsLane, PlaneNurbsLimbs, PlaneNurbsRefusal, SsiLimb, SurfacePair, nurbs_pair_limbs,
-    plane_nurbs_limbs,
+    CarrierEnclosureRefusal, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, NurbsLane,
+    PlaneNurbsLimbs, PlaneNurbsRefusal, SsiLimb, SurfacePair, nurbs_pair_limbs, plane_nurbs_limbs,
 };
 use geom_core::spline::KnotVector;
 use geom_core::test_support::upper;
@@ -298,7 +297,7 @@ fn a_line_on_a_plane_by_spline_pair_certifies_with_its_twin() {
 
 /// **Plane × spline, a certifying circle.** A circle over a short arc
 /// ([`short`]) of the quarter-cylinder wall certifies, its enclosing
-/// net and its degree-1 image within ε, as its rational twin does.
+/// net and its chart image within ε, as its rational twin does.
 #[test]
 fn a_short_circle_on_a_plane_by_spline_pair_certifies_with_its_twin() {
     plane_rows_meet_their_twins(vec![(
@@ -311,11 +310,11 @@ fn a_short_circle_on_a_plane_by_spline_pair_certifies_with_its_twin() {
     )]);
 }
 
-/// **Plane × spline, the refusing closed forms.** A circle and an
-/// ellipse over 1.3 rad of the quarter-cylinder wall refuse at limb 2
-/// on the degree-1 image's chord error, measured, as their twins do.
+/// **Plane × spline, the long closed forms.** A circle and an ellipse
+/// over 1.3 rad of the quarter-cylinder wall certify, as their twins do:
+/// the wall's image follows each arc's bend in the chart.
 #[test]
-fn a_closed_form_carrier_on_a_plane_by_spline_pair_refuses_with_its_twin() {
+fn a_long_closed_form_carrier_on_a_plane_by_spline_pair_certifies_with_its_twin() {
     let (ellipse, tilted) = ellipse();
     for (name, carrier) in [("circle", circle(0.5)), ("ellipse", ellipse.clone())] {
         let foot = carrier_foot_sup(&carrier, (0.1, 1.4), &quarter_cylinder_wall());
@@ -332,7 +331,7 @@ fn a_closed_form_carrier_on_a_plane_by_spline_pair_refuses_with_its_twin() {
             (0.1, 1.4),
             horizontal(0.5),
             quarter_cylinder_wall(),
-            Verdict::Refused(SsiLimb::HullSup),
+            Verdict::Certified,
         ),
         (
             "ellipse, 1.3 rad",
@@ -340,7 +339,7 @@ fn a_closed_form_carrier_on_a_plane_by_spline_pair_refuses_with_its_twin() {
             (0.1, 1.4),
             tilted,
             quarter_cylinder_wall(),
-            Verdict::Refused(SsiLimb::HullSup),
+            Verdict::Certified,
         ),
     ]);
 }
@@ -401,10 +400,8 @@ fn horizontal_wall(h: f64) -> NurbsSurface<f64> {
 /// **NURBS × NURBS, a closed-form carrier.** The diagonal between the
 /// flat wall and the vertical wall through it certifies; a circle
 /// between the quarter-cylinder wall and a horizontal spline chart
-/// certifies over a short arc ([`short`]; the horizontal chart's own
-/// image of it is curved, so shorter than on the plane) and refuses at
-/// the hull over 1.3 rad. Each
-/// spline twin reaches the same verdict.
+/// certifies over a short arc ([`short`]) and over 1.3 rad. Each spline
+/// twin reaches the same verdict.
 #[test]
 fn a_closed_form_carrier_between_two_spline_charts_meets_its_twins_verdict() {
     let rows = [
@@ -430,7 +427,7 @@ fn a_closed_form_carrier_between_two_spline_charts_meets_its_twins_verdict() {
             (0.1, 1.4),
             quarter_cylinder_wall(),
             horizontal_wall(0.5),
-            Verdict::Refused(SsiLimb::HullSup),
+            Verdict::Certified,
         ),
     ];
     for (name, carrier, params, a, b, want) in rows {
@@ -770,9 +767,8 @@ fn door_spec(
 
 /// **Through the certification door**: the diagonal as a `Line` on the
 /// plane × wall pair and on the wall × wall pair certifies, recording
-/// the lane's bound, and a circle over 1.3 rad on the plane × wall pair
-/// refuses at limb 2 with its measured miss — where the door
-/// refused every non-spline carrier before it read a limb.
+/// the lane's bound, and so does a circle over 1.3 rad on the plane ×
+/// wall pair.
 #[test]
 fn the_door_certifies_a_closed_form_carrier_on_a_spline_pair() {
     let lane = NurbsLane::certified();
@@ -827,17 +823,11 @@ fn the_door_certifies_a_closed_form_carrier_on_a_spline_pair() {
         band(),
         lane,
     );
-    let Err(CertifyError::PlaneNurbs(PlaneNurbsRefusal::Limb { limb, margin })) = got else {
-        panic!("the circle refuses at a limb through the door: {got:?}")
-    };
+    let edge = got.unwrap_or_else(|e| panic!("the circle certifies through the door: {e}"));
     assert!(
-        matches!(limb, SsiLimb::HullSupChart | SsiLimb::ImageMiss),
-        "limb 2 refuses: {limb:?}"
-    );
-    assert!(
-        (eps()..1e-3).contains(&upper(margin)),
-        "a miss past ε, measured: {:e}",
-        upper(margin)
+        edge.certificate().max_residual <= eps(),
+        "the circle within ε: {:e}",
+        edge.certificate().max_residual
     );
 }
 
@@ -848,7 +838,8 @@ fn the_door_certifies_a_closed_form_carrier_on_a_spline_pair() {
 /// same interval because the chord has unit length): both certify
 /// through the door on bounds within roundoff of each other, and the
 /// chart image the certificate derives (the mint's own producer,
-/// `FittedLane::general_image`) is the same net for both.
+/// `FittedLane::general_image`) is the same curve for both, each on its
+/// own chain.
 #[test]
 fn a_promoted_line_certifies_where_its_spline_did_on_the_same_image() {
     let lane = NurbsLane::certified();
@@ -892,7 +883,12 @@ fn a_promoted_line_certifies_where_its_spline_did_on_the_same_image() {
                 (0.0, 1.0),
                 "on the edge's interval"
             );
-            image.control().iter().map(|p| (p.x, p.y)).collect()
+            (0..=64)
+                .map(|i| {
+                    let p = image.eval(f64::from(i) / 64.0);
+                    (p.x, p.y)
+                })
+                .collect()
         })
         .collect();
     let apart = images[0]
@@ -901,8 +897,8 @@ fn a_promoted_line_certifies_where_its_spline_did_on_the_same_image() {
         .map(|(a, b)| (a.0 - b.0).abs().max((a.1 - b.1).abs()))
         .fold(0.0, f64::max);
     assert!(
-        images[0].len() == images[1].len() && apart <= 1e-15,
-        "one image, its feet within roundoff: {apart:e}"
+        apart <= 1e-15,
+        "one image, its points within roundoff: {apart:e}"
     );
 }
 
@@ -915,9 +911,9 @@ fn itv(x: f64) -> geom_core::interval::Interval {
 /// **The closed forms certify alike at `Interval`.** The diagonal on
 /// the plane × wall pair and on the wall × wall pair, and a short
 /// circle on the quarter-cylinder wall, certify at `Interval` as at
-/// `f64`, each hull bound within ε; the 1.3 rad circle refuses at limb
-/// 2's break value at both scalars. The two bounds are not nested: each
-/// scalar derives its own chart image from its own foot schedule, and
+/// `f64`, each hull bound within ε, and so does the circle over 1.3 rad.
+/// The two bounds are not nested: each
+/// scalar derives its own chart image from its own feet, and
 /// each bound is certified for the image it read (the short circle's
 /// `Interval` bound comes out a few parts in 10⁶ BELOW the `f64` one at
 /// the default ε, and above it at 1e-6 and 1e-12).
@@ -929,7 +925,7 @@ fn the_closed_forms_reach_the_same_verdict_at_interval() {
     let lifted = |p: (f64, f64)| (itv(p.0), itv(p.1));
     let line = diagonal();
     let short_arc = short(0.002);
-    let certified: [(&str, Limbs, IntervalLimbs); 3] = [
+    let certified: [(&str, Limbs, IntervalLimbs); 4] = [
         (
             "line, plane × wall",
             plane_nurbs_limbs(
@@ -987,6 +983,25 @@ fn the_closed_forms_reach_the_same_verdict_at_interval() {
                 band(),
             ),
         ),
+        (
+            "circle, 1.3 rad",
+            plane_nurbs_limbs(
+                &circle(0.5),
+                (0.1, 1.4),
+                &horizontal(0.5),
+                &quarter_cylinder_wall(),
+                fixture_lever(1.0),
+                band(),
+            ),
+            plane_nurbs_limbs(
+                &circle(0.5).map_scalar(itv),
+                lifted((0.1, 1.4)),
+                &horizontal(0.5).map_scalar(itv),
+                &quarter_cylinder_wall().map_scalar(itv),
+                fixture_lever(one),
+                band(),
+            ),
+        ),
     ];
     for (name, at_f64, at_itv) in certified {
         let (Ok(f), Ok(i)) = (&at_f64, &at_itv) else {
@@ -1003,54 +1018,6 @@ fn the_closed_forms_reach_the_same_verdict_at_interval() {
             i.hull_sup
         );
     }
-    let at_f64 = plane_nurbs_limbs(
-        &circle(0.5),
-        (0.1, 1.4),
-        &horizontal(0.5),
-        &quarter_cylinder_wall(),
-        fixture_lever(1.0),
-        band(),
-    );
-    let at_itv = plane_nurbs_limbs(
-        &circle(0.5).map_scalar(itv),
-        lifted((0.1, 1.4)),
-        &horizontal(0.5).map_scalar(itv),
-        &quarter_cylinder_wall().map_scalar(itv),
-        fixture_lever(one),
-        band(),
-    );
-    // The tell's label, not only a refusal, is the scalar's to agree on:
-    // the circle is on the wall at the break at both, so both name the
-    // image's own miss.
-    let feet = (
-        carrier_foot_sup(&circle(0.5), (0.1, 1.4), &quarter_cylinder_wall()),
-        carrier_foot_sup(
-            &circle(0.5).map_scalar(itv),
-            (0.1, 1.4),
-            &quarter_cylinder_wall().map_scalar(itv),
-        ),
-    );
-    println!(
-        "the circle's own foot, f64 then Interval: {:e}, {:e} m at most",
-        feet.0, feet.1
-    );
-    assert!(
-        feet.0 <= ON_THE_WALL && feet.1 <= ON_THE_WALL,
-        "the circle is on the wall at both scalars: {:e}, {:e} m",
-        feet.0,
-        feet.1
-    );
-    let label = |scalar: &str, got: Option<&PlaneNurbsRefusal>| match got {
-        Some(PlaneNurbsRefusal::Limb { limb, .. }) => ("limb", *limb),
-        Some(PlaneNurbsRefusal::Escalated { limb, .. }) => ("escalated", *limb),
-        other => panic!("the 1.3 rad circle refuses at limb 2 at {scalar}: {other:?}"),
-    };
-    let (f, i) = (
-        label("f64", at_f64.as_ref().err()),
-        label("Interval", at_itv.as_ref().err()),
-    );
-    assert_eq!(f, ("limb", SsiLimb::ImageMiss), "at f64: {at_f64:?}");
-    assert_eq!(i, f, "Interval reaches f64's verdict and label: {at_itv:?}");
 }
 
 /// **A circle's parameter is periodic.** The short arc read at `t + 2π`

@@ -21,6 +21,7 @@ crates/editor-core/tests/pick3_early_out.rs	test	2	oracle
 crates/editor-core/tests/review_gui1_r1.rs	test	1	oracle
 crates/editor-core/tests/review_m4_pr2.rs	test	2	oracle
 crates/geom-brep/src/carrier_net.rs	test	1	oracle
+crates/geom-brep/src/carrier_image.rs	prod	1	re-pose
 crates/geom-brep/src/carrier_resolution.rs	prod	1	far-centre
 crates/geom-brep/src/carrier_resolution.rs	test	2	oracle
 crates/geom-brep/src/chart_singularity.rs	prod	1	re-pose

@@ -8,8 +8,8 @@
 //! so the rung certifies it. A cap offset of a loft whose walls the
 //! move does not carry onto themselves — a twisted one — re-derives
 //! each rim as the moved cap's section of its wall. (A rim the
-//! `Intersection` rung refuses, a curved one whose degree-1 image the
-//! hull refuses, still adopts as a declared image in the cap's chart;
+//! `Intersection` rung refuses, a curved one whose image on its wall
+//! the hull refuses, still adopts as a declared image in the cap's chart;
 //! `sweep`'s `offset_restates_a_neighbour_chart_rim` moves those.)
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
