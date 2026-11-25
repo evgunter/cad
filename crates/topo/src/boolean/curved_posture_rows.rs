@@ -191,6 +191,80 @@ fn a_method_sign_in_band_is_the_zero_posture() {
     assert!(matches!(got, CoveredPosture::Sign(Sign::Zero)), "{got:?}");
 }
 
+/// The covered posture of a refusal with the one window `why`.
+fn refused(why: geom_brep::curve_face::CrossWhy) -> CoveredPosture {
+    covered_posture::<f64>(Err(geom_brep::curve_face::CrossRefusal {
+        found: Vec::new(),
+        windows: vec![geom_brep::curve_face::Undecided {
+            window: (0.0, 0.1),
+            why,
+        }],
+    }))
+}
+
+/// A method's window of `fault`.
+fn method(fault: geom_brep::curve_pair::MeetFault) -> geom_brep::curve_face::CrossWhy {
+    geom_brep::curve_face::CrossWhy::Method {
+        door: geom_brep::curve_face::Door::ConicQuadric,
+        fault,
+    }
+}
+
+/// **A tangency the method could not settle is the zero posture**, under
+/// the cover a touch (a rim's arc touching the partner's wall at its own
+/// end, `a_closed_conic_in_the_partners_face`'s crescent tips); **a meter
+/// the method refused keeps the frontier**. Mutant: the unsettled
+/// tangency read as the frontier, red.
+#[test]
+fn a_methods_unsettled_tangency_is_the_zero_posture_and_its_meter_the_frontier() {
+    use geom_brep::curve_pair::MeetFault;
+    use geom_brep::roots::Unsettled;
+    assert!(matches!(
+        refused(method(MeetFault::Unsettled(Unsettled::Tangency))),
+        CoveredPosture::Sign(Sign::Zero)
+    ));
+    assert!(matches!(
+        refused(method(MeetFault::Unsettled(Unsettled::Meter {
+            row: "a row"
+        }))),
+        CoveredPosture::Frontier
+    ));
+}
+
+/// **A pose rung read in its zero band is the zero posture; one read in
+/// its escalation gap is the coincidence refusal.** Mutant: the zero-band
+/// reading read as the coincidence's refusal, red.
+#[test]
+fn a_pose_rung_in_its_zero_band_is_the_zero_posture() {
+    use geom_brep::curve_face::{CrossWhy, PoseRefusal, PoseRung};
+    let b = band();
+    let zero = geom_core::k_stats::decide_nonzero(
+        "curve_posture_rows_zero",
+        geom_core::Margin::of(0.0_f64),
+        b,
+    )
+    .err()
+    .unwrap_or_else(|| panic!("a zero reading is rejected"));
+    let gap = geom_core::k_stats::decide_nonzero(
+        "curve_posture_rows_gap",
+        geom_core::Margin::of((b.zero() + b.escalate()) / 2.0),
+        b,
+    )
+    .err()
+    .unwrap_or_else(|| panic!("a reading in the gap is undecided"));
+    let rung = |diag| {
+        CrossWhy::Pose(PoseRefusal::InBand {
+            rung: PoseRung::Extreme,
+            diag,
+        })
+    };
+    assert!(matches!(
+        refused(rung(zero)),
+        CoveredPosture::Sign(Sign::Zero)
+    ));
+    assert!(matches!(refused(rung(gap)), CoveredPosture::InBand(_)));
+}
+
 fn frontier() -> BooleanError {
     BooleanError::ClassificationInvariant {
         what: "the row's frontier",

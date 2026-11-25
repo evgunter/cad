@@ -5729,14 +5729,16 @@ fn crossing_refused<T: Decide>(
 enum CoveredPosture {
     /// `Positive`: clear, no event (`Apart`, or no meeting on the span);
     /// `Zero`: the zero posture (the span on the carrier, a touch, a
-    /// meeting at an end, or a method's sign in band, which under the
-    /// cover is a touch); `Negative`: a crossing strictly inside the
+    /// meeting at an end, a pose rung read in its zero band, or a method's
+    /// sign in band or tangency it could not settle, each of which under
+    /// the cover is a touch); `Negative`: a crossing strictly inside the
     /// span, or a cone's apex on it, which the cover rules out.
     Sign(Sign),
-    /// A pose rung's reading in the band: the coincidence the cover's
-    /// posture cannot call.
+    /// A pose rung's reading in the band's escalation gap: the
+    /// coincidence the cover's posture cannot call.
     InBand(geom_core::Indeterminate),
-    /// Any other refusal (a meter, a limit): the frontier.
+    /// Any other refusal (a meter, a count the walk could not hold, an
+    /// apex, a pair with no lane): the frontier.
     Frontier,
     /// A fault: the kernel's, failing loud.
     Fault(&'static str),
@@ -5750,6 +5752,7 @@ fn covered_posture<T: geom_core::Real>(
 ) -> CoveredPosture {
     use geom_brep::curve_face::{CrossWhy, Crossings, MeetingKind, OnSpan, Pose, PoseRefusal};
     use geom_brep::curve_pair::MeetFault;
+    use geom_brep::roots::Unsettled;
     match answer {
         Ok(Crossings {
             pose: Pose::Apart, ..
@@ -5780,14 +5783,26 @@ fn covered_posture<T: geom_core::Real>(
             if let Some(what) = refusal.windows.iter().find_map(|w| w.why.fault()) {
                 return CoveredPosture::Fault(what);
             }
+            let touch = |why: Option<Unsettled>| {
+                matches!(why, Some(Unsettled::Tangency | Unsettled::Degenerate))
+            };
             match refusal.leading().why {
+                // A rung read in its zero band (a graze, or the span
+                // reading zero along it): under the cover, a touch.
+                CrossWhy::Pose(refusal) if touch(refusal.unsettled()) => {
+                    CoveredPosture::Sign(Sign::Zero)
+                }
                 CrossWhy::Pose(PoseRefusal::InBand { diag, .. }) => CoveredPosture::InBand(diag),
                 // The method read the arc within the band of the carrier
-                // (a walk's side, or a touch, in band): the cover rules
-                // out a crossing, so it is a touch, the zero posture,
-                // which the covered rung reads by its ends and interior.
+                // (a walk's side, or a touch, in band, or a tangency it
+                // could not settle): the cover rules out a crossing, so
+                // it is a touch, the zero posture, which the covered rung
+                // reads by its ends and interior.
                 CrossWhy::Method {
-                    fault: MeetFault::Escalated(_) | MeetFault::Touch(_),
+                    fault:
+                        MeetFault::Escalated(_)
+                        | MeetFault::Touch(_)
+                        | MeetFault::Unsettled(Unsettled::Tangency | Unsettled::Degenerate),
                     ..
                 } => CoveredPosture::Sign(Sign::Zero),
                 _ => CoveredPosture::Frontier,
