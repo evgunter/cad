@@ -6,8 +6,8 @@ status: review
 opened: 2026-11-21
 priority: P0
 cost: H
-branch: embedwalk/spindle-window
-pr: 7769
+branch: embedwalk/approx-window
+pr: 7767
 ---
 
 
