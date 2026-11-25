@@ -542,9 +542,10 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
         };
         return nurbs_face(body, payload, outer, hes, band, window, centre, accept);
     }
-    // The structural curved-rim arm: a plane or a cone comes here only
-    // when a spiric or a rational spline rim is on its boundary. A torus
-    // wall a spiric bounds is the rotational lane's, below.
+    // The structural curved-rim arm: a plane comes here only when a
+    // spiric or a rational spline rim is on its boundary, a cone when a
+    // trim its closed form does not read is ([`super::takes_quadrature`]).
+    // A torus wall a spiric bounds is the rotational lane's, below.
     if matches!(surface, Surface::Plane { .. } | Surface::Cone { .. }) {
         return rim_face(surface, loops, band, window, centre, accept);
     }
@@ -875,8 +876,10 @@ fn spiric_wall_edge(
     })
 }
 
-/// **The curved-rim face lane**: a plane or a cone cap with a
-/// `Curve3::Spiric` or a rational spline rim on its boundary, read at the
+/// **The curved-rim face lane**: a plane cap with a `Curve3::Spiric` or
+/// a rational spline rim on its boundary, or a cone cap with a spiric or
+/// a spline rim, past `geom_brep::props::require_cone_cap`'s gates, read
+/// at the
 /// interval scalar and handed to
 /// [`spiric::rim_face_rounds`] (its module docs carry the formulation,
 /// [`geom_brep::props::rational_rim`]'s a rational rim's). Reached only
@@ -914,6 +917,12 @@ fn rim_face<T: Decide + geom_core::CertifiedBounds>(
         Surface::Cone {
             frame, half_angle, ..
         } => {
+            let edges: Vec<&[LoopEdge<T>]> = loops.iter().map(|(e, _)| e.as_slice()).collect();
+            geom_brep::props::require_cone_cap(
+                (frame.origin(), frame.axis_unit(), *half_angle),
+                &edges,
+                band,
+            )?;
             let (apex, axis) = (frame.origin(), frame.axis());
             let loops: Vec<Vec<LoopEdge<Interval>>> = loops
                 .iter()
@@ -975,9 +984,10 @@ fn cap_about(
         perimeter += length_bound(e)?;
         if let Some(q) = spiric_edge_q(e, anchor) {
             spirics.push(q);
-        } else if let Curve3::Nurbs(c) = &e.carrier
-            && geom_brep::props::is_rational(c)
-        {
+        } else if let Curve3::Nurbs(c) = &e.carrier {
+            // Every spline, a polynomial one too: at this scalar the
+            // closed form's Gauss rule is rounded, not an enclosure
+            // (`geom_brep::props::closed_segment_term`).
             rationals.push(rational_rim::rational_edge_q(
                 c, e.t0, e.t1, e.forward, anchor,
             )?);
@@ -1955,7 +1965,7 @@ mod tests {
         use geom_core::spline::KnotVector;
         use geom_core::{Bounds as _, Interval, Point3, Vec3};
 
-        use super::super::{length_bound, plane_cap};
+        use super::super::{cap_about, length_bound, plane_cap};
 
         fn iv(x: f64) -> Interval {
             Interval::point(x)
@@ -2038,7 +2048,8 @@ mod tests {
         /// with it every spiric cap a spline edge closed. The cap is the
         /// census's spiric cap (the torus `R = 2, r = 1` in `x = ½`, over
         /// `[−π/2, π/2]`) closed by that spline; it now forms, its spline
-        /// read in closed form and its perimeter at least its chord's.
+        /// read through the certified lane, as every spline rim is, and
+        /// its perimeter at least its chord's.
         #[test]
         fn the_length_bound_reads_a_spline_edge_so_a_spiric_cap_it_closes_forms() {
             use core::f64::consts::FRAC_PI_2;
@@ -2068,9 +2079,111 @@ mod tests {
             let face = plane_cap(&[vec![arc, chord]], Point3::origin())
                 .expect("a spiric cap a spline closes forms");
             assert!(
-                face.spirics.len() == 1 && face.rationals.is_empty() && face.perimeter >= span,
-                "one spiric, the spline in closed form, perimeter {}",
+                face.spirics.len() == 1 && face.rationals.len() == 1 && face.perimeter >= span,
+                "one spiric, the spline enclosed, perimeter {}",
                 face.perimeter
+            );
+        }
+
+        /// A cone as its apex, axis and half-angle.
+        type Cone = (Point3<f64>, geom_core::UnitVec3<f64>, f64);
+
+        /// The cone `x² + y² = z²` (apex at the origin, `α = π/4`) and a
+        /// cap on it: the parabola the plane `z = x + 2` cuts, `P(t) =
+        /// ((t² − 4)/4, t, (t² + 4)/4)` over `t ∈ [0, 2]` as a polynomial
+        /// quadratic with middle control point `mid`, the rim `z = 2` from
+        /// `(0, 2, 2)` to `(−2, 0, 2)`, and the generator back to
+        /// `(−1, 0, 1)`.
+        fn parabola_cap(mid: Point3<f64>) -> (Cone, Vec<LoopEdge<f64>>) {
+            use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI};
+            let frame = geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x());
+            let cone = (frame.origin(), frame.axis_unit(), FRAC_PI_4);
+            let (a, b, c) = (
+                Point3::new(-1.0, 0.0, 1.0),
+                Point3::new(0.0, 2.0, 2.0),
+                Point3::new(-2.0, 0.0, 2.0),
+            );
+            let parabola = Curve3::Nurbs(std::sync::Arc::new(
+                geom::NurbsCurve3::new(
+                    geom_core::spline::Knots::from(
+                        KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+                    ),
+                    vec![a, mid, b],
+                    vec![1.0; 3],
+                )
+                .unwrap(),
+            ));
+            let rim = Curve3::circle(
+                Point3::new(0.0, 0.0, 2.0),
+                Vec3::unit_z(),
+                2.0,
+                Vec3::unit_x(),
+            );
+            let (dir, len) = geom_core::UnitVec3::chord(a - c);
+            (
+                cone,
+                vec![
+                    LoopEdge::hand_built(parabola, 0.0, 1.0, true, 0, 1),
+                    LoopEdge::hand_built(rim, FRAC_PI_2, PI, true, 1, 2),
+                    LoopEdge::hand_built(Curve3::line(c, dir), 0.0, len, true, 2, 0),
+                ],
+            )
+        }
+
+        /// **A cone cap a polynomial spline bounds is enclosed, and holds
+        /// its closed form.** [`parabola_cap`]'s loop passes the cone cap
+        /// gates, its parabola is read through the certified lane, and
+        /// the axial vector area about the apex, the cap's area times
+        /// `sin α`, holds the projected region's `π − 4/3` (the quarter
+        /// disc of radius 2 less the parabola's lobe).
+        #[test]
+        fn a_cone_cap_a_polynomial_spline_bounds_holds_its_closed_form() {
+            let band = geom_core::Band::linear(geom_core::Tol::witness()).unwrap();
+            let (cone, edges) = parabola_cap(Point3::new(-1.0, 1.0, 1.0));
+            geom_brep::props::require_cone_cap(cone, &[edges.as_slice()], band)
+                .expect("the cap lies on one nappe");
+            let lift = |e: &LoopEdge<f64>| {
+                LoopEdge::hand_built(
+                    e.carrier.map_scalar(Interval::from_certified),
+                    iv(e.t0),
+                    iv(e.t1),
+                    e.forward,
+                    e.start,
+                    e.end,
+                )
+            };
+            let loops = vec![edges.iter().map(lift).collect::<Vec<_>>()];
+            let face = cap_about(
+                &loops,
+                Point3::origin(),
+                Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+            )
+            .unwrap();
+            assert!(
+                face.spirics.is_empty() && face.rationals.len() == 1,
+                "the parabola is enclosed, the rim and the generator in closed form"
+            );
+            let (arc_va, _) = rational_vector_area_split(&face.rationals[0], 256);
+            let axial = face.closed_va[2] + arc_va[2];
+            let truth = core::f64::consts::PI - 4.0 / 3.0;
+            assert!(
+                axial.is_certified() && axial.lo() <= truth && truth <= axial.hi(),
+                "{axial:?} ∌ π − 4/3 = {truth}"
+            );
+        }
+
+        /// **A cone cap whose spline's hull crosses the apex refuses**:
+        /// [`parabola_cap`] with the parabola's middle control point moved
+        /// to `z = −3`, where the curve itself dips to `z = −7/9` at
+        /// `s = 4/9`, is no longer held on one nappe by its cover, and the
+        /// gate refuses it before the quadrature.
+        #[test]
+        fn a_cone_cap_whose_spline_hull_crosses_the_apex_refuses() {
+            let band = geom_core::Band::linear(geom_core::Tol::witness()).unwrap();
+            let (cone, edges) = parabola_cap(Point3::new(-1.0, 1.0, -3.0));
+            assert_eq!(
+                geom_brep::props::require_cone_cap(cone, &[edges.as_slice()], band),
+                Err(geom_brep::props::PropsError::NappeSpanning)
             );
         }
     }
