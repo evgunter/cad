@@ -162,11 +162,27 @@ impl DisplayTolerance {
     ///
     /// **No δ renders as `0.000`**: the grid has no floor
     /// (`no_delta_renders_as_a_number_a_delta_cannot_be`). It is a
-    /// render and never a commit path: the number a δ moves to is the
-    /// one a user types, never one the chrome echoed at them.
+    /// sentence's, never the δ field's ([`Self::field_text_in`]).
     pub fn render_in(self, unit: LengthUnit) -> String {
         let unit = unit.def();
         crate::readout::computed_number(self.0, unit)
+    }
+
+    /// **This δ as the δ field shows it, and so the text its edit
+    /// opens on**: its exact spelling in `unit`, positional at every
+    /// magnitude (`crate::props::FieldNumber::text`), so the default
+    /// δ reads `0.00005` in metres and a digit typed after it lands in
+    /// the number.
+    pub fn field_text_in(self, unit: LengthUnit) -> String {
+        match crate::props::shown_value(Some(unit.def()), self.0) {
+            Ok(number) => number.text(number.shown),
+            Err(unit) => unreachable!(
+                "δ = {:e} m has no {} number, yet `DisplayTolerance::new` admits only \
+                 a positive δ whose millimetres are finite, and no length unit is finer",
+                self.0,
+                unit.symbol()
+            ),
+        }
     }
 
     /// This tolerance scaled by `factor` — the coarsen/refine step the

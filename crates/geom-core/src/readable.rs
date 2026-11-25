@@ -19,9 +19,9 @@
 //! dropped.
 //!
 //! This is the exact rendering, for text that must read back as the
-//! float it came from: the viewer's field text
-//! (`viewer::props::render_number`), a serialized form, a dump. A
-//! number a sentence quotes is a [`crate::Told`], which spells a
+//! float it came from: a serialized form, a dump. An editable field's
+//! text is the same digits positional at every magnitude
+//! ([`quantity::Decimal::positional`]). A number a sentence quotes is a [`crate::Told`], which spells a
 //! decimal of its unit in the same notation. The notation is
 //! [`quantity::Decimal`]'s: this is the decimal a finite float reads as,
 //! displayed, so `quantity`'s formatter and this rendering are one rule.

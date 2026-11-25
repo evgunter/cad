@@ -1563,8 +1563,7 @@ fn exists_notice(ui: &mut egui::Ui, theme: &Theme, name: &VarName, dimension: Di
 /// The number is in the unit the slot is WRITTEN in ([`FieldWriting`]).
 /// A slot with no one value — it did not evaluate, or it has one per
 /// member — is still drawn, over a zero it does not show. A literal that
-/// evaluated shows no fixed text: egui formats the number it is
-/// dragging, and a pinned text would freeze the field mid-gesture.
+/// evaluated shows its number ([`props::field_text`]).
 pub(crate) fn slot_showing(row: &SlotRow, draft: Option<&str>, notation: Notation) -> FieldShowing {
     let writing = FieldWriting::of(row.dimension, row.unit, notation);
     let number = match props::shown_value(
@@ -1585,16 +1584,12 @@ pub(crate) fn slot_showing(row: &SlotRow, draft: Option<&str>, notation: Notatio
         // was typed, so a zero held there lands nowhere — the same zero
         // held under the text of a slot with no one value: one that did
         // not evaluate, or one with a value per member.
-        Err(_) if row.driver.is_driven() => Ok(0.0),
+        Err(_) if row.driver.is_driven() => Ok(props::FieldNumber::bare(0.0)),
         number => number,
     };
     let (text, source) = match draft {
         Some(draft) => (Some(draft.to_owned()), None),
-        None if row.driver.is_driven() || !row.value.as_ref().is_ok_and(|r| r.one().is_some()) => (
-            Some(props::field_text(row, notation)),
-            props::field_source(row),
-        ),
-        None => (None, None),
+        None => (props::field_text(row, notation), props::field_source(row)),
     };
     FieldShowing {
         name: None,
@@ -1876,7 +1871,7 @@ fn free_move_probe(
     let mut written = [0.0; 3];
     for (shown, canonical) in written.iter_mut().zip(current) {
         match crate::props::shown_value(field.unit, canonical) {
-            Ok(value) => *shown = value,
+            Ok(number) => *shown = number.shown,
             Err(unit) => {
                 crate::widgets::message(ui, crate::props::no_reading(unit));
                 return;
@@ -1895,7 +1890,7 @@ fn free_move_probe(
     let frame_of = |written: [f64; 3]| Frame::translation(written.map(|v| field.authored(v)));
     let ProbeOps { gesture, typed } = free_move_gesture(node, frame_of);
     ui.horizontal(|ui| {
-        vec3_row_ops(ui, field, &mut written, gesture, typed, ops);
+        vec3_row_ops(ui, field, (&mut written, current), gesture, typed, ops);
     });
 }
 

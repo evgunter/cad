@@ -2031,10 +2031,10 @@ mod tests {
         );
         // Each field is the run painted next after its label.
         for field in [
-            ["x ", "0.0020"],
-            ["y ", "-0.0010"],
-            ["width ", "0.0300"],
-            ["height ", "0.0100"],
+            ["x ", "0.002"],
+            ["y ", "-0.001"],
+            ["width ", "0.03"],
+            ["height ", "0.01"],
         ] {
             assert!(
                 painted.windows(2).any(|pair| pair == field),

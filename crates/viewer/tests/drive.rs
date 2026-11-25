@@ -91,7 +91,7 @@ mod driven {
         driver.click("line_to", 0).expect("a line row");
         driver.click("arc_to", 0).expect("an arc row");
         driver.settle().expect("settles");
-        driver.click("0.50", 0).expect("the arc's field");
+        driver.click("0.5", 0).expect("the arc's field");
         driver.type_text("1").expect("typed");
         driver
             .key(egui::Key::Enter, egui::Modifiers::NONE)

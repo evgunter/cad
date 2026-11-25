@@ -206,22 +206,32 @@ fn camera_reading(canonical: f64, unit: UnitDef) -> String {
 /// [`delta_text_edit`]'s width is a sum of two numbers this file names.
 const FIELD_MARGIN: egui::Margin = egui::Margin::symmetric(4, 2);
 
-/// **The δ field, as wide as the widest render it can be handed.**
+/// **The δ field, as wide as its text.**
 ///
-/// A render the field cannot show is clipped, and a clipped render
-/// reads as a different δ — the defect [`crate::readout::MAX_CHARS`]
-/// exists to prevent — so the text area is
-/// [`crate::widgets::widest_number`] in the field's own font, and the
-/// field is that plus [`FIELD_MARGIN`].
-/// `the_field_shows_every_render_the_bound_covers` measures it.
+/// A text the field cannot show is clipped, and a clipped text reads
+/// as a different δ, so the text area is the wider of
+/// [`crate::widgets::widest_number`] in the field's own font, which
+/// keeps the field one width while δ moves through ordinary values,
+/// and the text's own laid-out width: δ's exact spelling
+/// ([`crate::scene::DisplayTolerance::field_text_in`]) is as long as
+/// its figures and its zeros make it. The field is that plus
+/// [`FIELD_MARGIN`]. `the_field_shows_every_render_the_bound_covers`
+/// measures it.
 ///
 /// A pane narrower than this clips anyway; that is every field in the
 /// chrome and is not this width's to fix.
 fn delta_text_edit<'text>(ui: &egui::Ui, text: &'text mut String) -> egui::TextEdit<'text> {
     let font = egui::FontSelection::Default.resolve(ui.style());
+    let own = ui.fonts_mut(|fonts| {
+        fonts
+            .layout_no_wrap(text.clone(), font.clone(), egui::Color32::PLACEHOLDER)
+            .size()
+            .x
+    }) + 1.0 / ui.ctx().pixels_per_point();
+    let room = crate::widgets::widest_number(ui, &font).max(own);
     egui::TextEdit::singleline(text)
         .margin(FIELD_MARGIN)
-        .desired_width(crate::widgets::widest_number(ui, &font) + FIELD_MARGIN.sum().x)
+        .desired_width(room + FIELD_MARGIN.sum().x)
 }
 
 /// The δ field: the display tolerance as a number the user types, in
@@ -243,28 +253,21 @@ fn delta_text_edit<'text>(ui: &egui::Ui, text: &'text mut String) -> egui::TextE
 ///
 /// **A keystroke is what makes a draft, and nothing else does.** The
 /// text a field shows while nobody has typed into it is a RENDER of
-/// the δ in force, shortened to read as a length; the text a field
+/// the δ in force, its exact spelling in `unit`
+/// ([`crate::scene::DisplayTolerance::field_text_in`]); the text a field
 /// commits is a draft, which is the user's own spelling. Holding the
 /// two apart is what `draft: Option<String>` is for
 /// ([`crate::drafts::Drafts::delta_text`]): `Some` is text as typed, so
 /// a field that was focused and left with nothing typed into it has
-/// nothing to commit and commits nothing. Seeding the draft with the
-/// render instead would make an untouched field indistinguishable from
-/// a typed one, and every δ whose render is not its own exact spelling
-/// would move — silently, or into
-/// [`crate::scene::DisplayTolerance::new`]'s refusal — because a field
-/// was focused and left.
+/// nothing to commit and commits nothing — no re-tessellation, and no
+/// trip through the float the typed number door reads.
 ///
 /// **A draft typed back to the render is that same untouched field,
 /// two keystrokes later.** The render is what the box already held, so
-/// a draft that reads as it carries no number the render does not; and
-/// since the render is a rounding of δ
-/// ([`crate::scene::DisplayTolerance::render_in`]), committing one
-/// could only move δ to a coarser spelling of itself. There is no δ
-/// for which that is what the user asked for, so it commits nothing.
-/// What a user who means to re-assert the displayed δ does instead is
-/// type any other spelling of it — `0.050` for a render of `0.05` —
-/// which is a draft like any other and commits.
+/// a draft that reads as it carries no number the render does not, and
+/// it commits nothing. What a user who means to re-assert the displayed
+/// δ does instead is type any other spelling of it — `0.050` for a
+/// render of `0.05` — which is a draft like any other and commits.
 fn delta_field(
     ui: &mut egui::Ui,
     in_force: DisplayTolerance,
@@ -274,7 +277,7 @@ fn delta_field(
     delta_request: &mut Option<DisplayTolerance>,
 ) {
     let drafted = draft.is_some();
-    let render = in_force.render_in(unit);
+    let render = in_force.field_text_in(unit);
     let mut text = draft.take().unwrap_or_else(|| render.clone());
     let field = ui
         .horizontal(|ui| {
@@ -679,11 +682,9 @@ mod tests {
 
     /// **A draft typed back to the render commits nothing.** The render
     /// is what the field already held, so two keystrokes that cancel out
-    /// leave the user's own draft reading exactly as the render did —
-    /// and committing a render can only coarsen δ to a spelling of
-    /// itself. δ here is 1/30 of the starting δ, whose render
-    /// (`0.0016667`) is a rounding: committing it would move δ from
-    /// 1.66666666666…e-6 to 1.6667e-6.
+    /// leave the user's own draft reading exactly as the render did, and
+    /// δ is left as it stands. δ here is 1/30 of the starting δ, whose
+    /// render is every one of its figures.
     #[test]
     fn a_draft_typed_back_to_the_render_commits_nothing() {
         let mut field = Field::at(0.05 / 30.0);
@@ -694,7 +695,7 @@ mod tests {
         field.backspace();
         assert_eq!(
             field.draft.as_deref(),
-            Some("0.0016667"),
+            Some("0.0016666666666666669"),
             "and the draft is back to the render it started from"
         );
         field.tab();
@@ -774,15 +775,15 @@ mod tests {
     /// millimetres reds on both halves.
     #[test]
     fn the_field_reads_and_commits_in_the_working_unit() {
-        let mut field = Field::at(500.0);
+        let mut field = Field::at(0.05);
         field.unit = M;
         field.frame(Vec::new());
         field.tab();
         field.type_text("7");
         assert_eq!(
             field.draft.as_deref(),
-            Some("0.57"),
-            "the render the keystroke landed on is δ in metres"
+            Some("0.000057"),
+            "the render the keystroke landed on is δ in metres, positionally"
         );
         field.frame(vec![
             egui::Event::Key {
@@ -800,6 +801,48 @@ mod tests {
             Some(DisplayTolerance::new(0.002).expect("a positive δ")),
             "and a typed number is metres"
         );
+    }
+
+    /// **The field's seed is δ's exact spelling in the field's unit,
+    /// never in exponent form**, below `1e-4` and past `1e16` of the
+    /// unit as between them, and it types back as δ: a keystroke
+    /// lands after the seed's last digit, so the draft it makes reads
+    /// as the seed with that digit appended.
+    #[test]
+    fn the_fields_seed_is_delta_positionally_and_types_back() {
+        for (delta_m, unit, seed) in [
+            (5.0e-5, M, "0.00005"),
+            (1.0e-9, M, "0.000000001"),
+            (4.0e-8, MM, "0.00004"),
+            (2.5e14, MM, "250000000000000000"),
+            (3.0e17, M, "300000000000000000"),
+            (0.0254e-6, IN, "0.000001"),
+        ] {
+            let delta = DisplayTolerance::new(delta_m).expect("a positive δ");
+            assert_eq!(
+                delta.field_text_in(unit),
+                seed,
+                "δ = {delta_m} m in {unit:?}"
+            );
+            let mut field = Field::at(0.05);
+            (field.delta, field.unit) = (delta, unit);
+            field.frame(Vec::new());
+            field.tab();
+            field.type_text("7");
+            assert_eq!(
+                field.draft.as_deref(),
+                Some(format!("{seed}7").as_str()),
+                "the edit opened on {seed}"
+            );
+            let typed: f64 = seed.parse().expect("the seed is a number");
+            assert_eq!(
+                DisplayTolerance::typed(typed, unit)
+                    .ok()
+                    .map(DisplayTolerance::get),
+                Some(delta.get()),
+                "{seed} {unit:?} types back as δ"
+            );
+        }
     }
 
     /// **A refused δ is named as it was typed, in the field's unit** —

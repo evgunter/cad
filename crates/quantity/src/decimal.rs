@@ -16,7 +16,8 @@ use crate::exact::Nat;
 /// Its `Display` is positional for `1e-4 ≤ |d| < 1e16` and for zero,
 /// and scientific (`1.5e308`, `1e-300`) outside them; the decimal a
 /// float reads as ([`Decimal::of_float`]) displays as that float's
-/// `Debug` does, less a trailing `.0`.
+/// `Debug` does, less a trailing `.0`. [`Decimal::positional`] is the
+/// same digits positional at every magnitude.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Decimal {
     negative: bool,
@@ -161,6 +162,21 @@ impl Decimal {
         }
     }
 
+    /// **This decimal spelled positionally at every magnitude**: its
+    /// digits with the point among them, `0.` and zeros before them
+    /// below one, and zeros after them past their last place, never an
+    /// exponent. It is the text an editable field shows
+    /// (`crates/geom-core/README.md`, "A number told to a person"),
+    /// which is edited one character at a time, and it reads back as
+    /// this decimal exactly. A zero keeps its sign, as `Display` does.
+    /// Its width is the magnitude's: `1e-300` is 302 characters, and a
+    /// finite float's decimal in any unit of [`crate::UNITS`] is at
+    /// most 330.
+    #[must_use]
+    pub const fn positional(&self) -> Positional<'_> {
+        Positional(self)
+    }
+
     /// The decimal exponent of the leading digit; `None` for zero.
     pub(crate) fn leading_exponent(&self) -> Option<i64> {
         (!self.is_zero()).then(|| self.exponent + self.digits.len() as i64 - 1)
@@ -289,33 +305,54 @@ impl Decimal {
 /// type's docs).
 impl fmt::Display for Decimal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Some(decade) = self
+            .leading_exponent()
+            .filter(|decade| !(-4..16).contains(decade))
+        else {
+            return Positional(self).fmt(f);
+        };
         if self.negative {
             f.write_str("-")?;
         }
-        let Some(decade) = self.leading_exponent() else {
-            return f.write_str("0");
-        };
         let digits = self.digits.as_str();
-        if (-4..16).contains(&decade) {
-            if self.exponent >= 0 {
-                f.write_str(digits)?;
-                return (0..self.exponent).try_for_each(|_| f.write_str("0"));
-            }
-            let point = digits.len() as i64 + self.exponent;
-            if point > 0 {
-                let (whole, fraction) = digits.split_at(point as usize);
-                return write!(f, "{whole}.{fraction}");
-            }
-            f.write_str("0.")?;
-            (0..-point).try_for_each(|_| f.write_str("0"))?;
-            return f.write_str(digits);
-        }
         let (lead, rest) = digits.split_at(1);
         f.write_str(lead)?;
         if !rest.is_empty() {
             write!(f, ".{rest}")?;
         }
         write!(f, "e{decade}")
+    }
+}
+
+/// A [`Decimal`] displayed positionally ([`Decimal::positional`]).
+#[derive(Clone, Copy, Debug)]
+pub struct Positional<'a>(&'a Decimal);
+
+impl fmt::Display for Positional<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Decimal {
+            negative,
+            digits,
+            exponent,
+        } = self.0;
+        if *negative {
+            f.write_str("-")?;
+        }
+        if self.0.is_zero() {
+            return f.write_str("0");
+        }
+        if *exponent >= 0 {
+            f.write_str(digits)?;
+            return (0..*exponent).try_for_each(|_| f.write_str("0"));
+        }
+        let point = digits.len() as i64 + exponent;
+        if point > 0 {
+            let (whole, fraction) = digits.split_at(point as usize);
+            return write!(f, "{whole}.{fraction}");
+        }
+        f.write_str("0.")?;
+        (0..-point).try_for_each(|_| f.write_str("0"))?;
+        f.write_str(digits)
     }
 }
 
@@ -369,6 +406,40 @@ mod tests {
             let decimal = Decimal::of_float(v).unwrap_or_else(|| panic!("{v:e} is finite"));
             assert_eq!(decimal.to_string(), want, "{v:e}");
             assert_eq!(want.parse::<f64>().map(f64::to_bits), Ok(v.to_bits()));
+        }
+    }
+
+    /// **A positional spelling is the decimal, with no exponent, at
+    /// every magnitude**: it reads back as the same decimal, it is the
+    /// `Display` wherever that is positional, and its zeros are the
+    /// magnitude's (`1e-5` is `0.00001`, `1.5e17` is eighteen digits).
+    #[test]
+    fn a_positional_spelling_is_the_decimal_at_every_magnitude() {
+        for (text, positional) in [
+            ("1e-5", "0.00001"),
+            ("-4e-5", "-0.00004"),
+            ("1.5e17", "150000000000000000"),
+            ("123.45", "123.45"),
+            ("-0", "-0"),
+            ("0", "0"),
+        ] {
+            assert_eq!(d(text).positional().to_string(), positional, "{text}");
+        }
+        let mut x = f64::from_bits(1);
+        while x.is_finite() {
+            for v in [x, -x, x * 1.5, 3.0 * x / 7.0]
+                .into_iter()
+                .filter(|v| v.is_finite())
+            {
+                let decimal = Decimal::of_float(v).unwrap_or_else(|| panic!("{v:e} is finite"));
+                let spelled = decimal.positional().to_string();
+                assert!(!spelled.contains('e'), "{v:e} is spelled {spelled}");
+                assert_eq!(Decimal::parse(&spelled), Some(decimal.clone()), "{v:e}");
+                if (1e-4..1e16).contains(&v.abs()) {
+                    assert_eq!(spelled, decimal.to_string(), "{v:e}");
+                }
+            }
+            x *= 2.0;
         }
     }
 

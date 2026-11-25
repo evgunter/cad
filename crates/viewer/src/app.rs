@@ -4497,7 +4497,7 @@ mod tests {
         /// handed, derived at `widgets::field_tests::MM`.
         const DECIMALS: core::ops::RangeInclusive<usize> = 1..=3;
 
-        let door = crate::widgets::number_text(WITNESS, DECIMALS);
+        let door = crate::widgets::number_text(WITNESS);
         let toolkit = egui::emath::format_with_decimals_in_range(WITNESS, DECIMALS);
         assert_ne!(
             door, toolkit,
@@ -5635,7 +5635,8 @@ mod properties_pane_tests {
         ]);
         let row = pane.row(extrude(), SlotId::Distance);
         assert_eq!(row.source.as_deref(), Some(source.as_str()));
-        let field = crate::props::field_text(&row, pane.app.session.notation());
+        let field = crate::props::field_text(&row, pane.app.session.notation())
+            .expect("a driven row shows its reading");
         assert_eq!(field, "= 0.04 m");
         let quoted = format!("{} = {source}", SlotId::Distance.label());
         let landed = pane.landed();
@@ -5683,7 +5684,8 @@ mod properties_pane_tests {
             let shown = crate::props::field_text(
                 &pane.row(pattern, SlotId::Origin(*axis)),
                 pane.app.session.notation(),
-            );
+            )
+            .expect("a driven row shows its reading");
             pane.click(&shown);
             let open = pane.frame(Vec::new());
             assert!(
@@ -7020,7 +7022,7 @@ mod properties_pane_tests {
         let made = the_new_node(&driven, &before);
         let row = driven.row(made, SlotId::Origin(Axis3::X));
         assert_eq!(
-            crate::props::field_text(&row, driven.app.session.notation()),
+            crate::test_support::literal_field_text(&row, driven.app.session.notation()),
             "0.1"
         );
         driven.settle();
@@ -14730,7 +14732,7 @@ mod properties_pane_tests {
         driven.app.drafts.new_variable_value = 0.005;
         let painted = driven.quiet();
         assert!(
-            painted.iter().any(|(run, _)| run == "5.0"),
+            painted.iter().any(|(run, _)| run == "5"),
             "5 mm: {painted:?}"
         );
         driven.app.drafts.new_variable_dimension = Some(Dimension::Scalar);
