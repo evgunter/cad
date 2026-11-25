@@ -16179,10 +16179,11 @@ mod tests {
         e: &EdgeGeo<f64>,
         face: FaceKey,
         side: BoundarySide<f64>,
+        band: Band,
     ) -> (Option<Vec<(f64, CutAt)>>, Vec<ValidationError>) {
         use crate::splitting::containment::LoopEdge;
         let mut errors = Vec::new();
-        let cuts = edge_crossings(body, e, face, &LoopEdge::Chord, side, band(), &mut errors);
+        let cuts = edge_crossings(body, e, face, &LoopEdge::Chord, side, band, &mut errors);
         (cuts, errors)
     }
 
@@ -16205,7 +16206,7 @@ mod tests {
                     Point3::new(x, y + 4.5e-9, 1.0),
                 ),
             };
-            chord_crossings(&body, &e, top.key, side)
+            chord_crossings(&body, &e, top.key, side, band())
         };
         let (cuts, errors) = crossings(0.5, 0.5);
         assert!(cuts.is_none(), "across the line: {cuts:?}");
@@ -22668,7 +22669,7 @@ mod arc_interiors {
     /// `joined_with`), or reads the other face's vertex against an arc's
     /// carrier end, `1.5ε` from it (its `span_on`): each escalates.
     #[test]
-    fn faces_whose_arcs_end_on_on_one_point_key_abut_there() {
+    fn faces_whose_arcs_end_on_one_point_key_abut_there() {
         let (body, [fa, fb], ..) = joined_pieces();
         let geo = snapshot(&body);
         assert_eq!(
@@ -22713,7 +22714,7 @@ mod arc_interiors {
             key: arc,
             ends: (point(s), point(t)),
         };
-        let (cuts, errors) = super::tests::chord_crossings(&body, &e, fa, side);
+        let (cuts, errors) = super::tests::chord_crossings(&body, &e, fa, side, band());
         assert!(errors.is_empty(), "no reading escalates: {errors:?}");
         assert_eq!(cuts.map(|c| c.len()), Some(0), "no crossing is cut");
     }
