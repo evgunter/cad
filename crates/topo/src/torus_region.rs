@@ -50,7 +50,7 @@
 //! # The boundary first
 //!
 //! Before any path, `p` is read against every edge on its own carrier
-//! ([`ConicArc::hit`](crate::splitting::containment::ConicArc::hit) for a circle, [`PiecedArc::contact`] for an oval):
+//! ([`ConicArc::hit`](crate::splitting::containment::ConicArc::hit) for a circle, [`PiecedArc::contact`](crate::splitting::pieced_arc::PiecedArc::contact) for an oval):
 //! on an edge, or within the band of one of its ends, is the point on
 //! the boundary ([`None`]); in the band of one refuses.
 //!
@@ -103,13 +103,13 @@ use crate::body::Body;
 use crate::entity::FaceKey;
 use crate::region::{
     self, End, Fault, Legs, Paths, QueryFoot, Region, RegionEdge, RegionRefusal, Round,
-    circle_edge_hit,
+    circle_edge_hit, pieced_edge_hit,
 };
 use crate::solid_contain::PointInSolidError;
+use crate::splitting::UncrossableCarrier;
 use crate::splitting::containment::ConicRows;
-use crate::splitting::pieced_arc::{ArcHit, ArcRefusal, ArcRows, PiecedArc};
+use crate::splitting::pieced_arc::ArcRows;
 use crate::splitting::spiric_arc::{Oval, SpiricArc};
-use crate::splitting::{Uncrossable, UncrossableCarrier};
 
 /// The row a place is read against a first leg's corner on.
 const TORUS_REGION_CORNER: &str = "bool_torus_region_corner";
@@ -286,7 +286,7 @@ impl<T: Decide> Region<T> for TorusFaceRegion<T> {
     }
 
     /// A circle on its own carrier, an oval by its contact
-    /// ([`PiecedArc::contact`]).
+    /// ([`PiecedArc::contact`](crate::splitting::pieced_arc::PiecedArc::contact)).
     fn on_edge(&self, edge: &Edge<T>, p: Point3<T>, band: Band) -> Result<bool, RegionRefusal> {
         match edge.carrier {
             geom::Curve3::Circle(..) => {
@@ -304,16 +304,13 @@ impl<T: Decide> Region<T> for TorusFaceRegion<T> {
                     minor,
                     offset,
                 };
-                match SpiricArc::new(oval, (edge.t0, edge.t1)).contact(p, SPIRIC, band) {
-                    Ok(ArcHit::On(_) | ArcHit::End) => Ok(true),
-                    Ok(ArcHit::Off) => Ok(false),
-                    Err(ArcRefusal::Escalated(diag)) => Err(RegionRefusal::Escalated(diag)),
-                    Err(ArcRefusal::Unsettled) => Err(RegionRefusal::Unreadable(Uncrossable {
-                        r#loop: edge.r#loop,
-                        edge: edge.edge,
-                        carrier: UncrossableCarrier::Spiric,
-                    })),
-                }
+                pieced_edge_hit(
+                    &SpiricArc::new(oval, (edge.t0, edge.t1)),
+                    edge,
+                    (SPIRIC, UncrossableCarrier::Spiric),
+                    p,
+                    band,
+                )
             }
             _ => unreachable!("torus_face_region admits circles and spirics only"),
         }
@@ -1131,7 +1128,9 @@ mod tests {
     /// edge at 60 stations (480 queries). A query counts where any frame
     /// answers otherwise than the first. With the legs started at
     /// `surface.eval(uv)`, the chart's round trip of the foot, 142 did;
-    /// started at the foot, 33 on frames squared where they are stated.
+    /// started at the foot, 35 on frames squared where they are stated,
+    /// each a frame that answers where another refuses: none answers
+    /// against another.
     /// What is left is the frame a curve
     /// carries in its section and plane
     /// (`work/onecopy/a-cone-or-torus-leg-carries-its-charts-frame-into-a-crossing-at-the-band.md`).
@@ -1158,7 +1157,7 @@ mod tests {
 
     /// [`a_torus_faces_circle_legs_read_no_chart_frame_at_the_escalation`]'s
     /// count.
-    const KEPT_TORUS: usize = 33;
+    const KEPT_TORUS: usize = 35;
 
     /// The frame pins' patch, `0.4 < u < 2.9`, `−0.5 < v < 0.8`, on each of
     /// [`geom::test_support::CHART_FRAMES`], its 3D edges fixed.
