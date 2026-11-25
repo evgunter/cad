@@ -605,13 +605,23 @@ pub(crate) enum Outcome {
 /// parameter domain covers its carrier at most once, which the face's
 /// validation owns. A torus is, where `R > r`.
 ///
+/// **A spindle sheet is, where its datums are a sheet's**
+/// ([`geom::spindle_sheet`]: `−r < R ≤ r`, `R ≠ 0`, so `r > 0`). Off its
+/// apexes `ρ = R + r·cos v > 0`, so a point's azimuth is its `u`; in the
+/// meridian half-plane `v ↦ (R + r·cos v, r·sin v)` runs a circle of
+/// radius `r` over `[−v*, v*]`, at most one turn, one-to-one but at the
+/// ends of a whole turn, the horn's one cusp. Both ends are apexes, the
+/// chart's collapsed sides, which the engine reads as vertices, never as
+/// a cover.
+///
 /// # Errors
 ///
 /// The torus that is not decided a ring, carrying the convention's
 /// refusal ([`geom_brep::TorusRefusal`]): a half decided outside it, or
 /// a half the band cannot decide, which escalates as its own margin and
-/// is never read as the definite miss. A free-form carrier, which no
-/// kind makes injective: its own pairs go to the monotone arm.
+/// is never read as the definite miss. A spindle sheet whose datums the
+/// band does not decide a sheet's. A free-form carrier, which no kind
+/// makes injective: its own pairs go to the monotone arm.
 pub(crate) fn by_kind(
     face: FaceKey,
     surface: &Surface<Interval>,
@@ -638,10 +648,16 @@ pub(crate) fn by_kind(
             face,
             side: Which::First,
         }),
-        Surface::Spindle { .. } => Err(EngineRefusal::Unsupported {
-            carrier: "a spindle sheet's face, which has no injectivity lane yet",
-            face,
-            side: Which::First,
+        Surface::Spindle {
+            major_radius,
+            minor_radius,
+            ..
+        } => geom::spindle_sheet(*major_radius, *minor_radius, band).map_err(|_| {
+            EngineRefusal::Unsupported {
+                carrier: "a spindle sheet's face whose datums are not decided a sheet's",
+                face,
+                side: Which::First,
+            }
         }),
     }
 }
@@ -1097,6 +1113,7 @@ impl Along {
                 | Surface::Cone { .. }
                 | Surface::Sphere { .. }
                 | Surface::Torus { .. }
+                | Surface::Spindle { .. }
         );
         let rims: Vec<&Rim> = edges.iter().filter_map(|&i| b.edges.get(i)).collect();
         let own = |r: &&Rim| matches!(r.arc, Some((Curve3::Line(_) | Curve3::Circle(_), _)));
@@ -1564,7 +1581,8 @@ fn present<'a: 'h, 'h>(
         // ([`poses_of`] finds none on any other kind, and
         // [`present_posed`] answers `None`): the stored chart's reading
         // stands for every other kind.
-        | Surface::Torus { .. } => match present_chart(piece, near_edges, near_vertices, band) {
+        | Surface::Torus { .. }
+        | Surface::Spindle { .. } => match present_chart(piece, near_edges, near_vertices, band) {
             Err(stored @ (Unpresented::Structural | Unpresented::Local))
                 if unplaced_line(piece, band) =>
             {
@@ -1579,7 +1597,7 @@ fn present<'a: 'h, 'h>(
             }
             read => read,
         },
-        Surface::Spindle { .. } | Surface::Approx(_) => Err(Unpresented::Structural),
+        Surface::Approx(_) => Err(Unpresented::Structural),
     }
 }
 
@@ -1803,7 +1821,10 @@ type SingularEnds = [Option<(Interval, Point3<Interval>)>; 2];
 /// at** ([`SingularEnds`]): a sphere's `π/2` at its north pole, the high
 /// end, and `-π/2` at its south, the low; a cone's `0` at its apex, the
 /// low end of a face on the positive nappe and the high end of one on
-/// the negative ([`nappe`]). None on any other surface.
+/// the negative ([`nappe`]); a spindle sheet's `v*` at the apex along
+/// its axis, the high end, and `−v*` at the other, the low
+/// ([`geom_brep::chart_singularity::sheet_apexes`]). None on any other
+/// surface.
 ///
 /// `p` is at a singular point by the one reading of that incidence
 /// (`vertex_at_singular_point`): its distance from the point decided
@@ -1811,14 +1832,20 @@ type SingularEnds = [Option<(Interval, Point3<Interval>)>; 2];
 /// is. An incidence the band does not decide reads as off the point.
 ///
 /// `None` where `p` is at a cone's apex and the face has no one nappe:
-/// the apex is then no one end of its `v`.
+/// the apex is then no one end of its `v`. Likewise where `p` is at
+/// both of a sheet's apexes, a horn's one cusp or two apexes within the
+/// band of each other: the sheet's half-angle there is zero, or within
+/// the band of it, so its faces meet at the point tangent to the axis,
+/// which no first-order certificate parts at any depth.
 fn singular_ends(
     surface: &Surface<Interval>,
     b: &Boundary,
     p: Point3<Interval>,
     band: Band,
 ) -> Option<SingularEnds> {
-    use geom_brep::chart_singularity::{Singularity, sphere_poles, vertex_at_singular_point};
+    use geom_brep::chart_singularity::{
+        Singularity, sheet_apexes, sphere_poles, vertex_at_singular_point,
+    };
     let held = |point| matches!(vertex_at_singular_point(p, point, band), Ok(true));
     match *surface {
         Surface::Sphere { frame, radius, .. } => {
@@ -1841,6 +1868,23 @@ fn singular_ends(
             let mut ends = [None; 2];
             ends[usize::from(low)] = Some((at(0.0), apex));
             Some(ends)
+        }
+        Surface::Spindle {
+            frame,
+            major_radius,
+            minor_radius,
+        } => {
+            let line = geom::Line {
+                origin: frame.origin(),
+                dir: frame.axis_unit(),
+            };
+            let v = geom::sheet_apex(major_radius, minor_radius).v;
+            let [(_, up), (_, down)] = sheet_apexes(line, major_radius, minor_radius);
+            let (high, low) = (held(up), held(down));
+            if high && low {
+                return None;
+            }
+            Some([high.then_some((v, up)), low.then_some((-v, down))])
         }
         _ => Some([None; 2]),
     }
@@ -7250,7 +7294,8 @@ fn on_side(psi: &Psi, p: &Presented<'_>, x: (f64, f64), y: (f64, f64)) -> Option
 
 /// **The image of an analytic chart's coordinate line `held = b`, where
 /// it is a circle**, in the moving coordinate: a torus's meridians and
-/// parallels, a sphere's, and a cylinder's or a cone's parallels. `None`
+/// parallels, a spindle sheet's and a sphere's, and a cylinder's or a
+/// cone's parallels. `None`
 /// for a ruling, which is a line, and for every other carrier.
 fn iso_circle(surface: &Surface<Interval>, held: Axis, b: f64) -> Option<Trig> {
     let b = at(b);
@@ -7261,11 +7306,16 @@ fn iso_circle(surface: &Surface<Interval>, held: Axis, b: f64) -> Option<Trig> {
     };
     match (surface, held) {
         (
-            &Surface::Torus {
+            &(Surface::Torus {
                 frame: torus_frame,
                 major_radius,
                 minor_radius,
-            },
+            }
+            | Surface::Spindle {
+                frame: torus_frame,
+                major_radius,
+                minor_radius,
+            }),
             Axis::U,
         ) => {
             let (center, axis) = (torus_frame.origin(), torus_frame.axis());
@@ -7277,11 +7327,16 @@ fn iso_circle(surface: &Surface<Interval>, held: Axis, b: f64) -> Option<Trig> {
             })
         }
         (
-            &Surface::Torus {
+            &(Surface::Torus {
                 frame: torus_frame,
                 major_radius,
                 minor_radius,
-            },
+            }
+            | Surface::Spindle {
+                frame: torus_frame,
+                major_radius,
+                minor_radius,
+            }),
             Axis::V,
         ) => {
             let (center, axis) = (torus_frame.origin(), torus_frame.axis());
@@ -8647,6 +8702,43 @@ mod by_kind_rows {
             Ok(()),
             "a ring is injective"
         );
+    }
+
+    /// **A spindle sheet is injective where its datums are a sheet's**:
+    /// the lemon, the apple and the horn hold, and the datums past each
+    /// end of `−r < R ≤ r`, `R ≠ 0` refuse. Red if the sheet's arm reads
+    /// injective without asking its range, or refuses a sheet.
+    #[test]
+    fn a_spindle_sheet_is_injective_on_its_range_alone() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let face = crate::FaceKey::default();
+        let sheet = |major: f64| {
+            let Surface::Torus {
+                frame,
+                minor_radius,
+                ..
+            } = torus(major)
+            else {
+                unreachable!("the row's torus")
+            };
+            Surface::Spindle {
+                frame,
+                major_radius: Interval::from_bounds(major, major),
+                minor_radius,
+            }
+        };
+        for major in [-0.5, 0.4, 1.0] {
+            assert_eq!(by_kind(face, &sheet(major), band), Ok(()), "R = {major}");
+        }
+        for major in [-1.0, 0.0, 1.5] {
+            assert!(
+                matches!(
+                    by_kind(face, &sheet(major), band),
+                    Err(EngineRefusal::Unsupported { .. })
+                ),
+                "R = {major} is no sheet of r = 1"
+            );
+        }
     }
 }
 

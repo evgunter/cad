@@ -845,6 +845,125 @@ fn a_full_torus_certifies_by_kind() {
     }
 }
 
+/// The football of the spindle sheet `(R, 1)` about the sketch `y` axis:
+/// the arc from its lower apex to its upper through the circle's widest
+/// point, closed down the axis, revolved whole — two sheet faces, each a
+/// π-band between meridians ending at both apexes; the axis is no face.
+/// Its centre is `by` up the axis.
+fn football<T: Scalar>(big: f64, by: f64) -> Body<T> {
+    let h = ((1.0 - big) * (1.0 + big)).sqrt();
+    let v_star = (-big).acos();
+    let lp = profile::test_support::bulge_loop(vec![
+        (Point2::new(0.0, by - h), (v_star / 2.0).tan()),
+        (Point2::new(0.0, by + h), 0.0),
+    ]);
+    revolve(&validated::<T>(&[lp]), axis_y(), Revolution::Full, tol())
+        .unwrap()
+        .body
+        .into_body()
+}
+
+/// A horn's needle tip: the horn of radius 1 reached at its cusp from
+/// one side, its arc an eighth of the circle from the cusp, closed by a
+/// disc it meets at 45°, not tangent.
+fn needle<T: Scalar>() -> Body<T> {
+    let s = core::f64::consts::FRAC_1_SQRT_2;
+    let lp = profile::test_support::bulge_loop(vec![
+        (Point2::new(0.0, 0.0), -(core::f64::consts::PI / 16.0).tan()),
+        (Point2::new(1.0 - s, s), 0.0),
+        (Point2::new(0.0, s), 0.0),
+    ]);
+    revolve(&validated::<T>(&[lp]), axis_y(), Revolution::Full, tol())
+        .unwrap()
+        .body
+        .into_body()
+}
+
+/// The spindle-sheet faces of `body`.
+fn sheet_faces<T: Real>(body: &Body<T>) -> usize {
+    body.faces()
+        .filter(|&(k, _)| matches!(surface(body, k), Surface::Spindle { .. }))
+        .count()
+}
+
+/// **Bodies on a spindle sheet hold at both scalars, each sheet face
+/// against itself by kind**: the lemon and the apple, each two sheet
+/// faces from apex to apex, read at each apex as their chart's collapsed
+/// side. A horn's needle is refused: its two sheet faces meet at its
+/// cusp tangent to the axis, both of the sheet's apexes. Red if a sheet
+/// face has no window, if its self-pair is not discharged by kind, if a
+/// cell at an apex is read as anything but the collapsed side, or if the
+/// needle reads embedded.
+#[test]
+fn bodies_on_a_spindle_sheet_hold_by_kind_at_both_scalars() {
+    for (scalar, verdict) in [
+        ("f64", injective(&needle::<f64>(), None, BUDGET).verdict),
+        (
+            "Interval",
+            injective(&needle::<Interval>(), None, BUDGET).verdict,
+        ),
+    ] {
+        assert!(
+            matches!(
+                verdict,
+                BoundVerdict::Refused(EngineRefusal::Uncertified { .. })
+            ),
+            "the needle's cusp is refused at {scalar}: {verdict:?}"
+        );
+    }
+    for (what, float, interval) in [
+        ("the lemon", football(-0.5, 0.0), football(-0.5, 0.0)),
+        ("the apple", football(0.4, 0.0), football(0.4, 0.0)),
+    ] {
+        let sheets = sheet_faces(&float);
+        assert!(sheets >= 1, "{what} is built on a spindle sheet");
+        for report in holds_at_both(what, float.clone(), interval) {
+            assert!(
+                report.receipt.by_kind >= sheets,
+                "{what}: each of its {sheets} sheet faces against itself discharged by \
+                 kind: {:?}",
+                report.receipt
+            );
+        }
+    }
+}
+
+/// **Two footballs through one another never read embedded**, at both
+/// scalars and through the verdict door: the football and a copy built
+/// `by` up its axis, grafted in as a solid of its own, so their sheets
+/// meet on a circle and nothing in M is shared. Moved `0.3` the circle
+/// is at the sheets' widest; moved `1.2` it is near the first's upper
+/// apex and the copy's lower one, so a window short of either apex
+/// misses it. The point door places no station on a sheet face yet, so
+/// the crossing is not confirmed and the walk runs to its budget, kept
+/// small here. Red if the verdict is `Embedded`.
+#[test]
+fn footballs_through_one_another_never_read_embedded() {
+    fn folded<T: Scalar>(big: f64, by: f64) -> Body<T> {
+        let mut folded = football::<T>(big, 0.0);
+        topo::graft_disjoint(&mut folded, &football::<T>(big, by)).expect("the copy grafts");
+        folded
+    }
+    for (big, by) in [(-0.5, 0.3), (-0.5, 1.2), (0.4, 1.2)] {
+        let budgets = Budgets {
+            max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+            max_cell_pairs: 1024,
+        };
+        for (scalar, report) in [
+            ("f64", embedding_within(&folded::<f64>(big, by), budgets)),
+            (
+                "Interval",
+                embedding_within(&folded::<Interval>(big, by), budgets),
+            ),
+        ] {
+            assert!(
+                !matches!(report.verdict, topo::clearance::Embedding::Embedded),
+                "the footballs of R = {big} moved {by} cross at {scalar}: {report:?}"
+            );
+        }
+    }
+}
+
 /// **A windowed tube holds across its caps' circles at both scalars**
 /// (the tour's `tube_along_arc` wedge: `R = 2`, `r = 1/2`, the spine
 /// from `1/4` to `7/4` rad). Each cap is a disc on two semicircles,
@@ -911,18 +1030,25 @@ fn a_stepped_rings_floor_holds_against_its_end_caps() {
 
 /// The verdict door over every face of `body`, at the default budgets.
 fn embedding<T: Scalar + geom_core::Certifies>(body: &Body<T>) -> topo::clearance::EmbeddingReport {
-    let side = Side {
+    embedding_within(
         body,
-        faces: body.faces().map(|(k, _)| k).collect(),
-    };
-    topo::clearance::embedded(
-        &side,
-        band(),
         Budgets {
             max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
             max_cell_pairs: BUDGET,
         },
     )
+}
+
+/// The verdict door over every face of `body`, within `budgets`.
+fn embedding_within<T: Scalar + geom_core::Certifies>(
+    body: &Body<T>,
+    budgets: Budgets,
+) -> topo::clearance::EmbeddingReport {
+    let side = Side {
+        body,
+        faces: body.faces().map(|(k, _)| k).collect(),
+    };
+    topo::clearance::embedded(&side, band(), budgets)
 }
 
 /// [`a_stepped_rings_floor_holds_against_its_end_caps`]' ring, at rest.
