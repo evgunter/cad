@@ -68,10 +68,14 @@ mod a_body_on_a_rods_cap_glues_as_its_rim_reads;
 mod a_carried_record_no_reading_covers;
 #[path = "a_circle_of_one_radius_elsewhere_is_no_rim.rs"]
 mod a_circle_of_one_radius_elsewhere_is_no_rim;
+#[path = "a_closed_cut_leaves_each_ball_one_face.rs"]
+mod a_closed_cut_leaves_each_ball_one_face;
 #[path = "a_closed_rider_lying_in_a_face_refuses_its_slit_form.rs"]
 mod a_closed_rider_lying_in_a_face_refuses_its_slit_form;
 #[path = "a_cone_on_a_torus_meridian_in_every_order.rs"]
 mod a_cone_on_a_torus_meridian_in_every_order;
+#[path = "a_cone_with_a_ball_or_a_cone_in_every_order.rs"]
+mod a_cone_with_a_ball_or_a_cone_in_every_order;
 #[path = "a_conical_ended_football_revolves.rs"]
 mod a_conical_ended_football_revolves;
 #[path = "a_corner_cut_on_a_far_wall_reads_its_sections_width.rs"]
@@ -84,6 +88,8 @@ mod a_curved_keel_in_the_plane;
 mod a_curved_keel_on_the_floor_refuses_its_slit_form;
 #[path = "a_cut_by_a_curved_seat_refuses_its_material.rs"]
 mod a_cut_by_a_curved_seat_refuses_its_material;
+#[path = "a_cut_by_a_seated_tool_cuts_its_ball_in.rs"]
+mod a_cut_by_a_seated_tool_cuts_its_ball_in;
 #[path = "a_cylinder_split_just_off_its_rim_vertex.rs"]
 mod a_cylinder_split_just_off_its_rim_vertex;
 #[path = "a_face_across_a_wavy_corner.rs"]
@@ -132,6 +138,8 @@ mod a_plane_along_an_elliptic_cut;
 mod a_plane_holding_a_conic_tangent_at_a_vertex;
 #[path = "a_plane_moved_to_a_cone_apex.rs"]
 mod a_plane_moved_to_a_cone_apex;
+#[path = "a_plane_nearly_through_a_torus_axis_cuts_it_at_any_face_size.rs"]
+mod a_plane_nearly_through_a_torus_axis_cuts_it_at_any_face_size;
 #[path = "a_plane_through_a_cones_apex.rs"]
 mod a_plane_through_a_cones_apex;
 #[path = "a_plane_through_a_pole_cuts_a_cap.rs"]
@@ -454,8 +462,8 @@ mod spiric_faces_fuzz;
 mod sym11_far_placement_rows;
 #[path = "the_door_reads_seam_regions_as_tier_3_does.rs"]
 mod the_door_reads_seam_regions_as_tier_3_does;
-#[path = "the_nary_door_reads_a_re_charted_accumulation_through_its_shell.rs"]
-mod the_nary_door_reads_a_re_charted_accumulation_through_its_shell;
+#[path = "the_nary_door_reads_a_cut_in_accumulation_through_its_pieces.rs"]
+mod the_nary_door_reads_a_cut_in_accumulation_through_its_pieces;
 #[path = "tilted_sphere_pair.rs"]
 mod tilted_sphere_pair;
 #[path = "tilted_sphere_pair_k_rows.rs"]
@@ -1347,6 +1355,9 @@ mod shell10_r2_dump;
 #[path = "cross_solid_apart.rs"]
 mod cross_solid_apart;
 
+#[path = "pair_doors_read_apart.rs"]
+mod pair_doors_read_apart;
+
 #[path = "holdings_of_a_sunk_boss.rs"]
 mod holdings_of_a_sunk_boss;
 
@@ -1499,3 +1510,5 @@ mod a_rest_on_a_cut_in_piece_lands_on_it;
 mod a_station_frame_is_minted_to_its_floor;
 #[path = "check_1_reads_no_frame_on_a_turned_disc.rs"]
 mod check_1_reads_no_frame_on_a_turned_disc;
+#[path = "separation_reads_turned_directions.rs"]
+mod separation_reads_turned_directions;

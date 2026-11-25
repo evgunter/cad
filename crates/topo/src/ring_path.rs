@@ -264,7 +264,7 @@ impl<T: Decide> Quadric<T> {
                     return Ok(Vec::new());
                 }
                 let arc = CircleArc {
-                    circle: geom::Circle::new(geom::Frame::new(centre, axis, a), radius),
+                    circle: geom::Circle::new(great_circle(centre, axis, a), radius),
                     span: (T::zero(), sine.atan2(a.dot(b))),
                 };
                 Ok(vec![Path {
@@ -522,6 +522,16 @@ impl<T: Real> Path<T> {
     }
 }
 
+/// **A great circle's frame** on the axis `axis`, the direction of
+/// `a × b`, whose sine the path decided positive, levered over the arc
+/// (`split_ring_path_span`), and `a`, one end's direction from the
+/// centre: the frame they state ([`geom_core::RigidMotion::squared`]),
+/// its stated-point read at an enclosure scalar kept. The decision is
+/// the path's own, so nothing is decided again here.
+fn great_circle<T: Real>(centre: Point3<T>, axis: Vec3<T>, a: Vec3<T>) -> geom::Frame<T> {
+    geom::Frame::of_motion(&geom_core::RigidMotion::squared(centre, axis, a))
+}
+
 /// The arc of the circle centred `centre` about the unit `axis`, of
 /// radius `radius`, from `from` to `to` (both in its plane), the short
 /// way round: a parallel, or a torus's meridian.
@@ -745,9 +755,8 @@ impl<T: Real> ConicArc<T> {
 /// is at least `minor`.
 #[derive(Clone, Copy)]
 pub(crate) struct Oval<T: Real> {
-    centre: Point3<T>,
-    axis: Vec3<T>,
-    u_ref: Vec3<T>,
+    /// The spiric carrier's frame, as the carrier holds it.
+    frame: geom::Frame<T>,
     major: T,
     minor: T,
     offset: T,
@@ -956,7 +965,7 @@ impl<T: Decide> Oval<T> {
     /// The oval's carrier.
     fn carrier(&self) -> geom::Curve3<T> {
         geom::Curve3::Spiric {
-            frame: geom::Frame::new(self.centre, self.axis, self.u_ref),
+            frame: self.frame,
             major_radius: self.major,
             minor_radius: self.minor,
             offset: self.offset,
@@ -1128,9 +1137,7 @@ impl<T: Decide> Quadric<T> {
             spiric_frame.u_ref(),
         );
         Some(LoopArc::Oval(Oval {
-            centre: center,
-            axis,
-            u_ref,
+            frame: spiric_frame,
             major: major_radius,
             minor: minor_radius,
             offset,
@@ -2006,7 +2013,7 @@ fn path_resolution<T: Decide>(path: &Path<T>, arcs: &[LoopArc<T>]) -> T {
         match arc {
             LoopArc::Conic(_) => {}
             LoopArc::Crest { circle, .. } => points.push(circle.frame().origin()),
-            LoopArc::Oval(Oval { centre, .. }) => points.push(*centre),
+            LoopArc::Oval(Oval { frame, .. }) => points.push(frame.origin()),
             LoopArc::Line { line, .. } => points.push(line.origin),
             LoopArc::Spline(SplineArc { carrier, span }) => {
                 points.extend([carrier.eval(span.0), carrier.eval(span.1)]);

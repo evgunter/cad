@@ -105,7 +105,6 @@ fn shape(frame: &Frame) -> String {
         Err(FrameError::Desync(what)) => format!("desync {what}"),
         Err(FrameError::OpenConic { conic }) => format!("open conic {conic:?}"),
         Err(FrameError::NoArm) => "no arm".into(),
-        Err(FrameError::Spiric { loops, .. }) => format!("spiric {loops:?}"),
         Err(FrameError::DegenerateTorus { convention, .. }) => {
             format!("degenerate torus {convention:?}")
         }

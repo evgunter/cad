@@ -501,8 +501,9 @@ pub(crate) fn section_door<T: crate::props::AtRestPolicy + Bounds>(
         };
         if recorded {
             for (decided, margin) in section.coincidences() {
-                let (relation, site) = coincidence_site(decided);
-                rows.push(row((fa, fb), relation, site, margin));
+                if let Some((relation, site)) = coincidence_site(decided) {
+                    rows.push(row((fa, fb), relation, site, margin));
+                }
             }
         }
     }
@@ -566,23 +567,25 @@ fn face_read(kind: geom::SurfaceKind, partner: &[geom::SurfaceKind]) -> bool {
 }
 
 /// **The record a coincidence the section value decided is kept as**:
-/// the relation it decides and its own site.
-fn coincidence_site(decided: geom_brep::Coincident) -> (crate::Relation, crate::DecisionSite) {
+/// the relation it decides and its own site. A cone's apex on its
+/// partner keeps none: it is a point of the section, a node or a touch,
+/// not a relation of the two carriers, and no carried component ends
+/// there (`NoCarrier::ConeNode`, `NoCarrier::ApexTouch`), so the join
+/// refuses the pair where the faces meet.
+fn coincidence_site(
+    decided: geom_brep::Coincident,
+) -> Option<(crate::Relation, crate::DecisionSite)> {
     use crate::{DecisionSite as Site, Relation};
     use geom_brep::Coincident as C;
-    match decided {
+    Some(match decided {
         C::CylinderSphere => (Relation::OnCarrier, Site::CoaxialSphere),
         C::SphereTorus => (Relation::OnCarrier, Site::SphereOnTorusAxis),
         C::CylinderTorus => (Relation::Coaxial, Site::CoaxialCylinderTorus),
         C::TorusTorus => (Relation::Coaxial, Site::CoaxialTori),
         C::CylinderRadii => (Relation::SameRadius, Site::CrossingCylinders),
         C::CylinderAxesMeet => (Relation::AxesMeet, Site::CrossingCylinders),
-        C::ConeApex => unreachable!(
-            "a cone's apex on its partner is recorded by a cone against a cylinder or a cone, \
-             which `pair_section::serves` does not admit; the cone × torus pose it admits \
-             records no coincidence"
-        ),
-    }
+        C::ConeApex => return None,
+    })
 }
 
 /// **The face-pair rows whose faces meet**: each row deciding faces
@@ -659,10 +662,10 @@ mod face_read_rows {
     /// **A face is read wherever a pair it forms is built**: a torus, a
     /// cylinder or a sphere against a body of spline walls (with planar
     /// caps or with cone faces) is read through the march door, as a
-    /// plane is; against planes alone a torus forms no pair the value
-    /// builds, and against a cone it forms the cone × torus pair. Red
-    /// where the filter reads only classified pairs and excepts planes
-    /// alone.
+    /// plane is; against planes alone a torus forms the plane × torus
+    /// pair, and against a cone the cone × torus pair; a cone against
+    /// planes forms none. Red where the filter reads only classified
+    /// pairs and excepts planes alone.
     #[test]
     fn a_face_is_read_wherever_a_pair_it_forms_is_built() {
         for kind in [Torus, Cylinder, Sphere, Plane] {
@@ -673,7 +676,8 @@ mod face_read_rows {
                 );
             }
         }
-        assert!(!super::face_read(Torus, &[Plane]));
+        assert!(super::face_read(Torus, &[Plane]));
+        assert!(!super::face_read(Cone, &[Plane]));
         assert!(super::face_read(Torus, &[Cone, Plane]));
         assert!(super::face_read(Cone, &[Torus]));
         assert!(!super::face_read(Nurbs, &[Nurbs, Cone]));

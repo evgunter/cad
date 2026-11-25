@@ -35,6 +35,8 @@ The fix is a chamber whose leaves need visibly different amounts again — a doc
 
 (GREEN U3, `green/editor-1e-12`) On the scheduled nightly 44870651337 (main `f5ef8f2b`) this row is red at the default ε, 1e-6 and 1e-12 with one message, `race: the row's certified arm is vacuous unless this drive certifies: Receipt { certified: 1, refused: 7, splits: 7 }` at `m10_sym_drive_memo_interval.rs:539`. So the re-pin this row owes greens the 1e-6 and 1e-12 rows too, and GREEN's 1e-12 row defers to it.
 
+- 2026-11-22 — **still red on main `788403465`** (EMBED, lane strip): the same panic at `m10_sym_drive_memo_interval.rs:539`, `Receipt { certified: 1, refused: 7, splits: 7 }`. Measured in a clean worktree of that main under CI's build (`--profile ci`, test crates at opt-0, the rest at opt-1).
+
 ## Still red at every ε on 11-22's main (GREEN U9, 2026-11-22)
 
 (GREEN, `green/held-reds`) Two lanes cited this test to GREEN's closed
@@ -55,3 +57,5 @@ This is a gain in certification, not a loss. With the `race` arm's `certifies` s
 - the 64-leaf drive certifies eight, symmetric about 0, where the text says four.
 
 The certified leaves are the ones beside the variable's zero (why there was not traced). Each needs `[36 ×8]` on the 8-leaf race, and `203` against the refused leaves' `139` on the other two. So the `race` arm's distinct-needs floor of one still holds, and the other two arms' floor of two holds. The re-pin is `certifies: true` on `race`, plus the counts in `RACING`'s doc. Measured at the default ε, the row re-pinned that way is green on main. Taking the re-pin is this row's call.
+
+- 2026-11-23 — BOXFINISH's PR 7394 re-cuts the race arm, red on its merge base on `certifies: false` (this row's section above). With a definite numeric sign asking the symbolic tier nothing, the slab at 8/4 freezes nothing (every one of its 36 freezes was the removed contradiction check's, `Plain/Assertion`, traced on base and head), so the row had no subject there: all three arms run at 8/3, where the decision path freezes 204, the race certifies 1 leaf (`certifies: true`, as on the merge base at 8/4 and 8/3), the 12-leaf drive 2 and the 64-leaf drive 8, the same on base and head under every schedule. (BOXFINISH)
