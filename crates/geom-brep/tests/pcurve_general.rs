@@ -610,7 +610,10 @@ fn a_general_image_wrong_between_samples_refuses_at_the_hull() {
     )
     .expect("the bent image builds");
     let bent = Arc::new(bent);
-    let line = Curve3::line(Point3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+    let line = Curve3::line(
+        Point3::new(1.0, 0.0, 0.0),
+        geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
+    );
     for (name, carrier) in [("spline", ruling()), ("line", line)] {
         let got = PcurveCache::certify_general(
             Arc::clone(&bent),
@@ -663,7 +666,10 @@ fn the_derived_route_certifies_a_line_and_a_bending_carrier<
     T: geom_core::Certifies + geom_core::CertifiedBounds,
 >() {
     let r = core::f64::consts::FRAC_1_SQRT_2;
-    let diagonal = Curve3::line(Point3::new(0.1, 0.2, 0.0), Vec3::new(r, r, 0.0));
+    let diagonal = Curve3::line(
+        Point3::new(0.1, 0.2, 0.0),
+        geom::stated_direction(Vec3::new(r, r, 0.0)),
+    );
     derived_route_certifies::<T>("the diagonal", &diagonal, (0.0, 0.9), &flat_wall());
     let quarter = fixture::quarter_cylinder_wall();
     derived_route_certifies::<T>("the circle", &circle(0.5), (0.1, 1.4), &quarter);

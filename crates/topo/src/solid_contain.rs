@@ -209,6 +209,7 @@
 
 pub(crate) use crate::rows::RayRows;
 use geom_brep::ladder::{Answering, Climb, Rung, climb};
+use geom_core::UnitVec3;
 use geom_core::period::{Exact, Extent, Period, TurnRows, Within};
 use geom_core::{Band, Decide, Indeterminate, Lever, Margin, Point3, Sign, Vec3};
 
@@ -962,7 +963,7 @@ fn face_geo_arms<T: Decide>(
             Ok(FaceGeo::Plane(plane_desc_of(f.record(), origin, normal)))
         }
         &Surface::Cylinder { frame, radius, .. } => {
-            let (origin, axis) = (frame.origin(), frame.axis());
+            let (origin, axis) = (frame.origin(), frame.axis_unit());
             match ruled_face_region(body, face)? {
                 Some(region) => Ok(FaceGeo::Cylinder {
                     axis: geom::Line { origin, dir: axis },
@@ -984,7 +985,7 @@ fn face_geo_arms<T: Decide>(
         &Surface::Cone {
             frame, half_angle, ..
         } => {
-            let (apex, axis) = (frame.origin(), frame.axis());
+            let (apex, axis) = (frame.origin(), frame.axis_unit());
             match ruled_face_region(body, face)? {
                 Some(region) => Ok(FaceGeo::Cone {
                     axis: geom::Line {
@@ -1031,7 +1032,7 @@ fn face_geo_arms<T: Decide>(
             minor_radius,
             ..
         } => {
-            let (center, axis) = (frame.origin(), frame.axis());
+            let (center, axis) = (frame.origin(), frame.axis_unit());
             if let Some(representative) = torus_closed_group(body, face, charts)? {
                 return Ok(FaceGeo::Torus {
                     axis: geom::Line {
@@ -1347,10 +1348,14 @@ pub(crate) fn trim_window_short<T: Decide>(
 /// torn curve is not null scaffolding. The
 /// links hold at rest and, on the reduction's working copies, by
 /// [`crate::live::OPERATORS_KEEP_LINKS`].
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub(crate) fn sphere_chart_trim<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
-    (sphere, center, radius, axis): (&geom::Surface<T>, Point3<T>, T, Vec3<T>),
+    (sphere, center, radius, axis): (&geom::Surface<T>, Point3<T>, T, UnitVec3<T>),
     band: Band,
 ) -> Result<Option<SphereChartTrim<T>>, PointInSolidError> {
     let escalate = |diag| PointInSolidError::Escalated { face, diag };
@@ -1402,11 +1407,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
         let geom::Curve3::Circle(conic_k) = *curve.carrier() else {
             return Ok(None);
         };
-        let (c_c, n_c, u_c) = (
-            conic_k.frame().origin(),
-            conic_k.frame().axis(),
-            conic_k.frame().u_ref(),
-        );
+        let (c_c, n_c, u_c) = (conic_k.frame().origin(), conic_k.axis(), conic_k.u_ref());
         let r_c = conic_k.radius();
         let w = c_c - center;
         // A unit-vector cross/dot is a SINE or COSINE (dimensionless)
@@ -1415,7 +1416,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
         if zero_as(
             "bool_sphere_iso_meridian",
             Margin::levered(
-                n_c.dot(axis),
+                n_c.dot(axis.get()),
                 geom_brep::ExtentBall::of_covered(curve.carrier().cover().as_ref().ok()).lever(),
             ),
         )? {
@@ -1444,7 +1445,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             }
             let m_hat = chart_dir(n_c, u_c, geom::mid_param(t0, t1));
             let (_, c_h) = (width * half).sin_cos();
-            for pole in [axis, axis * (T::zero() - T::one())] {
+            for pole in [axis.get(), axis.get() * (T::zero() - T::one())] {
                 match decide(
                     "bool_sphere_trim_pole_interior",
                     Margin::levered(
@@ -1485,7 +1486,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             }
             // The rim's own exact pair — its radius IS the radial
             // component, with no square root anywhere near a pole.
-            levels.push((w.dot(axis), r_c));
+            levels.push((w.dot(axis.get()), r_c));
         }
     }
     // The window is the lift's: the face's boundary in the chart,
@@ -1544,7 +1545,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
         Some(rims) => {
             let mut bounding: Vec<(T, T)> = rims
                 .iter()
-                .map(|rim| ((rim.center - center).dot(axis), rim.radius))
+                .map(|rim| ((rim.center - center).dot(axis.get()), rim.radius))
                 .collect();
             for level in levels {
                 if zero_as("bool_sphere_trim_pole_end", Margin::of(level.1))? {
@@ -2091,7 +2092,7 @@ fn point_in_faces<T: Decide + crate::props::AtRestPolicy>(
     ray_walk::walk(
         &SCHEDULE,
         |r| {
-            let d = r.map(T::from_f64).normalize();
+            let d = UnitVec3::squared(r.map(T::from_f64));
             match cast_ray(body, &geos, &geom::Ray::new(q, d), reach, band)? {
                 Some(side) => Ok(side),
                 None => missed_side(body, sel, band, tol, &read),
@@ -2388,19 +2389,28 @@ fn at_hit(e: PointInSolidError) -> RayFault<PointInSolidError> {
 /// [`PointInSolidError::CorruptFace`] for a face with no cover (a
 /// poisoned net, data that is not a finite number), which no reach
 /// bounds.
+///
+/// # Panics
+///
+/// For an empty selection: every caller asks it of one holding a face.
 pub(crate) fn selection_reach<T: Decide>(
     body: &Body<T>,
     faces: &[FaceKey],
     q: Point3<T>,
     band: Band,
 ) -> Result<Lever<T>, PointInSolidError> {
-    faces
-        .iter()
-        .try_fold(geom_brep::ExtentBall::point(q).lever(), |reach, &face| {
-            crate::cover::face_reach_from(body, face, q, band)
-                .map(|far| reach.max(far))
-                .map_err(|_| PointInSolidError::CorruptFace { face })
-        })
+    let mut reach: Option<Lever<T>> = None;
+    for &face in faces {
+        let far = crate::cover::face_reach_from(body, face, q, band)
+            .map_err(|_| PointInSolidError::CorruptFace { face })?;
+        reach = Some(reach.map_or(far, |r| r.max(far)));
+    }
+    Ok(reach.unwrap_or_else(|| {
+        unreachable!(
+            "a selection's reach is asked only of one holding a face: the probe refuses an empty \
+             selection first, and an aimed ray is aimed at one of its faces"
+        )
+    }))
 }
 
 /// The crossing sign implied by a CHART-outward direction on a face
@@ -2501,7 +2511,7 @@ fn ray_passes_beside<T: Decide>(
         .map_err(|no| RayFault::Fatal(no_outline(no)))?;
     let (verts, covers) = crate::splitting::containment::loop_hull(area.outer())
         .map_err(|e| RayFault::Fatal(PointInSolidError::Loop(e)))?;
-    let m = normal.cross(d);
+    let m = normal.cross(d.get());
     let m = m.normalize();
     let base = (q - Point3::origin()).dot(m);
     let (mut above, mut below) = (None::<T>, None::<T>);
@@ -2667,6 +2677,13 @@ impl<T: Copy> RayHit<T> {
     /// other's rounding it is negative) are a pair, or a tie that grazes,
     /// on any two of their faces that do not meet
     /// ([`crate::side_reader::meet`]).
+    ///
+    /// The gap is handed back as read, undecided: whether it lies in
+    /// the band is the caller's reading
+    /// ([`crate::validate::in_band`]). Point containment refuses on it
+    /// with its margin either way (`cast_ray`); the side reader takes
+    /// a pair only on a gap in band and sets the ray aside on one that
+    /// reaches past it (`side_reader::aimed_ray`).
     ///
     /// # Errors
     ///
@@ -3045,22 +3062,26 @@ fn crosses_by_turn<T: Decide>(
 /// far the edge is off its ruling or parallel (`bool_wall_turn_true`,
 /// below). The turn is read as a planar face's is ([`turned_inside`]): no
 /// path is walked.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn wall_crosses_by_turn<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
-    (origin, axis, radius): (Point3<T>, Vec3<T>, T),
+    (origin, axis, radius): (Point3<T>, UnitVec3<T>, T),
     (p, reach): (Point3<T>, T),
     ray: TurnRay,
 ) -> Result<Option<bool>, RayFault<PointInSolidError>> {
     let band = ray.band;
-    let axis = axis.normalize();
+    let axis = UnitVec3::squared(axis.get());
     let radius = radius.abs();
     let split = |x: Point3<T>| {
         let (h, radial) = geom::Line { origin, dir: axis }.param_and_offset(x);
         (h, radial.normalize())
     };
     let (h_p, e1) = split(p);
-    let e2 = axis.cross(e1);
+    let e2 = axis.get().cross(e1);
     let image = |x: Point3<T>| {
         let (h, s) = split(x);
         let dh = h - h_p;
@@ -3101,21 +3122,25 @@ fn wall_crosses_by_turn<T: Decide>(
             geom::Curve3::Line(geom::Line { origin: o, dir }) => {
                 let (t0, t1) = curve.params();
                 let start = geom::Line {
-                    origin: o + dir * t0,
+                    origin: o + dir.get() * t0,
                     dir,
                 };
-                geom_brep::ruling_miss(&start, (T::zero(), t1 - t0), geom_brep::Ruling::Axis(axis))
-                    .value()
+                geom_brep::ruling_miss(
+                    &start,
+                    (T::zero(), t1 - t0),
+                    geom_brep::Ruling::Axis(axis.get()),
+                )
+                .value()
             }
             geom::Curve3::Circle(circle) => {
-                let (center, normal) = (circle.frame().origin(), circle.frame().axis());
+                let (center, normal) = (circle.frame().origin(), circle.axis());
                 let r = circle.radius();
-                r.abs() * normal.normalize().cross(axis).norm()
+                r.abs() * normal.normalize().cross(axis.get()).norm()
                     + geom::Line { origin, dir: axis }.distance(center)
             }
             _ => return Ok(None),
         };
-        let Some(clear) = edge_clearance(body, &e, p) else {
+        let Some(clear) = edge_clearance(body, &e, p, None) else {
             return Ok(None);
         };
         if decide(
@@ -3156,12 +3181,22 @@ fn turned_inside<T: Decide>(
         == Sign::Positive)
 }
 
+/// **`n̂·(u × w)` and `u·w` of two vectors across the unit `normal`**,
+/// the dot read as `(n̂ × u)·(n̂ × w)`: equal to `u·w` where neither has
+/// a part along `n̂`, and it multiplies nothing along `n̂`. At `f64` it
+/// is `u·w` to rounding; at `Interval` and `Sym` a part along the
+/// normal that two points' enclosures share is never squared into the
+/// dot. It chooses no frame ([`Vec3::orthonormal_basis`] selects one).
+fn planar_cross_dot<T: Decide>(normal: Vec3<T>, u: Vec3<T>, w: Vec3<T>) -> (T, T) {
+    (normal.dot(u.cross(w)), normal.cross(u).dot(normal.cross(w)))
+}
 /// **The turn of `face`'s loops about `p`**, about `normal`, every point
 /// of them first carried by `map` (the identity for a planar face, which
 /// `p` lies in; an image of a curved face in the plane `p`'s image lies
 /// in): a line edge, carried to a segment, turns by the angle its ends
 /// make at `p`, and a circle arc, carried to a circle arc, by [`arc_turn`]
-/// over its two halves. `None` where an edge is neither.
+/// over its two halves, each read across the normal ([`planar_cross_dot`]). `None`
+/// where an edge is neither.
 fn loop_turn<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -3177,8 +3212,8 @@ fn loop_turn<T: Decide>(
             .ok_or_else(corrupt)
     };
     let angle = |a: Point3<T>, b: Point3<T>| {
-        let (u, w) = (a - p, b - p);
-        normal.dot(u.cross(w)).atan2(u.dot(w))
+        let (cross, dot) = planar_cross_dot(normal, a - p, b - p);
+        cross.atan2(dot)
     };
     let mut turn = T::zero();
     for e in body.proven_face(face).edges() {
@@ -3212,6 +3247,18 @@ fn loop_turn<T: Decide>(
     Ok(Some(turn))
 }
 
+/// [`loop_turn`] of planar `face` about `p`, for the rows that hold its
+/// enclosure over a box.
+#[cfg(test)]
+pub(crate) fn planar_turn<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    normal: Vec3<T>,
+    p: Point3<T>,
+) -> Option<T> {
+    loop_turn(body, face, normal, p, |x| x).ok().flatten()
+}
+
 /// **The turn about `p` of a circle arc** from `a` through `m` to `b`,
 /// at most half a turn, about `normal`, in the plane of `p`: the change
 /// in the direction from `p` to the arc's point as it runs from `a` to
@@ -3229,8 +3276,8 @@ fn arc_turn<T: Decide>(
     (a, m, b): (Point3<T>, Point3<T>, Point3<T>),
 ) -> T {
     let numerator = |x: Point3<T>| {
-        let (u, w) = (x - a, x - b);
-        (u.dot(w), normal.dot(w.cross(u)))
+        let (cross, dot) = planar_cross_dot(normal, x - b, x - a);
+        (dot, cross)
     };
     let ((pr, pi), (mr, mi)) = (numerator(p), numerator(m));
     let zero = T::zero();
@@ -3262,10 +3309,20 @@ pub(crate) fn along_half<T: Decide>(
 /// or a circle arc: its carrier's closed-form distance from the edge's
 /// span ([`geom::Curve3::distance_within`]), the segment between its
 /// vertices for a line. `None` for another edge.
+///
+/// With `across` a planar face's unit normal, a line edge is read
+/// across it: the distance from `n̂ × (m − a)` to the segment along
+/// `n̂ × (b − a)`. `n̂ ×` drops a vector's part along the normal and
+/// turns the rest a quarter turn, so this is never more than the
+/// distance, and is the distance where `m` and the edge lie in one
+/// plane across `n̂`. At `f64` the two readings agree to rounding
+/// there; at `Interval` and `Sym` a part along the normal that the
+/// points' enclosures share is not summed.
 pub(crate) fn edge_clearance<T: Decide>(
     body: &Body<T>,
     e: &crate::live::FaceEdge,
     m: Point3<T>,
+    across: Option<Vec3<T>>,
 ) -> Option<T> {
     let at = |v| Some(*body.get_point(body.get_vertex(v)?.point)?);
     let curve = body
@@ -3274,11 +3331,15 @@ pub(crate) fn edge_clearance<T: Decide>(
     match *curve.carrier() {
         geom::Curve3::Line(_) => {
             let (a, b) = (at(e.ends[0])?, at(e.ends[1])?);
-            geom::Curve3::Line(geom::Line {
-                origin: a,
-                dir: b - a,
-            })
-            .distance_within(m, (T::zero(), T::one()))
+            // The chord and the point, each turned across the normal
+            // where one is given.
+            let o = Point3::new(T::zero(), T::zero(), T::zero());
+            let (from, to, at) = match across {
+                Some(n) => (o, o + n.cross(b - a), o + n.cross(m - a)),
+                None => (a, b, m),
+            };
+            let (line, length) = geom::Line::chord(from, to);
+            geom::Curve3::Line(line).distance_within(at, (T::zero(), length))
         }
         geom::Curve3::Circle(_) => curve.carrier().distance_within(m, curve.params()),
         _ => None,
@@ -3364,7 +3425,7 @@ fn cone_door<T: Decide>(
     band: Band,
 ) -> Result<Option<[(T, T); 2]>, RayFault<PointInSolidError>> {
     let line = ray.line();
-    let (centre, half) = (line.param(cone.0.origin), reach / line.dir.norm());
+    let (centre, half) = (line.param(cone.0.origin), reach / line.dir.get().norm());
     match line_cone_roots(line, cone, (centre - half, centre + half), band)
         .map_err(|diag| RayFault::InBand(PointInSolidError::Escalated { face, diag }))?
     {
@@ -3567,7 +3628,7 @@ fn root_outward<T: Decide>(
 ) -> Result<Sign, RayFault<PointInSolidError>> {
     let geom::Line { origin: q, dir: d } = ray.line();
     let escalate = |diag| RayFault::InBand(PointInSolidError::Escalated { face, diag });
-    let p = q + d * root.t;
+    let p = q + d.get() * root.t;
     match (root.side, geo) {
         (RootSide::Ordered(sign), _) => Ok(sign),
         (
@@ -3583,7 +3644,7 @@ fn root_outward<T: Decide>(
             },
         ) => {
             let wp = p - apex;
-            let hp = wp.dot(axis);
+            let hp = wp.dot(axis.get());
             if decide("bool_ray_cone_nappe", Margin::of(hp), band).map_err(escalate)? == Sign::Zero
             {
                 return Ok(Sign::Zero);
@@ -3592,7 +3653,7 @@ fn root_outward<T: Decide>(
                 decide(
                     "bool_ray_cone_incidence",
                     Margin::levered(
-                        d.dot(chart_normal(body, face, p)?),
+                        d.get().dot(chart_normal(body, face, p)?),
                         geom_brep::curvature_lever_arm(body.proven_face(face).surface(), p),
                     ),
                     band,
@@ -3606,7 +3667,7 @@ fn root_outward<T: Decide>(
                 decide(
                     "bool_ray_torus_incidence",
                     Margin::levered(
-                        d.dot(chart_normal(body, face, p)?),
+                        d.get().dot(chart_normal(body, face, p)?),
                         geom_brep::uniform_curvature_arm(body.proven_face(face).surface()),
                     ),
                     band,
@@ -3659,12 +3720,12 @@ fn reach_margin<T: Decide>(
 ) -> Result<T, RayFault<PointInSolidError>> {
     let geom::Line { origin: q, dir: d } = ray.line();
     let surface = body.proven_face(face).surface();
-    let (at, passage) = (q + d * root, q + d * m.at);
+    let (at, passage) = (q + d.get() * root, q + d.get() * m.at);
     let off = (m.span.0 - root).max(root - m.span.1).max(T::zero());
     let n = chart_normal(body, face, at)?;
     let tilt = geom_brep::implicit_residual(surface, at).abs()
         / geom_brep::min_radius_of_curvature(surface, at);
-    let incidence = d.dot(n).abs() / n.norm() + tilt + geom_core::rounding_charge(T::one());
+    let incidence = d.get().dot(n).abs() / n.norm() + tilt + geom_core::rounding_charge(T::one());
     let rise = Margin::metered_sup(off, geom_core::SupSpeed::new(incidence)).value();
     let clearance = geom_brep::implicit_residual(surface, passage).abs();
     let origin = Point3::origin();
@@ -3830,7 +3891,7 @@ pub(crate) fn ray_crossings<T: Decide>(
         // `face_geo`), so this sign IS the material-side verdict the
         // count consumes; the advance `t` below is a ratio of two such
         // dots and cannot see the orientation at all.
-        let denom = d.dot(normal);
+        let denom = d.get().dot(normal);
         // The cosine levered by the selection's reach: how far the ray
         // rises off the plane over every length at which it could meet
         // the face ([`selection_reach`]).
@@ -3859,9 +3920,9 @@ pub(crate) fn ray_crossings<T: Decide>(
             face,
             normal,
             t,
-            slack: geom_core::rounding_charge((origin - q).norm() + t.abs() * d.norm())
+            slack: geom_core::rounding_charge((origin - q).norm() + t.abs() * d.get().norm())
                 / denom.abs(),
-            p: q + d * t,
+            p: q + d.get() * t,
             outward,
         });
     }
@@ -3969,7 +4030,7 @@ pub(crate) fn ray_crossings<T: Decide>(
                         let geo = geo_of(f)
                             .ok_or(RayFault::Fatal(PointInSolidError::CorruptFace { face: f }))?;
                         if reaches_root_in_band(body, f, ray, m, t, band, rows)? {
-                            root_held(f, geo, q + d * t, band)
+                            root_held(f, geo, q + d.get() * t, band)
                         } else {
                             Ok(None)
                         }
@@ -4091,7 +4152,7 @@ pub(crate) fn ray_crossings<T: Decide>(
             };
             // A wall face met at no edge, every edge of which the ray was
             // decided clear of, is held where the turn of its loops says.
-            let p = q + d * r.t;
+            let p = q + d.get() * r.t;
             let turned = match *geo {
                 FaceGeo::Cylinder {
                     axis: geom::Line { origin, dir: axis },
@@ -4165,7 +4226,7 @@ pub(crate) fn ray_crossings<T: Decide>(
                     if ahead == Sign::Negative {
                         continue;
                     }
-                    let p = q + d * t;
+                    let p = q + d.get() * t;
                     match decide(
                         "bool_cone_partial_reach",
                         Margin::of((p - apex).norm() - reach.length()),
@@ -4214,7 +4275,7 @@ pub(crate) fn ray_crossings<T: Decide>(
                     }
                     match decide(
                         "bool_wall_outline_reach",
-                        Margin::of((q + d * t - anchor).norm() - ball),
+                        Margin::of((q + d.get() * t - anchor).norm() - ball),
                         band,
                     )
                     .map_err(escalate)?
@@ -4996,7 +5057,13 @@ mod per_solid_entry_tests {
             let d = Vec3::new(0.5, 0.3, -1.0).normalize();
             let q = Point3::new(1.0 + 0.5 * g, 0.5, 1.0) - d * 2.0;
             let reach = selection_reach(&body, sel.faces(), q, band).unwrap();
-            let got = cast_ray(&body, &geos, &geom::Ray::new(q, d), reach, band);
+            let got = cast_ray(
+                &body,
+                &geos,
+                &geom::Ray::new(q, geom::stated_direction(d)),
+                reach,
+                band,
+            );
             assert!(
                 !matches!(
                     &got,
@@ -5045,7 +5112,13 @@ mod per_solid_entry_tests {
                 let d = Vec3::new(1.0, 0.05, -slope).normalize();
                 let q = Point3::new(1.0, 0.5, 1.0 + 3.0 * tol.eps() * slope) - d * 0.3;
                 let reach = selection_reach(&body, sel.faces(), q, band).unwrap();
-                let got = cast_ray(&body, &geos, &geom::Ray::new(q, d), reach, band);
+                let got = cast_ray(
+                    &body,
+                    &geos,
+                    &geom::Ray::new(q, geom::stated_direction(d)),
+                    reach,
+                    band,
+                );
                 let pair = matches!(
                     &got,
                     Err(RayFault::InBand(PointInSolidError::Escalated { diag, .. }))
@@ -5072,7 +5145,13 @@ mod per_solid_entry_tests {
             .collect();
         let cast = |q: Point3<f64>, d: Vec3<f64>| {
             let reach = selection_reach(&body, sel.faces(), q, band).unwrap();
-            cast_ray(&body, &geos, &geom::Ray::new(q, d.normalize()), reach, band)
+            cast_ray(
+                &body,
+                &geos,
+                &geom::Ray::new(q, geom_core::UnitVec3::squared(d)),
+                reach,
+                band,
+            )
         };
         let inside = Point3::new(0.5, 0.5, 0.5);
         assert!(matches!(
@@ -5695,12 +5774,18 @@ mod reach_tests {
         for i in 0..400 {
             let off = 10f64.powf(-8.0 + f64::from(i) * 0.02);
             let m = met(off);
-            let margin =
-                reach_margin(&body, face, &geom::Ray::new(q, d), &m, root).expect("a carrier");
+            let margin = reach_margin(
+                &body,
+                face,
+                &geom::Ray::new(q, geom::stated_direction(d)),
+                &m,
+                root,
+            )
+            .expect("a carrier");
             let reached = reaches_root_in_band(
                 &body,
                 face,
-                &geom::Ray::new(q, d),
+                &geom::Ray::new(q, geom::stated_direction(d)),
                 &m,
                 root,
                 band,
@@ -5772,7 +5857,10 @@ mod cone_ray_rows {
         let (g, n) = (Vec3::new(s, 0.0, s), Vec3::new(s, 0.0, -s));
         let d = g * 0.01f64.cos() + Vec3::new(0.0, 1.0, 0.0) * 0.01f64.sin();
         for (label, off, two) in [("outward", 1e-6, false), ("inward", -1e-6, true)] {
-            let ray = geom::Ray::new(Point3::new(1.0, 0.0, 1.0) + n * off - d * 0.5, d);
+            let ray = geom::Ray::new(
+                Point3::new(1.0, 0.0, 1.0) + n * off - d * 0.5,
+                geom::stated_direction(d),
+            );
             let (roots, missed) = match carrier_roots(&geos, &ray, 4.0, band, SCHEDULE_ROWS) {
                 Ok(got) => got,
                 Err(fault) => panic!("{label}: decided, got {fault:?}"),

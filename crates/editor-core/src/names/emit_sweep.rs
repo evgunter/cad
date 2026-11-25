@@ -292,8 +292,7 @@ pub(crate) fn name_extrude<T: topo::AtRestPolicy + Decide>(
             }
         }
     }
-    super::emit::check_total(&t, body, 0)?;
-    Ok(Arc::new(t))
+    Ok(Arc::new(super::emit::finish(t, body, 0)?))
 }
 
 /// Names every boundary entity of a loft body (M6-3): caps, walls,
@@ -545,8 +544,7 @@ fn name_loft_topology<T: Decide>(
         }
     }
 
-    super::emit::check_total(&t, body, 0)?;
-    Ok(Arc::new(t))
+    Ok(Arc::new(super::emit::finish(t, body, 0)?))
 }
 
 /// Where along the stack [`walk_corner`] found a vertex.
@@ -847,8 +845,7 @@ pub(crate) fn name_revolve<T: topo::AtRestPolicy + Decide>(
         }
     }
 
-    super::emit::check_total(&t, body, 0)?;
-    Ok(Arc::new(t))
+    Ok(Arc::new(super::emit::finish(t, body, 0)?))
 }
 
 /// The unique vertex two endpoint pairs share (`None` when disjoint

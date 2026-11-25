@@ -36,6 +36,8 @@ Moved from HONEROOT to GERM on 2026-11-20, by `git mv`, when HONEROOT merged int
 
 **More seeds (2026-11-20, ONEROUND's `oneround/lever-doors` lane).** On a clean worktree of `origin/main`, `CAD_FUZZ_SEED=0xcd26a5f82fb7b695 CAD_FUZZ_EFFORT=1` gives 2 mismatches, both `Tangent("section_torus_square_wall_fold_half")`. On that lane's branch (which does not touch this arm) seeds `0x1` and `0x2` fail and `0x3` passes; those three were not replayed on main. So the counterexample is not rare: three of the four seeds tried find it, and the row's fuzzer, which varies its seed, is red on most runs of the slow set.
 
+**Another seed (2026-11-20, ONEROUND's `oneround/lever-sites-topo` lane).** `CAD_FUZZ_SEED=0x7268e17b993b86d7 CAD_FUZZ_EFFORT=1` gives 2 mismatches, both on that lane's base (`oneround/lever-doors` merged with `origin/main` at `3c300524`) and on its head; the lane does not touch this arm.
+
 **Another seed (2026-11-21, GERM's `germ/crossing-consumers` lane, U3b).** `CAD_FUZZ_SEED=0x5d5157bb6763023d CAD_FUZZ_EFFORT=1` gives 1 mismatch on the lane's base, `germ/crossing-pose-cross` at `4303b022e8` (the lane's diff stashed): a strip crossing at a tube circle's top, `R 0.0173, r 0.00329, (e, z0, rc) (-0.01474, -0.000586, 0.00372)`, tilt 1.8e-14, `R-tan at Degeneracy { tangent: 1.57e-4, top: 1.04e-9 }: Tangent("section_torus_square_wall_fold_half")`.
 
 ## A second seed, red on main (SECTCONE, 2026-11-22)
@@ -64,3 +66,44 @@ mismatches of the same shape, `top` 3.28e-9 and 3.38e-9, read
 `Tangent("section_torus_square_wall_fold_half")`. The fuzzer is red on
 main's nightly too (`work/green/nightly-1115-residue-the-reds-no-lane-holds.md`,
 seed `0x96ec838c8a0d073e` at 1e-12).
+
+**Another seed (2026-11-22, HELDRECORDS' `heldrecords/nesting` lane, whose diff this arm does not read).** `CAD_FUZZ_SEED=0x127a80287c19c581 CAD_FUZZ_EFFORT=1` at the default ε gives 2 mismatches of this class: `R 38.834, r 26.194, (e, z0, rc) (35.239, 30.287, 5.4475)`, tilt 1.2e-14, `Degeneracy { tangent: 1.142, top: 3.74e-9 }`; and `R 0.36623, r 0.32703, (e, z0, rc) (0.39027, 0.26587, 0.065705)`, tilt 8.0e-14, `Degeneracy { tangent: 0.00564, top: 5.69e-10 }`; both `Tangent("section_torus_square_wall_fold_half")`.
+
+**Another seed, red on main (2026-11-23, ONEROUND's `oneround/conic-readers` lane).** `CAD_FUZZ_SEED=0x28ab5920d3c632ea CAD_FUZZ_EFFORT=1` at the default eps gives 1 mismatch on a clean worktree of `origin/main` at `2b9cd8b24`, and the same one on the lane's branch (which changes no formula this arm reads): a strip crossing at a tube circle's top, `R 3.7722725905900796, r 1.0650391083001807, (e, z0, rc) (-4.8298983194402485, 3.5969163843253504, 2.743897725051316)`, tilt 0, `R-tan at Degeneracy { tangent: 0.059752967741008245, top: 4.306466294679012e-10 }: Tangent("section_torus_square_wall_fold_half")`.
+
+Another, seed `0x6007c6a9f3e13c4d` (ORBIT's `orbit/torus-touch-build`,
+2026-11-23, at the default eps; the square-wall arm is untouched there):
+one mismatch of the same shape, `R 1.210, r 0.846`, `top` 2.98e-9, read
+`Tangent("section_torus_square_wall_fold_half")`.
+
+Another seed, from CI's slow set on lane `orbit-tilt`'s PR 7617
+(`CAD_FUZZ_SEED=0x71703484f672850c`, `CAD_FUZZ_EFFORT=1`, CI run
+45347387574, 2026-11-24): two mismatches of the same shape, both read
+`Tangent("section_torus_square_wall_fold_half")`. The first is at
+`R 13.60, r 11.48`, tilt 0, `top` 3.79e-9. The second is at
+`R 0.0239, r 0.0201`, tilt 4.7e-12, `top` 1.57e-9. The PR leaves the
+square-wall arm untouched. The seed reproduces both mismatches on
+main `341d62e9a6` (a local replay).
+
+Another draw, from CI's slow set on lane `orbit-onelever`'s PR 7713
+(`CAD_FUZZ_SEED=0x3c2bb516555b426d`, `CAD_FUZZ_EFFORT=1`, CI run
+45398921416, 2026-11-24): `a strip crossing at a tube circle's top`,
+`R ≈ 31.15`, `r ≈ 11.50`, tilt 0, read
+`Tangent("section_torus_square_wall_fold_half")` at `top ≈ 8.8·10⁻⁹`.
+It reproduces on main `68af2aa3e` (a local replay).
+The next run of that PR drew `CAD_FUZZ_SEED=0xb09da3f2f11b9405` (CI run
+45405107980): three more strips crossing at a tube circle's top, each
+read `Tangent("section_torus_square_wall_fold_half")` at `top` between
+`1.4·10⁻⁹` and `7.2·10⁻⁹`. Two consecutive random draws failing says
+the class is dense at `CAD_FUZZ_EFFORT=1`, so any PR that edits
+`section_cert.rs` meets it.
+
+Another, on lane `sectcone`'s PR 7725 (`CAD_FUZZ_SEED=0x19cd8a1893d734c4`,
+`CAD_FUZZ_EFFORT=1`, CI run 45497745772, 2026-11-24): one strip crossing
+at a tube circle's top, `R ≈ 0.0373`, `r ≈ 0.0353`, tilt 0, read
+`Tangent("section_torus_square_wall_fold_half")` at `top ≈ 5.3·10⁻¹⁰`.
+That PR changes only how the certificate maps a cone's `ConeAtTheBand`,
+which this arm never raises.
+Its next run (CI run 45501517090) drew `CAD_FUZZ_SEED=0x13c5b6684404a940`:
+three more, `R` from `21.5` to `96.6`, `top` between `6.8·10⁻¹⁰` and
+`2.1·10⁻⁹`, the same row.

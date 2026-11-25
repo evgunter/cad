@@ -720,7 +720,7 @@ fn row3_further_typed_refusals() {
     let (host, consumer) = insert(
         host,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![
+            members: editor_core::Bodies::spelled(vec![
                 // The part's product is its one copy: the instance's copy
                 // is read whole.
                 editor_core::BodyRead::plain(editor_core::Operand::Node(inst)),
@@ -739,7 +739,7 @@ fn row3_further_typed_refusals() {
     assert!(
         inlined
             .doc
-            .operation_of(members[0].read)
+            .operation_of(members[0].read().read)
             .is_some_and(|at| at != inst),
         "the reader reads the spliced copy"
     );
@@ -1227,7 +1227,7 @@ fn a_reaching_name_names_the_earliest_node_outside_the_cut_in_document_order() {
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
     );
     let ev = run(&doc, &EvalOptions::default());
@@ -1317,7 +1317,7 @@ fn a_reaching_name_names_a_live_node_before_a_deleted_one() {
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
     );
     let ev = run(&doc, &EvalOptions::default());

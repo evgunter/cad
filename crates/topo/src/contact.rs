@@ -42,11 +42,22 @@ pub enum GlueClass {
     Continuation,
     /// Distinct carriers tangent along a certified locus.
     Tangent,
+    /// Two faces on distinct carriers that both end on one rim, joined
+    /// there in a smooth seam whose interiors do not meet: the routing's
+    /// π wedge with the faces leaving on opposite sides, each operand's
+    /// own rim edge convex. No touch is claimed along the rim, so no
+    /// reader of a tangency reads it.
+    Junction,
 }
 
 impl GlueClass {
     /// Every class.
-    pub(crate) const ALL: &'static [GlueClass] = &[Self::Rest, Self::Continuation, Self::Tangent];
+    pub(crate) const ALL: &'static [GlueClass] = &[
+        Self::Rest,
+        Self::Continuation,
+        Self::Tangent,
+        Self::Junction,
+    ];
 
     /// The class's name, for messages.
     pub fn name(self) -> &'static str {
@@ -54,12 +65,14 @@ impl GlueClass {
             Self::Rest => "Rest",
             Self::Continuation => "Continuation",
             Self::Tangent => "Tangent",
+            Self::Junction => "Junction",
         }
     }
 
     /// Whether the class is ONE carrier (`Rest` or a continuation) —
     /// what the classification stages' same-carrier treatment and the
-    /// merge stage consume. A `Tangent` pair's carriers are distinct.
+    /// merge stage consume. A `Tangent` or `Junction` pair's carriers are
+    /// distinct.
     pub fn is_one_carrier(self) -> bool {
         matches!(self, Self::Rest | Self::Continuation)
     }
@@ -73,12 +86,13 @@ impl GlueClass {
             Self::Rest => crate::Relation::SameOpposite,
             Self::Continuation => crate::Relation::SameOriented,
             Self::Tangent => crate::Relation::SurfaceTangent,
+            Self::Junction => crate::Relation::RimJunction,
         }
     }
 
     /// The carrier relation a one-carrier class glues under: its
     /// [`Self::relation`] as the carrier ladder spells it. `None` for a
-    /// tangency, whose carriers are distinct.
+    /// tangency or a junction, whose carriers are distinct.
     pub(crate) const fn carrier_relation(self) -> Option<geom_brep::CarrierRelation> {
         match self.relation() {
             crate::Relation::SameOriented => Some(geom_brep::CarrierRelation::SameOriented),

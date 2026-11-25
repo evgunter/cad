@@ -388,6 +388,7 @@
 
 pub(crate) use crate::rows::WedgeNames;
 use core::fmt;
+use geom_core::UnitVec3;
 use std::borrow::Cow;
 
 use geom::{NetState, Surface};
@@ -473,8 +474,9 @@ pub(crate) fn decide_positive<T: Decide, A: geom_core::MarginTerms>(
 }
 
 /// **Whether a reading's own rounding leaves an in-band reading the
-/// input's**: the rounding, `K` times over, decided Zero under `name`, so
-/// it lies within an `ε/K` share of the band. This is an amplification
+/// input's**: the rounding decided Zero under `name` in the band one
+/// K-step finer ([`Band::a_step_finer`]), so it lies within an `ε/K`
+/// share of the band. This is an amplification
 /// share, kept until `work/oneround/site-rounding-charges-owed-a-re-posing.md`
 /// re-poses the readings that need it: a reading whose chain amplifies
 /// its rounding past the run's admission rule — a quotient by a small
@@ -487,22 +489,13 @@ pub(crate) fn decide_positive<T: Decide, A: geom_core::MarginTerms>(
 ///
 /// # Errors
 ///
-/// The rounding `K` times over, as the band read it, where it is past
-/// that share.
+/// The rounding, as the finer band read it, where it is past that share.
 pub(crate) fn resolved_as<T: Decide>(
     name: &'static str,
     rounding: T,
     band: Band,
 ) -> Result<(), geom_core::MarginDiag> {
-    let k = T::from_f64(band.escalate() / band.zero());
-    match decide_reported(
-        name,
-        // Unsourced lever: the reading's own rounding, a length that K scales, not an arm a
-        // dimensionless datum is levered across; no extent, curvature or session box is it.
-        // No door names it yet: `work/oneround/unsourced-levers-with-no-door-that-names-them.md`.
-        Margin::levered(k, geom_core::Lever::unsourced(rounding)),
-        band,
-    ) {
+    match decide_reported(name, Margin::of(rounding), band.a_step_finer()) {
         Ok(geom_core::Decided {
             sign: Sign::Zero, ..
         }) => Ok(()),
@@ -1295,13 +1288,10 @@ pub enum ValidationError {
     /// Tier 3: a face's analytic surface stores a finite datum outside
     /// its variant's convention — a cylinder or sphere radius, or a
     /// torus tube radius, that is not definitely positive, a cone
-    /// half-angle not definitely inside `(0, π/2)`, or a cylinder's,
-    /// sphere's or torus's frame (`axis`, `u_ref`) off unit or off
-    /// `u_ref ⊥ axis` by more than ε of locus movement at the kind's
-    /// radius ([`geom::Surface::representability_margins`], the one
-    /// place in code the at-rest bounds are computed; that door says
-    /// where else they are stated, and why a frame off its convention
-    /// is a different locus rather than a different parameterization).
+    /// half-angle not definitely inside `(0, π/2)`
+    /// ([`geom::Surface::representability_margins`], the one place in
+    /// code the at-rest bounds are computed). A surface's frame has no
+    /// margin: it is a [`geom::Frame`], rigid by its type.
     ///
     /// **Refused on representability, the torus ring convention's
     /// reason**: such a datum describes no 2-manifold a face can bound
@@ -1315,10 +1305,8 @@ pub enum ValidationError {
     /// `NonpositiveSize` precedent): whether a stored datum lies inside
     /// its convention is a fact about the DATUM, not a geometric
     /// quantity of the body, so it takes no `k_stats` name and no band
-    /// of its own. The frame's convention is stated to within the run's
-    /// ε, and that ε is inside the margin `geom` computes; the read
-    /// still compares with zero. A zero-straddling enclosure fails it
-    /// with the rest.
+    /// of its own. The read compares with zero; a zero-straddling
+    /// enclosure is [`ValidationError::SurfaceDatumUndecided`].
     UnrepresentableSurfaceDatum {
         /// The face whose surface stores the datum.
         face: FaceKey,
@@ -1326,9 +1314,6 @@ pub enum ValidationError {
         kind: geom::SurfaceKind,
         /// The datum outside its convention.
         datum: geom::SurfaceDatum,
-        /// Which quantity of it is out: its value (a radius, a
-        /// half-angle), or a frame direction's length or tilt.
-        measure: geom::ConventionMeasure,
         /// Which end of the convention it fails: `Lower` for a radius
         /// that is not positive or a cone closed to a line, `Upper` for
         /// a cone opened to a plane.
@@ -1345,8 +1330,6 @@ pub enum ValidationError {
         kind: geom::SurfaceKind,
         /// The datum.
         datum: geom::SurfaceDatum,
-        /// Which quantity of it was read.
-        measure: geom::ConventionMeasure,
         /// Which end of the convention it may fail.
         end: geom::ConventionEnd,
         /// The reading.
@@ -1389,8 +1372,6 @@ pub enum ValidationError {
         kind: geom::CurveKind,
         /// The datum outside its convention.
         datum: geom::CurveDatum,
-        /// Which quantity of it is out.
-        measure: geom::ConventionMeasure,
         /// Which end of the convention it fails.
         end: geom::ConventionEnd,
     },
@@ -1405,8 +1386,6 @@ pub enum ValidationError {
         kind: geom::CurveKind,
         /// The datum.
         datum: geom::CurveDatum,
-        /// Which quantity of it was read.
-        measure: geom::ConventionMeasure,
         /// Which end of the convention it may fail.
         end: geom::ConventionEnd,
         /// The reading.
@@ -3368,15 +3347,9 @@ pub(crate) fn with_article(words: &str) -> String {
 }
 
 /// What a datum's undecided convention reading is, as the clause after
-/// "whether": its value inside its range, a frame direction unit length,
-/// or square to the axis.
-fn convention_question(field: &'static str, measure: geom::ConventionMeasure) -> String {
-    let words = datum_words(field);
-    match measure {
-        geom::ConventionMeasure::Value => format!("its {words} lies inside the range it allows"),
-        geom::ConventionMeasure::Length => format!("its {words} is unit length"),
-        geom::ConventionMeasure::Tilt => format!("its {words} is perpendicular to the axis"),
-    }
+/// "whether": its value inside its range.
+fn convention_question(field: &'static str) -> String {
+    format!("its {} lies inside the range it allows", datum_words(field))
 }
 
 /// **The recourse of a reading left undecided, where the decision has no
@@ -3396,44 +3369,24 @@ fn undecided_scalar_recourse(margin: &geom_core::MarginDiag) -> &'static str {
 }
 
 /// What is wrong with a stored datum that fails its convention, as the
-/// object of "stores …": its value out of range, a frame direction's
-/// length, or its tilt off the axis.
-fn convention_breach(
-    field: &'static str,
-    measure: geom::ConventionMeasure,
-    end: geom::ConventionEnd,
-) -> String {
-    let datum = with_article(&datum_words(field));
-    match measure {
-        geom::ConventionMeasure::Value => format!(
-            "{datum} {} the range it allows",
-            match end {
-                geom::ConventionEnd::Lower => "at or below",
-                geom::ConventionEnd::Upper => "at or above",
-            }
-        ),
-        geom::ConventionMeasure::Length => format!("{datum} that is not unit length"),
-        geom::ConventionMeasure::Tilt => format!("{datum} that is not perpendicular to its axis"),
-    }
+/// object of "stores …": its value out of range.
+fn convention_breach(field: &'static str, end: geom::ConventionEnd) -> String {
+    format!(
+        "{} {} the range it allows",
+        with_article(&datum_words(field)),
+        match end {
+            geom::ConventionEnd::Lower => "at or below",
+            geom::ConventionEnd::Upper => "at or above",
+        }
+    )
 }
 
 /// The recourse for a surface datum outside its convention.
-fn convention_recourse(field: &'static str, measure: geom::ConventionMeasure) -> String {
-    let words = datum_words(field);
-    match measure {
-        geom::ConventionMeasure::Value => {
-            format!("Recourse: give the {words} a value inside its range")
-        }
-        geom::ConventionMeasure::Length => {
-            format!("Recourse: store a unit {words}")
-        }
-        geom::ConventionMeasure::Tilt => {
-            format!(
-                "Recourse: store {words} perpendicular to the axis",
-                words = with_article(&words)
-            )
-        }
-    }
+fn convention_recourse(field: &'static str) -> String {
+    format!(
+        "Recourse: give the {} a value inside its range",
+        datum_words(field)
+    )
 }
 
 /// A poisoned datum's defect in words: a direction that is not finite
@@ -4739,23 +4692,18 @@ impl ValidationError {
                 )),
             ),
             Self::UnrepresentableSurfaceDatum {
-                kind,
-                datum,
-                measure,
-                end,
-                ..
+                kind, datum, end, ..
             } => write!(
                 f,
                 "{} face's surface stores {}, so it does not describe the surface its \
                  kind names. {}",
                 with_article(kind.adjective()),
-                convention_breach(datum.name(), *measure, *end),
-                convention_recourse(datum.name(), *measure),
+                convention_breach(datum.name(), *end),
+                convention_recourse(datum.name()),
             ),
             Self::SurfaceDatumUndecided {
                 kind,
                 datum,
-                measure,
                 verdict,
                 ..
             } => write!(
@@ -4763,13 +4711,12 @@ impl ValidationError {
                 "{} face's surface stores {}, and whether {} is undecided at this scalar. {}",
                 with_article(kind.adjective()),
                 with_article(&datum_words(datum.name())),
-                convention_question(datum.name(), *measure),
+                convention_question(datum.name()),
                 undecided_scalar_recourse(&verdict.margin),
             ),
             Self::CurveDatumUndecided {
                 kind,
                 datum,
-                measure,
                 verdict,
                 ..
             } => write!(
@@ -4777,7 +4724,7 @@ impl ValidationError {
                 "{} edge's curve stores {}, and whether {} is undecided at this scalar. {}",
                 with_article(kind.adjective()),
                 with_article(&datum_words(datum.name())),
-                convention_question(datum.name(), *measure),
+                convention_question(datum.name()),
                 undecided_scalar_recourse(&verdict.margin),
             ),
             Self::PoisonedCurveDatum { kind, datum, .. } => write!(
@@ -4791,17 +4738,13 @@ impl ValidationError {
                 )),
             ),
             Self::UnrepresentableCurveDatum {
-                kind,
-                datum,
-                measure,
-                end,
-                ..
+                kind, datum, end, ..
             } => write!(
                 f,
                 "{} edge's curve stores {}, so it does not describe the curve its kind \
                  names",
                 with_article(kind.adjective()),
-                convention_breach(datum.name(), *measure, *end),
+                convention_breach(datum.name(), *end),
             ),
             Self::EdgeCertification { error, .. } => {
                 let (why, recourse) = classify_certify(error);
@@ -7166,9 +7109,11 @@ fn plus_v_errors<T: Decide>(
 /// Pure, so that every verdict's finding is pinned by calling it,
 /// including the pairing and end disagreements no certified geometry is
 /// known to reach (`wedge_reading_table`). A settled wedge is legal at
-/// rest — the crease, the seam, and the two ends because the fold hands
-/// one out only over a jet-determinate tangency — and the lamina and
-/// every mixed edge refuse. A mixed edge refuses rather than falls
+/// rest — the crease, the seam, and the two ends, which the fold hands
+/// out only where the jets separate at every station — and the lamina
+/// and every mixed edge refuse. An end's legality is read at the
+/// stations, not certified along the edge
+/// (`work/select/a-wedge-end-is-legal-by-its-stations-not-certified-along-the-edge.md`). A mixed edge refuses rather than falls
 /// silent: silence would validate a wedge end on an edge whose own
 /// stations disagreed.
 pub(crate) fn wedge_reading(
@@ -7186,8 +7131,15 @@ pub(crate) fn wedge_reading(
             bend: Bend::Determinate,
             ..
         }
-        | V::End { .. } => ContactMark::Tangent,
+        | V::End {
+            bend: Bend::Determinate,
+            ..
+        } => ContactMark::Tangent,
         V::Seam {
+            bend: Bend::UnderDetermined,
+            ..
+        }
+        | V::End {
             bend: Bend::UnderDetermined,
             ..
         }
@@ -7353,13 +7305,12 @@ pub(crate) fn analytic_datum_verdicts<T: geom_core::Bounds, D: Copy>(
             continue;
         }
         if !above(hi) {
-            return Some(DatumVerdict::Unrepresentable(m.datum, m.measure, m.end));
+            return Some(DatumVerdict::Unrepresentable(m.datum, m.end));
         }
         // The bracket straddles zero: reported as read, in the refusal
         // and nothing else.
         undecided.get_or_insert(DatumVerdict::Undecided(
             m.datum,
-            m.measure,
             m.end,
             geom_core::Indeterminate {
                 margin: geom_core::MarginDiag::enclosure(lo, hi),
@@ -7378,18 +7329,12 @@ pub(crate) fn analytic_datum_verdicts<T: geom_core::Bounds, D: Copy>(
 pub(crate) enum DatumVerdict<D> {
     /// Every datum that describes no locus, in field order.
     Poisoned(Vec<D>),
-    /// The first datum outside its convention: the datum, the quantity
-    /// of it that is out, and the end it fails.
-    Unrepresentable(D, geom::ConventionMeasure, geom::ConventionEnd),
+    /// The first datum outside its convention: the datum and the end it
+    /// fails.
+    Unrepresentable(D, geom::ConventionEnd),
     /// No datum definitely outside, and the first whose margin straddles
-    /// zero: the datum, the quantity, the end it may fail, and the
-    /// reading.
-    Undecided(
-        D,
-        geom::ConventionMeasure,
-        geom::ConventionEnd,
-        geom_core::Indeterminate,
-    ),
+    /// zero: the datum, the end it may fail, and the reading.
+    Undecided(D, geom::ConventionEnd, geom_core::Indeterminate),
 }
 
 impl<D> DatumVerdict<D> {
@@ -7399,22 +7344,15 @@ impl<D> DatumVerdict<D> {
     pub(crate) fn into_errors(
         verdict: Option<Self>,
         poisoned: impl Fn(D) -> ValidationError,
-        unrepresentable: impl Fn(D, geom::ConventionMeasure, geom::ConventionEnd) -> ValidationError,
-        undecided: impl Fn(
-            D,
-            geom::ConventionMeasure,
-            geom::ConventionEnd,
-            geom_core::Indeterminate,
-        ) -> ValidationError,
+        unrepresentable: impl Fn(D, geom::ConventionEnd) -> ValidationError,
+        undecided: impl Fn(D, geom::ConventionEnd, geom_core::Indeterminate) -> ValidationError,
     ) -> Vec<ValidationError> {
         match verdict {
             None => Vec::new(),
             Some(Self::Poisoned(datums)) => datums.into_iter().map(poisoned).collect(),
-            Some(Self::Unrepresentable(datum, measure, end)) => {
-                vec![unrepresentable(datum, measure, end)]
-            }
-            Some(Self::Undecided(datum, measure, end, verdict)) => {
-                vec![undecided(datum, measure, end, verdict)]
+            Some(Self::Unrepresentable(datum, end)) => vec![unrepresentable(datum, end)],
+            Some(Self::Undecided(datum, end, verdict)) => {
+                vec![undecided(datum, end, verdict)]
             }
         }
     }
@@ -7573,22 +7511,20 @@ pub(crate) fn surface_datum_errors<T: geom_core::Bounds>(
     DatumVerdict::into_errors(
         analytic_datum_verdicts(
             poisoned_datums(surface),
-            surface.representability_margins(band),
+            surface.representability_margins(),
             band,
         ),
         |datum| ValidationError::PoisonedSurfaceDatum { face, kind, datum },
-        |datum, measure, end| ValidationError::UnrepresentableSurfaceDatum {
+        |datum, end| ValidationError::UnrepresentableSurfaceDatum {
             face,
             kind,
             datum,
-            measure,
             end,
         },
-        |datum, measure, end, verdict| ValidationError::SurfaceDatumUndecided {
+        |datum, end, verdict| ValidationError::SurfaceDatumUndecided {
             face,
             kind,
             datum,
-            measure,
             end,
             verdict,
         },
@@ -7606,22 +7542,20 @@ pub(crate) fn curve_datum_errors<T: geom_core::Bounds>(
     DatumVerdict::into_errors(
         analytic_datum_verdicts(
             poisoned_curve_datums(carrier),
-            carrier.representability_margins(band),
+            carrier.representability_margins(),
             band,
         ),
         |datum| ValidationError::PoisonedCurveDatum { edge, kind, datum },
-        |datum, measure, end| ValidationError::UnrepresentableCurveDatum {
+        |datum, end| ValidationError::UnrepresentableCurveDatum {
             edge,
             kind,
             datum,
-            measure,
             end,
         },
-        |datum, measure, end, verdict| ValidationError::CurveDatumUndecided {
+        |datum, end, verdict| ValidationError::CurveDatumUndecided {
             edge,
             kind,
             datum,
-            measure,
             end,
             verdict,
         },
@@ -8432,6 +8366,8 @@ pub(crate) fn tier3_local_checks_marked<
         };
         for (point, _) in singular_points(surface) {
             match point {
+                // A horn's cusp is both apexes, one per copy of `v`, and
+                // each copy is unshown: two findings at one point.
                 Singularity::SheetApexUp | Singularity::SheetApexDown => {
                     errors.push(ValidationError::SheetApexReached { face, point });
                 }
@@ -9768,6 +9704,10 @@ fn edge_trim<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: 
 /// the report names the shape it can — and an escalation with no
 /// meeting found is [`RingOuterVerdict::Escalated`], never
 /// `Disjoint`.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn ring_outer_meeting<T: Decide>(
     body: &Body<T>,
     outer: LoopKey,
@@ -9909,14 +9849,11 @@ enum MeetSegment<T: Real> {
     },
     /// An arc of a circle, over `[t0, t1]` of its carrier.
     Arc {
-        /// The circle's centre.
-        center: geom_core::Point3<T>,
-        /// Its unit axis.
-        axis: geom_core::Vec3<T>,
+        /// The circle's frame, as its carrier holds it: its centre, its
+        /// axis and its seam.
+        frame: geom::Frame<T>,
         /// Its radius.
         radius: T,
-        /// Its seam direction.
-        u_ref: geom_core::Vec3<T>,
         /// The window's start.
         t0: T,
         /// The window's end.
@@ -9927,6 +9864,10 @@ enum MeetSegment<T: Real> {
 /// The edge under `he` as a [`MeetSegment`], or `None` for a carrier
 /// arm 5 has no meeting point for (`Ellipse`, `Spiric`, `Nurbs`) or an
 /// edge it cannot resolve.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn meet_segment<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<(EdgeKey, MeetSegment<T>)> {
     let edge = body.half_edges.get(he)?.edge;
     let geom = certified_carrier(body, edge)?;
@@ -9936,18 +9877,11 @@ fn meet_segment<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<(EdgeKey, Me
             MeetSegment::Line { a, b }
         }
         geom::Curve3::Circle(circle) => {
-            let (center, axis, u_ref) = (
-                circle.frame().origin(),
-                circle.frame().axis(),
-                circle.frame().u_ref(),
-            );
             let radius = circle.radius();
             let (t0, t1) = geom.params();
             MeetSegment::Arc {
-                center,
-                axis,
+                frame: circle.frame(),
                 radius,
-                u_ref,
                 t0,
                 t1,
             }
@@ -9992,9 +9926,10 @@ fn segments_meet<T: Decide>(
         (MeetSegment::Line { a: a0, b: a1 }, MeetSegment::Line { a: b0, b: b1 }) => {
             lines_meet(a0, a1, b0, b1, normal, band)
         }
-        (MeetSegment::Line { a, b }, arc @ MeetSegment::Arc { center, radius, .. })
-        | (arc @ MeetSegment::Arc { center, radius, .. }, MeetSegment::Line { a, b }) => {
-            let e = (b - a).normalize();
+        (MeetSegment::Line { a, b }, arc @ MeetSegment::Arc { frame, radius, .. })
+        | (arc @ MeetSegment::Arc { frame, radius, .. }, MeetSegment::Line { a, b }) => {
+            let center = frame.origin();
+            let e = UnitVec3::squared(b - a);
             // The foot of the centre on the line, and the half-chord
             // either side of it.
             let foot = geom::Line { origin: a, dir: e }.foot(center);
@@ -10003,9 +9938,10 @@ fn segments_meet<T: Decide>(
             let (existence, candidates) =
                 match decide("ring_outer_meet_reach", Margin::of(radius - h), band) {
                     Ok(Sign::Negative) => return EdgePair::Apart,
-                    Ok(Sign::Positive) => {
-                        (None, vec![foot + e * half_chord, foot - e * half_chord])
-                    }
+                    Ok(Sign::Positive) => (
+                        None,
+                        vec![foot + e.get() * half_chord, foot - e.get() * half_chord],
+                    ),
                     // Tangent within the band: the foot is the touching
                     // point, and the two chord ends — as far apart as
                     // `√(2·r·band)` — are asked as well, so a crossing
@@ -10013,11 +9949,19 @@ fn segments_meet<T: Decide>(
                     // itself misses.
                     Ok(Sign::Zero) => (
                         None,
-                        vec![foot, foot + e * half_chord, foot - e * half_chord],
+                        vec![
+                            foot,
+                            foot + e.get() * half_chord,
+                            foot - e.get() * half_chord,
+                        ],
                     ),
                     Err(source) => (
                         Some(source),
-                        vec![foot, foot + e * half_chord, foot - e * half_chord],
+                        vec![
+                            foot,
+                            foot + e.get() * half_chord,
+                            foot - e.get() * half_chord,
+                        ],
                     ),
                 };
             meet_at(
@@ -10030,16 +9974,17 @@ fn segments_meet<T: Decide>(
         }
         (
             first @ MeetSegment::Arc {
-                center: c1,
+                frame: f1,
                 radius: r1,
                 ..
             },
             second @ MeetSegment::Arc {
-                center: c2,
+                frame: f2,
                 radius: r2,
                 ..
             },
         ) => {
+            let (c1, c2) = (f1.origin(), f2.origin());
             let circles = circles_of(c1, r1, c2, r2);
             let (existence, tangent) = match circle_pair(circles, band) {
                 Ok(CirclePair::Apart | CirclePair::Nested) => return EdgePair::Apart,
@@ -10250,7 +10195,7 @@ fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Ban
             let len = (b - a).norm();
             let s0 = geom::Line {
                 origin: a,
-                dir: (b - a).normalize(),
+                dir: UnitVec3::squared(b - a),
             }
             .param(p);
             let spans = [
@@ -10266,17 +10211,12 @@ fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Ban
             }
         }
         MeetSegment::Arc {
-            center,
-            axis,
+            frame,
             radius,
-            u_ref,
             t0,
             t1,
         } => {
-            let carrier = geom::Curve3::Circle(geom::Circle::new(
-                geom::Frame::new(center, axis, u_ref),
-                radius,
-            ));
+            let carrier = geom::Curve3::Circle(geom::Circle::new(frame, radius));
             let span = geom_brep::curve_pair::Span::new(&carrier, (t0, t1));
             match span.place(p, geom::mid_param(t0, t1), band) {
                 Ok(geom_brep::curve_pair::Place::Inside | geom_brep::curve_pair::Place::End(_)) => {
@@ -10466,13 +10406,17 @@ fn certified_carrier<T: Real>(body: &Body<T>, edge: EdgeKey) -> Option<&geom_bre
 /// form and without a single comparison. `None` for a kind this
 /// inversion does not implement — check 9's recorded residue,
 /// `Ellipse` and `Nurbs`.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn locus_gap<T: Real>(carrier: &geom::Curve3<T>, p: geom_core::Point3<T>) -> Option<T> {
     match carrier {
         geom::Curve3::Line(line) => Some(line.distance(p)),
         // The distance from a point to a full circle: the in-plane
         // radial defect and the out-of-plane offset, in quadrature.
         geom::Curve3::Circle(circle) => {
-            let (center, axis) = (circle.frame().origin(), circle.frame().axis());
+            let (center, axis) = (circle.frame().origin(), circle.axis_unit());
             let radius = circle.radius();
             let (along, rho) = geom::Line {
                 origin: center,
@@ -11762,6 +11706,25 @@ fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
     }
 }
 
+/// Whether `shell`'s faces of `body` are one component across their
+/// edges: the connectedness tier 2's check 3 reads
+/// ([`ValidationError::ShellDisconnected`]), for a door that takes a body
+/// it has not validated. A shell with no face is not connected.
+pub(crate) fn shell_connected<T: Real>(body: &Body<T>, shell: ShellKey) -> bool {
+    let faces: Vec<FaceKey> = body
+        .faces
+        .iter()
+        .filter(|(_, f)| f.shell == shell)
+        .map(|(k, _)| k)
+        .collect();
+    let Some(&seed) = faces.first() else {
+        return false;
+    };
+    let mut visited: SecondaryMap<FaceKey, ()> = SecondaryMap::new();
+    shell_component(body, shell, seed, &mut visited);
+    faces.iter().all(|f| visited.contains_key(*f))
+}
+
 /// Marks in `visited` every face of `shell`'s connected component that
 /// holds `seed`, by a bounded traversal: a face glues all its loops,
 /// outer and rings, and a cycle loop glues across each edge via **mate**
@@ -12022,7 +11985,6 @@ mod tests {
                     face,
                     kind: K::Cone,
                     datum: D::HalfAngle,
-                    measure: geom::ConventionMeasure::Value,
                     end: ConventionEnd::Upper,
                 }],
             ),
@@ -12038,7 +12000,6 @@ mod tests {
                     face,
                     kind: K::Cone,
                     datum: D::HalfAngle,
-                    measure: geom::ConventionMeasure::Value,
                     end: ConventionEnd::Lower,
                 }],
             ),
@@ -17015,10 +16976,12 @@ mod tests {
     /// `to` degrees, counter-clockwise, as arm 5 reads it.
     fn arc_segment(center: Point3<f64>, radius: f64, from: f64, to: f64) -> MeetSegment<f64> {
         MeetSegment::Arc {
-            center,
-            axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                center,
+                geom_core::Vec3::new(0.0, 0.0, 1.0),
+                geom_core::Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius,
-            u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
             t0: from.to_radians(),
             t1: to.to_radians(),
         }
@@ -17241,10 +17204,12 @@ mod tests {
         type Arc = (f64, f64, f64, f64, f64);
         fn seg<T: Real>((x, y, r, t0, t1): Arc) -> MeetSegment<T> {
             MeetSegment::Arc {
-                center: Point3::new(T::from_f64(x), T::from_f64(y), T::zero()),
-                axis: geom_core::Vec3::new(T::zero(), T::zero(), T::one()),
+                frame: geom::Frame::new(
+                    Point3::new(T::from_f64(x), T::from_f64(y), T::zero()),
+                    geom_core::Vec3::new(T::zero(), T::zero(), T::one()),
+                    geom_core::Vec3::new(T::one(), T::zero(), T::zero()),
+                ),
                 radius: T::from_f64(r),
-                u_ref: geom_core::Vec3::new(T::one(), T::zero(), T::zero()),
                 t0: T::from_f64(t0),
                 t1: T::from_f64(t1),
             }
@@ -17348,10 +17313,12 @@ mod tests {
             );
             let n = geom_core::Vec3::new(T::zero(), T::zero(), T::one());
             let arc = |center, from: f64, to: f64| MeetSegment::Arc {
-                center,
-                axis: n,
+                frame: geom::Frame::new(
+                    center,
+                    n,
+                    geom_core::Vec3::new(T::one(), T::zero(), T::zero()),
+                ),
                 radius: T::one(),
-                u_ref: geom_core::Vec3::new(T::one(), T::zero(), T::zero()),
                 t0: T::from_f64(from.to_radians()),
                 t1: T::from_f64(to.to_radians()),
             };

@@ -61,7 +61,10 @@ fn dome() -> NurbsSurface<f64> {
 }
 
 fn line(origin: Point3<f64>, dir: Vec3<f64>) -> Curve3<f64> {
-    Curve3::Line(geom::Line { origin, dir })
+    Curve3::Line(geom::Line {
+        origin,
+        dir: geom::stated_direction(dir),
+    })
 }
 
 fn read(
@@ -1075,5 +1078,82 @@ fn a_nurbs_carrier_over_a_refused_parameter_refuses() {
     assert!(
         !certified(path.tangent(refused)),
         "the tangent over a refused t"
+    );
+}
+
+/// The flat bilinear patch `z = 0` over `[0, 1]²` at `Interval`, each
+/// control height widened by `w` on either side: a family of charts
+/// whose meetings with a vertical line spread over `w` in height.
+fn flat_family(w: f64) -> NurbsSurface<geom_core::Interval> {
+    use geom_core::{Interval, Real as _};
+    let knots = || {
+        geom_core::spline::Knots::from(KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap())
+            .lift(Interval::from_f64)
+    };
+    let control = [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0), (1.0, 1.0)]
+        .map(|(x, y)| {
+            Point3::new(
+                Interval::from_f64(x),
+                Interval::from_f64(y),
+                Interval::from_bounds(-w, w),
+            )
+        })
+        .to_vec();
+    NurbsSurface::new(knots(), knots(), control, vec![Interval::one(); 4]).unwrap()
+}
+
+/// `settle`'s stored meeting through the door, at a scalar the arm runs
+/// at: the line `(½, ½, t − 1)` over `t ∈ [0, 2]`, with the meeting box
+/// the walk would hand it at `t = candidate`, `(u, v) = (½, ½)`.
+fn settled_at(
+    chart: &NurbsSurface<geom_core::Interval>,
+    candidate: f64,
+) -> Result<Vec<ChartMeeting<geom_core::Interval>>, SplineFaceRefusal> {
+    use geom_core::{Interval, Real as _};
+    let half = Interval::from_f64(0.5);
+    let up = Curve3::Line(geom::Line {
+        origin: Point3::new(half, half, -Interval::one()),
+        dir: geom_core::UnitVec3::exact_z(),
+    });
+    let isolated = super::Isolated {
+        span: (0.0, 2.0),
+        roots: vec![[(candidate, candidate), (0.5, 0.5), (0.5, 0.5)]],
+    };
+    super::settle(&up, chart, &isolated, band())
+}
+
+/// The door admits a meeting whose point reads on the chart for the
+/// whole family, as the one point the walk proposed; refuses one whose
+/// point reads definitely off by its row; and refuses at the door,
+/// typed and named, a family whose meeting spreads past the band.
+#[test]
+fn a_stored_meeting_is_admitted_by_its_check_at_interval() {
+    use geom_core::Bounds as _;
+    let point = settled_at(&flat_family(0.0), 1.0);
+    assert!(
+        matches!(point.as_deref(), Ok([m]) if m.t.lo() == 1.0 && m.t.hi() == 1.0),
+        "a point family's meeting is the candidate, one point: {point:?}"
+    );
+    let off = settled_at(&flat_family(0.0), 0.9);
+    assert!(
+        matches!(
+            off,
+            Err(SplineFaceRefusal::Unsettled(Unsettled::Meter {
+                row: "spline_face_root_on"
+            }))
+        ),
+        "a candidate whose point reads definitely off the chart refuses by the door's row: {off:?}"
+    );
+    // Between the band's zero and its escalation: a door deciding
+    // against a looser band would admit this family.
+    let spread = settled_at(&flat_family(3.0 * band().zero()), 1.0);
+    assert!(
+        matches!(spread, Err(SplineFaceRefusal::Escalated(d)) if d.predicate == Some("spline_face_root_on")),
+        "a family spread 3·zero about the meeting refuses at the door, named: {spread:?}"
+    );
+    let wide = settled_at(&flat_family(100.0 * band().escalate()), 1.0);
+    assert!(
+        matches!(wide, Err(SplineFaceRefusal::Escalated(d)) if d.predicate == Some("spline_face_root_on")),
+        "a family whose meeting spreads past the band refuses at the door, named: {wide:?}"
     );
 }

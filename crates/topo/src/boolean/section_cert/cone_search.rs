@@ -24,7 +24,8 @@
 //! traced: an offset inside the band's Zero (a quarter of it) must
 //! refuse R-tan (the plane's aperture answers its Zero class, the
 //! parabola's); one between must answer — R-tan only within a few
-//! escalation widths — with every witness on both carriers. The class
+//! escalation widths, among them a cone that reads as its axis across
+//! a region the offset's size — with every witness on both carriers. The class
 //! at small offsets is the closed form's, in the near-axis search
 //! below: a ball centred a hair off a tilted axis, at scales to 1 km,
 //! against the extreme generators' distances.
@@ -41,7 +42,6 @@
 // geometry types a decision reads.
 test_utils::gated_to![
     "crates/topo/src/boolean/section_cert.rs",
-    "crates/topo/src/boolean/section_cert/ruling.rs",
     "crates/geom-brep/src/curve_face/circle_roots.rs",
     "crates/geom-brep/src/half_angle.rs",
     "crates/geom-core/src/bisect.rs",
@@ -239,6 +239,14 @@ fn across(v: Vec3<f64>, a: Vec3<f64>) -> Vec3<f64> {
 /// The reach every search pose is classified with.
 fn reach_of(k: &Frame) -> Reach<f64> {
     geom_brep::Reach::Ball(geom_brep::ExtentBall::fixture(k.apex, 5.0 * k.scale))
+}
+
+/// **The region the section value reads a cylinder or cone partner
+/// over**: the ball about the apex of the trace's window, so a component
+/// the region cuts is one the trace sees reach its window's edge, and
+/// both read it unbounded.
+fn region_of(k: &Frame, pose: &Pose) -> Option<ExtentBall<f64>> {
+    Some(geom_brep::ExtentBall::fixture(k.apex, pose.window))
 }
 
 /// What the arm promises of the traced count.
@@ -448,7 +456,7 @@ fn check(k: &Frame, pose: &Pose) -> Vec<String> {
         &cone,
         &pose.partner,
         &reach,
-        None,
+        region_of(k, pose),
         Some(geom_brep::SsiLane::marched()),
         b,
     );
@@ -456,15 +464,54 @@ fn check(k: &Frame, pose: &Pose) -> Vec<String> {
         &pose.partner,
         &cone,
         &reach,
-        None,
+        region_of(k, pose),
         Some(geom_brep::SsiLane::marched()),
         b,
     );
     let m = pose.margin.map_or(f64::INFINITY, f64::abs);
+    let value_read = matches!(
+        pose.partner,
+        Surface::Cylinder { .. } | Surface::Cone { .. }
+    );
+    // A witness's distance from each carrier: the classification's own,
+    // and, where the section value decided the pose `Zero`, the exact
+    // pose's, up to the margin off the carriers.
+    let decided = if value_read && m <= b.zero() {
+        super::cone_pair_search::DECIDED_SLACK * m
+    } else {
+        0.0
+    };
+    let tolerance = 1e-9 * k.scale + decided;
     // In the band's Zero: R-tan is the answer, except at the plane's
     // aperture, where Zero is the parabola's class — one part, essential,
     // no witness, uncounted.
     if m <= 0.25 * b.zero() {
+        // The section value decides a cylinder's or a cone's pose in the
+        // band itself (C5: the apex on the partner a node or a touch): a
+        // refusal stands, a touch is checked on both carriers, and a
+        // classification goes on to the witness and swapped-order checks
+        // below (the trace does not resolve the band).
+        if value_read {
+            match &sec {
+                Section::Components { .. } => {}
+                Section::Touch(t) => {
+                    let mut bad = Vec::new();
+                    if !matches!(back, Section::Touch(_)) {
+                        bad.push(format!("one order a touch, the other {back:?}"));
+                    }
+                    for surf in [&cone, &pose.partner] {
+                        let r = geom_brep::implicit_residual(surf, t.at);
+                        if r.abs() > tolerance {
+                            bad.push(format!("the touch {:?} is {r} off {surf:?}", t.at));
+                        }
+                    }
+                    return bad;
+                }
+                _ => return Vec::new(),
+            }
+        }
+    }
+    if m <= 0.25 * b.zero() && !value_read {
         let parabola = matches!(pose.partner, Surface::Plane { .. })
             && matches!(&sec, Section::Components { parts, single: false }
                 if parts.len() == 1
@@ -482,6 +529,11 @@ fn check(k: &Frame, pose: &Pose) -> Vec<String> {
     let (parts, single) = match &sec {
         Section::Components { parts, single } => (parts.clone(), *single),
         Section::Tangent(_) if m < 4.0 * b.escalate() => return Vec::new(),
+        // A cylinder or cone partner is the section value's, whose sweep
+        // stands down within the general search's must-answer distance.
+        Section::Tangent(_) if value_read && m < super::cone_pair_search::must_answer(k.scale) => {
+            return Vec::new();
+        }
         Section::Touch(t) if t.name == "section_cone_coaxial_apexes" && m < 4.0 * b.escalate() => {
             return Vec::new();
         }
@@ -506,7 +558,7 @@ fn check(k: &Frame, pose: &Pose) -> Vec<String> {
         };
         for surf in [&cone, &pose.partner] {
             let r = geom_brep::implicit_residual(surf, w);
-            if r.abs() > 1e-9 * k.scale {
+            if r.abs() > tolerance {
                 bad.push(format!("the witness {w:?} is {r} off {surf:?}"));
             }
         }
@@ -624,7 +676,7 @@ fn the_cone_arms_agree_with_the_traced_section() {
                 &k.surface(),
                 &pose.partner,
                 &reach_of(&k),
-                None,
+                region_of(&k, &pose),
                 Some(geom_brep::SsiLane::marched()),
                 band(),
             ) {

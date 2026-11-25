@@ -1029,7 +1029,32 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         // A glued pair is read through its record: a tangency lumps by
         // its curving, a one-carrier pair by the relation the glue door
         // recorded, and neither reads the sector's tilt again.
-        if declared.glues_tangent(piercing, s.face, pierced_op, contact.face) {
+        let class = declared.class_of(piercing, s.face, pierced_op, contact.face);
+        // A junction touches the face only at the rim, as a tangency
+        // touches it only along its locus: it takes the tangent sector's
+        // place, lumped on its certificate
+        // ([`super::sectors::junction_lump`]).
+        if class == Some(crate::contact::GlueClass::Junction) {
+            let read = declared.read(
+                &[(piercing, s.face, pierced_op, contact.face)],
+                Coincide::TangentSide,
+                &[],
+            );
+            let lump = super::sectors::junction_lump(
+                declared.junction_at(piercing, s.face, pierced_op, contact.face),
+                p,
+                (pierced_body, contact.face),
+                piercing,
+                s.face,
+                orbit_body.proven_face(s.face).surface().kind(),
+                read,
+                band,
+            )?;
+            tangent_lumps.push((k, lump));
+            tangent[k] = true;
+            continue;
+        }
+        if class == Some(crate::contact::GlueClass::Tangent) {
             let s_sector = orbit_body.proven_face(s.face).surface().clone();
             let s_pierced = pierced_body.proven_face(contact.face).surface().clone();
             let read = declared.read(
@@ -1313,7 +1338,6 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             {
                 let in_plane = match &section.components()[k].carrier {
                     geom::Curve3::Ellipse(e) => e
-                        .frame()
                         .axis()
                         .normalize()
                         .cross(datum.vec().normalize())

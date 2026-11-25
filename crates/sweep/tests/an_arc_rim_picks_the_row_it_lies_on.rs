@@ -63,7 +63,7 @@ fn arc_wall(body: &Body<f64>) -> (FaceKey, [HalfEdgeKey; 2]) {
     let rims: Vec<(f64, HalfEdgeKey)> = body
         .pcurves()
         .filter_map(|(h, c)| match c.pcurve() {
-            Pcurve::IsoArc { p0, .. } => Some((p0.y, h)),
+            image @ Pcurve::IsoArc { .. } => image.iso_arc_segment().map(|(p0, _)| (p0.y, h)),
             _ => None,
         })
         .collect();
@@ -99,9 +99,9 @@ fn derived(body: &Body<f64>, h: HalfEdgeKey) -> Result<Pcurve<f64>, PcurveMintEr
 /// `(p0.x, pd.x, p0.y, pd.y)` of an IsoArc image: where it starts, how
 /// far `u` moves, its row, and how far `v` moves.
 fn arc(image: &Pcurve<f64>) -> (f64, f64, f64, f64) {
-    match image {
-        Pcurve::IsoArc { p0, pd, .. } => (p0.x, pd.x, p0.y, pd.y),
-        other => panic!("an arc rim's image is an IsoArc: {other:?}"),
+    match image.iso_arc_segment() {
+        Some((p0, pd)) => (p0.x, pd.x, p0.y, pd.y),
+        None => panic!("an arc rim's image is an IsoArc: {image:?}"),
     }
 }
 

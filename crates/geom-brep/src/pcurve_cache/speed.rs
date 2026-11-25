@@ -366,9 +366,11 @@ pub(super) fn projected_speeds(
 /// are the matrix `M = [A B]` applied to the unit vectors `(cos, sin)`
 /// and `(−sin, cos)`, so `|g × 2g′| = |det M|` exactly and `|g| ≥ σ_min(M)`:
 /// the rate is at most `|det M| / (2·σ_min²) = σ_max² / (2·|det M|)`, from
-/// `σ_min·σ_max = |det M|`. `σ_max²` is the larger eigenvalue of `MᵀM`.
-/// Read in interval arithmetic; a `det M` whose enclosure holds zero (the
-/// conic's radial part a segment, a meridian's) bounds nothing.
+/// `σ_min·σ_max = |det M|`. `σ_max²` is the larger eigenvalue of `MᵀM`
+/// ([`gram_max`]). Read in interval arithmetic as the magnitude of
+/// `σ_max² / (2·det M)`, whose sign is `det M`'s; a `det M` whose
+/// enclosure holds or touches zero (the conic's radial part a segment, a
+/// meridian's) refuses the quotient and bounds nothing.
 fn pole_azimuth_speed(image: &ProjectedImage<f64>) -> Result<f64, NoSpeedBound> {
     let (Some(pole), FramedCarrier::Conic { a, b, .. }) = (image.pole(), image.carrier()) else {
         unreachable!("an image with a pole end is a conic's")
@@ -377,11 +379,16 @@ fn pole_azimuth_speed(image: &ProjectedImage<f64>) -> Result<f64, NoSpeedBound> 
     let i = Interval::point;
     let (ax, ay, bx, by) = (i(ga.x), i(ga.y), i(gb.x), i(gb.y));
     let (aa, bb, ab) = (ax.sqr() + ay.sqr(), bx.sqr() + by.sqr(), ax * bx + ay * by);
-    let sigma_max_sq = i(0.5) * (aa + bb) + hyp(i(0.5) * (aa - bb), ab);
-    let det = ax * by - ay * bx;
-    let det = if det.hi() < 0.0 { i(0.0) - det } else { det };
-    if det.lo() > 0.0 {
-        finite((sigma_max_sq / (i(2.0) * det)).hi())
+    let sigma_max_sq = gram_max(aa, bb, ab);
+    // Sums of squares and the root of one are domain-safe on any finite
+    // input, so this refuses only a non-finite coefficient, and the
+    // quotient's ask below refuses on `det M` alone.
+    if !sigma_max_sq.is_certified() {
+        return Err(NoSpeedBound::NonFinite);
+    }
+    let signed = sigma_max_sq / (i(2.0) * (ax * by - ay * bx));
+    if signed.is_certified() {
+        finite(signed.mag())
     } else {
         Err(NoSpeedBound::ThroughSingularSet)
     }
@@ -394,9 +401,7 @@ fn pole_azimuth_speed(image: &ProjectedImage<f64>) -> Result<f64, NoSpeedBound> 
 fn carrier_speed(carrier: &FramedCarrier<f64>) -> Result<f64, NoSpeedBound> {
     match carrier {
         FramedCarrier::Conic { a, b, .. } => {
-            let (aa, bb, ab) = (dot(*a, *a), dot(*b, *b), dot(*a, *b));
-            let half = Interval::point(0.5);
-            finite((half * (aa + bb) + hyp(half * (aa - bb), ab)).sqrt().hi())
+            finite(gram_max(dot(*a, *a), dot(*b, *b), dot(*a, *b)).sqrt().hi())
         }
         FramedCarrier::Line { dir, .. } => finite(dot(*dir, *dir).sqrt().hi()),
         FramedCarrier::Net(net) => {
@@ -556,6 +561,14 @@ fn dot(u: Vec3<f64>, v: Vec3<f64>) -> Interval {
     i(u.x) * i(v.x) + i(u.y) * i(v.y) + i(u.z) * i(v.z)
 }
 
+/// The larger eigenvalue of the Gram matrix `[[aa, ab], [ab, bb]]` of a
+/// harmonic's two coefficients, `(aa + bb)/2 + √(((aa − bb)/2)² + ab²)`:
+/// the square of its largest singular value, in interval arithmetic.
+fn gram_max(aa: Interval, bb: Interval, ab: Interval) -> Interval {
+    let half = Interval::point(0.5);
+    half * (aa + bb) + hyp(half * (aa - bb), ab)
+}
+
 /// `√(x² + y²)`, in interval arithmetic.
 fn hyp(x: Interval, y: Interval) -> Interval {
     (x.sqr() + y.sqr()).sqrt()
@@ -653,15 +666,16 @@ pub(super) fn finite_input(image: &super::Pcurve<f64>) -> bool {
             let (p0, pa, pb, pl) = harmonic_form_of(*u, *v);
             all(&[p0.x, p0.y, pa.x, pa.y, pb.x, pb.y, pl.x, pl.y])
         }
-        Pcurve::IsoLine { p0, pl, .. } => all(&[p0.x, p0.y, pl.x, pl.y]),
+        Pcurve::IsoLine { line, at0, rate } => all(&[line.value, *at0, *rate]),
         Pcurve::IsoArc {
-            p0,
-            pd,
+            line,
+            g0,
+            gd,
             t0,
             angle,
             ends,
             ..
-        } => all(&[p0.x, p0.y, pd.x, pd.y, *t0, *angle]) && all(ends),
+        } => all(&[line.value, *g0, *gd, *t0, *angle]) && all(ends),
         Pcurve::General(c) | Pcurve::Fitted(c) => net2(c),
         Pcurve::Spiric {
             major,

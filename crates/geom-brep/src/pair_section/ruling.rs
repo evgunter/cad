@@ -778,9 +778,10 @@ impl<T: Real> Ruled<T> for RuledCylinderSphere<T> {
 /// **The partner of a cone's rulings as a quadric form**
 /// `q(X) = κ|w|² + β(d·w)² + γ`, `w = X − P`, `d` unit: a cylinder of
 /// radius `r` about the axis through `P` (`κ = 1`, `β = −1`, `γ = −r²`),
-/// or the double cone of half-angle `α` from the apex `P` (`κ = −cos²α`,
-/// `β = 1`, `γ = 0`). The form's matrix `κI + βddᵀ` has norm at most one
-/// in both, which the clearance ceiling reads.
+/// the double cone of half-angle `α` from the apex `P` (`κ = −cos²α`,
+/// `β = 1`, `γ = 0`), or the sphere of radius `R` about `P` (`κ = 1`,
+/// `β = 0`, `γ = −R²`). The form's matrix `κI + βddᵀ` has norm at most
+/// one in all three, which the clearance ceiling reads.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Form<T: Real> {
     pub(crate) at: Point3<T>,
@@ -792,6 +793,8 @@ pub(crate) struct Form<T: Real> {
     radius: Option<T>,
     /// The partner cone's `cos α`.
     cos: Option<T>,
+    /// The sphere's radius, whose clearance is read exactly.
+    sphere: Option<T>,
     /// How far `P` may stand off the point it names, in metres: its own
     /// rounding where it was computed (a foot on the axis).
     slack: T,
@@ -802,12 +805,13 @@ impl<T: Real> Form<T> {
     pub(crate) fn cylinder(axis: geom::Line<T>, r: T) -> Self {
         Self {
             at: axis.origin,
-            d: axis.dir,
+            d: axis.dir.get(),
             kappa: T::one(),
             beta: T::zero() - T::one(),
             gamma: T::zero() - r.powi(2),
             radius: Some(r),
             cos: None,
+            sphere: None,
             slack: T::zero(),
         }
     }
@@ -817,12 +821,29 @@ impl<T: Real> Form<T> {
     pub(crate) fn cone(axis: geom::Line<T>, cos: T) -> Self {
         Self {
             at: axis.origin,
-            d: axis.dir,
+            d: axis.dir.get(),
             kappa: T::zero() - cos.powi(2),
             beta: T::one(),
             gamma: T::zero(),
             radius: None,
             cos: Some(cos),
+            sphere: None,
+            slack: T::zero(),
+        }
+    }
+
+    /// The sphere of radius `r` about `center`; `d` is any unit vector,
+    /// which the form does not read (`β = 0`).
+    pub(crate) fn sphere(center: Point3<T>, d: Vec3<T>, r: T) -> Self {
+        Self {
+            at: center,
+            d,
+            kappa: T::one(),
+            beta: T::zero(),
+            gamma: T::zero() - r.powi(2),
+            radius: None,
+            cos: None,
+            sphere: Some(r),
             slack: T::zero(),
         }
     }
@@ -837,13 +858,18 @@ impl<T: Real> Form<T> {
         self.radius
     }
 
-    /// The cone's `cos α`, `None` for a cylinder.
+    /// The cone's `cos α`, `None` for a cylinder or a sphere.
     pub(crate) fn cone_cos(&self) -> Option<T> {
         self.cos
     }
+
+    /// The sphere's radius, `None` for a cylinder or a cone.
+    pub(crate) fn sphere_radius(&self) -> Option<T> {
+        self.sphere
+    }
 }
 
-/// **A cone's rulings against a cylinder or another cone.** A ruling is
+/// **A cone's rulings against a cylinder, another cone or a sphere.** A ruling is
 /// the whole line `apex + t·v(φ)`, `v = cos α·â + sin α(cos φ·n + sin φ·m)`
 /// (`n`, `m` unit, square to the axis and each other): `t > 0` is the
 /// nappe `v` opens into at azimuth `φ`, `t < 0` the mirror nappe at
@@ -856,7 +882,9 @@ impl<T: Real> Form<T> {
 ///
 /// `Δ` is in metres and shares `E`'s sign: against a cylinder the
 /// ruling's clearance itself, `r − δ`, `δ` the ruling's distance from
-/// the axis; against a cone the floor `E/16|u|` on it, `|u|` at least
+/// the axis; against a sphere likewise `R − δ`, `δ` its distance from
+/// the centre (`p₂ = 1`, `E = 4(R² − δ²)`); against a cone the floor
+/// `E/16|u|` on it, `|u|` at least
 /// the ruling's distance from the partner's apex (`topo`'s
 /// `section_cert::ruling` docs derive `E/16d`; `E` does not depend on
 /// where along the ruling `t` is measured).
@@ -1037,6 +1065,34 @@ impl<T: Real> RuledCone<T> {
         (delta, slope)
     }
 
+    /// `δ = |v × u|`, the ruling's distance from a sphere's centre (`v`
+    /// unit), held inside `[0, |u|]`, and its slope along the angle,
+    /// `δ′ = (v × u)·(v′ × u)/δ`, every value where `δ` reaches zero (a
+    /// ruling through the centre, where `δ` is not smooth and the
+    /// clearance is the radius itself).
+    fn centre_distance(&self, cell: &Cell<T>) -> (Iv<T>, Iv<T>) {
+        let u = self.u();
+        let wide = T::from_f64(WIDE);
+        let reach = self.reach();
+        let charge = rounding_charge(reach + reach);
+        let w = self.dir(cell).cross(u);
+        let dw = self.turn(cell).cross(u);
+        let q = w.norm().widen(charge + self.partner.slack);
+        let delta = Iv {
+            lo: q.lo.max(T::zero()).min(reach),
+            hi: q.hi.min(reach).max(T::zero()),
+        };
+        let g = w
+            .dot(dw)
+            .quotient(q)
+            .widen(q.lo.select_le_zero(T::zero(), charge * reach / q.lo));
+        let slope = Iv {
+            lo: q.lo.select_le_zero(T::zero() - wide, g.lo),
+            hi: q.lo.select_le_zero(wide, g.hi),
+        };
+        (delta, slope)
+    }
+
     /// The sheet's `t` over the cell, both projective forms met.
     fn root(&self, q: &Quadratic<T>, sheet: Sheet) -> Iv<T> {
         let two = T::from_f64(2.0);
@@ -1062,6 +1118,10 @@ impl<T: Real> Ruled<T> for RuledCone<T> {
     }
 
     fn discriminant(&self, cell: &Cell<T>) -> Iv<T> {
+        if let Some(r) = self.partner.sphere {
+            let (delta, _) = self.centre_distance(cell);
+            return delta.from(r).widen(rounding_charge(r + self.reach()));
+        }
         match self.partner.radius {
             Some(r) => {
                 let (delta, _) = self.axis_distance(cell);
@@ -1075,6 +1135,10 @@ impl<T: Real> Ruled<T> for RuledCone<T> {
     }
 
     fn discriminant_slope(&self, cell: &Cell<T>) -> Iv<T> {
+        if let Some(r) = self.partner.sphere {
+            let (_, slope) = self.centre_distance(cell);
+            return slope.neg().widen(rounding_charge(r + self.reach()));
+        }
         match self.partner.radius {
             Some(r) => {
                 let (_, slope) = self.axis_distance(cell);
@@ -1121,8 +1185,13 @@ impl<T: Real> Ruled<T> for RuledCone<T> {
         Some(t - (self.apex - center).norm())
     }
 
+    /// `None` against a sphere, whose pose decides its tangencies in
+    /// closed form before any sweep.
     fn ceiling(&self, cell: &Cell<T>) -> Option<T> {
-        Some(self.form_ceiling(cell))
+        self.partner
+            .sphere
+            .is_none()
+            .then(|| self.form_ceiling(cell))
     }
 }
 
@@ -2853,9 +2922,8 @@ pub(crate) const COVERAGE_CELLS: usize = 1 << 18;
 /// is independent of the sweep in its algebra. It is not independent in
 /// its enclosure arithmetic, which it shares with the sweep
 /// ([`Cell::new`], [`Iv`], [`V3`]). Either of two cylinders may be ruled:
-/// every section point lies on exactly one of its rulings. The cone side
-/// has no caller yet: the join's reading of the cone pairs gives it its
-/// first (`work/sectcone/the-join-reads-the-cone-pairs-on-the-value.md`).
+/// every section point lies on exactly one of its rulings. A cone's side
+/// is read by the cone pairs' march (`ssi::march_cone_ruled`).
 ///
 /// # Errors
 ///
@@ -3422,7 +3490,7 @@ mod tests {
             partner: Form::cylinder(
                 geom::Line {
                     origin: Point3::new(origin.0, origin.1, origin.2),
-                    dir: Vec3::unit_x(),
+                    dir: geom_core::UnitVec3::exact_x(),
                 },
                 r,
             ),
@@ -3480,7 +3548,7 @@ mod tests {
             partner: Form::cylinder(
                 geom::Line {
                     origin: Point3::new(0.0, 0.0, 1.0),
-                    dir: Vec3::unit_x(),
+                    dir: geom_core::UnitVec3::exact_x(),
                 },
                 0.2,
             ),

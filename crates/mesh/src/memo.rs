@@ -1172,24 +1172,26 @@ impl KeyWriter {
                 self.u8(2);
                 self.nurbs2(c);
             }
-            // No mesh lane reads a stated end: the chord pass reads the
-            // map ([`Pcurve::eval`]), so the key holds the map alone.
-            Pcurve::IsoLine { p0, pl, .. } => {
+            // An iso image is keyed as the straight chart segment it is:
+            // its chart point at the origin of its map and its velocity
+            // (an arc rim's whole displacement).
+            Pcurve::IsoLine { line, at0, rate } => {
                 self.u8(3);
-                self.p2(*p0);
-                self.v2(*pl);
+                self.p2(line.point(*at0));
+                self.v2(line.vector(*rate));
             }
             Pcurve::IsoArc {
-                p0,
-                pd,
+                line,
+                g0,
+                gd,
                 t0,
                 angle,
                 breaks,
                 ends,
             } => {
                 self.u8(4);
-                self.p2(*p0);
-                self.v2(*pd);
+                self.p2(line.point(*g0));
+                self.v2(line.vector(*gd));
                 self.f64(*t0);
                 self.f64(*angle);
                 self.knots(breaks);
@@ -1349,15 +1351,18 @@ mod tests {
     fn edge(seed: f64, ids: [u32; 3]) -> EdgeInputs {
         EdgeInputs {
             forward: true,
-            carrier: Curve3::line(p(seed), Vec3::new(1.0, 0.0, seed)),
+            carrier: Curve3::line(
+                p(seed),
+                geom_core::UnitVec3::squared(Vec3::new(1.0, 0.0, seed)),
+            ),
             params: (0.0, 1.0),
             ids: ids.to_vec(),
             positions: ids.iter().map(|&i| p(f64::from(i))).collect(),
             chord_params: vec![0.0, 0.5, 1.0],
             pcurve: Some(Pcurve::IsoLine {
-                p0: Point2::new(seed, 0.0),
-                pl: Vec2::new(0.0, 1.0),
-                ends: None,
+                line: geom_brep::ChartLine::column(seed),
+                at0: 0.0,
+                rate: 1.0,
             }),
             lineage: Some(ids[0]),
             across: Some(ids[0]),
@@ -1392,7 +1397,10 @@ mod tests {
     fn every_carrier_kind_writes_a_distinct_tag() {
         let frame = (Point3::origin(), Vec3::unit_z(), Vec3::unit_x());
         let kinds: [(&str, Curve3<f64>); 5] = [
-            ("line", Curve3::line(frame.0, frame.1)),
+            (
+                "line",
+                Curve3::line(frame.0, geom_core::UnitVec3::squared(frame.1)),
+            ),
             ("circle", Curve3::circle(frame.0, frame.1, 1.0, frame.2)),
             (
                 "ellipse",
@@ -1470,7 +1478,12 @@ mod tests {
         ),
         (
             "an edge's carrier",
-            |f| f.loops[0][1].carrier = Curve3::line(p(9.0), Vec3::new(1.0, 0.0, 2.0)),
+            |f| {
+                f.loops[0][1].carrier = Curve3::line(
+                    p(9.0),
+                    geom_core::UnitVec3::squared(Vec3::new(1.0, 0.0, 2.0)),
+                )
+            },
             [true, true, true],
         ),
         (
@@ -1508,9 +1521,9 @@ mod tests {
             "a pcurve",
             |f| {
                 f.loops[0][1].pcurve = Some(Pcurve::IsoLine {
-                    p0: Point2::new(3.0, 0.0),
-                    pl: Vec2::new(0.0, 1.0),
-                    ends: None,
+                    line: geom_brep::ChartLine::column(3.0),
+                    at0: 0.0,
+                    rate: 1.0,
                 })
             },
             [false, false, true],
@@ -1773,9 +1786,9 @@ mod tests {
                 .into_iter()
                 .flat_map(|(datum, value)| value.scalars().map(move |x| (datum, x)))
                 .collect();
-            // A frame is squared where it is stated, so its datums read
-            // the squared axes; every other datum reads its scalars as
-            // given.
+            // A frame and a line's direction are squared where they are
+            // stated, so their datums read the squared axes; every other
+            // datum reads its scalars as given.
             assert_eq!(
                 walked.len(),
                 kind.scalars,
@@ -1860,9 +1873,9 @@ mod tests {
                 .into_iter()
                 .flat_map(|(datum, value)| value.scalars().map(move |x| (datum, x)))
                 .collect();
-            // A frame is squared where it is stated, so its datums read
-            // the squared axes; every other datum reads its scalars as
-            // given.
+            // A frame and a line's direction are squared where they are
+            // stated, so their datums read the squared axes; every other
+            // datum reads its scalars as given.
             assert_eq!(
                 walked.len(),
                 kind.scalars,
@@ -1870,8 +1883,10 @@ mod tests {
             );
             for (i, &(datum, x)) in walked.iter().enumerate() {
                 assert!(
-                    matches!(datum, geom::CurveDatum::Axis | geom::CurveDatum::URef)
-                        || x == base[i],
+                    matches!(
+                        datum,
+                        geom::CurveDatum::Axis | geom::CurveDatum::URef | geom::CurveDatum::Dir
+                    ) || x == base[i],
                     "{at_rest:?}: the walk yields the builder's scalar {i}, in its order"
                 );
             }

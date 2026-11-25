@@ -47,6 +47,7 @@ use test_utils::source::{NameCarrier, crate_dir, predicate_census, roster_violat
 const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("SQUARE_FOLD_HALF"),
     NameCarrier::Const("OVAL_SIDE"),
+    NameCarrier::Const("OVAL_IN_BAND"),
     NameCarrier::Const("SQUARE_EDGE_OVER"),
     NameCarrier::Const("SPHERE_NEAR"),
     NameCarrier::Const("SPHERE_FAR"),
@@ -60,11 +61,15 @@ const CARRIERS: &[NameCarrier] = &[
     // no name table and is not declared.
     NameCarrier::Table("CsDecision"),
     NameCarrier::Table("CcDecision"),
+    NameCarrier::Table("ConeDecision"),
     NameCarrier::Table("Row"),
     NameCarrier::Table("TorusDatum"),
     NameCarrier::Table("Meter"),
     NameCarrier::Const("SQUARE_ORDER"),
     NameCarrier::Const("RADII"),
+    // The cone × torus pose's apex rows (`pair_section/cone_torus.rs`).
+    NameCarrier::Const("APEX_ON_TORUS"),
+    NameCarrier::Const("APEX_FORM"),
     NameCarrier::Const("POSE_AXES_PARALLEL"),
     NameCarrier::Const("POSE_AXIS_ALONG_PLANE"),
     NameCarrier::Const("POSE_PLANES_FACING"),
@@ -76,6 +81,13 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("DIHEDRAL_WEDGE"),
     NameCarrier::Const("TANGENT_SECOND_ORDER"),
     NameCarrier::Const("MATERIAL_CUSP_SIDE"),
+    NameCarrier::Const("TANGENT_TUBE_MARGIN"),
+    // The end-root door's questions (`curve_face/end_root.rs`).
+    NameCarrier::Const("END_ROOT_ORDER"),
+    NameCarrier::Const("END_ROOT_RUN"),
+    NameCarrier::Const("END_ROOT_TAIL"),
+    NameCarrier::Const("END_ROOT_SPREAD"),
+    NameCarrier::Const("END_ROOT_WINDOW_CLEAR"),
     // The carrier ladder's data names, and each kind's reach row with
     // its straddle row (`carrier_eq.rs`).
     NameCarrier::Const("CARRIER_CONE_APEX"),
@@ -120,6 +132,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("require_solid_angle_as"),
     NameCarrier::Call("gradient_alignment"),
     NameCarrier::Call("normals_alignment"),
+    NameCarrier::Call("wedge_reads_zero_at_the_offer"),
     NameCarrier::Call("shown"),
     NameCarrier::Call("unit_winding"),
     NameCarrier::Call("spline_incidence_as"),
@@ -163,6 +176,10 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("SECTOR_STRAIGHT"),
     NameCarrier::Const("SENSE"),
     NameCarrier::Const("SITE_AT_NODE"),
+    NameCarrier::Const("SITE_FOOT_ALONG"),
+    NameCarrier::Const("SITE_FOOT_AT_END"),
+    NameCarrier::Const("SITE_FOOT_BEND"),
+    NameCarrier::Const("SITE_FOOT_PAST_END"),
     NameCarrier::Const("SITE_IN_SPAN"),
     NameCarrier::Const("SITE_PAST_SPAN"),
     NameCarrier::Const("SITE_PAST_SPAN_NEAR"),

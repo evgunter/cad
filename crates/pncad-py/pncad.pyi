@@ -2423,9 +2423,9 @@ class Node:
         in the members' order.
 
         `members` is a sequence of reads, each on its own (an operand,
-        or one member of a family, `xs[i]`), or ONE operand reading a
-        whole family — a pattern's output — whose bodies are the
-        members in index order. Any count is a union:
+        or one member of a family, `xs[i]`), or ONE operand, written as
+        a list of it: a body, or a whole family — a pattern's output —
+        whose bodies are the members in index order. Any count is a union:
         one member is that body, none is the typed empty body, and a
         read listed twice is the same material twice (`[a, a]` is
         `a`). A family read beside single reads in one list refuses at
@@ -2439,7 +2439,7 @@ class Node:
         Members whose faces a margin decides on one surface glue there,
         and each such coincidence is recorded for the
         `unproven_coincidence` check. A refusal only a fold step raises
-        is `kind == "union_fold_step"`, naming the member it folds in.
+        is `kind == "fold_step"`, naming the member it folds in.
 
         A closed surface of one member that lies wholly on another's —
         one read at two seats, or a member carried into a union
@@ -2463,18 +2463,24 @@ class Node:
         result keeps each piece's meet as a piece."""
 
     @staticmethod
-    def subtract(from_: _BodyArg, tool: _BodyArg) -> Node:
-        """The SUBTRACT: `from_` with the material of `tool` cut away.
+    def subtract(from_: _BodyArg, tool: Sequence[_BodyArg] | _BodyArg) -> Node:
+        """The SUBTRACT: `from_` with the material of every tool cut away.
 
         The one pair node — difference neither commutes nor associates
         — so its operands are named slots: `from` (spelled `from_`,
         since `from` is a Python keyword; its slot word is `from`) and
-        `tool` (slot word `cut`). Several tools are one subtract of
-        their union, `Node.subtract(body, Node.union([t1, t2]))`. A
-        body cut by itself, `Node.subtract(a, a)`, is the typed empty
-        body. A `from_` that is an `assemble`, or a copy of one, is cut
-        piece by piece, and the result keeps each piece's cut as a
-        piece; a piece the cut empties drops out."""
+        `tool`, read as `union`'s members are: one operand (a body, or a
+        family read whole, which is every member — a pattern's output),
+        or a sequence of reads, each on its own (an operand, or one
+        member `xs[i]`; slot word `cut`, completed by its position, and
+        `cuts` for a family read whole). The cut is the fold
+        `from − t1 − … − tn`, order-free in the tools, and fuses no tool
+        with another, so two tools that overlap each cut where they
+        stand. `Node.subtract(body, Node.union([t1, t2]))` cuts by their
+        union, as before. A body cut by itself, `Node.subtract(a, a)`,
+        is the typed empty body. A `from_` that is an `assemble`, or a
+        copy of one, is cut piece by piece, and the result keeps each
+        piece's cut as a piece; a piece the cut empties drops out."""
 
     @staticmethod
     def linear_pattern(
@@ -3642,10 +3648,11 @@ class VarDecl:
         """An INDEX `k = index(count)` (D10 `[repetition]`): a count
         taking each value `0 .. count`, so a placement whose values read
         it is a family of `count` members. `within` names the index this
-        one is declared within (a grid's outer). `declare_var` refuses a
-        count of another dimension or a `within` that is no index
-        (`index`); a reader of two indices neither within the other
-        refuses `indices_unrelated`."""
+        one follows in one binder (a grid's first); an index within none
+        opens a binder of its own. `declare_var` refuses a count of
+        another dimension, a `within` that is no index, or one another
+        index already follows (`index`); one node reading the indices of
+        two binders refuses `two_binders`."""
     @staticmethod
     def source(body: _BodyArg) -> VarDecl:
         """A SOURCE `bracket = B` (VARIABLES VR4): a body variable defined
@@ -3774,7 +3781,8 @@ class DocEdit:
     @staticmethod
     def set_members(node: NodeId, members: Sequence[_BodyArg] | _Operand) -> DocEdit:
         """Replace a node's whole LIST input — a `Node.union`'s or a
-        `Node.intersect`'s members, a `Node.loft`'s sections — with the
+        `Node.intersect`'s members, a `Node.subtract`'s tools, a
+        `Node.loft`'s sections — with the
         list stated in full. `members` takes `Node.union`'s shape: a
         sequence of operands, or one operand reading a family whole.
 
@@ -4103,6 +4111,21 @@ class DocEdit:
         Refuses typed on a variable the document does not hold
         (`unknown_var`) and on an anonymous one, whose lifecycle is its
         readers' (`delete_anonymous_var`)."""
+    @staticmethod
+    def set_yields(binder: Var | VarName, yields: Sequence[Var | VarName]) -> DocEdit:
+        """Write what a binder yields (D10 `[repetition]`), whole and in
+        order: `binder` is its first index, each of `yields` a variable
+        inside it (a pattern's copy, `Doc.output(row, 0)`) that every
+        reader outside reads as a family. A binder that yields nothing
+        refuses at evaluation (`yields_nothing`).
+
+        Refuses typed (`yields`) an index that opens no binder
+        (`not_a_binder`), a yield that is an index (`yield_is_index`), is
+        listed twice (`yield_twice`), is another binder's
+        (`yield_elsewhere`) or reads none of the binder's indices
+        (`yield_outside`), empty yields (`no_yields`), and one that
+        leaves a reader reading a
+        family at a seat for one body (`slot_var_kind`)."""
     @staticmethod
     def bind_v_degree_param(node: NodeId, name: VarName) -> DocEdit:
         """Bind `node`'s STRUCTURAL v-degree slot to the document
@@ -4923,6 +4946,7 @@ class SegTag:
     HoleRim: Final[SegTag]
     Member: Final[SegTag]
     HostFoot: Final[SegTag]
+    ConventionalVertex: Final[SegTag]
 
 class OpGroup:
     """The op group a role segment belongs to (`SegPat.group`).
@@ -7477,16 +7501,19 @@ class Coincidence:
     plane a split cuts with is `(read, None)`; and a profile's own piece
     is `(profile, piece)`, the profile's `NodeId`. `relation` is
     `same_oriented`, `same_opposite`, `on_carrier`, `common_foot`,
-    `tangent`, `cusp`, `surface_tangent`, `coaxial`, `same_radius`,
-    `axes_meet`, `co_ruled` or `meet`; `site` is `plane_ladder`, `carrier_ladder`,
-    `tangent_witness`, `coaxial_sphere`, `sphere_on_torus_axis`,
+    `tangent`, `cusp`, `surface_tangent`, `rim_junction`, `coaxial`,
+    `same_radius`, `axes_meet`, `co_ruled` or `meet`; `site` is
+    `plane_ladder`, `carrier_ladder`, `tangent_witness`, `rim_junction`,
+    `coaxial_sphere`, `sphere_on_torus_axis`,
     `coaxial_cylinder_torus`, `coaxial_tori`, `crossing_cylinders`, `split_on`,
     `battery_turn`, `battery_joint`, `battery_support_axis`,
     `profile_junction`, `vertex_fusion`, `iso_join`, `census_at_rest` or
     `smooth_join`. A `profile_junction` row is `tangent` or `cusp`
     between two carriers and `same_oriented` where its two pieces
     continue one carrier; a `tangent_witness` row is `surface_tangent`,
-    claiming nothing of the materials. `rung` is the door's rung that
+    claiming nothing of the materials, and a `rim_junction` row is
+    `rim_junction`, two faces that end on one rim joined there smoothly,
+    with no touch claimed along it. `rung` is the door's rung that
     proved it structural (`same_construction`, `carrier_verdict` or
     `margin_identity`), or `None`, and then `residual` says what separates
     the two constructions and what the replay with every variable a

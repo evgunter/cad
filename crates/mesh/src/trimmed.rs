@@ -106,8 +106,8 @@
 //! (below), every other arm's in the lattice metric. Delaunay is not
 //! stretch-invariant, and a ruled wall's lattice is a strip whose
 //! columns are many times narrower than its rows (a lofted circle's
-//! wall: `s_u/s_v ≈ 0.03`; a cylinder of radius `r`, whose lattice is
-//! square in 3-D, `≈ 1/r` in (θ, z)); there, any point off the lattice — a trim
+//! wall: `s_u/s_v ≈ 0.03`; a cone's, square in 3-D at its widest
+//! radius `ρ`, `≈ 1/ρ` in (θ, v)); there, any point off the lattice — a trim
 //! chord point between two rows, a band interface's foreign column, a
 //! refinement centroid — has an empty circle many columns wide and a
 //! sliver across them. So points enter the CDT at `(u/k, v)`, with `k`
@@ -286,12 +286,20 @@
 //! split by a point inside it, and (below) a triangle certified above δ
 //! is refined. Lattice nodes are a fixed, (v, u)-sorted list computed
 //! once, before the loop; a fold drops a node by its index, and the
-//! shared-side and refinement arms append, so indices only grow.
+//! shared-side and refinement arms append, so indices only grow. A
+//! cylinder face lays no lattice node, so a fold there drops only a point
+//! one of those arms inserted, and a fold with none of its corners such a
+//! point refuses typed ([`TessellateError::FoldedTriangle`]).
 //!
 //! The same loop carries TESS-SPAN's second arm, **certificate-driven
-//! refinement**: after the emit pass, any NURBS triangle whose
-//! certificate exceeds δ — one that would otherwise refuse — queues
-//! its UV centroid as a new candidate and the attempt rebuilds. This
+//! refinement**: after the emit pass, any NURBS or cylinder triangle
+//! whose certificate exceeds δ — one that would otherwise refuse —
+//! queues its UV centroid as a new candidate and the attempt rebuilds.
+//! The cylinder lays no lattice
+//! (`chart_table::AnalyticRow::lattice_rows`), so a triangle on its
+//! boundary points can span more columns than the target allows; it is
+//! that face's only way to a triangle the certificate refuses, and one
+//! round has cleared every such face measured. This
 //! is deliberately a LAST-RESORT backstop, not the sliver cure: in a
 //! lattice that is anisotropic in the CDT's own coordinates, a
 //! centroid is one more off-lattice point and re-admits the empty
@@ -363,18 +371,21 @@ fn last_attempt() -> usize {
     MAX_GRID_RETRIES
 }
 
-/// **The trimmed lane's unproved headroom**: the cylinder arm sizes its
-/// lattice, and the chord pass chords that face's edges
-/// (`chords::edge_target`), at this share of δ rather than at δ
-/// ([`face_target`]).
+/// **The trimmed lane's unproved headroom**: the chord pass chords a
+/// cylinder face's edges (`chords::edge_target`) at this share of δ
+/// rather than at δ ([`face_target`]).
 ///
 /// The lane has no worst-triangle theorem (`crates/mesh/README.md`
-/// `[mesh.sizing]`). Its lattice cell-halves would certify at the
-/// sagitta of the column step, but the trim polygon's points sit
-/// anywhere in a cell, and a constrained Delaunay triangle beside a
-/// trim chord can span more than one column — nothing yet bounds by
-/// how much. The certificate refuses typed where it is exceeded; this
-/// factor is what keeps that refusal rare, and it is a debt
+/// `[mesh.sizing]`). It lays no lattice on the cylinder
+/// (`chart_table::AnalyticRow::lattice_rows`), so the face is triangulated
+/// on its boundary points. What bounds a triangle's span round the axis
+/// there is only where those points lie: a rim chord spans one column at
+/// this target, but a triangle joining two boundary features across free
+/// wall spans as many columns as lie between them, and nothing bounds
+/// that. The certificate reads every triangle; one that it refuses gets a
+/// point inside it and the face is triangulated again
+/// ([`TrimmedFace::attempt`], under [`MAX_GRID_RETRIES`]). This factor
+/// keeps those refusals rare, and it is a debt
 /// (`work/tesslane/the-trimmed-cylinder-lane-has-no-worst-triangle-theorem.md`):
 /// the fix is the theorem, not a retuned factor.
 ///
@@ -642,32 +653,21 @@ pub(crate) fn tessellate_trimmed(
             // and the lattice the row lays from them.
             let (hu, hv) =
                 a.lattice_steps(arm_steps(a, face_target(surface, Lane::Trimmed, tol.delta)));
-            let nu = pole_side_columns(&polygon, &singular, (u0, u1), ceil_count(u1 - u0, hu)?)?;
+            let columns = ceil_count(u1 - u0, hu)?;
+            // The pole-side rule thins the columns a lattice lays beside a
+            // singular point; a cylinder has none, so it keeps `columns`,
+            // and lays no row ([`AnalyticRow::lattice_rows`]): its column
+            // count is read by the metric below and by nothing else.
+            let nu = pole_side_columns(&polygon, &singular, (u0, u1), columns)?;
             let rows = a.lattice_rows((v0, v1), (hu, hv))?;
-            // The other half of #678's shape on the cylinder, checked
-            // where the count is: the fan needs ONE interior column
-            // between two boundary entries that share a mesh vertex,
-            // which is `nu == 2`. A cylinder has no singular point, and
-            // `one_location_per_branch` holds each vertex at one UV per
-            // branch, so a repeated id at two DISTINCT UVs is one vertex
-            // on two branches, at least half a turn apart: `u1 - u0` is
-            // at least π against an `hu` the sagitta cap holds at ≤ π/4,
-            // so `nu >= 4` and the two never meet.
-            debug_assert!(
-                !matches!(a.kind(), Analytic::Cylinder { .. })
-                    || nu != 2
-                    || !id_repeats_apart(&polygon.points),
-                "face {fk:?}: a trim polygon repeats a mesh id at two UV locations \
-                 with a single interior column (nu = 2, {} rows) — the shape \
-                 #678's non-manifold fan needs (curved::pole_columns)",
-                rows.len()
-            );
             (
                 lattice_candidates((u0, u1), (v0, v1), nu, &rows),
                 None,
                 // The cone's CDT runs in its development and reads no
                 // metric; every other arm's rows are uniform, one fewer
-                // than their gaps.
+                // than their gaps, and a cylinder's none, so its one gap is
+                // the window's height ([`AnalyticRow::trimmed_metric`] says what
+                // that plane is for).
                 match a.development() {
                     Some(_) => 1.0,
                     None => a.trimmed_metric((u0, u1), (v0, v1), (nu, rows.len() + 1)),
@@ -1444,12 +1444,14 @@ impl TrimmedFace<'_> {
             None
         };
         let mut triangles = Vec::new();
-        // CERT-DRIVEN REFINEMENT (TESS-SPAN; module docs): NURBS
-        // triangles certifying above the per-face sizing target get
-        // their UV centroid queued as a new candidate for the next
-        // round.
+        // CERT-DRIVEN REFINEMENT (TESS-SPAN; module docs): a NURBS or a
+        // cylinder triangle certifying above δ gets its centroid queued as
+        // a new candidate for the next round.
         let mut refine: Vec<(f64, f64)> = Vec::new();
-        let refine_lane = matches!(self.row, ChartRow::Spline { .. });
+        let refine_lane = match self.row {
+            ChartRow::Spline { .. } => true,
+            ChartRow::Analytic(a) => matches!(a.kind(), Analytic::Cylinder { .. }),
+        };
         let (mut folded_grid, mut folded_boundary) = (Vec::new(), false);
         // Each boundary handle's places in the trim polygon (a pinch
         // handle holds several), for the shared-side test below.
@@ -1549,14 +1551,14 @@ impl TrimmedFace<'_> {
                 // census after this loop, which re-derives the fan about each
                 // walked side's vertex. The INGREDIENT
                 // half — a repeated id with a single interior column between
-                // the entries — is checked at the cylinder arm's `nu`, kept
-                // off at a singular point by `pole_side_columns`, and this
-                // emit pass also runs for
-                // NURBS, where there is no `nu`: the candidates come from
-                // the cell grid rather than a uniform division, so the
-                // "single interior column" has no analogue to test. That
-                // arm's ingredient check is therefore still an ARGUMENT
-                // and not a check.
+                // the entries — cannot arise on the cylinder, which lays no
+                // lattice node (`chart_table::AnalyticRow::lattice_rows`), is
+                // kept off at a singular point by `pole_side_columns`, and
+                // this emit pass also runs for NURBS, where there is no
+                // uniform column count: the candidates come from the cell
+                // grid, so the "single interior column" has no analogue to
+                // test. That arm's ingredient check is therefore still an
+                // ARGUMENT and not a check.
                 //
                 // ITS EMISSION IS NOT (issue 897). The census after this
                 // loop re-derives the CONCLUSION over the emitted patch,
@@ -2435,19 +2437,6 @@ fn uv_centroid(uv: &[[f64; 2]; 3]) -> (f64, f64) {
         (uv[0][0] + uv[1][0] + uv[2][0]) / 3.0,
         (uv[0][1] + uv[1][1] + uv[2][1]) / 3.0,
     )
-}
-
-/// Whether any mesh id appears at two DIFFERENT UV locations in the
-/// trim polygon — the second ingredient of #678's non-manifold fan
-/// (`curved::pole_columns` carries the argument; the first ingredient
-/// is a single interior column between them).
-///
-/// The rule for "different" is spade's and is stated once, at
-/// [`crate::cdt::ids_at_two_uvs`], which both lanes call. This
-/// function is that set's emptiness, named for the question the
-/// cylinder arm's `debug_assert` asks.
-fn id_repeats_apart(polygon: &[(f64, f64, u32)]) -> bool {
-    !crate::cdt::ids_at_two_uvs(polygon.iter().copied()).is_empty()
 }
 
 /// **A vertex the walk meets again on one chart branch is one UV
@@ -4058,8 +4047,22 @@ mod collapsed_rows;
 pub(super) mod tests {
     use super::{
         ChordPass, Creases, FixedVertexHandle, Node, SpadePoint, TessellateError, TrimPolygon,
-        chain_creases, id_repeats_apart, one_location_per_branch,
+        chain_creases, id_repeats_apart, one_location_per_branch, trim_polygon,
     };
+
+    /// Whether any mesh id appears at two DIFFERENT UV locations in the
+    /// trim polygon — the second ingredient of #678's non-manifold fan
+    /// (`curved::pole_columns` carries the argument; the first ingredient
+    /// is a single interior column between them, which no lattice node
+    /// of this lane's cylinder can make, since it lays none).
+    ///
+    /// The rule for "different" is spade's and is stated once, at
+    /// `crate::cdt::ids_at_two_uvs`, which both lanes' censuses call; this
+    /// is that set's emptiness, for the rows here that hold the rule's two
+    /// edges (an ulp apart reads apart, `-0.0` against `0.0` does not).
+    fn id_repeats_apart(polygon: &[(f64, f64, u32)]) -> bool {
+        !crate::cdt::ids_at_two_uvs(polygon.iter().copied()).is_empty()
+    }
     use crate::chart_table::SingularPoint;
     use geom_brep::PolygonOrientation;
     use spade::{ConstrainedDelaunayTriangulation, Triangulation};
@@ -5504,8 +5507,13 @@ pub(super) mod tests {
     /// the plane face across that arc joins too; the shared-side cure
     /// splits it on the next attempt. With the loop's last attempt set to
     /// the first (`LAST_ATTEMPT`, test-only) there is no next attempt, so
-    /// the face refuses typed; with the budget as shipped it meshes. Set
-    /// on a one-thread pool's worker, which runs the faces.
+    /// the face refuses typed; with the budget as shipped it meshes. At
+    /// δ `5·10⁻²` and `2·10⁻²`: finer, at `5·10⁻³`, the face's first
+    /// attempt on its boundary points keeps no such side. Set on a
+    /// one-thread pool's worker, which runs the faces. A lane that asked
+    /// for a rebuild on its last attempt instead of refusing would not
+    /// fail this row's assertion but `tessellate_trimmed`'s `unreachable!`
+    /// ("the last attempt accepts or refuses"), a panic on the same cells.
     #[test]
     fn a_shared_side_the_budget_leaves_refuses_typed() {
         use geom_core::Tol;
@@ -5515,7 +5523,7 @@ pub(super) mod tests {
             .build()
             .expect("a one-thread pool");
         pool.install(|| {
-            for delta in [2e-2, 5e-3] {
+            for delta in [5e-2, 2e-2] {
                 LAST_ATTEMPT.with(|a| a.set(Some(0)));
                 let first = crate::tessellate(&body, delta, Tol::witness());
                 LAST_ATTEMPT.with(|a| a.set(None));

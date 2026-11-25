@@ -13,76 +13,14 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::bores::halves_at_rest;
-use geom_core::{Point2, Point3, RigidMotion, Tol, Vec3};
-use profile::SketchPlane;
-use sweep::test_support::{block, finished, prism_on};
+use crate::common::keel_tree::{branching, deep, grooved};
+use geom_core::{Point3, Tol, Vec3};
+use sweep::test_support::finished;
+use topo::Body;
 use topo::splitting::plane_section;
-use topo::{Body, BooleanResult, subtract};
 
 fn tol() -> Tol {
     Tol::witness()
-}
-
-/// A V of half-width `w` at `z = 2.5`, its tip on `z = 1` at `tip` in the
-/// sketch's first coordinate, run `len` along the sketch normal from `o`.
-fn groove(frame: RigidMotion<f64>, tip: f64, w: f64, len: f64) -> Body<f64> {
-    let p = |u: f64, v: f64| (Point2::new(u, v), 0.0);
-    prism_on(
-        SketchPlane::from_frame(frame),
-        vec![p(tip - w, 2.5), p(tip, 1.0), p(tip + w, 2.5)],
-        len,
-        tol(),
-    )
-}
-
-/// The block less each groove in turn.
-fn grooved(grooves: Vec<Body<f64>>) -> Body<f64> {
-    let mut body = block::<f64>(4.0, 4.0, 2.0, tol());
-    for (i, g) in grooves.into_iter().enumerate() {
-        body = match subtract(
-            &finished("the block", body, tol()),
-            &finished("a groove", g, tol()),
-            tol(),
-        ) {
-            Ok(BooleanResult::Body(b)) => b.body.into_body(),
-            other => panic!("the block less groove {i}: {other:?}"),
-        };
-    }
-    body
-}
-
-/// Along `x`: the first groove from outside the block to `x = 2`, and a
-/// wider one on to `x = 3`, both centred on `y = 1`.
-fn deep() -> Vec<Body<f64>> {
-    vec![
-        groove(
-            RigidMotion::axes_yz(Point3::new(-1.0, 0.0, 0.0)),
-            1.0,
-            0.3,
-            3.0,
-        ),
-        groove(
-            RigidMotion::axes_yz(Point3::new(2.0, 0.0, 0.0)),
-            1.0,
-            0.5,
-            1.0,
-        ),
-    ]
-}
-
-/// [`deep`], and a groove along `y` from `y = 1` to `y = 2.5` at `x = 2`.
-fn branching() -> Vec<Body<f64>> {
-    let mut grooves = deep();
-    // The zx frame's first coordinate is z; sketch in it with x as the
-    // second, run along y.
-    let p = |u: f64, v: f64| (Point2::new(u, v), 0.0);
-    grooves.push(prism_on(
-        SketchPlane::from_frame(RigidMotion::axes_zx(Point3::new(0.0, 1.0, 0.0))),
-        vec![p(2.5, 1.6), p(1.0, 2.0), p(2.5, 2.4)],
-        1.5,
-        tol(),
-    ));
-    grooves
 }
 
 fn splits_sound_with_one_square(what: &str, body: &Body<f64>) {
@@ -139,10 +77,16 @@ fn splits_sound_with_one_square(what: &str, body: &Body<f64>) {
 
 #[test]
 fn a_deep_keel_tree_in_the_plane_splits_sound_and_sections_with_no_spur() {
-    splits_sound_with_one_square("two grooves end to end", &grooved(deep()));
+    splits_sound_with_one_square(
+        "two grooves end to end",
+        &grooved(deep::<f64>(tol()), tol()),
+    );
 }
 
 #[test]
 fn a_branching_keel_tree_in_the_plane_splits_sound_and_sections_with_no_spur() {
-    splits_sound_with_one_square("three grooves at one vertex", &grooved(branching()));
+    splits_sound_with_one_square(
+        "three grooves at one vertex",
+        &grooved(branching::<f64>(tol()), tol()),
+    );
 }

@@ -54,6 +54,7 @@
 //! deterministic by fixed schedule (D9). Instantiates at `f64`,
 //! `Dual<f64>`, `Interval`, and `Dual<Interval>`.
 
+#![cfg_attr(not(test), deny(clippy::disallowed_methods))]
 pub mod carrier_eq;
 mod carrier_net;
 pub mod carrier_pose;
@@ -189,6 +190,7 @@ pub use edge_nurbs::{
 };
 pub use edge_wedge::{
     Bend, WedgeClass, WedgeRefusal, WedgeVerdict, WedgeWalk, edge_wedge_over, edge_wedge_over_as,
+    rim_routing_wedge,
 };
 pub use enters::{
     EntersMaterial, LeverEscalation, LeverRung, NormalAlignment, OutwardNormal, ParallelNormal,
@@ -226,8 +228,8 @@ pub use intersect::{
     cone_cylinder_section, cone_plane_apex_extrema, cone_sphere_section, cone_torus_section,
     cylinder_axes_coplanar, cylinder_axes_parallel, cylinder_cylinder_section, parallel_axes_at,
     plane_cone_apex_extrema, plane_cone_section, plane_cylinder_section,
-    plane_cylinder_section_read, plane_sphere_section, plane_torus_section, route, route_pose,
-    sphere_sphere_section, tilted_section_major,
+    plane_cylinder_section_read, plane_sphere_section, plane_torus_axis_normal,
+    plane_torus_section, route, route_pose, sphere_sphere_section, tilted_section_major,
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey, SurfacePair};
 pub use locus::{
@@ -254,16 +256,17 @@ pub use pair_section::{
     ApexContact, ArcPlace, AxisPose, CarriedComponent, CarriedSection, CarryError, CarryRefusal,
     CcDecision, CcNode, CcStance, ChartReach, ClassCarrier, Coincident, ComponentEnds,
     ComponentShape, Components, ConeTorusPose, ConeTorusRefusal, CsDecision, CsStance, CtStance,
-    CylinderCylinderPose, CylinderSpherePose, CylinderTorusPose, FittedCarrier, Gap, KnownPair,
-    KnownRow, KtQuestion, KtStance, LoopTubeRefusal, NoCarrier, NodeEnd, NodeEnds, NodeLine,
-    NodeSet, PadBox, PairPose, PairSection, PairSide, PoseRefusal, RaySense, Reached,
-    RegionPlacement, Ring, SectionComponent, SectionDecision, SectionNode, SectionPick,
-    SectionRead, SiteFoot, SiteReading, SiteRefusal, SpanEnd, SphereTorusPose, SplineImplicitPose,
-    SplinePairPose, SquareWall, SsiLane, SsiLaneOf, StStance, TT_COINCIDENT, TT_COINCIDENT_FLOOR,
-    TorusCoincidence, TorusData, TorusDatum, TorusDisplacement, TorusGap, TorusPoseRefusal,
-    TorusQuestion, TorusTorusPose, TtStance, Turn, Winding, WindsRefusal, ZeroKind, ZeroVerdict,
-    axis_pose, coaxial_tangent_circle, line_tilt, pair_section, spline_pair_section, square_part,
-    tori_coincide,
+    CylinderCylinderPose, CylinderSpherePose, CylinderTorusPose, FittedCarrier, Gap, HeldRead,
+    KnownPair, KnownRow, KtQuestion, KtStance, LoopTubeRefusal, NoCarrier, NodeEnd, NodeEnds,
+    NodeLine, NodeSet, PadBox, PairPose, PairSection, PairSide, PlaneTorusMeridian, PlaneTorusPose,
+    PoseRefusal, PtCut, PtPinch, PtStance, RaySense, Reached, RegionPlacement, Ring,
+    SectionComponent, SectionDecision, SectionNode, SectionPick, SectionRead, SiteFoot,
+    SiteReading, SiteRefusal, SpanEnd, SphereTorusPose, SplineImplicitPose, SplinePairPose,
+    SquareWall, SsiLane, SsiLaneOf, StStance, TT_COINCIDENT, TT_COINCIDENT_FLOOR, TorusCoincidence,
+    TorusData, TorusDatum, TorusDisplacement, TorusGap, TorusPoseRefusal, TorusQuestion,
+    TorusTorusPose, TtStance, Turn, Winding, WindsRefusal, ZeroKind, ZeroVerdict, axis_pose,
+    coaxial_tangent_circle, line_tilt, pair_section, pair_section_held, plane_torus_closed_form,
+    spline_pair_section, square_part, tori_coincide,
 };
 /// [`CarryError`]'s and [`CarryRefusal`]'s compiler-derived kinds, for a
 /// roster that samples every arm.
@@ -275,12 +278,12 @@ pub use pcurve::{
 };
 pub use pcurve_cache::{
     ANGLE_WINDOW_START, AxisMap, Azimuth, BranchMiss, CertifyingDoor, Channel, ChartImage,
-    ChartMap, ChartMapRefusal, ChartStretchInf, ChartWindow, EnvelopeStatement, EnvelopeTerm,
-    FocalImage, FramedCarrier, HeldLine, ISO_FAMILY_CLAUSE, IncidenceRead, IncidenceRefusal,
-    IsoFamily, IsoFamilyRefusal, IsoReading, LaneGap, NoChartSup, NoHeldLine, NoSpeedBound,
+    ChartLine, ChartMap, ChartMapRefusal, ChartStretchInf, ChartWindow, EnvelopeStatement,
+    EnvelopeTerm, FocalImage, FramedCarrier, HeldLine, ISO_FAMILY_CLAUSE, IncidenceRead,
+    IncidenceRefusal, IsoFamily, IsoFamilyRefusal, IsoReading, LaneGap, NoChartSup, NoSpeedBound,
     OffMargin, Pcurve, PcurveCache, PcurveCertificate, PcurveCertifyError, PcurveCheck, PcurveKind,
     Period, PoleEnd, ProjectedChart, ProjectedImage, Ruling, SectorChannel, SingularEnds,
-    SpiricImage, StoredSpan, WalkStop, WallTorus, angle_rate, azimuth_lever_inf, chart_iso_family,
+    SpiricImage, WalkStop, WallTorus, angle_rate, azimuth_lever_inf, chart_iso_family,
     chart_pcurve, chart_pcurve_over, chart_pcurve_over_ends, chart_stretch_inf, chart_stretch_sup,
     chart_stretch_sup_v, chart_sup_arms_at, harmonic_form_of, harmonic_range,
     incidence_ended_unwitnessed, iso_arc_skew, iso_arc_spans, minted_refusal, read_edge_incidence,

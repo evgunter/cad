@@ -277,7 +277,7 @@ fn closed_form_locus<T: Decide>(
                 frame: plane_frame, ..
             },
         ) => {
-            let (origin, axis) = (cylinder_frame.origin(), cylinder_frame.axis());
+            let (origin, axis) = (cylinder_frame.origin(), cylinder_frame.axis_unit());
             let (q, n) = (plane_frame.origin(), plane_frame.axis());
             let pc = PlaneCylinder {
                 q,
@@ -312,11 +312,11 @@ fn closed_form_locus<T: Decide>(
             let (o2, a2) = (cylinder_frame.origin(), cylinder_frame.axis());
             let line1 = geom::Line {
                 origin: o1,
-                dir: cylinder_frame_2.axis(),
+                dir: cylinder_frame_2.axis_unit(),
             };
             let line2 = geom::Line {
                 origin: o2,
-                dir: cylinder_frame.axis(),
+                dir: cylinder_frame.axis_unit(),
             };
             let axes = parallel_axes_at(reach, line1, line2);
             let swing = parallel_swing(reach, line1, line2, axes.d);
@@ -576,7 +576,7 @@ impl<T: Decide> Section<T> {
         band: Band,
     ) -> Option<Self> {
         // `r·|a × n|`: the wall's reach across the locus, a length.
-        let across = UnitVec3::new(pc.a.cross(pc.n) * pc.r, ACROSS, band).ok()?;
+        let across = UnitVec3::new(pc.a.get().cross(pc.n) * pc.r, ACROSS, band).ok()?;
         let tilt = frame.c.abs() * reach.lever_from(frame.o).length();
         Some(Self {
             at: across.get().dot(frame.o - Point3::origin()),
@@ -777,6 +777,36 @@ fn parallel_cylinder_gaps<T: Decide>(
 mod tests {
     use super::*;
     use geom_core::Tol;
+
+    /// **Two parallel cylinders' gap read across their axes' swing
+    /// offers a tolerance that decides it.** Radii `1` and `0.5`, axes
+    /// `6e-9` past touching, a swing of `2e-9`, in a band of `1e-9`:
+    /// the far row, `8e-9`, is in band. The tolerance its refusal
+    /// offers, off the floor `4e-9`, reads the pair apart; the one the
+    /// far reading alone would offer, `8e-10`, refuses again on the
+    /// floor.
+    #[test]
+    fn a_parallel_gap_across_a_swing_offers_a_tolerance_that_decides_it() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let gaps = |band: Band| parallel_cylinder_gaps((1.0, 0.5), 1.5 + 6e-9, 2e-9, band);
+        let refused = gaps(band).err().expect("the far row in band");
+        assert_eq!(refused.predicate, Some("cc_parallel_gap"));
+        let offered = refused.offered_band().expect("a floor with a size");
+        assert!(
+            matches!(
+                gaps(offered),
+                Ok(CylinderGap::NotTangent { apart: true, .. })
+            ),
+            "at the offered band: {:?}",
+            gaps(offered).err()
+        );
+        let far_offer = Band::new(8e-10, 8e-9).unwrap();
+        assert_eq!(
+            gaps(far_offer).err().and_then(|e| e.predicate),
+            Some("cc_parallel_gap_floor"),
+            "at the far reading's own offer"
+        );
+    }
 
     /// **The kinds the lane holds are the kinds its dispatch reads.** A
     /// pair outside [`tangent_locus_kinds`] is `Unsupported`, and a pair

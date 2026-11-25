@@ -2,13 +2,14 @@
 id: carrier-frames-the-types-and-the-lift
 kind: unit
 title: Carrier frames (i): the variants hold UnitVec3 / RigidMotion behind accessors, and the lift re-mints a frame at the target scalar
-status: review
+status: closed
 opened: 2026-11-17
 priority: P1
 cost: H
 parent: carriers-hold-their-frame-as-unitvec3-and-rigidmotion-and-check-1s-frame-half-goes
 pr: 7131
 branch: onehome/carrier-frames
+closed: 2026-11-23
 ---
 
 
@@ -48,3 +49,10 @@ The prerequisite of the parent row's split (orchestrator, 2026-11-17).
 - **`moved_by`.** It changes only where the type change forces it.
   The sibling row is
   `the-boolean-reads-each-operand-in-its-own-coordinates`.
+
+## Closed (2026-11-23)
+
+PR 7131 merged to main. Its sibling row (iii),
+`carrier-frames-check-1s-frame-half-goes`, merged as PR 7323, so both
+halves of the parent's split are in. The 1e-12 slow-set cost 7131 left is
+counted in `pr-7131s-frame-cost-at-1e-12-is-larger-than-it-counted`.

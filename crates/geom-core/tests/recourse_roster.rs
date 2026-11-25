@@ -84,7 +84,6 @@ const CLOSURE_FORWARDS: &str = "a closure bound in this `fn` hands on its caller
 /// The indirect sites, as `<file>: <expr>`, with what carries the name.
 const INDIRECT: &[(&str, &str)] = &[
     ("k_stats.rs: decide_across: names", FORWARDS),
-    ("k_stats.rs: decide_across_reported: far", FORWARDS),
     ("k_stats.rs: decide_across_reported: floor", FORWARDS),
     ("k_stats.rs: decide_magnitude: name", FORWARDS),
     ("k_stats.rs: decide_passing: name", FORWARDS),
@@ -157,6 +156,7 @@ const INDIRECT: &[(&str, &str)] = &[
     ("period.rs: read: rows.turn", ROW_FIELD),
     ("period.rs: registered: turn", FORWARDS),
     ("running.rs: divisor: name", FORWARDS),
+    ("solved.rs: decide_admit: row", FORWARDS),
     (
         "sym.rs: register_equal: return SymRegistration::Witnessed;",
         NOT_A_NAME,

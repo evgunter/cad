@@ -165,6 +165,8 @@ pub(crate) enum SegTag {
     Member,
     // Blend, appended
     HostFoot,
+    // Any op, appended
+    ConventionalVertex,
 }
 
 impl SegTag {
@@ -222,6 +224,7 @@ impl SegTag {
             Self::Rim => s::SegTag::Rim,
             Self::HoleRim => s::SegTag::HoleRim,
             Self::Member => s::SegTag::Member,
+            Self::ConventionalVertex => s::SegTag::ConventionalVertex,
         }
     }
 }
@@ -985,6 +988,7 @@ mod growth_tripwire {
             s::SegTag::Rim => SegTag::Rim,
             s::SegTag::HoleRim => SegTag::HoleRim,
             s::SegTag::Member => SegTag::Member,
+            s::SegTag::ConventionalVertex => SegTag::ConventionalVertex,
         }
     }
 

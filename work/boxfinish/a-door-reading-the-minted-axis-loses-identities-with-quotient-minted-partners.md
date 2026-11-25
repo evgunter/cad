@@ -2,10 +2,11 @@
 id: a-door-reading-the-minted-axis-loses-identities-with-quotient-minted-partners
 kind: issue
 title: A door that reads the profile's minted axis on one wall loses identities with a partner whose director is the chord's quotient, and the projection span folds only under rule A
-status: open
+status: parked
 opened: 2026-11-22
 priority: P1
-cost: M
+cost: H
+blocked_on: [the-one-plane-reading-multiplies-a-normal-by-a-decided-sign, a-verb-stores-a-radius-as-a-magnitude-and-the-symbolic-tier-cannot-use-the-sign-its-gate-decided]
 ---
 
 
@@ -141,3 +142,70 @@ the tree):
   plane normal's length. This row holds that evidence itself; the
   convention is
   `work/restfront/unlevered-frame-conventions-are-uncertified-at-rest.md`'s.
+
+## 2026-11-23 — evidence: PR 7471 moves two of these receipts again (HELDRECORDS)
+
+On `heldrecords/elbow-seams` (origin/main `dc263f8553` merged), both
+still red as on main, each by a few more decisions: the second-order
+walk now decides the tangency's tube (`tangent_tube_margin`) once per
+walk that reads every station positive.
+
+- `m10_9_pins_interval::m10_9_the_pad_at_both_rule_f_dials`: main
+  `(1483, 1711, 1967)`, head `(1483, 1719, 1991)`.
+- `sym_9_retry_interval::sym_9_the_drive_writes_the_ladders_receipt`:
+  main `[1390, 1803, 0]`, head `[1390, 1811, 0]`.
+
+Whoever re-pins these after the stack lands reads the head's values.
+
+## Weighed (2026-11-24): two designers agree after two rounds; the build goes ahead in two units
+
+The question as this row asked it (which spelling of a direction a
+door reads) is not what either measured failure is about, and both
+designers said so at their first reports. Failure (i) is in a reader:
+the one-plane reading multiplies a normal by a decided sign. Failure
+(ii) is that a line's extent is stored nowhere, so each reader
+re-derives it (the chord's norm, the chord projected on the director),
+and each re-derivation is a new spelling.
+
+**The agreed final state.**
+- **A validated line side records its director and its signed length
+  together**, minted at one site so that start + length·director is the
+  end as a formula: the exact axis with the signed other component
+  where a component is proved zero as an expression; the chord's unit
+  and norm from one read otherwise; a verb that states a side by
+  direction and length records what it was given (an angle leg's
+  authored length; for a rectangle the authored width and the projected
+  chord are one polynomial).
+- **Every reader reads the pair and none reads the two points:** the
+  sweep doors (their line arms go; no validated line lacks the pair, so
+  no fallback is written), the edge's own description
+  (`start + t·director`, `t` in `[0, length]`), the verbs' junction
+  checks, and `emit_straight_leg_at`, which recovers a length it was
+  handed through a root. A run of collinear sides joined into one takes
+  its first member's director and the summed lengths.
+- **The one-plane reading** is its own unit, which lands first:
+  `the-one-plane-reading-multiplies-a-normal-by-a-decided-sign`.
+- Nothing is registered, the symbolic tier is unchanged, no ratified
+  text changes. One sentence for the profile README: a line records its
+  director and its length, minted together so that its start plus its
+  length along its director is its end as a formula.
+
+**What it does not reach:** a sloped side built from points whose
+direction does not move over the box (a wedge's far side) keeps the
+width of its quotient; only a construction that holds the direction
+can record it exactly
+(`fillet-side-and-centre-arcs-and-off-axis-hops-record-no-direction`).
+
+**Not put to Ev** (logged): the designers agree, no ratified decision
+changes, and the answer is E12's own principle applied as the arc half
+applied it. The draws, both reports and both rounds are on
+`analysis/design-fork/a-door-reading-the-minted-axis-loses-identities-with-quotient-minted-partners`.
+
+**This row is now the record half** (cost H): the pair in
+`SegmentKind::Line`, and every reader moved onto it. It waits on the
+reader half and on the signed-radius unit (PR 7686 edits the same
+files: `seg.rs`, `swept.rs`, the doors' arms). Its closing tests are
+the three named above under "What reading the record buys", with the
+edge's description reading the pair and `sym_9`'s receipt accounted.
+Letter H; tier dual (a concurrent pair), as the arc half: it changes
+what every line stores and what every door reads.

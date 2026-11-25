@@ -357,7 +357,8 @@ impl RoleSeg {
             | RoleSeg::Inner(n)
             | RoleSeg::Rim(n)
             | RoleSeg::HoleRim { of: n, .. }
-            | RoleSeg::Member { of: n, .. } => f(Shared(n)),
+            | RoleSeg::Member { of: n, .. }
+            | RoleSeg::ConventionalVertex(n) => f(Shared(n)),
             RoleSeg::CrossingVertex { edge, sense } => {
                 f(Shared(edge));
                 sense_names(sense, f);
@@ -417,7 +418,8 @@ impl RoleSeg {
             | RoleSeg::Inner(n)
             | RoleSeg::Rim(n)
             | RoleSeg::HoleRim { of: n, .. }
-            | RoleSeg::Member { of: n, .. } => f(Shared(n)),
+            | RoleSeg::Member { of: n, .. }
+            | RoleSeg::ConventionalVertex(n) => f(Shared(n)),
             RoleSeg::CrossingVertex { edge, sense } => {
                 f(Shared(edge));
                 sense_names_mut(sense, f);
@@ -1973,6 +1975,7 @@ pub(super) mod tests {
                     band: vec![b.clone()],
                 },
                 R::BandCut(r(a)),
+                R::ConventionalVertex(r(b)),
                 R::BandSlit {
                     edge: r(b),
                     band: vec![a.clone(), b.clone()],

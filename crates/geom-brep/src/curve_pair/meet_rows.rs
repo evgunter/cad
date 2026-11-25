@@ -21,7 +21,10 @@ pub(super) fn band() -> Band {
 }
 
 pub(super) fn line(o: [f64; 3], d: [f64; 3]) -> Curve3<f64> {
-    Curve3::line(Point3::from_array(o), Vec3::from_array(d).normalize())
+    Curve3::line(
+        Point3::from_array(o),
+        geom_core::UnitVec3::squared(Vec3::from_array(d)),
+    )
 }
 
 /// A frame `u_ref` square to `axis`.
@@ -66,7 +69,7 @@ pub(super) fn distance(c: &Curve3<f64>, q: Point3<f64>) -> f64 {
     match *c {
         Curve3::Line(geom::Line { origin, dir }) => {
             let w = q - origin;
-            let u = dir.normalize();
+            let u = dir.get().normalize();
             (w - u * w.dot(u)).norm()
         }
         Curve3::Circle(circle) => {
@@ -1398,11 +1401,19 @@ fn two_segments_on_one_line_two_metres_apart_meet_nowhere() {
     let band = Band::new(1e-6, 1e-5).unwrap();
     let edge = Curve3::line(
         Point3::new(-1.999_356_330_248_317_7, 0.535_723_727_818_681_7, 1.0),
-        Vec3::new(0.965_926_090_343_448_7, -0.258_818_059_636_146_96, 0.0),
+        geom::stated_direction(Vec3::new(
+            0.965_926_090_343_448_7,
+            -0.258_818_059_636_146_96,
+            0.0,
+        )),
     );
     let boundary = Curve3::line(
         Point3::new(1.999_999_999_999_999_8, -0.535_898_384_862_245_2, 1.0),
-        Vec3::new(-0.965_925_826_289_068_3, 0.258_819_045_102_520_7, 0.0),
+        geom::stated_direction(Vec3::new(
+            -0.965_925_826_289_068_3,
+            0.258_819_045_102_520_7,
+            0.0,
+        )),
     );
     let a = Span::new(&edge, (0.0, 2.069_885_419_015_256_5));
     let b = Span::new(&boundary, (0.0, 0.000_666_381_398_214_661_7));
@@ -1677,11 +1688,11 @@ fn a_found_meetings_root_is_divided_out_of_the_closed_form() {
     );
     let edge = Curve3::line(
         p(i(0.3, 0.3), i(-0.4, -0.4), i(0.0, 0.0)),
-        v(
+        geom_core::UnitVec3::checked(v(
             i(0.0, 0.0),
             i(0.999_999_999_999_999_7, 1.000_000_000_000_000_4),
             i(0.0, 0.0),
-        ),
+        )),
     );
     let edge_span = (
         i(0.053_589_838_486_223_26, 0.053_589_838_486_225_98),
@@ -1943,8 +1954,8 @@ fn two_segments_touching_on_far_carriers_are_never_read_apart() {
         0.499_755_838_673_424_7,
         -0.322_242_914_387_750_1,
     );
-    let a = Curve3::line(Point3::origin() - d * far, d);
-    let b = Curve3::line(Point3::origin() + d * far, d);
+    let a = Curve3::line(Point3::origin() - d * far, geom::stated_direction(d));
+    let b = Curve3::line(Point3::origin() + d * far, geom::stated_direction(d));
     let t1 = 1_049_576.874_015_081_7;
     let s0 = t1 - 2.0 * far;
     assert_eq!(s0, -1_047_575.125_984_918_3, "the touch is exact in f64");
@@ -2227,11 +2238,11 @@ fn two_segments_on_one_line_far_apart_read_apart_at_interval() {
     let i = |x: f64| Interval::from_bounds(x - 1e-15, x + 1e-15);
     let a = Curve3::line(
         Point3::new(i(0.0), i(0.0), i(0.0)),
-        Vec3::new(i(1.0), i(0.0), i(0.0)),
+        geom_core::UnitVec3::exact_x(),
     );
     let b = Curve3::line(
         Point3::new(i(0.0), i(2.0 * ZERO), i(0.0)),
-        Vec3::new(i(1.0), i(ZERO), i(0.0)),
+        geom_core::UnitVec3::checked(Vec3::new(i(1.0), i(ZERO), i(0.0))),
     );
     let got = pose(
         &Span::new(&a, (i(0.0), i(1.0))),
@@ -2660,7 +2671,7 @@ fn a_candidate_with_no_window_reads_as_its_point_alone() {
 fn a_keel_wall_past_a_bores_rim_is_cleared_by_its_held_ends_floor() {
     let wall = Curve3::line(
         Point3::new(1.0, -1.710_783_078_032_602_8e-8, 2.75),
-        Vec3::new(0.0, 0.0, -1.0),
+        geom::stated_direction(Vec3::new(0.0, 0.0, -1.0)),
     );
     let rim = Curve3::circle(
         Point3::new(1.037_500_008_874_687_3, -1.774_937_458_641_49e-8, 2.0),
@@ -2720,7 +2731,7 @@ fn the_run_arm_needs_the_span_end_decidedly_off_the_other_carrier() {
     let read = |sine: f64, bent: bool| {
         let cosine = (1.0 - sine * sine).sqrt();
         let dir = Vec3::new(cosine, sine, 0.0);
-        let other = Curve3::line(at, dir);
+        let other = Curve3::line(at, geom::stated_direction(dir));
         let (a, b) = (Span::new(&x, (0.0, 1.0)), Span::new(&other, (-1.0, 1.0)));
         let Some(bound) = super::polish::bound(
             ("test_basin", None),
@@ -2820,7 +2831,7 @@ fn a_crossing_off_an_arcs_span_reads_no_window() {
 /// foot on the circle is `(r, 0, 0)`, `2.84` rad of arc (`2.84·10⁻⁴` m)
 /// from the arc. In metres the arc's end is `1.14r` from the crossing,
 /// inside the ball of `ℓ + e` about it.
-fn over_an_arcs_far_side(
+pub(super) fn over_an_arcs_far_side(
     (d, ell): (f64, f64),
     band: Band,
 ) -> [Result<Meetings<f64>, super::MeetRefusal<f64>>; 2] {
@@ -2895,11 +2906,11 @@ fn a_crossing_whose_foot_on_a_thin_ellipse_is_far_is_read_by_the_ball_about_it()
             -0.995_972_943_460_762_7,
             -1.860_142_371_212_321_5,
         ),
-        Vec3::new(
+        geom::stated_direction(Vec3::new(
             -0.887_113_993_102_562,
             -0.019_566_488_067_895_276,
             -0.461_135_463_596_454_13,
-        ),
+        )),
     );
     let thin = Curve3::Ellipse(geom::Ellipse::new(
         geom::Frame::new(
@@ -2980,7 +2991,7 @@ fn a_shallow_segment_stopping_short_of_a_circle_is_cleared_by_its_held_ends_floo
 fn a_held_end_whose_span_comes_round_within_the_window_reads_it_two_sided() {
     let wall = Curve3::line(
         Point3::new(1.0, -1.710_783_078_032_602_8e-8, 2.75),
-        Vec3::new(0.0, 0.0, -1.0),
+        geom::stated_direction(Vec3::new(0.0, 0.0, -1.0)),
     );
     let rim = Curve3::circle(
         Point3::new(1.037_500_008_874_687_3, -1.774_937_458_641_49e-8, 2.0),
@@ -3072,11 +3083,11 @@ fn a_pose_read_with_the_spans_swapped_reads_the_pair_at_the_first_carriers_point
             -1.868_833_724_593_999_4,
             -3.663_965_499_381_238_3,
         ),
-        Vec3::new(
+        geom::stated_direction(Vec3::new(
             -0.876_296_707_642_925,
             0.058_777_680_981_946_19,
             0.478_172_839_455_101_75,
-        ),
+        )),
     );
     let (a, b) = (
         Span::new(&circle, (-3.411_413_515_132_779, -2.298_345_592_838_532)),

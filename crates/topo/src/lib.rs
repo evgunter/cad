@@ -125,6 +125,7 @@
 //! # run().unwrap();
 //! ```
 
+#![cfg_attr(not(test), deny(clippy::disallowed_methods))]
 // A comment on a `mod` declaration below is `//`, never `///`: an outer
 // doc comment merges into the module's own `//!` docs and makes rustdoc
 // resolve their intra-doc links in this file's scope instead of theirs.
@@ -188,11 +189,25 @@ pub mod solid_contain;
 #[cfg(test)]
 pub(crate) mod source_walk;
 
+#[cfg(any(test, feature = "test-support"))]
+thread_local! {
+    /// The cuts each of this thread's sphere cut-ins made, A's then B's,
+    /// one entry per cut-in in call order
+    /// ([`test_support::take_cut_ins`]): the witness a test reads to
+    /// count the cuts, which no result holds.
+    static CUT_INS: core::cell::RefCell<Vec<[usize; 2]>> = const { core::cell::RefCell::new(Vec::new()) };
+}
+
+/// Records one cut-in's cuts ([`CUT_INS`]).
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn note_cut_ins(made: [usize; 2]) {
+    CUT_INS.with(|c| c.borrow_mut().push(made));
+}
+
 #[cfg(test)]
 pub(crate) mod cert_m3r1_probes;
 pub(crate) mod held;
 pub mod instance;
-pub(crate) mod invalid_margin;
 #[cfg(test)]
 pub(crate) mod iso;
 pub mod joint;
@@ -343,6 +358,21 @@ pub mod test_support {
     use geom_core::Real;
 
     use crate::body::Body;
+
+    /// **Whether each pose of a sphere face holds `point` in the extent
+    /// it grants**: one entry per pose about an off-axis circle of the
+    /// face, `None` where that pose grants none. `None` overall where the
+    /// face does not lift. The containment pins of the posed extent read
+    /// it.
+    #[must_use]
+    pub fn posed_extents_holding(
+        body: &Body<f64>,
+        face: crate::FaceKey,
+        point: [f64; 3],
+        band: geom_core::Band,
+    ) -> Option<Vec<Option<bool>>> {
+        crate::clearance::posed_extents_holding(body, face, point, band)
+    }
 
     /// The at-rest window's reasons for an incidence refusal, one per
     /// read (`validate::incidence_reasons`): a test outside this crate
@@ -875,7 +905,10 @@ pub mod test_support {
         origin: geom_core::Point3<f64>,
         dir: geom_core::Vec3<f64>,
     ) -> (Vec<(f64, f64)>, Vec<f64>) {
-        let line = geom::Line { origin, dir };
+        let line = geom::Line {
+            origin,
+            dir: geom::stated_direction(dir),
+        };
         let at = |v: crate::entity::VertexKey| {
             let p = crate::readback::vertex_point(body, v).expect("a vertex's point");
             let off = line.distance(p);
@@ -907,6 +940,14 @@ pub mod test_support {
         Recertify,
         /// Carried the source's certificates, handles rewritten.
         RemapKeys,
+    }
+
+    /// The cuts every sphere cut-in this thread ran since the last call
+    /// made, A's then B's, one entry per cut-in in call order, draining
+    /// the record. The output stage closes every cut, so a result holds
+    /// none to count.
+    pub fn take_cut_ins() -> Vec<[usize; 2]> {
+        crate::CUT_INS.with(|c| core::mem::take(&mut *c.borrow_mut()))
     }
 
     /// The bridge of every graft this thread ran since the last call,
@@ -1294,7 +1335,7 @@ pub mod test_support {
     /// The no-crossings path's certificates on `a` × `b` — the sphere
     /// extent scan, then the section pass — as that path runs them over
     /// `op`'s glue door and reduction, whatever the crossing layer
-    /// found. `Ok` with the number of sphere re-cuts the scan asked for
+    /// found. `Ok` with the number of sphere cut-ins the scan asked for
     /// and the number of refusals held for the `On` verdict (pairs the
     /// reduction settled one carrier), which this door does not run.
     ///
@@ -1480,16 +1521,16 @@ pub use boolean::{
     DeclarationRead, DiscardRow, EdgeCarrierSite, EdgeInBand, EdgeInFaceGap, EdgeJoin,
     EdgePieceClass, EeContact, EfContact, FaceDescent, FaceSource, FfContact, Fusions, GlueVerdict,
     Held, HeldRefusal, Holdings, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided,
-    JudgedRow, LeverArm, LineUnread, LineWedgeFault, MemberFace, MemberInputs, NaryEnd,
-    NaryJudgement, NaryMember, NaryOp, NaryPlaced, NaryPlacedRun, NaryRefusal, NaryRun, NaryStep,
-    NaryTaken, NodeWhy, NullEdgePairRecord, Operand, OperandKeys, OperandRecords, OverlapRefusal,
-    PairRefusalSite, PairSite, PairTaken, PairUnread, PierceRingRecord, Placed, PlacedBooleanError,
-    ReductionContacts, RefusedRow, SectionUnbuilt, SectorRead, SectorRung, SelfCheck, SettleError,
-    Settler, Settling, SharedStarts, ShellOrientation, SideCode, SlitFaceGap, SlitLineGap,
-    SphereQuestion, SpiricLoops, SubstitutedFace, SweepStrategy, ToolFuseRefusal, TorusConvention,
-    UncutFace, UnreadPartner, VeContact, VfContact, VoidContainment, VoidEvidence, VoidInsertError,
-    VoidInserted, VvContact, WallRung, boolean_op_with, boolean_placed, boolean_reduce,
-    decision_words, flush_pair_relation, insert_void, insert_voids, intersect,
+    JudgedRow, JunctionEndGap, LeverArm, LineUnread, LineWedgeFault, MemberFace, MemberInputs,
+    NaryEnd, NaryJudgement, NaryMember, NaryOp, NaryPlaced, NaryPlacedRun, NaryRefusal, NaryRun,
+    NaryStep, NaryTaken, NodeWhy, NullEdgePairRecord, Operand, OperandKeys, OperandRecords,
+    OverlapRefusal, PairRefusalSite, PairSite, PairTaken, PairUnread, PierceRingRecord, Placed,
+    PlacedBooleanError, ReductionContacts, RefusedRow, SectionUnbuilt, SectorRead, SectorRung,
+    SelfCheck, SettleError, Settler, Settling, SharedStarts, ShellOrientation, SideCode,
+    SlitFaceGap, SlitLineGap, SphereQuestion, SubstitutedFace, SweepStrategy, ToolFuseRefusal,
+    TorusConvention, UncutFace, UnreadPartner, VeContact, VfContact, VoidContainment, VoidEvidence,
+    VoidInsertError, VoidInserted, VvContact, WallRung, boolean_op_with, boolean_placed,
+    boolean_reduce, decision_words, flush_pair_relation, insert_void, insert_voids, intersect,
     is_conventional_vertex, join_covers, joinable_vertices, joined_cell, joined_edge, nary_boolean,
     nary_boolean_apart, nary_placed, overlap, subtract, tangent_pair_relation, union,
 };
@@ -1561,7 +1602,7 @@ pub use geom::Surface;
 pub use geom_brep::{
     CertifyError, ChartCurve, ChartWindow, CurveSelector, EdgeAuthority, EdgeCurve, EdgeCurveSpec,
     EdgeDescription, EdgeDescriptionSpec, Pcurve, PcurveCache, PcurveCertifyError, SharedRow,
-    StoredSpan, Structural, SurfacePair,
+    Structural, SurfacePair,
 };
 pub use geometry::{CurveKey, PointKey, SurfaceKey};
 pub use instance::{

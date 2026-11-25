@@ -1303,7 +1303,8 @@ pub enum RoleSeg {
     /// **An entity an operation carries in from an input** (DM4; N1):
     /// `read` is the variable the input slot holds and `of` the
     /// entity's name in that variable's table. One segment serves a
-    /// union's and an intersect's members, a subtract's two seats and a
+    /// union's and an intersect's members, a subtract's body kept and
+    /// each of its tools, and a
     /// one-input operation's input (a shell's, a blend's); which seat a
     /// read sits in is the node's to say, never the name's.
     ///
@@ -1631,6 +1632,13 @@ pub enum RoleSeg {
         /// The source pair edge whose band ends at the foot.
         edge: NameRef,
     },
+
+    // ---- Any op (appended: a variant's index feeds a name's hash) ----
+    /// **A closed edge's conventional vertex** (`topo::is_conventional_vertex`),
+    /// named for that edge alone: the vertex has no identity of its own
+    /// (`names/README.md`, "A conventional vertex"), so its name cites
+    /// no member, position or fold step, and it resolves to the edge.
+    ConventionalVertex(NameRef),
 }
 
 /// **Where a member stands in its family** ([`RoleSeg::Member`]): each
@@ -1782,7 +1790,8 @@ pub(crate) fn read_edge(seg: &RoleSeg) -> Option<VarId> {
         | RoleSeg::Inner(_)
         | RoleSeg::Rim(_)
         | RoleSeg::HoleRim { .. }
-        | RoleSeg::Member { .. } => None,
+        | RoleSeg::Member { .. }
+        | RoleSeg::ConventionalVertex(_) => None,
     }
 }
 
@@ -2399,6 +2408,7 @@ impl RoleSeg {
                 of: rewrite_ref(of, w)?,
             },
             R::BlendFace(n) => R::BlendFace(rewrite_ref(n, w)?),
+            R::ConventionalVertex(n) => R::ConventionalVertex(rewrite_ref(n, w)?),
             R::CornerFace(n) => R::CornerFace(rewrite_ref(n, w)?),
             R::TrimEdge { edge, support } => R::TrimEdge {
                 edge: rewrite_ref(edge, w)?,
@@ -2702,7 +2712,8 @@ impl RoleSeg {
             | R::Inner(_)
             | R::Rim(_)
             | R::HoleRim { .. }
-            | R::Member { .. } => Vec::new(),
+            | R::Member { .. }
+            | R::ConventionalVertex(_) => Vec::new(),
         }
     }
 }

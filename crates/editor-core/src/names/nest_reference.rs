@@ -235,4 +235,5 @@ pub(super) enum RoleSeg {
         vertex: NameRef,
         edge: NameRef,
     },
+    ConventionalVertex(NameRef),
 }

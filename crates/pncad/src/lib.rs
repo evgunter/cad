@@ -142,6 +142,7 @@
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 
+#![cfg_attr(not(test), deny(clippy::disallowed_methods))]
 // ---------------------------------------------------------------
 // Module re-exports: the whole authoring surface, one hop away.
 // ---------------------------------------------------------------

@@ -307,12 +307,15 @@ fn no_spline_or_spiric_operand_builds_wrong() {
     }
 }
 
-/// **A poke into the cavity's torus band refuses typed**: the brick's
-/// wall crosses the band between the two spiric rims, a torus face
-/// against a plane, and the section it would read there routes to the
-/// general rung the boolean does not run.
+/// **A poke into the cavity's torus band builds**: the brick's wall
+/// crosses the band between the two spiric rims, a torus face against a
+/// plane, whose section the section value marches. Every op in both
+/// orders builds a body valid to tier 3, and the volumes close on the
+/// operands': `∪ + ∩` is their sum, each difference its minuend less
+/// `∩`, which holds the brick's part inside the cavity, positive and
+/// under the brick's.
 #[test]
-fn a_poke_into_the_cavitys_torus_band_refuses_typed() {
+fn a_poke_into_the_cavitys_torus_band_builds() {
     let tol = Tol::witness();
     let cavity = cavity();
     let brick = finished(
@@ -320,30 +323,42 @@ fn a_poke_into_the_cavitys_torus_band_refuses_typed() {
         brick_with_fresh_keys::<f64>((0.12, 0.25), (0.11, 0.14), (-0.06, -0.04), tol),
         tol,
     );
-    for (op, got) in [
+    let volume = |op: &str, got: Result<topo::BooleanResult<f64>, topo::BooleanError>| {
+        let r = got.unwrap_or_else(|e| panic!("{op}: the band poke builds, got {e:?}"));
+        let body = r
+            .body()
+            .unwrap_or_else(|| panic!("{op}: the brick crosses the band"));
+        assert_eq!(
+            topo::validate_geometric(&body.body, tol),
+            Ok(()),
+            "{op}: tier 3"
+        );
+        topo::test_support::pinned_volume(op, &body.body, tol).volume
+    };
+    let o = topo::test_support::pinned_volume("the cavity", &cavity, tol).volume;
+    let b = 0.13 * 0.03 * 0.02;
+    let [ob_u, bo_u, ob_i, bo_i, ob_s, bo_s] = [
         ("O ∪ B", topo::union(&cavity, &brick, tol)),
         ("B ∪ O", topo::union(&brick, &cavity, tol)),
         ("O ∩ B", topo::intersect(&cavity, &brick, tol)),
         ("B ∩ O", topo::intersect(&brick, &cavity, tol)),
         ("O ∖ B", topo::subtract(&cavity, &brick, tol)),
         ("B ∖ O", topo::subtract(&brick, &cavity, tol)),
-    ] {
-        let e = got.expect_err("the band poke refuses");
-        let BooleanError::GermSectionSpiric {
-            a_kind,
-            b_kind,
-            section: geom_brep::SectionError::RoutesToGeneralRung { .. },
-            ..
-        } = e
-        else {
-            panic!("{op}: the plane × torus section routes to the general rung, got {e:?}");
-        };
-        let mut kinds = [a_kind, b_kind];
-        kinds.sort_by_key(|k| format!("{k:?}"));
-        assert_eq!(
-            kinds,
-            [SurfaceKind::Plane, SurfaceKind::Torus],
-            "{op}: the pair"
+    ]
+    .map(|(op, got)| volume(op, got));
+    let close = |got: f64, want: f64, what: &str| {
+        assert!(
+            (got - want).abs() < 1e3 * tol.eps() * b,
+            "{what}: {got} against {want}"
         );
-    }
+    };
+    assert!(
+        ob_i > 0.0 && ob_i < b,
+        "∩ holds part of the brick: {ob_i} of {b}"
+    );
+    close(bo_u, ob_u, "B ∪ O against O ∪ B");
+    close(bo_i, ob_i, "B ∩ O against O ∩ B");
+    close(ob_u + ob_i, o + b, "∪ + ∩");
+    close(ob_s, o - ob_i, "O ∖ B");
+    close(bo_s, b - ob_i, "B ∖ O");
 }

@@ -1153,8 +1153,8 @@ fn grid_counts(
 ) -> Result<(usize, usize), TessellateError> {
     let steps = row.steps(delta);
     let (hu, hv) = steps;
-    // The lattice the row lays: rows every `lever·hu` on a ruled chart,
-    // the periodic steps capped on a torus and a spindle sheet.
+    // The lattice the row lays: the periodic steps capped on a torus and
+    // a spindle sheet, which this lane reads alone.
     let (lu, lv) = row.lattice_steps(steps);
     match row.kind() {
         Analytic::Cylinder { .. } => {
@@ -1909,8 +1909,8 @@ mod tests {
 
     /// The die pip (`sweep`'s `m5_s13_pips` shape): a 4 × 4 × 1 slab
     /// with a radius-0.5 ball subtracted 0.2 above its top face. The
-    /// cavity's two sphere faces are the only curved faces in this
-    /// crate's reach that a BOOLEAN produced rather than a sweep.
+    /// cavity's sphere face is the only curved face in this crate's
+    /// reach that a BOOLEAN produced rather than a sweep.
     fn die_pip() -> Body<f64> {
         let lp = <ProfileLoop<f64> as RawLoop<f64>>::polygon([
             Point2::new(0.0, 0.0),
@@ -1951,6 +1951,9 @@ mod tests {
         (*cut.body().expect("a pip is a dent, not a void").body).clone()
     }
 
+    /// The [`die_pip`] fixture's name.
+    const DIE_PIP: &str = "die pip (boolean cut)";
+
     fn fixtures() -> Vec<(&'static str, Body<f64>)> {
         let pi = core::f64::consts::PI;
         vec![
@@ -1970,7 +1973,7 @@ mod tests {
             ("axis wedge(pi/2)", axis_wedge(pi / 2.0)),
             ("axis wedge(pi + 0.5)", axis_wedge(pi + 0.5)),
             ("rounded prism", rounded_prism()),
-            ("die pip (boolean cut)", die_pip()),
+            (DIE_PIP, die_pip()),
         ]
     }
 
@@ -2463,7 +2466,7 @@ mod tests {
     /// The #653 row's totals, measured. They are asserted so that a
     /// change in the fixture list is VISIBLE rather than silent — the
     /// row's actual guarantee is its per-fixture floor, not these.
-    const TOTAL_MESHED: usize = 250;
+    const TOTAL_MESHED: usize = 244;
     /// Typed refusals in the same sweep: none. A split ruling sends its
     /// face to the trimmed lane (`walk::splits_a_straight_side`), which
     /// meshes the mirror nappe's split walls. The donut contributes none
@@ -2489,14 +2492,21 @@ mod tests {
     /// count: `curved_walks` reaches its body through a silent
     /// `continue` (the route), so a
     /// global floor lets a fixture that stopped contributing hide
-    /// behind its siblings' faces. The die pip is the one this matters
-    /// most for: the boolean's
-    /// chart re-cut is what keeps a CUT sphere face iso-rectangular,
-    /// and if a future re-cut gave the cavity rim an ellipse carrier it
-    /// would drop out of the sweep silently.
+    /// behind its siblings' faces. The die pip is not swept: the
+    /// boolean cuts the ball in on its own chart, so the cavity is one
+    /// face bounded by a circle tilted against that chart, a trim
+    /// carrier the router sends to the trimmed lane, and it puts no face
+    /// in front of this one.
     #[test]
     fn every_curved_walk_is_its_own_bounding_rectangle() {
         for (name, body) in fixtures() {
+            if name == DIE_PIP {
+                assert!(
+                    curved_walks(name, &body).is_empty(),
+                    "{name}: a curved walk, though its cavity is a trim-carrier face"
+                );
+                continue;
+            }
             let walks = curved_walks(name, &body);
             assert!(
                 !walks.is_empty(),

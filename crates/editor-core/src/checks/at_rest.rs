@@ -386,12 +386,14 @@ where
 /// whatever pose that is; and, where it is a selection of one name in a
 /// body read plainly or a pose read directly off one
 /// (`eval::read_directly_off`), that selection and pose. An indexed read
-/// is no selection the rule reads.
+/// is no selection the rule reads, but for a member read at its binder's
+/// own key (`xs[k]` inside `{k in xs: …}`, [`Doc::reads_own_member`]),
+/// which is the member the assertion stands at, as a plain read is.
 fn reference<P: crate::ProfilePayload>(doc: &Doc<P>, var: VarId) -> Vec<QuietingRef> {
     let selected = |var: VarId| {
         let select = doc
             .selection(var)
-            .filter(|select| !select.body.is_indexed())?;
+            .filter(|select| !select.body.is_indexed() || doc.reads_own_member(&select.body))?;
         let [name] = select.names.as_slice() else {
             return None;
         };
@@ -848,6 +850,7 @@ fn measure_sign_as<T: Decide>(
 /// | `CensusAtRest` | `SameOpposite`, `SameOriented`, `OnCarrier` | `Gap` over the two cells |
 /// | `VertexFusion` | `OnCarrier`, `Meet` of two cells | `Gap` over the two cells |
 /// | `TangentWitness` | `SurfaceTangent` | `Gap` over the two faces: an opposed tangency is a contact, an aligned one a continuation |
+/// | `RimJunction` | `RimJunction` | `Gap` over the two faces: they meet on the rim both end on, and nowhere near it |
 /// | `CoaxialSphere`, `SphereOnTorusAxis` | `OnCarrier` | `Distance` between the poses read off the two cells |
 /// | `CoaxialCylinderTorus`, `CoaxialTori`, `BatterySupportAxis` | `Coaxial` | `Distance` between the poses, two axes read parallel (a sphere's support its centre) |
 /// | `CrossingCylinders` | `AxesMeet` | `Distance` between the two axes |
@@ -867,7 +870,8 @@ fn saying(row: &crate::coincide::NamedCoincidence) -> Option<Saying> {
         (Site::PlaneLadder | Site::CarrierLadder, R::SameOpposite | R::SameOriented)
         | (Site::CensusAtRest, R::SameOpposite | R::SameOriented | R::OnCarrier)
         | (Site::VertexFusion, R::OnCarrier | R::Meet)
-        | (Site::TangentWitness, _) => (&[M::Gap], false, false),
+        | (Site::TangentWitness, _)
+        | (Site::RimJunction, R::RimJunction) => (&[M::Gap], false, false),
         (Site::SplitOn, _) => (&[M::Gap, M::Distance], false, false),
         (Site::CoaxialSphere | Site::SphereOnTorusAxis, _)
         | (Site::CrossingCylinders, R::AxesMeet) => (&[M::Distance], true, false),
@@ -2168,9 +2172,8 @@ fn could_quiet(
 }
 
 /// The connected solids of `result`, each with the aggregate faces its
-/// faces descend from; `None` when a face's lineage does not reach one
-/// face of either copy (a face a re-chart turned reaches every face of
-/// its shell).
+/// faces descend from; `None` when a face's lineage does not reach a
+/// face of either copy.
 fn components<T: topo::AtRestPolicy + Decide>(
     product: &Product<T>,
     a: usize,
@@ -2192,15 +2195,7 @@ fn components<T: topo::AtRestPolicy + Decide>(
                     topo::Operand::A => a,
                     topo::Operand::B => b,
                 };
-                // A face a re-chart turned stands for every face of its
-                // input shell, of which it may hold no area: as a source it
-                // would let `covered` and the quieting rule read faces the
-                // component does not hold, so the component is unnamed.
-                // Not pinned: no at-rest fixture turns a shell.
-                let [input] = source.inputs[..] else {
-                    return None;
-                };
-                sources.insert((copy, product.copies[copy].keys.face(input)?));
+                sources.insert((copy, product.copies[copy].keys.face(source.root)?));
             }
         }
         out.push(Component { solid, sources });
@@ -2313,12 +2308,10 @@ fn crossing(
         for f in kept.body.faces_of_solid(solid).unwrap_or_default() {
             let source = descent.source(f);
             if source.operand == topo::Operand::A
-                && let Some(&i) = source.inputs.iter().find_map(|&input| {
-                    result
-                        .body
-                        .solid_of_face(input)
-                        .and_then(|s| of_solid.get(&s))
-                })
+                && let Some(&i) = result
+                    .body
+                    .solid_of_face(source.root)
+                    .and_then(|s| of_solid.get(&s))
             {
                 out.insert(i);
                 named = true;
@@ -2404,7 +2397,7 @@ fn beyond(
             origin, outward, ..
         } => (origin, outward.vec(), vec![rectangle(span)], span),
         Carrier::Cylinder { axis, radius, .. } => {
-            let base = axis.origin - axis.dir * span;
+            let base = axis.origin - axis.dir.get() * span;
             // A concave face (a bore) has its material outside the
             // carrier, so the region past it is the solid cylinder; a
             // convex one (a pin) the tube around it.
@@ -2413,7 +2406,7 @@ fn beyond(
             } else {
                 vec![circle(radius)]
             };
-            (base, axis.dir, loops, 2.0 * span)
+            (base, axis.dir.get(), loops, 2.0 * span)
         }
         _ => unreachable!("the carrier was matched above"),
     };
