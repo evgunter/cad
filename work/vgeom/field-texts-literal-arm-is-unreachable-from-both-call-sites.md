@@ -2,10 +2,12 @@
 id: field-texts-literal-arm-is-unreachable-from-both-call-sites
 kind: issue
 title: props::field_text's literal arm is unreachable from both call sites, and its prose is the only statement of what a literal field shows
-status: open
+status: closed
 opened: 2026-09-22
 priority: P4
 cost: E
+closed: 2026-11-25
+pr: 7775
 ---
 
 
@@ -68,3 +70,7 @@ deletion is a choice rather than a default.
 ## Fence
 
 `crates/viewer/src/props.rs` (VGEOM, CHROME, VIEW, AUTHOR).
+
+## Closed (2026-11-25)
+
+PR 7775 deleted the arm; `props::field_text` answers `Option<String>`, `None` where a row shows its number, and what a literal field shows is stated on `FieldNumber::text`.
