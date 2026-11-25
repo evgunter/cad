@@ -864,9 +864,9 @@ mod tests {
     /// **Two edges joined at a vertex meet there, and nowhere near it**,
     /// whatever their carriers leave between their own ends: a quarter
     /// of the unit circle in `xy` and a quarter of the unit circle in
-    /// `xz`, joined at `v = (1, 9e-10, 0)`. Each carrier's end lies
-    /// `9e-10` from `v`, which the edge's endpoint certificate reads Zero,
-    /// so they lie `1.8e-9` apart, in the band of each other, and the
+    /// `xz`, joined at `v = (1, 0.9ε, 0)`. Each carrier's end lies `0.9ε`
+    /// from `v`, which the edge's endpoint certificate reads Zero, so they
+    /// lie `1.8ε` apart, in the band of each other, and the
     /// carriers cross at the `xz` one's end. Red where the meeting at `v`
     /// is read again from the carriers' ends, which escalates
     /// `curve_pair_span_end_chord`.
@@ -875,8 +875,8 @@ mod tests {
         let tol = Tol::witness();
         let flat = Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.0, Vec3::unit_x());
         let up = Curve3::circle(Point3::origin(), -Vec3::unit_y(), 1.0, Vec3::unit_x());
-        let (quarter, turn) = (core::f64::consts::FRAC_PI_2, 1.8e-9);
-        let v = Point3::new(1.0, 0.9e-9, 0.0);
+        let (quarter, turn) = (core::f64::consts::FRAC_PI_2, 1.8 * tol.eps());
+        let v = Point3::new(1.0, 0.9 * tol.eps(), 0.0);
         let mut body = Body::<f64>::new();
         let born = body.mvfs(v, true).unwrap();
         let a = body
