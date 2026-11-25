@@ -819,7 +819,8 @@ not (
   (binary_id(geom-brep::all) & test(=m5_pr7_ssi::a_traced_arcs_certificate_is_rests_bit_for_bit)) |
   (binary_id(geom-brep::all) & (test(=m5_pr7_ssi::a_traced_loops_certificate_is_rests_bit_for_bit) | test(=nurbs_nurbs_section::a_traced_pair_branchs_certificate_is_rests_bit_for_bit))) |
   (binary_id(geom-brep) & (test(=pcurve_cache::carrier_image_rows::a_crossing_at_any_fraction_stands_on_the_line) | test(=pcurve_cache::carrier_image_rows::the_image_at_each_scalar_is_one_curve_to_the_band))) |
-  (binary_id(geom-brep) & test(=ssi::certify::tests::every_rung_reads_the_operands_one_build_of_each_cell)) |
+  (binary_id(geom-brep) & (test(=ssi::certify::tests::every_rung_reads_the_operands_one_build_of_each_cell) | test(=ssi::certify::tests::a_limb_three_refusal_on_the_chart_lane_is_not_located) | test(=ssi::pair::tests::a_section_of_charts_minted_once_reads_as_fresh_mints))) |
+  (binary_id(geom-brep::all) & test(=r1_pxn_probes::an_off_plane_wiggle_must_refuse_via_the_plane_envelope)) |
   (binary_id(geom-brep::all) & test(=spline_pair_arc_rim::a_fitted_answer_after_an_in_band_exact_image_stands_as_itself_at_interval)) |
   (binary_id(geom-brep) & (test(=pcurve_cache::ellipse_lane_rows::an_ellipses_projected_envelope_covers_its_residual) | test(=pcurve_cache::ellipse_lane_rows::an_ellipses_coefficients_stay_within_their_charge_on_every_chart))) |
   (binary_id(sweep::all) & test(=a_knife_edge_fillet_builds_where_its_ball_is_defined::the_lune_fillets_place_every_lattice_point)) |
