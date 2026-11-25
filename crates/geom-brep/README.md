@@ -1346,9 +1346,16 @@ enclosure cull that clears the span decides `Apart`, and it is the
 pose's method for `Apart`, a stage of the pose's reading run before the
 roots; in band it hands on to the pose's other classes and never
 refuses alone. No door decides a pose of its own. A spline arm has no
-closed pose, and its enclosures are its one method; a run of a spline
-span within the band of the surface over part of the span is an
-undecided window, and no run meeting is read. The span's meetings with
+closed pose, and its method is its one reading. The ring composite (a
+spline span against an analytic face) decides by `Decide` signs on
+Bernstein coefficients computed at the scalar, reals at `f64` with no
+rounding charged and enclosures at `Interval` (DESIGN
+`[simple.conditioned]`), so it answers at every deciding scalar; a
+crossing it finds is a proposal, read ON the surface and admitted only
+where the body stores it (`NurbsLane::admit_crossing`, DUAL-DESIGN
+DL5.2). The spline-face arm reads by enclosures. A run of a spline span
+within the band of the surface over part of the span is an undecided
+window, and no run meeting is read. The span's meetings with
 the surface are `curve_face::cross(span, surface, band)`: the pose
 first, then the one method `curve_face::route` names for the arm,
 answering in the curve-pair vocabulary, each meeting a crossing, a
@@ -1468,8 +1475,11 @@ span `Apart`, and one whose reach falls inside it is a window over that
 reach (`curve_face_pose_graze_reach`). On a cone, whose form `F` bounds
 the residual only through its floor, no class is decided on `F` in its
 zero band alone (`curve_face_pose_cone_on_surface`,
-`curve_face_pose_cone_graze`). `cross` answers a spline arm, and an unbuilt arm,
-with one window over the whole span. Every other window is the arm's own
+`curve_face_pose_cone_graze`). `cross` answers the spline-face arm, and
+an unbuilt arm, with one window over the whole span, and the ring
+composite's refusal is one window over the whole span but at a span
+end: an end it reads in the band's gap is a window at that end, over
+the stretch on which its meeting may lie. Every other window is the arm's own
 data, never a second reading: a graze rung in band (the belly, a line's
 discriminant on a wall or a sphere, a first harmonic's extreme, `Kappa`)
 is the graze's reach at `Kε` clipped to the span, a reach that

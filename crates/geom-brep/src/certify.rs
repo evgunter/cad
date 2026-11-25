@@ -2836,6 +2836,13 @@ pub struct NurbsLane<T: geom_core::Certifies> {
         crate::edge_nurbs::PlaneNurbsIncidence<T>,
         crate::edge_nurbs::PlaneNurbsRefusal,
     >,
+    /// [`NurbsLane::admit_crossing`] at `T`.
+    crossing: fn(
+        &Curve3<T>,
+        T,
+        &Surface<T>,
+        Band,
+    ) -> Result<T, geom_core::solved::Unadmitted>,
     /// [`NurbsLane::spline_face_meetings`] at `T`.
     spline_face: fn(
         &Curve3<T>,
@@ -2866,6 +2873,7 @@ impl<T: geom_core::Certifies + geom_core::CertifiedBounds> NurbsLane<T> {
             pair_limbs: crate::edge_nurbs::nurbs_pair_limbs::<T>,
             analytic_limbs: crate::edge_nurbs::analytic_edge_limbs::<T>,
             incidence: crate::edge_nurbs::plane_nurbs_incidence::<T>,
+            crossing: Self::admitted_crossing,
             spline_face: Self::spline_face_meetings,
             surface_foot: geom::NurbsSurface::project,
             chart_arm: Self::certified_chart_arm,
@@ -2887,6 +2895,26 @@ impl<T: geom_core::Certifies + geom_core::CertifiedBounds> NurbsLane<T> {
             _ => f64::NAN,
         };
         crate::offset_meters::chart_arm(&chart.map_scalar(point), p.map(point), point(reach))
+    }
+
+    /// [`NurbsLane::admit_crossing`]'s body: the bracket's middle admitted
+    /// by the surface's residual at the carrier's point there.
+    fn admitted_crossing(
+        carrier: &Curve3<T>,
+        t: T,
+        surface: &Surface<T>,
+        band: Band,
+    ) -> Result<T, geom_core::solved::Unadmitted> {
+        geom_core::solved::decide_admit(
+            "spline_composite_root_on",
+            geom::bracket_mid((t.lo(), t.hi())),
+            band,
+            |at| {
+                let p = carrier.eval(at);
+                (geom_core::Margin::of(crate::implicit_residual(surface, p)), ())
+            },
+        )
+        .map(|(t, ())| t)
     }
 
     /// The curve × face table's spline-face arm: the walk
@@ -3064,20 +3092,8 @@ impl<T: geom_core::Certifies> NurbsLane<T> {
         t: T,
         surface: &Surface<T>,
         band: Band,
-    ) -> Result<T, geom_core::solved::Unadmitted>
-    where
-        T: geom_core::CertifiedBounds,
-    {
-        geom_core::solved::decide_admit(
-            "spline_composite_root_on",
-            geom::bracket_mid((t.lo(), t.hi())),
-            band,
-            |at| {
-                let p = carrier.eval(at);
-                (geom_core::Margin::of(crate::implicit_residual(surface, p)), ())
-            },
-        )
-        .map(|(t, ())| t)
+    ) -> Result<T, geom_core::solved::Unadmitted> {
+        (self.crossing)(carrier, t, surface, band)
     }
 
     /// **A span against a spline chart**: the meetings strictly
@@ -3189,7 +3205,7 @@ pub trait NurbsLaneOf<T: Real>: crate::lane_seal::Sealed + Copy + Send + Sync {
     ) -> Result<T, geom_core::solved::Unadmitted>;
 }
 
-impl<T: geom_core::Certifies + geom_core::CertifiedBounds> NurbsLaneOf<T> for NurbsLane<T> {
+impl<T: geom_core::Certifies> NurbsLaneOf<T> for NurbsLane<T> {
     fn surface_foot(
         self,
         surface: &geom::NurbsSurface<T>,
@@ -6250,6 +6266,12 @@ mod wiring_rows {
         ) {
             return Err("chart_arm is not `NurbsLane::certified_chart_arm`");
         }
+        if !std::ptr::fn_addr_eq(
+            lane.crossing,
+            NurbsLane::<T>::admitted_crossing as fn(_, _, _, _) -> _,
+        ) {
+            return Err("crossing is not `NurbsLane::admitted_crossing`");
+        }
         Ok(())
     }
 
@@ -6258,7 +6280,7 @@ mod wiring_rows {
         assert_eq!(
             holds_the_certified_nurbs_lane::<f64>(),
             Ok(()),
-            "`NurbsLane::<f64>::certified()` holds something other than `residual_nurbs_limbs`, `nurbs_pair_limbs`, `plane_nurbs_incidence`, `analytic_edge_limbs`, `project` and `certified_chart_arm`"
+            "`NurbsLane::<f64>::certified()` holds something other than `residual_nurbs_limbs`, `nurbs_pair_limbs`, `plane_nurbs_incidence`, `analytic_edge_limbs`, `project`, `certified_chart_arm` and `admitted_crossing`"
         );
     }
 

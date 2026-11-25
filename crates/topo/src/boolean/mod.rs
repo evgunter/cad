@@ -409,11 +409,10 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         // reads before it differentiates the torus.
         "torus_tube_positive" => TorusConvention::Tube.subject(),
         "ring_torus_convention" => TorusConvention::Ring.subject(),
-        "curve_face_cross_order"
-        | "curve_face_cross_apart"
-        | "spline_composite_roots_apart"
-        | "spline_face_roots_apart" => CrossingDecision::Order.subject(),
-        "spline_composite_root_at_end"
+        "curve_face_cross_order" | "curve_face_cross_apart" | "spline_face_roots_apart" => {
+            CrossingDecision::Order.subject()
+        }
+        "spline_composite_end_stretch"
         | "spline_composite_root_at_crease"
         | "spline_face_root_at_end" => CrossingDecision::OnEdge.subject(),
         "spline_composite_root_on" => {
@@ -478,6 +477,10 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "bool_torus_region_spline_on"
         | "bool_torus_region_spline_leaf"
         | "bool_torus_frame_radius"
+        | "bool_ruled_region_spline_end"
+        | "bool_ruled_region_spline_clear"
+        | "bool_ruled_region_spline_on"
+        | "bool_ruled_region_spline_leaf"
         | "bool_ruled_region_frame"
         | "bool_ruled_region_nappe"
         | "bool_ruled_region_component"

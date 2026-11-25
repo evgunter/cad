@@ -6,7 +6,7 @@
 //! its Bézier pieces by Boehm's insertion at the scalar
 //! ([`crate::pcurve_cache::spline_incidence::refined`]), each held as
 //! its parameter's ends and the composite's numerator and denominator
-//! rows ([`CanonicalSurface::piece_rows`]). At `f64` the rows are real
+//! rows ([`CanonicalSurface::piece_rows`], `geom_core::spline::canonical_rows`). At `f64` the rows are real
 //! numbers, with no rounding charged or padded (DESIGN
 //! `[simple.conditioned]`); at an interval scalar they are enclosures.
 //! Every cut is at a constant share of a piece (a halving, or one of
@@ -263,7 +263,7 @@ fn pieces<T: Decide>(
         .collect();
     let knots = net.knot_values();
     let p = knots.degree();
-    let runs: Vec<T> = knots.runs().map(|(v, _)| v).collect();
+    let runs: Vec<T> = knots.breakpoints().collect();
     let row = refined(knots, row, false)
         .filter(|row| p > 0 && runs.len() >= 2 && row.len() == (runs.len() - 1) * p + 1)
         .ok_or(unread("the carrier does not cut to its Bézier pieces"))?;
@@ -329,18 +329,18 @@ fn form_and_divisor<T: Decide>(
             m[k] = m[k].max(g.dot(*axis).abs());
         }
     }
-    let rho = (m[0] * m[0] + m[1] * m[1]).sqrt();
-    let reach = (rho * rho + m[2] * m[2]).sqrt();
+    let rho = (m[0].powi(2) + m[1].powi(2)).sqrt();
+    let norm = (rho.powi(2) + m[2].powi(2)).sqrt();
     Ok(match *surface {
         Surface::Plane { .. } => (CanonicalSurface::Plane, T::one()),
         Surface::Cylinder { radius, .. } => (CanonicalSurface::Cylinder { radius }, rho + radius),
-        Surface::Sphere { radius, .. } => (CanonicalSurface::Sphere { radius }, reach + radius),
+        Surface::Sphere { radius, .. } => (CanonicalSurface::Sphere { radius }, norm + radius),
         Surface::Cone { half_angle, .. } => {
             let (sin, cos) = half_angle.sin_cos();
             (
                 CanonicalSurface::Cone {
-                    cos2: cos * cos,
-                    sin2: sin * sin,
+                    cos2: cos.powi(2),
+                    sin2: sin.powi(2),
                 },
                 rho * cos + m[2] * sin,
             )
@@ -350,13 +350,13 @@ fn form_and_divisor<T: Decide>(
             minor_radius,
             ..
         } => {
-            let far = (rho + major_radius.abs()).powi(2) + m[2] * m[2];
+            let outer = (rho + major_radius.abs()).powi(2) + m[2].powi(2);
             (
                 CanonicalSurface::Torus {
                     major: major_radius,
                     minor: minor_radius,
                 },
-                (far.sqrt() + minor_radius.abs()) * (far + minor_radius * minor_radius),
+                (outer.sqrt() + minor_radius.abs()) * (outer + minor_radius.powi(2)),
             )
         }
         Surface::Nurbs(_) | Surface::Approx(_) => {
@@ -426,7 +426,7 @@ fn derivative<T: Decide>(row: &[T]) -> Vec<T> {
 
 /// `N′D − ND′`, whose sign is `f′`'s (`D > 0`), as one Bernstein row.
 fn slope_row<T: Decide>(num: &[T], den: &[T]) -> Vec<T> {
-    use geom_core::spline::compose::bernstein_product as product;
+    use geom_core::spline::canonical_rows::bernstein_product as product;
     let left = product(&derivative(num), den);
     let right = product(num, &derivative(den));
     match (left.is_empty(), right.is_empty()) {

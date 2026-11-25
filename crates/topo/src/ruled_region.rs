@@ -59,7 +59,8 @@
 //!
 //! Before any path, `p` is read against every edge on its own carrier
 //! ([`crate::region::circle_edge_hit`] for a circle or an ellipse,
-//! [`crate::ray_walk::on_segment`] for a line): on an edge, or within the
+//! [`crate::ray_walk::on_segment`] for a line,
+//! [`crate::region::spline_edge_hit`] for a spline): on an edge, or within the
 //! band of one of its ends, is the point on the boundary ([`None`]); in
 //! the band of one refuses.
 //!
@@ -121,7 +122,7 @@ use crate::entity::FaceKey;
 use crate::ray_walk::{self, RayFault, SegmentRows};
 use crate::region::{
     self, End, Fault, Legs, Line, Paths, QueryFoot, Region, RegionEdge, RegionRefusal, Round,
-    circle_edge_hit, in_band, targets,
+    circle_edge_hit, in_band, spline_edge_hit, targets,
 };
 use crate::solid_contain::PointInSolidError;
 use crate::splitting::containment::ConicRows;
@@ -132,6 +133,9 @@ const BOUNDARY: ConicRows = crate::rows::RULED_REGION_CONIC;
 
 /// A line edge's boundary reading's rows ([`ray_walk::on_segment`]).
 const LINE: SegmentRows = crate::rows::RULED_REGION_LINE;
+
+/// A spline edge's boundary reading's rows ([`spline_edge_hit`]).
+const SPLINE: crate::splitting::pieced_arc::ArcRows = crate::rows::RULED_REGION_SPLINE;
 
 /// The surface a ruled face lies on.
 #[derive(Clone, Copy, Debug)]
@@ -276,10 +280,12 @@ impl<T: Decide> region::Course<T> for LegShape<T> {
 type Leg<T> = region::Leg<T, LegShape<T>>;
 
 /// `face`'s region on its cylinder or cone, or `None` when an edge of it
-/// is not a line, a circle or an ellipse — a spline or a spiric — whose
-/// crossings this reading has no closed form for. A line, circle or
-/// ellipse is taken as a ruling, a parallel or a plane section of the
-/// surface, unchecked. The premise is that every edge lies on the face's
+/// is not a line, a circle or an ellipse, nor on a cylinder a spline: a
+/// spiric, or a spline on a cone, whose nappe the reading does not place.
+/// A line, circle or ellipse is taken as a ruling, a parallel or a plane
+/// section of the surface, and a spline as a curve on it, unchecked; a
+/// spline is crossed with a leg's plane by the curve × face table's ring
+/// composite ([`region::landings`]). The premise is that every edge lies on the face's
 /// surface, as a line on a cylinder or a cone is then a ruling and a
 /// conic a plane section: tier 3 places each edge on both its faces'
 /// carriers at rest (at a dual, [`crate::Replay`]'s "A tier-3 premise at a dual"), and on the
@@ -313,12 +319,22 @@ pub(crate) fn ruled_face_region<T: Decide>(
         .surface()
         .map_err(|_| PointInSolidError::PendingFace { face })?;
     let surface = Ruled::of(stored).ok_or_else(corrupt)?;
-    let ruled = [
+    let conics = [
         geom::CurveKind::Line,
         geom::CurveKind::Circle,
         geom::CurveKind::Ellipse,
     ];
-    let Some(edges) = region::boundary(body, face, &ruled)? else {
+    let walls = [
+        geom::CurveKind::Line,
+        geom::CurveKind::Circle,
+        geom::CurveKind::Ellipse,
+        geom::CurveKind::Nurbs,
+    ];
+    let ruled: &[geom::CurveKind] = match surface {
+        Ruled::Cylinder { .. } => &walls,
+        Ruled::Cone { .. } => &conics,
+    };
+    let Some(edges) = region::boundary(body, face, ruled)? else {
         return Ok(None);
     };
     let covers: Vec<_> = edges
@@ -556,9 +572,11 @@ impl<T: Decide> Region<T> for RuledFaceRegion<T> {
     }
 
     /// A line as a segment ([`ray_walk::on_segment`]), a conic on its
-    /// own carrier.
+    /// own carrier, a spline by its contact ([`spline_edge_hit`]).
     fn on_edge(&self, edge: &Edge<T>, p: Point3<T>, band: Band) -> Result<bool, RegionRefusal> {
-        if edge.carrier.is_curved() {
+        if let geom::Curve3::Nurbs(ref spline) = edge.carrier {
+            spline_edge_hit(spline, edge, SPLINE, p, band)
+        } else if edge.carrier.is_curved() {
             circle_edge_hit(&edge.carrier, edge.turn.as_ref(), BOUNDARY, p, band)
         } else {
             ray_walk::on_segment(edge.at(edge.t0), edge.at(edge.t1), p, &LINE, band)

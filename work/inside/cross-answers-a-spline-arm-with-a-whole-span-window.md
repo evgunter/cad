@@ -4,6 +4,7 @@ kind: issue
 title: curve_face::cross answers a spline arm with one Enclosed window instead of reading its enclosures
 status: open
 opened: 2026-11-20
+parent: the-face-door-reads-no-spline-arc-of-a-sphere-face
 ---
 
 
@@ -31,3 +32,12 @@ refuses it typed.
 their windows the enclosures' own; rows that a spline span crossing an
 analytic face, and one crossing a spline face, are answered through
 `cross`.
+
+## 2026-11-25 — Moved from GERM (INSIDE, `inside/face-door-spline-arm`)
+
+Claimed by `the-face-door-reads-no-spline-arc-of-a-sphere-face`'s unit
+(INSIDE's log, 2026-11-25). Its `SplineComposite` half is answered by
+`cross` at `T: Decide` (`curve_face::composite::walk`); its
+`SplineFace` half is `inside/ray-spline-face-arm`'s (a line against a
+spline patch), and the other spans against a spline face still answer
+one window over the whole span.
