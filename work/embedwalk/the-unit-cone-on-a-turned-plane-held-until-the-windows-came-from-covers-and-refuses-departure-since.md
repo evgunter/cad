@@ -2,12 +2,13 @@
 id: the-unit-cone-on-a-turned-plane-held-until-the-windows-came-from-covers-and-refuses-departure-since
 kind: issue
 title: The unit cone revolved on one turned sketch plane held until a face's window was read from its edges' covers (PR 7120) and refuses Departure at its apex since
-status: review
+status: closed
 opened: 2026-11-23
 priority: P1
 cost: M
 branch: embedwalk/unit-cone
 pr: 7779
+closed: 2026-11-25
 ---
 
 ## Finding
@@ -132,3 +133,14 @@ and the four cases hold: 247 / 268 splits (bodies), 273 / 269
 (cavities). The pin of the refusal is retired; the third plane is a
 row of `singular_points_hold_far_from_the_origin_and_in_turned_frames`
 with a ceiling of 400 splits on every unit-cone row.
+
+## Closed
+
+2026-11-25 by PR 7779: a face's window reads each affine coordinate off
+its boundary pieces' own supports (`boundary_of` returns a `Cover`), so a
+turned cone's window ends at its apex and the four turned unit cones hold
+in about 250 splits. Guarded by
+`every_face_window_holds_its_boundary_in_every_frame` (red under a 3%
+narrowing of any affine coordinate). What a straddling apex cell reads in
+`zero_of` stays open on EMBED's
+`two-half-cones-sharing-both-rulings-refuse-departure-at-their-apex-in-a-turned-frame`.
