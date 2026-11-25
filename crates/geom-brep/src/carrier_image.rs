@@ -437,8 +437,8 @@ where
             || round == IMAGE_ROUNDS
             || chain.len() + add.len() > chain_knots + IMAGE_KNOTS
         {
-            // Past the cap the image is refused, on limb 2's own reading
-            // of the miss.
+            // At the cap the image is refused whatever the miss reads, in
+            // limb 2's words, on the last round's sampled miss.
             return Err(ImageRefusal::Miss(crate::ssi::certify::image_miss::<T>(
                 worst, band,
             )));
