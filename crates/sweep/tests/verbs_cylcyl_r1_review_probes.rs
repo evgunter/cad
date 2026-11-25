@@ -70,17 +70,16 @@ fn every_reachable_crossing_pose_refuses_typed_or_answers_correctly() {
     // union holds its closed form in an enclosure wider than the row's
     // ceiling
     // (`work/spiricarm/main-red-three-cylinder-pair-volume-pads-pass-the-fixed-budget-at-1e-6.md`).
-    // At 1e-12 the tall thin pair's union refuses its section, a fitted
-    // carrier's limb 2 read in band, where the row wants it built
-    // (`work/ssiarith/main-red-a-tall-thin-cylinder-pairs-section-reads-limb-2-in-band-at-1e-12.md`).
+    // At 1e-12 the skew pair's intersection rebases an edge onto a
+    // periodic chord whose view is asked past its window
+    // (`work/sectarms/main-red-the-tilted-rods-other-spins-row-asks-a-periodic-view-past-its-window.md`).
     let eps = Tol::witness().eps();
     let (stops_at, says): (&[f64], &[&str]) = if test_utils::kernel_limit::at_row(eps, &[1e-12]) {
         (
             &[1e-12],
             &[
-                "tall thin through short fat/union: refused GermSectionUnbuilt, not a frontier refusal",
-                "whether the fitted carrier passes limb 2 (control-hull sup-norm bound) is undecided",
-                "lies inside the ambiguity band (1e-12, 1e-11)",
+                "skew axes, crossing walls/intersect: ERR Euler(DescriptionUncertified",
+                "error: PeriodicView(Span { asked:",
             ],
         )
     } else {
@@ -194,6 +193,7 @@ fn every_reachable_crossing_pose_refuses_typed_or_answers_correctly_row() {
         "perpendicular unequal radii",
         "skew axes, crossing walls",
         "parallel axes, shallow overlap",
+        "tall thin through short fat",
     ];
     for (name, a, b, truth) in &poses {
         let (a, b) = (
@@ -660,3 +660,4 @@ fn the_no_edge_event_pair_refuses_at_the_gate_not_the_frame() {
         "got {err:?}"
     );
 }
+

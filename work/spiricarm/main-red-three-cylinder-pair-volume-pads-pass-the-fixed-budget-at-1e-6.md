@@ -37,3 +37,13 @@ Another pair on the same pad (GERM's sector-order2 lane, 2026-11-20):
 by `(0.3, 0.2, 0.1)`) builds both unions at the closed form 2.660151791
 with pads 2.5e-7 and 3.2e-7 at 1e-6, pinned there; at the default band
 and 1e-12 the pads are 4e-10 and 3e-12.
+
+## A fourth pair (2026-11-25, SSIARITH)
+
+The crossed-cylinder row's tall thin pose (radius 0.2 over z ∈ [−8, 8]
+through radius 3 over [−1, 1] turned π/2 about y) now answers every op,
+and at 1e-6 holds each closed form in an enclosure past the budget:
+union pad 5.8e-7, subtract 4.4e-7, intersect 5.8e-7 (`OK BAD`, release,
+main `6003877ad8`). At 1e-9 and 1e-12 it is SOUND. The row reaches its
+perpendicular pose first at 1e-6, so its pin is unchanged. — (SSIARITH orchestrator)
+

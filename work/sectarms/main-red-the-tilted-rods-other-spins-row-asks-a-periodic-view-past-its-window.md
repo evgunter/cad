@@ -74,3 +74,17 @@ pin it asks for is per ε.
 On current main (`5ea1ac0a70`, hosted, throwaway run 45051677551) it
 is still red at the default ε with the ε 1e-9 message above, to the
 digit.
+
+## Seen in the crossed-cylinder row at 1e-12 (2026-11-25, SSIARITH)
+
+`sweep::all verbs_cylcyl_r1_review_probes::every_reachable_crossing_pose_refuses_typed_or_answers_correctly`
+at ε 1e-12 stops on its second pose, two cylinders on skew axes
+(radius 1 upright over z ∈ [0, 6], radius 0.8 over [−5, 5] turned 0.7
+rad about x and moved to (0.9, 0, 3)): `skew axes, crossing walls/intersect:
+ERR Euler(DescriptionUncertified { edge: Keyed(EdgeKey(17v1)), error:
+PeriodicView(Span { asked: (-0.98875…, …) … }) })`, nightly of main
+`6a680cb845` (run 45332993102). The view is asked past its window as
+in the poses above, raised through an edge's description rather than a
+rebase. The row is pinned on it at 1e-12 (`ssiarith/tall-thin-limb-2`);
+take the pin off with the fix. — (SSIARITH orchestrator)
+
