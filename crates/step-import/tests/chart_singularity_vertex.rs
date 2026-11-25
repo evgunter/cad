@@ -254,7 +254,10 @@ fn a_spur_off_the_u_ref_meridian_imports_as_one_on_it() {
     assert!(text.contains(frame), "the sphere's u_ref");
     for (what, text) in [
         ("as written", text.clone()),
-        ("u_ref turned", text.replace(frame, "#35 = DIRECTION('',(-1.,0.,0.));")),
+        (
+            "u_ref turned",
+            text.replace(frame, "#35 = DIRECTION('',(-1.,0.,0.));"),
+        ),
     ] {
         let Ok(StepImport::Solid { body, .. }) = import_step(&text, &ImportOptions::default(), tol)
         else {
@@ -262,7 +265,11 @@ fn a_spur_off_the_u_ref_meridian_imports_as_one_on_it() {
         };
         let b = &*body;
         assert_eq!(
-            (b.faces().count(), b.edges().count(), b.vertex_points().count()),
+            (
+                b.faces().count(),
+                b.edges().count(),
+                b.vertex_points().count()
+            ),
             (2, 2, 2),
             "{what}: the census"
         );
@@ -272,6 +279,9 @@ fn a_spur_off_the_u_ref_meridian_imports_as_one_on_it() {
             tol,
         )
         .volume;
-        assert!((volume - want).abs() <= 1e-9 * want, "{what}: volume {volume} vs {want}");
+        assert!(
+            (volume - want).abs() <= 1e-9 * want,
+            "{what}: volume {volume} vs {want}"
+        );
     }
 }

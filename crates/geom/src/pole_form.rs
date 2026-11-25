@@ -1,5 +1,5 @@
-//! **The pole form**: how a face meets a chart singularity of its
-//! surface, a sphere's pole or a cone's apex.
+//! **The pole form, the wrap tip**: how a face meets a chart singularity
+//! of its surface, a sphere's pole or a cone's apex.
 //!
 //! A chart singularity in a face's closure is a vertex of it. Where no
 //! edge a construction or a file states reaches it, it is the tip of

@@ -43,8 +43,8 @@
 //!
 //! What a mint may state that the file did not is bounded and named:
 //! a singularity's minted curves are each a sub-arc of a carrier the
-//! file states, or of the surface's own meridian at its `u_ref`
-//! azimuth (or, for a face holding both poles, at its loop's centroid);
+//! file states, or of the surface's own meridian at the azimuth of the
+//! face's boundary point nearest the singularity;
 //! the band's seam generator is a
 //! NEW carrier — the surface's own `u_ref` ruling (cylinder) or
 //! `u_ref` meridian arc (torus), the same license under which the

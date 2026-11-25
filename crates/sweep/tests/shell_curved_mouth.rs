@@ -211,7 +211,10 @@ fn split_cap(r: f64, h: f64, deg: f64) -> (Body<f64>, Vec<FaceKey>, f64, f64) {
         .unwrap();
     let (s0, s1) = seam_geom.params();
     let carrier = seam_geom.carrier().clone();
-    // The seam's half turn about the y axis.
+    // The seam's half turn about the y axis: the other meridian of the
+    // two-lune form this row builds by hand. Spelled here because no door
+    // mints that pair any more (a pole is reached by one wrap edge), so
+    // the kernel keeps no helper for it.
     let turn = |w: geom_core::Vec3<f64>| geom_core::Vec3::new(-w.x, w.y, -w.z);
     let geom::Curve3::Circle(c) = carrier else {
         panic!("the seam is a meridian circle: {carrier:?}")

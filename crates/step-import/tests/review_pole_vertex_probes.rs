@@ -147,7 +147,7 @@ fn ball_less_cap(c: f64) -> f64 {
 /// A ball less the cap x > 6 mm: ONE sphere face holding both poles,
 /// bounded by one circle whose vertex sits on the meridian through
 /// u_ref. Two iterations, one per pole, each reached by a wrap edge at
-/// the azimuth of the hole the circle bounds.
+/// the azimuth of the hole's point nearest it.
 #[test]
 fn a_sphere_face_holding_both_poles_imports_as_the_ball_less_its_cap() {
     let text = two_face(SPHERE, true, [6., 0., 0.], [-1., 0., 0.], [0., 0., 1.], 8.);
@@ -161,8 +161,8 @@ fn a_sphere_face_holding_both_poles_imports_as_the_ball_less_its_cap() {
 }
 
 /// The same ball, the circle's vertex placed at the equator: the
-/// meridian through it is TANGENT to the hole there, so each pole's wrap
-/// edge runs at the hole's centroid azimuth instead.
+/// meridian through it is TANGENT to the hole there, and each pole's wrap
+/// edge runs to the hole's point nearest it instead.
 #[test]
 fn a_sphere_face_holding_both_poles_with_its_vertex_at_the_equator() {
     let text = two_face(SPHERE, true, [6., 0., 0.], [-1., 0., 0.], [0., 1., 0.], 8.);

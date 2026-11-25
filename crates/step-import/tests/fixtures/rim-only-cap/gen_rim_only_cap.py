@@ -30,7 +30,7 @@ A chart singularity inside a face is a vertex of it, the tip of one wrap
 edge: import mints that edge where the file states none
 (`NormalizationKind::ChartSingularityVertex`) and adopts a seam that
 ends there as stated;
-the rows reading them are ../../meridian_free_cap.rs and
+the rows reading them are ../../chart_singularity_vertex.rs and
 ../../tier_gate.rs.
 """
 import math

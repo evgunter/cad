@@ -1,7 +1,14 @@
 ISO-10303-21;
+/* A ball stated as two lunes of one sphere, its two meridians meeting at
+   both poles. Written by step-export's own writer: this is
+   crates/step-export/tests/fixtures/ball.step as main committed it at
+   6bb72c51fdf439ebaadd1e01c64eb8e8df565fe8, from
+   `committed_fixtures_are_byte_golden`'s corpus (`common::ball()`),
+   before a full revolve's curved wall became one band. Kept by hand,
+   never regenerated: the writer no longer states a ball this way. */
 HEADER;
 FILE_DESCRIPTION((''), '2;1');
-FILE_NAME('ball.step', '1970-01-01T00:00:00', (''), (''), 'step-export', '', '');
+FILE_NAME('two_lunes.step', '1970-01-01T00:00:00', (''), (''), 'step-export', '', '');
 FILE_SCHEMA(('AUTOMOTIVE_DESIGN { 1 0 10303 214 1 1 1 1 }'));
 ENDSEC;
 DATA;
