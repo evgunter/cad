@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-10
 priority: P2
 cost: H
-refs: [boolean-conic-side-code-zero-is-first-order, vtxfac-tangent-sector-should-descend-per-bound]
+refs: [vtxfac-tangent-sector-should-descend-per-bound]
 ---
 
 

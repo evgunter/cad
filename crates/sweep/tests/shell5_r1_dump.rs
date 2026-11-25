@@ -42,7 +42,7 @@ fn planes_where(body: &Body<f64>, n: (f64, f64, f64), c: f64) -> Vec<FaceKey> {
     body.faces()
         .filter(|(fk, _)| {
             matches!(body.face_surface(*fk),
-                Some(geom::Surface::Plane { frame, .. })
+                Ok(geom::Surface::Plane { frame, .. })
                     if (frame.axis().x - n.0).abs() < 1e-9 && (frame.axis().y - n.1).abs() < 1e-9
                         && (frame.axis().z - n.2).abs() < 1e-9
                         && (frame.origin().x * n.0 + frame.origin().y * n.1 + frame.origin().z * n.2 - c).abs() < 1e-9)

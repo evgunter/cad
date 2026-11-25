@@ -63,20 +63,16 @@ fn infinite_delta_is_refused() {
 
 #[test]
 fn an_mvfs_seed_face_is_refused() {
-    // The mvfs seed face carries `Surface::Nurbs` (the honest
-    // no-description placeholder) and its outer loop is one vertex: a
-    // face with no outline, which the domain door refuses typed before
-    // the placeholder surface is read.
+    // The mvfs seed face's surface is still pending (and its outer loop
+    // is one vertex). The pending slot is refused at the one door the
+    // tessellator reads a surface through, before the domain is read.
     let mut body = topo::Body::<f64>::new();
     let seed = body
         .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0), true)
         .unwrap();
     match tessellate(&body, 0.1, Tol::witness()) {
-        Err(TessellateError::DomainUnread { face, cause }) => assert!(
-            face == seed.face && *cause == topo::pcurves::RingPlacementError::OuterEmpty,
-            "{face:?} {cause:?}"
-        ),
-        other => panic!("expected DomainUnread, got {:?}", other.map(|_| ())),
+        Err(TessellateError::UnsupportedSurface { face }) => assert_eq!(face, seed.face),
+        other => panic!("expected UnsupportedSurface, got {:?}", other.map(|_| ())),
     }
 }
 
@@ -189,7 +185,7 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
         ),
         (
             TessellateError::UnsupportedSurface { face },
-            vec!["placeholder", "surface"],
+            vec!["pending", "surface"],
         ),
         (
             TessellateError::UnsupportedNurbsFace {
@@ -497,7 +493,7 @@ fn two_faces_refusing_differently_report_the_first_in_arena_order() {
     }
     // Two surfaces a washer's face cannot be. Both refuse INSIDE a
     // lane, which is the point: a poison the chord pass refuses (a
-    // placeholder NURBS, say) never reaches the map and would test the
+    // pending face, say) never reaches the map and would test the
     // order of a pass that is still serial. So both poisoned faces are
     // ringless: a curved face with a ring is the trimmed lane's, whose
     // lattice the chord pass reads, and a plane's half-edges store no

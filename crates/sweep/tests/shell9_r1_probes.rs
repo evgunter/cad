@@ -96,7 +96,7 @@ fn cap_at_y(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
         .filter(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(geom::Surface::Plane { frame, .. })
+                Ok(geom::Surface::Plane { frame, .. })
                     if (frame.origin().y - y).abs() < 1e-9 && frame.axis().x.abs() < 1e-9 && frame.axis().z.abs() < 1e-9
             )
         })

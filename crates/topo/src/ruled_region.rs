@@ -309,7 +309,10 @@ pub(crate) fn ruled_face_region<T: Decide>(
 ) -> Result<Option<RuledFaceRegion<T>>, PointInSolidError> {
     let corrupt = || PointInSolidError::CorruptFace { face };
     let f = body.proven_face(face);
-    let surface = Ruled::of(f.surface()).ok_or_else(corrupt)?;
+    let stored = f
+        .surface()
+        .map_err(|_| PointInSolidError::PendingFace { face })?;
+    let surface = Ruled::of(stored).ok_or_else(corrupt)?;
     let ruled = [
         geom::CurveKind::Line,
         geom::CurveKind::Circle,
@@ -324,7 +327,7 @@ pub(crate) fn ruled_face_region<T: Decide>(
         .collect();
     let scale = reach_bound(&surface, &covers);
     Ok(Some(RuledFaceRegion {
-        charted: Charted::record(f.record().surface, f.surface()),
+        charted: Charted::record(f.record().surface, stored),
         surface,
         sense: f.sense(),
         scale,

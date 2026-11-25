@@ -567,7 +567,7 @@ fn bump() -> Surface<f64> {
 /// either side and either orientation, is apart before any reading; a
 /// plane that cuts the net and one that touches its top row are read
 /// whole (`section_cert_spline_rows`), which a scalar with no march door
-/// does not; a placeholder's poison net is refused at the hull, with or
+/// does not; a net that is not finite is refused at the hull, with or
 /// without a door (R-reach). Two spline patches are read whole too
 /// (`section_cert_spline_pair_rows`), so with no door they are R-lane.
 /// Red against W0 reading any one point clear rather than all (the cut
@@ -575,7 +575,7 @@ fn bump() -> Surface<f64> {
 /// the poison read past the hull (R-lane).
 #[test]
 fn a_nurbs_patch_and_a_plane_are_apart_by_the_net_or_refuse_with_no_lane() {
-    let placeholder = Surface::Nurbs(std::sync::Arc::new(geom::NurbsSurface::placeholder()));
+    let poisoned = crate::fixtures::poisoned_net(|_| true);
     let apart =
         |s: &Section<f64>| matches!(s, Section::Components { parts, .. } if parts.is_empty());
     for (what, pl, want_apart) in [
@@ -599,7 +599,7 @@ fn a_nurbs_patch_and_a_plane_are_apart_by_the_net_or_refuse_with_no_lane() {
         }
     }
     let pl = plane(p(0.0, 0.0, 2.5), v(0.0, 0.0, 1.0));
-    assert!(matches!(unmarched(&placeholder, &pl), Section::Intractable));
+    assert!(matches!(unmarched(&poisoned, &pl), Section::Intractable));
     assert!(matches!(
         unmarched(&bump(), &bump()),
         Section::NoLane("f64")
@@ -1614,7 +1614,7 @@ pub(super) fn tilted_slab() -> Body<f64> {
 #[test]
 fn w2_refuses_a_seamless_band_and_clears_a_banded_wall() {
     let (band_body, band_face) = seamless_band(-1.0, 1.0);
-    let surface = band_body.proven_face(band_face).surface().clone();
+    let surface = band_body.proven_face(band_face).surface().unwrap().clone();
     let read = crate::pcurves::loop_windings(&band_body, band_face, &surface, band())
         .expect("the seamless band's loops read");
     assert!(
@@ -1829,7 +1829,7 @@ fn the_chart_cache_does_not_share_a_key_across_operands() {
     );
     // The sheet's seed face is the band's key in its own arena.
     assert!(wall_body.get_face(band_face).is_some(), "the keys coincide");
-    let surface = |b: &Body<f64>, f| b.proven_face(f).surface().clone();
+    let surface = |b: &Body<f64>, f| b.proven_face(f).surface().unwrap().clone();
     let mut cache = ops::ChartCache::default();
     assert!(matches!(
         cache.describes(

@@ -129,7 +129,12 @@ fn the_corner_ball_cylinder_circle_certifies_as_a_tangent_intersection() {
         spec,
         start,
         end,
-        |k| surfaces.get(k).cloned(),
+        |k| {
+            surfaces
+                .get(k)
+                .cloned()
+                .ok_or(geom_brep::SurfaceMiss::Stale)
+        },
         fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
@@ -238,7 +243,12 @@ fn certify_cap_quarter<T: geom_core::Certifies + geom_core::CertifiedBounds>(
         spec,
         circle.eval(t0),
         circle.eval(t1),
-        |k| surfaces.get(k).cloned(),
+        |k| {
+            surfaces
+                .get(k)
+                .cloned()
+                .ok_or(geom_brep::SurfaceMiss::Stale)
+        },
         fixture_lever(geom_core::Real::from_f64(1.0)),
         band(),
         geom_brep::NurbsLane::certified(),

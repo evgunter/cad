@@ -338,7 +338,7 @@ fn a_chain_of_three_siblings_reads_one_side() {
     let (mut body, want) = build(p, tol);
     let [x, _] = seam_siblings(&body, tol)[0];
     let on_a = match body.get_surface(body.faces().find(|(k, _)| *k == x).unwrap().1.surface) {
-        Some(Surface::Sphere { frame, .. }) => {
+        Ok(Surface::Sphere { frame, .. }) => {
             let center = frame.origin();
             (center - Point3::new(0.0, 0.0, 0.0)).norm() < 1e-9
         }

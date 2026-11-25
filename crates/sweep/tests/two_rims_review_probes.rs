@@ -179,7 +179,7 @@ fn union_and_lens() -> (Body<f64>, Body<f64>) {
 /// and `∩` pass the deferral and escalate at the coplanar merge: its
 /// torus witness reads only the faces' vertices, which all lie on the
 /// circles both tori share, so it cannot tell the two rings apart
-/// (`work/contacthold/the-torus-witness-reads-only-vertices-two-tori-share.md`).
+/// (`work/splitdoor/the-torus-witness-reads-only-vertices-two-tori-share.md`).
 /// `A ∖ B` keeps both shells, touching along the circles, and keeps the
 /// deferred pair's refusal. Red if the `On`
 /// verdict ever weakens on a curved face far enough to read the lens

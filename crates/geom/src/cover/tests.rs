@@ -1019,13 +1019,26 @@ fn the_lattice_keeps_what_was_proved_and_what_was_not_known() {
             "{kind:?} is unbounded"
         );
     }
+    let kv = || {
+        geom_core::spline::Knots::from(KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap())
+            .lift(f64::from_f64)
+    };
+    let infinite = crate::NurbsSurface::new(
+        kv(),
+        kv(),
+        (0..4)
+            .map(|i| Point3::new(f64::INFINITY, f64::from(i), 0.0))
+            .collect(),
+        vec![1.0; 4],
+    )
+    .unwrap();
     assert_eq!(
-        Surface::<f64>::nurbs_placeholder().cover().err(),
+        Surface::Nurbs(Arc::new(infinite)).cover().err(),
         Some(Uncovered::new(
             Entity::Surface(SurfaceKind::Nurbs),
             Unknown::PoisonedNet
         )),
-        "a placeholder surface's net bounds nothing"
+        "a surface net that is not finite bounds nothing"
     );
 }
 

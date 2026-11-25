@@ -182,10 +182,10 @@ fn extruded_l_profile_passes_all_tiers() {
     // Component Euler–Poincaré at rest: v − e + f − r = 2(1 − g), g = 0.
     assert_eq!(v - e + f - r, 2);
     // All-plane surfaces: 2 caps + 6 sides.
-    assert_eq!(t.body.surfaces().count(), 8);
+    assert_eq!(t.body.described_surfaces().count(), 8);
     assert!(
         t.body
-            .surfaces()
+            .described_surfaces()
             .all(|(_, s)| matches!(s, Surface::Plane { .. }))
     );
     // Every profile join is a corner: all six struts carry the upgraded
@@ -326,10 +326,10 @@ fn rounded_square_exercises_tangent_line_arc_joins() {
     assert_eq!((v, e, f, r), (16, 24, 10, 0));
     assert_eq!(v - e + f - r, 2);
     // 4 plane walls + 4 cylinder walls + 2 caps, no sharing.
-    assert_eq!(t.body.surfaces().count(), 10);
+    assert_eq!(t.body.described_surfaces().count(), 10);
     let cylinders = t
         .body
-        .surfaces()
+        .described_surfaces()
         .filter(|(_, s)| matches!(s, Surface::Cylinder { .. }))
         .count();
     assert_eq!(cylinders, 4);
@@ -390,7 +390,7 @@ fn disc_extrudes_to_a_shared_carrier_cylinder() {
     assert_eq!((v, e, f, r), (4, 6, 4, 0));
     assert_eq!(v - e + f - r, 2);
     // 2 cap planes + exactly one shared cylinder.
-    assert_eq!(t.body.surfaces().count(), 3);
+    assert_eq!(t.body.described_surfaces().count(), 3);
     let k0 = t.body.get_face(t.side_faces()[0][0]).unwrap().surface;
     let k1 = t.body.get_face(t.side_faces()[0][1]).unwrap().surface;
     assert_eq!(k0, k1);
@@ -429,7 +429,7 @@ fn d_profile_mixes_plane_and_cylinder_corners() {
     assert_all_tiers(&t.body);
     let (v, e, f, r) = counts(&t.body);
     assert_eq!((v, e, f, r), (4, 6, 4, 0));
-    assert_eq!(t.body.surfaces().count(), 4);
+    assert_eq!(t.body.described_surfaces().count(), 4);
     for edge in t.strut_edges()[0].iter().map(|e| e.unwrap()) {
         assert!(matches!(
             description(&t.body, edge),
@@ -743,7 +743,7 @@ fn rebuild_is_byte_identical() {
                 None => s.push_str(&format!("{k:?} {c:?}\n")),
             }
         }
-        for (k, srf) in t.body.surfaces() {
+        for (k, srf) in t.body.described_surfaces() {
             s.push_str(&format!("{k:?} {srf:?}\n"));
         }
         for (k, f) in t.body.faces() {
