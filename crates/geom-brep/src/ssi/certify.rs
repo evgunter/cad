@@ -2608,7 +2608,13 @@ pub(crate) fn certify_located(
         carrier.domain(),
         Curve3::Nurbs(std::sync::Arc::new(carrier.clone())),
     );
-    certify_branch(&carrier, params, lane, extent, band, limbs, &mut refused).map_err(|error| {
+    certify_branch(&carrier, params, lane, extent, band, limbs, &mut refused)
+        .map_err(|error| Located::of(error, refused))
+}
+
+impl Located {
+    /// `error` with what the refusing limb recorded of it in `refused`.
+    fn of(error: SsiError, refused: Refused) -> Self {
         let at = match refused.refusal {
             Some(refusal) if !refused.spans.is_empty() => Some(Box::new(Spans {
                 refusal,
@@ -2616,8 +2622,69 @@ pub(crate) fn certify_located(
             })),
             _ => None,
         };
-        Located { error, at }
-    })
+        Self { error, at }
+    }
+}
+
+/// **The one refusal order of an image that missed past its cap**
+/// ([`SsiLimb::ImageMiss`], decided or escalated), wherever a carrier is
+/// read against an analytic partner and a spline wall: the trace, the
+/// residual lane and the incidence lane. The miss may be the carrier's
+/// own fault (one no net encloses, one off the partner), so what the
+/// partner's limbs 1 and 2 refuse of the carrier alone stands first, and
+/// the miss stands where they hold. Any other refusal stands as itself.
+/// A spline pair has no analytic partner, and its image's miss stands.
+pub(crate) fn partner_before_image_miss<T: Decide + Bounds + CertifiedEnclosure>(
+    missed: SsiError,
+    carrier: &Curve3<T>,
+    params: (T, T),
+    partner: &Surface<T>,
+    band: Band,
+    at: &mut Refused,
+) -> SsiError {
+    if !matches!(
+        missed,
+        SsiError::CertificateLimb {
+            limb: SsiLimb::ImageMiss,
+            ..
+        } | SsiError::CertificateEscalated {
+            limb: SsiLimb::ImageMiss,
+            ..
+        }
+    ) {
+        return missed;
+    }
+    match incidence_limbs(
+        carrier,
+        params,
+        &[IncidenceOperand::Analytic(partner)],
+        band,
+        at,
+    ) {
+        Err(partner) => partner,
+        Ok(_) => missed,
+    }
+}
+
+/// [`partner_before_image_miss`] for a traced carrier, the partner's
+/// refusal located on it as [`certify_located`] locates one, so
+/// refinement reads it as it reads a certificate's.
+pub(crate) fn located_before_image_miss(
+    missed: SsiError,
+    carrier: &NurbsCurve3<f64>,
+    partner: &Surface<f64>,
+    band: Band,
+) -> Located {
+    let mut refused = Refused::default();
+    let error = partner_before_image_miss(
+        missed,
+        &Curve3::Nurbs(std::sync::Arc::new(carrier.clone())),
+        carrier.domain(),
+        partner,
+        band,
+        &mut refused,
+    );
+    Located::of(error, refused)
 }
 
 /// Certify a fitted rung-3 carrier on its [`Lane`] — all three limbs, in

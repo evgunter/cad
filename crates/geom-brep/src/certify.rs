@@ -2528,7 +2528,10 @@ impl<T: geom_core::Certifies + geom_core::CertifiedBounds> EdgeCurve<T> {
     /// stored there. An `OnPair` on a plane × NURBS pair whose wall is
     /// that surface certifies its wall side through that image as it
     /// stands, rather than one derived here
-    /// ([`crate::plane_nurbs_incidence`]); any other description ignores
+    /// ([`crate::plane_nurbs_incidence`]): an image its certificate
+    /// refuses definitely refuses the edge
+    /// ([`crate::PlaneNurbsRefusal::StatedImage`]), so `Ok` never covers
+    /// a stated image that was refused. Any other description ignores
     /// it.
     ///
     /// # Errors

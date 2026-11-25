@@ -125,6 +125,43 @@ pub(crate) enum ImageRefusal {
     Miss(crate::ssi::SsiError),
 }
 
+/// **A lane's vocabulary for an image's refusal**: the five words every
+/// reader of the image states, each handed all the refusal carries.
+/// [`ImageRefusal::into_lane`] is the one conversion; a lane that drops
+/// a datum does so here, where its word is written.
+pub(crate) trait ImageLane: Sized {
+    /// The wall is the placeholder.
+    fn placeholder_wall() -> Self;
+    /// The carrier's interval is not one the knot door accepts.
+    fn carrier_domain(refusal: CarrierDomainRefusal) -> Self;
+    /// The foot path stopped short of the carrier's parameter `t`, at
+    /// the chain's foot `node`.
+    fn foot(t: f64, node: u32, last_distance: f64) -> Self;
+    /// The interpolation through the feet refused.
+    fn fit() -> Self;
+    /// The image missed past the cap: the sampled reading, in limb 2's
+    /// words.
+    fn miss(read: crate::ssi::SsiError) -> Self;
+}
+
+impl ImageRefusal {
+    /// This refusal in a lane's vocabulary ([`ImageLane`]): the trace's,
+    /// the mint's and rest's are all read through this one match.
+    pub(crate) fn into_lane<E: ImageLane>(self) -> E {
+        match self {
+            Self::PlaceholderWall => E::placeholder_wall(),
+            Self::CarrierDomain(refusal) => E::carrier_domain(refusal),
+            Self::Foot {
+                t,
+                node,
+                last_distance,
+            } => E::foot(t, node, last_distance),
+            Self::Fit => E::fit(),
+            Self::Miss(read) => E::miss(read),
+        }
+    }
+}
+
 /// A carrier read for its image: the evaluator, the `f64` span and its
 /// ends as the carrier holds them ([`crate::carrier_net::carrier_span`]).
 struct Read<'a, T: geom_core::Real> {

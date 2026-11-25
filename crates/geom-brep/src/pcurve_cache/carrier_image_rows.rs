@@ -30,7 +30,7 @@ use geom_core::{Decide, Interval, Point3, Vec3};
 use super::spline_door_rows::band;
 use super::{LaneGap, Pcurve, PcurveCache, PcurveCertifyError, minted_refusal};
 use crate::FittedLane;
-use crate::carrier_image::{CLOSED_FORM_SPANS, IMAGE_DEGREE};
+use crate::carrier_image::IMAGE_DEGREE;
 use crate::recourse::Reading;
 
 /// The unit cylinder over `z ∈ [−½, ½]` through `1.2` rad from `x̂`, in
@@ -169,9 +169,10 @@ fn mint<T: geom_core::Certifies>(
     Minted { image, certified }
 }
 
-/// The control points of a carrier's chain at the image's degree: a
-/// closed form's uniform spans.
-const CLOSED_FORM_CHAIN: usize = CLOSED_FORM_SPANS + IMAGE_DEGREE;
+/// The control points of a closed form's chain: its 8 uniform spans at
+/// the image's degree 3. Stated as numbers: a row that read the
+/// function's constants would move with them.
+const CLOSED_FORM_CHAIN: usize = 11;
 
 /// A carrier whose feet bend on its wall takes knots past its chain of
 /// `chain` control points. Where `certifies`, the image certifies;
@@ -326,7 +327,7 @@ fn chain_miss(carrier: &Curve3<f64>, l: f64, wall: &NurbsSurface<f64>) -> f64 {
         wall.eval(p.x, p.y) - carrier.eval(t)
     };
     // The chain's feet: the Greville abscissae of its uniform cubic knots.
-    let n = CLOSED_FORM_SPANS;
+    let n = 8_usize;
     let knot = |i: isize| (i.clamp(0, n as isize) as f64) / n as f64;
     let nodes: Vec<f64> = (0..CLOSED_FORM_CHAIN as isize)
         .map(|j| l * (knot(j - 2) + knot(j - 1) + knot(j)) / 3.0)
@@ -686,4 +687,339 @@ fn a_foot_at_a_walls_knot_line_stands_on_the_line() {
         "the image certifies: {:?}",
         minted.certified
     );
+}
+
+/// The image's knots and control points, as bits.
+fn bits(image: &NurbsCurve2<f64>) -> Vec<u64> {
+    image
+        .knot_values()
+        .runs()
+        .flat_map(|(k, m)| core::iter::repeat_n(k, m))
+        .chain(image.control().iter().flat_map(|p| [p.x, p.y]))
+        .map(f64::to_bits)
+        .collect()
+}
+
+/// **A crossing at any fraction of the span stands on the line.** The
+/// circle of [`split_ring_wall`] over 64 spans whose crossing of
+/// `u = 0.4` falls at fractions that are no dyadic number: the break's
+/// control point is on the line to the bit and the image certifies, at
+/// every ε.
+///
+/// Red against: the break's Greville abscissa taken as the mean of its
+/// three equal knots, which is not that knot for about one double in
+/// six, so the foot there is not snapped onto the line (refused at
+/// ε = 1e-12 on some of these spans).
+#[test]
+fn a_crossing_at_any_fraction_stands_on_the_line() {
+    let wall = split_ring_wall();
+    let carrier = Curve3::circle(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        1.0,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
+    let mut spans: Vec<(f64, f64)> = (0..40).map(|i| (0.0, 0.8 + 0.01 * f64::from(i))).collect();
+    spans.extend([
+        (0.0, 0.7),
+        (0.0, 1.05),
+        (0.0, 1.15),
+        (0.0, 0.75),
+        (0.0, 0.66),
+        (0.0, 0.62),
+        (0.1, 1.2),
+        (0.2, 1.2),
+        (0.3, 1.2),
+        (0.05, 1.1),
+        (0.15, 0.95),
+        (0.25, 1.0),
+        (0.35, 0.75),
+        (0.45, 1.2),
+        (0.05, 0.65),
+        (0.11, 0.99),
+        (0.33, 0.77),
+    ]);
+    for span in spans {
+        let minted = mint::<f64>(FittedLane::<f64>::certified(), &carrier, span, &wall);
+        let runs: Vec<(f64, usize)> = minted.image.knot_values().runs().collect();
+        let mut before = 0;
+        let mut breaks = 0;
+        for &(k, m) in &runs {
+            before += m;
+            if m < IMAGE_DEGREE || k <= span.0 || k >= span.1 {
+                continue;
+            }
+            breaks += 1;
+            // The control point whose abscissa is the break.
+            let u = minted.image.control()[before - m - 1].x;
+            assert!(
+                u.to_bits() == 0.4_f64.to_bits(),
+                "{span:?}: the break at t = {k} is on the line u = 0.4: off by {:e}",
+                u - 0.4
+            );
+        }
+        assert_eq!(breaks, 1, "{span:?}: one break, at the crossing: {runs:?}");
+        assert!(
+            minted.certified.is_ok(),
+            "{span:?}: the image certifies: {:?}",
+            minted.certified
+        );
+    }
+}
+
+/// **A carrier's knot keeps its continuity at the image's degree.** A
+/// polyline's corner at `t = ½` is a break of its cubic image (the
+/// knot at multiplicity 3, the carrier's 1 raised by the two degrees
+/// the image stands above it), and on a flat wall the chain needs no
+/// knot more: 7 control points, certified.
+///
+/// Red against: the carrier's knots taken at their own multiplicity
+/// (the image is C² across the corner, misses it, and takes knots).
+#[test]
+fn a_polylines_corner_is_a_break_of_its_image() {
+    let corner = Curve3::Nurbs(Arc::new(
+        NurbsCurve3::new(
+            KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap(),
+            vec![
+                Point3::new(0.1, 0.0, 0.2),
+                Point3::new(0.5, 0.0, 0.8),
+                Point3::new(0.9, 0.0, 0.3),
+            ],
+            vec![1.0; 3],
+        )
+        .unwrap(),
+    ));
+    let minted = mint::<f64>(
+        FittedLane::<f64>::certified(),
+        &corner,
+        (0.0, 1.0),
+        &flat_wall(),
+    );
+    let runs: Vec<(f64, usize)> = minted.image.knot_values().runs().collect();
+    assert!(
+        runs.iter().any(|&(k, m)| k == 0.5 && m == 3),
+        "the corner's knot is the image's break: {runs:?}"
+    );
+    assert!(
+        minted.image.control().len() == 7 && minted.certified.is_ok(),
+        "its chain and no knot more, certified: {} control points, {:?}",
+        minted.image.control().len(),
+        minted.certified
+    );
+}
+
+/// **A carrier above cubic is imaged at its own degree.** A quintic
+/// Bézier arc on the flat wall: the image is a quintic on the carrier's
+/// one span, 6 control points, and certifies.
+///
+/// Red against: the image always cubic (a quintic's chain has no cubic
+/// on its knots at the carrier's continuity, and the count is 4).
+#[test]
+fn a_carrier_above_cubic_is_imaged_at_its_own_degree() {
+    let quintic = Curve3::Nurbs(Arc::new(
+        NurbsCurve3::new(
+            KnotVector::clamped(vec![0.0; 6].into_iter().chain(vec![1.0; 6]).collect(), 5).unwrap(),
+            vec![
+                Point3::new(0.1, 0.0, 0.2),
+                Point3::new(0.2, 0.0, 0.7),
+                Point3::new(0.4, 0.0, 0.9),
+                Point3::new(0.6, 0.0, 0.1),
+                Point3::new(0.8, 0.0, 0.4),
+                Point3::new(0.9, 0.0, 0.8),
+            ],
+            vec![1.0; 6],
+        )
+        .unwrap(),
+    ));
+    let minted = mint::<f64>(
+        FittedLane::<f64>::certified(),
+        &quintic,
+        (0.0, 1.0),
+        &flat_wall(),
+    );
+    assert!(
+        minted.image.degree() == 5 && minted.image.control().len() == 6,
+        "the image is the carrier's degree on its span: degree {}, {} control points",
+        minted.image.degree(),
+        minted.image.control().len()
+    );
+    assert!(
+        minted.certified.is_ok(),
+        "the image certifies: {:?}",
+        minted.certified
+    );
+}
+
+/// **A periodic carrier is imaged on its own knots.** A closed cubic
+/// through 12 points of a loop on the flat wall, over a span of its
+/// period: the image's interior knots are the knots of the carrier's
+/// clamped view over that span, which the edge certificate reads, and
+/// the mint's image is rest's bit for bit.
+///
+/// Red against: a periodic carrier taken as a closed form (8 uniform
+/// spans, none of them the carrier's).
+#[test]
+fn a_periodic_carriers_image_is_on_its_own_knots() {
+    let points: Vec<Point3<f64>> = (0..12)
+        .map(|i| {
+            let a = core::f64::consts::TAU * f64::from(i) / 12.0;
+            Point3::new(
+                0.5 + 0.3 * a.cos() + 0.05 * (2.0 * a).cos(),
+                0.0,
+                0.5 + 0.25 * a.sin(),
+            )
+        })
+        .collect();
+    let closed = geom::PeriodicNurbs3::interpolate(&points).unwrap();
+    let period = closed.period();
+    let span = (0.13 * period, 0.71 * period);
+    let view = closed.clamped_view(span).unwrap();
+    let own: Vec<u64> = view
+        .knot_values()
+        .runs()
+        .map(|(k, _)| k)
+        .filter(|k| *k > span.0 && *k < span.1)
+        .map(f64::to_bits)
+        .collect();
+    assert!(own.len() >= 5, "the span holds knots of the carrier: {own:?}");
+    let carrier = Curve3::Periodic(Arc::new(closed));
+    let wall = flat_wall();
+    // The mint's producer alone: its certificate has no enclosure of a
+    // periodic carrier, which is the pcurve door's gap and not the
+    // image's.
+    let minted = FittedLane::<f64>::certified()
+        .general_image(&carrier, span, &wall, band())
+        .unwrap_or_else(|e| panic!("the mint images the carrier: {e:?}"));
+    let knots: Vec<u64> = minted
+        .knot_values()
+        .runs()
+        .map(|(k, _)| k)
+        .filter(|k| *k > span.0 && *k < span.1)
+        .map(f64::to_bits)
+        .collect();
+    assert!(
+        knots == own,
+        "the image's knots are the carrier's, to the bit, and a loop on a flat wall needs none \
+         past them: {own:?} against {knots:?}"
+    );
+    let gap = image_gap(&carrier, span, &wall, &minted);
+    assert!(
+        gap <= band().zero(),
+        "the image holds the carrier: {gap:e} m"
+    );
+    let rest = crate::edge_nurbs::chart_image(&carrier, span, &wall, band(), |_, _| Ok(()))
+        .unwrap_or_else(|e| panic!("rest images the carrier: {e:?}"));
+    assert!(
+        bits(&rest) == bits(&minted),
+        "rest's image is the mint's, bit for bit"
+    );
+}
+
+/// **A pair's image is the function's value refined onto the union of
+/// knots.** The ring's arc imaged on [`ring_wall`] and on the plane
+/// `z = 0` as a bilinear wall, each alone and then as a pair: the two
+/// images of the pair share one list of knots, which holds every knot
+/// of either single image, so the ring wall's image holds knots only
+/// the plane's asked for. It is the same curve in the chart as the
+/// single image to rounding, and not the same control points.
+///
+/// Red against: the pair's images not put on one list of knots (the
+/// two lists differ, and the two-chart tube has no spans to pair).
+#[test]
+fn a_pairs_image_is_the_single_image_on_the_union_of_knots() {
+    let k = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let plane = NurbsSurface::new(
+        k(),
+        k(),
+        vec![
+            Point3::new(0.0, -0.2, 0.0),
+            Point3::new(0.0, 1.2, 0.0),
+            Point3::new(1.2, -0.2, 0.0),
+            Point3::new(1.2, 1.2, 0.0),
+        ],
+        vec![1.0; 4],
+    )
+    .unwrap();
+    let (carrier, ring, span) = (ring_arc(), ring_wall(), (0.0, 1.0));
+    let alone = |wall| crate::carrier_image::carrier_image(&carrier, span, wall, band()).unwrap();
+    let (alone_ring, alone_plane) = (alone(&ring), alone(&plane));
+    let (beside_ring, beside_plane) =
+        crate::carrier_image::carrier_images(&carrier, span, (&ring, &plane), band()).unwrap();
+    let knots = |image: &NurbsCurve2<f64>| -> Vec<(u64, usize)> {
+        image
+            .knot_values()
+            .runs()
+            .map(|(k, m)| (k.to_bits(), m))
+            .collect()
+    };
+    let union = knots(&beside_ring);
+    assert!(
+        union == knots(&beside_plane),
+        "the pair's two images share one list of knots"
+    );
+    for (what, single) in [("the ring wall's", &alone_ring), ("the plane's", &alone_plane)] {
+        assert!(
+            knots(single)
+                .iter()
+                .all(|(k, m)| union.iter().any(|(q, n)| q == k && n >= m)),
+            "{what} single image's knots are among the pair's"
+        );
+    }
+    assert!(
+        beside_ring.control().len() > alone_ring.control().len(),
+        "the ring wall's image beside the plane holds knots the plane's asked for: {} control \
+         points alone, {} beside",
+        alone_ring.control().len(),
+        beside_ring.control().len()
+    );
+    let apart = (0..=64)
+        .map(|i| {
+            let t = f64::from(i) / 64.0;
+            alone_ring.eval(t).distance(beside_ring.eval(t))
+        })
+        .fold(0.0, f64::max);
+    assert!(
+        apart <= 1e-12,
+        "the two are one curve in the chart: {apart:e} apart"
+    );
+}
+
+/// **The image is one per scalar**: the function run at `f64` and at
+/// `Interval` places the same carrier's feet through each scalar's own
+/// reads, so the two images are the same curve in the chart to the
+/// image's share of the band and need not hold the same knots. Rest
+/// re-derives a trace's image bit for bit at the scalar the trace ran
+/// at, which is what the parity rows pin.
+#[test]
+fn the_image_at_each_scalar_is_one_curve_to_the_band() {
+    for (what, carrier, span, wall) in [
+        ("the ring's arc", ring_arc(), (0.0, 1.0), ring_wall()),
+        ("the uneven line", uneven_line(), (0.0, 1.2), uneven_wall()),
+    ] {
+        let at_f64 = crate::carrier_image::carrier_image(&carrier, span, &wall, band()).unwrap();
+        let lift = |x: f64| <Interval as geom_core::Real>::from_f64(x);
+        let at_interval = crate::carrier_image::carrier_image(
+            &carrier.map_scalar(lift),
+            (lift(span.0), lift(span.1)),
+            &wall.map_scalar(lift),
+            band(),
+        )
+        .unwrap();
+        let apart = (0..=64)
+            .map(|i| {
+                let t = span.0 + (span.1 - span.0) * f64::from(i) / 64.0;
+                let (p, q) = (at_f64.eval(t), at_interval.eval(lift(t)));
+                let at = |x: Interval| {
+                    use geom_core::Bounds;
+                    0.5 * (x.lo() + x.hi())
+                };
+                let on = |p: geom_core::Point2<f64>| wall.eval(p.x, p.y);
+                on(p).distance(on(geom_core::Point2::new(at(q.x), at(q.y))))
+            })
+            .fold(0.0, f64::max);
+        assert!(
+            apart <= band().zero(),
+            "{what}: the two scalars' images are {apart:e} m apart on the wall"
+        );
+    }
 }

@@ -145,18 +145,30 @@ impl<'a> Operands<'a> {
     ///
     /// # Errors
     ///
-    /// The image's refusal ([`super::image_refusal`]).
-    fn images(&self, carrier: &NurbsCurve3<f64>, band: Band) -> Result<Pcurves, SsiError> {
+    /// The image's refusal ([`crate::carrier_image::ImageRefusal::into_lane`]);
+    /// against an analytic partner, a miss past the cap after the
+    /// partner's own limbs ([`certify::partner_before_image_miss`]).
+    fn images(&self, carrier: &NurbsCurve3<f64>, band: Band) -> Result<Pcurves, certify::Located> {
         let params = carrier.knot_values().domain();
+        let fitted = carrier;
         let carrier = Curve3::Nurbs(std::sync::Arc::new(carrier.clone()));
         match self {
-            Self::Implicit { wall, .. } => {
+            Self::Implicit { wall, partner } => {
                 let SsiOperand::Nurbs(wall) = wall else {
                     return Ok((None, None));
                 };
+                // An image that misses past its cap reads the partner's
+                // limbs first, by the one rule.
                 let image =
                     crate::carrier_image::carrier_image(&carrier, params, wall.surface(), band)
-                        .map_err(super::image_refusal)?;
+                        .map_err(|e| {
+                            certify::located_before_image_miss(
+                                e.into_lane(),
+                                fitted,
+                                partner,
+                                band,
+                            )
+                        })?;
                 Ok((None, Some(image)))
             }
             Self::Pair { a, b } => {
@@ -166,7 +178,7 @@ impl<'a> Operands<'a> {
                     (a.surface(), b.surface()),
                     band,
                 )
-                .map_err(super::image_refusal)?;
+                .map_err(crate::carrier_image::ImageRefusal::into_lane::<SsiError>)?;
                 Ok((Some(pa), Some(pb)))
             }
         }
@@ -880,7 +892,10 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
         end: BranchEnd,
         march_tol: f64,
     ) -> Result<SsiBranch, SsiError> {
-        let (pa, pb) = self.operands.images(&carrier, self.band)?;
+        let (pa, pb) = self
+            .operands
+            .images(&carrier, self.band)
+            .map_err(|located| located.error)?;
         let lane = self.operands.lane(pa.as_ref(), pb.as_ref())?;
         let cert = certify::certify_branch(
             &Curve3::Nurbs(std::sync::Arc::new(carrier.clone())),

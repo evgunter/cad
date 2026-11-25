@@ -575,9 +575,10 @@ fn an_iso_arc_refuses_a_span_past_its_arc() {
 
 /// **A stated image is certified as it stands, not swapped for the
 /// pick's.** The wall's other row stated as the rim's image is refused
-/// as the rim's exact image, though the pick's own holds. The lane then
-/// reads the rim's fitted image, soundly, which follows the arc: the edge
-/// certifies on that image's bound, which is not the exact image's.
+/// by its own certificate, though the pick's image holds and the image
+/// the lane derives would certify the edge: `Ok` would then cover an
+/// image that was refused, so the edge refuses as the stated image's
+/// refusal, carrying its check.
 #[test]
 fn a_wrong_stated_image_is_not_swapped_for_the_pick() {
     let quarter = rim(1.0, core::f64::consts::FRAC_PI_2);
@@ -588,18 +589,11 @@ fn a_wrong_stated_image_is_not_swapped_for_the_pick() {
                 .is_err()
         })
         .expect("a candidate that is not the rim's row");
-    let residual = |stated| {
-        arc_on_pair(quarter.clone(), stated)
-            .unwrap_or_else(|e| panic!("the rim certifies on its pair: {e:?}"))
-            .certificate()
-            .max_residual
-    };
-    let (picked, fitted) = (residual(None), residual(Some(wrong)));
-    assert!(
-        fitted > picked,
-        "a wrong stated image leaves the fitted image's bound ({fitted:e} m), not the pick's \
-         exact one ({picked:e} m)"
-    );
+    arc_on_pair(quarter.clone(), None).expect("the rim certifies on its pair with no image stated");
+    match arc_on_pair(quarter, Some(wrong)) {
+        Err(CertifyError::PlaneNurbs(PlaneNurbsRefusal::StatedImage { iso: Some(_), .. })) => {}
+        other => panic!("a wrong stated image refuses as itself: {other:?}"),
+    }
 }
 
 /// **A split child certifies at rest as it did at the op.** The

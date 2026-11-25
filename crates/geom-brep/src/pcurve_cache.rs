@@ -3488,41 +3488,52 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
     wall: &NurbsSurface<T>,
     band: Band,
 ) -> Result<NurbsCurve2<T>, PcurveCertifyError> {
-    use crate::carrier_image::ImageRefusal as I;
-    let certificate = |limb, what, ending| PcurveCertifyError::FittedCertificate {
-        limb,
-        what,
-        magnitude: None,
-        ending,
-    };
-    crate::carrier_image::carrier_image(carrier, params, wall, band).map_err(|e| match e {
-        I::Foot {
-            t, last_distance, ..
-        } => PcurveCertifyError::FittedCertificate {
+    crate::carrier_image::carrier_image(carrier, params, wall, band)
+        .map_err(crate::carrier_image::ImageRefusal::into_lane)
+}
+
+/// The image's refusal, in the mint's vocabulary
+/// ([`crate::carrier_image::ImageRefusal::into_lane`]).
+impl crate::carrier_image::ImageLane for PcurveCertifyError {
+    // The wall this door was handed, as the foot producer refuses it
+    // (`chart_foot_lane`): one lever at both doors.
+    fn placeholder_wall() -> Self {
+        Self::PlaceholderChart
+    }
+    fn carrier_domain(refusal: crate::edge_nurbs::CarrierDomainRefusal) -> Self {
+        Self::CarrierDomain(refusal)
+    }
+    // The mint names a foot by its parameter, as the trace does.
+    fn foot(t: f64, _node: u32, last_distance: f64) -> Self {
+        Self::FittedCertificate {
             limb: Some(SsiLimb::OnLocus),
             what: "the wall's foot path of this locus could not be followed, so it has no \
                    derived image to certify",
             magnitude: Some(FittedMagnitude::LastFootDistance { t, last_distance }),
             ending: FittedEnding::FootUnsettled,
-        },
-        I::Fit => certificate(
-            None,
-            crate::edge_nurbs::PCURVE_FIT_REFUSAL,
-            FittedEnding::Defect,
-        ),
-        // The image's own miss of the foot path past its cap: the lane's
-        // gap, as a certificate's refusal of the image it derived is.
-        I::Miss(_) => certificate(
-            Some(SsiLimb::ImageMiss),
-            "the derived image still missed the wall's foot path of this locus at the finest \
-             chain the image takes",
-            FittedEnding::NotYet,
-        ),
-        I::CarrierDomain(refusal) => PcurveCertifyError::CarrierDomain(refusal),
-        // The wall this door was handed, as the foot producer refuses it
-        // (`chart_foot_lane`): one lever at both doors.
-        I::PlaceholderWall => PcurveCertifyError::PlaceholderChart,
-    })
+        }
+    }
+    fn fit() -> Self {
+        Self::FittedCertificate {
+            limb: None,
+            what: crate::edge_nurbs::PCURVE_FIT_REFUSAL,
+            magnitude: None,
+            ending: FittedEnding::Defect,
+        }
+    }
+    // The image's own miss of the foot path past its cap: the lane's
+    // gap, as a certificate's refusal of the image it derived is. The
+    // sampled reading is not this door's magnitude: its limb 2 bounds
+    // the image it holds, and holds none here.
+    fn miss(_read: crate::ssi::SsiError) -> Self {
+        Self::FittedCertificate {
+            limb: Some(SsiLimb::ImageMiss),
+            what: "the derived image still missed the wall's foot path of this locus at the \
+                   cap of the chain the image takes",
+            magnitude: None,
+            ending: FittedEnding::NotYet,
+        }
+    }
 }
 
 /// The foot producer's body, shared by every certifying scalar
@@ -5022,6 +5033,7 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         }
         E::UnsupportedCertificate { what } => (None, what, None, FittedEnding::NotYet),
         E::CarrierEnclosure(refusal) => return PcurveCertifyError::CarrierEnclosure(refusal),
+        E::CarrierDomain(refusal) => return PcurveCertifyError::CarrierDomain(refusal),
         // Exhaustive BY VARIANT rather than by catch-all: a new
         // `SsiError` must be dispositioned here deliberately, and the
         // compiler is what enforces that. The hull limb raises none of

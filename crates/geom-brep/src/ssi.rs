@@ -714,6 +714,11 @@ pub enum SsiError {
     /// kind and the span, from the one door every composite reads a
     /// carrier through.
     CarrierEnclosure(crate::CarrierEnclosureRefusal),
+    /// A wall's image of the traced carrier could not be put on the
+    /// carrier's own interval ([`crate::CarrierDomainRefusal`]): the knot
+    /// door refused it, and its interval and fault ride here. The carrier
+    /// is the trace's own fit, so nothing the caller changes moves it.
+    CarrierDomain(crate::CarrierDomainRefusal),
     /// A NURBS wall's boundary row would not re-wrap as a curve: a
     /// weight on it is not positive and finite. Unreachable for a wall
     /// that validated, and surfaced with the spline layer's own
@@ -1247,6 +1252,7 @@ impl core::fmt::Display for SsiError {
                 write!(f, "ssi: {what}")
             }
             Self::CarrierEnclosure(r) => write!(f, "ssi: {r}"),
+            Self::CarrierDomain(r) => write!(f, "ssi: {r}"),
             Self::ChartRow { source } => write!(
                 f,
                 "ssi: a NURBS wall's boundary row is not valid spline structure: {source}"
@@ -1715,7 +1721,8 @@ impl SsiError {
             // Nothing the caller changes settles it today.
             Self::FootPointInconclusive { .. }
             | Self::UnsupportedCertificate { .. }
-            | Self::CarrierEnclosure(_) => NOT_YET_ENDING.to_owned(),
+            | Self::CarrierEnclosure(_)
+            | Self::CarrierDomain(_) => NOT_YET_ENDING.to_owned(),
             Self::WrongLane { .. } => WRONG_LANE_RECOURSE.to_owned(),
         }
     }
@@ -2464,26 +2471,31 @@ fn fit_branch(points: &[Point3<f64>]) -> Result<NurbsCurve3<f64>, SsiError> {
     Ok(NurbsCurve3::<f64>::interpolate_on(points, &collocation)?)
 }
 
-/// A wall image's refusal ([`crate::carrier_image`]), in the trace's
-/// vocabulary: a foot the path could not reach as limb 1's own, the
-/// image's miss past its cap as limb 2's reading of it
-/// ([`SsiLimb::ImageMiss`]).
-pub(crate) fn image_refusal(e: crate::carrier_image::ImageRefusal) -> SsiError {
-    use crate::carrier_image::ImageRefusal as I;
-    match e {
-        I::Foot {
-            t, last_distance, ..
-        } => SsiError::FootPointInconclusive { t, last_distance },
-        I::Miss(read) => read,
-        I::PlaceholderWall => SsiError::UnsupportedCertificate {
+/// A wall image's refusal, in the trace's vocabulary
+/// ([`crate::carrier_image::ImageRefusal::into_lane`]): a foot the path
+/// could not reach as limb 1's own, the image's miss past its cap as
+/// limb 2's reading of it ([`SsiLimb::ImageMiss`]).
+impl crate::carrier_image::ImageLane for SsiError {
+    fn placeholder_wall() -> Self {
+        Self::UnsupportedCertificate {
             what: "the wall is the placeholder, which has no foot path",
-        },
-        I::CarrierDomain(_) => SsiError::UnsupportedCertificate {
-            what: "the carrier's interval is not one a wall image spans",
-        },
-        I::Fit => SsiError::UnsupportedCertificate {
+        }
+    }
+    fn carrier_domain(refusal: crate::CarrierDomainRefusal) -> Self {
+        Self::CarrierDomain(refusal)
+    }
+    // The trace names a foot by its parameter; the chain's index is
+    // rest's word for the same foot.
+    fn foot(t: f64, _node: u32, last_distance: f64) -> Self {
+        Self::FootPointInconclusive { t, last_distance }
+    }
+    fn fit() -> Self {
+        Self::UnsupportedCertificate {
             what: crate::edge_nurbs::PCURVE_FIT_REFUSAL,
-        },
+        }
+    }
+    fn miss(read: Self) -> Self {
+        read
     }
 }
 
@@ -4299,13 +4311,15 @@ fn trace_plane_nurbs_within(
     // refinement on a coarser triple, passes here.
     let densified = refine::refine_by_certificate(&sys, states, &ctx, band, |states, limbs| {
         let carrier = ends::fit_states(&sys, states)?;
+        // An image that misses past its cap reads the partner's limbs
+        // first, by the one rule.
         let image = crate::carrier_image::carrier_image(
             &Curve3::Nurbs(std::sync::Arc::new(carrier.clone())),
             carrier.knot_values().domain(),
             wall,
             band,
         )
-        .map_err(image_refusal)?;
+        .map_err(|e| certify::located_before_image_miss(e.into_lane(), &carrier, plane, band))?;
         let fitted = (carrier, image);
         if limbs == certify::Limbs::Tube {
             return Ok(fitted);
@@ -5103,6 +5117,7 @@ mod ending_tests {
             ("unsupported, routing", NOT_YET_ENDING, NOT_YET_ENDING),
             ("unsupported, pcurve", NOT_YET_ENDING, NOT_YET_ENDING),
             ("carrier enclosure", NOT_YET_ENDING, NOT_YET_ENDING),
+            ("carrier domain", NOT_YET_ENDING, NOT_YET_ENDING),
             (
                 "wall collapsed",
                 super::WALL_COLLAPSED_RECOURSE,
@@ -5282,6 +5297,7 @@ mod ending_tests {
             SsiError::CoincidentTori => 47,
             SsiError::PairRowTangent => 48,
             SsiError::DegenerateCone { .. } => 49,
+            SsiError::CarrierDomain(_) => 50,
         }
     }
 
@@ -5633,6 +5649,14 @@ mod ending_tests {
                 SsiError::CarrierEnclosure(crate::CarrierEnclosureRefusal {
                     kind: geom::CurveKind::Spiric,
                     span: (3.1, 3.2),
+                }),
+            ),
+            (
+                "carrier domain",
+                SsiError::CarrierDomain(crate::CarrierDomainRefusal {
+                    lo: 1.0e300,
+                    hi: 1.0e300 + 1.0e285,
+                    fault: crate::CarrierDomainFault::Merge,
                 }),
             ),
             (
