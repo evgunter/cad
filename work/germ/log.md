@@ -2069,3 +2069,7 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
 - 2026-11-25 13:45 — **U4b ruling C.** The four curved wrappers become `#[cfg(test)]` test readers, with no API, and this is a reported deviation.
   - The safety fuzzes also run through `cross`, so production is fuzzed; a `finish`/`merged` mutant must red one.
   - A P3 row is to be filed to re-aim the door rows and delete the test wrappers.
+- 2026-11-25 15:05 — **U4b Q6 partial (main, unset ε, topo complete).** Every `off_face` rescue is local: a tangency's window ball, or a local escalation. No whole-span quartic, `Exhausted` or `CountDisagrees` rescue, so no `[ev]` question so far.
+  - The composite rescues exist, so `off_face` stays for `composite_count` until U4d.
+  - **Q2 refined:** the covered posture reads `cross`'s answer, since a ladder lane's `Isolated` carries no class.
+  - C's conditions are done: each of the six fuzzes has a `cross` leg, and the P3 row `the-door-rows-read-the-wrappers-not-cross` is filed.
