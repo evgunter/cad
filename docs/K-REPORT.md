@@ -1112,13 +1112,14 @@ the ray's are the walk's own, bare literals:
 | `point_in_arc_loop_spline_turn` | a `const` in `spline_arc`: a step of those offsets along the control polygon, its monotonicity across the ray line |
 | `point_in_arc_loop_spline_advance` | a `const` in `spline_arc`: a control point's advance along the ray |
 
-**Roster addition (CLEAVE): a trimmed sphere face's region.** Fourteen
+**Roster addition (CLEAVE): a trimmed sphere face's region.** Eighteen
 names from `topo/src/sphere_region.rs`. Nine are its rays',
 which entered without an entry here: bare literals at their `decide`
 sites, and a `FirstHarmonicRows` value (`ROOT_ROWS`) for the
-first-harmonic root door. Five are its boundary pre-pass's, a
-`ConicRows` value (`BOUNDARY`) it reads each arc through on the arc's
-own circle:
+first-harmonic root door. Nine are its boundary pre-pass's: a
+`ConicRows` value (`BOUNDARY`) it reads each circle arc through on the
+arc's own circle, and an `ArcRows` value (`SPLINE`) it reads each
+spline arc through piece by piece:
 
 | name | carrier |
 |---|---|
@@ -1136,6 +1137,10 @@ own circle:
 | `bool_sphere_region_arc_end` | `ConicRows` field (`BOUNDARY`): the distance to either end of the arc |
 | `bool_sphere_region_arc_trim` | `ConicRows` field (`BOUNDARY`): which side of the ends the point, or its foot, lies |
 | `bool_sphere_region_arc_straddle` | `ConicRows` field (`BOUNDARY`): an ellipse's straddle; a circle never mints it, and it never reaches the funnel |
+| `bool_sphere_region_spline_end` | `ArcRows` field (`SPLINE`): the distance to either end of a spline arc |
+| `bool_sphere_region_spline_clear` | `ArcRows` field (`SPLINE`): a piece's ball's clearance from the point |
+| `bool_sphere_region_spline_on` | `ArcRows` field (`SPLINE`): the distance to a point of the arc |
+| `bool_sphere_region_spline_leaf` | `ArcRows` field (`SPLINE`): a piece's ball's radius |
 
 They pool with nothing: the region is read by the point-in-solid door
 at points on a sphere, a population apart from the planar walk's and
