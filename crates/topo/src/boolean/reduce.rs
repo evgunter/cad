@@ -5534,7 +5534,11 @@ fn composite_count<T: Bounds + crate::props::AtRestPolicy>(
             site,
         });
     };
-    let refusal = match cross(&geom_brep::curve_pair::Span::new(carrier, params), surface, band) {
+    let refusal = match cross(
+        &geom_brep::curve_pair::Span::new(carrier, params),
+        surface,
+        band,
+    ) {
         Ok(found) => {
             // Each crossing the lane stores is a proposal, admitted here
             // by its check (DUAL-DESIGN DL5.2).

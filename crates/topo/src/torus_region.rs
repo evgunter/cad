@@ -249,11 +249,7 @@ impl<T: Decide> TorusFaceRegion<T> {
     ///
     /// Where `charted` is not a torus or a spindle sheet: the caller reads
     /// the record first.
-    fn on(
-        charted: Charted<T>,
-        sense: bool,
-        edges: Vec<Edge<T>>,
-    ) -> Self {
+    fn on(charted: Charted<T>, sense: bool, edges: Vec<Edge<T>>) -> Self {
         let (frame, major, minor, apex) = match *charted.surface() {
             geom::Surface::Torus {
                 frame,
@@ -557,11 +553,7 @@ mod tests {
             major_radius: major,
             minor_radius: minor,
         };
-        TorusFaceRegion::on(
-            Charted::record(Default::default(), &torus),
-            true,
-            edges,
-        )
+        TorusFaceRegion::on(Charted::record(Default::default(), &torus), true, edges)
     }
 
     /// The band of the torus between the minor angles `v0 < v1`, every
@@ -664,11 +656,7 @@ mod tests {
                 major_radius: self.big,
                 minor_radius: 1.0,
             };
-            TorusFaceRegion::on(
-                Charted::record(Default::default(), &sheet),
-                true,
-                edges,
-            )
+            TorusFaceRegion::on(Charted::record(Default::default(), &sheet), true, edges)
         }
     }
 
@@ -1429,9 +1417,7 @@ mod tests {
         crate::region::with_null_edge(&mut nulled, nulled_face);
         let plain = torus_face_region(&body, face).unwrap().unwrap();
         // The null edge stepped over, not refused.
-        let held = torus_face_region(&nulled, nulled_face)
-            .unwrap()
-            .unwrap();
+        let held = torus_face_region(&nulled, nulled_face).unwrap().unwrap();
         assert_eq!(held.edges.len(), plain.edges.len(), "the same boundary");
         let b = Band::new(1e-9, 1e-8).unwrap();
         for (u, v) in [(1.0, 0.0), (1.0, 1.5), (2.5, 0.0)] {
@@ -1609,11 +1595,7 @@ mod tests {
             .map(crate::region::fixture_spline_of_arc)
             .collect();
         let torus = circles.charted.surface().clone();
-        let splines = TorusFaceRegion::on(
-            Charted::record(Default::default(), &torus),
-            true,
-            edges,
-        );
+        let splines = TorusFaceRegion::on(Charted::record(Default::default(), &torus), true, edges);
         let clear = |x: f64, ends: (f64, f64)| {
             let gap = |e: f64| (x - e).rem_euclid(TAU).min((e - x).rem_euclid(TAU));
             gap(ends.0) > 0.05 && gap(ends.1) > 0.05

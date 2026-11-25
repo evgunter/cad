@@ -115,10 +115,7 @@ fn an_in_band_pass_inside_the_span_refuses() {
         &[(0.0, 1.0 + lift), (0.5, -1.0 + lift), (1.0, 1.0 + lift)],
     );
     let got = read(&net, &ground());
-    assert!(
-        matches!(got, Err(MeetFault::Touch(_))),
-        "{got:?}"
-    );
+    assert!(matches!(got, Err(MeetFault::Touch(_))), "{got:?}");
 }
 
 #[test]
@@ -153,10 +150,7 @@ fn a_tangency_refuses() {
         &[(0.0, 1.0), (0.5, -1.0), (1.0, 1.0)],
     );
     let got = read(&net, &ground());
-    assert!(
-        matches!(got, Err(MeetFault::Touch(_))),
-        "{got:?}"
-    );
+    assert!(matches!(got, Err(MeetFault::Touch(_))), "{got:?}");
 }
 
 /// A cubic B-spline whose controls are antisymmetric about its one
@@ -472,10 +466,7 @@ fn a_reference_direction_along_the_axis_is_a_degenerate_face() {
         radius: 1.0,
     };
     let got = read(&cubic([-1.0, -0.5, 0.5, 1.0]), &along);
-    assert!(
-        matches!(got, Err(MeetFault::Unsupported { .. })),
-        "{got:?}"
-    );
+    assert!(matches!(got, Err(MeetFault::Unsupported { .. })), "{got:?}");
 }
 
 /// The rising line `z = 2t − 1` as a cubic over `[0, 1]`, at `Interval`,
@@ -534,7 +525,13 @@ fn a_stored_crossing_is_admitted_by_its_check_at_interval() {
     );
     let off = settled(&rising_family(0.0), 0.25);
     assert!(
-        matches!(off, Err(Unadmitted::Off { row: "spline_composite_root_on", .. })),
+        matches!(
+            off,
+            Err(Unadmitted::Off {
+                row: "spline_composite_root_on",
+                ..
+            })
+        ),
         "a candidate whose point reads definitely off the plane refuses by the door's row: {off:?}"
     );
     // Between the band's zero and its escalation: a door deciding
@@ -583,7 +580,10 @@ fn admissible_candidates_of_one_shallow_crossing_place_three_ways() {
     );
     let (end, refused) = at(1.0 - 5e-10);
     assert!(
-        matches!(end[..], [(_, OnSpan::End(crate::curve_pair::SpanEnd::Stop))]) && refused == 0,
+        matches!(
+            end[..],
+            [(_, OnSpan::End(crate::curve_pair::SpanEnd::Stop))]
+        ) && refused == 0,
         "a candidate within the end's zero is the end's: {end:?}"
     );
 }

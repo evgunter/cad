@@ -250,11 +250,7 @@ impl<T: Decide> SphereFaceRegion<T> {
     /// # Panics
     ///
     /// Where `charted` is not a sphere: the caller reads the record first.
-    fn on(
-        charted: Charted<T>,
-        sense: bool,
-        edges: Vec<Arc<T>>,
-    ) -> Self {
+    fn on(charted: Charted<T>, sense: bool, edges: Vec<Arc<T>>) -> Self {
         let &geom::Surface::Sphere { frame, radius, .. } = charted.surface() else {
             unreachable!("a sphere region is built on a sphere record")
         };
@@ -1128,9 +1124,7 @@ mod tests {
     fn reads_as_the_ball(what: &str, body: &Body<f64>, face: FaceKey) {
         use crate::contain::{FaceContainment, curved_face_containment};
         let band = Band::new(1e-9, 1e-8).unwrap();
-        let region = sphere_face_region(body, face)
-            .unwrap()
-            .expect("a region");
+        let region = sphere_face_region(body, face).unwrap().expect("a region");
         for (q, inside) in sphere_points() {
             assert_eq!(
                 region.contains(q, band),
@@ -1184,9 +1178,7 @@ mod tests {
         let (plain, plain_face, _) = ball();
         reads_as_the_ball("the plain ball", &plain, plain_face);
         let (body, face, _) = struck();
-        let region = sphere_face_region(&body, face)
-            .unwrap()
-            .expect("a region");
+        let region = sphere_face_region(&body, face).unwrap().expect("a region");
         assert_eq!(region.edges.len(), 2, "the rim's two arcs alone");
         reads_as_the_ball("the struck ball", &body, face);
         let band = Band::new(1e-9, 1e-8).unwrap();
@@ -1208,9 +1200,7 @@ mod tests {
     #[test]
     fn a_placeholder_between_two_faces_bounds_nothing() {
         let (body, face) = rim_held();
-        let region = sphere_face_region(&body, face)
-            .unwrap()
-            .expect("a region");
+        let region = sphere_face_region(&body, face).unwrap().expect("a region");
         assert_eq!(region.edges.len(), 2, "the rim's two arcs alone");
         reads_as_the_ball("the rim-held ball", &body, face);
         solid_reads_as_the_ball("the rim-held ball", &body);

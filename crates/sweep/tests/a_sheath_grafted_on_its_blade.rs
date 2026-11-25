@@ -188,7 +188,9 @@ fn a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim() {
                     found
                         .meetings
                         .iter()
-                        .filter(|m| matches!(m.on_span, geom_brep::curve_face::OnSpan::Inside { .. }))
+                        .filter(|m| {
+                            matches!(m.on_span, geom_brep::curve_face::OnSpan::Inside { .. })
+                        })
                         .count()
                 });
                 assert!(

@@ -5105,12 +5105,7 @@ mod per_solid_entry_tests {
             let geos: Vec<_> = sel
                 .faces()
                 .iter()
-                .map(|&face| {
-                    (
-                        face,
-                        face_geo(&body, face, &sel.charts, band).unwrap(),
-                    )
-                })
+                .map(|&face| (face, face_geo(&body, face, &sel.charts, band).unwrap()))
                 .collect();
             let d = Vec3::new(0.5, 0.3, -1.0).normalize();
             let q = Point3::new(1.0 + 0.5 * g, 0.5, 1.0) - d * 2.0;
@@ -5165,12 +5160,7 @@ mod per_solid_entry_tests {
                 let geos: Vec<_> = sel
                     .faces()
                     .iter()
-                    .map(|&face| {
-                        (
-                            face,
-                            face_geo(&body, face, &sel.charts, band).unwrap(),
-                        )
-                    })
+                    .map(|&face| (face, face_geo(&body, face, &sel.charts, band).unwrap()))
                     .collect();
                 let d = Vec3::new(1.0, 0.05, -slope).normalize();
                 let q = Point3::new(1.0, 0.5, 1.0 + 3.0 * tol.eps() * slope) - d * 0.3;
@@ -5204,12 +5194,7 @@ mod per_solid_entry_tests {
         let geos: Vec<_> = sel
             .faces()
             .iter()
-            .map(|&face| {
-                (
-                    face,
-                    face_geo(&body, face, &sel.charts, band).unwrap(),
-                )
-            })
+            .map(|&face| (face, face_geo(&body, face, &sel.charts, band).unwrap()))
             .collect();
         let cast = |q: Point3<f64>, d: Vec3<f64>| {
             let reach = selection_reach(&body, sel.faces(), q, band).unwrap();

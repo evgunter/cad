@@ -2837,12 +2837,7 @@ pub struct NurbsLane<T: geom_core::Certifies> {
         crate::edge_nurbs::PlaneNurbsRefusal,
     >,
     /// [`NurbsLane::admit_crossing`] at `T`.
-    crossing: fn(
-        &Curve3<T>,
-        T,
-        &Surface<T>,
-        Band,
-    ) -> Result<T, geom_core::solved::Unadmitted>,
+    crossing: fn(&Curve3<T>, T, &Surface<T>, Band) -> Result<T, geom_core::solved::Unadmitted>,
     /// [`NurbsLane::spline_face_meetings`] at `T`.
     spline_face: fn(
         &Curve3<T>,
@@ -2911,7 +2906,10 @@ impl<T: geom_core::Certifies + geom_core::CertifiedBounds> NurbsLane<T> {
             band,
             |at| {
                 let p = carrier.eval(at);
-                (geom_core::Margin::of(crate::implicit_residual(surface, p)), ())
+                (
+                    geom_core::Margin::of(crate::implicit_residual(surface, p)),
+                    (),
+                )
             },
         )
         .map(|(t, ())| t)

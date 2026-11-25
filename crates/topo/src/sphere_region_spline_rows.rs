@@ -99,11 +99,7 @@ fn halves() -> SphereFaceRegion<f64> {
             forward: true,
         })
         .collect();
-    SphereFaceRegion::on(
-        sphere(),
-        true,
-        edges,
-    )
+    SphereFaceRegion::on(sphere(), true, edges)
 }
 
 /// The normal of a plane through the centre holding `w` that passes the

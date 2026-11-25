@@ -139,8 +139,14 @@ pub(in crate::curve_face) fn method<T: Decide>(
     let geom::Curve3::Nurbs(net) = span.carrier() else {
         return Walked::whole(params, MeetFault::Desync);
     };
-    read(net, crate::curve_face::ascending(params), span.speeds(), surface, band)
-        .unwrap_or_else(|refusal| Walked::whole(params, refusal.fault()))
+    read(
+        net,
+        crate::curve_face::ascending(params),
+        span.speeds(),
+        surface,
+        band,
+    )
+    .unwrap_or_else(|refusal| Walked::whole(params, refusal.fault()))
 }
 
 /// The walk over `[t0, t1]` (the module docs).
@@ -183,7 +189,10 @@ fn read<T: Decide>(
             if one_signed(&slope_row(&piece.num, &piece.den)).is_none() {
                 return cut(piece, floor, &read).map(Step::Halve);
             }
-            let (ra, rb) = (read(end_value(&piece, true)), read(end_value(&piece, false)));
+            let (ra, rb) = (
+                read(end_value(&piece, true)),
+                read(end_value(&piece, false)),
+            );
             match (ra, rb) {
                 (Reading::Past(l), Reading::Past(r)) if l == r => {}
                 (Reading::Past(l), Reading::Past(_)) => {
@@ -252,12 +261,19 @@ fn pieces<T: Decide>(
     let e2 = axis.normalize();
     let e0 = (u_ref - e2 * u_ref.dot(e2)).normalize();
     let e = [e0, e2.cross(e0), e2];
-    if e.iter().any(|v| v.x.is_poison() || v.y.is_poison() || v.z.is_poison()) {
+    if e.iter()
+        .any(|v| v.x.is_poison() || v.y.is_poison() || v.z.is_poison())
+    {
         return Err(degenerate("the face's chart frame does not read"));
     }
     let (form, divisor) = form_and_divisor(surface, net.control(), origin, e)?;
-    if !matches!(prove(PAST_THE_BAND, Margin::sign_of(divisor)), Ok(Sign::Positive)) {
-        return Err(degenerate("the form's distance divisor is not shown positive"));
+    if !matches!(
+        prove(PAST_THE_BAND, Margin::sign_of(divisor)),
+        Ok(Sign::Positive)
+    ) {
+        return Err(degenerate(
+            "the form's distance divisor is not shown positive",
+        ));
     }
     let row: Vec<Control<T>> = net
         .control()
@@ -265,7 +281,10 @@ fn pieces<T: Decide>(
         .zip(net.weights())
         .map(|(&p, &w)| {
             let g = p - origin;
-            ([g.dot(e[0]) * w, g.dot(e[1]) * w, g.dot(e[2]) * w, w], [0.0; 4])
+            (
+                [g.dot(e[0]) * w, g.dot(e[1]) * w, g.dot(e[2]) * w, w],
+                [0.0; 4],
+            )
         })
         .collect();
     let knots = net.knot_values();
@@ -281,9 +300,8 @@ fn pieces<T: Decide>(
         if !(v1 > s0 && v0 < s1) {
             continue;
         }
-        let mut rows: [Vec<T>; 4] = core::array::from_fn(|c| {
-            row[j * p..=j * p + p].iter().map(|h| h.0[c]).collect()
-        });
+        let mut rows: [Vec<T>; 4] =
+            core::array::from_fn(|c| row[j * p..=j * p + p].iter().map(|h| h.0[c]).collect());
         let (mut a, mut b, mut shadow) = (k0, k1, (v0, v1));
         if v0 < s0 {
             let s = (t0 - a) / (b - a);
@@ -367,7 +385,9 @@ fn form_and_divisor<T: Decide>(
             )
         }
         Surface::Nurbs(_) | Surface::Approx(_) => {
-            return Err(CompositeRefusal::Unread("a spline face has no canonical form"));
+            return Err(CompositeRefusal::Unread(
+                "a spline face has no canonical form",
+            ));
         }
         Surface::Spindle { .. } => {
             return Err(CompositeRefusal::Unread(
@@ -633,9 +653,16 @@ fn near_end<T: Decide>(
             let proved = |v: T| matches!(prove(SIDE, Margin::sign_of(v)), Ok(s) if s == far);
             let until = stretch(piece, at_start, proved);
             let window = if at_start { (end, until) } else { (until, end) };
-            match decide(STRETCH, Margin::norm3(net.eval(until) - net.eval(end)), band) {
+            match decide(
+                STRETCH,
+                Margin::norm3(net.eval(until) - net.eval(end)),
+                band,
+            ) {
                 Ok(Sign::Zero) => Ok(Meeting::End(end)),
-                Ok(_) => Ok(Meeting::Stretch(window, MeetFault::Unsettled(Unsettled::Tangency))),
+                Ok(_) => Ok(Meeting::Stretch(
+                    window,
+                    MeetFault::Unsettled(Unsettled::Tangency),
+                )),
                 Err(diag) => Ok(Meeting::Stretch(window, MeetFault::Escalated(diag))),
             }
         }
@@ -794,7 +821,9 @@ fn settle<T: Decide>(
             (Ok(Sign::Zero), _) => walked.roots.push(t),
             (Ok(_), Meeting::End(_)) => {}
             (Ok(_), _) => return Err(Unsettled::Meter { row: ROOT_ON }.into()),
-            (Err(diag), Meeting::End(_)) => walked.windows.push(((t, t), MeetFault::Escalated(diag))),
+            (Err(diag), Meeting::End(_)) => {
+                walked.windows.push(((t, t), MeetFault::Escalated(diag)))
+            }
             (Err(diag), _) => return Err(CompositeRefusal::Escalated(diag)),
         }
     }
