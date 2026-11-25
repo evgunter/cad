@@ -2601,16 +2601,7 @@ fn cone_loops<T: Decide>(
         va = va + loop_va;
         per_loop.push((loop_axial, loop_length));
     }
-    let (lo, hi) = min_max(&ends)?;
-    let nappe = match (
-        classify_as("props_cone_nappe", Margin::of(lo), band, PropsCheck::Exact)?,
-        classify_as("props_cone_nappe", Margin::of(hi), band, PropsCheck::Exact)?,
-    ) {
-        (Sign::Negative, Sign::Positive) => return Err(PropsError::NappeSpanning),
-        (_, Sign::Positive) => T::one(),
-        (Sign::Negative, _) => -T::one(),
-        _ => return Err(PropsError::DegenerateFace),
-    };
+    let nappe = cone_nappe(&ends, band)?;
     let side = match mean_width_side(
         "props_cone_area_side",
         (-(nappe * axial) / sin_a, length),
@@ -2627,6 +2618,83 @@ fn cone_loops<T: Decide>(
             .map(|&(a, l)| (-(nappe * a) / sin_a, l))
             .collect(),
     })
+}
+
+/// **The nappe a cone face's boundary lies on**, `±1`, off the slants
+/// `ends` that bound it (`props_cone_nappe`): slants decided on both
+/// sides of the apex cross it ([`PropsError::NappeSpanning`]), and slants
+/// all at the apex bound nothing ([`PropsError::DegenerateFace`]).
+fn cone_nappe<T: Decide>(ends: &[T], band: Band) -> Result<T, PropsError> {
+    let (lo, hi) = min_max(ends)?;
+    match (
+        classify_as("props_cone_nappe", Margin::of(lo), band, PropsCheck::Exact)?,
+        classify_as("props_cone_nappe", Margin::of(hi), band, PropsCheck::Exact)?,
+    ) {
+        (Sign::Negative, Sign::Positive) => Err(PropsError::NappeSpanning),
+        (_, Sign::Positive) => Ok(T::one()),
+        (Sign::Negative, _) => Ok(-T::one()),
+        _ => Err(PropsError::DegenerateFace),
+    }
+}
+
+/// **The gates a cone cap passes before the cap quadrature reads it**
+/// (`topo`'s curved-rim lane, for a cone face a spiric or a spline
+/// bounds), the closed form's (`cone_loops`) where they apply to the
+/// carrier:
+///
+/// - a line, a circle or an ellipse lies on the cone
+///   (`require_on_cone`) with its conic span decided
+///   (`require_cone_conic_spans`), and is bounded in slant by its ends;
+/// - a spline is bounded in slant by its control points, whose hull
+///   holds it (its weights are positive);
+/// - a spiric or a periodic cubic by its start's slant widened by its
+///   extent ([`crate::edge_extent_sup`]) over `cos α`, the slant's
+///   Lipschitz constant;
+///
+/// and those bounds lie on one nappe (`cone_nappe`). A spline's or a
+/// spiric's distance off the cone is not decided here, nor charged
+/// (`work/sectcone/the-cone-cap-lane-charges-no-pad-for-a-fitted-edge-off-the-cone.md`).
+///
+/// # Errors
+///
+/// [`PropsError::NappeSpanning`], [`PropsError::DegenerateFace`],
+/// `require_on_cone`'s and `require_cone_conic_spans`'s refusals;
+/// [`PropsError::Defect`] on a surface that is not a cone.
+pub fn require_cone_cap<T: Decide>(
+    cone: &Surface<T>,
+    loops: &[&[LoopEdge<T>]],
+    band: Band,
+) -> Result<(), PropsError> {
+    let Surface::Cone {
+        frame, half_angle, ..
+    } = *cone
+    else {
+        return Err(PropsError::Defect {
+            what: "the cone cap gate read a surface that is not a cone",
+        });
+    };
+    let (apex, axis) = (frame.origin(), frame.axis_unit());
+    let (sin_a, cos_a) = half_angle.sin_cos();
+    let slant = |p: Point3<T>| (p - apex).dot(axis.get()) / cos_a;
+    let mut ends = Vec::new();
+    for &edges in loops {
+        for e in edges {
+            match &e.carrier {
+                Curve3::Nurbs(c) => ends.extend(c.control().iter().map(|&p| slant(p))),
+                Curve3::Spiric { .. } | Curve3::Periodic(_) => {
+                    let reach = crate::edge_extent_sup(&e.carrier, e.t0, e.t1).length() / cos_a;
+                    let at = slant(e.p0());
+                    ends.extend([at - reach, at + reach]);
+                }
+                Curve3::Line(_) | Curve3::Circle(..) | Curve3::Ellipse(..) => {
+                    require_on_cone(apex, axis, sin_a, cos_a, e, band)?;
+                    ends.extend([slant(e.p0()), slant(e.p1())]);
+                }
+            }
+        }
+        require_cone_conic_spans(edges, band)?;
+    }
+    cone_nappe(&ends, band).map(|_| ())
 }
 
 /// **An edge lies on the cone**, each incidence decided at the true

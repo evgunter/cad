@@ -821,8 +821,11 @@ pub(crate) enum LoopArc<T: Real> {
 /// Both are read on a cylinder, a sphere, a cone, a torus or a spline
 /// face: the faces a carried chord bounds, which the ring lane's rows
 /// read (`ring_path::tests`, `ring_path::spline_wall_rows`). A spline
-/// wall's pieces are its own iso curves, which lie on it, and a cone's
-/// are its parallels and rulings, off its apex. Every piece of a
+/// wall's pieces are its own iso curves, which lie on it. A cone's are
+/// its parallels, at each end's own radius, and its rulings' segments,
+/// off its apex, each segment leaning off its ruling by at most the
+/// ends' offsets from the cone, within the band ([`Quadric::ruled_paths`]),
+/// as a cylinder's does. Every piece of a
 /// torus path past its lead lies on the tube through its end, within the band of the face's own, so the
 /// argument is the cylinder's: a crossing on the surface is a meeting in
 /// space. The lead, which moves the start onto that tube along its own

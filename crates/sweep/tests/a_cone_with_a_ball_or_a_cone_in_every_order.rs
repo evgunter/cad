@@ -72,10 +72,22 @@ fn crossing_cone(tol: Tol) -> AtRestBody<f64> {
 /// first.
 const PINNED: [&str; 6] = ["built"; 6];
 
+/// The widest pad a measured volume may carry, relative to the volume:
+/// the closures below are read within the pads, so a pad past it would
+/// let a degrading enclosure pass them.
+const PAD_CEILING: f64 = 1e-6;
+
+/// A body's measured volume and pad, the pad within [`PAD_CEILING`].
 fn volume(body: &AtRestBody<f64>, tol: Tol) -> (f64, f64) {
     let m = topo::mass_properties(body, tol, topo::test_support::pinned_resolution(tol))
         .unwrap_or_else(|e| panic!("the body does not measure: {e:?}"))
         .enclosure;
+    assert!(
+        m.volume_pad <= PAD_CEILING * m.volume.abs(),
+        "the volume {} carries a pad {} past its ceiling",
+        m.volume,
+        m.volume_pad
+    );
     (m.volume, m.volume_pad)
 }
 
