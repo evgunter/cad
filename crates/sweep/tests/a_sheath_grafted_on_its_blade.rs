@@ -130,10 +130,12 @@ fn a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim() {
         // pcurve door the mint runs, so four of these are that second
         // derivation; handing the edge's certificate to the mint
         // (`work/pcert/a-stated-spline-image-is-certified-twice-by-the-edge-certificate-and-the-mint.md`)
-        // brings the count back to 62. Since PR 7440 the output merge's
-        // curved role pass reads 34 more, the union's own count moving
-        // where this comment says it should not
-        // (`work/topo/the-merge-role-pass-reads-a-merged-faces-rims-on-row-checks-again.md`).
+        // brings the count back to 62. Since PR 7440 the interior-loop
+        // guard's section walk (`crossings_section_pairs`) reads every
+        // pair where it stopped at the first refusing one, so the pairs
+        // after this union's first refusal certify their sections too:
+        // 34 more, measured by stopping the walk again (66)
+        // (`work/topo/the-interior-loop-guards-section-walk-reads-every-pair-past-the-first-refusal.md`).
         assert_eq!(
             read.recorded()
                 .verdicts
