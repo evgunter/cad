@@ -1067,35 +1067,8 @@ fn curved_interior_placement<T: Decide>(
             let center = frame.origin();
             sphere_face_containment(body, face, center, radius, q, band, cut)
         }
-        geom::Surface::Torus {
-            frame,
-            major_radius,
-            minor_radius,
-            ..
-        }
-        | geom::Surface::Spindle {
-            frame,
-            major_radius,
-            minor_radius,
-        } => {
-            let (center, axis) = (frame.origin(), frame.axis_unit());
-            let sheet = matches!(*surface, geom::Surface::Spindle { .. });
-            torus_face_containment(
-                body,
-                face,
-                TorusCarrier {
-                    axis: geom::Line {
-                        origin: center,
-                        dir: axis,
-                    },
-                    major_radius,
-                    minor_radius,
-                    apex: sheet.then(|| geom::sheet_apex(major_radius, minor_radius).height),
-                },
-                q,
-                band,
-                cut,
-            )
+        geom::Surface::Torus { .. } | geom::Surface::Spindle { .. } => {
+            torus_face_containment(body, face, TorusCarrier::of(surface), q, band, cut)
         }
         geom::Surface::Nurbs(_) | geom::Surface::Approx(_) if cut.is_some() => {
             Ok(CurvedPlacement::Trim(None))
@@ -1181,36 +1154,54 @@ struct TorusCarrier<T: geom_core::Real> {
     axis: geom::Line<T>,
     major_radius: T,
     minor_radius: T,
-    /// A spindle sheet's apex height ([`geom::sheet_apex`]); `None` on a
-    /// ring torus.
-    apex: Option<T>,
+    /// A spindle sheet rather than a ring torus.
+    sheet: bool,
 }
 
 impl<T: Decide> TorusCarrier<T> {
-    /// **`q`'s distance off the carrier**, in metres. On a ring torus the
-    /// elevation off its tube, `√((ρ − R)² + h²) − r`, its exact signed
-    /// distance. A sheet is the arc of its meridian circle on `ρ ≥ 0`, so
-    /// where the circle's point nearest `q` lies across the axis (its
-    /// `ρ`, `R + r·(ρ − R)/d` at `d = √((ρ − R)² + h²)`, not positive) the
-    /// sheet's nearest point is the apex on `q`'s side, and the circle's
-    /// elevation there falls short of the distance. Its distance, unsigned,
-    /// on either arm: the two agree in magnitude where the arms meet, at
-    /// the apex.
-    fn elevation(&self, q: Point3<T>) -> T {
-        let Some(apex) = self.apex else {
-            return crate::solid_contain::torus_elevation(
-                self.axis,
-                self.major_radius,
-                self.minor_radius,
-                q,
-            );
+    /// The carrier of a torus or a spindle sheet.
+    ///
+    /// # Panics
+    ///
+    /// On any other surface: the dispatch reads the kind first.
+    fn of(surface: &geom::Surface<T>) -> Self {
+        let (frame, major_radius, minor_radius, sheet) = match *surface {
+            geom::Surface::Torus {
+                frame,
+                major_radius,
+                minor_radius,
+            } => (frame, major_radius, minor_radius, false),
+            geom::Surface::Spindle {
+                frame,
+                major_radius,
+                minor_radius,
+            } => (frame, major_radius, minor_radius, true),
+            _ => unreachable!("a torus carrier is a torus's or a sheet's"),
         };
-        let (h, rho) = self.axis.height_and_distance(q);
-        let d = ((rho - self.major_radius).powi(2) + h.powi(2)).sqrt();
-        let ring = d - self.minor_radius;
-        let across = self.major_radius * d + self.minor_radius * (rho - self.major_radius);
-        let to_apex = (rho.powi(2) + (h.abs() - apex).powi(2)).sqrt();
-        across.select_le_zero(to_apex, ring.abs())
+        Self {
+            axis: geom::Line {
+                origin: frame.origin(),
+                dir: frame.axis_unit(),
+            },
+            major_radius,
+            minor_radius,
+            sheet,
+        }
+    }
+
+    /// **`q`'s distance off the carrier**, in metres: on a ring torus the
+    /// elevation off its tube, `√((ρ − R)² + h²) − r`, its exact signed
+    /// distance; on a sheet its distance from the sheet's arc
+    /// ([`geom::sheet_distance`]), which the circle's elevation falls short
+    /// of beyond an apex.
+    fn elevation(&self, q: Point3<T>) -> T {
+        let (r_big, r) = (self.major_radius, self.minor_radius);
+        if self.sheet {
+            let (h, rho) = self.axis.height_and_distance(q);
+            geom::sheet_distance(r_big, r, rho, h)
+        } else {
+            crate::solid_contain::torus_elevation(self.axis, r_big, r, q)
+        }
     }
 }
 
@@ -1377,13 +1368,13 @@ mod tests {
     use geom_core::Tol;
 
     /// **A sheet's carrier distance is the distance to its arc**
-    /// ([`TorusCarrier::elevation`]): on the sheet zero; at a point of the
-    /// axis whose nearest point of the meridian circle lies across the
-    /// axis, on the spindle's other sheet (past the lemon's apex; at the
-    /// apple's centre, the other sheet a short arc there by the horn), the
-    /// distance to the apex, which the circle's elevation falls short of
-    /// (six times over at that apple); and on a ring torus the tube's
-    /// signed elevation unchanged.
+    /// ([`TorusCarrier::elevation`], [`geom::sheet_distance`]): on the
+    /// sheet zero; at a point of the axis whose nearest point of the
+    /// meridian circle lies across the axis, on the spindle's other sheet
+    /// (past the lemon's apex; at the apple's centre, the other sheet a
+    /// short arc there by the horn), the distance to the apex, which the
+    /// circle's elevation falls short of (six times over at that apple);
+    /// and on a ring torus the tube's signed elevation unchanged.
     #[test]
     fn a_sheets_carrier_distance_is_to_its_arc() {
         let carrier = |major_radius: f64, minor_radius: f64, sheet: bool| TorusCarrier {
@@ -1393,7 +1384,7 @@ mod tests {
             },
             major_radius,
             minor_radius,
-            apex: sheet.then(|| geom::sheet_apex(major_radius, minor_radius).height),
+            sheet,
         };
         let at = |big: f64, u: f64, v: f64| {
             let rho = big + v.cos();

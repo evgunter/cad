@@ -25,8 +25,10 @@ on a body with a sheet face (a lemon or an apple revolved by
 answers.
 
 The face's region is no longer what is missing:
-`topo::torus_region::torus_face_region` reads a sheet face (its
-meridian legs end at the apex, module docs "# A spindle sheet"). What
+`topo::torus_region::torus_face_region` reads a sheet face, edges that
+end at an apex included (its meridian legs end at the apex, and a root
+there is dropped before its plane section is asked: module docs
+"# A spindle sheet", `topo::region::landings`). What
 the ray lane would still need is the ray's crossings with the sheet:
 the torus's quartic with `R` signed, each root kept where it lies on the
 sheet (`ρ ≥ 0` on its own arc, `R + r·cos v ≥ 0`), and an apex, where

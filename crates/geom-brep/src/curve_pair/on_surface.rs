@@ -927,6 +927,12 @@ pub struct CoMeeting<T: Real> {
     /// Its place on the edge's span: inside at the edge's parameter, or
     /// at an end.
     pub on_edge: OnSpan<T>,
+    /// `false` where the section reading could not tell the curve from
+    /// another of its plane's at the point (a point both share: the axis,
+    /// where a chart's angle has no direction). Such a meeting may be
+    /// none of the curve's: the caller reads it where its own reach
+    /// decides it, and otherwise sets it aside.
+    pub sided: bool,
 }
 
 /// **Where an edge on a surface meets a curve on it, read by the direction
@@ -957,9 +963,8 @@ pub enum MeetRefusal<T: Real> {
         /// The stretches not read.
         windows: Vec<crate::curve_face::Undecided<T, crate::curve_face::CrossWhy>>,
     },
-    /// A meeting's section of its plane read in band (`Some`), or could
-    /// not be told from the plane's other curve (`None`).
-    Section(Option<Indeterminate>),
+    /// A meeting's section of its plane read in band.
+    Section(Indeterminate),
     /// A meeting's place on the edge's span read in band.
     Place(Indeterminate),
     /// The pair is on two records ([`AcrossRefusal::OffRecord`]).
@@ -1119,7 +1124,8 @@ impl<'a, T: Decide> OnSurface<'a, T> {
     ///
     /// Each meeting is kept where it lies on both curves' own sections of
     /// their planes: the read curve's by construction, the other's decided
-    /// on `row`. It is then placed on the edge's span by the span's own
+    /// on `row`, and one that reading cannot tell kept unsided
+    /// ([`CoMeeting::sided`]) for the caller to place. It is then placed on the edge's span by the span's own
     /// reading, and a meeting past the span is none. `span` gives the
     /// curve's span and whether it is a whole turn with no ends; it is
     /// asked only where the curve is read across the edge's plane.
@@ -1154,11 +1160,11 @@ impl<'a, T: Decide> OnSurface<'a, T> {
                     Read::EdgeOverLeg => curve.section_of(m.point, row, band),
                     Read::LegOverEdge => self.section().of_its_own(m.point, row, band),
                 };
-                match own.map_err(|diag| MeetRefusal::Section(Some(diag)))? {
-                    Sign::Positive => {}
+                let sided = match own.map_err(MeetRefusal::Section)? {
+                    Sign::Positive => true,
                     Sign::Negative => continue,
-                    Sign::Zero => return Err(MeetRefusal::Section(None)),
-                }
+                    Sign::Zero => false,
+                };
                 let on_edge = match read {
                     Read::EdgeOverLeg => m.on_span,
                     Read::LegOverEdge => match self.place(m.point, band)? {
@@ -1169,6 +1175,7 @@ impl<'a, T: Decide> OnSurface<'a, T> {
                 out.push(CoMeeting {
                     point: m.point,
                     on_edge,
+                    sided,
                 });
             }
             Ok(out)

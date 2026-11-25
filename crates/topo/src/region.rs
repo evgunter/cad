@@ -315,6 +315,13 @@ impl<T: Decide> QueryFoot<T> {
 /// however near the edge's end it lies (a first leg ends at its corner
 /// short of a vertex every edge's root lies in band of).
 ///
+/// A root past the leg's end, or at an open one, is dropped before its
+/// section is asked: an open end is where the leg stops on its surface's
+/// axis (a sheet's or a cone's apex), and there no curve of the plane is
+/// told from another, so asking first would graze a path its end already
+/// settles. A root the section cannot tell anywhere short of the end
+/// grazes.
+///
 /// # Errors
 ///
 /// A reading in band, a component in band, or a touch sets the path
@@ -331,6 +338,10 @@ pub(crate) fn landings<T: Decide, D: Legs<T>>(
     let on_leg = |y: Point3<T>| -> Result<bool, Fault> {
         on_section(curve.section_of(y, D::COMPONENT, band).map_err(in_band)?)
     };
+    // A point decided past the leg's end, or at an open one, before its
+    // section is asked: where the leg stops (a sheet's or a cone's apex)
+    // no curve of the plane is told from another.
+    let off_leg = |y: Point3<T>| matches!(leg.place(y, D::AT, band), Ok(None));
     // An edge in the leg's plane: run along where it lies on the leg's
     // own curve, read at its middle.
     let in_plane = || -> Result<Vec<Landing<T>>, Fault> {
@@ -355,7 +366,7 @@ pub(crate) fn landings<T: Decide, D: Legs<T>>(
             .iter()
             .all(|w| matches!(w.why, CrossWhy::Pose(PoseRefusal::Enclosed))) =>
         {
-            return spline_landings(door, edge, &curve, on_leg, band);
+            return spline_landings(door, edge, &curve, |y| Ok(!off_leg(y) && on_leg(y)?), band);
         }
         Err(MeetRefusal::Windows {
             read,
@@ -374,14 +385,13 @@ pub(crate) fn landings<T: Decide, D: Legs<T>>(
                     },
                 ) => {
                     let y = edge.at(geom::mid_param(w.window.0, w.window.1));
-                    Ok(!on_leg(y)? || matches!(leg.place(y, D::AT, band), Ok(None)))
+                    Ok(off_leg(y) || !on_leg(y)?)
                 }
                 _ => Ok(false),
             })?;
             found
         }
-        Err(MeetRefusal::Section(None)) => return Err(RayFault::Graze),
-        Err(MeetRefusal::Section(Some(diag)) | MeetRefusal::Place(diag)) => {
+        Err(MeetRefusal::Section(diag) | MeetRefusal::Place(diag)) => {
             return Err(in_band(diag));
         }
         Err(MeetRefusal::OffRecord { edge, curve }) => unreachable!(
@@ -389,17 +399,25 @@ pub(crate) fn landings<T: Decide, D: Legs<T>>(
              {edge:?}, the leg's {curve:?}"
         ),
     };
-    Ok(meetings
-        .into_iter()
-        .map(|m| {
-            let (t, sideless) = match m.on_edge {
-                OnSpan::Inside { t } => (t, false),
-                OnSpan::End(geom_brep::curve_pair::SpanEnd::Start) => (edge.t0, true),
-                OnSpan::End(geom_brep::curve_pair::SpanEnd::Stop) => (edge.t1, true),
-            };
-            (m.point, t, sideless)
-        })
-        .collect())
+    let mut out = Vec::with_capacity(meetings.len());
+    for m in meetings {
+        // A root the section could not tell from its plane's other curve
+        // (an axis point) is no meeting past the leg's own end, and grazes
+        // anywhere else.
+        if !m.sided {
+            if off_leg(m.point) {
+                continue;
+            }
+            return Err(RayFault::Graze);
+        }
+        let (t, sideless) = match m.on_edge {
+            OnSpan::Inside { t } => (t, false),
+            OnSpan::End(geom_brep::curve_pair::SpanEnd::Start) => (edge.t0, true),
+            OnSpan::End(geom_brep::curve_pair::SpanEnd::Stop) => (edge.t1, true),
+        };
+        out.push((m.point, t, sideless));
+    }
+    Ok(out)
 }
 
 /// **Where a spline edge meets a leg**, which the co-surface arm reads
@@ -1140,12 +1158,14 @@ impl<T: Decide> Course<T> for Round<T> {
         Ok(Some(self.arc(y)))
     }
 
-    /// Read without a decision: a circle has no behind. An unbounded leg
-    /// runs along an edge on its circle wherever the edge lies; a bounded
-    /// one (a first leg, a sheet's meridian) decides the place against its
-    /// end, and an edge's end at its start reads `0`, so grazes, or a
-    /// whole turn, past the end, either of which is true of an edge
-    /// that ends there.
+    /// Read without a decision: a circle has no behind, so every point of
+    /// it is ahead of the start. A leg round its whole circle runs along an
+    /// edge on it wherever the edge lies. A bounded leg (a first leg to its
+    /// corner, a sheet's meridian to its apex) decides each end of such an
+    /// edge against its own end ([`Leg::short_of_end`]). An edge's end at
+    /// the leg's start reads `0`, short of the end, so the leg grazes, or
+    /// a whole turn, past it; both are true of an edge that ends at the
+    /// start.
     fn reach(&self, y: Point3<T>, _: &'static str, _: Band) -> Result<Option<T>, Fault> {
         Ok(Some(self.arc(y)))
     }
