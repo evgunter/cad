@@ -1,0 +1,43 @@
+---
+id: a-horns-cusp-is-a-zero-angle-apex-no-certificate-parts
+kind: issue
+title: A horn's cusp is a zero-angle apex its sheet faces meet at tangent to the axis: the engine refuses every pair holding it, structurally
+status: open
+opened: 2026-11-25
+priority: P2
+cost: H
+refs: [a-spindle-sheet-or-an-approximated-face-has-no-window-in-the-injectivity-engine, the-second-order-arm-certifies-a-declared-wedge-0-edge]
+---
+
+
+## Finding
+
+Found by lane `embedwalk-spindle` (2026-11-25), giving a spindle sheet
+its window and by-kind discharge in the injectivity engine.
+
+A spindle sheet's apex is a conical point of half-angle
+`atan(√(r² − R²)/|R|)` (`geom::Surface::Spindle`'s docs), zero on the
+horn (`R = r`), whose two apexes are its one cusp. Two sheet faces
+meeting there (the needle tip's two π-bands) meet tangent to the axis,
+so no first-order separator parts a cell pair at the cusp at any depth:
+read as a collapsed side, the pair spent the whole budget
+(`Budget { stop: Pairs { max_cell_pairs: 65536 } }`, 60 s an ask at the
+test profile). `topo::injective`'s `singular_ends` therefore reads a
+vertex at both of a sheet's apexes (the cusp, or two apexes within the
+band of each other) as no one end of the face's `v`, and the cell
+holding it refuses `Structural`: `Uncertified { arm: Departure }` at the
+shared meridian, in a few cells.
+
+Asks it refuses at the gate (2026-11-25): the needle tip
+(`sweep::all the_football_revolves::a_horn_reached_at_its_cusp_from_one_side_is_a_needle_tip`,
+two), the lower needle (`the_wide_apples_and_the_lower_needle_mesh_and_measure`,
+three), a bullet's band closed by a rim
+(`a_sheet_faces_boundary_encodes_its_side_where_a_rim_closes_it`, one),
+and a horn's cusp revolved part way (`a_horns_cusp_revolved_part_way_is_its_lune`,
+two). The part-way cusp's caps meet its sheet at wedge 0 as well
+(`arm: SecondOrder`, four asks).
+
+What would read it: a certificate of second order at a point, the
+sheets' contact at the cusp being the meridian circle's tangency to the
+axis; the edge's analogue is `the-second-order-arm-certifies-a-declared-wedge-0-edge`.
+Pinned refused, never embedded: `sweep::all self_intersection_proves_injectivity::bodies_on_a_spindle_sheet_hold_by_kind_at_both_scalars`.
