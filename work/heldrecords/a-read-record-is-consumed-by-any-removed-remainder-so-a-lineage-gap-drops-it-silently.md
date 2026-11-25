@@ -80,26 +80,23 @@ moved). Each was consumed on main through "any removal":
   `a_notch_that_removes_a_recorded_overlap_consumes_it`, and the cone
   apex, ruling, slit-tip and arc-tangent booleans (their reduction
   rows on removed fragments, read in the joint body).
-- **Valid bodies now refusing: a reduction row on the section between
-  a kept piece and a removed fragment** (`CarryRefused { Found, Stale }`).
-  Twelve edge-in-face rows: the face is cut along the edge, and in the
-  result the edge bounds a kept piece (that pair is structure) and
-  reads apart from the others; the removed fragment holds the edge on
-  its boundary, not its interior. Two vertex-in-face rows: the vertex
-  lies on the section at a kept piece's boundary, a touch another row
-  records (vertex–vertex). The section's edges and vertices are in the
-  face's interior but the division names them neither minted nor
-  removed (`Incidence::chords` takes only edges every real face of
-  which is a fragment; a section edge's other side is a null face).
-  Tests: `band_co_requested_boundary` (2), `band_planar_cut_off_meters`,
-  `join1_mechanisms::the_incidence_check_reads_the_whole_site`,
-  `join_whole_orbit_cylinder`, `wedge_through_a_full_turn_collar`,
-  `boolean::holdings_rows::a_face_parted_after_a_substitution_holds_the_tile_only_where_it_lies`,
+- **A reduction row on the section between a kept piece and a removed
+  fragment: refused at first, then named.** Fourteen booleans
+  (`band_co_requested_boundary` (2), `band_planar_cut_off_meters`,
+  `join1_mechanisms`, `join_whole_orbit_cylinder`,
+  `wedge_through_a_full_turn_collar`, `boolean::holdings_rows`,
   `a_figure_eight_hole_cut_through_its_pinch`,
   `a_ring_crossed_at_its_vertices_is_divided_or_refused`,
-  `union_flush_onto_edge_contact` (4), and the vertex rows
-  `records_cite_their_decision::a_decision_at_copies_an_operand_already_held_is_a_row`,
-  `vertex_on_edge_records::a_split_at_the_other_edges_end_records_a_vertex_vertex_pair`.
-  Held for a ruling: the ratified clause consumes only on removed
-  cells, and these touches are on neither a kept piece nor a removed
-  member's interior.
+  `union_flush_onto_edge_contact` (4), `records_cite_their_decision`,
+  `vertex_on_edge_records`) refused `CarryRefused { Found, Stale }`.
+  The cut moved the touch onto the section, which the division did
+  not name (`Incidence::chords` took only edges between two
+  fragments; a section edge's other side is a null face). Ruled by the
+  orchestrator, reading the ratified clause: the section is cells the
+  op minted between the pieces, so the division names them, and
+  structure on a minted cell consumes a glued record (structural
+  sharing needs no record). All fourteen build again: each edge row
+  consumes through structure on the named section edge, and each
+  vertex row through the section vertex. Section vertices are named
+  only for reduction rows
+  (`a-carried-records-section-vertices-are-not-named-in-the-booleans-division`).
