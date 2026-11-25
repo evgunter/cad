@@ -1933,4 +1933,62 @@ mod tests {
             }
         }
     }
+
+    /// **A crossing beside a spline arc's end is landed or set aside,
+    /// never lost.** The arc of the circle at polar angle 1 over the
+    /// azimuths `(0.3, 2.5)`, carried on its exact rational quadratic, and
+    /// the great circles from the north pole toward azimuths `d` metres
+    /// along the arc from either end, `d` from inside the band's zero to
+    /// `10⁻⁴` and finely about its escalation: the reading lands within the band of the crossing (at the
+    /// end itself where the end lies on the leg's plane), or sets the path
+    /// aside. No reading answers that the leg misses the arc.
+    #[test]
+    #[ignore = "red until PR 7755's fix of spline_landings' deferred end lands; run with `cargo test -p topo --lib -- --ignored a_crossing_beside_a_spline_end_is_never_lost`"]
+    fn a_crossing_beside_a_spline_end_is_never_lost() {
+        let b = Band::new(1e-9, 1e-8).unwrap();
+        let (polar, azimuths) = (1.0f64, (0.3, 2.5));
+        let rim = RegionEdge {
+            edge: EdgeKey::from(KeyData::from_ffi(1)),
+            r#loop: LoopKey::default(),
+            cycle: 0,
+            carrier: geom::Curve3::circle(
+                Point3::new(0.0, 0.0, polar.cos()),
+                Vec3::new(0.0, 0.0, 1.0),
+                polar.sin(),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
+            t0: azimuths.0,
+            t1: azimuths.1,
+            turn: None,
+            forward: true,
+        };
+        let arc = crate::region::fixture_spline_of_arc(&rim);
+        let region = SphereFaceRegion::on(
+            fixture_sphere(Point3::origin(), 1.0),
+            true,
+            vec![arc.clone()],
+            Some(crate::props::certified_spline_face_crossings::<f64>),
+        );
+        let pole = Point3::new(0.0, 0.0, 1.0);
+        let mut lost: Vec<String> = Vec::new();
+        let ds = (-10..-3)
+            .flat_map(|k| [1.0, 2.0, 5.0].map(|m| m * 10f64.powi(k)))
+            .chain([0.6, 0.8, 0.9, 1.1, 1.2, 1.5].map(|m| m * 1e-8));
+        for d in ds {
+            let step = d / polar.sin();
+            for (end, az) in [("start", azimuths.0 + step), ("end", azimuths.1 - step)] {
+                let toward = Vec3::new(az.cos(), az.sin(), 0.0);
+                let foot = QueryFoot::read(Legs::charted(&region).surface(), pole, b);
+                let leg = region.ray(foot, toward);
+                if let Ok(got) = region::landings(&region, &arc, &leg, b)
+                    && !got
+                        .iter()
+                        .any(|l| (l.0 - at(polar, az)).norm() <= b.escalate())
+                {
+                    lost.push(format!("{d:e} from the {end}: landings {got:?}"));
+                }
+            }
+        }
+        assert!(lost.is_empty(), "crossings lost: {lost:#?}");
+    }
 }

@@ -1269,40 +1269,6 @@ mod tests {
         queries
     }
 
-    /// `edge`, a circle arc, carried on the rational quadratic that is
-    /// exactly that arc: one segment per quarter turn or less, run the
-    /// arc's way over `[0, 1]`.
-    fn on_a_spline(edge: &Edge<f64>) -> Edge<f64> {
-        let Some(frame) = edge.carrier.frame() else {
-            unreachable!("the patch's edges are circles")
-        };
-        let centre = frame.origin();
-        let sweep = edge.t1 - edge.t0;
-        let segments = (sweep / FRAC_PI_2).ceil().max(1.0);
-        let half = sweep / segments / 2.0;
-        let (mut control, mut weights) = (vec![edge.at(edge.t0)], vec![1.0]);
-        let mut knots = vec![0.0; 3];
-        for k in 0..segments as usize {
-            let k = k as f64;
-            let middle = edge.at(edge.t0 + (2.0 * k + 1.0) * half);
-            control.push(centre + (middle - centre) / half.cos());
-            weights.push(half.cos());
-            control.push(edge.at(edge.t0 + (2.0 * k + 2.0) * half));
-            weights.push(1.0);
-            knots.extend([(k + 1.0) / segments; 2]);
-        }
-        knots.push(1.0);
-        let knots = geom_core::spline::KnotVector::clamped(knots, 2).unwrap();
-        let spline = geom::NurbsCurve3::new(knots, control, weights).unwrap();
-        RegionEdge {
-            carrier: geom::Curve3::Nurbs(std::sync::Arc::new(spline)),
-            t0: 0.0,
-            t1: 1.0,
-            turn: None,
-            ..edge.clone()
-        }
-    }
-
     /// **A patch bounded by spline edges reads its side**: the patch of
     /// [`patch_on_frames`] (two parallels, two meridians) with each edge
     /// carried on the exact rational quadratic of its arc, read through
@@ -1319,7 +1285,11 @@ mod tests {
         let b = Band::new(1e-9, 1e-8).unwrap();
         let (us, vs) = PATCH;
         let circles = patch_on_frames().swap_remove(0);
-        let edges = circles.edges.iter().map(on_a_spline).collect();
+        let edges = circles
+            .edges
+            .iter()
+            .map(crate::region::fixture_spline_of_arc)
+            .collect();
         let torus = circles.charted.surface().clone();
         let splines = TorusFaceRegion::on(
             Charted::record(Default::default(), &torus),
@@ -1391,7 +1361,10 @@ mod tests {
         TorusFaceRegion::on(
             Charted::record(Default::default(), &torus),
             true,
-            circles.iter().map(on_a_spline).collect(),
+            circles
+                .iter()
+                .map(crate::region::fixture_spline_of_arc)
+                .collect(),
             Some(crate::props::certified_spline_face_crossings::<f64>),
         )
     }
@@ -1468,7 +1441,7 @@ mod tests {
         let phi1 = 0.7;
         let (c0, n0, e0) = villarceau_frame();
         let circle = |phi: f64, start: f64, forward: bool, key: u64| {
-            on_a_spline(&RegionEdge {
+            crate::region::fixture_spline_of_arc(&RegionEdge {
                 edge: EdgeKey::from(KeyData::from_ffi(key)),
                 r#loop: LoopKey::default(),
                 cycle: 0,
@@ -1518,5 +1491,69 @@ mod tests {
             asked >= 20 && 2 * definite > asked,
             "{definite} of {asked} answered definitely"
         );
+    }
+
+    /// **A crossing beside a spline edge's end is landed or set aside,
+    /// never lost.** Meridian legs, either way round, cross spline
+    /// parallel arcs (`u ∈ (0.4, 2.9)` at three tube angles), and parallel
+    /// legs cross a spline meridian arc (`u = 1`, `v ∈ (−0.5, 0.8)`), `d`
+    /// metres along the edge from either end, `d` from inside the band's
+    /// zero to `10⁻⁴` and finely about its escalation: each reading lands
+    /// within the band of the crossing (at the end itself where the end
+    /// lies on the leg's plane) or sets the path aside. None answers that
+    /// the leg misses the edge.
+    #[test]
+    #[ignore = "red until PR 7755's fix of spline_landings' deferred end lands; run with `cargo test -p topo --lib -- --ignored a_crossing_beside_a_spline_end_is_never_lost`"]
+    fn a_crossing_beside_a_spline_end_is_never_lost() {
+        let b = Band::new(1e-9, 1e-8).unwrap();
+        let reading = |edge: Edge<f64>| TorusFaceRegion {
+            splines: Some(crate::props::certified_spline_face_crossings::<f64>),
+            ..holding(edge)
+        };
+        let ds: Vec<f64> = (-10..-3)
+            .flat_map(|k| [1.0, 2.0, 5.0].map(|m| m * 10f64.powi(k)))
+            .chain([0.6, 0.8, 0.9, 1.1, 1.2, 1.5].map(|m| m * 1e-8))
+            .collect();
+        let mut lost: Vec<String> = Vec::new();
+        let mut keep =
+            |what: String, got: Result<Vec<region::Landing<f64>>, Fault>, want: Point3<f64>| {
+                if let Ok(got) = got
+                    && !got.iter().any(|l| (l.0 - want).norm() <= b.escalate())
+                {
+                    lost.push(format!("{what}: landings {got:?}"));
+                }
+            };
+        let us = (0.4, 2.9);
+        for vp in [-0.5, 0.8, 2.0] {
+            let edge = crate::region::fixture_spline_of_arc(&parallel_arc(vp, us, true, 1));
+            let region = reading(edge.clone());
+            let rho = R + MINOR * vp.cos();
+            for &d in &ds {
+                for (end, u) in [("start", us.0 + d / rho), ("end", us.1 - d / rho)] {
+                    for forward in [true, false] {
+                        let leg = region.meridian(foot(&region, at(u, vp + 1.0)), forward);
+                        let got = region::landings(&region, &edge, &leg, b);
+                        keep(
+                            format!("parallel {vp}, {d:e} from its {end}"),
+                            got,
+                            at(u, vp),
+                        );
+                    }
+                }
+            }
+        }
+        let vs = (-0.5, 0.8);
+        let edge = crate::region::fixture_spline_of_arc(&meridian_arc(1.0, vs));
+        let region = reading(edge.clone());
+        for &d in &ds {
+            for (end, v) in [("start", vs.0 + d / MINOR), ("end", vs.1 - d / MINOR)] {
+                for forward in [true, false] {
+                    let leg = region.parallel(foot(&region, at(0.2, v)), forward);
+                    let got = region::landings(&region, &edge, &leg, b);
+                    keep(format!("meridian, {d:e} from its {end}"), got, at(1.0, v));
+                }
+            }
+        }
+        assert!(lost.is_empty(), "crossings lost: {lost:#?}");
     }
 }
