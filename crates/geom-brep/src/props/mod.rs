@@ -302,7 +302,7 @@ pub struct FaceContribution<T: Real> {
 )]
 pub enum PropsError {
     /// A carrier or surface this closed-form inventory has no arm for
-    /// and never will in this lane: the `Nurbs` placeholder, and a
+    /// and never will in this lane: a
     /// `Curve3::Spiric` boundary edge on a plane (the oval's area is an
     /// elliptic integral) or on a cylinder, cone or sphere (a spiric
     /// lies on none). A spiric-bounded face is measured by the

@@ -45,7 +45,7 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 /// normal.
 fn cap_at(body: &Body<f64>, z: f64) -> (FaceKey, Vec3<f64>) {
     body.faces()
-        .find_map(|(k, _)| match body.face_surface(k)? {
+        .find_map(|(k, _)| match body.face_surface(k).ok()? {
             Surface::Plane { frame, .. }
                 if frame.axis().x == 0.0 && frame.axis().y == 0.0 && frame.origin().z == z =>
             {
@@ -376,7 +376,7 @@ fn a_near_full_arc_is_on_and_off_at_the_bands_own_width() {
 /// are ellipses — with its unit normal and its elliptic edges.
 fn section(body: &Body<f64>) -> ((FaceKey, Vec3<f64>), Vec<topo::EdgeKey>) {
     for (k, f) in body.faces() {
-        let Some(&Surface::Plane { frame, .. }) = body.face_surface(k) else {
+        let Ok(&Surface::Plane { frame, .. }) = body.face_surface(k) else {
             continue;
         };
         let normal = frame.axis();
@@ -716,7 +716,7 @@ fn an_in_band_ball_clearance_skips_the_ray() {
     let (_, cavity) = crate::common::torus_walls::vessel_cavity(1.0 / 128.0);
     let mut asked = 0;
     for (fk, f) in cavity.faces() {
-        let Some(&Surface::Plane { frame, .. }) = cavity.face_surface(fk) else {
+        let Ok(&Surface::Plane { frame, .. }) = cavity.face_surface(fk) else {
             continue;
         };
         let normal = frame.axis();

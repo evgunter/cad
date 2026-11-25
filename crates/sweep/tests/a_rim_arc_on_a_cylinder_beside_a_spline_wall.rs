@@ -153,7 +153,7 @@ fn the_tube_walls_sub_arc_joints_are_smooth_edges() {
     let walls: Vec<_> = t
         .faces()
         .filter_map(|(k, _)| match t.face_surface(k) {
-            Some(geom::Surface::Nurbs(s)) => Some(s.clone()),
+            Ok(geom::Surface::Nurbs(s)) => Some(s.clone()),
             _ => None,
         })
         .collect();

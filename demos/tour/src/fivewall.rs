@@ -169,13 +169,13 @@ fn kinds(body: &Body<f64>) -> BTreeMap<&'static str, usize> {
     let mut out = BTreeMap::new();
     for (fk, _) in body.faces() {
         let name = match body.face_surface(fk) {
-            Some(Surface::Plane { .. }) => "Plane",
-            Some(Surface::Cylinder { .. }) => "Cylinder",
-            Some(Surface::Cone { .. }) => "Cone",
-            Some(Surface::Sphere { .. }) => "Sphere",
-            Some(Surface::Torus { .. }) => "Torus",
-            Some(_) => "other",
-            None => panic!("a face's surface key does not resolve"),
+            Ok(Surface::Plane { .. }) => "Plane",
+            Ok(Surface::Cylinder { .. }) => "Cylinder",
+            Ok(Surface::Cone { .. }) => "Cone",
+            Ok(Surface::Sphere { .. }) => "Sphere",
+            Ok(Surface::Torus { .. }) => "Torus",
+            Ok(_) => "other",
+            Err(_) => panic!("a face's surface key does not resolve"),
         };
         *out.entry(name).or_insert(0) += 1;
     }
@@ -187,7 +187,7 @@ fn kinds(body: &Body<f64>) -> BTreeMap<&'static str, usize> {
 fn stored<F: Fn(&Surface<f64>) -> Option<f64>>(body: &Body<f64>, read: F) -> Vec<u64> {
     let mut out: Vec<u64> = body
         .faces()
-        .filter_map(|(fk, _)| body.face_surface(fk).and_then(&read))
+        .filter_map(|(fk, _)| body.face_surface(fk).ok().and_then(&read))
         .map(f64::to_bits)
         .collect();
     out.sort_unstable();
@@ -353,7 +353,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
         .filter(|(fk, _)| {
             matches!(
                 solid.face_surface(*fk),
-                Some(Surface::Plane { frame, .. }) if frame.origin().y == Y_MOUTH
+                Ok(Surface::Plane { frame, .. }) if frame.origin().y == Y_MOUTH
             )
         })
         .map(|(k, _)| k)

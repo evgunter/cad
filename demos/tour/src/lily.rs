@@ -1873,7 +1873,7 @@ fn cone_station_circles<S: Scalar>(
 ) -> Vec<(pncad::topo::FaceKey, Circle)> {
     let mut out = Vec::new();
     for (k, _) in body.faces() {
-        let Some(&pncad::geom::Surface::Cone {
+        let Ok(&pncad::geom::Surface::Cone {
             frame: carrier_frame,
             half_angle,
             ..
@@ -1922,7 +1922,7 @@ struct TorusCarrier {
 /// one silently picks one. That row is the tie.
 fn torus_carrier<S: Scalar>(body: &Body<S>) -> TorusCarrier {
     for (fk, _) in body.faces() {
-        if let Some(&pncad::geom::Surface::Torus {
+        if let Ok(&pncad::geom::Surface::Torus {
             frame,
             major_radius,
             minor_radius,
@@ -2136,7 +2136,7 @@ pub fn seamed_lantern(lantern: Body<f64>, tol: Tol) -> Result<Body<f64>, Boolean
     let (zc, axis) = lantern
         .faces()
         .find_map(|(fk, _)| match lantern.face_surface(fk) {
-            Some(&pncad::topo::Surface::Sphere { frame, .. }) => {
+            Ok(&pncad::topo::Surface::Sphere { frame, .. }) => {
                 let (center, axis) = (frame.origin(), frame.axis());
                 Some((center, axis))
             }
@@ -2310,8 +2310,8 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    scene's own change to make.
     let across = pncad::topo::Reflection::across(p3(0.0, 0.0, 0.0), v3(0.0, 1.0, 0.0), tol)
         .expect("the plant's plane has a normal");
-    let mirrored = pncad::topo::mirror_body(leaf_a, &across, tol)
-        .expect("a leaf mirrors across the plant's plane");
+    let mirrored =
+        pncad::topo::mirror_body(leaf_a, &across).expect("a leaf mirrors across the plant's plane");
     finished("lily_leaf_a mirrored", mirrored, tol);
     println!("   wall 5 — RETIRED: a leaf mirrored across the plant's plane builds at rest");
 
@@ -2327,7 +2327,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    the band: one torus face, coaxial with the flower.
     let bands = lant
         .faces()
-        .filter(|(fk, _)| lant.face_surface(*fk).map(|g| g.kind()) == Some(SurfaceKind::Torus))
+        .filter(|(fk, _)| lant.face_surface(*fk).map(|g| g.kind()) == Ok(SurfaceKind::Torus))
         .count();
     assert_eq!(bands, 1, "the lantern's rolled mouth is one torus band");
     println!(
@@ -2419,15 +2419,10 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    It stops there at 1e-9 and at 1e-6, though at 1e-6 wall 2 stops
     //    the probes before this one.
     //
-    //    Still ahead, unmeasured from here: the join's frame of the
-    //    torus wall against the leaf's lower cap, the cap the tube
-    //    crosses in two chords. That plane is tilted against the torus's
-    //    axis, so it cuts a general spiric quartic whose loops wind round
-    //    the tube, and C5 routes that section to its unbuilt general rung
-    //    (`work/secttorus/c5-plane-torus-cone-cylinder-arms`). At 1e-12
-    //    the lower stem's declared frontier stands the lily walls down
-    //    before this one.
-    wall(
+    //    At 1e-12 the lower stem's declared frontier stands the lily
+    //    walls down before this one.
+    crate::walls::join_wall(
+        "lily",
         8,
         "grow the long leaf out of the stem (its NURBS walls through the \
          lower stem's torus wall)",
@@ -2440,7 +2435,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
             // both.
             let (root, (_, sheath_up, _), _, _) = leaf_a_spine(tol);
             let ridge_side = |f| match leaf_a.face_surface(f) {
-                Some(pncad::topo::Surface::Nurbs(n)) => {
+                Ok(pncad::topo::Surface::Nurbs(n)) => {
                     let lean: f64 = n
                         .control()
                         .iter()
@@ -2457,7 +2452,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
             // The lower stem's tube: the torus on its ring.
             let (lower, _) = lower_stem();
             let lower_tube = |f| match stem.face_surface(f) {
-                Some(pncad::topo::Surface::Torus {
+                Ok(pncad::topo::Surface::Torus {
                     frame,
                     major_radius,
                     ..

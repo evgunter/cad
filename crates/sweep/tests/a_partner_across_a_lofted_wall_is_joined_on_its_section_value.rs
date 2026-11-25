@@ -175,7 +175,7 @@ fn a_brick_across_a_lofted_wall_is_joined_on_its_carried_arcs() {
     let cleared: Vec<_> = report
         .iter()
         .filter(|(fa, _, verdict)| {
-            matches!(prism.face_surface(*fa), Some(geom::Surface::Nurbs(_)))
+            matches!(prism.face_surface(*fa), Ok(geom::Surface::Nurbs(_)))
                 && verdict.starts_with("Ok(")
         })
         .collect();

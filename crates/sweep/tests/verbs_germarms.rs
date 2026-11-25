@@ -454,8 +454,7 @@ fn a_notched_or_ringed_walls_flipped_sense_refuses() {
         let wall = body
             .faces()
             .find(|(fk, f)| {
-                let cylinder =
-                    matches!(body.face_surface(*fk), Some(topo::Surface::Cylinder { .. }));
+                let cylinder = matches!(body.face_surface(*fk), Ok(topo::Surface::Cylinder { .. }));
                 let outer_edges = match body.get_loop(f.outer).map(|l| l.boundary) {
                     Some(topo::LoopBoundary::Cycle { first }) => {
                         body.loop_cycle(first).map_or(0, |c| c.len())

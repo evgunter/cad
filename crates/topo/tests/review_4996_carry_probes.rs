@@ -30,7 +30,7 @@ fn faces_at_x(body: &Body<f64>, x: f64) -> Vec<FaceKey> {
         .filter(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(Surface::Plane { frame, .. })
+                Ok(Surface::Plane { frame, .. })
                     if frame.axis().x.abs() == 1.0 && frame.origin().x == x
             )
         })
@@ -48,8 +48,7 @@ fn point(body: &Body<f64>, c: Cell) -> geom_core::Point3<f64> {
 /// snapshot of the input's geometry; the moved face, its edges and
 /// corners, and the faces and edges around them no longer hold it. The kiss record on a
 /// moved corner goes to the census's confirm, reads apart, and is
-/// consumed, as a record on a divided cell with its remainder removed
-/// is. Red on the carry that read the moved corner as kept: the record
+/// consumed: the corner, kept whole, moved and took the touch. Red on the carry that read the moved corner as kept: the record
 /// then landed unread on two vertices 0.1 apart.
 #[test]
 fn an_offset_moving_a_kissing_corner_off_the_kiss_consumes_the_record() {

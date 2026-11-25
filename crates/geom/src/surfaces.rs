@@ -5,8 +5,7 @@
 //! …), and a closed enum makes every dispatch site exhaustively checked
 //! at compile time. The [`Surface::Nurbs`] variant is the universal
 //! fallback — it carries a validated [`NurbsSurface`] payload (see
-//! [`nurbs`]) and its evaluator arms are real; the "no description yet"
-//! state is [`Surface::nurbs_placeholder`].
+//! [`nurbs`]) and its evaluator arms are real.
 //!
 //! # Surface conventions (normative; the surface half)
 //!
@@ -74,9 +73,7 @@ use crate::frame::Frame;
 
 use crate::azimuth;
 pub use approx::{ApproxSurface, ApproxWindow, OffsetCertificate, SurfaceDescription, SurfaceSpec};
-pub use nurbs::{
-    NetState, NurbsSurface, RunSide, SpanBeside, SurfaceJet, SurfaceJet3, SurfaceWindow,
-};
+pub use nurbs::{NurbsSurface, RunSide, SpanBeside, SurfaceJet, SurfaceJet3, SurfaceWindow};
 pub use projection::{SurfaceProjection, SurfaceProjectionInconclusive};
 
 /// An analytic surface — a **complete locus**. Units, the
@@ -274,10 +271,7 @@ pub enum Surface<T: Real> {
     /// The NURBS fallback (D3: representable from day one; evaluators
     /// implemented at M5 PR 3). The payload is a validated
     /// [`NurbsSurface`] behind an [`Arc`] (immutable, cheap to clone —
-    /// see the enum docs on the `Copy` loss). The "no description yet"
-    /// state the former unit variant carried is
-    /// [`Surface::nurbs_placeholder`] — a poison-valued payload with
-    /// the same all-poison evaluation behavior.
+    /// see the enum docs on the `Copy` loss).
     Nurbs(Arc<NurbsSurface<T>>),
 
     /// An **approximating** surface: a fitted NURBS standing in for a
@@ -293,9 +287,7 @@ pub enum Surface<T: Real> {
     /// trusts the stored certificate.
     ///
     /// The payload is certified by construction ([`ApproxSurface`] has
-    /// no other door), so unlike [`Surface::Nurbs`] there is no
-    /// placeholder state in this variant: an `Approx` surface is always
-    /// described.
+    /// no other door).
     ///
     /// **Its own kind, not `Nurbs`** ([`SurfaceKind::Approx`]), and its
     /// fit as geometry: evaluation, boxes, pcurves and sections read the
@@ -327,7 +319,7 @@ pub enum SurfaceKind {
     Torus,
     /// A [`Surface::Spindle`].
     Spindle,
-    /// A [`Surface::Nurbs`], described or the placeholder.
+    /// A [`Surface::Nurbs`].
     Nurbs,
     /// A [`Surface::Approx`]: its own kind, not [`Self::Nurbs`]. A
     /// kind-indexed table says what it does with one; the intersection
@@ -792,12 +784,6 @@ impl<T: Real> RingTorus<T> {
     }
 }
 
-/// What a refusal of the placeholder chart
-/// ([`Surface::is_placeholder_chart`]) says, wherever it is refused —
-/// one text, so every reader sees the same fact in the same words.
-pub const PLACEHOLDER_SURFACE: &str =
-    "the surface has no description yet: it is only the placeholder a construction starts from";
-
 /// An end of [`Surface::Spindle`]'s datum range `−r < R ≤ r`, `R ≠ 0`
 /// ([`spindle_sheet`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -930,15 +916,6 @@ pub fn sheet_apex<T: Real>(major_radius: T, minor_radius: T) -> SheetApex<T> {
 pub type AnglePeriods<T> = (Option<Period<T>>, Option<Period<T>>);
 
 impl<T: Real> Surface<T> {
-    /// The "no description yet" NURBS state (the former unit
-    /// placeholder variant, as data): a structurally valid payload
-    /// whose control points are all-poison, so evaluation yields the
-    /// all-poison point and every downstream certification fails
-    /// loudly (D4 ¶2) — representable ≠ described.
-    pub fn nurbs_placeholder() -> Self {
-        Surface::Nurbs(Arc::new(NurbsSurface::placeholder()))
-    }
-
     /// The **spline chart** a surface evaluates through, when it has
     /// one: the payload for [`Surface::Nurbs`], the fit for
     /// [`Surface::Approx`], `None` for the analytic kinds.
@@ -992,18 +969,6 @@ impl<T: Real> Surface<T> {
         }
     }
 
-    /// Is this surface's chart the placeholder — the
-    /// [`NurbsSurface::placeholder`] payload a construction starts from,
-    /// or an approximating surface whose fit is one? Such a chart has no
-    /// locus (its net is all-poison), so nothing can be imaged on it or
-    /// metred through it. The ONE spelling of the question: every door
-    /// that refuses the placeholder asks here, so `Nurbs` and `Approx`
-    /// cannot drift apart. The refusal text is [`PLACEHOLDER_SURFACE`].
-    pub fn is_placeholder_chart(&self) -> bool {
-        self.spline_chart()
-            .is_some_and(NurbsSurface::is_placeholder)
-    }
-
     /// **The representability margins of this surface's datum
     /// conventions** — each quantity a variant's docs require to be
     /// strictly positive for its stored datum to describe the surface
@@ -1028,7 +993,7 @@ impl<T: Real> Surface<T> {
     ///   charged where it is levered (`Frame::rounding`);
     /// - `Plane`, `Nurbs`, `Approx`: no scalar margin — a plane stores
     ///   no scalar datum, and a spline's datum is its net
-    ///   ([`NurbsSurface::net_state`]).
+    ///   ([`NurbsSurface::is_finite`]).
     ///
     /// **This is the one place in code these bounds are computed for
     /// the at-rest check**, and it is not the only place they are
@@ -1552,8 +1517,7 @@ impl<T: SpanLocate> Surface<T> {
     /// Cone: `tangential(u)·(v·sin α)` — **zero at the apex** (`v = 0`,
     /// the chart singularity). Sphere: `tangential(u)·(radius·cos v)` —
     /// **zero at the poles**. Torus:
-    /// `tangential(u)·(R + r·cos v)`. Nurbs: the payload jet's `du`
-    /// (all-poison for the placeholder state).
+    /// `tangential(u)·(R + r·cos v)`. Nurbs: the payload jet's `du`.
     ///
     /// [`Surface::jet`]'s `du`, projected — the enum evaluates its jet
     /// once, and a caller wanting a second partial at the same `(u, v)`
@@ -1569,7 +1533,7 @@ impl<T: SpanLocate> Surface<T> {
     /// generator direction (slant parameterization). Sphere:
     /// `(radial(u)·(−sin v) + axis·cos v)·radius` — the meridian
     /// tangent. Torus: `(radial(u)·(−sin v) + axis·cos v)·r`. Nurbs:
-    /// the payload jet's `dv` (all-poison for the placeholder state).
+    /// the payload jet's `dv`.
     ///
     /// [`Surface::jet`]'s `dv`, projected (see [`Surface::deriv_u`]).
     pub fn deriv_v(&self, u: T, v: T) -> Vec3<T> {
@@ -1596,7 +1560,7 @@ impl<T: SpanLocate> Surface<T> {
     /// Plane: zero. Cylinder: `radial(u)·(−radius)`. Cone:
     /// `radial(u)·(−(v·sin α))`. Sphere: `radial(u)·(−(radius·cos v))`.
     /// Torus: `radial(u)·(−(R + r·cos v))`. Nurbs: the payload jet's
-    /// `duu` (all-poison for the placeholder state). (Each is the
+    /// `duu`. (Each is the
     /// azimuthal-rotation second derivative: `radial″ = −radial`.)
     ///
     /// [`Surface::jet`]'s `duu`, projected (see [`Surface::deriv_u`]).
@@ -1609,8 +1573,7 @@ impl<T: SpanLocate> Surface<T> {
     ///
     /// Plane, cylinder: zero. Cone: `tangential(u)·sin α`. Sphere:
     /// `tangential(u)·(−(radius·sin v))`. Torus:
-    /// `tangential(u)·(−(r·sin v))`. Nurbs: the payload jet's `duv`
-    /// (all-poison for the placeholder state).
+    /// `tangential(u)·(−(r·sin v))`. Nurbs: the payload jet's `duv`.
     ///
     /// [`Surface::jet`]'s `duv`, projected (see [`Surface::deriv_u`]).
     pub fn deriv_uv(&self, u: T, v: T) -> Vec3<T> {
@@ -1622,8 +1585,7 @@ impl<T: SpanLocate> Surface<T> {
     /// Plane, cylinder, cone: zero (rulings/generators are straight).
     /// Sphere: `(radial(u)·cos v + axis·sin v)·(−radius)` — the inward
     /// radial. Torus: `(radial(u)·cos v + axis·sin v)·(−r)` — into the
-    /// tube. Nurbs: the payload jet's `dvv` (all-poison for the
-    /// placeholder state).
+    /// tube. Nurbs: the payload jet's `dvv`.
     ///
     /// [`Surface::jet`]'s `dvv`, projected (see [`Surface::deriv_u`]).
     pub fn deriv_vv(&self, u: T, v: T) -> Vec3<T> {
@@ -2091,7 +2053,7 @@ mod tests {
         ))
     }
 
-    /// A described NURBS lifts as its PAYLOAD, never as the placeholder:
+    /// A NURBS lifts as its PAYLOAD:
     /// the lifted surface's value channel is the source's evaluation bit
     /// for bit, and its `u`-tangent channel is the source's closed-form
     /// `∂u` to rounding.
@@ -2122,8 +2084,8 @@ mod tests {
             }
         }
         assert!(
-            matches!(&sd, Surface::Nurbs(n) if !n.is_placeholder()),
-            "a described NURBS lifted to the placeholder"
+            matches!(&sd, Surface::Nurbs(_)),
+            "a NURBS lifts as its payload"
         );
     }
 
@@ -2224,8 +2186,8 @@ mod tests {
     /// every weight — and the lifted surface evaluates to the source at
     /// every `(u, v)` drawn from knot values, span boundaries and span
     /// midpoints in both directions. A lift that perturbs an interior
-    /// knot or a weight is red here and nowhere in the
-    /// placeholder-vs-payload rows above.
+    /// knot or a weight is red here and nowhere in the payload rows
+    /// above.
     #[test]
     fn knotted_nurbs_lift_carries_structure_verbatim_at_dual() {
         let s = knotted_sheet();
@@ -2274,40 +2236,6 @@ mod tests {
                     );
                 }
             }
-        }
-    }
-
-    /// The placeholder lifts to the placeholder: a structural map keeps
-    /// poison, so `is_placeholder` survives the lift at both scalars.
-    #[test]
-    fn placeholder_lifts_to_the_placeholder() {
-        let n: Surface<f64> = Surface::nurbs_placeholder();
-        let nd: Surface<Dual64> = n.map_scalar(Dual::constant);
-        assert!(matches!(&nd, Surface::Nurbs(p) if p.is_placeholder()));
-        let p = nd.eval(Dual::constant(0.5), Dual::constant(0.5));
-        assert!(p.x.value.is_nan() && p.y.value.is_nan() && p.z.value.is_nan());
-    }
-
-    /// The placeholder's own doc promises an ALL-poison answer, so
-    /// every channel is read: a first-channel assertion here passes on
-    /// an answer poisoned in `x` and finite in `y`/`z`, which is
-    /// exactly the state the placeholder has to be distinguishable
-    /// from.
-    #[test]
-    fn nurbs_placeholder_evaluates_to_poison() {
-        let n: Surface<f64> = Surface::nurbs_placeholder();
-        let all_poison = |x: f64, y: f64, z: f64| x.is_nan() && y.is_nan() && z.is_nan();
-        let p = n.eval(0.5, 0.5);
-        assert!(all_poison(p.x, p.y, p.z));
-        for v in [
-            n.deriv_u(0.5, 0.5),
-            n.deriv_v(0.5, 0.5),
-            n.normal(0.5, 0.5),
-            n.deriv_uu(0.5, 0.5),
-            n.deriv_uv(0.5, 0.5),
-            n.deriv_vv(0.5, 0.5),
-        ] {
-            assert!(all_poison(v.x, v.y, v.z));
         }
     }
 
@@ -2469,8 +2397,8 @@ mod tests {
                 }
             }
             assert!(
-                matches!(&si, Surface::Nurbs(n) if !n.is_placeholder()),
-                "a described NURBS lifted to the placeholder"
+                matches!(&si, Surface::Nurbs(_)),
+                "a NURBS lifts as its payload"
             );
         }
 
@@ -2528,18 +2456,12 @@ mod tests {
             }
         }
 
-        /// NaI in → NaI out, and the Nurbs placeholder poisons at
-        /// interval type.
+        /// NaI in → NaI out.
         #[test]
         fn poison_propagates_at_interval() {
             let si = all_surfaces()[1].1.map_scalar(Interval::from_f64);
             let p = si.eval(Interval::from_f64(f64::NAN), Interval::zero());
             assert!(p.x.is_poison() && p.y.is_poison() && p.z.is_poison());
-            let n: Surface<Interval> = Surface::nurbs_placeholder();
-            // All-poison, not first-channel-poison: the placeholder's
-            // promise is the whole point.
-            let q = n.eval(Interval::zero(), Interval::zero());
-            assert!(q.x.is_poison() && q.y.is_poison() && q.z.is_poison());
         }
     }
 

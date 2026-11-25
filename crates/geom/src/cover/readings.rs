@@ -28,9 +28,10 @@ impl<T: Real> Surface<T> {
     /// # Errors
     ///
     /// [`Uncovered`] naming the kind: [`Unknown::Unbounded`] for a plane,
-    /// a cylinder or a cone, [`Unknown::PoisonedNet`] for a net carrying
-    /// poison anywhere (the placeholder among them), and
-    /// [`Unknown::NonFinite`] for data that is not a finite number.
+    /// a cylinder or a cone, [`Unknown::PoisonedNet`] for a net that is
+    /// not finite (NaN or `±∞` alike: a spline never reads
+    /// `NonFinite`), and [`Unknown::NonFinite`] for an analytic datum
+    /// that is not a finite number.
     pub fn cover(&self) -> Covered<T> {
         let entity = Entity::Surface(self.kind());
         let refuse = |what| Uncovered::new(entity, what);
@@ -294,9 +295,8 @@ fn piece_nets<T: SpanLocate>(
 /// window's net's standoff.
 pub const SPLINE_PIECES: u32 = 4;
 
-/// A control net's hull, where it bounds a region: no point carries
-/// poison in any channel (`net::any_poison`, the question a box asks)
-/// and every coordinate is finite.
+/// A control net's hull, where it bounds a region: every coordinate is
+/// a finite number (`net::is_finite`, the question a box asks).
 ///
 /// # Panics
 ///
@@ -308,7 +308,7 @@ fn net<T: Real>(entity: Entity, control: &[Point3<T>]) -> Covered<T> {
         !control.is_empty(),
         "a spline carrier's net has a point: its knots name p + 1 control points"
     );
-    if crate::net::any_poison(control) {
+    if !crate::net::is_finite(control) {
         return Err(Uncovered::new(entity, Unknown::PoisonedNet));
     }
     Cover::net(control.to_vec()).ok_or_else(|| Uncovered::new(entity, Unknown::NonFinite))
