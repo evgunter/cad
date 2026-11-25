@@ -451,12 +451,26 @@ fn negative_control_double_composed_face_is_incoherent() {
 #[test]
 fn negative_control_one_inverted_curved_face_is_incoherent() {
     let text = fixture("cone");
-    // The cone's conical band is the face whose EDGE_LOOP comes first.
-    let loop_line = text
-        .lines()
-        .find(|l| l.contains("= EDGE_LOOP("))
-        .expect("the band's edge loop");
-    let oriented: Vec<u64> = refs(loop_line.split_once(" = ").expect("record").1);
+    // The band is the one face whose surface is the CONICAL_SURFACE: its
+    // bound's EDGE_LOOP lists the oriented edges to flip.
+    let records = parse(&text);
+    let mut bands = records.values().filter(|r| {
+        r.keyword == "ADVANCED_FACE"
+            && refs(&r.args)
+                .last()
+                .is_some_and(|s| records[s].keyword == "CONICAL_SURFACE")
+    });
+    let band = bands.next().expect("the cone's conical band");
+    assert!(bands.next().is_none(), "the cone has one conical band");
+    let [bound, _surface] = refs(&band.args)[..] else {
+        panic!("the band has one bound and its surface: {}", band.args)
+    };
+    let edge_loop = &records[&refs(&records[&bound].args)[0]];
+    assert_eq!(
+        edge_loop.keyword, "EDGE_LOOP",
+        "the band's bound is an edge loop"
+    );
+    let oriented: Vec<u64> = refs(&edge_loop.args);
     let flipped: String = text
         .lines()
         .map(|line| {
