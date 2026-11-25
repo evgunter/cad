@@ -1590,7 +1590,7 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
     // The two short leaves: one authored, one its mirror image across
     // the stem.
     let leaf_b: Body<S> = LEAF_B.build(tol);
-    let leaf_c = pncad::topo::mirror_body(&leaf_b, &across_the_stem(tol), tol)
+    let leaf_c = pncad::topo::mirror_body(&leaf_b, &across_the_stem(tol))
         .expect("the short leaf mirrors across the stem");
 
     let mut pieces = vec![
