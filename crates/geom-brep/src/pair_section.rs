@@ -3578,7 +3578,8 @@ impl<T: Decide> CarriedComponent<T> {
         // straight carrier's `κ = 0` is a radius past any reach, where
         // `1 / [0, 0]` (or `1 / [0, k]`) is no enclosure at `Interval`. A
         // refused bound stays refused.
-        let kappa = curvature_hi_over(&self.carrier, (t - w, t + w)); // TEMPORARY: the floor reverted, to read the ruling row red
+        let kappa =
+            curvature_hi_over(&self.carrier, (t - w, t + w)).max(T::from_f64(f64::MIN_POSITIVE));
         let r = off.norm() + arc;
         let (decided, record) = detached(|| {
             // The curvature radius less the site's reach, a length.
