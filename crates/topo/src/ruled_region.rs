@@ -134,9 +134,6 @@ const BOUNDARY: ConicRows = crate::rows::RULED_REGION_CONIC;
 /// A line edge's boundary reading's rows ([`ray_walk::on_segment`]).
 const LINE: SegmentRows = crate::rows::RULED_REGION_LINE;
 
-/// A spline edge's boundary reading's rows ([`spline_edge_hit`]).
-const SPLINE: crate::splitting::pieced_arc::ArcRows = crate::rows::RULED_REGION_SPLINE;
-
 /// The surface a ruled face lies on.
 #[derive(Clone, Copy, Debug)]
 enum Ruled<T: geom_core::Real> {
@@ -575,7 +572,7 @@ impl<T: Decide> Region<T> for RuledFaceRegion<T> {
     /// own carrier, a spline by its contact ([`spline_edge_hit`]).
     fn on_edge(&self, edge: &Edge<T>, p: Point3<T>, band: Band) -> Result<bool, RegionRefusal> {
         if let geom::Curve3::Nurbs(ref spline) = edge.carrier {
-            spline_edge_hit(spline, edge, SPLINE, p, band)
+            spline_edge_hit(spline, edge, crate::rows::RULED_REGION_SPLINE, p, band)
         } else if edge.carrier.is_curved() {
             circle_edge_hit(&edge.carrier, edge.turn.as_ref(), BOUNDARY, p, band)
         } else {
