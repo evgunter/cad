@@ -65,3 +65,9 @@ name, at least as `OverusedSide` did.
   falsified, the state moves and so does the mechanism",
   `crates/mesh/src/curved.rs` header) is the question: a face narrower
   than δ is arguably row 2 (valid but unbuilt), not row 5.
+- 2026-11-25 — the LATHE orchestrator's ruling: the mechanism stays
+  under #884 (no typed refusal); this row is the fix, meshing the thin
+  band. If the root `Cargo.toml`'s `[profile.release] debug-assertions = true`
+  stanza is ever dropped, this case must be revisited under #884's
+  "if that floor is ever falsified" clause, because a release build
+  would then return the open mesh as `Ok`.
