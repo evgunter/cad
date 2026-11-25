@@ -58,6 +58,31 @@ pub struct Meeting<T: Real> {
     pub on_span: OnSpan<T>,
     /// A crossing or a touch.
     pub kind: MeetingKind<T>,
+    /// Where a spline chart's cells hold it: `None` on an analytic
+    /// surface.
+    pub chart: Option<OnChart<T>>,
+}
+
+/// **Where a meeting with a spline chart is held** ([`Meeting::chart`]):
+/// a chart rectangle that holds it and no other meeting, the side the
+/// span passes the chart's orientation at it, and the stretch of the
+/// span that holds it.
+#[derive(Clone, Copy, Debug)]
+pub struct OnChart<T> {
+    /// The rectangle, `[u0, u1, v0, v1]`.
+    pub rect: [f64; 4],
+    /// The sign of the span's direction against `S_u × S_v` there.
+    pub incidence: Sign,
+    /// The span's parameters the rectangle's cell spans along it, which
+    /// hold the meeting's: its parameter on the span is their middle.
+    ///
+    /// That middle is a bracket's, not a root's: at a dual its tangent is
+    /// the bracket's ends', not the crossing's motion with the geometry.
+    /// It may be decided on (ordered, placed against the span's ends, a
+    /// midpoint between two crossings taken as a run's stop, as
+    /// `topo::boolean::trace`'s `ray_crossings_to` does with a closed
+    /// form's); a reader that wants the crossing's tangent solves for it.
+    pub along: (T, T),
 }
 
 /// **The crossing reading's answer** ([`super::cross()`]): the pose, and
@@ -337,7 +362,8 @@ pub fn cross<T: Decide>(
                 }
                 _ => desync(),
             },
-            Door::SplineComposite | Door::SplineFace | Door::Spiric | Door::Sheet => desync(),
+            Door::SplineFace => return line_patch_method(span, surface, pose, band),
+            Door::SplineComposite | Door::Spiric | Door::Sheet => desync(),
         },
     };
     let windows = walked
@@ -355,6 +381,61 @@ pub fn cross<T: Decide>(
         windows.into_iter().chain(placed).collect(),
         band,
     )
+}
+
+/// **The spline face door's line method** ([`super::line_patch`]): the
+/// crossings it holds, placed on the span as every door's roots are, each
+/// with its cell's rectangle and incidence; its unread stretches as
+/// windows.
+fn line_patch_method<T: Decide>(
+    span: &Span<'_, T>,
+    surface: &geom::Surface<T>,
+    pose: Pose<T>,
+    band: Band,
+) -> Result<Crossings<T>, CrossRefusal<T>> {
+    use super::line_patch::{PatchRefusal, read};
+    let door = Door::SplineFace;
+    let whole = |fault| CrossRefusal {
+        found: Vec::new(),
+        windows: vec![Undecided {
+            window: super::ascending(span.params()),
+            why: CrossWhy::Method { door, fault },
+        }],
+    };
+    let (&geom::Curve3::Line(line), Some(chart)) = (span.carrier(), surface.spline_chart()) else {
+        return Err(whole(MeetFault::Desync));
+    };
+    let (found, unread) = match read(&line, span.params(), chart, band) {
+        Ok(found) => (found, Vec::new()),
+        Err(PatchRefusal::Stretches { found, unread }) => (found, unread),
+        Err(PatchRefusal::Whole(fault)) => return Err(whole(fault)),
+    };
+    let two = T::from_f64(2.0);
+    let roots: Vec<T> = found
+        .iter()
+        .map(|c| (c.advance.0 + c.advance.1) / two)
+        .collect();
+    let charts: Vec<OnChart<T>> = found
+        .iter()
+        .map(|c| OnChart {
+            rect: c.rect,
+            incidence: c.incidence,
+            along: c.advance,
+        })
+        .collect();
+    let (meetings, placed) = place(span, &roots, band).read_charted(door, None, &charts);
+    let windows = unread
+        .into_iter()
+        .map(|u| Undecided {
+            window: u.window,
+            why: CrossWhy::Method {
+                door,
+                fault: u.fault,
+            },
+        })
+        .chain(placed)
+        .collect();
+    finish(span, pose, meetings, windows, band)
 }
 
 /// **The answer, or the refusal where any window stands** (W1, W3, W4):
@@ -502,23 +583,33 @@ pub(super) struct Placed<T: Real> {
     pub(super) meetings: Vec<(T, OnSpan<T>)>,
     pub(super) refused: Vec<((T, T), PlaceWhy<T>)>,
     points: Vec<Point3<T>>,
+    /// Each meeting's root, by its index among the roots placed.
+    roots: Vec<usize>,
 }
 
 impl<T: Decide> Placed<T> {
     /// The meetings, each a crossing or the pose's touch with its
     /// parameter, and the windows, each the method's.
     fn read(self, door: Door, touch: Option<Touch<T>>) -> Read<T> {
+        self.read_charted(door, touch, &[])
+    }
+
+    /// [`Self::read`], each meeting held where `charts` (each root's,
+    /// by its index among the roots placed) says a spline chart holds it.
+    fn read_charted(self, door: Door, touch: Option<Touch<T>>, charts: &[OnChart<T>]) -> Read<T> {
         let kind = touch.map_or(MeetingKind::Cross, |t| MeetingKind::Touch { arc: t.arc });
         let meetings = self
             .meetings
             .into_iter()
             .zip(self.points)
-            .map(|((t, on_span), point)| {
+            .zip(self.roots)
+            .map(|(((t, on_span), point), root)| {
                 (
                     Meeting {
                         point,
                         on_span,
                         kind,
+                        chart: charts.get(root).copied(),
                     },
                     t,
                 )
@@ -562,24 +653,24 @@ pub(super) fn place<T: Decide>(span: &Span<'_, T>, roots: &[T], band: Band) -> P
     let mid = geom::mid_param(t0, t1);
     let periodic = carrier.conic().is_some();
     let reach = super::escalation_reach(span, band);
-    let mut inside: Vec<(T, OnSpan<T>, Point3<T>)> = Vec::new();
+    let mut inside: Vec<(T, OnSpan<T>, Point3<T>, usize)> = Vec::new();
     let mut refused = Vec::new();
-    for &root in roots {
+    for (index, &root) in roots.iter().enumerate() {
         let t = if periodic {
             geom_core::period::Period::angle().near(root, mid)
         } else {
             root
         };
         match span.place_param(t, band) {
-            Ok(Place::Inside) => inside.push((t, OnSpan::Inside { t }, carrier.eval(t))),
-            Ok(Place::End(end)) => inside.push((t, OnSpan::End(end), carrier.eval(t))),
+            Ok(Place::Inside) => inside.push((t, OnSpan::Inside { t }, carrier.eval(t), index)),
+            Ok(Place::End(end)) => inside.push((t, OnSpan::End(end), carrier.eval(t), index)),
             Ok(Place::Past) => {}
             Err(diag) => refused.push(((t - reach, t + reach), PlaceWhy::End(diag))),
         }
     }
     // Insertion by decided order: a pair the band cannot part is a
     // window over both.
-    let mut ordered: Vec<(T, OnSpan<T>, Point3<T>)> = Vec::with_capacity(inside.len());
+    let mut ordered: Vec<(T, OnSpan<T>, Point3<T>, usize)> = Vec::with_capacity(inside.len());
     'next: for item in inside {
         let mut at = ordered.len();
         while at > 0 {
@@ -629,9 +720,11 @@ pub(super) fn place<T: Decide>(span: &Span<'_, T>, roots: &[T], band: Band) -> P
         ordered.insert(at, item);
     }
     let points = ordered.iter().map(|m| m.2).collect();
+    let indices = ordered.iter().map(|m| m.3).collect();
     Placed {
-        meetings: ordered.into_iter().map(|(t, on, _)| (t, on)).collect(),
+        meetings: ordered.into_iter().map(|(t, on, _, _)| (t, on)).collect(),
         refused,
         points,
+        roots: indices,
     }
 }

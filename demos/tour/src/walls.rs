@@ -137,13 +137,14 @@ pub const CURVED_JOIN_STOPS: &[JoinStop] = &[
             "a-torus-face-bounded-by-a-projected-spline-image-has-no-chord-bound",
         ],
     },
-    // At ε 1e-6 and 1e-9 the union stops at containment; at 1e-12, in
-    // the join (`teapot::wall3_pinned`).
+    // At ε 1e-6 and 1e-9 the union stops at the result's volume, a
+    // rational spline face in the trimmed lane; at 1e-12, in the join
+    // (`teapot::wall3_pinned`).
     JoinStop {
         scene: "teapot",
         wall: 3,
         rows: &[
-            "point-containments-ray-test-has-no-spline-arm",
+            "a-rational-spline-face-with-a-general-row-has-no-volume-lane",
             "a-curved-partners-arc-is-imaged-at-rest-no-finer-than-the-mints-finest-rung",
         ],
     },
