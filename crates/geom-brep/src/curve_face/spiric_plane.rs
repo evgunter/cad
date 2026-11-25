@@ -712,7 +712,10 @@ mod tests {
         };
         let w = on_span.windows[0].window;
         let at = geom::mid_param(w.0, w.1);
-        let period = curve.period().expect("a spiric oval repeats").length();
+        let Some(period) = curve.period() else {
+            panic!("a spiric oval repeats")
+        };
+        let period = period.length();
         let span = (at, at + period);
         let Err(seam) = cross(&Span::new(&curve, span), &top, band()) else {
             panic!("the graze at the seam refuses")

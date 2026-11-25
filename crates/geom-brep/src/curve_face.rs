@@ -483,9 +483,10 @@ pub(crate) fn on_span<T: Decide>(span: &Span<'_, T>, (lo, hi): (T, T), band: Ban
     // (W2: never understated).
     let first = period.at_or_above(hi, t0) - turn;
     let mut out = Vec::new();
-    for k in 0..=MAX_TURNS_READ {
-        let shift = first - hi + turn * T::from_f64(f64::from(k));
+    let mut shift = first - hi;
+    for _ in 0..=MAX_TURNS_READ {
         let copy = (lo + shift, hi + shift);
+        shift = shift + turn;
         if window_gap_past(copy.0 - t1, speed, band) {
             return out;
         }
