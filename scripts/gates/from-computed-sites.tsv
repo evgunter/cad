@@ -47,7 +47,7 @@ crates/geom-brep/src/pcurve_cache/spline_incidence.rs	1	owed(f64-data-left-lifte
 crates/geom-brep/src/props/curved.rs	1	owed(constants-spelled-through-from-computed)	sphere_region_cover	c	sphere_region_cover: a census threshold (a count and a half), a constant spelled as computed
 crates/geom-brep/src/ssi/certify.rs	1	owed(certificate-bound-fields-hold-limb-bounds-as-t)	certificate	<fn>	certificate: rung.tube lifted into T
 crates/geom-brep/src/ssi/certify.rs	1	owed(certificate-bound-fields-hold-limb-bounds-as-t)	tube_transversality	clearance	tube_transversality: a clearance bound held as T
-crates/geom-brep/src/ssi/certify.rs	1	owed(certificate-bound-fields-hold-limb-bounds-as-t)	hull_limb	hull.sup	hull_limb: a limb bound held as T
+crates/geom-brep/src/ssi/certify.rs	1	owed(certificate-bound-fields-hold-limb-bounds-as-t)	hull_limb	bound	hull_limb: a limb bound held as T, the hull with its knot-rectangle reach
 crates/geom-core/src/dual.rs	1	scalar	from_computed	x	Dual's impl forwards to its base scalar's
 crates/geom-core/src/linalg/rigid_motion.rs	1	owed(lever-arms-read-as-f64-bounds-still-enter-lever-t)	least_turn_minted	reach_f	least_turn_minted: an f64 reach in the room's T arithmetic
 crates/geom-core/src/predicate.rs	1	owed(bounds-re-enter-t-through-from-computed-with-no-row)	apply	<fn>	Allowance::apply: an allowance's f64 bound formed in T for the Sym reading

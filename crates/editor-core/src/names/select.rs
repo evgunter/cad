@@ -141,6 +141,8 @@ seg_tags! {
     LoftSeam,
     LoftSectionEdge,
     LoftSectionVertex,
+    SubArc,
+    SubArcJoint,
     // Revolve
     Band,
     BandRim,
@@ -237,6 +239,8 @@ impl SegTag {
             RoleSeg::LoftSeam(..) => Self::LoftSeam,
             RoleSeg::LoftSectionEdge(..) => Self::LoftSectionEdge,
             RoleSeg::LoftSectionVertex(..) => Self::LoftSectionVertex,
+            RoleSeg::SubArc(..) => Self::SubArc,
+            RoleSeg::SubArcJoint(..) => Self::SubArcJoint,
             RoleSeg::Band(..) => Self::Band,
             RoleSeg::BandRim(..) => Self::BandRim,
             RoleSeg::BandRimPi(..) => Self::BandRimPi,
@@ -293,7 +297,9 @@ impl SegTag {
             | Self::LoftWall
             | Self::LoftSeam
             | Self::LoftSectionEdge
-            | Self::LoftSectionVertex => OpGroup::Extrude,
+            | Self::LoftSectionVertex
+            | Self::SubArc
+            | Self::SubArcJoint => OpGroup::Extrude,
             Self::Band
             | Self::BandRim
             | Self::BandRimPi
@@ -359,6 +365,8 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
         | RoleSeg::LoftSeam(_)
         | RoleSeg::LoftSectionEdge(..)
         | RoleSeg::LoftSectionVertex(..)
+        | RoleSeg::SubArc(_)
+        | RoleSeg::SubArcJoint(_)
         | RoleSeg::Band(_)
         | RoleSeg::BandRim(_)
         | RoleSeg::BandRimPi(_)
