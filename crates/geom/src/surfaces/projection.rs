@@ -311,7 +311,9 @@ impl<T: CertifiedBounds> NurbsSurface<T> {
                 // near as the surface's own evaluation tells.
                 let beside = |a: f64, b: f64| b == a || b == a.next_up() || b == a.next_down();
                 let unresolved = beside(u, un) && beside(v, vn);
-                if coincident && (unresolved || !(mid(stepped) < dist)) {
+                // (A poisoned step is not nearer.)
+                let nearer = mid(stepped) < dist;
+                if coincident && (unresolved || !nearer) {
                     return Ok(SurfaceProjection {
                         u,
                         v,
