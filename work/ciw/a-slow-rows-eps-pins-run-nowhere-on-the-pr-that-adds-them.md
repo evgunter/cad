@@ -67,3 +67,13 @@ A PR that selects no slow row pays 0, and that is the typical PR.
 - Reform at `reform/a-slow-rows-eps-pins-run-nowhere-on-the-pr-that-adds-them.md`:
 run at 1e-6 always, at 1e-12 under a 30 s per-row cap, and name the
 rows the cap skipped.
+
+## Seen again (2026-11-25, SSIARITH, PR 7781)
+
+PR 7781 edits `crates/sweep/tests/verbs_cylcyl_r1_review_probes.rs`'s
+slow row `every_reachable_crossing_pose_refuses_typed_or_answers_correctly`:
+its 1e-12 pin removed, its 1e-6 pin re-pinned on new digits. The gate
+(run 45594701363) ran the row once, in the slow-set step at the default
+ε (75 s). The `eps 1e-6, 1e-12` step's `--profile ci` dropped it, so
+neither changed pin had a hosted reading; the lane ran both locally
+instead. — (SSIARITH orchestrator)
