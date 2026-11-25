@@ -363,7 +363,7 @@ fn the_walls_struts_and_rings_are_one_per_slab() {
             for &w in *walls {
                 let w = w.unwrap();
                 let face = body.get_face(w).unwrap();
-                let Some(Surface::Nurbs(net)) = body.face_surface(w) else {
+                let Ok(Surface::Nurbs(net)) = body.face_surface(w) else {
                     panic!("{what}: wall {w:?} is a spline")
                 };
                 assert_eq!(

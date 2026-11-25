@@ -219,7 +219,7 @@ fn close(what: &str, got: f64, want: f64, slack: f64) {
 fn collapsed_sides(l: &Lofted<f64>) -> usize {
     l.body
         .faces()
-        .filter_map(|(fk, _)| l.body.face_surface(fk))
+        .filter_map(|(fk, _)| l.body.face_surface(fk).ok())
         .map(|s| {
             singular_points(s)
                 .iter()
@@ -519,7 +519,7 @@ fn a_collapsed_side_inside_an_edge_is_refused_at_rest() {
         "the wedge as built"
     );
     let wall = lofted.side_faces[0][0][0][0].unwrap();
-    let Some(geom::Surface::Nurbs(net)) = lofted.body.face_surface(wall).cloned() else {
+    let Ok(geom::Surface::Nurbs(net)) = lofted.body.face_surface(wall).cloned() else {
         panic!("wall 0 is a spline wall")
     };
     let (_, nv) = net.control_counts();

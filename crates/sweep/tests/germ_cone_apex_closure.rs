@@ -70,7 +70,7 @@ fn cone(theta: Option<f64>) -> Body<f64> {
 
 fn cone_faces(body: &Body<f64>) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(geom::Surface::Cone { .. })))
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Ok(geom::Surface::Cone { .. })))
         .map(|(k, _)| k)
         .collect()
 }
@@ -389,7 +389,10 @@ fn a_cone_face_that_wraps_alone_holds_its_slant_window_beside_a_shared_chart() {
     );
     body.set_face_surfaces_describing(vec![chart], &specs, tol)
         .expect("the bands move onto the tip's key with their edges");
-    assert!(body.get_surface(old).is_none(), "nothing wears the old key");
+    assert!(
+        body.get_surface(old).err() == Some(topo::SurfaceMiss::Stale),
+        "nothing wears the old key"
+    );
     let errors = topo::validate_geometric(&body, tol).unwrap_err();
     assert!(
         errors

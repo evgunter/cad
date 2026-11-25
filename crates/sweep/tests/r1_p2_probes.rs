@@ -76,13 +76,13 @@ fn prism(scale: f64) -> Body<f64> {
 }
 
 fn is_flat_wall(body: &Body<f64>, key: topo::SurfaceKey, scale: f64) -> bool {
-    matches!(body.get_surface(key), Some(Surface::Nurbs(n))
-        if !n.is_placeholder() && n.control().iter().all(|p| p.y == -scale))
+    matches!(body.get_surface(key), Ok(Surface::Nurbs(n))
+        if n.control().iter().all(|p| p.y == -scale))
 }
 
 fn is_bowed_wall(body: &Body<f64>, key: topo::SurfaceKey, scale: f64) -> bool {
-    matches!(body.get_surface(key), Some(Surface::Nurbs(n))
-        if !n.is_placeholder() && n.control().iter().any(|p| p.y != -scale)
+    matches!(body.get_surface(key), Ok(Surface::Nurbs(n))
+        if n.control().iter().any(|p| p.y != -scale)
             && n.control().iter().any(|p| p.x.abs() == scale))
 }
 
@@ -183,7 +183,7 @@ fn intrinsic_seam_at(
 
 fn chart_of(body: &Body<f64>, key: topo::SurfaceKey) -> NurbsSurface<f64> {
     match body.get_surface(key) {
-        Some(Surface::Nurbs(n)) => (**n).clone(),
+        Ok(Surface::Nurbs(n)) => (**n).clone(),
         other => panic!("the bowed wall is a described NURBS chart: {other:?}"),
     }
 }
@@ -596,9 +596,8 @@ fn r1_dual_scalar_wall_seam_arm_names_the_missing_lane() {
         .faces()
         .find_map(|(fk, f)| match body.face_surface(fk) {
             // The same wall of the same loft: its net is the f64 pick's.
-            Some(Surface::Nurbs(n))
-                if !n.is_placeholder()
-                    && n.control().len() == picked.len()
+            Ok(Surface::Nurbs(n))
+                if n.control().len() == picked.len()
                     && n.control()
                         .iter()
                         .zip(&picked)

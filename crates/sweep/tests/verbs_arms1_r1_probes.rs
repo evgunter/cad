@@ -160,7 +160,7 @@ fn the_bored_dome_equator_fillets_at_three_radii() {
     for r in [0.05, 0.1, 0.2] {
         let body = bored_dome();
         for (fk, f) in body.faces() {
-            let plane = matches!(body.face_surface(fk), Some(Surface::Plane { .. }));
+            let plane = matches!(body.face_surface(fk), Ok(Surface::Plane { .. }));
             assert_eq!(
                 f.rings.len(),
                 usize::from(plane),

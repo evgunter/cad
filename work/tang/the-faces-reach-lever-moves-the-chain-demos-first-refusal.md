@@ -2,7 +2,8 @@
 id: the-faces-reach-lever-moves-the-chain-demos-first-refusal
 kind: issue
 title: The faces'-reach lever (#5204) moved the chain demo's first refusal at three links from dihedral_arm to dihedral_wedge, and demos/tour's certified cell is red on main
-status: open
+status: closed
+closed: 2026-11-25
 opened: 2026-10-16
 priority: P1
 cost: E
@@ -29,3 +30,29 @@ The table's `dihedral_arm` straddle came from the lever arm `min(curvature arms,
 - Make the `(Lane::Symbolic, _)` arm at `chaintol.rs:489-493` expect `dihedral_wedge` at every link count of 2 or more.
 - Re-word the paragraph after the table that says the arm's straddle comes first at three and four links.
 - Check whether `work/sym/a-chain-of-three-joints-straddles-dihedral-arm.md` is now closed in substance. If the straddle is gone at every link count, close it with this evidence; otherwise say where it still shows.
+
+## Closed (2026-11-25)
+
+Done in substance, before this row was closed; found while auditing the
+demo blockers. There is no first refusal left to re-bless: since ONEHOME
+stage 2 (PR 6820) a moved link carries its certificates
+(`topo::FinishedBody::moved`), so no joint's transform re-certifies an
+edge, and `demos/tour/src/chaintol.rs`'s header table now reads
+CERTIFIES at every link count on both lanes. Measured on main
+(`c88674548`), `cargo run --release -- certified` in `demos/tour`, exit 0:
+
+```
+1 link   Interval        CERTIFIES      0.02 s     0 refused  —
+1 link   Sym<Interval>   CERTIFIES      0.23 s     0 refused  —
+2 links  Interval        CERTIFIES      0.02 s     0 refused  —
+2 links  Sym<Interval>   CERTIFIES      0.29 s     0 refused  —
+3 links  Interval        CERTIFIES      0.02 s     0 refused  —
+3 links  Sym<Interval>   CERTIFIES      0.30 s     0 refused  —
+4 links  Interval        CERTIFIES      0.02 s     0 refused  —
+4 links  Sym<Interval>   CERTIFIES      0.28 s     0 refused  —
+```
+
+The fix list's last step, whether `sym/a-chain-of-three-joints-straddles-dihedral-arm`
+is closed in substance: the chain no longer reaches the predicate at
+all, which is not the same as the straddle being gone, so that row
+stays open with a note saying so.

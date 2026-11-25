@@ -2276,6 +2276,11 @@ fn a_lever_refusal_names_the_instance_and_why() {
         &["FaceUnbounded", "Nurbs"],
     );
     assert_f6(
+        &reach(ReachRefusal::FacePending { face }),
+        &["instance 000000000007", "no surface yet", "Recourse"],
+        &["FacePending"],
+    );
+    assert_f6(
         &reach(ReachRefusal::MalformedBody { face }),
         &["instance 000000000007", "not well formed"],
         &["MalformedBody"],

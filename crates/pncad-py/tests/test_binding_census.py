@@ -1123,7 +1123,7 @@ BOUND_AS = {
     # `MateFault` arm that carries it (`mate_unleverable`), and its
     # discriminant is the word that arm publishes: why one mated
     # part's reach was not in hand (`part_unresolved`, `face_unbounded`,
-    # `malformed_body`, `no_extent`, `no_finite_bound`), or why the
+    # `face_pending`, `malformed_body`, `no_extent`, `no_finite_bound`), or why the
     # lever the two form is out of the format's range (`out_of_range`)
     # or under the band's zero threshold (`below_zero_band`). The
     # instance a part's refusal is about crosses as
@@ -4011,6 +4011,7 @@ MEMBERS_BOUND_AS = {
     "ReadbackError::Dangling": "ReadbackError.variant",
     "ReadbackError::NoCanonicalFrame": "ReadbackError.variant",
     "ReadbackError::NoCarrier": "ReadbackError.variant",
+    "ReadbackError::PendingSurface": "ReadbackError.variant",
     # The VERDICT's three arms are `status`, not `variant`: `variant`
     # beside it is the failure's own arm, which is why the two words
     # are separate here (`ResolveError`/`ResolveIndeterminate` in
@@ -4071,7 +4072,6 @@ MEMBERS_BOUND_AS = {
     "StepImportError::Adoption": "StepImportError.variant",
     "StepImportError::WallColumnStructure": "StepImportError.variant",
     "StepImportError::RecognitionAmbiguous": "StepImportError.variant",
-    "StepImportError::Pcurves": "StepImportError.variant",
     "StepImportError::Join": "StepImportError.variant",
     "StepImportError::Interpretation": "StepImportError.variant",
     "StepImportError::SingularityUndecided": "StepImportError.variant",

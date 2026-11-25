@@ -155,7 +155,7 @@ fn the_oval_on_its_mirror_torus_mirrors<T: AtRestPolicy + Bounds>() {
         ] {
             let at = format!("axis {sigma}, across {plane} = 0");
             let reflection = topo::Reflection::across(Point3::origin(), normal, tol).unwrap();
-            let image = topo::mirror_body(&body, &reflection, tol).unwrap_or_else(|e| {
+            let image = topo::mirror_body(&body, &reflection).unwrap_or_else(|e| {
                 panic!(
                     "{at}: the mirror refuses: {e_at}",
                     e_at = e.render(geom_brep::recourse::Reading::Build)
@@ -167,8 +167,14 @@ fn the_oval_on_its_mirror_torus_mirrors<T: AtRestPolicy + Bounds>() {
                 "{at}: the image's structural verdict is the source's"
             );
             assert!(
+                image.pcurves().next().is_none(),
+                "{at}: the image's rows are dropped, for the finish"
+            );
+            let image = topo::test_support::completed(image, tol)
+                .unwrap_or_else(|e| panic!("{at}: the image's rows complete: {e:?}"));
+            assert!(
                 image.pcurves().next().is_some(),
-                "{at}: the image stores its wall rows"
+                "{at}: the completed image stores its wall rows"
             );
             let findings = topo::pcurves::validate_pcurves(&image, band);
             assert!(

@@ -1,7 +1,6 @@
 //! **The doors' limbs**: an Euler operator's site mint, a split's
 //! carried rows and a kill's turn.
 
-use geom::Surface;
 use geom_brep::{ChartImage, Pcurve, PcurveCache, PcurveCertifyError, chart_pcurve_over_ends};
 use geom_core::k_stats::decide;
 use geom_core::predicate::Band;
@@ -14,6 +13,7 @@ use super::{
     half_edge_record, half_edge_surface, held_open, is_plus, loop_rows, misses_a_row, row_interval,
     stored_edge, stored_reach, stored_rows, walk_cycle,
 };
+use crate::SurfaceSlot;
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopKey};
 use crate::joint::{JointElement, Winding};
@@ -129,8 +129,8 @@ pub(crate) enum SplitRefusal {
 /// # `None`
 ///
 /// `half_edge` carries no row (an all-planar body, a face of an
-/// uncovered class, or one a door has left rowless for its producer's
-/// closing mint). The caller writes nothing, so the map is left exactly
+/// uncovered class, or one a door has left rowless for the finish to
+/// complete). The caller writes nothing, so the map is left exactly
 /// as found. A key that does not resolve is NOT one of them: it
 /// panics (below).
 ///
@@ -190,7 +190,12 @@ pub(crate) fn split_cache<T: AtRestPolicy>(
         let (carrier, t0, t1) = half_edge_carrier(body, half_edge).unwrap_or_else(|e| {
             unreachable!("split_edge resolved the curve of {half_edge:?}'s edge Certified: {e}")
         });
-        let surface = half_edge_surface(body, half_edge);
+        let surface = half_edge_surface(body, half_edge).unwrap_or_else(|_| {
+            unreachable!(
+                "{half_edge:?} stores a row, and rows are minted only on a described chart \
+                 (`DescribedChart::minting`)"
+            )
+        });
         let image = cache.pcurve().clone();
         let refused = |error| SplitRowError {
             half_edge,
@@ -207,12 +212,7 @@ pub(crate) fn split_cache<T: AtRestPolicy>(
             )
             .map_err(refused)
         };
-        let Some(chart) = DescribedChart::of(&surface) else {
-            unreachable!(
-                "{half_edge:?} stores a row, and rows are minted only on a described chart \
-                 (`DescribedChart::minting`)"
-            )
-        };
+        let chart = DescribedChart::of(&surface);
         let periods = ChartPeriods::of(&surface, band);
         let sense = half_edge_face(body, half_edge).sense();
         // The joint of `image`'s entry onto `onto`, the exit of the image
@@ -575,8 +575,8 @@ pub(crate) struct SiteFace<T: Real> {
     /// `mfkrh`'s) — the face it is carved or promoted from. Named by
     /// the refusal.
     pub(crate) rows_from: FaceKey,
-    /// The chart the face is on after the surgery.
-    pub(crate) surface: Surface<T>,
+    /// The chart the face is on after the surgery, or pending.
+    pub(crate) surface: SurfaceSlot<T>,
     /// The face's sense after the surgery: the side of its loops the
     /// joints on its chart's singular set are decided on.
     pub(crate) sense: bool,
@@ -646,9 +646,9 @@ pub(crate) struct SiteFrom {
 pub(crate) fn site_rows_from<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
-    surface: &Surface<T>,
+    surface: &SurfaceSlot<T>,
 ) -> Option<SiteFrom> {
-    DescribedChart::minting(surface)?;
+    DescribedChart::minting(surface.described().ok()?)?;
     let rows = stored_rows(body, face);
     let open = rows.open_loops(body);
     rows.remints(&open, !open.is_empty())
@@ -737,7 +737,12 @@ pub(crate) fn site_rows_owed<T: Decide>(
     face: &SiteFace<T>,
     from: &SiteFrom,
 ) -> Result<bool, SiteRowRefusal> {
-    let Some(chart) = DescribedChart::minting(&face.surface) else {
+    let Some(chart) = face
+        .surface
+        .described()
+        .ok()
+        .and_then(DescribedChart::minting)
+    else {
         return Ok(false);
     };
     Ok(!site_walks(body, chart, face, from)?.is_empty())
@@ -848,10 +853,8 @@ pub(crate) fn releases_a_gap<T: Decide>(
 ///   face is unminted, never half-minted. Where the minting pass would
 ///   RAISE on that face, the operator does not: it runs mid-surgery, on
 ///   states a later door finishes describing (C4: a door may drop rows
-///   mid-surgery), and a producer's final pass is where such a face is
-///   minted or refused. A body left at rest without that pass reads
-///   loud at tier 3, which re-derives the rowless face and reports the
-///   refusal the mint would raise ([`validate_pcurves`]).
+///   mid-surgery), and the finish is where such a face is completed or
+///   refused.
 ///
 /// **Cost.** One derivation and certification per image the surgery
 /// creates and one joint decision per joint it makes, whatever the
@@ -882,7 +885,12 @@ pub(crate) fn site_rows<T: Decide>(
     curves: SiteCarriers<'_, T>,
     band: Band,
 ) -> Result<SiteRows<T>, SiteRowRefusal> {
-    let Some(chart) = DescribedChart::minting(&face.surface) else {
+    let Some(chart) = face
+        .surface
+        .described()
+        .ok()
+        .and_then(DescribedChart::minting)
+    else {
         return Ok(SiteRows::Leave);
     };
     let walks = site_walks(body, chart, face, from)?;
@@ -1021,7 +1029,7 @@ pub(crate) fn site_rows<T: Decide>(
                 }
                 (_, at) => {
                     let (carrier, t0, t1, plus, vertex) = traversal(at);
-                    let surface = &face.surface;
+                    let surface = chart.surface();
                     let ends = match at {
                         SiteHalf::Existing(he) | SiteHalf::Described(he) => {
                             super::decision::singular_ends(body, he, &carrier, surface, band)
@@ -1089,7 +1097,7 @@ pub(crate) fn site_rows<T: Decide>(
             }
         }
     }
-    match certify_walked(derived, &face.surface, band, None) {
+    match certify_walked(derived, chart.surface(), band, None) {
         Ok(rows) => Ok(SiteRows::Mint {
             images: rows.into_iter().map(|(at, cache, _)| (at, cache)).collect(),
             joints,
@@ -1167,10 +1175,10 @@ pub(crate) fn turn_element<T: Decide>(
     let Some(row) = body.pcurve(half_edge) else {
         return Ok(None);
     };
-    let surface = half_edge_surface(body, half_edge);
-    let Some(chart) = DescribedChart::of(&surface) else {
+    let Ok(surface) = half_edge_surface(body, half_edge) else {
         return Ok(None);
     };
+    let chart = DescribedChart::of(&surface);
     let (start, end) = edge_vertex_points(body, half_edge);
     match decide("pcurve_turn_closes", Margin::of(start.distance(end)), band) {
         Ok(Sign::Zero) => {}

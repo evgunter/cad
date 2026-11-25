@@ -199,8 +199,8 @@ pub enum Unknown {
     /// The kind's locus is unbounded: a plane, a cylinder or a cone,
     /// whole.
     Unbounded,
-    /// The control net bounds no region: a point of it carries poison in
-    /// some channel.
+    /// The control net bounds no region: a point of it is not a finite
+    /// number in some channel.
     PoisonedNet,
     /// A datum of the carrier, or a window end, is not a finite number,
     /// so the region it names is not bounded.

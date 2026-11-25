@@ -23,6 +23,8 @@ use crate::pcurves::{Lift, LiftRefusal, PinMiss, SingularMiss};
 pub enum ChartWindowError {
     /// `face`, the caller's key, does not resolve.
     Stale(FaceKey),
+    /// `face` has no surface yet ([`crate::SurfaceMiss::Pending`]).
+    PendingFace(FaceKey),
     /// A decision of the lift escalated at the band.
     Escalated(Indeterminate),
     /// The face's outer loop has no lift the walk decides: an edge with
@@ -43,6 +45,7 @@ impl core::fmt::Display for ChartWindowError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Stale(face) => write!(f, "the face key {face:?} does not resolve"),
+            Self::PendingFace(face) => write!(f, "face {face:?} has no surface yet"),
             Self::Escalated(cause) => {
                 write!(f, "the face's outer loop's lift escalated: {cause}")
             }
@@ -89,9 +92,7 @@ impl ChartWindowError {
             }
             LiftRefusal::Joint(PinMiss::Singular(miss)) => Self::Singular(miss),
             LiftRefusal::NotClosed => Self::NotClosed(face),
-            LiftRefusal::Image(_)
-            | LiftRefusal::Joint(PinMiss::Discontinuity)
-            | LiftRefusal::Placeholder => Self::Unread,
+            LiftRefusal::Image(_) | LiftRefusal::Joint(PinMiss::Discontinuity) => Self::Unread,
         }
     }
 }
@@ -118,7 +119,10 @@ pub(crate) fn face_azimuth_window<T: Decide>(
     let Some(halves) = view.outer_cycle() else {
         return Ok(None);
     };
-    let lift = Lift::decided(body, face, view.surface(), &halves, true, band)
+    let surface = view
+        .surface()
+        .map_err(|_| ChartWindowError::PendingFace(face))?;
+    let lift = Lift::decided(body, face, surface, &halves, true, band)
         .map_err(|refusal| ChartWindowError::of(face, refusal))?;
     Ok(lift.azimuth_window())
 }

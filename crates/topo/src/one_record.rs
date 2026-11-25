@@ -250,7 +250,11 @@ impl<T: Decide> Body<T> {
         if f1 == f2 {
             return Err(stale());
         }
-        let surface = |s: SurfaceKey| self.get_surface(s).ok_or_else(stale);
+        // A pending face is no plane.
+        let surface = |s: SurfaceKey| match self.get_surface(s) {
+            Err(crate::SurfaceMiss::Stale) => Err(stale()),
+            read => Ok(read.ok()),
+        };
         let (s1, s2) = (surface(surfaces[0])?, surface(surfaces[1])?);
         let (verdict, description) =
             crate::edge_wedge::edge_wedge_read(self, edge, band).ok_or_else(stale)?;
@@ -260,7 +264,10 @@ impl<T: Decide> Body<T> {
         };
         let planes = matches!(
             (s1, s2),
-            (geom::Surface::Plane { .. }, geom::Surface::Plane { .. })
+            (
+                Some(geom::Surface::Plane { .. }),
+                Some(geom::Surface::Plane { .. })
+            )
         );
         let one_carrier = match verdict {
             geom_brep::WedgeClass::Seam {

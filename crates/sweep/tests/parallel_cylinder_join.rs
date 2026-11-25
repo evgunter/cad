@@ -262,7 +262,7 @@ fn the_walls_join_along_their_carried_rulings() {
                 let cylinders = pair
                     .keys()
                     .iter()
-                    .all(|&k| matches!(body.get_surface(k), Some(geom::Surface::Cylinder { .. })));
+                    .all(|&k| matches!(body.get_surface(k), Ok(geom::Surface::Cylinder { .. })));
                 if !cylinders {
                     continue;
                 }
@@ -568,7 +568,14 @@ fn a_rod_tipped_off_parallel_over_a_long_wall_is_read_as_skew() {
                     );
                 }
                 None => assert!(
-                    matches!(&res, Err(e) if !matches!(e, BooleanError::Pcurves { .. })),
+                    matches!(&res, Err(e) if !matches!(
+                        e,
+                        BooleanError::ResultInvalid { findings }
+                            if findings
+                                .as_slice()
+                                .iter()
+                                .any(|f| matches!(f, topo::ValidationError::Pcurve { .. }))
+                    )),
                     "{} | {op}: {:?}",
                     pose.label,
                     res.map(|_| "a body")
@@ -599,7 +606,14 @@ fn a_tipped_rod_on_the_drums_seam_escalates_its_census_in_band() {
     for (op, res, want) in pose.runs() {
         if tol.eps() != 1e-6 {
             assert!(
-                matches!(&res, Err(e) if !matches!(e, BooleanError::Pcurves { .. })),
+                matches!(&res, Err(e) if !matches!(
+                    e,
+                    BooleanError::ResultInvalid { findings }
+                        if findings
+                            .as_slice()
+                            .iter()
+                            .any(|f| matches!(f, topo::ValidationError::Pcurve { .. }))
+                )),
                 "{} | {op}: {:?}",
                 pose.label,
                 res.map(|_| "a body")
@@ -835,7 +849,7 @@ fn seams_lying_on_the_walls_read_the_axes_across_the_region() {
     // Pinned red at 1e-6: six of the runs tipped `1.5·zero / 3.2` build a
     // body 2.0e-7 to 2.8e-7 under the closed form, where the row wants every
     // one SOUND
-    // (`work/onedoor/main-red-four-sweep-rows-hold-volumes-the-one-surface-record-moves-at-1e-6.md`).
+    // (`work/onedoor/a-planar-faces-volume-term-reads-its-unweighted-mean-vertex-so-in-band-vertices-lever-over-the-face.md`).
     test_utils::pinned_red::row(
         Tol::witness().eps(),
         &[1e-6],
@@ -1024,7 +1038,7 @@ fn one_face_walls(az: f64, theta: f64) -> Pose {
 fn one_face_walls_read_their_axes_as_an_angle() {
     // Pinned red at 1e-6: four of the runs tipped `0.2·zero` build a body
     // 1.2e-7 under the closed form, where the row wants every one SOUND
-    // (`work/onedoor/main-red-four-sweep-rows-hold-volumes-the-one-surface-record-moves-at-1e-6.md`).
+    // (`work/onedoor/a-planar-faces-volume-term-reads-its-unweighted-mean-vertex-so-in-band-vertices-lever-over-the-face.md`).
     test_utils::pinned_red::row(
         Tol::witness().eps(),
         &[1e-6],

@@ -585,6 +585,13 @@ macro_rules! nurbs_curve {
                 &self.control
             }
 
+            /// Is every control point a finite number, at the scalar's
+            /// own finiteness? A net that is not describes nothing: it
+            /// is corrupt.
+            pub fn is_finite(&self) -> bool {
+                crate::net::is_finite(&self.control)
+            }
+
             /// The weights, held in `T` (strictly positive on their
             /// value channel).
             pub fn weights(&self) -> &[T] {
