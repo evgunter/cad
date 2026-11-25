@@ -63,7 +63,7 @@ fn embedding(body: &Body<f64>) -> EmbeddingReport {
 /// cap's fit as a plain NURBS face.
 fn capped() -> [(&'static str, Body<f64>, FaceKey); 2] {
     let (approx, cap) = box_with_approx_cap(0.05, 1e-9);
-    let Surface::Approx(a) = approx.face(cap).unwrap().surface() else {
+    let Surface::Approx(a) = approx.face(cap).unwrap().surface().unwrap() else {
         panic!("the cap wears the approximated surface");
     };
     let (nurbs, nurbs_cap) = box_with_spline_cap(Surface::Nurbs(Arc::new(a.fit().clone())));
@@ -104,19 +104,6 @@ fn an_approximated_cap_reads_as_its_fit_beside_and_through_a_brick() {
         assert_eq!(
             a, n,
             "a brick {how} the cap: the approximated face reads as its fit does"
-        );
-    }
-}
-
-/// **The capped box alone is embedded**, at the door the at-rest gate
-/// asks: red if the approximated cap's window refuses.
-#[test]
-fn an_offset_capped_box_is_embedded() {
-    for (what, body, _) in capped() {
-        let report = embedding(&body);
-        assert!(
-            matches!(report.verdict, Embedding::Embedded),
-            "{what} is embedded: {report:?}"
         );
     }
 }

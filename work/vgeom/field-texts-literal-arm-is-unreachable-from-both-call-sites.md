@@ -4,6 +4,8 @@ kind: issue
 title: props::field_text's literal arm is unreachable from both call sites, and its prose is the only statement of what a literal field shows
 status: open
 opened: 2026-09-22
+priority: P4
+cost: E
 ---
 
 

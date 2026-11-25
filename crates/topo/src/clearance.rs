@@ -3586,8 +3586,8 @@ impl RegionMemo {
         let region = match w.region {
             Region::Whole => CellRegion::Inside,
             Region::Trimmed => match w.body.face(w.face).map(|f| f.surface()) {
-                None => CellRegion::Undecided,
-                Some(stored) => {
+                None | Some(Err(_)) => CellRegion::Undecided,
+                Some(Ok(stored)) => {
                     // The carrier is the window's own lift, which
                     // [`window_of`] admitted only where it certifies.
                     let boundary = self
@@ -3708,6 +3708,9 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
     let Some(f) = body.face(face) else {
         return unsupported("an unreadable face");
     };
+    let Ok(stored) = f.surface() else {
+        return unsupported("the pending face");
+    };
     // An approximated face's geometry IS its fit (OFFSET-DESIGN O2): its
     // edges are sections of the fit and its chart images are on the
     // fit's chart, so the boundary the question asks embedded is the
@@ -3715,7 +3718,7 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
     // stands in for, the face's claim, which tier 3 re-derives (O5); it
     // states nothing about where the boundary is.
     let fitted;
-    let stored = match f.surface() {
+    let stored = match stored {
         Surface::Approx(approx) => {
             fitted = Surface::Nurbs(std::sync::Arc::new(approx.fit().clone()));
             &fitted
@@ -3738,11 +3741,6 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
         let d = (extent - origin).dot(dir) / dir.norm_squared();
         (d.lo(), d.hi())
     };
-    if let Surface::Nurbs(net) = stored
-        && net.is_placeholder()
-    {
-        return unsupported("the placeholder free-form face");
-    }
     let Some(charted) = certified_lift(|lift| stored.map_scalar(|x| lift.of(x))) else {
         return unsupported("a face whose carrier does not certify");
     };
@@ -4077,7 +4075,7 @@ pub(crate) fn posed_extents_holding(
     point: [f64; 3],
     band: Band,
 ) -> Option<Vec<Option<bool>>> {
-    let stored = body.face(face)?.surface();
+    let stored = body.face(face)?.surface().ok()?;
     let (_, boundary) = boundary_of(body, face)?;
     let surface = certified_lift(|lift| stored.map_scalar(|x| lift.of(x)))?;
     let p = point.map(|x| Interval::from_bounds(x, x));
@@ -4147,7 +4145,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
             }
             if cycle && let Ok(rows) = crate::pcurves::Lift::read(body, lk) {
                 if role.is_outer() {
-                    let surface = f.surface();
+                    let surface = f.surface().ok()?;
                     let periodic =
                         [Axis::U, Axis::V].map(|axis| injective::periodic(surface, axis));
                     out.extent = extent_of(
@@ -6219,7 +6217,9 @@ mod trv_rows {
         };
         for axis in 0..3 {
             let carrier = refusal(&|b| {
-                let Some(Surface::Plane { frame, .. }) = b.surfaces.values_mut().next() else {
+                let Some(crate::SurfaceSlot::Described(Surface::Plane { frame, .. })) =
+                    b.surfaces.values_mut().next()
+                else {
                     panic!("a brick's faces are planes");
                 };
                 let mut origin = frame.origin();

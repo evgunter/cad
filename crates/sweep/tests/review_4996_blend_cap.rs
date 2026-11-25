@@ -28,7 +28,7 @@ fn cap(body: &Body<f64>) -> FaceKey {
         .find(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(Surface::Plane { frame, .. })
+                Ok(Surface::Plane { frame, .. })
                     if frame.axis().x.abs() == 1.0 && frame.origin().x == 1.0
             )
         })

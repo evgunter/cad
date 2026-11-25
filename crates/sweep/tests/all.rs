@@ -52,6 +52,7 @@
 // There is no `#![allow(clippy::duplicate_mod)]` here because no file is
 // loaded twice any more; if one ever is, the lint is meant to fire.
 mod common;
+mod euler_cube_support;
 mod mate2_common;
 mod revolve_common;
 mod seam_region_common;
@@ -382,8 +383,6 @@ mod pipeline_null_edge_rows;
 mod pis_arc_capped_poses;
 #[path = "pis_cut_cavity.rs"]
 mod pis_cut_cavity;
-#[path = "placeholder_loop_windings.rs"]
-mod placeholder_loop_windings;
 #[path = "planar_ring_arc_closure.rs"]
 mod planar_ring_arc_closure;
 #[path = "pocket_ring_steep_ellipse.rs"]
@@ -1506,6 +1505,8 @@ mod a_loops_lift_runs_through_its_poles;
 mod a_partner_across_a_lofted_wall_is_joined_on_its_section_value;
 #[path = "a_peg_in_a_two_segment_bore_moves_only_its_wall.rs"]
 mod a_peg_in_a_two_segment_bore_moves_only_its_wall;
+#[path = "a_pending_end_face_is_refused_as_scaffolding.rs"]
+mod a_pending_end_face_is_refused_as_scaffolding;
 #[path = "a_rest_on_a_cut_in_piece_lands_on_it.rs"]
 mod a_rest_on_a_cut_in_piece_lands_on_it;
 #[path = "a_station_frame_is_minted_to_its_floor.rs"]

@@ -786,7 +786,7 @@ fn a_band_between_two_circles_builds_under_every_boolean() {
         let on = |zs: &[f64], z: f64| !zs.is_empty() && zs.iter().all(|&h| (h - z).abs() < 1e-9);
         let bands: Vec<_> = body
             .faces()
-            .filter(|&(f, _)| matches!(body.face_surface(f), Some(geom::Surface::Sphere { .. })))
+            .filter(|&(f, _)| matches!(body.face_surface(f), Ok(geom::Surface::Sphere { .. })))
             .collect();
         let [(_, band)] = bands[..] else {
             panic!("{op}: the band is one sphere face, got {}", bands.len())

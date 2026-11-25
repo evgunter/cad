@@ -546,7 +546,7 @@ fn with_reversed_face(
     let picked: Vec<_> = body
         .faces()
         .filter_map(|(k, f)| match body.face_surface(k) {
-            Some(geom::Surface::Plane {
+            Ok(geom::Surface::Plane {
                 frame: carrier_frame,
             }) if plane(carrier_frame.origin(), carrier_frame.axis(), f.sense) => {
                 let (origin, normal, u_ref) = (

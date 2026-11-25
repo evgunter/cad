@@ -343,8 +343,10 @@ fn adopt_edges(
             ),
             Description::Tangent => {
                 let surface = |k| {
-                    body.get_surface(k).unwrap_or_else(|| {
-                        unreachable!("{k:?} names a face's surface `attach_surfaces` attached")
+                    body.get_surface(k).unwrap_or_else(|miss| {
+                        unreachable!(
+                            "{k:?} names a face's surface `attach_surfaces` attached: {miss}"
+                        )
                     })
                 };
                 let reach = topo::wedge_reach(

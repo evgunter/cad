@@ -501,8 +501,12 @@ failure-output = "immediate-final"
 # Timed alone by the gate on PR 7750, which edits their file:
 #    0.27 s  sweep::all join_pierce_runs_sweep::a_cube_less_a_pinched_operand_whose_splits_cross_the_seams_faces_builds
 #    0.27 s  sweep::all join_pierce_runs_sweep::a_six_crossing_pair_at_the_notchs_shared_corner_builds_in_both_orders
+# An approximated cap's two bodies, the cap and its fit as a NURBS face,
+# each asked embedded beside a brick at three heights (a local run, alone):
+#    0.27 s  sweep::all an_approximated_face_is_embedded_as_its_fit::an_approximated_cap_reads_as_its_fit_beside_and_through_a_brick
 default-filter = """
 not (
+  (binary_id(sweep::all) & test(=an_approximated_face_is_embedded_as_its_fit::an_approximated_cap_reads_as_its_fit_beside_and_through_a_brick)) |
   (binary_id(geom-brep) & (test(=pcurve_cache::envelope_lemma_fuzz::projected::a_carrier_on_its_chart_images_exactly_at_f64_and_interval) | test(=pcurve_cache::envelope_lemma_fuzz::projected::a_carrier_on_its_chart_pinned_where_the_frame_cost_refuses))) |
   (binary_id(sweep::all) & (test(=m5_s11_concave_sense::the_level_set_oracle_agrees_with_the_extruded_twin) | test(=one_segment_loop::one_segment_circles_revolve_at_interval) | test(=turning_orientation::an_inflecting_path_sweep_faces_out_through_the_reversal) | test(=vrev_acceptance_set::a_lofted_walls_v_knots_are_symmetric_up_to_six_sections))) |
   (binary_id(sweep::all) & (test(=a_rim_arc_on_a_cylinder_beside_a_spline_wall::the_tube_walls_sub_arc_joints_are_smooth_edges) | test(=degree1_loft_slabs::an_arc_refined_at_non_uniform_breaks_lofts_at_degree_two) | test(=encl_curved_loft_shell::shelling_the_vase_refuses_at_a_walls_fit_and_its_cap_moves_alone_onto_a_wall_row) | test(=one_segment_loop::a_lofted_one_segment_section_is_four_quarter_walls) | test(=one_segment_loop::every_one_segment_circle_stack_builds_at_every_degree) | test(=pinned_corners_at_the_loft_door::a_full_turns_pinned_vertex_builds) | test(=pinned_corners_build::a_pinned_sub_arc_joint_builds_as_a_pinned_corner))) |

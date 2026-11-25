@@ -1089,12 +1089,6 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
     centre: Option<Point3<Interval>>,
     accept: &mut Accept<'_>,
 ) -> Result<LaneRun, PropsError> {
-    if payload.is_placeholder() {
-        return Err(PropsError::QuadratureUnsupported {
-            what: "the mvfs Nurbs placeholder reached the quadrature lane — a \
-                   mid-surgery body has no mass properties (tier 2 refuses it at rest)",
-        });
-    }
     // **The dispatch is by pcurve KIND** (TRIM-2 §8.1): a loop whose
     // every image is an iso class may be a rectangle of its chart, and
     // takes the rectangle certificate below; a loop carrying a `General`
@@ -2433,7 +2427,7 @@ mod tests {
             };
             for (key, _) in body.faces() {
                 let face = body.proven_face(key);
-                let surface = face.surface();
+                let surface = face.surface().unwrap();
                 let loops = flat_loops(face).unwrap();
                 let rings = vertex_rings(body, surface, &loops, lane)
                     .unwrap()
@@ -2606,7 +2600,7 @@ mod tests {
             for run in &runs {
                 let centre = corner_of(lane, run);
                 let face = body.proven_face(run.face);
-                let surface = face.surface();
+                let surface = face.surface().unwrap();
                 let loops = face_loops(face).unwrap();
                 let (c, _) = super::super::closed_form(
                     surface,

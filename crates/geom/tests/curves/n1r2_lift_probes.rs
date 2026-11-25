@@ -133,10 +133,7 @@ fn n1r2_surface_dual_lift_evaluates_to_source_on_adversarial_nets() {
     for (name, s) in surfaces() {
         let e = Surface::Nurbs(Arc::new(s.clone()));
         let ed: Surface<Dual64> = e.map_scalar(Dual::constant);
-        assert!(
-            matches!(&ed, Surface::Nurbs(n) if !n.is_placeholder()),
-            "{name}"
-        );
+        assert!(matches!(&ed, Surface::Nurbs(_)), "{name}");
         let us = params(s.knots_u_f64_interim());
         let vs = params(s.knots_v_f64_interim());
         for &u in &us {
@@ -247,13 +244,6 @@ fn n1r2_approx_lift_carries_record_and_evaluates_to_source() {
             assert_eq!(p.z.value.to_bits(), q.z.to_bits());
         }
     }
-}
-
-#[test]
-fn n1r2_placeholder_lifts_to_placeholder_surface_dual() {
-    let s: Surface<f64> = Surface::nurbs_placeholder();
-    let sd = s.map_scalar(Dual::constant);
-    assert!(matches!(&sd, Surface::Nurbs(n) if n.is_placeholder()));
 }
 
 #[test]

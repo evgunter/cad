@@ -143,7 +143,7 @@ fn a_plane_cutting_the_blades_loft_clears() {
     let walls: Vec<Surface<f64>> = leaf
         .faces()
         .filter_map(|(fk, _)| match leaf.face_surface(fk) {
-            Some(s @ Surface::Nurbs(_)) => Some(s.clone()),
+            Ok(s @ Surface::Nurbs(_)) => Some(s.clone()),
             _ => None,
         })
         .collect();
@@ -185,14 +185,14 @@ fn cap_and_walls(body: &Body<f64>) -> (Surface<f64>, Vec<Surface<f64>>) {
     let mut walls = Vec::new();
     for (fk, _) in body.faces() {
         match body.face_surface(fk) {
-            Some(s @ Surface::Plane { frame, .. })
+            Ok(s @ Surface::Plane { frame, .. })
                 if frame.axis().y.abs() < 1e-9
                     && frame.axis().z.abs() < 1e-9
                     && frame.origin().x.abs() < 1e-9 =>
             {
                 cap = Some(s.clone());
             }
-            Some(s @ Surface::Nurbs(_)) => walls.push(s.clone()),
+            Ok(s @ Surface::Nurbs(_)) => walls.push(s.clone()),
             _ => {}
         }
     }
@@ -349,7 +349,7 @@ fn a_spline_witness_by_an_edge_is_placed_on_the_widened_band() {
     let (ridge_face, ridge) = blade
         .faces()
         .filter_map(|(k, _)| match blade.face_surface(k) {
-            Some(s @ Surface::Nurbs(n)) => {
+            Ok(s @ Surface::Nurbs(n)) => {
                 let top = n.control().iter().map(|p| p.z).fold(f64::MIN, f64::max);
                 Some((k, s.clone(), top))
             }
@@ -412,7 +412,7 @@ fn a_spline_witness_by_an_edge_is_placed_on_the_widened_band() {
         block
             .faces()
             .find_map(|(k, _)| match block.face_surface(k) {
-                Some(s @ Surface::Plane { frame, .. })
+                Ok(s @ Surface::Plane { frame, .. })
                     if frame.axis().z.abs() > 0.5 && (frame.origin().z - h).abs() < 1e-12 =>
                 {
                     Some((k, s.clone()))

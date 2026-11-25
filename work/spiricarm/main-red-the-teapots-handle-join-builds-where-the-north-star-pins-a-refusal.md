@@ -2,7 +2,8 @@
 id: main-red-the-teapots-handle-join-builds-where-the-north-star-pins-a-refusal
 kind: issue
 title: main red: the teapot's handle union now builds, where the north-star row pins its refusal at the result's validation
-status: open
+status: closed
+closed: 2026-11-25
 opened: 2026-11-11
 priority: P1
 cost: E
@@ -39,3 +40,15 @@ build (the sphere face's quadrature now reads the conic loop), the
 north-star row pins the built union (its volume and area against the
 handle and vessel's) and its comment says which lane reads it; if not,
 the regression is found and fixed.
+
+## Closed (2026-11-25)
+
+Done in substance before this row was closed; found while auditing the
+demo blockers. The north-star row is now
+`test_the_handle_join_builds_and_the_spout_join_builds_or_refuses_typed`
+(`crates/pncad-py/tests/test_north_star.py`). It asserts the handle union
+succeeds and validates, and holds its volume above either operand's and
+below their sum. Its comment names the rotational lane as what reads the
+sphere and torus faces. The tour retired its wall 2 on the same
+measurement (`demos/tour/src/teapot.rs`, `wall_probes`). The commit that
+re-pinned the row is outside this checkout's shallow history.

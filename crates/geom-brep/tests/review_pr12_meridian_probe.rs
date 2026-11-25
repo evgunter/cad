@@ -73,7 +73,12 @@ fn probe_meridian_sphere_torus() {
         spec,
         p0,
         p1,
-        |k| surfaces.get(k).cloned(),
+        |k| {
+            surfaces
+                .get(k)
+                .cloned()
+                .ok_or(geom_brep::SurfaceMiss::Stale)
+        },
         geom_core::test_support::fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),

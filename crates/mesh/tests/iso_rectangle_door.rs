@@ -129,7 +129,7 @@ fn a_rimless_lune_meshes_through_the_door_and_measures() {
     mesh::validate::check_mesh(&mesh).expect("watertight");
     let sphere_face = body
         .faces()
-        .find(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Sphere { .. })))
+        .find(|(fk, _)| matches!(body.face_surface(*fk), Ok(Surface::Sphere { .. })))
         .map(|(fk, f)| (fk, f.outer))
         .expect("the wedge has a sphere face");
     let (outer, _) =

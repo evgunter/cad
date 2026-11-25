@@ -193,7 +193,7 @@ fn cube_by_hand_validates_with_minimal_counts() {
     // faces descend from mvfs's face.
     assert_eq!(body.points().count(), 8);
     assert_eq!(body.curves().count(), 12);
-    assert_eq!(body.surfaces().count(), 1);
+    assert_eq!(body.surface_slots().count(), 1);
     // Euler–Poincaré on the built body: v − e + f − r = 8 − 12 + 6 − 0
     // = 2 = 2(s − h) with s = 1, h = 0.
     let counts = euler_counts(&body);

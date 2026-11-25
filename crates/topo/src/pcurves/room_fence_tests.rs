@@ -26,7 +26,7 @@ fn room(surface: &Surface<f64>, vertex: Point3<f64>) -> bool {
         v,
     };
     joint_has_room(
-        DescribedChart::of(surface).unwrap(),
+        DescribedChart::of(surface),
         vertex,
         Some(geom_brep::Period::new(core::f64::consts::TAU)),
         Orbit::of(surface, &image),
