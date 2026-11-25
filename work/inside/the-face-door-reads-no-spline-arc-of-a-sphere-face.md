@@ -4,9 +4,9 @@ kind: issue
 title: The face door and the side reader read no spline arc of a sphere face: their scalar bound holds no spline reader, where point_in_solid's does
 status: open
 opened: 2026-11-25
-priority: P2
-cost: M
-refs: [point-in-solid-refuses-a-sphere-face-bounded-by-a-spline-chord, point-in-face-and-point-in-solid-read-a-curved-trim-by-different-chains]
+priority: P0
+cost: H
+refs: [point-in-solid-refuses-a-sphere-face-bounded-by-a-spline-chord, point-in-face-and-point-in-solid-read-a-curved-trim-by-different-chains, cross-answers-a-spline-arm-with-a-whole-span-window, point-containments-ray-test-has-no-spline-arm]
 ---
 
 
@@ -56,6 +56,42 @@ scalar-level door for a spline span against a plane (the ring
 composite, `None` at a dual), so the region needs no capability handed
 in; or the face door's chain bound at `AtRestPolicy` with its callers.
 Then drop `sphere_face_region`'s `splines` argument.
+
+## 2026-11-25 — re-banded P0; the design is decided (INSIDE orchestrator)
+
+**P0.** PR 7755's review measured the consequence. Every cylinder × sphere
+result ∪/∖/∩ a brick touching only the chorded cap refuses
+`CurvedPierceUnsupported` (`reduce.rs` maps `Trim(None)` to it), while
+the plain ball ∪ the same brick builds. That is a normal verb on normal
+geometry, and it is the remainder of the closed P0
+`point-in-solid-refuses-a-sphere-face-bounded-by-a-spline-chord`'s
+purpose. Re-priced H.
+
+**Decided** (two designers, agreed; `work/inside/log.md`, 2026-11-25).
+This replaces the "Owed" section above, whose first option DL5.3 rules
+out:
+- `curve_face::cross` answers the `SplineComposite` arm itself, at
+  `T: Decide`. It decides by `Decide` signs on Bernstein coefficients
+  computed in the scalar's own arithmetic: reals at f64 with no pads,
+  enclosures at `Interval`.
+- Every selection reader (the face door, the side reader,
+  `point_in_solid`, the counts) reads it on the value view, so a dual
+  takes its base's selection.
+- A spline crossing the body stores is a proposal, admitted at the
+  storing site under `Certifies`.
+- **This unit retires:** `AtRestPolicy::spline_face_crossings` and
+  `spline_face_reader`; `Legs::splines`, `Splines`, `SplineCrossings`
+  and `spline_landings`; the `splines` argument of `face_geo`,
+  `sphere_face_region` and `torus_face_region`; EMBEDWALK's
+  `curve_face_placement_reading`; and the `Enclosed` + `Curve3::Nurbs`
+  re-entries in `splitting::classify`, `boolean::reduce`,
+  `boolean::slit` and `region::landings`.
+- **It claims** GERM's `cross-answers-a-spline-arm-with-a-whole-span-window`.
+  It builds on the (line, spline patch) arm that
+  `point-containments-ray-test-has-no-spline-arm`'s unit puts into `cross`.
+- Its passenger, `the-ring-composites-refusals-and-end-readings-are-translated-per-caller`,
+  goes with it, since its four translating sites are the re-entries it
+  retires.
 
 ## A second entry to fold back (EMBEDWALK, PR 7772, 2026-11-25)
 
