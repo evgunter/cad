@@ -2,13 +2,14 @@
 id: two-bands-of-a-revolved-arc-sharing-their-meridians-spend-the-pair-budget
 kind: issue
 title: Two π-band faces of one revolved arc, sharing both meridians that end on rim corners, spend the whole pair budget: on a spindle sheet and on a ring torus alike
-status: review
+status: closed
 opened: 2026-11-25
 priority: P1
 cost: M
 refs: [a-spindle-sheet-or-an-approximated-face-has-no-window-in-the-injectivity-engine]
 branch: embedwalk/two-bands
 pr: 7786
+closed: 2026-11-25
 ---
 
 
@@ -83,3 +84,12 @@ not committed). The spindle receipt reproduces the finding's exactly.
   (`cover::bounded_sheet_latitude`). Measured with it: the bool3 spindle
   `Embedded` in 18 pairs (0.05 s); the near-horn ladder's torus, horn
   and sheet rungs `Embedded` in about 600 pairs each.
+
+## Closed
+
+2026-11-25 by PR 7786: a torus face takes its pcurve chart rectangle and a
+spindle-sheet face its pcurve latitude, widened by the chord slack, where
+`cover::bounded_side_loops` decides the loop's bounded side is the face;
+any other face keeps the whole tube or sheet. The face cover's torus arm
+reads the same test. The bool3 sheet's band pair is `Embedded` in 18
+pairs, from a 65,536-pair refusal.
