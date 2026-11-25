@@ -216,3 +216,65 @@ at least 1% of the shorter edge (the classifier's `b-arith/sliver`).
 Every one reads a definite far-end gap, the number DESIGN.md tier 3′
 (PR 4595) gives cells that share a point, so the census now passes
 them, as it passes this row's pair.
+
+## 2026-11-25: re-measured on main `133ca95e`; resolved by the census clause
+
+**The ratified rule.** DESIGN.md `[topology.census]` and its copy in
+`crates/topo/README.md` (ea68daa237, PR 4335; Ev: "otherwise sounds
+good!"): "Cells that share a vertex, a point key or an edge meet there
+by construction, and the question is whether they meet anywhere else:
+the number is their largest distance over the shorter cell, beyond what
+they share. For straight cells it falls at the shorter cell's far end
+… a definite number is a legal configuration, however thin … Near what
+two cells share, every pair is within the band whatever its angle. That
+neighbourhood is not a coincidence, and its extent is not a number the
+census reads." This row's pair shares a point key (README: "an op that
+cuts one vertex into copies hands each copy the original's point"). So
+the rule's number is the far-end gap, and the in-band stretch is
+exactly what it does not read. A pass is the ratified answer wherever
+that gap is definite. The note above names this as PR 4595. That is a
+slip: PR 4595 is the tangency-claim ruling.
+
+**The census reads that number.** `pair_edge_edge`'s parallel screen
+(`census.rs` `parallel_reading`) levers `|ea.dir × eb.dir|` at the
+shorter extent. For two edges leaving one point, that is the far-end
+gap, so the "full arm" the row objected to is the clause's own arm.
+
+**Measured.** The review's segment-distance census, ported onto
+`near_tangent_census_probe`'s poses. These are all eleven prisms, edges
+e0–e2, the sixteenths 0–15 and tilts ±{1e-5, 3e-6, 1e-6, 1e-7, 1e-8},
+each op in both orders, at ε = 1e-9. It covers every pair of edges that
+end on one point at two vertices and stay within 3·εK for at least
+three of 4001 samples:
+- **957 such pairs, at 638 poses.** Every one is on one point key.
+- **The far-end gap is ≥ 3.0 bands in every pair**, and none is in
+  band. The longest stretch within 3 bands is 1.47, 0.74 of the shorter
+  edge (vee300).
+- **951 bodies are SOUND**: tier 2, tier 3′, the certificate, a legal
+  operand, and the oracle's volume.
+- **6 are BAD, all vee300 ∪ at d = 1e-8.** Each has the right volume,
+  and tier 3′ refuses `BoundaryCrossesItselfUndecided { why:
+  PieceInBand }` at the pinch. That is the self-touch side reading
+  `near_tangent_pierce_poses.rs` already pins as `UNREAD`, not this
+  pair.
+- No edge-edge escalation (`pm_census_ee_*`) on any body.
+
+The row's own family (Ltop, Lbot, Lmirror, notch307 and shallow200 at
+the listed tilts) has 324 pairs at 188 poses, all SOUND, with the
+far-end gap ≥ 4.1 bands. At ε = 1e-12 there are 62 pairs, all SOUND.
+The pinned pose reads 73 bands at the far end, with 4% of the edge
+within 3 bands, in ∪ in both orders.
+
+**Verdict.** No body reaches a wrong answer. These are sound bodies
+with a near pair that the census clause makes legal, and the census
+passes them by the clause's own number. This row is resolved by design.
+Recommend closing it. The `vee300` ∪ residue belongs to the
+self-touch `UNREAD` class, and the arm question for pairs that share
+nothing stays with
+`boolean-bound-parallelism-verdicts-are-levered-at-a-short-or-unit-arm`.
+
+The pinned row `a_near_tangent_two_run_pierce_builds_with_edges_in_band_only_at_its_copies`
+now asserts tier 3′ and the shared point key. Its third clause gives
+the census's reason in place of this file. The collinear-lane
+false positive that kept tier 3′ out of it is closed, and the pose
+passes tier 3′ at ε = 1e-9, 1e-6 and 1e-12.
