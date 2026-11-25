@@ -3499,7 +3499,7 @@ struct Window<'b, T: Real> {
     /// Where the side is read through a motion, the motion and the face's
     /// own carrier; `None` where the body's coordinates are the
     /// question's.
-    placed: Option<Placed<T>>,
+    placed: Option<ReadThrough<T>>,
     u: (f64, f64),
     v: (f64, f64),
     /// **The body the face is read from**, which [`cell_region`](crate::cell_region::cell_region) reads
@@ -3517,7 +3517,7 @@ struct Window<'b, T: Real> {
 
 /// **A window of a side read through a motion.**
 #[derive(Debug, Clone)]
-struct Placed<T: Real> {
+struct ReadThrough<T: Real> {
     /// The rigid motion from the body's coordinates into the question's.
     motion: RigidMotion<T>,
     /// The carrier lifted in the body's own coordinates: what a cell's
@@ -3814,7 +3814,7 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
             };
             (
                 moved,
-                Some(Placed {
+                Some(ReadThrough {
                     motion,
                     own: charted,
                 }),
@@ -6699,10 +6699,7 @@ mod support_rows {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod depth_rows {
-    use geom_core::{
-        Band, CertifiedBounds, Decide, Interval, Point3, Real, RigidMotion, Tol, Turns, UnitVec3,
-        Vec3,
-    };
+    use geom_core::{Band, Interval, Point3, Real, RigidMotion, Tol, Turns, UnitVec3, Vec3};
 
     use super::{
         BoundVerdict, Budgets, Cell, CellPair, ClearanceBound, DEFAULT_MAX_CELL_DEPTH, Side, Sweep,
@@ -7104,184 +7101,189 @@ mod depth_rows {
     /// turning its axis.
     #[test]
     fn walls_read_through_a_motion_are_parted_as_built_in_place() {
-        fn read<T: Decide + CertifiedBounds + crate::props::AtRestPolicy>() {
-            let lane = core::any::type_name::<T>();
-            let at = T::from_f64;
-            let sheet = |frame: CylFrame| {
-                let mut body = Body::<T>::new();
-                let f = cyl_wall_sheet(&mut body, frame, (0.2, 1.4), (0.0, 1.0), Tol::witness());
-                (body, f)
-            };
-            let wall = |radius: f64, origin: Point3<f64>| {
-                sheet(CylFrame {
-                    origin,
-                    ..CylFrame::canonical(radius)
-                })
-            };
-            let shift = |x: f64, y: f64| {
-                RigidMotion::translation(Vec3::new(at(x), at(y), at(0.0))).expect("a finite shift")
-            };
-            type Read<'b, T> = Result<super::Windows<'b, T>, super::EngineRefusal>;
-            fn windows<'b, T: Decide + CertifiedBounds>(
-                (a, fa): &'b (Body<T>, FaceKey),
-                ma: Option<RigidMotion<T>>,
-                (b, fb): &'b (Body<T>, FaceKey),
-                mb: Option<RigidMotion<T>>,
-            ) -> (Read<'b, T>, Read<'b, T>) {
-                let side = |body, face| Side {
-                    body,
-                    faces: vec![face],
+        macro_rules! read {
+            ($T:ty) => {{
+                let lane = stringify!($T);
+                let at = <$T>::from_f64;
+                let sheet = |frame: CylFrame| {
+                    let mut body = Body::<$T>::new();
+                    let f =
+                        cyl_wall_sheet(&mut body, frame, (0.2, 1.4), (0.0, 1.0), Tol::witness());
+                    (body, f)
                 };
-                (
-                    side(a, *fa).windows_at(Which::First, ma.as_ref()),
-                    side(b, *fb).windows_at(Which::Second, mb.as_ref()),
-                )
-            }
-            let parted = |a, ma, b, mb| {
-                let (Ok(wa), Ok(wb)) = windows(a, ma, b, mb) else {
+                let wall = |radius: f64, origin: Point3<f64>| {
+                    sheet(CylFrame {
+                        origin,
+                        ..CylFrame::canonical(radius)
+                    })
+                };
+                let shift = |x: f64, y: f64| {
+                    RigidMotion::translation(Vec3::new(at(x), at(y), at(0.0)))
+                        .expect("a finite shift")
+                };
+                type Read<'b> = Result<super::Windows<'b, $T>, super::EngineRefusal>;
+                fn windows<'b>(
+                    (a, fa): &'b (Body<$T>, FaceKey),
+                    ma: Option<RigidMotion<$T>>,
+                    (b, fb): &'b (Body<$T>, FaceKey),
+                    mb: Option<RigidMotion<$T>>,
+                ) -> (Read<'b>, Read<'b>) {
+                    let side = |body, face| Side {
+                        body,
+                        faces: vec![face],
+                    };
+                    (
+                        side(a, *fa).windows_at(Which::First, ma.as_ref()),
+                        side(b, *fb).windows_at(Which::Second, mb.as_ref()),
+                    )
+                }
+                let parted = |a, ma, b, mb| {
+                    let (Ok(wa), Ok(wb)) = windows(a, ma, b, mb) else {
+                        panic!("{lane}: a wall has a window");
+                    };
+                    let apart = |x: &Window<'_, $T>, y: &Window<'_, $T>| {
+                        parted_in_depth(
+                            x,
+                            y,
+                            Interval::from_f64(0.0),
+                            band(),
+                            Interval::from_certified,
+                        )
+                    };
+                    (apart(&wa.of[0], &wb.of[0]), apart(&wb.of[0], &wa.of[0]))
+                };
+                let origin = Point3::origin();
+                let (inner, outer) = (wall(1.0, origin), wall(1.001, origin));
+                let outer_off = wall(1.001, Point3::new(0.5, 0.0, 0.0));
+                // Its seam a quarter turn back, so the quarter turn brings its
+                // azimuths over the outer's and the two overlap on one axis.
+                let inner_off = sheet(CylFrame {
+                    origin: Point3::new(0.0, -0.5, 0.0),
+                    u_ref: -Vec3::unit_y(),
+                    ..CylFrame::canonical(1.0)
+                });
+                let quarter =
+                    RigidMotion::turned(Point3::origin(), UnitVec3::exact_z(), Turns::quarters(1));
+                let axis = |x: f64, y: f64, z: f64| Vec3::new(at(x), at(y), at(z));
+                let skew = RigidMotion::translation(axis(7.0, -3.0, 4.0))
+                    .unwrap()
+                    .compose(
+                        RigidMotion::rotation(
+                            UnitVec3::new(axis(1.0, -2.0, 0.5), "a skew axis", band()).unwrap(),
+                            at(0.9),
+                        )
+                        .unwrap(),
+                    )
+                    .unwrap();
+                let skew64 = RigidMotion::translation(Vec3::new(7.0, -3.0, 4.0))
+                    .unwrap()
+                    .compose(
+                        RigidMotion::rotation(
+                            UnitVec3::new(Vec3::new(1.0, -2.0, 0.5), "a skew axis", band())
+                                .unwrap(),
+                            0.9,
+                        )
+                        .unwrap(),
+                    )
+                    .unwrap();
+                let outer_moved = sheet(CylFrame {
+                    origin: skew64.transform_point(origin),
+                    axis: skew64.transform_vec(Vec3::unit_z()),
+                    radius: 1.001,
+                    u_ref: skew64.transform_vec(Vec3::unit_x()),
+                });
+                for (what, a, ma, b, mb, want) in [
+                    ("in one frame", &inner, None, &outer, None, true),
+                    (
+                        "both shifted",
+                        &inner,
+                        Some(shift(0.5, 0.0)),
+                        &outer,
+                        Some(shift(0.5, 0.0)),
+                        true,
+                    ),
+                    (
+                        "the second shifted across",
+                        &inner,
+                        None,
+                        &outer,
+                        Some(shift(0.5, 0.0)),
+                        false,
+                    ),
+                    (
+                        "the first shifted across",
+                        &inner,
+                        Some(shift(-0.5, 0.0)),
+                        &outer,
+                        None,
+                        false,
+                    ),
+                    (
+                        "the outer carried onto the axis",
+                        &inner,
+                        None,
+                        &outer_off,
+                        Some(shift(-0.5, 0.0)),
+                        true,
+                    ),
+                    (
+                        "the outer carried off it",
+                        &inner,
+                        None,
+                        &outer_off,
+                        Some(shift(0.5, 0.0)),
+                        false,
+                    ),
+                    (
+                        "the inner carried onto it",
+                        &outer_off,
+                        None,
+                        &inner,
+                        Some(shift(0.5, 0.0)),
+                        true,
+                    ),
+                    (
+                        "a turn and a shift composed",
+                        &inner_off,
+                        Some(quarter),
+                        &outer,
+                        Some(shift(0.5, 0.0)),
+                        true,
+                    ),
+                    (
+                        "a skew motion, as in place",
+                        &inner,
+                        Some(skew),
+                        &outer_moved,
+                        None,
+                        true,
+                    ),
+                ] {
+                    assert_eq!(parted(a, ma, b, mb), (want, want), "{lane}: {what}");
+                }
+                let (Ok(wa), Ok(wb)) = windows(&inner, None, &outer, Some(shift(0.5, 0.0))) else {
                     panic!("{lane}: a wall has a window");
                 };
-                let apart = |x: &Window<'_, T>, y: &Window<'_, T>| {
-                    parted_in_depth(
-                        x,
-                        y,
-                        Interval::from_f64(0.0),
-                        band(),
-                        Interval::from_certified,
-                    )
+                let sweep = Sweep {
+                    bound: ClearanceBound::StrictlyPositive,
+                    band: band(),
+                    budgets: Budgets {
+                        max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+                        max_cell_pairs: 128,
+                    },
                 };
-                (apart(&wa.of[0], &wb.of[0]), apart(&wb.of[0], &wa.of[0]))
-            };
-            let origin = Point3::origin();
-            let (inner, outer) = (wall(1.0, origin), wall(1.001, origin));
-            let outer_off = wall(1.001, Point3::new(0.5, 0.0, 0.0));
-            // Its seam a quarter turn back, so the quarter turn brings its
-            // azimuths over the outer's and the two overlap on one axis.
-            let inner_off = sheet(CylFrame {
-                origin: Point3::new(0.0, -0.5, 0.0),
-                u_ref: -Vec3::unit_y(),
-                ..CylFrame::canonical(1.0)
-            });
-            let quarter =
-                RigidMotion::turned(Point3::origin(), UnitVec3::exact_z(), Turns::quarters(1));
-            let axis = |x: f64, y: f64, z: f64| Vec3::new(at(x), at(y), at(z));
-            let skew = RigidMotion::translation(axis(7.0, -3.0, 4.0))
-                .unwrap()
-                .compose(
-                    RigidMotion::rotation(
-                        UnitVec3::new(axis(1.0, -2.0, 0.5), "a skew axis", band()).unwrap(),
-                        at(0.9),
-                    )
-                    .unwrap(),
-                )
-                .unwrap();
-            let skew64 = RigidMotion::translation(Vec3::new(7.0, -3.0, 4.0))
-                .unwrap()
-                .compose(
-                    RigidMotion::rotation(
-                        UnitVec3::new(Vec3::new(1.0, -2.0, 0.5), "a skew axis", band()).unwrap(),
-                        0.9,
-                    )
-                    .unwrap(),
-                )
-                .unwrap();
-            let outer_moved = sheet(CylFrame {
-                origin: skew64.transform_point(origin),
-                axis: skew64.transform_vec(Vec3::unit_z()),
-                radius: 1.001,
-                u_ref: skew64.transform_vec(Vec3::unit_x()),
-            });
-            for (what, a, ma, b, mb, want) in [
-                ("in one frame", &inner, None, &outer, None, true),
-                (
-                    "both shifted",
-                    &inner,
-                    Some(shift(0.5, 0.0)),
-                    &outer,
-                    Some(shift(0.5, 0.0)),
-                    true,
-                ),
-                (
-                    "the second shifted across",
-                    &inner,
-                    None,
-                    &outer,
-                    Some(shift(0.5, 0.0)),
-                    false,
-                ),
-                (
-                    "the first shifted across",
-                    &inner,
-                    Some(shift(-0.5, 0.0)),
-                    &outer,
-                    None,
-                    false,
-                ),
-                (
-                    "the outer carried onto the axis",
-                    &inner,
-                    None,
-                    &outer_off,
-                    Some(shift(-0.5, 0.0)),
-                    true,
-                ),
-                (
-                    "the outer carried off it",
-                    &inner,
-                    None,
-                    &outer_off,
-                    Some(shift(0.5, 0.0)),
-                    false,
-                ),
-                (
-                    "the inner carried onto it",
-                    &outer_off,
-                    None,
-                    &inner,
-                    Some(shift(0.5, 0.0)),
-                    true,
-                ),
-                (
-                    "a turn and a shift composed",
-                    &inner_off,
-                    Some(quarter),
-                    &outer,
-                    Some(shift(0.5, 0.0)),
-                    true,
-                ),
-                (
-                    "a skew motion, as in place",
-                    &inner,
-                    Some(skew),
-                    &outer_moved,
-                    None,
-                    true,
-                ),
-            ] {
-                assert_eq!(parted(a, ma, b, mb), (want, want), "{lane}: {what}");
-            }
-            let (Ok(wa), Ok(wb)) = windows(&inner, None, &outer, Some(shift(0.5, 0.0))) else {
-                panic!("{lane}: a wall has a window");
-            };
-            let sweep = Sweep {
-                bound: ClearanceBound::StrictlyPositive,
-                band: band(),
-                budgets: Budgets {
-                    max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
-                    max_cell_pairs: 128,
-                },
-            };
-            let report: super::BoundReport<()> =
-                sweep.run(&wa, &wb, false, |_| Err("no witness".to_owned()));
-            assert!(
-                !matches!(report.verdict, BoundVerdict::Holds),
-                "{lane}: the crossing walls do not hold: {:?} {:?}",
-                report.verdict,
-                report.receipt
-            );
+                let report: super::BoundReport<()> =
+                    sweep.run(&wa, &wb, false, |_| Err("no witness".to_owned()));
+                assert!(
+                    !matches!(report.verdict, BoundVerdict::Holds),
+                    "{lane}: the crossing walls do not hold: {:?} {:?}",
+                    report.verdict,
+                    report.receipt
+                );
+            }};
         }
-        read::<f64>();
-        read::<Interval>();
+        read!(f64);
+        read!(Interval);
     }
 
     /// **Nested tori read through a motion hold at their root, as built
