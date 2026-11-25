@@ -2024,3 +2024,7 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - **Dispatched:**
     - U4a's R1 confirmation, as a fresh Opus lane (`germ-review-7577-r1b`) in place of the Fable R1;
     - PR 7658's review, fresh on Opus (`germ-review-7658-o`); the cut-off Fable review's scratch is not to be read.
+- 2026-11-25 — **PR 7658 review (Opus): APPROVE-WITH-FIXES.**
+  - **MAJOR M1:** at `T = Interval`, the finiteness guards ask `is_finite_length`, which passes `[MAX, ∞]`. So `replace_face_offset` and `plane_sphere_section` still panic in `Circle::new`.
+  - **MINORs:** the blend gate refuses inf as `NonpositiveSize`; collapse variants of the wrong kind; SHELL's row is fixed but not mentioned; the open `Ring::parallel` sign is on GERM's slate, not SECTTORUS's; the torus re-pose has no row and no measured gain; conflicts with main; the `[sizes]` interim guards are not listed for retirement.
+  - The fix pass was sent to the audit session.
