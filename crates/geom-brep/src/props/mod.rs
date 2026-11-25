@@ -165,8 +165,12 @@ pub use loop_area::{
 ///
 /// The tags must **faithfully identify shared vertices** — no residual
 /// can catch a tag lie, because a lie leaves the geometry unchanged.
-/// No props lane reads them: closure is decided on the traversed
-/// endpoints, and a tag lie moves no flux (`torus_flux_reads_no_tags`).
+/// One props lane reads them: a cone loop that passes its apex point
+/// more than once is measured only where every pass is at one vertex
+/// tag (`curved`'s apex lobes, `props_cone_apex_vertices`), so a tag lie
+/// there admits two cones of material meeting at the apex. Elsewhere
+/// closure is decided on the traversed endpoints, and a tag lie moves
+/// no flux (`torus_flux_reads_no_tags`).
 /// `topo`'s flattening satisfies the contract by construction
 /// (first-seen traversal order over the half-edge cycle); callers
 /// constructing `LoopEdge`s by hand own it.

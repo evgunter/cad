@@ -2408,8 +2408,8 @@ fn min_max<T: Real>(levels: &[T]) -> Result<(T, T), PropsError> {
 ///   through the apex sweeps at most a turn
 ///   (`props_cone_apex_loop_sweep`) and its rings wind nothing; no loop
 ///   meets itself at a vertex ([`require_cone_loop_vertices_distinct`])
-///   but at the apex, where a loop that passes it more than once is
-///   lobes that cover the face's side there once
+///   but at the apex, where a loop that passes it more than once, at
+///   one vertex, is lobes that cover the face's side there once
 ///   ([`require_apex_lobes`]);
 ///   and every loop that does not bound the face (a cap's rim, a
 ///   band's two, a loop through the apex) is a hole, wound against
@@ -2438,7 +2438,8 @@ fn min_max<T: Real>(levels: &[T]) -> Result<(T, T), PropsError> {
 /// does;
 /// [`PropsError::ConeLoop`] naming the decide for a loop through the
 /// apex sweeping past a turn, one that meets itself at a vertex off the
-/// apex, lobes at the apex that cover its side other than once, a ring
+/// apex, one that passes the apex at two vertices, lobes that meet off
+/// the apex or cover its side there other than once, a ring
 /// that reaches the apex, and an ellipse arc's span not forward or past
 /// a period;
 /// [`PropsError::RingWoundWithFace`] for a ring wound with the face;
@@ -2465,14 +2466,14 @@ pub fn cone_face_closed_form<T: Decide>(
 /// definitely nonzero (`props_cone_apex_loop_net`; a loop sweeping none
 /// bounds nothing and refuses) and not over a turn
 /// (`props_cone_apex_loop_sweep`, the turn rule), each refusing as
-/// [`PropsError::ConeLoop`].
-fn apex_loop_sweep<T: Decide>(total: T, arm: T, band: Band) -> Result<(), PropsError> {
+/// [`PropsError::ConeLoop`]. Its answer is the sweep's decided sense.
+fn apex_loop_sweep<T: Decide>(total: T, arm: T, band: Band) -> Result<NonzeroSign, PropsError> {
     let escalated = |cause| PropsError::Escalated {
         cause,
         check: PropsCheck::Inventory,
     };
     const NET: &str = "props_cone_apex_loop_net";
-    let (_, extent) = Extent::decide_signed(NET, total, InfSpeed::new(arm), band).map_err(
+    let (sense, extent) = Extent::decide_signed(NET, total, InfSpeed::new(arm), band).map_err(
         |cause: geom_core::Indeterminate| match cause.margin.rejected_sign() {
             Some(Sign::Zero) => PropsError::ConeLoop { what: NET },
             _ => escalated(cause),
@@ -2480,7 +2481,7 @@ fn apex_loop_sweep<T: Decide>(total: T, arm: T, band: Band) -> Result<(), PropsE
     )?;
     let sweep = "props_cone_apex_loop_sweep";
     match Period::angle().not_over(TurnRows::exact(sweep), extent, Exact::new(arm), band) {
-        Ok(true) => Ok(()),
+        Ok(true) => Ok(sense),
         Ok(false) => Err(PropsError::ConeLoop { what: sweep }),
         Err(undecided) => Err(escalated(undecided.diag)),
     }
@@ -3147,34 +3148,39 @@ fn require_cone_holes<T: Decide>(
     }
 }
 
-/// **A cone loop pinched at its apex bounds its region once**: a loop
-/// that passes the apex more than once (`apex_starts`, the edges that
-/// leave it) is lobes meeting only there, as a cut along two rulings
-/// through the apex leaves of a face whose one corner there is its whole
-/// turn. Its vector area is the lobes' sum, which is the face's area
-/// exactly when the lobes bound the face once; that is decided here, and
-/// the loop is then measured as any other ([`cone_loops`]).
+/// **A cone loop that passes its apex more than once is one face
+/// pinched there**, its lobes covering the face's side at the apex once.
+/// `apex_starts` are the edges that leave the apex; between two of them
+/// the loop is a lobe, a loop through the apex once. The vector area is
+/// the lobes' sum ([`cone_loops`]), which is the face's when:
 ///
-/// - **Each lobe is a loop through the apex once**, read and decided as
-///   one ([`cone_loop_winding`], [`apex_loop_sweep`],
-///   [`require_cone_loop_vertices_distinct`]): it sweeps a definite
-///   azimuth of at most a turn, and meets itself at no vertex.
-/// - **No two lobes share a vertex off the apex**
-///   (`props_cone_loop_vertex`): that is a second pinch, and two lobes'
-///   azimuths, each read from its own departure, cannot tell a seam's
-///   two copies from one vertex met twice.
-/// - **Near the apex the lobes cover the face's side once**
-///   (`props_cone_apex_lobes`). Each lobe holds, near the apex, the
-///   wedge its sweep turns through from the ruling it leaves along, and
-///   its sweep's sign says whether the face is inside it or outside
-///   (a notch). Between consecutive wedge sides, the signed count of
-///   wedges holding a direction must be `0` or one sign's `1`
-///   everywhere, and `1` somewhere: a whole-turn lobe less a notch, or
-///   sectors side by side. Each such count is read at the middle of an
-///   arc between distinct wedge sides, decided clear of every side.
-///   Two wedge sides decided one ruling are one side
-///   (`props_cone_apex_lobe_side`), and the decisions are metered at the
-///   nearest radius the lobes' rulings reach.
+/// - **every pass is at one vertex** (`props_cone_apex_vertices`): the
+///   edges that leave the apex start at one vertex tag. Two distinct
+///   vertices at the apex are two cones of material meeting there, the
+///   pinch `topo::loop_points` names (two distinct vertices on one point
+///   key); a face pinched at one vertex is that vertex met twice. The
+///   tags identify vertices ([`LoopEdge`]'s trust boundary), so the two
+///   readings agree on a body's flattening.
+/// - **each lobe is a loop through the apex once**, decided as one
+///   ([`cone_loop_winding`], [`apex_loop_sweep`],
+///   [`require_cone_loop_vertices_distinct`]);
+/// - **no two lobes meet off the apex** (`props_cone_apex_lobe_vertex`,
+///   in space): azimuths read lobe by lobe cannot tell a seam's two
+///   copies from one vertex met twice, so any such meeting refuses;
+/// - **at the apex the lobes cover the face's side once**
+///   (`props_cone_apex_lobes`). Near the apex a lobe holds the wedge its
+///   sweep turns through from the ruling it leaves along, on the face's
+///   side for one sense of sweep and off it (a notch) for the other.
+///   The wedges' sides, read as azimuths and grouped where they are
+///   decided one ruling (`props_cone_apex_lobe_side`), part the turn
+///   into arcs; on every arc the signed count of wedges must be `0` or
+///   one sign's `1`, and `1` on some arc.
+///
+/// The last is decided at the apex only. With no two edges crossing
+/// between vertices — the closed form's premise, decided by none of its
+/// readings ([`cone_face_closed_form`]) — lobes that cover the apex once
+/// bound the face once. Every angle is metered at the nearest radius a
+/// lobe's ruling reaches.
 fn require_apex_lobes<T: Decide>(
     cone: &Surface<T>,
     apex: Point3<T>,
@@ -3183,9 +3189,15 @@ fn require_apex_lobes<T: Decide>(
     apex_starts: &[usize],
     band: Band,
 ) -> Result<(), PropsError> {
+    const VERTICES: &str = "props_cone_apex_vertices";
+    const LOBE_VERTEX: &str = "props_cone_apex_lobe_vertex";
     const LOBES: &str = "props_cone_apex_lobes";
     const SIDE: &str = "props_cone_apex_lobe_side";
     let refuse = |what| PropsError::ConeLoop { what };
+    let tag = edges[apex_starts[0]].start;
+    if apex_starts.iter().any(|&k| edges[k].start != tag) {
+        return Err(refuse(VERTICES));
+    }
     let radial = |p: Point3<T>| {
         geom::Line {
             origin: apex,
@@ -3194,150 +3206,134 @@ fn require_apex_lobes<T: Decide>(
         .offset(p)
     };
     let n = edges.len();
-    // Each lobe: its winding, the ruling it leaves the apex along and the
-    // one it returns along.
+    // Each lobe: its decided sense, its off-apex vertices, the ruling it
+    // leaves the apex along and the one it returns along.
     let mut lobes = Vec::with_capacity(apex_starts.len());
     for (i, &from) in apex_starts.iter().enumerate() {
         let to = apex_starts[(i + 1) % apex_starts.len()];
         let len = (to + n - from - 1) % n + 1;
         let lobe: Vec<LoopEdge<T>> = (0..len).map(|k| edges[(from + k) % n].clone()).collect();
         let w = cone_loop_winding(cone, apex, axis, &lobe, AtApex::AlongGenerator, band)?;
-        apex_loop_sweep(w.total, w.arm, band)?;
+        let sense = apex_loop_sweep(w.total, w.arm, band)?;
         require_cone_loop_vertices_distinct(apex, axis, &w, band)?;
         let (Some(first), Some(last)) = (lobe.first(), lobe.last()) else {
             unreachable!("a lobe holds the edge that leaves the apex")
         };
-        let (leave, back) = (
+        let off: Vec<Point3<T>> = w
+            .vertices
+            .iter()
+            .filter_map(|&(p, a)| a.map(|_| p))
+            .collect();
+        lobes.push((
+            sense,
+            off,
             radial(first.traversal_ends().1),
             radial(last.traversal_ends().0),
-        );
-        lobes.push((w, leave, back));
+        ));
     }
-    for (i, (wi, ..)) in lobes.iter().enumerate() {
-        for (wj, ..) in &lobes[i + 1..] {
-            for &(p, a) in &wi.vertices {
-                for &(q, b) in &wj.vertices {
-                    if a.is_some()
-                        && b.is_some()
-                        && classify_as(
-                            "props_cone_loop_vertex",
-                            Margin::of((p - q).norm()),
-                            band,
-                            PropsCheck::Inventory,
-                        )? != Sign::Positive
+    for (i, (_, pi, ..)) in lobes.iter().enumerate() {
+        for (_, pj, ..) in &lobes[i + 1..] {
+            for &p in pi {
+                for &q in pj {
+                    if classify_as(
+                        LOBE_VERTEX,
+                        Margin::of((p - q).norm()),
+                        band,
+                        PropsCheck::Inventory,
+                    )? != Sign::Positive
                     {
-                        return Err(refuse("props_cone_loop_vertex"));
+                        return Err(refuse(LOBE_VERTEX));
                     }
                 }
             }
         }
     }
-    // Every angle is read from the first lobe's leaving ruling, in
-    // `[0, τ)`, at the nearest radius a lobe's ruling reaches.
-    let tau = Period::<T>::angle().length();
     let arm = lobes
         .iter()
-        .flat_map(|(_, l, b)| [l.norm(), b.norm()])
-        .fold(lobes[0].1.norm(), T::min);
-    let sign = |name, x: T| {
+        .flat_map(|&(_, _, l, b)| [l.norm(), b.norm()])
+        .fold(lobes[0].2.norm(), T::min);
+    let side = |x: T| {
         classify_as(
-            name,
+            SIDE,
             Margin::metered(x, InfSpeed::new(arm)),
             band,
             PropsCheck::Inventory,
         )
     };
-    // The side of the first lobe's leaving ruling a ruling lies on picks
-    // the branch, a quarter turn or three from it, so no reading meets its
-    // cut; one on that ruling's line, either way, is at `0` or half a
-    // turn.
-    let origin = lobes[0].1;
+    // A ruling's azimuth from the first lobe's leaving ruling, in
+    // `[0, τ)`: the side of that ruling's line it lies on picks the
+    // branch, a quarter turn or three, so no reading meets its cut, and
+    // one on the line is at `0` or half a turn.
+    let origin = lobes[0].2;
     let azimuth = |u: Vec3<T>| -> Result<T, PropsError> {
         let (dot, cross) = turn_arms(axis, origin, u);
-        let side = |x: T| {
-            classify_as(
-                SIDE,
-                Margin::of(x / origin.norm()),
-                band,
-                PropsCheck::Inventory,
-            )
-        };
         let read = geom::Azimuth::of(cross, dot);
-        Ok(match side(cross)? {
+        Ok(match side(cross / (origin.norm() * u.norm()))? {
             Sign::Positive => read.about(geom::Quarter(1)),
             Sign::Negative => read.about(geom::Quarter(3)),
-            Sign::Zero => match side(dot)? {
+            Sign::Zero => match side(dot / (origin.norm() * u.norm()))? {
                 Sign::Positive => T::zero(),
-                Sign::Negative => T::pi(),
-                Sign::Zero => return Err(refuse(LOBES)),
+                _ => T::pi(),
             },
         })
     };
-    // Each lobe's wedge: the side it leaves from, its signed sweep.
-    let mut wedges = Vec::with_capacity(lobes.len());
-    let mut sides = Vec::with_capacity(2 * lobes.len());
-    for (w, leave, back) in &lobes {
-        let from = azimuth(*leave)?;
-        let sense = match sign(LOBES, w.total)? {
-            Sign::Zero => return Err(refuse(LOBES)),
-            s => s,
-        };
-        wedges.push((from, w.total, sense));
-        sides.push(from);
-        sides.push(azimuth(*back)?);
-    }
-    // `x` taken into `[0, τ)`, for `x` decided clear of a whole turn's
-    // multiples, within one turn either side of it.
-    let wrapped = |x: T| -> Result<T, PropsError> {
-        Ok(match (sign(LOBES, x)?, sign(LOBES, x - tau)?) {
-            (Sign::Negative, _) => x + tau,
-            (_, Sign::Negative) => x,
-            (Sign::Positive, _) => x - tau,
-            _ => return Err(refuse(LOBES)),
-        })
-    };
-    // The middle of the arc from each side to the next distinct one; one
-    // arc of a whole turn where every side is one.
-    let mut probes = Vec::with_capacity(sides.len());
-    for &a in &sides {
-        let mut gap: Option<T> = None;
-        for &b in &sides {
-            let d = b - a;
-            let d = match sign(SIDE, d)? {
-                Sign::Zero => continue,
-                Sign::Negative => d + tau,
-                Sign::Positive => d,
-            };
-            gap = Some(gap.map_or(d, |g| g.min(d)));
-        }
-        probes.push(a + gap.unwrap_or(tau) / T::from_f64(2.0));
-    }
-    let mut covered = None;
-    for phi in probes {
-        let mut count = 0i32;
-        for &(from, sweep, sense) in &wedges {
-            let into = match sense {
-                Sign::Negative => from - phi,
-                _ => phi - from,
-            };
-            let into = wrapped(into)?;
-            match sign(LOBES, sweep.abs() - into)? {
-                Sign::Positive => count += if sense == Sign::Negative { -1 } else { 1 },
-                Sign::Negative => {}
-                Sign::Zero => return Err(refuse(LOBES)),
+    // The wedges' sides grouped into rulings, ascending in azimuth: a
+    // side joins the first ruling it is decided one with, and distinct
+    // rulings were decided apart when the later was opened.
+    let mut rulings: Vec<T> = Vec::new();
+    let mut ruling_of = |u: Vec3<T>| -> Result<usize, PropsError> {
+        let a = azimuth(u)?;
+        for (k, &r) in rulings.iter().enumerate() {
+            if side(a - r)? == Sign::Zero {
+                return Ok(k);
             }
         }
-        match (count, covered) {
-            (0, _) => {}
-            (1 | -1, None) => covered = Some(count),
-            (c, Some(k)) if c == k => {}
-            _ => return Err(refuse(LOBES)),
+        rulings.push(a);
+        Ok(rulings.len() - 1)
+    };
+    let mut wedges = Vec::with_capacity(lobes.len());
+    for &(sense, _, leave, back) in &lobes {
+        wedges.push((sense, ruling_of(leave)?, ruling_of(back)?));
+    }
+    let m = rulings.len();
+    // Each ruling's rank in ascending azimuth: the count of rulings
+    // decided below it.
+    let mut rank = vec![0; m];
+    for (k, &a) in rulings.iter().enumerate() {
+        for &b in &rulings {
+            if side(a - b)? == Sign::Positive {
+                rank[k] += 1;
+            }
         }
     }
-    if covered.is_none() {
-        return Err(refuse(LOBES));
+    // Arc `j` runs from the ruling of rank `j` to the next. A wedge runs
+    // with its sense from the ruling it leaves along to the one it
+    // returns on; where those are one ruling it is the whole turn (its
+    // sweep is a definite one of at most a turn, and congruent to the
+    // turn between them).
+    let mut count = vec![0i32; m];
+    for &(sense, leave, back) in &wedges {
+        let (start, end) = match sense {
+            NonzeroSign::Positive => (rank[leave], rank[back]),
+            NonzeroSign::Negative => (rank[back], rank[leave]),
+        };
+        let arcs = if start == end {
+            m
+        } else {
+            (end + m - start) % m
+        };
+        for j in (0..arcs).map(|j| (start + j) % m) {
+            count[j] += match sense {
+                NonzeroSign::Positive => 1,
+                NonzeroSign::Negative => -1,
+            };
+        }
     }
-    Ok(())
+    let held: Vec<i32> = count.into_iter().filter(|&c| c != 0).collect();
+    match held.first() {
+        Some(&k @ (1 | -1)) if held.iter().all(|&c| c == k) => Ok(()),
+        _ => Err(refuse(LOBES)),
+    }
 }
 
 /// **A cone loop meets itself at no vertex**
@@ -3452,8 +3448,9 @@ struct ConeWinding<T: Real> {
     arm: T,
     /// Whether an edge end lies on the apex.
     through_apex: bool,
-    /// The edges, by index in the loop's order, whose traversal starts
-    /// on the apex: one for each time the loop passes it.
+    /// The edges, by index in the loop's order, whose traversal start
+    /// is decided on the apex point: one for each time the loop passes
+    /// that point, at whichever vertex it is.
     apex_starts: Vec<usize>,
     /// Each edge's traversal start, with the azimuth the loop has
     /// turned from its first vertex to it — `None` on the apex.
@@ -6482,6 +6479,15 @@ enum ApexSide {
     Right,
 }
 
+/// **A spindle sheet's apex in its tube angle `v`, its one home**: the
+/// upper apex (`up`) at `sin v = h/r`, the lower at `−h/r`, both at
+/// `cos v = −R/r`, with `h` the apex height ([`geom::sheet_apex`]). The
+/// tip closure ([`sheet_tip_closure`]) and the apex jumps between two
+/// meridians ([`sheet_apex_jumps`]) both land their piece there.
+fn apex_tube_angle<T: Real>(major: T, minor: T, up: bool) -> (T, T) {
+    let sin_v = geom::sheet_apex(major, minor).height / minor;
+    (if up { sin_v } else { -sin_v }, -major / minor)
+}
 /// **A loop's passes through a sheet's apexes** ([`ApexJump`]). A
 /// junction between two meridians at a point decided on the axis
 /// (`props_sheet_apex_junction`) is an apex: there the chart image
@@ -6495,16 +6501,6 @@ enum ApexSide {
 /// and so in `(0, 2π)`; a turn in the band of zero, two meridians on one
 /// half-plane, refuses (`props_sheet_apex_turn`), the face pinched to
 /// nothing there.
-
-/// **A spindle sheet's apex in its tube angle `v`, its one home**: the
-/// upper apex (`up`) at `sin v = h/r`, the lower at `−h/r`, both at
-/// `cos v = −R/r`, with `h` the apex height ([`geom::sheet_apex`]). The
-/// tip closure ([`sheet_tip_closure`]) and the apex jumps between two
-/// meridians ([`sheet_apex_jumps`]) both land their piece there.
-fn apex_tube_angle<T: Real>(major: T, minor: T, up: bool) -> (T, T) {
-    let sin_v = geom::sheet_apex(major, minor).height / minor;
-    (if up { sin_v } else { -sin_v }, -major / minor)
-}
 fn sheet_apex_jumps<T: Decide>(
     center: Point3<T>,
     axis: Vec3<T>,

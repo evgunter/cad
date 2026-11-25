@@ -352,6 +352,86 @@ fn a_cut_along_two_rulings_through_the_apex_measures_the_pinched_face() {
     }
 }
 
+/// **A wedge of the cone cut along two rulings through its apex keeps
+/// two apex vertices, and refuses**: the cone of radius and height 1
+/// revolved through `5.5`, its apex a vertex of its cone face and of
+/// the two planar faces the revolve leaves, less the box
+/// `[−0.3, 0] × [0.95, 1.2] × [−0.3, 0.3]`. What remains of the tip is
+/// two wedges touching along the axis, and the cone face's loop passes
+/// the apex point at two DISTINCT vertices, one per wedge: no face
+/// pinched at one vertex, and props refuses it by name
+/// (`props_cone_apex_vertices`) at the gate. The union fills the gap
+/// and builds at its closed form, its region, tier 3′ and a watertight
+/// mesh.
+#[test]
+fn a_wedge_cut_along_two_rulings_through_its_apex_refuses_two_apex_vertices() {
+    let theta = 5.5f64;
+    let w = finished(
+        "the wedge",
+        revolved_about_y(
+            vec![
+                (Point2::new(0.0, 0.0), 0.0),
+                (Point2::new(1.0, 0.0), 0.0),
+                (Point2::new(0.0, 1.0), 0.0),
+            ],
+            Revolution::Partial(theta),
+            tol(),
+        ),
+        tol(),
+    );
+    let (lo, hi) = (Point3::new(-0.3, 0.95, -0.3), Point3::new(0.0, 1.2, 0.3));
+    let b = finished(
+        "the box",
+        topo::test_support::brick::<f64>((lo.x, hi.x), (lo.y, hi.y), (lo.z, hi.z), tol()),
+        tol(),
+    );
+    match subtract(&w, &b, tol()) {
+        Err(e @ BooleanError::ResultInvalid { .. }) => assert!(
+            format!("{e:?}").contains("props_cone_apex_vertices"),
+            "w ∖ b: {e:?}"
+        ),
+        other => panic!("w ∖ b: refuses two apex vertices, not {other:?}"),
+    }
+    // The revolve sweeps from `+x` toward `−z`: azimuths in the plane
+    // `(X, Y) = (x, −z)`; past a half turn the wedge is the union of
+    // the half-planes its two sides bound.
+    let region = move |p: Point3<f64>| {
+        let (start, end) = (-p.z, theta.sin() * p.x + theta.cos() * p.z);
+        let wedge = (1.0 - p.y - p.x.hypot(p.z)).min(p.y).min(start.max(end));
+        let the_box = (p.x - lo.x)
+            .min(hi.x - p.x)
+            .min(p.y - lo.y)
+            .min(hi.y - p.y)
+            .min(p.z - lo.z)
+            .min(hi.z - p.z);
+        wedge.max(the_box)
+    };
+    let h = 1.0 - lo.y;
+    let want = PI / 3.0 * theta / (2.0 * PI) + (hi.x - lo.x) * (hi.y - lo.y) * (hi.z - lo.z)
+        - PI * h.powi(3) / 6.0;
+    match union(&w, &b, tol()) {
+        Ok(BooleanResult::Body(body)) => {
+            membership::holds_short_of_tier_3_prime(
+                "w ∪ b",
+                &body.body,
+                want,
+                &region,
+                (Point3::new(-1.2, -0.2, -1.2), Point3::new(1.2, 1.25, 1.2)),
+                7,
+            );
+            assert_eq!(
+                topo::validate_pseudomanifold(&body.body, &body.contacts, tol()),
+                Ok(()),
+                "w ∪ b: tier 3′ over the result's contacts"
+            );
+            let m = mesh::tessellate(&body.body, 5e-3, tol())
+                .unwrap_or_else(|e| panic!("w ∪ b: tessellate: {e:?}"));
+            mesh::validate::check_mesh(&m).unwrap_or_else(|e| panic!("w ∪ b: mesh {e:?}"));
+        }
+        other => panic!("w ∪ b: {other:?}"),
+    }
+}
+
 /// **A cylinder wall resting on the apex refuses by name**: the rod of
 /// radius `ρ` along `z`, its wall's lowest ruling through the apex, the
 /// cone wholly below it, either cone and either rod. The pierce at the
