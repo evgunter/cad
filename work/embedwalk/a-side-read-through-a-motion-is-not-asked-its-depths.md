@@ -2,10 +2,11 @@
 id: a-side-read-through-a-motion-is-not-asked-its-depths
 kind: issue
 title: A clearance side read through a motion is not asked the depth gap, so a placed pair and the same pair built in place can read different verdicts, a budget refusal against a Holds at the root
-status: open
+status: dispatched
 opened: 2026-11-21
 priority: P1
 cost: M
+branch: embedwalk/placed-depth
 ---
 
 

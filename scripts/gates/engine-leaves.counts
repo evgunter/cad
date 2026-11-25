@@ -121,12 +121,12 @@ names-splitting            22  chord_join.rs  # work/onedoor/chord-joins-ring-si
 names-splitting            16  chord_join/ring_side_rows.rs  # work/onedoor/chord-joins-ring-side-reads-the-splitting-engines-loop-containment
 names-splitting             7  chord_join/sibling_escalation_rows.rs
 names-splitting            61  contain.rs  # work/onedoor/chord-joins-ring-side-reads-the-splitting-engines-loop-containment
-names-splitting             9  contain_loop.rs  # work/onedoor/chord-joins-ring-side-reads-the-splitting-engines-loop-containment
+names-splitting            18  contain_loop.rs  # work/onedoor/chord-joins-ring-side-reads-the-splitting-engines-loop-containment
 names-splitting            11  lib.rs
 names-splitting             1  lineage.rs
 names-splitting             3  offset_together.rs
 names-splitting             6  props.rs
-names-splitting            16  region.rs  # work/onedoor/chord-joins-ring-side-reads-the-splitting-engines-loop-containment
+names-splitting            14  region.rs  # work/onedoor/chord-joins-ring-side-reads-the-splitting-engines-loop-containment
 names-splitting            10  review_d18.rs
 names-splitting             1  ruled_region.rs  # work/onedoor/chord-joins-ring-side-reads-the-splitting-engines-loop-containment
 names-splitting             2  separation.rs
