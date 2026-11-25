@@ -635,9 +635,27 @@ fn the_foot_path_stays_on_the_sheet_its_carrier_lies_on() {
     let lowest = (0..=64)
         .map(|i| image.eval(f64::from(i) / 64.0).x)
         .fold(f64::INFINITY, f64::min);
+    // The carrier is a cubic through 17 points of the upper sheet, so it
+    // stands off that sheet between them: its distance from the sheet,
+    // each foot followed from the chart point the carrier was drawn
+    // through. The image holds it to that standoff and the band: its
+    // miss along the wall may be a quarter of the standoff, which adds
+    // at most a thirty-second of it to the distance across.
+    let standoff = (0..=64)
+        .map(|i| {
+            let t = f64::from(i) / 64.0;
+            wall.project_from_seed(carrier.eval(t), 0.8 - 0.25 * t, 0.3 + 0.5 * t)
+                .map_or(f64::INFINITY, |foot| foot.distance)
+        })
+        .fold(0.0, f64::max);
     assert!(
-        miss <= band().zero() && lowest > 0.5,
-        "the image stays on the upper sheet: {miss:e} m off the carrier, u down to {lowest}"
+        standoff < 1e-3 * gap,
+        "the fixture: the carrier is {standoff:e} m off its own sheet, far under the gap"
+    );
+    assert!(
+        miss <= (1.0 + 1.0 / 32.0) * standoff + band().zero() && lowest > 0.5,
+        "the image stays on the upper sheet: {miss:e} m off the carrier, which stands \
+         {standoff:e} m off that sheet, u down to {lowest}"
     );
 }
 

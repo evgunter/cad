@@ -139,6 +139,72 @@ fn two_bilinear_patches_cross_at_their_closed_form() {
     );
 }
 
+/// **A traced spline-pair branch's certificate is rest's, bit for bit**
+/// (C2): the crease of the saddle and the upright patch, traced and then
+/// read again from the carrier alone. On a pair the two charts' images
+/// share one list of knots, the union of what each asks, so the image
+/// the trace certified on each chart is the pair's (`nurbs_pair_limbs`
+/// derives both again), and the single-wall mint's image of the same
+/// carrier is the same curve in the chart on its own knots. Rest reads
+/// the trace's three limbs to the bit.
+///
+/// Red against: a trace that keeps pcurves fitted through its own
+/// marched chart points, and a pair lane at rest that images each chart
+/// alone (its limb 3 then pairs other spans than the trace's).
+#[test]
+fn a_traced_pair_branchs_certificate_is_rests_bit_for_bit() {
+    let (s1, s2) = (saddle(), upright());
+    let mut section = Section::of(&s1, &s2, domain(), band()).expect("the section");
+    let at = section.branch_at(crease(0.5)).expect("the branch").clone();
+    let rest = geom_brep::nurbs_pair_limbs(
+        &at.carrier,
+        at.params,
+        &s1,
+        &s2,
+        geom_core::test_support::fixture_lever(domain().extent),
+        band(),
+    )
+    .unwrap_or_else(|e| panic!("the branch certifies at rest: {e:?}"));
+    let cert = &at.certificate;
+    assert_eq!(
+        (
+            cert.on_locus_max.to_bits(),
+            cert.hull_sup.to_bits(),
+            cert.tube_transversality.to_bits(),
+            cert.tube_boxes,
+            format!("{:?}", cert.tube),
+        ),
+        (
+            rest.on_locus_max.to_bits(),
+            rest.hull_sup.to_bits(),
+            rest.tube_transversality.to_bits(),
+            rest.tube_boxes,
+            format!("{:?}", rest.tube),
+        ),
+        "rest reads the trace's certificate"
+    );
+    // The single-wall image of each chart is the pair's curve there.
+    for (name, wall, traced) in [
+        ("the saddle", &s1, at.pcurve_a.as_ref().expect("its image")),
+        ("the upright", &s2, at.pcurve_b.as_ref().expect("its image")),
+    ] {
+        let minted = geom_brep::FittedLane::<f64>::certified()
+            .general_image(&at.carrier, at.params, wall, band())
+            .unwrap_or_else(|e| panic!("{name}: the mint images the carrier: {e:?}"));
+        let (t0, t1) = at.params;
+        let apart = (0..=64)
+            .map(|i| {
+                let t = t0 + (t1 - t0) * f64::from(i) / 64.0;
+                traced.eval(t).distance(minted.eval(t))
+            })
+            .fold(0.0, f64::max);
+        assert!(
+            apart <= 1e-12,
+            "{name}: the single-wall image is the pair's curve in the chart: {apart:e} apart"
+        );
+    }
+}
+
 /// A biquadratic graph `z = g(x) + k(y)` over `xs × ys`, `(u, v) = (x,
 /// y)`, `g` and `k` quadratics given by their coefficients.
 fn graph(xs: (f64, f64), ys: (f64, f64), g: [f64; 3], k: [f64; 3]) -> NurbsSurface<f64> {

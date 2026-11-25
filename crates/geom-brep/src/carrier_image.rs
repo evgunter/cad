@@ -382,17 +382,8 @@ where
         // inside, so where its net does it is inside whole, and what the
         // move costs is read with the rest of its miss below.
         let [ud, vd] = rectangle(wall);
-        let held: Vec<Point2<f64>> = image
-            .control()
-            .iter()
-            .map(|p| Point2::new(p.x.clamp(ud.0, ud.1), p.y.clamp(vd.0, vd.1)))
-            .collect();
-        let image = NurbsCurve2::new(
-            image.knots_f64_interim().clone(),
-            held,
-            image.weights().to_vec(),
-        )
-        .map_err(|_| ImageRefusal::Fit)?;
+        let image =
+            image.map_points(|p| Point2::new(p.x.clamp(ud.0, ud.1), p.y.clamp(vd.0, vd.1)));
         // The spans that miss, by the knot each takes (at its middle, or
         // on a line of the wall the path crosses in it), and the largest
         // miss read.
