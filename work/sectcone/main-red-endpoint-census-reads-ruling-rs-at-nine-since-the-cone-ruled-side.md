@@ -2,21 +2,12 @@
 id: main-red-endpoint-census-reads-ruling-rs-at-nine-since-the-cone-ruled-side
 kind: issue
 title: Main red (slow set): certified_endpoint_census reads pair_section/ruling.rs at (9, 9) where the roster pins (3, 3), since PR 7357
-<<<<<<< HEAD
-status: dispatched
-opened: 2026-11-23
-priority: P1
-cost: E
-refs: [7357]
-branch: sectcone/endpoint-census-ruling
-=======
 status: closed
 opened: 2026-11-23
 priority: P1
 cost: E
 refs: [7357, 7452]
 closed: 2026-11-24
->>>>>>> origin/main
 ---
 
 
