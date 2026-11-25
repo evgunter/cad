@@ -257,8 +257,11 @@ spans the carrier (chart edges walked in runs of one sign or monotone,
 rung whose chain is a graph but not one arc gives way to a narrower one. A
 chain may end at a node of the section (C5). Its radius is then read
 box by box, narrowing in proportion to the box's distance from the
-node, and the pad a site reads is the widest of the boxes it lies in,
-each the farthest that box's image stands from the carrier. Its
+node, and the pad a site reads is the widest of the cells it lies in
+(the carry's, C5: the boxes' windows cut to the knot rectangle, less
+the cells the partner's form clears of the band, the node's own box
+kept whole), each the farthest that cell's image stands from the
+carrier. Its
 last box holds the node, and the claim over that box is the node's own
 reading: `∇φ`'s one zero there by the Krawczyk operator, within the
 band of the carrier's end, its Hessian indefinite and its value decided
@@ -1121,8 +1124,20 @@ carrier within the band's zero, its along-residual decided zero
 stands past, never a witness the padded band reads on: a reading that
 cannot decide it escalates. A spline wall against a plane, cylinder, sphere or
 ring torus is carried from its whole reading: each branch between two
-rim ends as the reading fitted and certified it, its pad the chart
-tube's windows imaged on the wall by its chart speeds. A pair traced
+rim ends as the reading fitted and certified it, its pad the farthest
+from its carrier that the cells of its chart tube's windows stand, cut
+to the knot rectangle, less those the partner's form clears of the
+band, imaged on the wall, refined until the section's arcs read apart.
+A site is read on the arc whose cells hold it, each cell widened by the
+band's escalation along every axis and read against the whole carrier.
+The cells of two arcs that, widened so, share a point are halved, the
+cleared halves dropped, until none do. The pair has stopped narrowing
+where two cycles of halvings running, one along each chart axis, clear
+no half and part none, or where no cell still meeting can be halved;
+there, or at a work bound that grows with the section's first reading,
+the two arcs carry neither (`CarryRefusal::PadsMeet`, naming the stop).
+An arc with no close neighbour keeps its first reading, cells a rung
+wide. A pair traced
 in ℝ³ is read over its own ball where its pose proves one, cut by one
 region per operation, as at one band:
 the ball about the overlap of the two operands' boxes, padded, which
