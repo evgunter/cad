@@ -106,13 +106,22 @@ fn stop(got: &Result<BooleanResult<f64>, BooleanError>, kind: Option<geom::Surfa
             other_kind,
             ..
         }) => format!("loop guard {kind:?} × {other_kind:?}"),
-        Err(BooleanError::GermSectionUnbuilt {
-            why:
-                topo::SectionUnbuilt::Carry(geom_brep::CarryRefusal::March(
-                    geom_brep::SsiError::TubeStraddles { .. },
-                )),
-            ..
-        }) => "tube straddles".to_owned(),
+        Err(BooleanError::Join(join))
+            if matches!(
+                join.error(),
+                topo::JoinError::Euler(topo::EulerOpError::DescriptionUncertified {
+                    error: geom_brep::CertifyError::AnalyticRung3(
+                        geom_brep::AnalyticRung3Refusal::Escalated {
+                            limb: geom_brep::Rung3Limb::Tube,
+                            ..
+                        }
+                    ),
+                    ..
+                })
+            ) =>
+        {
+            TUBE_IN_BAND.to_owned()
+        }
         Err(BooleanError::Escalated {
             decision: topo::BooleanDecision::PierceCurvature,
             ..
@@ -133,6 +142,10 @@ fn stop(got: &Result<BooleanResult<f64>, BooleanError>, kind: Option<geom::Surfa
 /// A run that builds one seamed solid.
 const BUILDS: &str = "body Some(Seamed)";
 
+/// A run whose join mints an edge that limb 3 escalates: its tube is
+/// proved, with a crossing bound inside the band.
+const TUBE_IN_BAND: &str = "a minted edge's tube in the band";
+
 /// A run the interior-loop guard refuses on a torus × torus pair.
 const TORUS_PAIR: &str = "loop guard Torus × Torus";
 
@@ -150,9 +163,7 @@ fn marching<R>(run: impl FnOnce() -> R) -> (R, usize) {
 /// section table carries a pair once per operation, for the germ mint,
 /// the join and the certificate alike): one pair, but where `two` names
 /// the placement; `other_eps` names the
-/// placements that stop elsewhere at another ε row, measured: at `1e-6`
-/// a march's tube straddles
-/// (`work/secttorus/the-torus-doors-tube-straddles-transverse-poses-at-a-coarse-band.md`).
+/// placements that stop elsewhere at another ε row, measured.
 fn row(
     a: fn() -> Body<f64>,
     places: &[usize],
@@ -249,11 +260,7 @@ fn a_drum_against_a_moved_donut_passes_the_germ_mint() {
             [BUILDS, BUILDS],
             [BUILDS, BUILDS],
         ],
-        &[
-            (1e-6, 2, ["tube straddles"; 2]),
-            (1e-6, 3, ["tube straddles"; 2]),
-            (1e-6, 5, ["tube straddles"; 2]),
-        ],
+        &[(1e-6, 3, ["pierce curvature"; 2])],
         &[3],
     );
 }
@@ -287,7 +294,10 @@ fn two_donuts_in_general_pose_pass_the_germ_mint() {
         ],
         &[
             (1e-6, 1, ["pierce curvature"; 2]),
-            (1e-6, 2, ["tube straddles"; 2]),
+            // One order builds; the other's join mints an edge whose
+            // tube limb 3 proves with a bound inside the band
+            // (`work/ssiarith/a-rung-proved-on-a-halved-cover-can-carry-a-margin-inside-the-band.md`).
+            (1e-6, 2, [TUBE_IN_BAND, BUILDS]),
         ],
         &[],
     );

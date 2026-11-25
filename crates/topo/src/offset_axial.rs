@@ -3493,6 +3493,7 @@ mod tests {
                 A::TubeStraddles {
                     verdict: straddle,
                     boxes: 4,
+                    stop: None,
                 },
                 true,
             ),

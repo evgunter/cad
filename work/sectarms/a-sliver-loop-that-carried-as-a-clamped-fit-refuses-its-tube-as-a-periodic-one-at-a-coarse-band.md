@@ -2,7 +2,7 @@
 id: a-sliver-loop-that-carried-as-a-clamped-fit-refuses-its-tube-as-a-periodic-one-at-a-coarse-band
 kind: issue
 title: a cylinder × sphere loop a millimetre short of tangency carried at ε = 1e-6 as a clamped fit and refuses its tube limb as a periodic one
-status: open
+status: review
 opened: 2026-11-17
 priority: P1
 cost: M
@@ -344,3 +344,72 @@ rewrites the row.
   other two by an in-line check on the pose, as
   `pair_section::a_seated_loop_has_no_start` does), so it goes red the
   day the pose carries.
+
+## 2026-11-25 — built (PR 7776)
+
+The decision is built as decided: the one-point reading on plane,
+sphere and cylinder pairs (`ssi::enclose::graph_quantity`), limb 3's own
+cover halved under `crate::descent` (`ssi::certify`'s `CoverBase::at`),
+`refine_for_tube` retired, and the pad read off the narrowest proving
+rung's cover. The certificate stores no cover: `SsiTube::Spatial`
+records the two rungs, and a reader re-derives either cover by the
+function limb 3 proved over (`ssi::certify::tube_chain`).
+
+**All three 1e-6 refusals carry, and so does `(0.2, 0.6995)`.** Measured
+on the branch, the largest pad over a pose's components (ε = 1e-6 both
+operand orders, the other two bands cylinder first). `boxes` is the
+tube's chain against the carrier's first cover:
+
+| pose | ε 1e-6: tube, boxes, pad | ε 1e-9: tube, pad | ε 1e-12: tube, pad |
+|---|---|---|---|
+| (0.1, 0.7) | 8.75e-2, 201/201, 2.44e-2 | 8.75e-2, 4.27e-3 | 8.75e-2, 7.57e-4 |
+| (0.2, 0.71) | 4.44e-2, 206/206, 2.86e-2 | 4.44e-2, 5.02e-3 | 4.44e-2, 8.91e-4 |
+| (0.2, 0.701) | 2.19e-2, 210/210, 2.99e-2 | 2.19e-2, 5.25e-3 | 2.19e-2, 9.32e-4 |
+| (0.2, 0.69) | 4.31e-2, 413/413, 2.99e-2 | 4.31e-2, 5.23e-3 | 4.31e-2, 9.27e-4 |
+| sliver (0.2, 0.699) | 2.18e-2, 437/437, 3.03e-2 | 2.18e-2, 5.32e-3 | 2.18e-2, 9.45e-4 |
+| (0.2, 0.6995) | 1.09e-2, 438/438, 3.02e-2 | 1.09e-2, 5.31e-3 | 1.09e-2, 9.42e-4 |
+| near node R 0.7003 | 1.09e-2, 211/211, 3.00e-2 | 1.09e-2, 5.27e-3 | 1.09e-2, 9.36e-4 |
+| near node R 0.70097–0.705 | 2.19e-2–4.41e-2, 2.92–2.99e-2 | 2.19e-2–4.41e-2, 5.12–5.25e-3 | 2.19e-2–4.41e-2, 9.08–9.32e-4 |
+| close rings δ 3e-3 | 3.77e-2, 205/205, 2.66e-2 | 3.77e-2, 4.66e-3 | 3.77e-2, 8.27e-4 |
+| close rings δ 3e-4 | 9.38e-3, 208/208, 2.69e-2 | 9.38e-3, 4.72e-3 | 9.38e-3, 8.38e-4 |
+
+The pads are the "narrow pad" column of the measurement above at every
+band, to its three figures. The tubes are one or two rungs wider than
+main's on every row (the one-point reading), and the same at all three
+bands.
+
+**On these poses nothing is halved.** With the one-point reading every
+box of every cylinder × sphere carrier here is a graph at its first
+reading, at the tube's rung and at the narrowest. The halving acts on
+pairs that read two points: at ε = 1e-6 the ball round the donut's
+axis proves its tube 7.8e-3 over 293 and 235 boxes of 200 and 195, where
+main reached the same rung by re-marching to 329 and 273 samples.
+
+**Three things the decision did not say, decided in the build**, all in
+the PR body's Choices. The third departs from the plan as written and is
+the PR's one question:
+
+- A site's runs stay on the tube's chain. Read off the narrow chain,
+  `cylinder_pair_section::a_region_through_a_branch_point_escalates`
+  desyncs at ε = 1e-6: an open arc's cut end stands 3.7e-5 past its
+  carrier's end, outside a box padded by 1.07e-5.
+- A box is not halved where the rung's own box about the carrier's
+  point at the middle of its span is no graph: its padding holds it,
+  and no halving narrows that. Without it a rung that fails on its
+  padding halves every box to the work bound, and
+  `pair_section::the_count_is_the_morse_count_at_every_pose_near_every_critical_height`
+  ran 1116 s at ε = 1e-6 against main's 226 s.
+- **A loop's winding is read over the narrow chain, not the tube.** The
+  plan had the winding read the tube. With the one-point reading the
+  tubes are a rung or two wider, and
+  `pair_section::wiring::the_cylinder_sphere_coverage_keeps_its_headroom`
+  refused `Winds(Unordered)` at ε = 1e-12 on its turned one-loop pose:
+  the tube's boxes meet across the small loop, so the walk through
+  them is not shown once round. Read over the narrow chain, which limb 3
+  proves one arc the same way, the row passes at all three bands.
+
+The rows pinned on this pose are unpinned and pass at ε = 1e-6:
+`pair_section::a_seated_loop_has_no_start`,
+`one_loop_keeps_its_order_near_the_node`,
+`pair_section::wiring::close_rings_carry_counted`, and the three sweep
+and topo rows.

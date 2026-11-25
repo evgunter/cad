@@ -2784,13 +2784,13 @@ fn march_over_the_ball(
         .map(|br| {
             let closed = matches!(br.end, BranchEnd::Closed);
             let tube = Tube::of(
-                &br.carrier,
-                br.params,
+                (&br.carrier, br.params),
+                (a, b),
                 &br.certificate,
                 geom::mid_param(br.params.0, br.params.1),
             )?;
             let winding = if closed {
-                let read = |s| winds::winding(s, &br.carrier, br.params, &tube.chain);
+                let read = |s| winds::winding(s, &br.carrier, br.params, &tube.narrow);
                 [read(a), read(b)]
                     .into_iter()
                     .collect::<Result<Vec<_>, _>>()
@@ -2815,35 +2815,46 @@ fn march_over_the_ball(
         .collect()
 }
 
-/// **A marched loop's uniqueness tube** (C2 limb 3): its certificate's
-/// box chain, each box padded by the tube radius
-/// (`ssi::certify::tube_chain`), the cover the march's exhaustiveness
-/// accounts the section to; limb 3 proves the section's points in it
-/// one arc, a piece of it in every box. Read three ways: as the
-/// winding's pieces ([`winds`]), for the pad ([`CarriedComponent::pad`])
-/// and for the witness's reach ([`CarriedComponent::reach`]).
+/// **A marched loop's two claims of limb 3** (C2), each a chain limb 3
+/// proved one arc and a reader re-derives from the certificate's rung
+/// (`ssi::certify::tube_chain`):
+///
+/// - **the tube**, the widest rung's chain: the cover the march's
+///   exhaustiveness accounts the section to. Every point of the section
+///   in it is on this arc, so its boxes are the runs a site's foot is
+///   sought over ([`CarriedComponent::runs`]): an open arc's cut end
+///   stands past the carrier's end by more than the narrow rung, and is
+///   found in the tube's end box;
+/// - **the narrow chain**, the narrowest proving rung's: the same arc,
+///   a piece of it in every box, from one end of the carrier to the
+///   other, so the pad ([`CarriedComponent::pad`]) and the witness's
+///   reach ([`CarriedComponent::reach`]) are read off it, and its boxes
+///   are the winding's pieces ([`winds`]), which read a loop whose
+///   boxes meet only their neighbours.
 struct Tube {
-    chain: Vec<winds::Piece>,
+    /// The narrow chain, the winding's pieces.
+    narrow: Vec<winds::Piece>,
     pad: f64,
     reach: f64,
-    /// The chain's boxes with the carrier's span over each
+    /// The tube's boxes with the carrier's span over each
     /// ([`CarriedComponent::runs`]).
     runs: Vec<TubeRun>,
 }
 
 impl Tube {
-    /// The tube of the branch `carrier` over `span`, certified by
-    /// `certificate` on its net over that span (a loop's base opening),
-    /// its witness at `carrier(at)`: its chain's boxes, each its own
-    /// piece over its span, read for the pad and reach by
-    /// [`pad_and_reach`] against [`PAD_SAMPLES`] carrier points per box.
+    /// The tube of the branch `carrier` over `span` between the surfaces
+    /// `pair`, certified by `certificate` on its net over that span (a
+    /// loop's base opening), its witness at `carrier(at)`. The narrow
+    /// chain's boxes, each its own piece over its span, are read for the
+    /// pad and reach by [`pad_and_reach`] against [`PAD_SAMPLES`]
+    /// carrier points per box.
     fn of(
-        carrier: &Curve3<f64>,
-        span: (f64, f64),
+        (carrier, span): (&Curve3<f64>, (f64, f64)),
+        pair: (&Surface<f64>, &Surface<f64>),
         certificate: &SsiCertificate<f64>,
         at: f64,
     ) -> Result<Self, CarryError> {
-        let crate::ssi::SsiTube::Spatial { radius } = certificate.tube else {
+        let crate::ssi::SsiTube::Spatial { radius, narrow } = certificate.tube else {
             return Err(CarryError::Desync(
                 "an ℝ³ march's certificate proved no spatial tube",
             ));
@@ -2854,8 +2865,14 @@ impl Tube {
             ));
         };
         let net = &*net;
-        let chain = crate::ssi::certify::tube_chain(net, radius);
-        let pieces: Vec<TubePiece> = chain
+        let chain = crate::ssi::certify::tube_chain(net, pair, radius);
+        if u32::try_from(chain.len()) != Ok(certificate.tube_boxes) {
+            return Err(CarryError::Desync(
+                "a marched loop's tube is not the chain its certificate counted",
+            ));
+        }
+        let narrow = crate::ssi::certify::tube_chain(net, pair, narrow);
+        let pieces: Vec<TubePiece> = narrow
             .iter()
             .map(|&(b, _, span)| TubePiece {
                 boxes: vec![b],
@@ -2872,7 +2889,7 @@ impl Tube {
                 LoopTubeRefusal::NotFinite,
             )))?;
         Ok(Self {
-            chain,
+            narrow,
             pad,
             reach,
             runs,
@@ -3287,7 +3304,7 @@ impl LoopTubeRefusal {
     #[must_use]
     pub const fn recourse(self) -> &'static str {
         match self {
-            // Limb 3 certified the loop over the same `box_chain` of its
+            // Limb 3 certified the loop over the same cover of its
             // carrier, and refuses an empty one
             // (`ssi::certify::probe_tube_analytic`). No row reaches it.
             Self::Empty => geom_core::KERNEL_DEFECT_ENDING,
@@ -3350,7 +3367,8 @@ pub struct CarriedComponent<T: Real> {
     /// in metres; zero for a closed form. Every reading of a point
     /// against the component pads its band by it ([`Self::witness`]), and
     /// the certificate's W3 rests on it. A marched loop's is
-    /// [`pad_and_reach`]'s over its chain boxes ([`Tube::of`]). A fitted
+    /// [`pad_and_reach`]'s over the boxes of its narrow chain, the
+    /// narrowest rung limb 3 proves one arc over ([`Tube::of`]). A fitted
     /// spline × implicit arc's is the widest of its cells'
     /// ([`Self::boxes`]): the farthest from its carrier that the cells of
     /// its chart tube's windows stand, cut to the knot rectangle, less
@@ -3367,9 +3385,14 @@ pub struct CarriedComponent<T: Real> {
     ///   are among. And limbs 1 and 2 put the carrier within `hull_sup`
     ///   of each surface, which the pad holds, so a point of the carrier
     ///   lies within the pad of each surface too. A marched loop's pad
-    ///   is read once off its whole tube and is at least the tube's
-    ///   radius, so a limb-2 bound past it is a certificate outrunning
-    ///   its own tube, and refuses ([`CarryRefusal::PadShort`]). A
+    ///   is read once off its whole narrow chain and is at least that
+    ///   chain's rung, so a limb-2 bound past it is a certificate
+    ///   outrunning its own proof, and refuses
+    ///   ([`CarryRefusal::PadShort`]). The component lies in that
+    ///   chain from one end of its carrier to the other, and its tube, a
+    ///   wider rung's chain, is not what the pad bounds: a point of an
+    ///   open arc past its carrier's end by more than the pad reads on
+    ///   no component, and a site there refuses. A
     ///   cell's is read off what the partner's form leaves of the tube
     ///   and narrows as the cell is halved, so it can fall under a
     ///   limb-2 bound that is sound and merely loose (the bound is on
@@ -5224,27 +5247,29 @@ mod wiring {
         let super::PairPose::CylinderCylinder(pose) = section.pose() else {
             panic!("a cylinder pair");
         };
-        let tubes = |branches: &[super::FittedCarrier<f64>]| -> Vec<_> {
+        let tubes = |branches: &[super::FittedCarrier<f64>],
+                     pair: (&geom::Surface<f64>, &geom::Surface<f64>)|
+         -> Vec<_> {
             branches
                 .iter()
                 .flat_map(|b| {
-                    let (Some(Ok(net)), crate::ssi::SsiTube::Spatial { radius }) =
+                    let (Some(Ok(net)), crate::ssi::SsiTube::Spatial { radius, .. }) =
                         (b.carrier.clamped_net(b.span), b.certificate.tube)
                     else {
                         panic!("a fitted ℝ³ branch");
                     };
-                    crate::ssi::certify::tube_boxes(&net, radius)
+                    crate::ssi::certify::tube_boxes(&net, pair, radius)
                 })
                 .collect()
         };
         let (a, b) = pose.operands();
-        let read = coverage(a, b, pose.region(), &tubes(&fitted)).expect("covered");
+        let read = coverage(a, b, pose.region(), &tubes(&fitted, (a, b))).expect("covered");
         assert!(
             read.depth <= COVERAGE_DEPTH / 3 && read.cells <= COVERAGE_CELLS / 64,
             "headroom: {read:?}"
         );
         assert!(
-            coverage(a, b, pose.region(), &tubes(&fitted[..1])).is_err(),
+            coverage(a, b, pose.region(), &tubes(&fitted[..1], (a, b))).is_err(),
             "a branch's tubes dropped: a cell uncovered"
         );
     }
@@ -5261,16 +5286,18 @@ mod wiring {
     fn the_cylinder_sphere_coverage_keeps_its_headroom() {
         use super::ruling::{COVERAGE_CELLS, COVERAGE_DEPTH, coverage};
         use geom_core::{Point3, Vec3};
-        let tubes = |branches: &[super::FittedCarrier<f64>]| -> Vec<_> {
+        let tubes = |branches: &[super::FittedCarrier<f64>],
+                     pair: (&geom::Surface<f64>, &geom::Surface<f64>)|
+         -> Vec<_> {
             branches
                 .iter()
                 .flat_map(|b| {
-                    let (Some(Ok(net)), crate::ssi::SsiTube::Spatial { radius }) =
+                    let (Some(Ok(net)), crate::ssi::SsiTube::Spatial { radius, .. }) =
                         (b.carrier.clamped_net(b.span), b.certificate.tube)
                     else {
                         panic!("a fitted ℝ³ branch");
                     };
-                    crate::ssi::certify::tube_boxes(&net, radius)
+                    crate::ssi::certify::tube_boxes(&net, pair, radius)
                 })
                 .collect()
         };
@@ -5321,8 +5348,13 @@ mod wiring {
                     section.seeds().len(),
                     "{label}: one branch per witness"
                 );
-                let read = coverage(pose.cylinder(), pose.sphere(), pose.ball(), &tubes(&fitted))
-                    .unwrap_or_else(|cell| panic!("{label}: uncovered at {cell:?}"));
+                let read = coverage(
+                    pose.cylinder(),
+                    pose.sphere(),
+                    pose.ball(),
+                    &tubes(&fitted, (pose.cylinder(), pose.sphere())),
+                )
+                .unwrap_or_else(|cell| panic!("{label}: uncovered at {cell:?}"));
                 assert!(
                     read.depth <= COVERAGE_DEPTH / 3 && read.cells <= COVERAGE_CELLS / 64,
                     "{label}: headroom: {read:?}"
@@ -5332,8 +5364,13 @@ mod wiring {
                     let mut kept = fitted.clone();
                     kept.remove(k);
                     assert!(
-                        coverage(pose.cylinder(), pose.sphere(), pose.ball(), &tubes(&kept))
-                            .is_err(),
+                        coverage(
+                            pose.cylinder(),
+                            pose.sphere(),
+                            pose.ball(),
+                            &tubes(&kept, (pose.cylinder(), pose.sphere()))
+                        )
+                        .is_err(),
                         "{label}: branch {k}'s tubes dropped: a cell uncovered"
                     );
                 }
@@ -5449,16 +5486,19 @@ mod wiring {
         );
     }
 
-    /// **Closeness is checked**: every marched loop's limb-2 bound lies
-    /// within its pad, which holds its uniqueness tube's radius; every
-    /// corner and centre of every tube box lies within the pad of the
-    /// carrier (read against `4096` carrier points, within their
-    /// spacing), and the pad stands well inside the hull-diameter bound;
-    /// the witness lies in every box whose span holds it, and its reach
-    /// is no wider than one; and a certificate whose limb-2 bound stands
-    /// past the pad refuses `PadShort`.
+    /// **Closeness is checked, and the pad is not the tube**: every
+    /// marched loop's limb-2 bound and its narrow rung lie within its
+    /// pad; every corner and centre of every box of the narrow rung's
+    /// chain lies within the pad of the carrier (read against `4096`
+    /// carrier points, within their spacing), and the pad stands well
+    /// inside the hull-diameter bound; the witness lies in every such
+    /// box whose span holds it, and its reach is no wider than one. The
+    /// tube is a second claim: its chain is the one the certificate
+    /// counted, its rung is no narrower than the narrow one, and read
+    /// off it the pad would be wider. A certificate whose limb-2 bound
+    /// stands past the pad refuses `PadShort`.
     #[test]
-    fn a_marched_loops_pad_holds_its_tube_and_its_limb_two_bound() {
+    fn a_marched_loops_pad_holds_its_narrow_chain_and_its_limb_two_bound() {
         use super::{CarryError, Tube};
         use crate::ssi::SsiTube;
         use geom_core::{Bounds as _, Point3};
@@ -5470,20 +5510,42 @@ mod wiring {
             ("the ball round the donut's axis", ball_round_the_axis()),
         ] {
             let section = built(&a, &b);
+            let pair = section.pose().operands();
             for br in march_over_the_ball(&section, band()).expect("the march") {
-                let SsiTube::Spatial { radius } = br.certificate.tube else {
+                let SsiTube::Spatial { radius, narrow } = br.certificate.tube else {
                     panic!("{what}: a spatial tube");
                 };
                 assert!(
-                    br.certificate.hull_sup <= br.pad && radius < br.pad,
-                    "{what}: limb 2 {:e}, tube {radius:e}, pad {:e}",
+                    br.certificate.hull_sup <= br.pad && narrow < br.pad && narrow <= radius,
+                    "{what}: limb 2 {:e}, narrow rung {narrow:e}, tube {radius:e}, pad {:e}",
                     br.certificate.hull_sup,
                     br.pad
                 );
                 let (lo, hi) = br.span;
                 let mid = 0.5 * (lo + hi);
-                let tube = Tube::of(&br.carrier, br.span, &br.certificate, mid).expect("the tube");
+                let tube =
+                    Tube::of((&br.carrier, br.span), pair, &br.certificate, mid).expect("the tube");
                 assert_eq!((tube.pad, tube.reach), (br.pad, br.reach), "{what}");
+                let net = br
+                    .carrier
+                    .clamped_net(br.span)
+                    .expect("a spline")
+                    .expect("its net");
+                let wide = crate::ssi::certify::tube_chain(&net, pair, radius);
+                assert_eq!(
+                    (wide.len(), tube.runs.len()),
+                    (
+                        br.certificate.tube_boxes as usize,
+                        br.certificate.tube_boxes as usize
+                    ),
+                    "{what}: the tube's chain is the one the certificate counted, a run a box"
+                );
+                let chain = crate::ssi::certify::tube_chain(&net, pair, narrow);
+                assert_eq!(
+                    tube.narrow.len(),
+                    chain.len(),
+                    "{what}: the winding's pieces"
+                );
                 let dense: Vec<_> = (0..=4096)
                     .map(|i| br.carrier.eval(lo + (hi - lo) * f64::from(i) / 4096.0))
                     .collect();
@@ -5491,34 +5553,46 @@ mod wiring {
                     .windows(2)
                     .map(|w| (w[1] - w[0]).norm())
                     .fold(0.0, f64::max);
-                let mut worst = 0.0f64;
-                for (bx, _, _) in &tube.chain {
-                    let [x, y, z] = [bx.x, bx.y, bx.z].map(|s| [s.lo(), s.hi()]);
-                    let centre = Point3::new(
-                        0.5 * (x[0] + x[1]),
-                        0.5 * (y[0] + y[1]),
-                        0.5 * (z[0] + z[1]),
-                    );
-                    let corners =
-                        (0..8).map(|k| Point3::new(x[k & 1], y[(k >> 1) & 1], z[(k >> 2) & 1]));
-                    for q in corners.chain([centre]) {
-                        let d = dense
-                            .iter()
-                            .map(|&c| (q - c).norm())
-                            .fold(f64::INFINITY, f64::min);
-                        worst = worst.max(d);
-                        assert!(
-                            d <= br.pad + spacing,
-                            "{what}: a tube point {d:e} from the carrier, pad {:e}",
-                            br.pad
+                let farthest = |boxes: &[super::winds::Piece]| {
+                    let mut worst = 0.0f64;
+                    for (bx, _, _) in boxes {
+                        let [x, y, z] = [bx.x, bx.y, bx.z].map(|s| [s.lo(), s.hi()]);
+                        let centre = Point3::new(
+                            0.5 * (x[0] + x[1]),
+                            0.5 * (y[0] + y[1]),
+                            0.5 * (z[0] + z[1]),
                         );
+                        let corners =
+                            (0..8).map(|k| Point3::new(x[k & 1], y[(k >> 1) & 1], z[(k >> 2) & 1]));
+                        for q in corners.chain([centre]) {
+                            let d = dense
+                                .iter()
+                                .map(|&c| (q - c).norm())
+                                .fold(f64::INFINITY, f64::min);
+                            worst = worst.max(d);
+                        }
                     }
-                }
+                    worst
+                };
+                let worst = farthest(&chain);
+                assert!(
+                    worst <= br.pad + spacing,
+                    "{what}: a narrow-chain point {worst:e} from the carrier, pad {:e}",
+                    br.pad
+                );
+                // The tube reaches past the pad: the pad is the narrow
+                // rung's claim, not the tube's.
+                let reach = farthest(&wide);
+                assert!(
+                    radius > narrow && br.pad + spacing < reach,
+                    "{what}: the pad {:e} stands below the tube's reach {reach:e} (rungs \
+                     {narrow:e}, {radius:e})",
+                    br.pad
+                );
                 let diag = |bx: &crate::ssi::enclose::Box3| {
                     crate::carrier_net::diagonal(&[bx.x, bx.y, bx.z].map(|s| (s.lo(), s.hi())))
                 };
-                let held: Vec<_> = tube
-                    .chain
+                let held: Vec<_> = chain
                     .iter()
                     .filter(|(_, _, (l, h))| *l <= mid && mid <= *h)
                     .collect();
@@ -5542,23 +5616,98 @@ mod wiring {
                     br.reach
                 );
                 // Tight as well as sound: within 1.5 times the farthest
-                // tube corner or centre read on the dense carrier (the
-                // hull-diameter bound it replaces read up to twice that).
+                // corner or centre read on the dense carrier.
                 assert!(
                     br.pad <= 1.5 * worst + spacing,
-                    "{what}: pad {:e} against the tube's farthest sampled point {worst:e}",
+                    "{what}: pad {:e} against the chain's farthest sampled point {worst:e}",
                     br.pad
                 );
                 let mut loose = br.certificate;
                 loose.hull_sup = 2.0 * br.pad;
                 assert!(
                     matches!(
-                        Tube::of(&br.carrier, br.span, &loose, mid),
+                        Tube::of((&br.carrier, br.span), pair, &loose, mid),
                         Err(CarryError::Refused(super::CarryRefusal::PadShort { .. }))
                     ),
                     "{what}: a limb-2 bound past the pad refuses"
                 );
+                let mut miscounted = br.certificate;
+                miscounted.tube_boxes += 1;
+                assert!(
+                    matches!(
+                        Tube::of((&br.carrier, br.span), pair, &miscounted, mid),
+                        Err(CarryError::Desync(_))
+                    ),
+                    "{what}: a tube that is not the chain the certificate counted desyncs"
+                );
             }
+        }
+    }
+
+    /// **What a reader banks is what limb 3 proved, where its cover was
+    /// halved** (C2). The ball round the donut's axis at a band of
+    /// `1e-6`, where the march's samples are coarse: each loop's tube is
+    /// proved over a cover with more boxes than the carrier has spans.
+    /// The chain a reader re-derives at the certificate's rung is that
+    /// cover: it has the boxes the certificate counted, its spans tile
+    /// the carrier's without a gap, and it is the same chain with the
+    /// pair in either order. The march's accounting closed on it, and
+    /// the carry reads it.
+    #[test]
+    fn a_halved_cover_is_the_chain_its_readers_bank() {
+        use super::Tube;
+        use crate::ssi::SsiTube;
+        use crate::ssi::certify::tube_chain;
+        use geom_core::Bounds as _;
+        let coarse = geom_core::Band::new(1e-6, 1e-5).expect("a band");
+        let (a, b) = ball_round_the_axis();
+        let section = match super::pair_section(&a, &b, None, None::<geom_core::NoLane>, coarse) {
+            Ok(super::SectionRead::Built(s)) => s,
+            other => panic!("the pair's section: {other:?}"),
+        };
+        let pair = section.pose().operands();
+        let fitted = march_over_the_ball(&section, coarse).expect("the march");
+        assert_eq!(fitted.len(), 2, "two loops");
+        for br in &fitted {
+            let SsiTube::Spatial { radius, narrow } = br.certificate.tube else {
+                panic!("a spatial tube");
+            };
+            let net = br
+                .carrier
+                .clamped_net(br.span)
+                .expect("a spline")
+                .expect("its net");
+            // No box is ten metres wide, so nothing is halved at that rung.
+            let first = tube_chain(&net, pair, 10.0).len();
+            let chain = tube_chain(&net, pair, radius);
+            assert_eq!(
+                chain.len(),
+                br.certificate.tube_boxes as usize,
+                "the chain the certificate counted"
+            );
+            assert!(
+                chain.len() > first && narrow < radius,
+                "the tube's cover was halved: {} boxes of {first}, rungs {narrow:e}, {radius:e}",
+                chain.len()
+            );
+            assert!(
+                chain.windows(2).all(|w| w[0].2.1 == w[1].2.0)
+                    && chain.first().map(|l| l.2.0) == Some(br.span.0)
+                    && chain.last().map(|l| l.2.1) == Some(br.span.1),
+                "the halves tile the carrier's span"
+            );
+            let swapped = tube_chain(&net, (pair.1, pair.0), radius);
+            let sides =
+                |l: &super::winds::Piece| ([l.0.x, l.0.y, l.0.z].map(|s| (s.lo(), s.hi())), l.2);
+            assert_eq!(
+                chain.iter().map(sides).collect::<Vec<_>>(),
+                swapped.iter().map(sides).collect::<Vec<_>>(),
+                "the pair's order does not move the cover"
+            );
+            let mid = 0.5 * (br.span.0 + br.span.1);
+            let tube = Tube::of((&br.carrier, br.span), pair, &br.certificate, mid)
+                .expect("the carry reads the tube");
+            assert_eq!(tube.runs.len(), chain.len(), "and reads that chain");
         }
     }
 
@@ -5570,22 +5719,6 @@ mod wiring {
     /// reading.)
     #[test]
     fn close_rings_carry_counted() {
-        // Pinned red at 1e-6: at δ 3e-4 no rung of the march's tube is a
-        // graph, and nothing refines it
-        // (`work/ssiarith/an-r3-tube-no-rung-makes-a-graph-is-never-refined.md`).
-        test_utils::pinned_red::row(
-            geom_core::Tol::witness().eps(),
-            &[1e-6],
-            "the close rings",
-            &[
-                "δ 3e-4, counted: Refused(March(TubeStraddles { verdict: Zero(Classified { margin: MarginDiag(Value(0.0, None, ZeroWord(0))), band: Band { zero: 1e-6, escalate: 9.999999999999999e-6 } }), boxes: 208 }))",
-            ],
-            close_rings_carry_counted_row,
-        );
-    }
-
-    /// The row [`close_rings_carry_counted`] runs, under its pin.
-    fn close_rings_carry_counted_row() {
         use super::SsiLane;
         for delta in [3e-2, 1e-2, 3e-3, 1e-3, 3e-4] {
             let (wall, ball) = wall_and_ball((0.1, 0.0, 0.2), 0.6 + delta);

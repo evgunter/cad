@@ -816,6 +816,7 @@ fn analytic_rung3_refusals() -> Vec<geom_brep::AnalyticRung3Refusal> {
                 band: band(),
             }),
             boxes: 12,
+            stop: None,
         },
         A::TubeNotOneArc {
             rungs: 3,

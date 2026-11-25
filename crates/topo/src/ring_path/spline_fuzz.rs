@@ -80,8 +80,7 @@ fn a_path_across_a_carried_loop_reads_the_membership_parity() {
     };
     // One loop (centre on the wall), one wider than the wall (the sliver
     // pose, a millimetre short of the far wall), two loops.
-    let sliver = (0.2, 0.699);
-    let poses = [(0.5, 0.3), sliver, (0.1, 0.7)];
+    let poses = [(0.5, 0.3), (0.2, 0.699), (0.1, 0.7)];
     let (mut asked, mut decided) = (0usize, 0usize);
     for (d, big) in poses {
         let centre = Point3::new(d, 0.0, 0.0);
@@ -95,20 +94,9 @@ fn a_path_across_a_carried_loop_reads_the_membership_parity() {
         else {
             panic!("the value builds cylinder × sphere");
         };
-        // The sliver pose refuses its tube at ε = 1e-6
-        // (`work/sectarms/a-sliver-loop-that-carried-as-a-clamped-fit-refuses-its-tube-as-a-periodic-one-at-a-coarse-band.md`).
-        let coarse_sliver = (d, big) == sliver
-            && test_utils::kernel_limit::at_row(geom_core::Tol::witness().eps(), &[1e-6]);
-        let carried = match section.carry(Some(geom_brep::SsiLane::marched()), band()) {
-            Ok(carried) => {
-                assert!(!coarse_sliver, "d {d}, R {big}: the coarse sliver carries");
-                carried
-            }
-            Err(geom_brep::CarryError::Refused(geom_brep::CarryRefusal::March(
-                geom_brep::ssi::SsiError::TubeStraddles { boxes: 437, .. },
-            ))) if coarse_sliver => continue,
-            Err(e) => panic!("d {d}, R {big}: the section carries, got {e:?}"),
-        };
+        let carried = section
+            .carry(Some(geom_brep::SsiLane::marched()), band())
+            .unwrap_or_else(|e| panic!("d {d}, R {big}: the section carries, got {e:?}"));
         for _ in 0..fuzz::scaled(2) {
             // The loop's arcs, each component cut at up to two places.
             let mut arcs = Vec::new();

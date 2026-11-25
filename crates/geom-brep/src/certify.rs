@@ -6697,11 +6697,13 @@ mod tests {
                     AnalyticRung3Refusal::TubeStraddles {
                         verdict: zero,
                         boxes: 8,
+                        stop: None,
                     }
                     .to_string(),
                     SsiError::TubeStraddles {
                         verdict: zero,
                         boxes: 8,
+                        stop: None,
                     }
                     .to_string(),
                 ],
@@ -8554,10 +8556,12 @@ mod tests {
             let analytic = crate::edge_nurbs::AnalyticRung3Refusal::TubeStraddles {
                 verdict: straddle,
                 boxes: 4,
+                stop: None,
             };
             let ssi = crate::ssi::SsiError::TubeStraddles {
                 verdict: straddle,
                 boxes: 4,
+                stop: None,
             };
             let mut endings = vec![
                 Some(lane.ending(at)),

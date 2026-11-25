@@ -2,7 +2,7 @@
 id: an-r3-tube-no-rung-makes-a-graph-is-never-refined
 kind: issue
 title: An R3 tube that no rung makes a graph is never refined: two cylinder x sphere rings 3e-4 apart refuse TubeStraddles at eps 1e-6
-status: open
+status: review
 opened: 2026-10-31
 priority: P3
 cost: M
@@ -84,3 +84,26 @@ Ev's decision on PR 7056 (`work/sectarms/a-sliver-loop-that-carried-as-a-clamped
 rung is no graph, and retires `refine_for_tube`. Both designers expect
 that to close both instances of this row. SECTARMS builds it; the build
 will cite this row.
+
+## 2026-11-25 — both instances carry (SECTARMS, PR 7776)
+
+Built as the note above says. Measured at ε = 1e-6:
+
+- **The close rings, `δ = 3e-4`**: carries in both orders, tube
+  9.38e-3 over the first cover's 208 boxes, pad 2.69e-2.
+  `close_rings_carry_counted`'s pin is removed.
+- **The second instance, `(d 0.2, R 0.699)`**: carries, tube 2.18e-2
+  over 437 boxes, pad 3.03e-2, with the seam wherever the periodic fit
+  puts it.
+
+Neither needed a box halved. Both rows refused because limb 3 enclosed
+`(∇f₁ × ∇f₂)·e` with the two gradients at independent points of the
+box, which on a cylinder × sphere pair is wider than the proof needs:
+both forms are quadratic, the two mean-value points are the chord's
+midpoint, and the quantity read at one point is zero-free over every
+box of both carriers (`ssi::enclose::graph_quantity`). What this row
+asked for, refinement under a box that is no graph, is now limb 3's own:
+it halves its cover of the carrier where a box wider than its rung is no
+graph, and the samples are not touched (`ssi::certify`'s
+`CoverBase::at`). It acts on pairs that read two points, a torus's or a
+cone's.

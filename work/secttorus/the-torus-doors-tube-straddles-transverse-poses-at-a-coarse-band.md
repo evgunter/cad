@@ -2,7 +2,7 @@
 id: the-torus-doors-tube-straddles-transverse-poses-at-a-coarse-band
 kind: issue
 title: At ε 1e-6 the torus doors refuse TubeStraddles on transverse poses far from any tangency, the tube's crossing-angle bound reading zero
-status: open
+status: review
 opened: 2026-10-28
 priority: P2
 cost: M
@@ -44,3 +44,32 @@ tube's boxes at the coarse band (`ssi::enclose`
 across a box. Then the rows' verdicts at 1e-6 pinned as at 1e-9.
 
 Moved from SECTRUNG to SECT on 2026-11-02, by `git mv`, when SECTRUNG merged back into SECT: the track budget now counts only the P0, P1 and unbanded rows a sitting dispatches (Ev, in chat, 2026-11-02), so SECT and the three tracks cut from it (SECTTAIL, SECTRUNG, SECTSITE) came in under one budget.
+
+## 2026-11-25 — the doors certify these poses at 1e-6 (SECTARMS, PR 7776)
+
+PR 7776 builds Ev's decision on PR 7056: limb 3 halves its own cover of
+the carrier where a box wider than its rung is no graph
+(`ssi::certify`'s `CoverBase::at`). A torus pair still reads its graph
+quantity at two points, so what answers this row is the halving: the
+bound went to zero over boxes that were wide against the crossing, not
+over the torus's gradient as such.
+
+Measured on the PR at `CAD_TOLERANCE_EPS=1e-6`:
+
+- **moved donut × drum**: placements 2, 3 and 5 certify, 2, 2 and 1
+  loops, the compiled ε's verdicts, with the oracle's loop counts and
+  the carried components;
+- **two donuts**: placements 2 and 5 certify, 1 loop each, as at the
+  compiled ε;
+- **the lily's tori**: the door now proves its tube and refuses
+  `CellBudget`, as it does at the compiled ε.
+
+`torus_doors_ssi`'s two `1e-6` tables are empty, and
+`mate7a_r1_probes`'s two rows pin `CellBudget` at both bands.
+
+The booleans over these pairs moved with them
+(`sweep` `germ_torus_components`): the drum against the moved donut
+builds at placements 2 and 5 and stops at the pierce-curvature decision
+at placement 3; two donuts at placement 2 build in one member order and
+escalate a minted edge's tube in the other
+(`work/ssiarith/a-rung-proved-on-a-halved-cover-can-carry-a-margin-inside-the-band.md`).

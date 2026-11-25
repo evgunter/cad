@@ -209,11 +209,32 @@ certificate it is the carrier's distance from the surface, bounded
 below by `|f|` over an upper bound on the factor that divides it to
 metres, read off the break's point. Against a NURBS operand it is the
 bound's own quantity at a point, a bound on the miss.
-(3) The uniqueness tube: over a chain of boxes of certified radius
-around the carrier, the enclosure of `(∇f₁ × ∇f₂)·e` excludes zero, so
-by a mean-value argument each slice holds at most one solution, and each
+(3) The uniqueness tube: over a chain of boxes around the carrier, each
+padded by a rung of the radius ladder, the enclosure of limb 3's graph
+quantity excludes zero, so each slice of a box holds at most one
+solution, and each
 connected piece of the solution set in a box ends on the box's boundary
-at two points. The solution set in the chain is one arc, and it spans
+at two points. Two solutions `x`, `y` on one slice give
+`∇f₁(ξ₁)·(x − y) = 0` and `∇f₂(ξ₂)·(x − y) = 0` at mean-value points
+`ξ₁`, `ξ₂` of their chord, so the quantity is `(∇f₁(ξ₁) × ∇f₂(ξ₂))·e`
+with the two gradients read at independent points of the box. Where
+both forms are quadratic (a plane, a sphere, a cylinder)
+`f(x) − f(y) = ∇f((x + y)/2)·(x − y)` exactly: both points are the
+chord's midpoint, which lies in the box, and the quantity is read at
+one point of the box (`ssi::enclose::graph_quantity`). A torus's form
+is quartic and a cone's is its elevation, and a pair with either reads
+two points. Which reading a pair takes is its forms' alone, never one
+reading tried after the other. On the ℝ³ arm the chain is limb 3's own
+cover of the carrier: one box a span of its certification net, and at
+a rung every box that is wider than the rung and, padded by it, no
+graph is halved at its span's midpoint, round by round, until every box
+is a graph or the crate's stop rule ends the rounds (`crate::descent`,
+in its own units: no such box is left, the widest of them did not narrow
+over two rounds running, or the next round would pass sixteen halvings
+a box of the first cover, `CoverStop`). A half is the same curve's hull
+over half the span, so the carrier is not touched and nothing is
+re-proposed; a box no wider than its rung is held by its padding, which
+halving does not narrow. The solution set in the chain is one arc, and it spans
 the carrier; the proof is the same at every door, a search's and an
 edge's at rest. For a carrier between two analytic surfaces the three
 limbs are the edge certificate's own (`edge_nurbs::analytic_edge_limbs`,
@@ -255,9 +276,10 @@ boundary pass reads within ε of the plane and not clear. So the arc
 spans the carrier (chart edges walked in runs of one sign or monotone,
 ℝ³ faces by Krawczyk). A
 rung whose chain is a graph but not one arc gives way to a narrower one. A
-chain may end at a node of the section (C5). Its radius is then read
+chart chain may end at a node of the section (C5). Its radius is then read
 box by box, narrowing in proportion to the box's distance from the
-node, and the pad a site reads is the widest of the cells it lies in
+node. The pad a site reads there is not that radius but its own claim,
+the widest of the cells the site lies in
 (the carry's, C5: the boxes' windows cut to the knot rectangle, less
 the cells the partner's form clears of the band, the node's own box
 kept whole), each the farthest that cell's image stands from the
@@ -316,14 +338,29 @@ the band is added to the bound, one past it refuses). A pcurve row's
 check 4 holds its fitted image the same way. The certificate records the tube
 by kind, a radius in metres or the per-axis chart pad (`SsiTube`), and
 the exhaustiveness accounting banks exactly the region it records.
+On the ℝ³ arm the tube and the pad are two claims about one carrier.
+The tube is the widest rung whose cover proves one arc, and the
+accounting reads it. Beside it the certificate records
+the narrowest rung whose own cover proves one arc, and a marched
+component's pad is that cover's reach, read box by box: the farthest a
+box of it stands from the carrier. A loop's winding is read over that
+cover too, whose boxes meet only their neighbours. Neither cover is stored: it is a
+function of the carrier, the pair and the rung, a reader re-derives it
+by the one function limb 3 proved over (`ssi::certify::tube_chain`),
+and the certificate's box count is the tube's, which a reader checks,
+so the region banked is the region proved.
 A component outside the chain is C3's exhaustiveness obligation, a
 separate theorem. Refusal
 is typed, never a retry loop: an enclosure that does not clear the
 band at any rung escalates (`ssi_tube_transversality`,
-`SsiError::TubeStraddles`). Two branches passing within the band of
+`SsiError::TubeStraddles`), naming on the ℝ³ arm where its narrowest
+rung's cover stopped. Two branches passing within the band of
 each other is a genuine sliver of the operand pair, and escalation is
-correct for it, F6's ladder speaking. The enclosure's own remaining
-slack can straddle too, and escalates the same way. Hull bounds are an entry requirement: no schedule-max-only
+correct for it, F6's ladder speaking. A pair that reads two points can
+straddle where the surfaces cross cleanly, since the range of two
+independent gradients over a box is wider than the crossing's own; the
+cover's halving narrows it with the box, and where the stop rule ends
+that first it escalates the same way. Hull bounds are an entry requirement: no schedule-max-only
 certificate ever reaches an at-rest body, and the tube is required for
 every fitted `Intersection`, not only where several branches were found.
 The witness is `carrier(mid)`, minted from the cache the schedule sees.
@@ -416,16 +453,10 @@ margin each earlier round refused (`SsiError::RefinementExhausted`). At
 the wall, a refused residual that stopped falling over the last two
 rounds ends in the tolerance as the arithmetic's floor; one still
 falling ends as the curvature-held march's does.
-A certified ℝ³ analytic branch is refined once more where limb 3
-certifies it narrowly (`refine_for_tube`): the tube's rung is the
-whole chain's, so where a chain box wider than the ladder's next rung
-up is no graph padded by it, the gaps that box meets are halved the
-same way, the carrier is refitted and certified again, and the finer
-carrier is kept only where its tube is wider. These rounds keep a
-certified carrier throughout and refuse nothing: they stop where no box
-holds the tube, nothing halves, the step wall would be passed, the
-finer tube is no wider, or the finer carrier does not certify; each
-kept round climbs a rung, so there are at most `SSI_TUBE_RUNGS`.
+A certified branch is not refined for its tube. The tube's rung is the
+whole chain's, and where a chain box is wide against a rung limb 3
+halves its own cover of the carrier (C2), so the samples a branch was
+certified on are the samples it keeps.
 Before any march, the
 plane × NURBS lane decides its own domain boundary, the wall's knot
 rectangle, against the plane, one side at a time (`ssi::boundary`: the
@@ -1114,8 +1145,8 @@ branch, a loop's on a closed one, each claimed winding held, else a
 desync), and
 otherwise the march's own closed branches (`Components::Marched`), each
 winding about an operand as the fitted loop's turns about the
-operand's axis and core circle, read over the loop's uniqueness tube
-in ℝ³, say (`pair_section::winds`); a point is read on a carried loop within the
+operand's axis and core circle, read over the loop's narrow chain
+in ℝ³ (C2), say (`pair_section::winds`); a point is read on a carried loop within the
 band padded by the loop's pad (`CarriedComponent::pad`, where its
 closeness and uniqueness are argued). A reader that needs a list no closed form
 counts carries; a site's component is its foot on the carried section,

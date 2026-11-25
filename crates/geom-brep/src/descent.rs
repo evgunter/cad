@@ -1,10 +1,11 @@
 //! **The stop rule of a certify-and-refine loop.** A loop that refines
 //! until a certified bound clears its target stops, short of that, on
 //! one of two questions: is refinement still paying, and is the work
-//! bounded? Two loops answer both here, each keeping its own body, its
+//! bounded? Three loops answer both here, each keeping its own body, its
 //! own units and its own action on an idle round: the offset fit
-//! ([`crate::offset_fit`]) and limb 2's hull subdivision
-//! (`ssi::certify::subdivide`). The quadrature lanes in `props::quad`
+//! ([`crate::offset_fit`]), limb 2's hull subdivision
+//! (`ssi::certify::subdivide`) and limb 3's cover of a carrier at a rung
+//! (`ssi::certify`, its bound the widest box still to halve). The quadrature lanes in `props::quad`
 //! take the cumulative budget ([`Work`]) as their work wall. None of
 //! them takes the stall today: each splits a round's width into the
 //! part a later round removes and the part none does, so refinement

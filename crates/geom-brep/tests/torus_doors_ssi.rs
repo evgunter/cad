@@ -283,8 +283,7 @@ fn oracle_loops(t: &Surface<f64>, partner: &Surface<f64>, n: usize) -> usize {
 /// section value carries as many components, marched or counted. The
 /// verdicts are `want`, by placement, at the compiled ε; `off` names the
 /// placements whose verdict differs at another ε row, measured: at
-/// `1e-6` a transverse pose may refuse on the tube, at `1e-12` on the
-/// step budget
+/// `1e-12` a transverse pose may refuse on the step budget
 /// (`work/secttorus/the-torus-doors-tube-straddles-transverse-poses-at-a-coarse-band.md`).
 fn germ_row(
     pair: impl Fn(Option<(f64, Vec3<f64>, Vec3<f64>)>) -> [Surface<f64>; 2],
@@ -340,7 +339,7 @@ fn the_germ_rows_donut_against_its_moved_drum() {
 }
 
 /// **The germ row's moved donut against its drum**: every placement
-/// certifies at the compiled ε; at `1e-6` three refuse on the tube.
+/// certifies, at every ε row.
 #[test]
 fn the_germ_rows_moved_donut_against_its_drum() {
     germ_row(
@@ -348,19 +347,14 @@ fn the_germ_rows_moved_donut_against_its_drum() {
         [
             "2 loops", "2 loops", "2 loops", "2 loops", "2 loops", "1 loops",
         ],
-        &[
-            (1e-6, 2, "tube straddles"),
-            (1e-6, 3, "tube straddles"),
-            (1e-6, 5, "tube straddles"),
-        ],
+        &[],
     );
 }
 
 /// **The germ row's two donuts**: every placement certifies but the one
 /// whose donuts share an axis line with each core through the other's
 /// centre, a tangency the gap decides and the door refuses before any
-/// rung, at every ε row; at `1e-6` two refuse on the tube, at `1e-12` one
-/// on the step budget.
+/// rung, at every ε row; at `1e-12` one refuses on the step budget.
 #[test]
 fn the_germ_rows_two_donuts() {
     germ_row(
@@ -373,11 +367,7 @@ fn the_germ_rows_two_donuts() {
             "tangent (TorusTorus)",
             "1 loops",
         ],
-        &[
-            (1e-6, 2, "tube straddles"),
-            (1e-6, 5, "tube straddles"),
-            (1e-12, 5, "step budget"),
-        ],
+        &[(1e-12, 5, "step budget")],
     );
 }
 
