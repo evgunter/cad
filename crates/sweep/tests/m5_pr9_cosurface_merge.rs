@@ -46,7 +46,7 @@ fn disc_cylinder() -> Body<f64> {
 /// Cylinder wall faces of `body`.
 fn wall_count(body: &Body<f64>) -> usize {
     body.faces()
-        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(geom::Surface::Cylinder { .. })))
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Ok(geom::Surface::Cylinder { .. })))
         .count()
 }
 

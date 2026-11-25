@@ -29,8 +29,8 @@
 //! rules that read no values; a curved run whose surgery the inventory
 //! stops is left on that record unmerged. Which face survives the surgery does not enter: a plug in
 //! another member's hole is read like any other member
-//! ([`MergedGroup::kept`]). A face on the `mvfs` seed's placeholder
-//! surface is a THIRD kind ([`MergeKind::Placeholder`]): the door
+//! ([`MergedGroup::kept`]). A face whose surface slot is pending
+//! is a THIRD kind ([`MergeKind::Placeholder`]): the door
 //! takes a census of them ([`MergeCoplanarOutcome::placeholders`]) and
 //! glues none.
 //!
@@ -39,8 +39,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use geom::Surface;
 use geom::SurfaceKind;
-use geom::{NetState, Surface};
 use geom_brep::recourse::{Reading, RefusedArm, RefusedSide, SizedDecision, SizedPass, Unsized};
 use geom_core::{Band, BandError, Decided, Indeterminate, Tol};
 use slotmap::SecondaryMap;
@@ -152,7 +152,7 @@ pub struct MergeCoplanarOutcome {
     /// that would close its chart's full period is recorded here
     /// through either entry point.
     pub skipped: Vec<SkippedMerge>,
-    /// Faces whose surface is the placeholder
+    /// Faces whose surface is pending
     /// ([`MergeKind::Placeholder`]), in face-arena order — named so a
     /// caller holding a body still under construction can see why
     /// nothing happened to them, instead of reading `Ok` as "nothing
@@ -278,16 +278,12 @@ impl GroupRegime {
 /// once, in [`Body::merge_coplanar_faces`]'s *The placeholder
 /// is a third kind, not a curved one*.
 ///
-/// Which nets are the placeholder is [`NetState`]'s answer, read
-/// through [`geom::NurbsSurface::net_state`] and never re-derived
-/// here. A poisoned net has NO kind at this door: it is described
-/// geometry that cannot evaluate, and [`NetState::Poisoned`]'s docs
-/// require every consumer's described arm to FAIL on it rather than
-/// hand it the placeholder's benign answer. The merge's curved arm
-/// evaluates nothing, so it could not fail on its own — it would
-/// commit surgery over a description tier 3 refuses at rest — and
-/// the door refuses the face instead
-/// ([`MergeCoplanarError::PoisonedSurfaceDescription`]).
+/// A pending slot is the placeholder. A net that is not finite
+/// ([`geom::NurbsSurface::is_finite`]) has NO kind at this door: it is
+/// corrupt geometry, and the merge's curved arm evaluates nothing, so
+/// it could not fail on its own — it would commit surgery over a
+/// description tier 3 refuses at rest — and the door refuses the face
+/// instead ([`MergeCoplanarError::PoisonedSurfaceDescription`]).
 ///
 /// Ordered so a refusal naming two members of different kinds names
 /// them the same way whichever was the group's seed
@@ -299,29 +295,26 @@ pub enum MergeKind {
     /// Any described surface that is not a plane — the analytic
     /// kinds, a described NURBS, a fitted stand-in.
     Curved,
-    /// [`NetState::Placeholder`]: no description yet.
+    /// A pending slot ([`crate::SurfaceSlot::Pending`]): no surface yet.
     Placeholder,
 }
 
-/// A net in [`NetState::Poisoned`], which has no [`MergeKind`]
+/// A net that is not finite, which has no [`MergeKind`]
 /// ([`MergeKind`]'s docs say why).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct PoisonedNet;
 
 impl MergeKind {
-    /// The kind of one surface value. The plane question is
-    /// [`geom::Surface::kind`]'s — the crate's one carrier-kind read —
-    /// and the net question is [`NetState`]'s, matched exhaustively so
-    /// no state is answered by a default.
-    fn of<T: geom_core::Real>(surface: &Surface<T>) -> Result<Self, PoisonedNet> {
-        match surface {
-            Surface::Nurbs(net) => match net.net_state() {
-                NetState::Placeholder => Ok(Self::Placeholder),
-                NetState::Poisoned => Err(PoisonedNet),
-                NetState::Described => Ok(Self::Curved),
-            },
-            s if s.kind() == SurfaceKind::Plane => Ok(Self::Plane),
-            _ => Ok(Self::Curved),
+    /// The kind of one surface slot. The plane question is
+    /// [`geom::Surface::kind`]'s — the crate's one carrier-kind read.
+    fn of<T: geom_core::Real>(slot: &crate::SurfaceSlot<T>) -> Result<Self, PoisonedNet> {
+        match slot {
+            crate::SurfaceSlot::Pending => Ok(Self::Placeholder),
+            crate::SurfaceSlot::Described(Surface::Nurbs(net)) if !net.is_finite() => {
+                Err(PoisonedNet)
+            }
+            crate::SurfaceSlot::Described(s) if s.kind() == SurfaceKind::Plane => Ok(Self::Plane),
+            crate::SurfaceSlot::Described(_) => Ok(Self::Curved),
         }
     }
 
@@ -330,7 +323,7 @@ impl MergeKind {
         match self {
             Self::Plane => "planar",
             Self::Curved => "curved",
-            Self::Placeholder => "placeholder",
+            Self::Placeholder => "pending",
         }
     }
 }
@@ -412,8 +405,8 @@ pub enum MergeCoplanarError {
         /// That member's kind.
         other_kind: MergeKind,
     },
-    /// A face's surface is a `Nurbs` net in [`NetState::Poisoned`]:
-    /// described geometry that cannot evaluate. Tier 3 refuses such a
+    /// A face's surface is a `Nurbs` net that is not finite:
+    /// corrupt geometry that cannot evaluate. Tier 3 refuses such a
     /// body at rest ([`ValidationError::PoisonedSurfaceDescription`]);
     /// this door's entry gate is tier 2, so it refuses the face itself,
     /// before any group forms — its curved arm would otherwise commit
@@ -1098,7 +1091,7 @@ impl MergeCoplanarError {
                 if [*kind, *other_kind].contains(&MergeKind::Placeholder) {
                     write!(
                         f,
-                        " (a placeholder describes no locus and is never one recipe surface \
+                        " (a pending face describes no locus and is never one recipe surface \
                          with a described face)"
                     )?;
                 }
@@ -1106,9 +1099,9 @@ impl MergeCoplanarError {
             }
             Self::PoisonedSurfaceDescription { face } => write!(
                 f,
-                "merge_coplanar_faces: face {face:?}'s surface is a Nurbs net carrying poison \
-                 in some channel — described geometry that cannot evaluate, which tier 3 \
-                 refuses at rest; attach a real description (Body::set_face_surface) before \
+                "merge_coplanar_faces: face {face:?}'s surface is a Nurbs net with a control \
+                 point that is not a finite number — geometry that cannot evaluate, which \
+                 tier 3 refuses at rest; attach a real description (Body::set_face_surface) before \
                  merging"
             ),
             Self::UnsupportedConfiguration { edge } => write!(
@@ -1812,7 +1805,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     ///
     /// # The placeholder is a third kind, not a curved one
     ///
-    /// A face whose surface is the `mvfs` seed's placeholder
+    /// A face whose surface slot is pending
     /// ([`MergeKind::Placeholder`]) describes no locus, so it is
     /// neither a planar run nor a curved one: the door names every
     /// such face in [`MergeCoplanarOutcome::placeholders`], a run of
@@ -2196,7 +2189,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         &self,
         face: crate::live::FaceView<'_, T>,
     ) -> Result<MergeKind, MergeCoplanarError> {
-        MergeKind::of(face.surface()).map_err(|PoisonedNet| {
+        MergeKind::of(face.slot()).map_err(|PoisonedNet| {
             MergeCoplanarError::PoisonedSurfaceDescription { face: face.key() }
         })
     }
@@ -3129,12 +3122,12 @@ mod tests {
     //
     // A group's regime must be asserted, never inherited from an
     // accident of the fixture: `declined_cube`'s faces sit on the `mvfs`
-    // NURBS placeholder, which has no regime at all — the door sets
+    // pending slot, which has no regime at all — the door sets
     // the whole cube aside and no surgery runs. These two build the
     // regime deliberately, out of planes.
 
-    /// The unit cube with the `mvfs` placeholder overwritten IN PLACE
-    /// by a real plane, so every face shares one plane key: the
+    /// The unit cube with the `mvfs` pending slot described IN PLACE
+    /// as a real plane, so every face shares one plane key: the
     /// structural rung groups the whole cube and, being planar and
     /// undeclared, it runs under [`GroupRegime::RefusesTheCall`].
     fn structural_planar_cube(tol: Tol) -> Body<f64> {
@@ -3177,7 +3170,7 @@ mod tests {
             .into_iter()
             .collect();
         for (i, k) in keys.into_iter().enumerate() {
-            *body.surfaces.get_mut(k).expect("a live key") = flat_plane_at(10.0 * (i + 1) as f64);
+            *body.surface_mut(k).expect("a live key") = flat_plane_at(10.0 * (i + 1) as f64);
         }
     }
 
@@ -3242,7 +3235,7 @@ mod tests {
         kind: MergeKind::Curved,
     };
 
-    /// Re-describes the fixture's one shared placeholder key as the
+    /// Describes the fixture's one shared pending key as the
     /// unit cylinder, in place: one curved same-key run over the whole
     /// body, the recording regime's fixture.
     fn describe_shared_key_curved(body: &mut Body<f64>) {
@@ -3250,19 +3243,19 @@ mod tests {
         *body
             .surfaces
             .get_mut(key)
-            .expect("the placeholder resolves") = unit_cylinder();
+            .expect("the pending key resolves") = unit_cylinder().into();
     }
 
-    /// Re-describes the fixture's one shared placeholder key as a
-    /// real plane, in place — the key is overwritten rather than
-    /// replaced because a fresh key would orphan the placeholder and
+    /// Describes the fixture's one shared pending key as a real plane,
+    /// in place — the key is described rather than replaced because a
+    /// fresh key would orphan the pending slot and
     /// the entry gate refuses an orphaned surface.
     fn describe_shared_key(body: &mut Body<f64>) {
         let key = body.faces().next().expect("faces").1.surface;
         *body
             .surfaces
             .get_mut(key)
-            .expect("the placeholder resolves") = flat_plane();
+            .expect("the pending key resolves") = flat_plane().into();
     }
 
     /// Runs the public door with one tear point armed, and returns
@@ -3724,7 +3717,7 @@ mod tests {
     /// a coplanar membrane face covering the opening — the holed
     /// box's construction stopped one step before the tube is grown.
     /// Built entirely by Euler operators, so it is a tier-1/tier-2
-    /// valid body. Its faces stay on the `mvfs` placeholder key; a row
+    /// valid body. Its faces stay on the `mvfs` pending key; a row
     /// that runs the surgery on it describes that key first.
     ///
     /// The shared rim edges have their top-face half in the top
@@ -4180,8 +4173,8 @@ mod tests {
         let tol = Tol::witness();
         let mut body = declined_cube::<f64>(tol).body;
         let (rep, other) = adjacent_pair(&body);
-        // Both surfaces are set here: the fixture's faces carry the
-        // mvfs placeholder, and the row is about KINDS, not about
+        // Both surfaces are set here: the fixture's faces are pending
+        // since mvfs, and the row is about KINDS, not about
         // which kind a fixture happens to leave behind.
         let plane = body.add_surface(Surface::Plane {
             frame: geom::Frame::new(
@@ -4227,7 +4220,7 @@ mod tests {
 
         // The placeholder is the third kind, and a group holding one
         // beside a described face of EITHER kind has no contract.
-        let placeholder = body.add_surface(Surface::nurbs_placeholder());
+        let placeholder = body.add_pending_surface();
         body.faces
             .get_mut(other)
             .expect("the pair's second face is live")
@@ -4255,7 +4248,7 @@ mod tests {
     }
 
     /// **A run of placeholders is set aside, not run.** The contract
-    /// of [`crate::test_support_fixtures::declined_cube`]'s six faces on their one placeholder key is
+    /// of [`crate::test_support_fixtures::declined_cube`]'s six faces on their one pending key is
     /// [`GroupContract::SetAside`] — no regime, because a placeholder
     /// is neither of the two kinds the regimes are written for — and
     /// the door names the faces.
@@ -4279,8 +4272,8 @@ mod tests {
     }
 
     /// A bilinear net over the unit square with every `x` poisoned:
-    /// [`NetState::Poisoned`], described geometry that cannot
-    /// evaluate, and not the placeholder.
+    /// A net that is not finite: corrupt geometry that cannot
+    /// evaluate.
     fn poisoned_net() -> Surface<f64> {
         let kv = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1)
             .expect("a clamped linear knot vector");
@@ -4293,7 +4286,7 @@ mod tests {
             vec![1.0; 4],
         )
         .expect("four control points on a 2x2 net");
-        assert_eq!(net.net_state(), NetState::Poisoned);
+        assert!(!net.is_finite());
         Surface::Nurbs(std::sync::Arc::new(net))
     }
 
@@ -4306,13 +4299,14 @@ mod tests {
     #[test]
     fn merge_kind_answers_each_surface_state() {
         let tol = Tol::witness();
-        assert_eq!(MergeKind::of(&flat_plane()), Ok(MergeKind::Plane));
-        assert_eq!(MergeKind::of(&unit_cylinder()), Ok(MergeKind::Curved));
+        let of = |s: Surface<f64>| MergeKind::of(&crate::SurfaceSlot::Described(s));
+        assert_eq!(of(flat_plane()), Ok(MergeKind::Plane));
+        assert_eq!(of(unit_cylinder()), Ok(MergeKind::Curved));
         assert_eq!(
-            MergeKind::of(&Surface::<f64>::nurbs_placeholder()),
+            MergeKind::of(&crate::SurfaceSlot::<f64>::Pending),
             Ok(MergeKind::Placeholder)
         );
-        assert_eq!(MergeKind::of(&poisoned_net()), Err(PoisonedNet));
+        assert_eq!(of(poisoned_net()), Err(PoisonedNet));
         let mut body = declined_cube::<f64>(tol).body;
         let face = body.faces().next().expect("a cube has faces").0;
         body.set_face_surface(
@@ -4335,7 +4329,7 @@ mod tests {
 
     /// **A poisoned net refuses the call before any surgery.** Two
     /// adjacent faces of the cube share one key carrying a net in
-    /// [`NetState::Poisoned`]; the other four are placeholders. The
+    /// that is not finite; the other four are pending. The
     /// door refuses [`MergeCoplanarError::PoisonedSurfaceDescription`]
     /// naming the arena-first poisoned face and leaves the body
     /// byte-identical — the placeholders are not set aside into an
@@ -4446,14 +4440,8 @@ mod tests {
             .map(|(k, _)| k)
             .last()
             .expect("a cube has faces");
-        body.set_face_surface(
-            side,
-            crate::euler::FaceSurface::New {
-                surface: Surface::nurbs_placeholder(),
-                sense: true,
-            },
-        )
-        .expect("a live face takes a surface");
+        body.set_face_surface(side, crate::euler::FaceSurface::Pending { sense: true })
+            .expect("a live face takes a surface");
         let outcome = body
             .merge_coplanar_faces(tol)
             .expect("a recorded skip beside a set-aside face is not a refusal");
@@ -4619,7 +4607,7 @@ mod tests {
         let (bad, good) = (keys[0], keys[1]);
         let mut set = |f: FaceKey, surface: Surface<f64>| {
             let key = body.faces[f].surface;
-            body.surfaces[key] = surface;
+            *body.surface_mut(key).unwrap() = surface;
         };
         let sphere = |x: f64| Surface::Sphere {
             frame: geom::Frame::new(
@@ -4654,7 +4642,7 @@ mod tests {
         };
         let mut set = |f: FaceKey, surface: Surface<f64>| {
             let key = body.faces[f].surface;
-            body.surfaces[key] = surface;
+            *body.surface_mut(key).unwrap() = surface;
         };
         set(bad, torus(1.0, 2.0));
         set(good, torus(2.0, 0.5));
@@ -4698,7 +4686,7 @@ mod tests {
         let with_placeholder = split(MergeKind::Placeholder);
         assert!(
             with_placeholder.contains("(planar)")
-                && with_placeholder.contains("(placeholder)")
+                && with_placeholder.contains("(pending)")
                 && with_placeholder.contains("re-check the shared surface key")
                 && with_placeholder.contains("describes no locus"),
             "a split on a placeholder names both kinds and the placeholder's recourse: \
@@ -4716,7 +4704,7 @@ mod tests {
             face: FaceKey::default(),
         });
         assert!(
-            poisoned.contains("poison") && poisoned.contains("Body::set_face_surface"),
+            poisoned.contains("not a finite number") && poisoned.contains("Body::set_face_surface"),
             "the poisoned refusal names its recourse: {poisoned}"
         );
     }
@@ -6067,7 +6055,7 @@ mod declared_reach_rows {
                     .expect("live")
             };
             let (pa, pc) = (at(&body, a), at(&body, c));
-            let flat = body.proven_face(top).surface().clone();
+            let flat = body.proven_face(top).expect_described().clone();
             let he1 = leaving(&body, top, a).expect("A is on the top");
             let he2 = leaving(&body, top, c).expect("C is on the top");
             // Lifts RechartStrandsDescriptions: the half on a key of its own is the declared pair; its rim's descriptions are not the row.
@@ -6092,7 +6080,7 @@ mod declared_reach_rows {
                 top
             };
             let tilted = body.get_face(b_side).expect("live").surface;
-            *body.surfaces.get_mut(tilted).expect("live") = geom::Surface::Plane {
+            *body.surface_mut(tilted).expect("live") = geom::Surface::Plane {
                 frame: geom::Frame::new(
                     Point3::new(0.0, 0.0, 1.0),
                     Vec3::new(0.0, -theta, 1.0).normalize(),

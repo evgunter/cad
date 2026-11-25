@@ -5,7 +5,7 @@ title: Viewport focus marking is per NODE, so a profile step cannot light the wa
 status: open
 opened: 2026-08-29
 priority: P1
-cost: D
+cost: H
 ---
 
 ## From GitHub issue 1182

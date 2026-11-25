@@ -677,7 +677,7 @@ fn torax_a_two_arc_lune_re_authors_its_equator_seam_and_hollows() {
     let mut body = body.into_body();
     let sphere = body
         .faces()
-        .find(|(fk, _)| matches!(body.face_surface(*fk), Some(geom::Surface::Sphere { .. })))
+        .find(|(fk, _)| matches!(body.face_surface(*fk), Ok(geom::Surface::Sphere { .. })))
         .expect("the sphere wall")
         .1
         .surface;
@@ -928,7 +928,7 @@ fn torax_the_sphere_lune_lifts_its_rims_onto_the_caps() {
     let body = lune(r, core::f64::consts::FRAC_PI_2);
     let caps: Vec<FaceKey> = body
         .faces()
-        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Plane { .. })))
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Ok(Surface::Plane { .. })))
         .map(|(k, _)| k)
         .collect();
     assert_eq!(caps.len(), 2, "a partial revolve has two meridian caps");
@@ -1034,7 +1034,7 @@ fn torax_the_half_turn_lune_refuses_at_its_axis_edge() {
         "the refused edge lies between two faces of one record"
     );
     assert!(
-        matches!(body.get_surface(a), Some(Surface::Plane { .. })),
+        matches!(body.get_surface(a), Ok(Surface::Plane { .. })),
         "the refused edge lies between the two caps"
     );
     assert!(

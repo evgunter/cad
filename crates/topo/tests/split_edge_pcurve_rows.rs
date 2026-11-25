@@ -123,7 +123,7 @@ fn deep(body: &Body<f64>) -> Vec<String> {
     for (k, c) in body.curves() {
         out.push(format!("C {k:?} {c:?}"));
     }
-    for (k, u) in body.surfaces() {
+    for (k, u) in body.described_surfaces() {
         out.push(format!("U {k:?} {u:?}"));
     }
     for (k, c) in body.pcurves() {
@@ -253,7 +253,7 @@ fn a_body_with_no_rows_still_has_none_after_a_split() {
     assert_eq!(bare.pcurves().count(), 0);
     let curved: Vec<topo::PcurveMintError> = bare
         .faces()
-        .filter(|(fk, _)| !matches!(bare.face_surface(*fk), Some(geom::Surface::Plane { .. })))
+        .filter(|(fk, _)| !matches!(bare.face_surface(*fk), Ok(geom::Surface::Plane { .. })))
         .map(|(face, _)| topo::PcurveMintError::Unminted { face })
         .collect();
     assert!(!curved.is_empty(), "the wall has a curved face");

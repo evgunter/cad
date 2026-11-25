@@ -69,7 +69,7 @@ fn probe_measure_revolve_minor_radius_drift() {
     let rev_minor = rev
         .faces()
         .find_map(|(fk, _)| match rev.face_surface(fk) {
-            Some(geom::Surface::Torus { minor_radius, .. }) => Some(*minor_radius),
+            Ok(geom::Surface::Torus { minor_radius, .. }) => Some(*minor_radius),
             _ => None,
         })
         .expect("revolve donut stores a torus");

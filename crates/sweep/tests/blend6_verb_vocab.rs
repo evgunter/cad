@@ -322,7 +322,7 @@ fn a_chamfer_leaves_a_co_surface_seam_and_refuses_a_cusp_as_the_chamfer() {
             [a, b].iter().all(|&f| {
                 matches!(
                     lune.get_surface(surface(f)),
-                    Some(geom::Surface::Cylinder { .. })
+                    Ok(geom::Surface::Cylinder { .. })
                 )
             })
         })
@@ -435,7 +435,7 @@ fn edge_surfaces(
     let face_of = |he: topo::HalfEdgeKey| -> Option<geom::Surface<f64>> {
         let l = body.get_half_edge(he)?.parent_loop;
         let f = body.get_loop(l)?.face;
-        body.face_surface(f).cloned()
+        body.face_surface(f).ok().cloned()
     };
     Some((face_of(e.he_plus)?, face_of(e.he_minus)?))
 }

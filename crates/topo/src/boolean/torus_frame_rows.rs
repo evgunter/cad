@@ -515,10 +515,11 @@ fn the_frame_takes_the_section_tables_answer_through_the_production_path() {
     );
     let keyed = |body: &crate::Body<f64>, f: FaceKey| {
         let view = body.proven_face(f);
-        (view.record().surface, view.surface().clone())
+        (view.record().surface, view.surface().unwrap().clone())
     };
     let azimuth = Vec3::new(1.0, -1.0, 0.0).normalize();
-    let surface = |body: &crate::Body<f64>, f: FaceKey| body.proven_face(f).surface().clone();
+    let surface =
+        |body: &crate::Body<f64>, f: FaceKey| body.proven_face(f).expect_described().clone();
     let cover = || crate::cover::face_cover(&torus, face, b);
     let at = super::join::frame_reading(&surface(&torus, face), cover, cover).unwrap();
     let face_reach = crate::cover::face_reach_from(&torus, face, at, b).unwrap();

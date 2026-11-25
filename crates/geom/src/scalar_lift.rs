@@ -135,27 +135,11 @@
 //! A [`Curve3::Nurbs`] lifts to a [`Curve3::Nurbs`] whose control net
 //! went through `f` ([`NurbsCurve3::map_scalar`]); a [`Surface::Nurbs`]
 //! and a [`Surface::Approx`] likewise ([`NurbsSurface::map_scalar`],
-//! [`ApproxSurface::map_scalar`]). No variant is mapped to the
-//! placeholder: a described surface that came back "no description yet"
-//! after a lift would be a silent substitution, and the whole reason a
-//! lift exists is to evaluate the *same* geometry at another scalar.
-//!
-//! # The placeholder and the poisoned net (the one home of this argument)
-//!
-//! The placeholder is the surface's alone ([`NurbsSurface::placeholder`]);
-//! a curve's net is always described, and a poisoned one lifts to a net
-//! poisoned in the same channels. What the surface placeholder and a
-//! poisoned net lift to follows from the map being structural. The
-//! placeholder's every control point is
-//! all-poison, and every scalar embedding keeps poison (`from_f64(NaN)`
-//! is the interval's poison, `Dual::constant(NaN)` a poisoned dual), so
-//! **the placeholder lifts to the placeholder** — `is_placeholder` is
-//! preserved through the map. A described net carrying poison in some
-//! points lifts to a described net carrying poison in the same points:
-//! **never the benign placeholder**, because the crate docs' rule is
-//! `all`-not-`any` and a map applied pointwise cannot turn some into
-//! all. That rule's own width (which channels `is_placeholder` reads)
-//! is untouched here; the lift neither narrows nor widens it.
+//! [`ApproxSurface::map_scalar`]), the same geometry at another scalar.
+//! The map is structural and every scalar embedding keeps a value that
+//! is not a finite number non-finite (`from_f64` sends NaN and `±∞` to
+//! the interval's poison), so a net that is not finite lifts to one
+//! that is not finite, in the same points.
 
 use geom_core::Real;
 #[cfg(doc)]
@@ -209,9 +193,7 @@ impl<T: Real> Surface<T> {
     /// re-minted there ([`crate::Frame::map_scalar`]), every other analytic
     /// field through `f`, the NURBS payload through
     /// [`NurbsSurface::map_scalar`], the approximating payload through
-    /// [`ApproxSurface::map_scalar`]. Poison travels; the placeholder
-    /// lifts to the placeholder and a described surface to a described
-    /// surface.
+    /// [`ApproxSurface::map_scalar`]. Poison travels.
     #[must_use]
     pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> Surface<U> {
         self.map_with(&f, |frame| frame.map_scalar(&f))

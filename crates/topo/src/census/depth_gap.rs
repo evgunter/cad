@@ -715,7 +715,7 @@ mod tests {
             })
             .expect("the top face");
         let key = body.get_face(top).unwrap().surface;
-        *body.surfaces.get_mut(key).expect("its surface") = Surface::Cone {
+        *body.surface_mut(key).expect("its surface") = Surface::Cone {
             frame: geom::Frame::new(apex, axis, v(1.0, 0.0, 0.0)),
             half_angle: 0.3,
         };

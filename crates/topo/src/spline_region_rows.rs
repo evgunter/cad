@@ -2094,7 +2094,7 @@ fn a_spline_faces_stations_read_on_its_own_chart() {
         &twisted(1.0),
         &[(0.1, 0.1), (0.9, 0.1), (0.9, 0.9), (0.1, 0.9)],
     );
-    let surface = body.face(face).unwrap().surface().clone();
+    let surface = body.face(face).unwrap().surface().unwrap().clone();
     let n = 10;
     for i in 0..=n {
         for j in 0..=n {

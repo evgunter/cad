@@ -337,7 +337,7 @@ fn a_plane_grazing_a_conical_pit_through_its_apex_refuses_the_knife_edge() {
                 let wall = body.face_surface(knife.wall).map(geom::Surface::kind);
                 assert_eq!(
                     wall,
-                    Some(geom::SurfaceKind::Cone),
+                    Ok(geom::SurfaceKind::Cone),
                     "{what}: names the pit's wall"
                 );
             }
