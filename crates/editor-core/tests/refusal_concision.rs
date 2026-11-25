@@ -430,15 +430,6 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
-            "RechartedRowUnstated",
-            BooleanError::RechartedRowUnstated {
-                operand: Operand::B,
-                relation: topo::Relation::SameOpposite,
-                faces: vec![face, face],
-                what: "only a point decided there is stated by the faces that hold it",
-            },
-        ),
-        (
             "GermFrameUnsupported",
             BooleanError::GermFrameUnsupported {
                 a_face: face,
@@ -455,20 +446,6 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
                 b_face: face,
                 b_kind: SurfaceKind::Cone,
                 conic: geom_brep::OpenConic::Hyperbola,
-            },
-        ),
-        (
-            "GermSectionSpiric",
-            BooleanError::GermSectionSpiric {
-                a_face: face,
-                a_kind: SurfaceKind::Plane,
-                b_face: face,
-                b_kind: SurfaceKind::Torus,
-                loops: topo::SpiricLoops::AroundTube,
-                section: geom_brep::SectionError::RoutesToGeneralRung {
-                    pair: "plane×torus",
-                    why: "generic tilt cuts a spiric quartic",
-                },
             },
         ),
         (

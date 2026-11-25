@@ -584,41 +584,44 @@ impl<T: Real> IsoChart<T> {
         )
     }
 
-    /// The point `p`'s distance from the surface: from the cylinder,
-    /// `|ρ − R|`; from the cone (both nappes), `|ρ·cos α − |h|·sin α|`;
-    /// from the sphere, `|‖p − c‖ − R|`; from the torus,
+    /// The point `p`'s distance from the surface: from the cylinder
+    /// and the sphere, `|‖w‖ − R|` for its offset `w` from the axis or
+    /// the centre, read through [`geom_core::radius_gap`] (the zero form
+    /// for a point built at the radius); from the cone (both nappes),
+    /// `|ρ·cos α − |h|·sin α|`; from the torus,
     /// `|√((ρ − R)² + h²) − r|`, `ρ` and `h` the point's radius and height
     /// about the axis (about the apex on the cone).
     fn distance(self, p: Point3<T>) -> T {
         let about = |o: Point3<T>, axis: Vec3<T>| {
             let w = p - o;
             let h = w.dot(axis);
-            ((w - axis * h).norm(), h)
+            (w - axis * h, h)
         };
+        let wall = |w: Vec3<T>, radius: T| w.radius_gap(radius).abs();
         match self {
             Self::Cylinder {
                 origin,
                 axis,
                 radius,
-            } => (about(origin, axis).0 - radius).abs(),
+            } => wall(about(origin, axis).0, radius),
             Self::Cone {
                 apex,
                 axis,
                 sin_a,
                 cos_a,
             } => {
-                let (rho, h) = about(apex, axis);
-                (rho * cos_a - h.abs() * sin_a).abs()
+                let (w, h) = about(apex, axis);
+                (w.norm() * cos_a - h.abs() * sin_a).abs()
             }
-            Self::Sphere { center, radius } => ((p - center).norm() - radius).abs(),
+            Self::Sphere { center, radius } => wall(p - center, radius),
             Self::Torus {
                 center,
                 axis,
                 major,
                 minor,
             } => {
-                let (rho, h) = about(center, axis);
-                (((rho - major).powi(2) + h.powi(2)).sqrt() - minor).abs()
+                let (w, h) = about(center, axis);
+                (((w.norm() - major).powi(2) + h.powi(2)).sqrt() - minor).abs()
             }
         }
     }
@@ -2158,6 +2161,15 @@ pub fn closed_surface<T: Real>(
     })
 }
 
+/// **A segment's greatest distance from a cylinder of `radius`**, `q0`
+/// and `q1` its ends' offsets from the axis: the ends' residuals
+/// ([`geom_core::radius_gap`], zero forms for ends built on the wall),
+/// and how far the segment sags inside between them ([`radial_sag`]).
+fn segment_off_cylinder<T: Real>(q0: Vec3<T>, q1: Vec3<T>, radius: T) -> T {
+    let (f0, f1) = (q0.radius_gap(radius), q1.radius_gap(radius));
+    f0.abs().max(f1.abs()).max(radial_sag(q0, q1) - f0.min(f1))
+}
+
 /// Classify a cylinder face's boundary into (rims, iso-levels) — the
 /// shared parse consumed by both the flux closed form and
 /// [`boundary_material_sign`].
@@ -2184,10 +2196,9 @@ fn cylinder_boundary<T: Decide>(
                 // segment sags inside between them ([`radial_sag`]).
                 let radial = |p: Point3<T>| geom::Line { origin, dir: axis }.offset(p);
                 let (q0, q1) = (radial(e.p0()), radial(e.p1()));
-                let (f0, f1) = (q0.norm() - radius, q1.norm() - radius);
                 require_zero(
                     "props_meridian_on_surface",
-                    Margin::of(f0.abs().max(f1.abs()).max(radial_sag(q0, q1) - f0.min(f1))),
+                    Margin::of(segment_off_cylinder(q0, q1, radius)),
                     band,
                     Premise::OnSurface,
                 )?;
@@ -2590,16 +2601,7 @@ fn cone_loops<T: Decide>(
         va = va + loop_va;
         per_loop.push((loop_axial, loop_length));
     }
-    let (lo, hi) = min_max(&ends)?;
-    let nappe = match (
-        classify_as("props_cone_nappe", Margin::of(lo), band, PropsCheck::Exact)?,
-        classify_as("props_cone_nappe", Margin::of(hi), band, PropsCheck::Exact)?,
-    ) {
-        (Sign::Negative, Sign::Positive) => return Err(PropsError::NappeSpanning),
-        (_, Sign::Positive) => T::one(),
-        (Sign::Negative, _) => -T::one(),
-        _ => return Err(PropsError::DegenerateFace),
-    };
+    let nappe = cone_nappe(&ends, band)?;
     let side = match mean_width_side(
         "props_cone_area_side",
         (-(nappe * axial) / sin_a, length),
@@ -2616,6 +2618,67 @@ fn cone_loops<T: Decide>(
             .map(|&(a, l)| (-(nappe * a) / sin_a, l))
             .collect(),
     })
+}
+
+/// **The nappe a cone face's boundary lies on**, `±1`, off the slants
+/// `ends` that bound it (`props_cone_nappe`): slants decided on both
+/// sides of the apex cross it ([`PropsError::NappeSpanning`]), and slants
+/// all at the apex bound nothing ([`PropsError::DegenerateFace`]).
+fn cone_nappe<T: Decide>(ends: &[T], band: Band) -> Result<T, PropsError> {
+    let (lo, hi) = min_max(ends)?;
+    match (
+        classify_as("props_cone_nappe", Margin::of(lo), band, PropsCheck::Exact)?,
+        classify_as("props_cone_nappe", Margin::of(hi), band, PropsCheck::Exact)?,
+    ) {
+        (Sign::Negative, Sign::Positive) => Err(PropsError::NappeSpanning),
+        (_, Sign::Positive) => Ok(T::one()),
+        (Sign::Negative, _) => Ok(-T::one()),
+        _ => Err(PropsError::DegenerateFace),
+    }
+}
+
+/// **The gates a cone cap passes before the cap quadrature reads it**
+/// (`topo`'s curved-rim lane, for a cone face a spiric or a spline
+/// bounds), on the cone of `apex`, `axis` and `half_angle`, the closed
+/// form's (`cone_loops`) where they apply to the
+/// carrier:
+/// a line, a circle or an ellipse lies on the cone (`require_on_cone`)
+/// with its conic span decided (`require_cone_conic_spans`), and every
+/// edge's slant range, read off its cover over its span along the axis
+/// (`Curve3::cover_over`, a spline's its control hull's), lies on one
+/// nappe (`cone_nappe`). A spline's or a
+/// spiric's distance off the cone is not decided here, nor charged
+/// (`work/sectcone/the-cone-cap-lane-charges-no-pad-for-a-fitted-edge-off-the-cone.md`).
+///
+/// # Errors
+///
+/// [`PropsError::NappeSpanning`], [`PropsError::DegenerateFace`],
+/// `require_on_cone`'s and `require_cone_conic_spans`'s refusals.
+pub fn require_cone_cap<T: Decide>(
+    (apex, axis, half_angle): (Point3<T>, UnitVec3<T>, T),
+    loops: &[&[LoopEdge<T>]],
+    band: Band,
+) -> Result<(), PropsError> {
+    let (sin_a, cos_a) = half_angle.sin_cos();
+    let at_apex = (apex - Point3::origin()).dot(axis.get());
+    let mut ends = Vec::new();
+    for &edges in loops {
+        for e in edges {
+            if !e.carrier.is_curved() || e.carrier.conic().is_some() {
+                require_on_cone(apex, axis, sin_a, cos_a, e, band)?;
+            }
+            let (lo, hi) = e
+                .carrier
+                .cover_over(geom::cover::ParamWindow::new(e.t0, e.t1))
+                .map_err(|_| PropsError::QuadratureUnsupported {
+                    what: "a cone cap edge with no cover over its span",
+                })?
+                .range_along(axis.get());
+            ends.extend([(lo - at_apex) / cos_a, (hi - at_apex) / cos_a]);
+        }
+        require_cone_conic_spans(edges, band)?;
+    }
+    cone_nappe(&ends, band).map(|_| ())
 }
 
 /// **An edge lies on the cone**, each incidence decided at the true
@@ -7255,6 +7318,225 @@ mod pole_climb_rows {
         };
         let got = sphere_region_material_sign(&region, band);
         assert!(matches!(got, Ok(MaterialSign::Encoded(_))), "{got:?}");
+    }
+}
+
+/// **An edge built on a cylinder's or a sphere's wall at a parameter
+/// radius is on it with no sign asked of the radius**: the ruling
+/// premise ([`segment_off_cylinder`]) and the iso parse's carrier
+/// samples (`IsoChart::distance`).
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod ruling_on_wall_rows {
+    use super::*;
+    use geom_core::{Interval, ParamSymbol, Sym, SymBudget, Tol};
+
+    /// A ruling's ends are both at `r·x` from the axis, `x` a unit
+    /// direction (a frame's own, or one at a boxed angle): over a box on
+    /// `r` their distance from the cylinder of radius `r` is the zero
+    /// form, and from the radius spelled `|r|` too.
+    ///
+    /// Red with `segment_off_cylinder`'s residual spelled
+    /// `q.norm() − radius` (run by hand): at the radius `r` the premise
+    /// reads `|√(r²) − r|`, as wide as the box.
+    #[test]
+    fn a_ruling_built_on_a_cylinder_is_on_it_over_a_box_on_the_radius() {
+        type S = Sym<Interval>;
+        let band = Band::linear(Tol::witness()).expect("the witness band");
+        let budget = SymBudget {
+            max_terms: 4096,
+            max_degree: 64,
+        };
+        let boxed = |name: &str, lo: f64, hi: f64| -> S {
+            Sym::param_over(
+                ParamSymbol::new(test_utils::symbol_id(name)),
+                Interval::from_bounds(lo, hi),
+                lo,
+                hi,
+            )
+        };
+        geom_core::sym::with_session(budget, || {
+            let r = boxed("ruling_on_wall_radius", 0.2, 0.4);
+            let (s, c) = boxed("ruling_on_wall_angle", 0.3, 0.9).sin_cos();
+            let (zero, one) = (S::zero(), S::one());
+            let directions = [
+                ("u", Vec3::new(one, zero, zero)),
+                ("-v", Vec3::new(zero, zero - one, zero)),
+                ("at a boxed angle", Vec3::new(c, s, zero)),
+            ];
+            for (name, x) in directions {
+                for (spelling, radius) in [("r", r), ("|r|", r.abs())] {
+                    let q = x * r;
+                    let d = geom_core::k_stats::decide_reported(
+                        "ruling_on_wall_row",
+                        Margin::of(segment_off_cylinder(q, q, radius)),
+                        band,
+                    )
+                    .unwrap_or_else(|e| panic!("along {name}, radius {spelling}: {e:?}"));
+                    assert_eq!(
+                        (d.sign, d.margin.proven()),
+                        (Sign::Zero, true),
+                        "along {name}, radius {spelling}"
+                    );
+                }
+            }
+        });
+    }
+
+    /// **A carrier's sample built on a cylinder or a sphere is on it
+    /// over a box on the radius** (`IsoChart::distance`, the reading
+    /// behind `props_carrier_on_surface`): `c + r·x` against the radius
+    /// `r`, and against `|r|`.
+    ///
+    /// Red with `IsoChart::distance`'s `wall` spelled
+    /// `(w.norm() − radius).abs()` (run by hand).
+    #[test]
+    fn a_sample_built_on_an_iso_chart_is_on_it_over_a_box_on_the_radius() {
+        type S = Sym<Interval>;
+        let band = Band::linear(Tol::witness()).expect("the witness band");
+        let budget = SymBudget {
+            max_terms: 4096,
+            max_degree: 64,
+        };
+        geom_core::sym::with_session(budget, || {
+            let r = S::param_over(
+                ParamSymbol::new(test_utils::symbol_id("iso_chart_radius")),
+                Interval::from_bounds(0.2, 0.4),
+                0.2,
+                0.4,
+            );
+            let lit = S::from_f64;
+            let (zero, one) = (S::zero(), S::one());
+            let c = Point3::new(lit(0.5), lit(-0.25), lit(2.0));
+            let axis = Vec3::new(zero, zero, one);
+            let x = Vec3::new(zero, one, zero);
+            for (spelling, radius) in [("r", r), ("|r|", r.abs())] {
+                let charts = [
+                    (
+                        "cylinder",
+                        IsoChart::Cylinder {
+                            origin: c,
+                            axis,
+                            radius,
+                        },
+                        c + x * r + axis * lit(0.7),
+                    ),
+                    ("sphere", IsoChart::Sphere { center: c, radius }, c + x * r),
+                ];
+                for (name, chart, p) in charts {
+                    let d = geom_core::k_stats::decide_reported(
+                        "iso_chart_row",
+                        Margin::of(chart.distance(p)),
+                        band,
+                    )
+                    .unwrap_or_else(|e| panic!("{name}, radius {spelling}: {e:?}"));
+                    assert_eq!(
+                        (d.sign, d.margin.proven()),
+                        (Sign::Zero, true),
+                        "{name}, radius {spelling}"
+                    );
+                }
+            }
+        });
+    }
+
+    /// At `f64` an iso chart's distance is the direct `|‖w‖ − R|` to
+    /// four ulps of the offset's and the radius's sum, from the axis to
+    /// far past the wall.
+    ///
+    /// Red with `IsoChart::distance`'s `wall` handing the gap the
+    /// radius's square for the radius (run by hand).
+    #[test]
+    fn an_iso_charts_distance_is_the_direct_reading_to_its_rounding() {
+        let c = Point3::new(0.4, 0.1, -0.3);
+        let axis = Vec3::new(0.0, 0.0, 1.0);
+        let mut read = 0_u32;
+        for radius in [0.7, 1.0e-3, 1.0e3] {
+            for reach in [
+                0.0,
+                1.0e-6,
+                0.5,
+                1.0 - 1.0e-9,
+                1.0,
+                1.0 + 1.0e-9,
+                2.0,
+                1.0e6,
+            ] {
+                for angle in [0.3_f64, 2.2, -1.4] {
+                    let x = Vec3::new(angle.cos(), angle.sin(), 0.0);
+                    let w = x * (radius * reach);
+                    let cases = [
+                        (
+                            "cylinder",
+                            IsoChart::Cylinder {
+                                origin: c,
+                                axis,
+                                radius,
+                            },
+                            c + w + axis * 0.37,
+                            w.norm(),
+                        ),
+                        (
+                            "sphere",
+                            IsoChart::Sphere { center: c, radius },
+                            c + w,
+                            ((c + w) - c).norm(),
+                        ),
+                    ];
+                    for (name, chart, p, norm) in cases {
+                        let (got, want) = (chart.distance(p), (norm - radius).abs());
+                        let slack = 4.0 * f64::EPSILON * (radius * (1.0 + reach) + 1.0);
+                        assert!(
+                            (got - want).abs() <= slack,
+                            "{name} R = {radius}, reach {reach}, at {angle}: {got} against {want}"
+                        );
+                        read += 1;
+                    }
+                }
+            }
+        }
+        assert_eq!(read, 3 * 8 * 3 * 2, "every row of the table read");
+    }
+
+    /// At `f64` the reading is the direct spelling's, the ends'
+    /// `‖q‖ − R` and the sag between them, to four ulps of the ends'
+    /// reach: for a ruling on the wall, a chord between two points of
+    /// the wall, a segment off it either side, one through the axis and
+    /// one far out.
+    ///
+    /// Red with `segment_off_cylinder` handing the gap the radius's
+    /// square for the radius (run by hand).
+    #[test]
+    fn a_segments_distance_from_a_cylinder_is_the_direct_reading_to_its_rounding() {
+        let direct = |q0: Vec3<f64>, q1: Vec3<f64>, radius: f64| {
+            let (f0, f1) = (q0.norm() - radius, q1.norm() - radius);
+            f0.abs().max(f1.abs()).max(radial_sag(q0, q1) - f0.min(f1))
+        };
+        let at = |angle: f64, reach: f64| Vec3::new(angle.cos() * reach, angle.sin() * reach, 0.0);
+        let mut read = 0_u32;
+        for radius in [0.7, 1.0e-3, 1.0e3] {
+            for (a0, a1) in [(0.4, 0.4), (0.4, 0.9), (-1.2, 2.5), (0.0, 3.1)] {
+                for (k0, k1) in [
+                    (1.0, 1.0),
+                    (1.0 + 1.0e-9, 1.0 - 1.0e-9),
+                    (0.5, 1.0),
+                    (2.0, 1.0),
+                    (0.0, 1.0),
+                    (1.0e6, 1.0),
+                ] {
+                    let (q0, q1) = (at(a0, radius * k0), at(a1, radius * k1));
+                    let (got, want) =
+                        (segment_off_cylinder(q0, q1, radius), direct(q0, q1, radius));
+                    let slack = 4.0 * f64::EPSILON * (q0.norm() + q1.norm() + radius);
+                    assert!(
+                        (got - want).abs() <= slack,
+                        "R = {radius}, angles ({a0}, {a1}), reaches ({k0}, {k1}): {got} against {want}"
+                    );
+                    read += 1;
+                }
+            }
+        }
+        assert_eq!(read, 3 * 4 * 6, "every row of the table read");
     }
 }
 

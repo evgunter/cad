@@ -7109,9 +7109,11 @@ fn plus_v_errors<T: Decide>(
 /// Pure, so that every verdict's finding is pinned by calling it,
 /// including the pairing and end disagreements no certified geometry is
 /// known to reach (`wedge_reading_table`). A settled wedge is legal at
-/// rest — the crease, the seam, and the two ends because the fold hands
-/// one out only over a jet-determinate tangency — and the lamina and
-/// every mixed edge refuse. A mixed edge refuses rather than falls
+/// rest — the crease, the seam, and the two ends, which the fold hands
+/// out only where the jets separate at every station — and the lamina
+/// and every mixed edge refuse. An end's legality is read at the
+/// stations, not certified along the edge
+/// (`work/select/a-wedge-end-is-legal-by-its-stations-not-certified-along-the-edge.md`). A mixed edge refuses rather than falls
 /// silent: silence would validate a wedge end on an edge whose own
 /// stations disagreed.
 pub(crate) fn wedge_reading(
@@ -7129,8 +7131,15 @@ pub(crate) fn wedge_reading(
             bend: Bend::Determinate,
             ..
         }
-        | V::End { .. } => ContactMark::Tangent,
+        | V::End {
+            bend: Bend::Determinate,
+            ..
+        } => ContactMark::Tangent,
         V::Seam {
+            bend: Bend::UnderDetermined,
+            ..
+        }
+        | V::End {
             bend: Bend::UnderDetermined,
             ..
         }
@@ -11695,6 +11704,25 @@ fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
         errors,
         shell_components,
     }
+}
+
+/// Whether `shell`'s faces of `body` are one component across their
+/// edges: the connectedness tier 2's check 3 reads
+/// ([`ValidationError::ShellDisconnected`]), for a door that takes a body
+/// it has not validated. A shell with no face is not connected.
+pub(crate) fn shell_connected<T: Real>(body: &Body<T>, shell: ShellKey) -> bool {
+    let faces: Vec<FaceKey> = body
+        .faces
+        .iter()
+        .filter(|(_, f)| f.shell == shell)
+        .map(|(k, _)| k)
+        .collect();
+    let Some(&seed) = faces.first() else {
+        return false;
+    };
+    let mut visited: SecondaryMap<FaceKey, ()> = SecondaryMap::new();
+    shell_component(body, shell, seed, &mut visited);
+    faces.iter().all(|f| visited.contains_key(*f))
 }
 
 /// Marks in `visited` every face of `shell`'s connected component that

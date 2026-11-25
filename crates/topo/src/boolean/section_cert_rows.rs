@@ -233,11 +233,11 @@ fn a_scrape_oval_is_one_null_component_witnessed_on_its_own_side() {
 #[test]
 fn a_plane_at_a_saddle_or_on_the_top_circle_refuses_as_a_tangency() {
     let s = classify(&donut(), &plane(p(1.5, 0.0, 0.0), v(1.0, 0.0, 0.0)));
-    assert_eq!(tangent(&s), "section_torus_plane_near_tube");
+    assert_eq!(tangent(&s), "pt_near_tube");
     let s = classify(&donut(), &plane(p(-1.5, 0.0, 0.0), v(1.0, 0.0, 0.0)));
-    assert_eq!(tangent(&s), "section_torus_plane_far_tube");
+    assert_eq!(tangent(&s), "pt_far_tube");
     let s = classify(&donut(), &plane(p(0.0, 0.0, 0.5), v(0.0, 0.0, 1.0)));
-    assert!(tangent(&s).starts_with("section_torus_plane_"));
+    assert!(tangent(&s).starts_with("pt_"));
 }
 
 /// A length strictly inside the run's band sliver — past `zero`, short
@@ -514,8 +514,8 @@ fn a_marched_witness_is_placed_padded() {
 /// **R-reach**: a cone whose apex lies on a torus off its axis (a node,
 /// which no march ends a branch at) and a spline. (A cone against a torus
 /// clear of its apex is the section value's, marched; a
-/// cone against an oblique cylinder or a tilted or parallel-axis cone is
-/// the ruling charts', `section_cert_cone_pair_rows`; a torus on a
+/// cone against a cylinder or another cone is the section value's,
+/// `section_cert_cone_pair_rows`; a torus on a
 /// parallel axis is `section_cert_parallel_tori_rows`'.)
 #[test]
 fn intractable_poses_refuse_on_reach() {
@@ -1120,7 +1120,7 @@ fn a_torus_touch_is_the_centre_of_every_loop_its_margin_admits() {
     let d_far = 2.5f64.hypot(0.3);
     let in_tube = p(2.2, 0.0, 0.1);
     let d_near = 0.2f64.hypot(0.1);
-    const PLANE_NEAR: &str = "section_torus_plane_near_tube";
+    const PLANE_NEAR: &str = "pt_near_tube";
     // A sphere's or a wall's touch is decided by its pair's critical gap.
     const SPHERE_NEAR: &str = "st_critical_gap";
     const WALL: &str = "ct_critical_gap";
@@ -1143,7 +1143,7 @@ fn a_torus_touch_is_the_centre_of_every_loop_its_margin_admits() {
         ),
         (
             "plane on the far tube's outer equator",
-            "section_torus_plane_far_tube",
+            "pt_far_tube",
             plane(p(-2.5, 0.0, 0.0), x),
             plane(p(-2.5 + push, 0.0, 0.0), x),
             p(-2.5, 0.0, 0.0),
@@ -1216,12 +1216,7 @@ fn torus_tangencies_at_an_extreme_are_touches_off_the_outer_half_too() {
     let n = v(s, 0.0, (1.0 - s * s).sqrt());
     let tilted = plane(p(0.0, 0.0, 0.0) + n * (2.0 * s + 0.5), n);
     let rows = [
-        (
-            "tilted plane on the top",
-            tilted,
-            "section_torus_plane_near_tube",
-            None,
-        ),
+        ("tilted plane on the top", tilted, "pt_near_tube", None),
         (
             "wall in the hole",
             cylinder(p(1.0, 0.0, -1.0), z, 0.5),

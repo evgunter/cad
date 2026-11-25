@@ -4905,6 +4905,8 @@ class SegTag:
     LoftSeam: Final[SegTag]
     LoftSectionEdge: Final[SegTag]
     LoftSectionVertex: Final[SegTag]
+    SubArc: Final[SegTag]
+    SubArcJoint: Final[SegTag]
     Band: Final[SegTag]
     BandRim: Final[SegTag]
     BandRimPi: Final[SegTag]
@@ -4944,6 +4946,7 @@ class SegTag:
     HoleRim: Final[SegTag]
     Member: Final[SegTag]
     HostFoot: Final[SegTag]
+    ConventionalVertex: Final[SegTag]
 
 class OpGroup:
     """The op group a role segment belongs to (`SegPat.group`).

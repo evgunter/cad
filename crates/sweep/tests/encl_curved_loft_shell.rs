@@ -190,8 +190,8 @@ fn the_curved_lofts_cap_moves_its_corners_along_the_slanted_seams() {
                 .is_some_and(|f| is_spline_wall(&walls, f))
         })
         .filter(|(_, c)| {
-            matches!(*c.pcurve(), geom_brep::Pcurve::IsoLine { p0, pl, .. }
-                if pl.y == 0.0 && (p0.y - z).abs() < 1e-9)
+            matches!(*c.pcurve(), geom_brep::Pcurve::IsoLine { line, .. }
+                if line.axis == geom_brep::ChartAxis::V && (line.value - z).abs() < 1e-9)
         })
         .count();
     assert_eq!(
@@ -356,15 +356,15 @@ fn the_prisms_inward_cap_offset_mints_its_rim_on_the_walls_interior_row() {
         if !is_spline_wall(&walls, face) {
             continue;
         }
-        let geom_brep::Pcurve::IsoLine { p0, pl, .. } = *cache.pcurve() else {
+        let geom_brep::Pcurve::IsoLine { line, .. } = *cache.pcurve() else {
             continue;
         };
         // A row: `u` moves and `v` is fixed, strictly inside the chart.
-        if pl.y == 0.0 && p0.y > 0.0 && p0.y < 1.0 {
+        if line.axis == geom_brep::ChartAxis::V && line.value > 0.0 && line.value < 1.0 {
             assert!(
-                (p0.y - (1.0 - THICKNESS)).abs() < 1e-12,
+                (line.value - (1.0 - THICKNESS)).abs() < 1e-12,
                 "the rim's row is the moved cap's height, got v = {}",
-                p0.y
+                line.value
             );
             rims += 1;
         }
@@ -439,8 +439,12 @@ fn vase() -> Body<f64> {
 }
 
 /// The shell moves every chart at once and mints every new surface
-/// first, so it refuses at a wall's fit: the wall's net carries a C⁰
-/// crease the fit's Taylor bound cannot cross. A cap moved alone meets
+/// first, so it refuses at a wall: at ε 1e-9 and 1e-12 a quarter wall's
+/// offset fit reaches its work bound before its certified error reaches
+/// the tolerance, and at ε 1e-6, where the fits certify, two fitted
+/// walls fail to meet along their smooth seam
+/// (`work/shell/two-fits-sharing-a-smooth-seam-disagree-by-their-certificates.md`).
+/// A cap moved alone meets
 /// its rims instead, and moves: the skin's weights are constant along
 /// the stacking, so the moved plane's section of each wall is the
 /// wall's row at `v = |d|/2`, exact structure, and each rim is minted as
@@ -455,7 +459,7 @@ fn vase() -> Body<f64> {
 /// rows are the cap's to rounding, and a wall's rectangle is the lines its
 /// rows hold.
 #[test]
-fn shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_moves_alone_onto_a_wall_row() {
+fn shelling_the_vase_refuses_at_a_walls_fit_and_its_cap_moves_alone_onto_a_wall_row() {
     let body = vase();
     let walls = nurbs_walls(&body);
     let e = topo::shell(
@@ -479,13 +483,16 @@ fn shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_moves_alone_onto_a_wa
         matches!(
             error.as_ref(),
             ReplaceFaceError::Fit {
-                error: geom_brep::OffsetFitError::PatchBound(
-                    geom_brep::patch_bound::PatchBoundError::Crease
-                ),
+                error: geom_brep::OffsetFitError::WallReached { .. },
+                ..
+            } | ReplaceFaceError::EdgeSection {
+                kind: geom::SurfaceKind::Approx,
+                other_kind: geom::SurfaceKind::Approx,
                 ..
             }
         ),
-        "expected the wall's fit to refuse at its crease, got {e_at}",
+        "expected the wall's fit to stop at its work bound, or two fits to part along \
+         their seam, got {e_at}",
         e_at = e.render(geom_brep::recourse::Reading::Build)
     );
     // The bottom cap, moved alone into the vase.
@@ -548,7 +555,7 @@ fn shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_moves_alone_onto_a_wa
             );
         }
     }
-    assert_eq!(rims, 2, "each wall meets the moved cap along one rim");
+    assert_eq!(rims, 4, "each wall meets the moved cap along one rim");
     let rows = alone
         .pcurves()
         .filter(|(he, _)| {
@@ -557,11 +564,11 @@ fn shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_moves_alone_onto_a_wa
                 .is_some_and(|f| is_spline_wall(&walls, f))
         })
         .filter(|(_, c)| {
-            matches!(*c.pcurve(), geom_brep::Pcurve::IsoLine { p0, pl, .. }
-                if pl.y == 0.0 && (p0.y - row).abs() < 1e-9)
+            matches!(*c.pcurve(), geom_brep::Pcurve::IsoLine { line, .. }
+                if line.axis == geom_brep::ChartAxis::V && (line.value - row).abs() < 1e-9)
         })
         .count();
-    assert_eq!(rows, 2, "each wall carries its rim on its row v = {row}");
+    assert_eq!(rows, 4, "each wall carries its rim on its row v = {row}");
     // The moved cap measures: a disc of the rims' radius in `z = |d|`,
     // facing `−z`, so its flux about the shell's reference `q` is
     // `(q_z − z)·πr²`. The rims hold the circle to 1e-12 at the points
@@ -599,17 +606,16 @@ fn shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_moves_alone_onto_a_wa
     // And the brackets are pinned, so the containment above is not
     // vacuous. The target is the volume's, which the cap's flux meets at
     // the first round: its lever about the reference is the rims'
-    // rounding. Its area is read at that round's pieces: measured
-    // 1.3265e-6 at every ε (1.4508e-6 with each span read as one power
-    // series), and a rule with half the pieces per round reads about 32×
-    // that (the `h⁵` remainder).
+    // rounding. Its area is read at that round's pieces, over the four
+    // quarter rims: measured 1.5494e-6 at ε 1e-9, and a rule with half
+    // the pieces per round reads about 32× that (the `h⁵` remainder).
     assert_eq!(
         reading.met_at,
         Some(0),
         "the cap meets the volume target at its first round"
     );
     assert!(
-        reading.area_pad <= 1.5e-6,
+        reading.area_pad <= 1.6e-6,
         "the moved cap's area bracket widened to ± {}",
         reading.area_pad
     );
@@ -1354,7 +1360,7 @@ fn a_moved_spline_caps_edges_are_each_images_own_row() {
         });
         let EdgeDescriptionSpec::Chart {
             surface,
-            image: Some(Pcurve::IsoLine { p0, pl, .. }),
+            image: Some(Pcurve::IsoLine { line, .. }),
             ..
         } = spec.description
         else {
@@ -1364,21 +1370,25 @@ fn a_moved_spline_caps_edges_are_each_images_own_row() {
         let old = certified_curve(&body, edge);
         let (t0, t1) = old.params();
         let (a, b) = (old.carrier().eval(t0), old.carrier().eval(t1));
-        let fixed = if pl.x == 0.0 {
+        let fixed = if line.axis == geom_brep::ChartAxis::U {
             u_rows += 1;
             assert!(
                 (a.x - b.x).abs() < 1e-12,
                 "{edge:?}: a u row is an edge along y"
             );
-            (p0.x, a.x)
+            (line.value, a.x)
         } else {
             v_rows += 1;
-            assert_eq!(pl.y, 0.0, "{edge:?}: a row holds one parameter fixed");
+            assert_eq!(
+                line.axis,
+                geom_brep::ChartAxis::V,
+                "{edge:?}: a row holds one parameter fixed"
+            );
             assert!(
                 (a.y - b.y).abs() < 1e-12,
                 "{edge:?}: a v row is an edge along x"
             );
-            (p0.y, a.y)
+            (line.value, a.y)
         };
         assert_eq!(
             2.0 * fixed.0,

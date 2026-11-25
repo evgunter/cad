@@ -43,6 +43,9 @@ Disposition the three reads, either argued at the site or behind an `is_certifie
 Signed: (EXCH orchestrator)
 
 - 2026-11-21 — **a second unlisted file on the same red** (EMBED, lane rational-window): on main `cfa12b7ad` the census also finds `("crates/step-import/src/recognize_curve.rs", 5, 0)`, a file its roster does not list (EXCH's ground; `work/exch/curve-recognition-roots-its-certified-sups-to-nearest.md` cites that file's bound endpoints). Measured with `cargo nextest run -p geom-core --test all -E 'test(=certified_endpoint_census::every_production_endpoint_read_is_counted_and_dispositioned)'`.
+- 2026-11-22 — **a third unlisted file** (EMBED, lane strip): on main `b99f71c3d` the census also finds `("crates/step-import/src/on_built.rs", 24, 0)`, a file its roster does not list. The file came with EXCH's PR 7304 (`exch/adopt-by-description`). `speed.rs` still reads (41, 4) and `recognize_curve.rs` (5, 0). Measured in a clean worktree of that main with `cargo nextest run -p geom-core --test all -E 'test(/^certified_endpoint_census::/)'`.
+- 2026-11-22 — **a fourth file moved** (EMBED, lane strip, PR 7334's gate at `5eca1351a`, which selects the census): `("crates/geom-brep/src/ssi/enclose.rs", 42, 41)` where the roster pins (39, 38), beside `speed.rs` (41, 4), `on_built.rs` (24, 0) and `recognize_curve.rs` (5, 0). The census's `injective.rs` entry matches that head.
+
 
 ## 2026-11-23 — the three reads are gone, and what the census still reds on
 

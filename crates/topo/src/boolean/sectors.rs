@@ -998,6 +998,11 @@ pub(super) fn tangent_lump<T: Decide>(
 /// off it, or a junction whose record carries no circle): each is outside
 /// what the certificate states. A placement in band, of the site on the
 /// rim or of the other operand's vertex at it, is the rim's coincidence.
+///
+/// **Not yet answered**: no row reaches a sector site on a junction's rim
+/// (the three mutants of the readers' Junction arms survive every elbow,
+/// junction and tube-chain row), so a site the certificate covers is
+/// refused typed too, as above, until one does.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn junction_lump<T: Decide>(
     rim: Option<crate::rim_wedge::Rim<T>>,
@@ -1039,11 +1044,16 @@ pub(super) fn junction_lump<T: Decide>(
             return Err(unplaced());
         }
     }
-    Ok(SideCode::Out)
+    // The certificate above states `Out`, but no geometry any row builds
+    // reaches a sector site on a junction's rim, so no row would see this
+    // arm answer wrongly; it refuses until one does
+    // (`work/heldrecords/the-junction-sector-arms-are-reached-by-no-row.md`).
+    Err(unplaced())
 }
 
 /// **A declared-`Junction` sector bound's side** at a v-v site on the
-/// rim, on the certificate [`junction_lump`] states: `On` for a bound
+/// rim, refused with [`junction_lump`] until a row reaches it; on the
+/// certificate it states: `On` for a bound
 /// that IS the glued rim's edge (its edge a circle the rim's identity
 /// ladder decides the rim, [`crate::rim_wedge::circle_is_rim`]), the edge
 /// both sectors share; `Out` for every bound that leaves the rim, every
@@ -1530,7 +1540,7 @@ struct Along {
 /// the site into the face along the germ, and the sweep would split it
 /// where it crossed out. Called by every site kind, before that site's
 /// surgery moves the orbit the bounds are read from.
-pub(super) fn germ_locus<T: Decide>(
+pub(super) fn germ_locus<T: crate::props::AtRestPolicy>(
     side: GermSide<'_, T>,
     partner: (&Body<T>, FaceKey),
     contacts: &super::ReductionContacts,
@@ -1814,7 +1824,7 @@ impl ClosedReach {
 /// inside and the reading leaves the edge's carrier unread against some
 /// face's surface ([`super::slit::Placed::Unread`]); the reading's
 /// own escalations, and a trim the walk cannot read.
-fn closed_reach<T: Decide>(
+fn closed_reach<T: crate::props::AtRestPolicy>(
     side: GermSide<'_, T>,
     e: Along,
     (body, faces): (&Body<T>, &[FaceKey]),

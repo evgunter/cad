@@ -950,7 +950,6 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
     surface: &Surface<T>,
     band: Band,
 ) -> Result<ChartImage<T>, PcurveMintError> {
-    use geom_core::{Point2, Vec2};
     let refuse = |what: &'static str| PcurveMintError::Certify {
         half_edge,
         error: PcurveCertifyError::IsoUnsupported { what },
@@ -1131,17 +1130,17 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
                 .into_iter()
                 .filter(|_| row_space.admits(rising))
                 .map(|y| Pcurve::IsoLine {
-                    p0: Point2::new(f0.x - su * t0, y),
-                    pl: Vec2::new(su, T::zero()),
-                    ends: None,
+                    line: geom_brep::ChartLine::row(y),
+                    at0: f0.x - su * t0,
+                    rate: su,
                 });
             let columns = [cu0, cu1, f0.x]
                 .into_iter()
                 .filter(|_| line)
                 .map(|x| Pcurve::IsoLine {
-                    p0: Point2::new(x, f0.y - sv * t0),
-                    pl: Vec2::new(T::zero(), sv),
-                    ends: None,
+                    line: geom_brep::ChartLine::column(x),
+                    at0: f0.y - sv * t0,
+                    rate: sv,
                 });
             if let Ok(Some(cand)) = probe_pick(
                 what,
@@ -1201,28 +1200,32 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         // stated `v` map is a candidate only, since nothing here says
         // the two charts share the seam's parameterization.
         geom_brep::EdgeDescription::Chart(geom_brep::ChartCurve {
-            pcurve: Pcurve::IsoLine { p0, pl, ends },
+            pcurve: Pcurve::IsoLine { line, at0, rate },
             ..
         }) => {
-            // The neighbour's `v` map and its stated `v` ends, verbatim, as a column of this
-            // chart: at each chart boundary, then at the column the
-            // start's measured foot names (a chart wider than the face
-            // it trims). They lead the boundary-iso schedule, which
-            // judges every candidate at the probe, so a stated
-            // map this chart does not share, or a stated image that is
-            // no column at all, is passed over rather than trusted. A
-            // foot that will not converge places no column: that
-            // candidate is dropped, and the schedule goes on.
+            // The neighbour's column, its `v` map verbatim, as a column
+            // of this chart: at each chart boundary, then at the column
+            // the start's measured foot names (a chart wider than the
+            // face it trims). They lead the boundary-iso schedule, which
+            // judges every candidate at the probe, so a stated map this
+            // chart does not share is passed over rather than trusted;
+            // a neighbour's ROW states no column. A foot that will not
+            // converge places no column: that candidate is dropped, and
+            // the schedule goes on.
             let column = |x: T| Pcurve::IsoLine {
-                p0: Point2::new(x, p0.y),
-                pl: Vec2::new(T::zero(), pl.y),
-                ends: ends.map(|e| e.map(|p| Point2::new(x, p.y))),
+                line: geom_brep::ChartLine::column(x),
+                at0,
+                rate,
             };
-            let at_foot = derive_chart_foot(carrier.eval(t0), surface)
-                .ok()
-                .flatten()
-                .map(|foot| column(computed_foot::<T>(foot).x));
-            let stated = [cu0, cu1].map(column).into_iter().chain(at_foot).collect();
+            let stated = if line.axis == geom_brep::ChartAxis::U {
+                let at_foot = derive_chart_foot(carrier.eval(t0), surface)
+                    .ok()
+                    .flatten()
+                    .map(|foot| column(computed_foot::<T>(foot).x));
+                [cu0, cu1].map(column).into_iter().chain(at_foot).collect()
+            } else {
+                Vec::new()
+            };
             iso_schedule("pcurve_iso_wall_seam", stated).map(image)
         }
         // **The boundary-iso arms: an INTERSECTION seam, and a LINE rim
@@ -1459,7 +1462,7 @@ pub(crate) fn chart_u_period<T: Decide>(surface: &Surface<T>, band: Band) -> Opt
     }
     let payload = surface.spline_chart()?;
     let (u0, u1) = payload.knot_values_u().domain();
-    net_closes_as(payload, NetChannel::U, band).then(|| Period::new(u1 - u0))
+    net_closes_as(payload, NetChannel::U, band).then(|| Period::of_domain(u0, u1))
 }
 
 /// The chart's SECOND channel period — the `v` companion of
@@ -1485,7 +1488,7 @@ pub(super) fn chart_v_period<T: Decide>(surface: &Surface<T>, band: Band) -> Opt
     }
     let payload = surface.spline_chart()?;
     let (v0, v1) = payload.knot_values_v().domain();
-    net_closes_as(payload, NetChannel::V, band).then(|| VPeriod::Net(Period::new(v1 - v0)))
+    net_closes_as(payload, NetChannel::V, band).then(|| VPeriod::Net(Period::of_domain(v0, v1)))
 }
 
 /// **Which channels of `surface`'s chart close on themselves**, `[u, v]`,
@@ -1530,44 +1533,18 @@ pub(super) enum NetChannel {
     V,
 }
 
-/// **Whether a spline net closes in `channel`**: every control point of
-/// its first boundary row (column) is decided at zero distance from the
-/// matching one of its last, at `band` (`pcurve_chart_u_closed`,
-/// `pcurve_chart_v_closed`). One rule for both channels, so the two
-/// periods cannot drift apart.
-///
-/// Any other answer is "open", an in-band one included; that fold, and
-/// a test that compares neither weights nor reads an unclamped knot
-/// vector's boundary, are
-/// `work/pcert/chart-u-period-folds-an-in-band-net-closure-into-no-period.md`'s,
-/// for both channels.
+/// **Whether a spline net closes in `channel`**
+/// ([`geom_brep::spline_net_closes`], the one rule).
 fn net_closes_as<T: Decide>(
     payload: &geom::NurbsSurface<T>,
     channel: NetChannel,
     band: Band,
 ) -> bool {
-    let (nu, nv) = payload.control_counts();
-    let control = payload.control();
-    let (name, pairs): (_, Vec<(usize, usize)>) = match channel {
-        NetChannel::U if nu >= 2 && nv > 0 => (
-            "pcurve_chart_u_closed",
-            (0..nv).map(|iv| (iv, (nu - 1) * nv + iv)).collect(),
-        ),
-        NetChannel::V if nv >= 2 && nu > 0 => (
-            "pcurve_chart_v_closed",
-            (0..nu).map(|iu| (iu * nv, iu * nv + nv - 1)).collect(),
-        ),
-        NetChannel::U | NetChannel::V => return false,
+    let axis = match channel {
+        NetChannel::U => geom_brep::ChartAxis::U,
+        NetChannel::V => geom_brep::ChartAxis::V,
     };
-    pairs.into_iter().all(|(i, j)| {
-        let (Some(a), Some(b)) = (control.get(i), control.get(j)) else {
-            return false;
-        };
-        matches!(
-            decide(name, Margin::of(a.distance(*b)), band),
-            Ok(Sign::Zero)
-        )
-    })
+    geom_brep::spline_net_closes(payload, axis, band)
 }
 
 /// **The metres a whole sweep of a spline net's `channel` moves a point,
@@ -1629,7 +1606,8 @@ pub(crate) enum VPeriod<T> {
         /// The polar radius, metres per radian: exact, so a sup.
         polar: SupSpeed<T>,
     },
-    /// A spline net closed in `v`: its `v` knot domain's length.
+    /// A spline net closed in `v`: its `v` knot domain, stated by its two
+    /// ends ([`Period::of_domain`]).
     Net(Period<T>),
 }
 
@@ -1694,8 +1672,8 @@ impl<T: Decide> ChartPeriods<T> {
         let (u0, u1) = payload.knot_values_u().domain();
         let (v0, v1) = payload.knot_values_v().domain();
         Self {
-            u: Some(Period::new(u1 - u0)),
-            v: Some(VPeriod::Net(Period::new(v1 - v0))),
+            u: Some(Period::of_domain(u0, u1)),
+            v: Some(VPeriod::Net(Period::of_domain(v0, v1))),
         }
     }
 }
@@ -1776,11 +1754,14 @@ pub(super) fn v_meter<T: Real>(chart: DescribedChart<'_, T>) -> SupSpeed<T> {
 /// A whole-period shift of the SECOND channel — the `v` twin of
 /// [`geom_brep::Pcurve::shift_branch`], for the charts closed in `v`
 /// (sphere, torus, a net closed in `v`: [`chart_v_period`]): `image`
-/// translated `k` periods along the second channel. A translation's linear part is the
-/// identity, so every image form takes it exactly
-/// ([`Pcurve::map_affine`]); the walk and the lift read the one map.
-pub(crate) fn shift_v_branch<T: Real>(pcurve: &Pcurve<T>, k: i32, period: Period<T>) -> Pcurve<T> {
-    pcurve.translate(T::zero(), period.times(k))
+/// moved `k` periods along the second channel
+/// ([`Pcurve::shift_branch_v`]); the walk and the lift read the one map.
+pub(crate) fn shift_v_branch<T: Decide>(
+    pcurve: &Pcurve<T>,
+    k: i32,
+    period: Period<T>,
+) -> Pcurve<T> {
+    pcurve.shift_branch_v(k, period)
 }
 
 /// The sphere chart's INVOLUTION twin of an image: `S(u + π, π − v) =

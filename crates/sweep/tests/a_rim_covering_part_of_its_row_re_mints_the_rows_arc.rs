@@ -11,9 +11,9 @@
 //! child's re-minted row is the parent's, its arc to rounding, and tier
 //! 3 re-certifies the body.
 //!
-//! The bulged fixture's arc is THREE sub-arcs (joints at 1/3 and 2/3 of
-//! the row), so a split at 0.3 leaves a child holding a joint and one
-//! starting short of it.
+//! The bulged fixture's arc is THREE sub-arcs, and the loft cuts its
+//! wall at each joint, so every rim row is one sub-arc: a split leaves
+//! children that cover part of a sub-arc's row.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -46,7 +46,7 @@ fn arc_prism(bulge: f64) -> Body<f64> {
         .into_body()
 }
 
-/// The three-sub-arc fixture.
+/// The three-sub-arc fixture: its arc is three walls, one per sub-arc.
 fn bulged_prism() -> Body<f64> {
     arc_prism(1.6)
 }
@@ -57,7 +57,11 @@ fn bottom_rim(body: &Body<f64>) -> (HalfEdgeKey, EdgeKey, FaceKey, Pcurve<f64>) 
     let (he, row) = body
         .pcurves()
         .find_map(|(he, c)| match c.pcurve() {
-            row @ Pcurve::IsoArc { p0, .. } if p0.y == 0.0 => Some((he, row.clone())),
+            row @ Pcurve::IsoArc { line, .. }
+                if line.axis == geom_brep::ChartAxis::V && line.value == 0.0 =>
+            {
+                Some((he, row.clone()))
+            }
             _ => None,
         })
         .expect("the arc wall's bottom rim is an IsoArc row");
@@ -99,16 +103,12 @@ fn assert_same_row(got: &Pcurve<f64>, want: &Pcurve<f64>, what: &str) {
 
 fn arc_row(image: &Pcurve<f64>) -> test_utils::arc_row::ArcRow {
     let Pcurve::IsoArc {
-        p0,
-        pd,
-        t0,
-        angle,
-        breaks,
-        ..
+        t0, angle, breaks, ..
     } = image
     else {
         panic!("an IsoArc row: {image:?}")
     };
+    let (p0, pd) = image.iso_arc_segment().expect("an IsoArc has a segment");
     test_utils::arc_row::ArcRow {
         p0: [p0.x, p0.y],
         pd: [pd.x, pd.y],
@@ -207,8 +207,10 @@ fn a_whole_rim_re_mints_the_closed_form() {
 /// **Both halves of a split rim** re-mint the parent's row, over the
 /// parent's arc: the first starting at its corner, the second ending at
 /// its other one. The re-minted body measures the unsplit volume, or
-/// stops short of the resolution as the unsplit body does. The mesher refuses the halves,
-/// pinned as its frontier.
+/// stops short of the resolution as the unsplit body does, and meshes
+/// watertight: the loft cuts its wall at each sub-arc joint, so the rim
+/// is one sub-arc and neither half holds a joint for the chord schedule
+/// to land on.
 #[test]
 fn both_halves_of_a_split_rim_re_mint_the_parents_row() {
     let mut body = bulged_prism();
@@ -226,20 +228,20 @@ fn both_halves_of_a_split_rim_re_mint_the_parents_row() {
         (Err(whole), Err(split)) => assert_eq!(split, whole, "both stop short alike"),
         (whole, split) => panic!("split {split:?} against unsplit {whole:?}"),
     }
-    // The mesher's chord schedule lands on the sub-arc joints only for
-    // a rim whose arc is its edge's interval, and refuses the children
-    // (`work/tesslane/a-split-arc-rim-meshes-no-chord-point-on-its-sub-arc-joints.md`).
-    match mesh::tessellate(&body, 5e-2, tol()) {
-        Err(mesh::TessellateError::UnsupportedCurve { note, .. }) => assert!(
-            note.starts_with("an arc-rim pcurve whose turn is not its edge's parameter interval"),
-            "the split rim refuses at its chord schedule: {note}"
-        ),
-        other => panic!("the split rim's chord schedule: {:?}", other.map(|_| ())),
-    }
+    let Pcurve::IsoArc { breaks, .. } = &parent else {
+        panic!("the rim's row is an IsoArc")
+    };
+    assert_eq!(
+        geom_brep::iso_arc_spans(breaks),
+        1,
+        "the rim is one sub-arc"
+    );
+    let mesh = mesh::tessellate(&body, 5e-2, tol()).expect("the split prism tessellates");
+    mesh::validate::check_mesh(&mesh).expect("watertight");
 }
 
-/// **An off-centre split**: at 0.3 of the rim, the first child stops
-/// short of the joint at 1/3 and the second holds both joints.
+/// **An off-centre split**: at 0.3 of the rim, the two children cover
+/// unequal parts of the sub-arc's row.
 #[test]
 fn an_off_centre_split_re_mints_the_parents_row() {
     let mut body = bulged_prism();
@@ -263,7 +265,7 @@ fn a_double_split_re_mints_every_piece() {
 /// the same surface reversed in `u` runs each rim from the `u = 1`
 /// corner to the `u = 0` one. Split, the rim's pieces re-mint the
 /// reversed row over the parent's arc, read off the row's LAST control
-/// point. The fixture is a semicircle (two sub-arcs), whose knots
+/// point. The fixture is a semicircle, two quarter walls, whose knots
 /// mirror bit for bit, so the wall reverses.
 ///
 /// Tier 3 is not read: the in-place re-chart leaves the edges'
@@ -300,7 +302,7 @@ fn a_rim_against_the_charts_u_re_mints_its_pieces() {
         .unwrap()
         .pcurve()
         .clone();
-    let Pcurve::IsoArc { p0, pd, .. } = &parent else {
+    let Some((p0, pd)) = parent.iso_arc_segment() else {
         panic!("the reversed rim's row is an IsoArc: {parent:?}")
     };
     assert_eq!(
@@ -368,7 +370,11 @@ fn a_line_piece_the_closed_form_crosses_at_its_quarter_point_takes_its_row() {
     let he = body
         .pcurves()
         .find_map(|(he, c)| match c.pcurve() {
-            Pcurve::IsoLine { p0, pl, .. } if p0.y == 0.0 && pl.y == 0.0 && pl.x != 0.0 => Some(he),
+            Pcurve::IsoLine { line, rate, .. }
+                if line.axis == geom_brep::ChartAxis::V && line.value == 0.0 && *rate != 0.0 =>
+            {
+                Some(he)
+            }
             _ => None,
         })
         .expect("a line rim on a wall row");

@@ -470,11 +470,6 @@ cases! {
     seam_barely_creased: "SeamWedge", D, SEAM_SITE, Valued =>
         seam(D, 1.0, Vec3::new(0.0, 0.0, 1.0));
     seam_barely_bending_apart: "SeamJet", D, SEAM_SITE, Valued => seam_bend(D);
-    sphere_barely_leaning: "Sphere(RecutAlign)", D, Door::Site(
-        "a re-cut sphere's lean is read on a crossing-free escape, where an axis near the escape \
-         normal carries a seam across the escape plane that the crossing layer meets first: no \
-         public raise is known to reach it in band"
-    ), Valued => recut(D);
 }
 
 /// The norm of the coincfr4 review's cc2 turning axis, `(−2, 1, ½)`.
@@ -1463,21 +1458,6 @@ fn seam_bend(sagitta: f64) -> Result<(), BooleanError> {
     })
 }
 
-/// A re-cut sphere of radius 1 whose polar axis leans off the escape
-/// normal by the angle whose sine is `lean`.
-fn recut(lean: f64) -> Result<(), BooleanError> {
-    let (axis, align) = (
-        Vec3::new(0.0, 0.0, 1.0),
-        Vec3::new(lean, 0.0, (1.0 - lean * lean).sqrt()),
-    );
-    super::super::ops::recut_lean(
-        axis,
-        align,
-        geom_core::test_support::fixture_lever(1.0),
-        band(),
-    )
-}
-
 /// A point on a unit wall sheet's carrier well outside its trim, `D`
 /// from a corner of a second sheet in the same body.
 fn vertex_near_a_sheet_corner() -> Result<(), BooleanError> {
@@ -2209,7 +2189,6 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::GermEdgeCarrierUnsupported
         | BooleanErrorKind::ArcLoopContainmentUnsupported
         | BooleanErrorKind::PointInFaceRefused
-        | BooleanErrorKind::RechartedRowUnstated
         | BooleanErrorKind::CarryRefused
         | BooleanErrorKind::InsideOutOperand
         | BooleanErrorKind::NonMaximalFaces
@@ -2236,7 +2215,6 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::GermFrameUnsupported
         | BooleanErrorKind::GermSectionUnbuilt
         | BooleanErrorKind::GermSectionOpenConic
-        | BooleanErrorKind::GermSectionSpiric
         | BooleanErrorKind::NodeUnbuilt
         | BooleanErrorKind::JoinDesync
         | BooleanErrorKind::Carve
@@ -2745,10 +2723,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("ops.rs", "apply_cut_ins", "SphereQuestion::CutIn", 1),
     ("ops.rs", "sphere_pair_cut", "BooleanDecision::Sphere", 1),
     ("ops.rs", "sphere_pair_cut", "SphereQuestion::CutIn", 1),
-    ("ops.rs", "pair_seam", "BooleanDecision::Sphere", 1),
-    ("ops.rs", "pair_seam", "SphereQuestion::CutIn", 1),
-    ("ops.rs", "recut_lean", "BooleanDecision::Sphere", 1),
-    ("ops.rs", "recut_lean", "SphereQuestion::RecutAlign", 1),
     ("ops.rs", "of_describe", "BooleanDecision::EdgeOnFaces", 1),
     (
         "ops.rs",
@@ -2778,12 +2752,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("ops.rs", "sphere_extent_scan", "SphereQuestion::Apart", 1),
-    (
-        "ops.rs",
-        "sphere_extent_scan",
-        "SphereQuestion::EscapeParallel",
-        1,
-    ),
     ("ops.rs", "sphere_extent_scan", "SphereQuestion::Nested", 1),
     (
         "ops.rs",
@@ -3025,6 +2993,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::PartingOrder",
         1,
     ),
+    ("slit.rs", "pole_beyond", "BooleanDecision::Sphere", 1),
+    ("slit.rs", "pole_beyond", "SphereQuestion::CutIn", 1),
     (
         "slit.rs",
         "spiric_on_curved",

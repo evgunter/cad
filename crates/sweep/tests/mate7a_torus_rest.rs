@@ -5,12 +5,11 @@
 //!    KIND roster, so no torus pair is the gate's question; the peg
 //!    seated in its socket builds through the join, and a coincident
 //!    pair is one body.
-//! 2. **A G1 tube chain passes the glue door and the crossing layer**:
-//!    the two walls both end on their shared meridian and glue as a
-//!    junction, and an edge of one segment that ends on that rim tangent
-//!    to the other's wall has that end's root factored. The union stops at
-//!    the finish, its seam's edges still on a construction's stand-in;
-//!    ∖ and ∩ at the fallback's extent.
+//! 2. **A G1 tube chain is one bent tube**: the two walls both end on
+//!    their shared meridian and glue as a junction, an edge of one
+//!    segment that ends on that rim tangent to the other's wall has that
+//!    end's root factored, and the seam is described where it rests. The
+//!    union builds; ∖ and ∩ stop at the fallback's extent.
 //! 3. **∖ and ∩ meet the doors ∪ does.** The torus is on the revert
 //!    roster, so each fixture under a subtract (both orders) or an
 //!    intersect answers at the door its union meets; the peg seated in
@@ -303,18 +302,19 @@ fn a_partly_covered_torus_pair_is_no_longer_a_gate_question() {
 // 2. The G1 chain.
 // -------------------------------------------------------------------
 
-/// **The G1 tube chain glues its meridian a junction, passes the
-/// crossing layer and stops at the finish**: the two segments both end on
-/// their terminal meridian circle, the routing's π seam with the walls
-/// leaving on opposite sides and each segment's own rim edge (its torus
-/// against its end cap) a convex crease, so the glue door glues the pair a
-/// junction on the rim's identity and that wedge, and its neutral points
-/// (`κ_rel` exactly zero) are no question there; an edge of one segment
-/// ending on that rim tangent to the other's wall has that end's root
-/// factored (`geom_brep::curve_face::end_root`). The seam's edges still
-/// carry a construction's stand-in description. In both orders.
+/// **The G1 tube chain is one bent tube**: the two segments both end on
+/// their terminal meridian circle, a junction the glue door decides on
+/// the rim's identity and its π wedge, so its neutral points (`κ_rel`
+/// exactly zero) are no question there; an edge of one segment ending on
+/// that rim tangent to the other's wall has that end's root factored
+/// (`geom_brep::curve_face::end_root`); and the seam is described where
+/// it rests, its bend under-determined. The two walls on the meridian
+/// glue a junction (the routing's π seam with the walls leaving on
+/// opposite sides, each segment's own rim edge a convex crease), and the
+/// union is one solid at the two segments' Pappus volumes' sum, sound at
+/// tier 3 and 3′, in both orders.
 #[test]
-fn the_g1_tube_chain_glues_its_meridian_a_junction_and_stops_at_the_finish() {
+fn the_g1_tube_chain_is_one_bent_tube() {
     let (Some(a), Some(b)) = (segment_a(), segment_b()) else {
         return;
     };
@@ -327,12 +327,27 @@ fn the_g1_tube_chain_glues_its_meridian_a_junction_and_stops_at_the_finish() {
         !walls.is_empty() && walls.iter().all(|d| *d == topo::boolean::RimDoor::Junction),
         "the two walls on the meridian glue a junction: {walls:?}"
     );
-    for (x, y) in [(&a, &b), (&b, &a)] {
-        let err = topo::union(x, y, Tol::witness()).expect_err("the chain refuses");
-        let said = format!("{err:?}");
+    let tube = core::f64::consts::PI * TUBE * TUBE;
+    let want = tube * RING * TURN.to_radians() + tube * 1.1 * 170.0_f64.to_radians();
+    for (order, x, y) in [("A, B", &a, &b), ("B, A", &b, &a)] {
+        let Ok(BooleanResult::Body(bb)) = topo::union(x, y, Tol::witness()) else {
+            panic!("{order}: the chain unions to one body");
+        };
+        assert_eq!(bb.body.solids().count(), 1, "{order}: one solid");
+        assert_eq!(
+            topo::validate_geometric(&bb.body, Tol::witness()),
+            Ok(()),
+            "{order}: tier 3"
+        );
+        assert_eq!(
+            topo::validate_pseudomanifold(&bb.body, &bb.contacts, Tol::witness()),
+            Ok(()),
+            "{order}: tier 3′"
+        );
+        let v = topo::test_support::pinned_volume("the chain", &bb.body, Tol::witness()).volume;
         assert!(
-            matches!(err, BooleanError::ResultInvalid { .. }) && said.contains("ScaffoldAtRest"),
-            "the finish's stand-in edges: {said}"
+            (v - want).abs() <= 1e-12 * want,
+            "{order}: volume {v} against Pappus {want}"
         );
     }
 }
@@ -502,12 +517,6 @@ fn the_chain_fixture_is_g1_with_one_shared_rim() {
         ca.end.origin,
         cb.start.origin
     );
-    match topo::union(&a, &b, Tol::witness()) {
-        Ok(BooleanResult::Body(_) | BooleanResult::Empty) => {
-            panic!("a torus chain must not silently succeed")
-        }
-        Err(_) => {}
-    }
 }
 
 /// **A torus whose walls' sense bits are reversed is not a finished

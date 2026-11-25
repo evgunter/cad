@@ -409,6 +409,24 @@ pub trait Real:
     /// records and cannot certify is not constructible from this side.
     type Carries<C: Copy + Debug + Send + Sync + 'static>: Copy + Debug + Send + Sync + 'static;
 
+    /// **The expression this scalar carries**: at [`crate::Sym`] its
+    /// node in the document's expression graph, and at every numeric
+    /// scalar a type with no values ([`NoExpression`]). What is asked
+    /// of an expression is asked of this type ([`Expression`]), so a
+    /// question about the expression cannot be put to a number.
+    ///
+    /// One sentence per scalar: `Sym<T>` carries its node, the
+    /// expression its value was computed as, or the identity a margin
+    /// was given in its place ([`crate::Decide::free_identity`]); `f64`,
+    /// [`crate::Interval`], [`crate::Dual`] and [`crate::Probe`] carry a
+    /// value and no expression.
+    type Expression: Expression;
+
+    /// This value's expression: the node at [`crate::Sym`], and nothing
+    /// at a numeric scalar, where `Option<NoExpression>` has the one
+    /// value.
+    fn expression(self) -> Option<Self::Expression>;
+
     /// **This scalar with its tangent removed**: the scalar a place is
     /// evaluated at and a decision reads, which DL5.2 (the crate README)
     /// calls the value channel. It is not [`crate::SpanLocate`]'s
@@ -454,16 +472,18 @@ pub trait Real:
     /// enters through [`Real::from_computed`].
     fn from_f64(x: f64) -> Self;
 
-    /// Embeds an `f64` that a NUMERICAL routine computed (a root, a
-    /// march point, a bound read off an enclosure): the value is
+    /// Embeds an `f64` that a NUMERICAL routine computed: the value is
     /// [`Real::from_f64`]'s, and at [`crate::Sym`] each call is its own
     /// unknown ([`crate::Sym::opaque`]), so no identity is proved over
     /// it. Declared, never defaulted: a scalar that defaulted it to
     /// `from_f64` would re-enter every computed value as a constant.
     ///
-    /// Which code may call it, and the door every other computed value
-    /// takes instead, is DL5.2 (the crate README, "Reading a bracket
-    /// where nothing certifies").
+    /// Which code may call it is DL5.2 (the crate README, "Reading a
+    /// bracket where nothing certifies"): the solved-value door
+    /// ([`crate::solved::decide_admit`]), a scalar's own impl, and a
+    /// place-taking evaluator's private step. The calls the rule does not
+    /// yet allow are owed, each listed with the work item that retires it
+    /// (`scripts/gates/from-computed-sites.sh`).
     fn from_computed(x: f64) -> Self;
 
     /// **What this scalar reads as in a sentence**: its value, its
@@ -1379,6 +1399,38 @@ pub fn is_zero_length<T: Real>(len: T, witness: T) -> bool {
     !is_finite_length(len / witness)
 }
 
+/// **A measured norm less a locus's radius**, `norm − radius`, spelled
+/// `(norm_sq − radius²) / (norm + radius)`: the same real wherever
+/// `norm + radius ≠ 0`, its one precondition. `norm_sq` is the measured
+/// vector's own dot product and `norm` its root, so the numerator is a
+/// polynomial in the vector's and the radius's data: for a vector built
+/// at the radius's length it is the zero form with nothing known of the
+/// radius's sign, where `√(radius²) − radius` is not. The sign is the
+/// difference's; a caller that wants the distance takes the `abs` of
+/// the whole quotient.
+///
+/// `radius` is the locus's positive radius. A caller that holds a
+/// signed radius passes its magnitude: the numerator folds either way
+/// (`|r|² = r²`), and with the signed value `norm + radius` is zero at
+/// the locus's own points.
+///
+/// A caller holding the vector reads [`crate::Vec3::radius_gap`] or
+/// [`crate::Vec2::radius_gap`], which form `norm_sq` and `norm` from it.
+///
+/// Per scalar:
+/// - `f64`: `norm − radius` to rounding wherever `norm + radius` is not
+///   zero in rounding; there it is a quotient of two roundings and no
+///   value is claimed.
+/// - `Interval`: an enclosure of `norm − radius` wherever the
+///   denominator's enclosure excludes zero; where it contains zero the
+///   quotient is invalid, and a decision on it refuses.
+/// - `Dual`: the quotient's tangent is the difference's.
+/// - `Sym<T>`: the value channel is `T`'s sentence; a zero form over an
+///   invalid value refuses.
+pub fn radius_gap<T: Real>(norm_sq: T, norm: T, radius: T) -> T {
+    (norm_sq - radius.powi(2)) / (norm + radius)
+}
+
 /// Whether `x` is EXACTLY zero, of either sign: at the point scalars
 /// `x == 0.0` on the value, at the interval scalar only the degenerate
 /// hull `[−0, 0]`. An enclosure that merely contains zero, and poison,
@@ -2235,6 +2287,88 @@ pub struct Uncertified;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NoLane {}
 
+/// **What a scalar's expression answers** ([`Real::Expression`]): the
+/// symbolic tier's node, or [`NoExpression`].
+pub trait Expression: Copy + Debug + Send + Sync + 'static + expression_seal::Sealed {
+    /// **Is this expression zero as a function of the document's
+    /// variables?** A proof where the symbolic tier's normal form shows
+    /// it (ERROR-DESIGN E12, the structural question), and `None` where
+    /// it shows nothing: the value may still be zero.
+    ///
+    /// Not a decision: it counts nothing, records nothing, defers
+    /// nothing, and reads no value, so a graph built inside its session
+    /// gets one answer at every valuation and in every session. Its
+    /// licence is to choose between two spellings of one real value,
+    /// and the proof is spent on the spelling it chooses.
+    ///
+    /// It is a method of the expression, so it cannot be asked of a
+    /// number or of a scalar that may be one:
+    ///
+    /// ```compile_fail,E0599
+    /// use geom_core::Expression;
+    /// let _ = 0.0_f64.proves_zero();
+    /// ```
+    ///
+    /// ```compile_fail,E0599
+    /// use geom_core::Expression;
+    /// let _ = geom_core::Interval::from_bounds(0.0, 0.0).proves_zero();
+    /// ```
+    ///
+    /// ```compile_fail,E0599
+    /// use geom_core::Expression;
+    /// fn asks<T: geom_core::Real>(x: T) -> bool {
+    ///     x.proves_zero().is_some()
+    /// }
+    /// ```
+    ///
+    /// ```
+    /// use geom_core::{Expression, Real};
+    /// fn asks<T: Real>(x: T) -> bool {
+    ///     x.expression().and_then(Expression::proves_zero).is_some()
+    /// }
+    /// assert!(!asks(0.0_f64));
+    /// ```
+    fn proves_zero(self) -> Option<ProvedZero>;
+}
+
+pub(crate) mod expression_seal {
+    pub trait Sealed {}
+    impl Sealed for super::NoExpression {}
+}
+
+/// **The expression of a scalar that carries none**: a type with no
+/// values, so nothing is asked of it and no impl answers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NoExpression {}
+
+impl Expression for NoExpression {
+    fn proves_zero(self) -> Option<ProvedZero> {
+        match self {}
+    }
+}
+
+/// **A proof that an expression is zero** wherever the build takes the
+/// decisions it took ([`Expression::proves_zero`]). Only the symbolic
+/// tier makes one, and it is neither copied nor cloned: the caller that
+/// chooses a spelling on it gives it up there.
+#[derive(Debug)]
+#[must_use]
+pub struct ProvedZero(());
+
+impl ProvedZero {
+    /// The tier's proof.
+    pub(crate) fn by_the_tier() -> Self {
+        Self(())
+    }
+
+    /// **The closed spelling of the value proved zero**: the literal
+    /// zero, for which the proof is given up.
+    #[must_use]
+    pub fn zero<T: Real>(self) -> T {
+        T::zero()
+    }
+}
+
 /// **A scalar that transports tangents and never certifies** — the
 /// dual's side of [`Real::Carries`]' partition: its doors construct and
 /// never check, and what they hold in a record's place is
@@ -2437,6 +2571,12 @@ impl Real for f64 {
     const NAME: &'static str = "f64";
 
     type Carries<C: Copy + Debug + Send + Sync + 'static> = C;
+
+    type Expression = NoExpression;
+
+    fn expression(self) -> Option<NoExpression> {
+        None
+    }
 
     type Value = f64;
 

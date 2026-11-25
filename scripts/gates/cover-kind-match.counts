@@ -31,7 +31,8 @@ arm 1 crates/geom-brep/src/pair_section/cylinders.rs
 whole 1 crates/geom-brep/src/pair_section/cylinders.rs
 ball 1 crates/geom-brep/src/pair_section/gap.rs
 ball 1 crates/geom-brep/src/pair_section/ruling.rs
-arm 2 crates/geom-brep/src/pair_section/spline_implicit.rs
+arm 1 crates/geom-brep/src/pair_section/spline_implicit.rs
+arm 1 crates/geom-brep/src/pair_section/spline_implicit/cells.rs # from crates/geom-brep/src/pair_section/spline_implicit.rs
 ball 1 crates/geom-brep/src/pair_section/spline_pair.rs
 arm 1 crates/geom-brep/src/pair_section/torus.rs
 ball 1 crates/geom-brep/src/pair_section/torus.rs
@@ -75,7 +76,7 @@ ball 1 crates/sweep/src/revolve/tube.rs
 arm 1 crates/sweep/src/test_support.rs
 arm 1 crates/topo/src/boolean/arcs.rs
 arm 9 crates/topo/src/boolean/carrier_touch.rs
-arm 14 crates/topo/src/boolean/join.rs
+arm 10 crates/topo/src/boolean/join.rs
 whole 1 crates/topo/src/boolean/join.rs
 arm 6 crates/topo/src/boolean/ops.rs
 arm 7 crates/topo/src/boolean/reduce.rs
@@ -93,7 +94,7 @@ arm 1 crates/topo/src/cell_region.rs
 ball 1 crates/topo/src/census.rs
 arm 1 crates/topo/src/census/in_plane.rs
 arm 1 crates/topo/src/chart_region.rs
-arm 5 crates/topo/src/chord_join.rs
+arm 4 crates/topo/src/chord_join.rs
 whole 1 crates/topo/src/chord_join.rs
 arm 1 crates/topo/src/clearance.rs
 arm 7 crates/topo/src/face_normal.rs

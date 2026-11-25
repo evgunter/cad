@@ -75,10 +75,10 @@ fn route_inventory() {
         // M5 S13 retired this arm: the closed-form Circle
         // (plane_sphere_section — the die-pips join lane's row).
         (Plane, Sphere, Rung::Closed, true),
-        // VERBS-C5ARMS retired this arm's exact-degenerate half: the
-        // meridian and concentric closed-form Circles
-        // (plane_torus_section); tilted configurations still route to
-        // the general rung, named at the arm's refusal.
+        // The axis-aligned poses are the meridian and concentric
+        // closed-form Circles and the spiric's ovals
+        // (plane_torus_section); every other pose is the section
+        // value's march (PlaneTorusPose).
         (Plane, Torus, Rung::Conic, true),
         // M5 PR 7b retired this arm: the ℝ⁴ parametric-pair march of
         // PR 7 plus the tensor-composite sup bound for limb 2.
@@ -98,8 +98,10 @@ fn route_inventory() {
         // (`ssi::cylinder_torus_ssi`).
         (Cylinder, Torus, Rung::General, true),
         (Cylinder, Nurbs, Rung::General, false),
-        (Cone, Cone, Rung::General, false),
-        (Cone, Sphere, Rung::General, false),
+        // The ℝ³ implicit-pair march from the ruling sweep's witnesses
+        // (`ssi::cone_ruled_ssi`); a node's arcs are classified only.
+        (Cone, Cone, Rung::General, true),
+        (Cone, Sphere, Rung::General, true),
         // The ℝ³ implicit-pair march past the pose's apex and gap
         // (`ssi::cone_torus_ssi`); the coaxial pose stays closed form.
         (Cone, Torus, Rung::General, true),

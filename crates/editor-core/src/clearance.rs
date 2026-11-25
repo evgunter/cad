@@ -420,6 +420,17 @@ impl ClearanceVerdict {
             Self::Refused(_) => None,
         }
     }
+
+    /// **The parameter point the verdict stands at**, where it cites a
+    /// pair the `f64` rebuild verified: that rebuild's point. `None`
+    /// for a verdict that cites no pair, which says nothing of where
+    /// the rebuild stood.
+    pub fn point(&self) -> Option<&ParamWitness> {
+        match self {
+            Self::Within(witness) | Self::Violated(witness) => Some(&witness.param),
+            Self::Holds | Self::Exceeded | Self::Refused(_) => None,
+        }
+    }
 }
 
 /// A verified pair: where in the parameter box, and where on the two

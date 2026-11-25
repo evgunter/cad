@@ -230,7 +230,11 @@ limbs 1–3) is bounded on the certification trait and takes its lane as a
 plain argument. The scalar's policy names what its edges carry: a
 certifying scalar's door mints and certifies; a tangent-transport
 scalar's door (DUAL-DESIGN DL1, DL3) only mints, and no code path at that
-scalar can call a certifying function. A dual body carries no
+scalar can call a certifying function. A pcurve door is two functions
+in the same way: deriving the image (its class, its coefficients) is
+construction, and the four checks, the envelope, the certificate object
+and the incidence read that ends a door's refusal are certification
+(geom-core DL5.3). A dual body carries no
 certificate: what a dual measures is read against the input-identical
 `f64` evaluation, which holds it (DUAL-DESIGN DL3). At `f64` the door certifies in full, and a
 certificate is read wherever its support is bit-identical. An edge with an operand outside the
@@ -253,8 +257,11 @@ spans the carrier (chart edges walked in runs of one sign or monotone,
 rung whose chain is a graph but not one arc gives way to a narrower one. A
 chain may end at a node of the section (C5). Its radius is then read
 box by box, narrowing in proportion to the box's distance from the
-node, and the pad a site reads is the widest of the boxes it lies in,
-each the farthest that box's image stands from the carrier. Its
+node, and the pad a site reads is the widest of the cells it lies in
+(the carry's, C5: the boxes' windows cut to the knot rectangle, less
+the cells the partner's form clears of the band, the node's own box
+kept whole), each the farthest that cell's image stands from the
+carrier. Its
 last box holds the node, and the claim over that box is the node's own
 reading: `∇φ`'s one zero there by the Krawczyk operator, within the
 band of the carrier's end, its Hessian indefinite and its value decided
@@ -301,11 +308,12 @@ the carrier is derived from the same foot schedule: beside a plane it is
 the feet's degree-1 interpolant, and beside a curved partner, whose arc
 bends in the chart, it is the image the pcurve mint climbs to for the
 same carrier (`edge_nurbs::general_chart_image`), whose nodes depend on
-the band. An image is evidence: inside the wall's knot rectangle limb 2
-bounds its distance from the carrier, and where it leaves the rectangle
-between two nodes limb 2 reads the boundary cell's polynomial extension
-and can pass, and there limb 3 refuses, its boxes cut to the rectangle
-(`SsiError::TubeNotOneArc`). The certificate records the tube
+the band. An image is evidence: limb 2 bounds its distance from the
+carrier on the wall's knot rectangle, and holds the image to the
+rectangle, since past it the composite reads the boundary cell's
+polynomial extension (`ssi::certify::chart_domain_limb`: an escape in
+the band is added to the bound, one past it refuses). A pcurve row's
+check 4 holds its fitted image the same way. The certificate records the tube
 by kind, a radius in metres or the per-axis chart pad (`SsiTube`), and
 the exhaustiveness accounting banks exactly the region it records.
 A component outside the chain is C3's exhaustiveness obligation, a
@@ -1025,7 +1033,9 @@ axis-aligned plane×torus (its axis-parallel pose off the axis the
 `Spiric`) (rung 2); cylinder×cylinder in every pose (its parallel
 rulings and its bisector ellipses closed form, every other crossing pose
 marched over its ball cut by the region), cylinder×sphere,
-sphere×torus, cylinder×torus, torus×torus, plane×NURBS and plane×`Approx`,
+sphere×torus, cylinder×torus, torus×torus, plane×torus off the
+axis-aligned poses, a cone against an oblique cylinder, a cone, a
+sphere or a torus off its axis, plane×NURBS and plane×`Approx`,
 NURBS×NURBS and every pairing of `Approx` with NURBS or `Approx` (rung 3);
 NURBS (and `Approx` as its fit) against a cylinder, sphere or torus is
 classified, its tangency and coincidence decided and its loop-free
@@ -1115,8 +1125,20 @@ carrier within the band's zero, its along-residual decided zero
 stands past, never a witness the padded band reads on: a reading that
 cannot decide it escalates. A spline wall against a plane, cylinder, sphere or
 ring torus is carried from its whole reading: each branch between two
-rim ends as the reading fitted and certified it, its pad the chart
-tube's windows imaged on the wall by its chart speeds. A pair traced
+rim ends as the reading fitted and certified it, its pad the farthest
+from its carrier that the cells of its chart tube's windows stand, cut
+to the knot rectangle, less those the partner's form clears of the
+band, imaged on the wall, refined until the section's arcs read apart.
+A site is read on the arc whose cells hold it, each cell widened by the
+band's escalation along every axis and read against the whole carrier.
+The cells of two arcs that, widened so, share a point are halved, the
+cleared halves dropped, until none do. The pair has stopped narrowing
+where two cycles of halvings running, one along each chart axis, clear
+no half and part none, or where no cell still meeting can be halved;
+there, or at a work bound that grows with the section's first reading,
+the two arcs carry neither (`CarryRefusal::PadsMeet`, naming the stop).
+An arc with no close neighbour keeps its first reading, cells a rung
+wide. A pair traced
 in ℝ³ is read over its own ball where its pose proves one, cut by one
 region per operation, as at one band:
 the ball about the overlap of the two operands' boxes, padded, which
@@ -1226,10 +1248,28 @@ discriminant is a tangency only where the rulings' clearance ceiling
 over it is decided `Zero`, the sweep's margin being a floor on that
 clearance; and an apex on the partner is divided out of the rulings'
 quadratic, its node's arcs ending at it. Two cones through one apex,
-and two on parallel axes of one aperture, are not built here. Its
-components are the general rung's, and carrying them refuses typed,
-since no march carries them: the pair has no march door. A crossing
-tangency is a node, its arcs one node-joined set.
+and two on parallel axes of one aperture, are not built here. A cone
+against a sphere off the cone's axis is the same sweep against the
+sphere, read over the sphere's own ball padded as cylinder × sphere's
+is, so no component is cut; its tangencies are decided on the pose
+before it, in closed form: the sphere's centre stands `(ρ, h)` from the
+apex across and along the axis, its distance from the double cone is
+critical only at its feet on the cone's two lines in its meridian plane,
+`g± = ρ cos α ∓ h sin α` from it, and `|g±| − R` decides each tangency,
+the sweep reading no ceiling. With the apex margin these are every
+critical value of the clearance, so a `Zero` line is a touch at its
+foot, the section's whole, only where every other one is decided
+positive: one point, or two where both lines are `Zero`. A `Zero` line
+beside a crossing (the other line nearer than `R`, or the apex inside)
+is a touch beside other components or a node, which the pose does not
+prove, and refuses by `kc_sphere_tangency`. A sphere on the cone's axis is
+`cone_sphere_section`'s closed form, read elsewhere. A cone pair's
+components are the general rung's, marched in ℝ³ from the count's
+witnesses (`ssi::cone_ruled_ssi`), the branches ending at the region
+or, for a sphere, closing in its ball. A crossing tangency is a node,
+its arcs one node-joined set; the apex on the partner is another. The
+ℝ³ march ends no branch at a node, so an arc ending at one is
+classified and not carried.
 A cone off a torus's axis (`ConeTorusPose`) reads its apex
 against the torus before its gap, the apex's residual there a
 closed-form margin whose Zero is a node or a touch by the cone's form
@@ -1241,7 +1281,21 @@ is the sweep, its transverse components the march's
 gap undecided beside an apex within a sixty-fourth of the tube radius
 of the torus escalates as the apex's question, the near-node's. A
 coaxial cone is `cone_torus_section`'s closed form, which the value
-reads elsewhere. A cone against a sphere refuses.
+reads elsewhere. Every other pair with a cone refuses: the cone
+against a plane is rung 2's, and against a spline side it has no arm.
+A plane against a torus (`PlaneTorusPose`) is read first by the C5
+table's own axis rows (`plane_torus_section`), levered over the torus's
+ball: a plane holding the axis, square to it, or parallel to it short of
+the inner equator is the closed form's, which the value reads
+elsewhere. Every other pose has a closed-form gap: the plane touches
+the torus only on the tube circles about the two core points of extreme
+height over it, so the rows `r − |h ∓ s·R|` (`s` the normal's part
+square to the axis, `h` the plane's height over the centre) decide its
+tangency, and with `s·R − r − |h|` they count its loops, two round the
+axis, two round the tube, one null loop or none, each the general
+rung's, marched over the torus's ball (`ssi::plane_torus_ssi`) and
+matched to the count by its winding about the torus; the null loop
+carries a witness on the tube circle it cuts.
 
 The same rule governs a curve against a face. A carrier span and a face
 meet through one exhaustive `(CurveKind, SurfaceKind)` table, in the
@@ -1448,9 +1502,11 @@ combination coefficients the knot algebra derives from them. Values are
 held in the scalar, each entered where it is made as what it is: a
 constant of the construction's form (π as `T::pi()`, never as the
 arithmetic that computes it) or of an imported file through `from_f64`;
-a numerical routine's output (a fit's knots, weights and poles) once, at
-the fit, through `Real::from_computed`; a value the model determines
-computed in the scalar. At an enclosure scalar a carrier stands for the
+a value the model determines (a skin through its sections among them)
+computed in the scalar; a fit that proposes one description of
+something already described (an edge's image in a spline wall's chart)
+`f64` until the certificate that checks it admits it, once, through the
+door of `crates/geom-core/README.md` DL5.2. At an enclosure scalar a carrier stands for the
 family of its members, so its knot positions and weights may be
 enclosures as its poles are. Structure is decided once for every member:
 at a point scalar it is read off the values; at an enclosure scalar it

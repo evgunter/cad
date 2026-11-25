@@ -53,13 +53,16 @@ fn lift(z: f64) -> Affine3<f64> {
     Affine3::translation(Vec3::new(0.0, 0.0, z))
 }
 
-/// **Class 1 builds, but for a full turn's one vertex**: a one-segment
-/// loop turned about the tangent at its vertex pins that vertex, and its
-/// wall is the whole turn collapsed at its wrap edge, which the assembly
-/// does not build. Refused as a kernel limit, and never as bad input.
-/// The other class-1 bodies are `pinned_corners_build`'s.
+/// **A full turn's pinned vertex builds.** Two one-segment circles, one
+/// turned about the tangent at its vertex, pin that vertex. The loft cuts
+/// the full turn at its sub-arc joints into four quarter walls, so the
+/// vertex is a corner between two of them: one vertex, no strut, and the
+/// walls beside it each a collapsed side there, as every other pinned
+/// corner builds. The body is closed (tier 2), at rest (tier 3), a
+/// pseudomanifold (tier 3′), and its volume holds the ruled solid's,
+/// read off the sections alone.
 #[test]
-fn a_full_turns_pinned_vertex_refuses_as_unsupported() {
+fn a_full_turns_pinned_vertex_builds() {
     let tol = Tol::witness();
     let circle = || {
         vec![<ProfileLoop<f64> as RawLoop<f64>>::new([(
@@ -71,30 +74,58 @@ fn a_full_turns_pinned_vertex_refuses_as_unsupported() {
             }),
         )])]
     };
-    let ps = places(
-        &[
-            Affine3::identity(),
-            turn([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], 0.5),
-        ],
-        tol,
+    let ms = [
+        Affine3::identity(),
+        turn([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], 0.5),
+    ];
+    let ps = places(&ms, tol);
+    let lofted = loft_body::<f64>(&vec![circle(); 2], &ps, 1, tol)
+        .unwrap_or_else(|e| panic!("the full turn with a pinned vertex lofts: {e:?}"));
+    assert!(
+        lofted.side_faces[0][0]
+            .iter()
+            .all(|w| matches!(w[..], [Some(_)])),
+        "four quarter walls: {:?}",
+        lofted.side_faces
     );
-    match loft_body::<f64>(&vec![circle(); 2], &ps, 1, tol) {
-        Err(
-            e @ LoftError::PinnedCornerUnsupported {
-                loop_index: 0,
-                at: PinnedSite::Corner(0),
-                slab: 0,
-            },
-        ) => {
-            let msg = e.render(geom_brep::recourse::Reading::Build);
-            assert!(msg.contains("a full turn"), "{msg}");
-            assert!(
-                msg.contains("a kernel limit, not an input fault"),
-                "the refusal is the kernel's, not the input's: {msg}"
-            );
-        }
-        other => panic!("expected PinnedCornerUnsupported at the vertex, got {other:?}"),
-    }
+    assert_eq!(lofted.side_faces[0][0].len(), 4, "four quarter walls");
+    assert_eq!(
+        lofted.seam_edges[0][0],
+        [None],
+        "no strut at the pinned vertex"
+    );
+    assert_eq!(topo::validate_closed(&lofted.body), Ok(()), "tier 2");
+    assert_eq!(
+        topo::validate_geometric(&lofted.body, tol),
+        Ok(()),
+        "the pinned full turn is at rest"
+    );
+    assert_eq!(
+        topo::validate_pseudomanifold(&lofted.body, &topo::ContactRecords::default(), tol),
+        Ok(()),
+        "tier 3′"
+    );
+    let tau = core::f64::consts::TAU;
+    let want = crate::pinned_corners_build::ruled_curve_volume(
+        |u| ((tau * u).cos(), (tau * u).sin()),
+        |u| (-tau * (tau * u).sin(), tau * (tau * u).cos()),
+        core::f64::consts::PI,
+        (&ms[0], &ms[1]),
+        256,
+    );
+    let m = topo::mass_properties(
+        &lofted.body,
+        tol,
+        topo::test_support::pinned_resolution(tol),
+    )
+    .unwrap()
+    .enclosure;
+    assert!(
+        (m.volume - want).abs() <= m.volume_pad + 1e-9 * want,
+        "volume {} ± {}, ruled {want}",
+        m.volume,
+        m.volume_pad
+    );
 }
 
 /// **Class 2: one corner pinned in one slab and moving in the next**,
@@ -120,6 +151,62 @@ fn a_corner_pinned_in_one_slab_only_refuses_naming_it() {
         }) => {}
         other => panic!("expected PinnedCorner naming corner 0, got {other:?}"),
     }
+}
+
+/// **Class 2 at a sub-arc joint: a joint pinned in one slab and moving
+/// in the next.** The half disc's semicircle (segment 1) is two quarter
+/// walls joined at its apex `(0, 1)`. Turned about the line through the
+/// apex along `x`, the apex is one point in the first slab; lifted
+/// after, it moves in the second. Under a v-degree-2 wall through both
+/// the door refuses naming the joint, with the pinning slab and the
+/// moving one; at v-degree 1 each slab is its own wall, and it builds.
+#[test]
+fn a_joint_pinned_in_one_slab_only_refuses_at_degree_two_and_builds_at_one() {
+    let tol = Tol::witness();
+    let dee = || {
+        vec![bulge_loop(vec![
+            (Point2::new(-1.0, 0.0), 0.0),
+            (Point2::new(1.0, 0.0), 1.0),
+        ])]
+    };
+    let ps = places(
+        &[
+            Affine3::identity(),
+            turn([0.0, 1.0, 0.0], [1.0, 0.0, 0.0], -0.4),
+            lift(2.0),
+        ],
+        tol,
+    );
+    match loft_body::<f64>(&vec![dee(); 3], &ps, 2, tol) {
+        Err(LoftError::PinnedCorner {
+            loop_index: 0,
+            at:
+                PinnedSite::Joint {
+                    segment: 1,
+                    joint: 0,
+                },
+            slab: 0,
+            moving: 1,
+        }) => {}
+        other => panic!("expected PinnedCorner naming the semicircle's joint, got {other:?}"),
+    }
+    let lofted = loft_body::<f64>(&vec![dee(); 3], &ps, 1, tol)
+        .unwrap_or_else(|e| panic!("at v-degree 1 each slab is its own wall: {e:?}"));
+    assert_eq!(
+        lofted.joint_edges[0][1][0],
+        [None, lofted.joint_edges[0][1][0][1]],
+        "no strut at the joint in the pinning slab"
+    );
+    assert!(
+        lofted.joint_edges[0][1][0][1].is_some(),
+        "and a strut in the moving one"
+    );
+    assert_eq!(topo::validate_closed(&lofted.body), Ok(()), "tier 2");
+    assert_eq!(
+        topo::validate_geometric(&lofted.body, tol),
+        Ok(()),
+        "tier 3"
+    );
 }
 
 /// **Class 3: a corner the band cannot call escalates, naming it.**
@@ -438,7 +525,7 @@ fn a_sweep_turning_about_a_profile_edge_builds_its_wedge() {
     assert_eq!(
         swept.side_faces[0]
             .iter()
-            .filter(|w| w[0].is_none())
+            .filter(|w| w[0][0].is_none())
             .count(),
         1,
         "the segment on the axis has no wall: the two caps hold it"

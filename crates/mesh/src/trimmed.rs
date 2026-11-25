@@ -4047,7 +4047,7 @@ mod collapsed_rows;
 pub(super) mod tests {
     use super::{
         ChordPass, Creases, FixedVertexHandle, Node, SpadePoint, TessellateError, TrimPolygon,
-        chain_creases, one_location_per_branch, trim_polygon,
+        chain_creases, one_location_per_branch,
     };
 
     /// Whether any mesh id appears at two DIFFERENT UV locations in the
@@ -4408,13 +4408,15 @@ pub(super) mod tests {
         );
     }
 
-    /// The chord row, on the lofted cylinder: each rim's chord schedule
-    /// holds its joint angle `t0 + span·½`, the same expression
-    /// `segment_curve` places its joint knot with
-    /// (`geom_brep::sub_arc_joint`), and the wall's trim polygon puts
-    /// that point's UV exactly on the crease `u = ½`.
+    /// The chord row, on the lofted cylinder: the loft cuts each
+    /// semicircle's wall at its sub-arc joint, so every rim is one
+    /// quarter arc whose chord schedule needs no joint point, and no
+    /// wall's cell grid holds a crease, so the trimmed lane takes no
+    /// crease line on any of them. The crease arm itself is pinned on
+    /// hand-built grids (`creases_in_both_directions_refuse` and the
+    /// `nurbs_cert` rows); no built face reaches it.
     #[test]
-    fn the_rim_carries_the_joint_with_its_uv_on_the_crease() {
+    fn the_lofted_cylinders_quarter_walls_carry_no_crease() {
         use std::collections::HashMap;
         let body = sweep::test_support::lofted_cylinder(1.0, geom_core::Tol::witness());
         let mut positions = Vec::new();
@@ -4426,62 +4428,35 @@ pub(super) mod tests {
         }
         let mut bounds = crate::nurbs_cert::FaceBounds::new();
         let routes = crate::tessellate::Routes::witness(&body);
-        let chords: ChordPass =
-            crate::chords::compute_chords(&body, 5e-3, &routes, &vids, &mut positions, &mut bounds)
-                .unwrap();
-        let mut rims = 0;
-        for (ek, edge) in body.edges() {
-            let curve = body
-                .get_curve_geom(edge.curve)
-                .unwrap()
-                .certified()
-                .unwrap();
-            if !matches!(curve.carrier(), geom::Curve3::Circle(..)) {
-                continue;
-            }
-            rims += 1;
-            let (t0, t1) = curve.params();
-            let joint = t0 + (t1 - t0) * geom_brep::sub_arc_joint(1, 2);
-            assert!(
-                chords.params[&ek].contains(&joint),
-                "rim {ek:?}: no chord point at {joint}"
-            );
-        }
-        assert_eq!(rims, 4, "two semicircles per section");
-        let mut on = 0;
+        crate::chords::compute_chords(&body, 5e-3, &routes, &vids, &mut positions, &mut bounds)
+            .unwrap();
+        let rims = body
+            .edges()
+            .filter(|(_, edge)| {
+                let curve = body
+                    .get_curve_geom(edge.curve)
+                    .unwrap()
+                    .certified()
+                    .unwrap();
+                matches!(curve.carrier(), geom::Curve3::Circle(..))
+            })
+            .count();
+        assert_eq!(rims, 8, "four quarter arcs per section");
+        let mut walls = 0;
         for (fk, _) in body.faces() {
             let surface = body.face_surface(fk).unwrap();
             let Some(chart) = surface.spline_chart() else {
                 continue;
             };
             let grid = crate::nurbs_cert::face_cells(&bounds, fk).unwrap();
-            assert_eq!(grid.creases(), (&[0.5][..], &[][..]), "face {fk:?}");
-            let c = Creases::of(grid, chart, fk).unwrap();
-            let lift = body.face_lift(fk, band()).unwrap();
-            let polygon = trim_polygon(
-                &body,
-                fk,
-                &lift,
-                &chords,
-                true,
-                c.as_ref(),
-                (&HashSet::new(), &super::SidePoints::default()),
-            )
-            .unwrap()
-            .points;
-            let (_, v0, v1) = polygon
-                .iter()
-                .fold((0, f64::MAX, f64::MIN), |(n, lo, hi), p| {
-                    (n, lo.min(p.1), hi.max(p.1))
-                });
-            let hits: Vec<f64> = polygon.iter().filter(|p| p.0 == 0.5).map(|p| p.1).collect();
+            assert_eq!(grid.creases(), (&[][..], &[][..]), "face {fk:?}");
             assert!(
-                hits.contains(&v0) && hits.contains(&v1),
-                "face {fk:?}: the crease meets both rims at chord points, got v = {hits:?}"
+                Creases::of(grid, chart, fk).unwrap().is_none(),
+                "face {fk:?}: no crease line"
             );
-            on += 1;
+            walls += 1;
         }
-        assert_eq!(on, 2, "two creased walls");
+        assert_eq!(walls, 4, "four quarter walls");
     }
 
     /// The ingredient test #678's fan needs, pinned on its own: a mesh

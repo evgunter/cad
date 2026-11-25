@@ -7,6 +7,7 @@ opened: 2026-09-28
 priority: P0
 cost: H
 refs: [torus-face-meeting-a-partner-only-in-an-interior-loop-while-crossings-exist-elsewhere]
+design: true
 ---
 
 ## What
@@ -102,3 +103,23 @@ ORBIT's PR 7602, which cuts every sphere escape along a meridian (no more re-cha
 - **Why the cut-in does not reach them.** It answers only on the no-crossings path (`through_the_join` takes it only when `red.null_pairs` is empty).
 
 A ball sunk at a die's edge or corner is a normal verb on normal geometry, so this row takes P0 (`work/README.md`, Priority). The probes are in the PR 7602 review reports; ORBIT can supply them. (ORBIT orchestrator)
+
+## 2026-11-23 — the cut-in is transient now; the class stays split by path (ORBIT)
+
+Evidence from `orbit/transient-chart-cut`. The re-entered op's output
+stage now deletes every piece of a cut-in's meridian
+(`topo::boolean::slit::close_cuts`). A sphere face that keeps the region
+round a section circle ends holding that circle as a **ring**: the
+ringed sphere face this row's 2026-10-05 evidence found nothing reads.
+It now passes tier 3, and props measure it at its closed form. The
+mesher draws it, except where the ring reader cannot clear the ring
+against an outer row whose box does not tighten
+(`work/lathe/an-analytic-outer-loops-whole-span-boxes-never-tighten-under-the-ring-reader.md`).
+
+The class is still split by path. The cut-in serves only **sphere**
+faces, and only on the **no-crossings** path (`sphere_extent_scan`,
+then `apply_cut_ins`). On the crossings path, an R-loop anywhere refuses
+the op (`boolean::ops::interior_loop_verdict`), a sphere's included,
+however other pairs cross. Whether a certified interior loop is cut in
+(and closed) on every path and surface, or stays a refusal off the
+sphere case, is a design question: `design: true`.

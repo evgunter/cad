@@ -91,14 +91,12 @@ const KERNEL_KEYED: &[&str] = &[
     "Naming/SeamVertexPartners",
     "Naming/SharedRim",
     "Naming/ChordOffRim",
-    "Naming/ConventionalVertex",
     "Naming/ClosedCarrierUnread",
     "Naming/CarrierUnplaced",
     "Naming/PartnerUnread",
     "Naming/UnsupportedCrossingSenses",
     "Naming/UnsupportedSeamSides",
     "Naming/UnsupportedJoin",
-    "Naming/UnsupportedTurnedCell",
     "Naming/WayInZeroBand",
     "Naming/JoinedPieceOffRoot",
     "Naming/BandVerdictsDisagree",
@@ -874,7 +872,7 @@ mod kernel {
         pub(super) const LOFT_ERROR: LoftError = [
             Band, Skin, Euler, Pcurve, SeamStructure, SectionStructure,
             SectionRim, SectionNotFinite, PlacementNotFinite, ReversedStacking, DegenerateStacking,
-            PinnedCorner, PinnedCornerUnsupported, CornerEscalated, SectionsTouch,
+            PinnedCorner, CornerEscalated, JointEscalated, SectionsTouch,
             ClearanceUndecided, ClearanceFault, FarSectionNotForward, FarStackingEscalated,
             StackingEscalated, NotFinished,
         ];
@@ -3675,18 +3673,20 @@ fn loft() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "PinnedCornerUnsupported",
-            E::PinnedCornerUnsupported {
-                loop_index: 1,
-                at: sweep::PinnedSite::Corner(0),
-                slab: 10,
-            },
-        ),
-        (
             "CornerEscalated",
             E::CornerEscalated {
                 loop_index: 1,
                 corner: 12,
+                slab: 10,
+                source: diag(),
+            },
+        ),
+        (
+            "JointEscalated",
+            E::JointEscalated {
+                loop_index: 1,
+                segment: 12,
+                joint: 2,
                 slab: 10,
                 source: diag(),
             },
@@ -5193,13 +5193,6 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "UnsupportedTurnedCell",
-            NamingError::UnsupportedTurnedCell {
-                read: editor_core::VarId::new(0, tagged(38)),
-                cell: topo::Cell::Vertex(topo::VertexKey::default()),
-            },
-        ),
-        (
             "WayInZeroBand",
             NamingError::WayInZeroBand {
                 edge: topo::EdgeKey::default(),
@@ -5248,13 +5241,6 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
                 edge: topo::EdgeKey::default(),
                 node: RecipeNodeId::new(0, tagged(3)),
                 face: topo::FaceKey::default(),
-            },
-        ),
-        (
-            "ConventionalVertex",
-            NamingError::ConventionalVertex {
-                vertex: topo::VertexKey::default(),
-                body: 0,
             },
         ),
         (

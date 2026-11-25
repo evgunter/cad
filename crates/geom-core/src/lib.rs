@@ -34,6 +34,7 @@ pub mod readable;
 pub mod real;
 pub mod rows;
 pub mod running;
+pub mod solved;
 pub mod spline;
 pub mod structure;
 pub mod sym;
@@ -88,9 +89,10 @@ pub use predicate::{
 pub use quantity::{self, Notation};
 pub use readable::Readable;
 pub use real::{
-    Bounds, CertifiedBounds, CertifiedEnclosure, Certifies, NoLane, Real, StoredHarmonic,
-    TangentTransport, Uncertified, Witness, fold_signed_zero, is_exact_zero, is_finite_length,
-    is_underflowed_length, is_zero_length, poison, pow2, width,
+    Bounds, CertifiedBounds, CertifiedEnclosure, Certifies, Expression, NoExpression, NoLane,
+    ProvedZero, Real, StoredHarmonic, TangentTransport, Uncertified, Witness, fold_signed_zero,
+    is_exact_zero, is_finite_length, is_underflowed_length, is_zero_length, poison, pow2,
+    radius_gap, width,
 };
 pub use running::{Rounded, SHORT_CHAIN_ULPS, UNIT_ROUNDOFF, rounding_charge};
 pub use spline::{KnotVector, SpanLocate, SpanSet, SplineError};

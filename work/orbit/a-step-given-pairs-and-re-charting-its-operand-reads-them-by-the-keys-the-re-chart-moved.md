@@ -53,7 +53,7 @@ shell.
 
 Found by the sweep of branch `orbit/cut-in-carry`; read, not measured.
 That branch gives the re-entered op the cut-ins' face divisions
-(`Pass::Recut`, `crates/topo/src/boolean/ops.rs`), so the carry and the
+(`Pass::CutIn`, `crates/topo/src/boolean/ops.rs`; `Pass::Recut` on that branch), so the carry and the
 naming read a cut face through its pieces. Two readers of the caller's
 `decls` still run on the re-cut operands by key alone, before any
 division list exists:
@@ -74,3 +74,7 @@ row's: the declarations need the cut-ins' divisions (or the re-chart's
 graft rows) at the re-entry's door, or a typed refusal naming the
 divided face. Measure first, as above: a declared pair or an area
 record on a sphere face that the same op cuts in.
+
+## Evidence (2026-11-23, `orbit/one-sphere-escape-cut`)
+
+That branch retires the re-chart, so the first two arms above go: no shell is carved out and grafted back under new keys, and no key is kept at a turned place. The re-entry now runs on operands that only the cut-ins changed (`apply_cut_ins`). A declared face that a cut divides keeps its key on one piece, and the cut mints the other piece under a new key that no declaration names. Whether a step is ever given a pair on a face its own scan cuts is still unmeasured, so the row stays open on that arm. The pin is renamed `a_verdict_on_a_cut_member_face_reaches_the_next_step` (`crates/sweep/tests/the_nary_door_reads_a_cut_in_accumulation_through_its_pieces.rs`); its step now cuts the crossing ball in, and it still refuses `CoincidentShell` given the judgement's verdict.

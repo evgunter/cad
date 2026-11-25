@@ -26,7 +26,7 @@ use crate::corpus::body_of;
 use crate::emit_shared_rim_several::{
     Bx, construction, document, own_name, permutations, probe_corpus,
 };
-use crate::fixture::{face_vertices, len, table};
+use crate::fixture::{face_vertices, len, point_modulo_position, table};
 
 use editor_core::{CapEnd, EntityKey, EntityKind, Entry, Node, RecipeNodeId, RoleSeg, StableName};
 
@@ -47,26 +47,30 @@ fn fine(p: &geom_core::Point3<f64>) -> P {
 
 /// Where each uniquely named entity of a published table is, independent
 /// of arena keys: a vertex's point, an edge's two end points, a face's
-/// vertex points.
+/// vertex points, each modulo a conventional vertex's position
+/// ([`point_modulo_position`]).
 fn geometry(
     ev: &editor_core::Evaluation<f64>,
     union: editor_core::RecipeNodeId,
 ) -> BTreeMap<StableName, Vec<P>> {
     let body = body_of(ev, union);
-    let point = |v| round(body.get_point(body.get_vertex(v).unwrap().point).unwrap());
+    let point = |v| point_modulo_position(&body, v).map(|p| round(&p));
     let mut out = BTreeMap::new();
     for (name, entry) in table(ev, union).iter() {
         let Entry::Unique(e) = entry else { continue };
-        let mut sig = match e.key {
-            EntityKey::Vertex(v) => vec![point(v)],
+        let mut sig: Vec<P> = match e.key {
+            EntityKey::Vertex(v) => point(v).into_iter().collect(),
             EntityKey::Edge(k) => {
                 let edge = body.get_edge(k).unwrap();
                 [edge.he_plus, edge.he_minus]
                     .iter()
-                    .map(|&he| point(body.get_half_edge(he).unwrap().start))
+                    .filter_map(|&he| point(body.get_half_edge(he).unwrap().start))
                     .collect()
             }
-            EntityKey::Face(f) => face_vertices(&body, f).into_iter().map(point).collect(),
+            EntityKey::Face(f) => face_vertices(&body, f)
+                .into_iter()
+                .filter_map(point)
+                .collect(),
             _ => continue,
         };
         sig.sort_unstable();
@@ -80,14 +84,16 @@ fn geometry(
 /// sorted points of its edge neighbours, so two coincident vertices of
 /// two touching shells differ; an edge is its two ends so described; a
 /// face is its vertex points; a tie is its candidates', sorted and
-/// marked.
+/// marked. A conventional vertex is compared modulo its position
+/// ([`point_modulo_position`]): it reads as no point, wherever an
+/// entity's description would read its point.
 pub(crate) fn signature(
     ev: &editor_core::Evaluation<f64>,
     union: editor_core::RecipeNodeId,
 ) -> BTreeMap<StableName, String> {
     let body = body_of(ev, union);
-    let point = |v| fine(body.get_point(body.get_vertex(v).unwrap().point).unwrap());
-    let mut neighbours: BTreeMap<_, Vec<P>> = BTreeMap::new();
+    let point = |v| point_modulo_position(&body, v).map(|p| fine(&p));
+    let mut neighbours: BTreeMap<_, Vec<Option<P>>> = BTreeMap::new();
     for (edge, _) in body.edges() {
         let (s, t) = body.edge_vertices(edge).unwrap();
         neighbours.entry(s).or_default().push(point(t));
