@@ -52,6 +52,7 @@
 // There is no `#![allow(clippy::duplicate_mod)]` here because no file is
 // loaded twice any more; if one ever is, the lint is meant to fire.
 mod common;
+mod euler_cube_support;
 
 #[path = "budget_meter.rs"]
 mod budget_meter;
@@ -505,6 +506,8 @@ mod r2_mesh7_probes;
 #[path = "r2_sense_e2e.rs"]
 mod r2_sense_e2e;
 
+#[path = "a_pending_face_is_refused_before_meshing.rs"]
+mod a_pending_face_is_refused_before_meshing;
 #[path = "route_rows.rs"]
 mod route_rows;
 #[path = "the_one_slit_band.rs"]

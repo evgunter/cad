@@ -22,3 +22,8 @@ Both reviewers of PR #5955 (SELFX) flagged this as a NOTE.
 No builder in the tree makes one today; sweeps make NURBS walls. Import or validation is where a check belongs: either a validation clause, or `by_kind` reading the face's lifted span.
 
 - 2026-11-02 — moved from CLEARTAIL to CLEAR when CLEARTAIL merged back into CLEAR (the budget rule now counts P0/P1 only); id and body unchanged.
+- 2026-11-25 — `by_kind` now discharges a spindle sheet face too, on its
+  chart's injectivity over one turn by `[−v*, v*]`, which it checks
+  (`geom::spindle_sheet`, the datum range); the face lying in that
+  domain once is this row's premise, unchecked as for the other kinds.
+  (lane `embedwalk-spindle`)

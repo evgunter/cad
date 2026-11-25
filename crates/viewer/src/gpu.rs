@@ -579,8 +579,9 @@ const QUAD_CORNERS: [u32; 6] = [0, 2, 1, 1, 2, 3];
 /// contains the probe ray's crossings of the triangles the chord point
 /// lies on (the vertex fan near an end), so where the face in front IS
 /// one of those triangles the edge overlaps it by construction. The
-/// one exception is a free-moved copy, whose front spans are its local
-/// ray's carried across unconverted
+/// one exception is a free-moved copy, whose front spans are certified
+/// on the probe ray carried into its frame, which is the probe ray only
+/// to within the carry's rounding
 /// (`work/vgeom/a-moved-copys-pick-span-crosses-its-frame-unconverted.md`).
 /// A depth buffer holds no interval to order, which is why this lane
 /// needs a lift and that one does not.

@@ -86,15 +86,34 @@ const OVAL_IN_BAND: &str = "spiric_plane_oval_in_band";
 /// moved one (the whole oval within the escalation of `Q`), the reading
 /// refuses as a tangency rather than answer a count the band cannot hold.
 ///
+/// Each refusal is the whole span's: a count the shifted lines do not
+/// keep, or an oval no line meets inside the band
+/// ([`Unsettled::Tangency`]), one the ladder does not certify (a graze of
+/// either oval), a ladder rung, a root's side or the oval's side of a
+/// moved line in band.
+///
 /// # Errors
 ///
-/// [`MeetFault::Unsettled`]: a count the shifted lines do not keep, or an
-/// oval no line meets inside the band ([`Unsettled::Tangency`]), or one
-/// the ladder does not certify (a graze of either oval);
-/// [`MeetFault::Escalated`] on a ladder rung, a root's side or the oval's
-/// side of a moved line in band; [`MeetFault::Desync`] on a carrier not a
-/// spiric.
+/// A kernel fault's readings: a carrier not a spiric, or readings that
+/// contradict.
 pub(super) fn spiric_plane_method<T: Decide>(
+    span: &Span<'_, T>,
+    (line, across, sine): (geom::Line<T>, Vec3<T>, T),
+    band: Band,
+) -> Result<super::cross::Walked<T>, &'static str> {
+    use super::cross::Walked;
+    match spiric_roots(span, (line, across, sine), band) {
+        Ok(found) => Ok(Walked::found(found)),
+        Err(MeetFault::Contradiction { readings }) => Err(readings),
+        Err(MeetFault::Desync) => {
+            Err("the spiric × plane method was handed a carrier that is not a spiric")
+        }
+        Err(why) => Ok(Walked::whole(span.params(), why)),
+    }
+}
+
+/// [`spiric_plane_method`]'s reading.
+fn spiric_roots<T: Decide>(
     span: &Span<'_, T>,
     (line, across, sine): (geom::Line<T>, Vec3<T>, T),
     band: Band,
@@ -123,7 +142,7 @@ pub(super) fn spiric_plane_method<T: Decide>(
             Sign::Zero | Sign::Negative => return Err(MeetFault::Unsettled(Unsettled::Tangency)),
         }
     }
-    Ok(found.into_iter().map(|y| param_of(span, y, mid)).collect())
+    found.into_iter().map(|y| param_of(span, y, mid)).collect()
 }
 
 /// **Where `line`, a line of the span's own plane, meets the span's oval**:
@@ -190,12 +209,14 @@ fn on_the_oval<T: Decide>(
 }
 
 /// The span's parameter at `y`, a point of its oval, within half a turn
-/// of `mid`: the carrier's own reading.
-fn param_of<T: Decide>(span: &Span<'_, T>, y: Point3<T>, mid: T) -> T {
-    match span.carrier().param_near(y, mid) {
-        Some(t) => t,
-        None => unreachable!("a spiric carrier reads every point's parameter"),
-    }
+/// of `mid`: the carrier's own reading, which a spiric gives at every
+/// point, so none is a fault.
+fn param_of<T: Decide>(span: &Span<'_, T>, y: Point3<T>, mid: T) -> Result<T, MeetFault> {
+    span.carrier()
+        .param_near(y, mid)
+        .ok_or(MeetFault::Contradiction {
+            readings: "a spiric carrier read no parameter at a point of its oval",
+        })
 }
 
 #[cfg(test)]
@@ -925,6 +946,34 @@ mod tests {
             )),
             "{refusal:?}"
         );
+    }
+
+    /// **A graze window across the oval's seam is held at both ends of a
+    /// span a period long** (`on_span` reads the carrier's own period, a
+    /// spiric's as a conic's): the plane touching the oval's top, read on
+    /// the period that starts at the touch, refuses with a window at its
+    /// start and one at its end. Red where only a conic's windows are
+    /// copied a period on: the end's piece is lost.
+    #[test]
+    fn a_graze_across_the_ovals_seam_is_held_at_both_ends() {
+        let curve = oval();
+        let top = plane(Point3::new(0.0, 0.0, MINOR), Vec3::unit_z());
+        let Err(on_span) = cross(&Span::new(&curve, SPAN), &top, band()) else {
+            panic!("the graze refuses")
+        };
+        let w = on_span.windows[0].window;
+        let at = geom::mid_param(w.0, w.1);
+        let Some(period) = curve.period() else {
+            panic!("a spiric oval repeats")
+        };
+        let period = period.length();
+        let span = (at, at + period);
+        let Err(seam) = cross(&Span::new(&curve, span), &top, band()) else {
+            panic!("the graze at the seam refuses")
+        };
+        let starts = seam.windows.iter().any(|x| x.window.0 == span.0);
+        let ends = seam.windows.iter().any(|x| x.window.1 == span.1);
+        assert!(starts && ends, "a window at each end: {seam:?}");
     }
 
     /// **The convention**: a spiric spelled past its mint outside the

@@ -34,8 +34,8 @@ use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, LoopKey};
 use crate::ray_walk::{self, Crossings, RayFault};
 use crate::solid_contain::PointInSolidError;
+use crate::splitting::Uncrossable;
 use crate::splitting::containment::{ConicArc, ConicArcError, ConicHit, ConicRows};
-use crate::splitting::{PointInLoopError, Uncrossable};
 use crate::validate::decide;
 
 /// Where along each edge an aimed path's target lies, as shares of its
@@ -49,13 +49,12 @@ pub(crate) enum RegionRefusal {
     /// The point is in the band of a boundary edge; or no path decided,
     /// and the first one set aside read in band.
     Escalated(Indeterminate),
-    /// No path settled ([`crate::ray_walk::NoRaySettled`]): each grazed or
-    /// gave nothing to read. `outer` is the face's outer loop, the loop
-    /// the solid door names as the region walk's.
-    RayExhausted {
-        /// The face's outer loop.
-        outer: LoopKey,
-    },
+    /// The point is left unplaced: no path of the walk settled
+    /// ([`crate::ray_walk::NoRaySettled`]; each grazed or gave nothing to
+    /// read), or an arc's own reading did not place it
+    /// ([`circle_edge_hit`]). The walk reads the face's whole boundary, so
+    /// its subject is the face, not one of its loops.
+    RayExhausted,
     /// A boundary arc winds definitely past a whole turn, which bounds
     /// no region.
     WoundPastPeriod,
@@ -85,15 +84,13 @@ impl RegionRefusal {
 
     /// The refusal as the point-in-solid door states it, for a point on
     /// `face`'s carrier: a region walk no path of which settled is that
-    /// face's loop walk's, as a planar face's is
-    /// ([`PointInSolidError::Loop`]) — not the solid's own sweep, whose
-    /// exhaustion says the point is off the solid's boundary.
+    /// face's ([`PointInSolidError::RegionRayExhausted`]) — not the solid's
+    /// own sweep, whose exhaustion says the point is off the solid's
+    /// boundary.
     pub(crate) fn of_face(self, face: FaceKey) -> PointInSolidError {
         match self {
             Self::Escalated(diag) => PointInSolidError::Escalated { face, diag },
-            Self::RayExhausted { outer } => {
-                PointInSolidError::Loop(PointInLoopError::RayExhausted { r#loop: outer })
-            }
+            Self::RayExhausted => PointInSolidError::RegionRayExhausted { face },
             Self::WoundPastPeriod => PointInSolidError::CorruptFace { face },
             Self::Unreadable(cause) => PointInSolidError::EdgeCarrierUnsupported { face, cause },
         }
@@ -102,8 +99,7 @@ impl RegionRefusal {
 
 /// **Whether `p` is on the circle arc `circle` over `(t0, t1)`**, read on
 /// the arc's own carrier ([`ConicArc::hit`]): on the arc or within the
-/// band of one of its ends is `true`; in the band of it refuses. `outer`
-/// is named if the reading cannot place `p`.
+/// band of one of its ends is `true`; in the band of it refuses.
 ///
 /// # Errors
 ///
@@ -116,7 +112,6 @@ pub(crate) fn circle_edge_hit<T: Decide>(
     turn: Option<&geom_brep::CertifiedTurn<T>>,
     rows: ConicRows,
     p: Point3<T>,
-    outer: LoopKey,
     band: Band,
 ) -> Result<bool, RegionRefusal> {
     let k = match ConicArc::of(circle, turn, rows, band) {
@@ -132,7 +127,7 @@ pub(crate) fn circle_edge_hit<T: Decide>(
     {
         ConicHit::On(_) | ConicHit::End => Ok(true),
         ConicHit::Off | ConicHit::Carrier => Ok(false),
-        ConicHit::Unsettled => Err(RegionRefusal::RayExhausted { outer }),
+        ConicHit::Unsettled => Err(RegionRefusal::RayExhausted),
     }
 }
 
@@ -555,9 +550,6 @@ pub(crate) trait Region<T: Decide> {
         self
     }
 
-    /// The face's outer loop, named by an exhaustion.
-    fn outer(&self) -> LoopKey;
-
     /// Whether `p` is on `edge`, or within the band of one of its ends,
     /// read on the edge's own carrier.
     ///
@@ -821,8 +813,8 @@ pub(crate) trait Paths<T: Decide>: Legs<T> {
 ///
 /// # Errors
 ///
-/// [`RegionRefusal::RayExhausted`] naming the face's outer loop where no
-/// path settled, or the first in-band one's refusal.
+/// [`RegionRefusal::RayExhausted`] where no path settled, or the first
+/// in-band one's refusal.
 pub(crate) fn walk<T: Decide, D: Paths<T>>(
     door: &D,
     p: QueryFoot<T>,
@@ -843,9 +835,7 @@ pub(crate) fn walk<T: Decide, D: Paths<T>>(
     ray_walk::walk(
         singles.into_iter().chain(aimed),
         |path| read_path(door, p, path, band),
-        || RegionRefusal::RayExhausted {
-            outer: door.outer(),
-        },
+        || RegionRefusal::RayExhausted,
     )
 }
 
@@ -1127,7 +1117,7 @@ macro_rules! fixture_turns {
                 spec,
                 start,
                 end,
-                |_| None,
+                |_| Err(crate::SurfaceMiss::Stale),
                 geom_brep::ExtentBall::of_covered(circle.cover().as_ref().ok()).lever(),
                 band,
                 geom_brep::NurbsLane::certified(),
@@ -1342,9 +1332,6 @@ mod tests {
         fn edges_mut(&mut self) -> &mut Vec<RegionEdge<f64>> {
             &mut self.edges
         }
-        fn outer(&self) -> LoopKey {
-            LoopKey::default()
-        }
         fn on_edge(
             &self,
             edge: &RegionEdge<f64>,
@@ -1420,7 +1407,6 @@ mod standing_rows {
     use geom_core::{Band, Indeterminate, MarginDiag};
 
     use super::RegionRefusal;
-    use crate::entity::LoopKey;
 
     /// **Every variant stands as its point-in-solid image does**
     /// ([`RegionRefusal::refusal`]), the expected standing a `match` with
@@ -1437,16 +1423,14 @@ mod standing_rows {
         };
         let every = [
             RegionRefusal::Escalated(diag),
-            RegionRefusal::RayExhausted {
-                outer: LoopKey::default(),
-            },
+            RegionRefusal::RayExhausted,
             RegionRefusal::WoundPastPeriod,
             RegionRefusal::Unreadable(crate::test_support_samples::uncrossable()),
         ];
         for e in every {
             let want = match e {
                 RegionRefusal::Escalated(diag) => Ok(Refusal::Margin(diag)),
-                RegionRefusal::RayExhausted { .. } => Ok(Refusal::InBand),
+                RegionRefusal::RayExhausted => Ok(Refusal::InBand),
                 RegionRefusal::Unreadable(_) => Ok(Refusal::Limit),
                 RegionRefusal::WoundPastPeriod => Err(Aborts),
             };

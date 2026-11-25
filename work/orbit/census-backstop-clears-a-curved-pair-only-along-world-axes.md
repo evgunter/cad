@@ -7,7 +7,6 @@ opened: 2026-10-06
 priority: P1
 cost: M
 closed: 2026-10-10
-refs: [census-backstop-separates-curved-pairs-only-along-world-axes]
 ---
 
 

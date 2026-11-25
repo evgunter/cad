@@ -152,7 +152,12 @@ impl Pair {
             spec,
             carrier.eval(t0),
             carrier.eval(t1),
-            |k| self.arena.get(k).cloned(),
+            |k| {
+                self.arena
+                    .get(k)
+                    .cloned()
+                    .ok_or(geom_brep::SurfaceMiss::Stale)
+            },
             geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
@@ -195,7 +200,12 @@ impl Pair {
             spec,
             p0,
             p1,
-            |k| self.arena.get(k).cloned(),
+            |k| {
+                self.arena
+                    .get(k)
+                    .cloned()
+                    .ok_or(geom_brep::SurfaceMiss::Stale)
+            },
             geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),

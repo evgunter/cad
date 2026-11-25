@@ -52,6 +52,7 @@
 // There is no `#![allow(clippy::duplicate_mod)]` here because no file is
 // loaded twice any more; if one ever is, the lint is meant to fire.
 mod common;
+mod euler_cube_support;
 mod mate2_common;
 mod revolve_common;
 mod seam_region_common;
@@ -226,6 +227,8 @@ mod a_wrap_tip_sits_on_its_faces_chart_singularity;
 mod an_annular_tube_through_a_plate;
 #[path = "an_apex_lying_in_a_partners_face.rs"]
 mod an_apex_lying_in_a_partners_face;
+#[path = "an_approximated_face_is_embedded_as_its_fit.rs"]
+mod an_approximated_face_is_embedded_as_its_fit;
 #[path = "an_arc_loft_seams_its_rational_wall_at_every_spacing.rs"]
 mod an_arc_loft_seams_its_rational_wall_at_every_spacing;
 #[path = "an_arc_off_a_plane_or_cylinder_face_ends_as_its_incidence_read.rs"]
@@ -380,8 +383,6 @@ mod pipeline_null_edge_rows;
 mod pis_arc_capped_poses;
 #[path = "pis_cut_cavity.rs"]
 mod pis_cut_cavity;
-#[path = "placeholder_loop_windings.rs"]
-mod placeholder_loop_windings;
 #[path = "planar_ring_arc_closure.rs"]
 mod planar_ring_arc_closure;
 #[path = "pocket_ring_steep_ellipse.rs"]
@@ -414,6 +415,8 @@ mod review_4996_blend_cap;
 mod review_5956_r1_probes;
 #[path = "review_5956_r2_probes.rs"]
 mod review_5956_r2_probes;
+#[path = "review_approx_through_a_motion.rs"]
+mod review_approx_through_a_motion;
 #[path = "review_arm_vs_reach_probes.rs"]
 mod review_arm_vs_reach_probes;
 #[path = "review_r2_vv_probes.rs"]
@@ -1504,11 +1507,17 @@ mod a_loops_lift_runs_through_its_poles;
 mod a_partner_across_a_lofted_wall_is_joined_on_its_section_value;
 #[path = "a_peg_in_a_two_segment_bore_moves_only_its_wall.rs"]
 mod a_peg_in_a_two_segment_bore_moves_only_its_wall;
+#[path = "a_pending_end_face_is_refused_as_scaffolding.rs"]
+mod a_pending_end_face_is_refused_as_scaffolding;
 #[path = "a_rest_on_a_cut_in_piece_lands_on_it.rs"]
 mod a_rest_on_a_cut_in_piece_lands_on_it;
 #[path = "a_station_frame_is_minted_to_its_floor.rs"]
 mod a_station_frame_is_minted_to_its_floor;
 #[path = "check_1_reads_no_frame_on_a_turned_disc.rs"]
 mod check_1_reads_no_frame_on_a_turned_disc;
+#[path = "completion_keeps_what_a_face_stores.rs"]
+mod completion_keeps_what_a_face_stores;
+#[path = "completion_refuses_a_stale_row.rs"]
+mod completion_refuses_a_stale_row;
 #[path = "separation_reads_turned_directions.rs"]
 mod separation_reads_turned_directions;

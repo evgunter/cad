@@ -30,8 +30,8 @@ crates/geom-brep/src/chart_singularity.rs	1	constant	c	a half-turn threshold's m
 crates/geom-brep/src/chart_singularity.rs	1	constant	f64::from(SAMPLED_SPANS)	a sampled carrier's starting span count
 crates/geom-brep/src/chart_singularity.rs	1	constant	f64::from(WALK_SAMPLES)	a walk's station count per edge
 crates/geom-brep/src/chart_singularity.rs	2	constant	f64::from(i)	a sample schedule's index (the sampled carrier's starting spans and a walk's stations)
+crates/geom-brep/src/curve_face.rs	1	constant	band.escalate()	the band's escalation width, a tolerance: a window's one widening, Kε at the span's least speed (escalation_reach)
 crates/geom-brep/src/curve_face/conic_quadric.rs	1	constant	band.escalate()	the band's escalation width, a tolerance (a root bracket's width through the apex)
-crates/geom-brep/src/curve_face/cross.rs	1	constant	band.escalate()	the band's escalation width, a tolerance: a window's reach about a root in band of an end
 crates/geom-brep/src/curve_face/end_root.rs	1	constant	band.zero()	the band's zero width, a tolerance: the most a coefficient decided Zero admits, charged at its power
 crates/geom-brep/src/curve_face/pose.rs	1	constant	band.escalate()	the band's escalation width, a tolerance: a touch's reach past which a span is apart
 crates/geom-brep/src/curve_face/pose.rs	1	constant	band.zero()	the band's zero width, a tolerance: a touch's in-band depth
@@ -133,7 +133,7 @@ crates/geom/src/curves/nurbs.rs	1	constant	j as f64 / per as f64	a speed piece's
 crates/geom/src/curves/nurbs.rs	1	constant	v	a value a knot operation brings in at the caller's f64 parameter (inserted)
 crates/geom/src/surfaces/nurbs.rs	1	constant	u	a removal's reinsertion of the removed knot where the surface does not hold it: the caller's f64 parameter (unreachable: the removal took it from the surface)
 crates/geom/src/surfaces/nurbs.rs	1	constant	v	a removal's reinsertion of a value other than the removed knot: the caller's f64 parameter (unreachable: a reinsertion brings in the removed knot alone)
-crates/geom/src/surfaces/nurbs.rs	3	constant	<fn>	the placeholder's unit knots, and a knot a column's plan inserts at the caller's f64 parameter (Column::through's fresh entry, twice)
+crates/geom/src/surfaces/nurbs.rs	2	constant	<fn>	a knot a column's plan inserts at the caller's f64 parameter (Column::through's fresh entry, twice)
 crates/geom/src/test_support.rs	1	fixture	<fn>	the fixture NURBS segments' unit knots lifted into T (Knots::lift)
 crates/geom/src/test_support/held_arc.rs	1	constant	m as f64	a sub-arc count
 crates/geom/src/test_support/held_arc.rs	2	constant	k as f64	a sub-arc index

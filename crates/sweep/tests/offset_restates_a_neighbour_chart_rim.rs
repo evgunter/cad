@@ -124,7 +124,7 @@ fn offset_the_wall(body: &mut Body<f64>, wall: SurfaceKey) -> SurfaceKey {
     );
     let minted = body
         .faces()
-        .find(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Cylinder { .. })))
+        .find(|(fk, _)| matches!(body.face_surface(*fk), Ok(Surface::Cylinder { .. })))
         .map(|(_, f)| f.surface)
         .unwrap();
     assert_ne!(minted, wall, "the wall moved onto a minted chart");
@@ -140,7 +140,8 @@ fn a_rim_in_the_caps_chart_is_restated_as_the_section_with_the_minted_wall() {
         "the hand-stated image is a conventional form on a corner"
     );
     let minted = offset_the_wall(&mut body, wall);
-    validate_geometric(&body, Tol::witness()).expect("the offset drum is tier-3 valid");
+    topo::test_support::validate_completed(&body, Tol::witness())
+        .expect("the offset drum is tier-3 valid");
     let description = description_of(&body, rim).description();
     assert!(
         matches!(
@@ -168,7 +169,8 @@ fn a_declared_rim_in_the_caps_chart_is_restated_as_the_section_too() {
             angle: std::f64::consts::PI,
         })));
     let minted = offset_the_wall(&mut body, wall);
-    validate_geometric(&body, Tol::witness()).expect("the offset drum is tier-3 valid");
+    topo::test_support::validate_completed(&body, Tol::witness())
+        .expect("the offset drum is tier-3 valid");
     let curve = description_of(&body, rim);
     assert!(
         matches!(
@@ -200,7 +202,7 @@ fn the_per_chart_door_restates_a_rim_in_the_caps_chart_as_the_section() {
         let mut moved = body.clone();
         let got = replace_faces_offset(&mut moved, &faces, d, Tol::witness());
         assert!(got.is_ok(), "the wall's offset by {d}: {got:?}");
-        let valid = validate_geometric(&moved, Tol::witness());
+        let valid = topo::test_support::validate_completed(&moved, Tol::witness());
         assert!(
             valid.is_ok(),
             "the drum offset by {d} is tier-3 valid: {valid:?}"
@@ -370,7 +372,7 @@ fn assert_the_declared_edge_is_the_section(
 }
 
 fn is_top(body: &Body<f64>, key: SurfaceKey) -> bool {
-    matches!(body.get_surface(key), Some(Surface::Plane { frame, .. }) if frame.axis().z.abs() == 1.0)
+    matches!(body.get_surface(key), Ok(Surface::Plane { frame, .. }) if frame.axis().z.abs() == 1.0)
 }
 
 /// **Where both of the edge's charts move, the kept image is asked the
@@ -437,10 +439,10 @@ fn cube_with_a_spline_seam_on_the_top(bow: f64) -> (Body<f64>, EdgeKey, SurfaceK
         .map(|(k, f)| (k, f.surface))
         .find(|&(_, s)| {
             is_top(&body, s)
-                && matches!(body.get_surface(s), Some(Surface::Plane { frame, .. }) if frame.origin().z == 1.0)
+                && matches!(body.get_surface(s), Ok(Surface::Plane { frame, .. }) if frame.origin().z == 1.0)
         })
         .expect("the cube's top");
-    let Some(&Surface::Plane { frame }) = body.get_surface(top) else {
+    let Ok(&Surface::Plane { frame }) = body.get_surface(top) else {
         panic!("the top is a plane")
     };
     let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
@@ -565,7 +567,7 @@ fn the_planar_door_asks_the_rule_of_an_image_whose_planes_both_hold() {
     let EdgeDescriptionSpec::Chart { image, .. } = &mut spec.description else {
         panic!("the top edge is an image in the side's chart")
     };
-    let Some(&Surface::Plane { frame }) = body.get_surface(side) else {
+    let Ok(&Surface::Plane { frame }) = body.get_surface(side) else {
         panic!("the side is a plane")
     };
     let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());

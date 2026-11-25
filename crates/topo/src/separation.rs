@@ -406,11 +406,11 @@ impl<'b, T: Decide + Bounds + AtRestPolicy> Separation<'b, T> {
     }
 }
 
-/// `M_i⁻¹ ∘ M_j` — placement `j` expressed in placement `i`'s frame,
-/// through the motion door's own `inverse` and `compose`. `None` where
-/// either does not hold a finite motion.
+/// `M_i⁻¹ ∘ M_j` — placement `j` expressed in placement `i`'s frame
+/// ([`RigidMotion::relative`]). `None` where either does not hold a
+/// finite motion.
 fn relative<T: Decide>(mi: &RigidMotion<T>, mj: &RigidMotion<T>) -> Option<RigidMotion<T>> {
-    mi.inverse().ok()?.compose(*mj).ok()
+    RigidMotion::relative(Some(mi), Some(mj)).ok().flatten()
 }
 
 /// The conservative axis-aligned image of `b` under `m`: a box CONTAINING

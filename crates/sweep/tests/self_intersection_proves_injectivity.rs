@@ -845,6 +845,151 @@ fn a_full_torus_certifies_by_kind() {
     }
 }
 
+/// The football of the spindle sheet `(R, 1)`, its centre `by` up the
+/// axis ([`crate::revolve_common::football`]), revolved whole: two sheet
+/// faces, each a π-band between meridians ending at both apexes.
+fn football<T: Scalar>(big: f64, by: f64) -> Body<T> {
+    let lp = crate::revolve_common::football(big, 1.0, by);
+    revolve(&validated::<T>(&[lp]), axis_y(), Revolution::Full, tol())
+        .unwrap()
+        .body
+        .into_body()
+}
+
+/// A horn's needle tip ([`crate::revolve_common::needle_tip`]), its arc
+/// an eighth of the circle from the cusp, so it meets its disc at 45°,
+/// not tangent.
+fn needle<T: Scalar>() -> Body<T> {
+    let lp = crate::revolve_common::needle_tip(core::f64::consts::FRAC_PI_4);
+    revolve(&validated::<T>(&[lp]), axis_y(), Revolution::Full, tol())
+        .unwrap()
+        .body
+        .into_body()
+}
+
+/// The spindle-sheet faces of `body`.
+fn sheet_faces<T: Real>(body: &Body<T>) -> usize {
+    body.faces()
+        .filter(|&(k, _)| matches!(surface(body, k), Surface::Spindle { .. }))
+        .count()
+}
+
+/// **Bodies on a spindle sheet hold at both scalars, each sheet face
+/// against itself by kind**: the lemon and the apple, each two sheet
+/// faces from apex to apex, read at each apex as their chart's collapsed
+/// side. A horn's needle, whose two sheet faces meet at its cusp
+/// tangent to the axis, is refused at their shared meridian. Red if a
+/// sheet face has no window, if its self-pair is not discharged by kind,
+/// if a cell at an apex is read as anything but the collapsed side, or
+/// if the needle reads embedded.
+#[test]
+fn bodies_on_a_spindle_sheet_hold_by_kind_at_both_scalars() {
+    for (scalar, verdict) in [
+        ("f64", injective(&needle::<f64>(), None, BUDGET).verdict),
+        (
+            "Interval",
+            injective(&needle::<Interval>(), None, BUDGET).verdict,
+        ),
+    ] {
+        assert!(
+            matches!(
+                verdict,
+                BoundVerdict::Refused(EngineRefusal::Uncertified { .. })
+            ),
+            "the needle's cusp is refused at {scalar}: {verdict:?}"
+        );
+    }
+    for (what, float, interval) in [
+        ("the lemon", football(-0.5, 0.0), football(-0.5, 0.0)),
+        ("the apple", football(0.4, 0.0), football(0.4, 0.0)),
+    ] {
+        let sheets = sheet_faces(&float);
+        assert!(sheets >= 1, "{what} is built on a spindle sheet");
+        for report in holds_at_both(what, float.clone(), interval) {
+            assert!(
+                report.receipt.by_kind >= sheets,
+                "{what}: each of its {sheets} sheet faces against itself discharged by \
+                 kind: {:?}",
+                report.receipt
+            );
+        }
+    }
+}
+
+/// `body`'s verdict door within a small budget, at `T`: a crossing
+/// read `Crosses` where `crosses`, and never `Embedded` in any case.
+/// Where the walk reaches no station pair on both faces it refuses on
+/// its budget: the point door places a sheet station on its boundary
+/// alone (`work/inside/the-point-door-places-no-point-on-a-spindle-sheet-face.md`).
+fn crosses_at_both(what: &str, crosses: bool, float: &Body<f64>, interval: &Body<Interval>) {
+    let budgets = Budgets {
+        max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+        max_cell_pairs: 1024,
+    };
+    for (scalar, report) in [
+        ("f64", embedding_within(float, budgets)),
+        ("Interval", embedding_within(interval, budgets)),
+    ] {
+        let verdict = &report.verdict;
+        assert!(
+            !matches!(verdict, topo::clearance::Embedding::Embedded),
+            "{what} cross at {scalar}: {report:?}"
+        );
+        assert!(
+            !crosses || matches!(verdict, topo::clearance::Embedding::Crosses(_)),
+            "{what} read their crossing at {scalar}: {report:?}"
+        );
+    }
+}
+
+/// A football of `R = first` and a copy of `R = copy` built `by` up its
+/// axis, grafted in as a solid of its own: nothing in M is shared.
+fn footballs_through<T: Scalar>(first: f64, copy: f64, by: f64) -> Body<T> {
+    let mut folded = football::<T>(first, 0.0);
+    topo::graft_disjoint(&mut folded, &football::<T>(copy, by)).expect("the copy grafts");
+    folded
+}
+
+/// **Two footballs through one another never read embedded**, at both
+/// scalars and through the verdict door: the football and a copy built
+/// `by` up its axis, so their sheets meet on a circle. Moved `0.3` the
+/// circle is near the sheets' widest; moved `1.2` the lemons' circle is
+/// at `v = ±0.64`, about `0.61 v*`, on the first's upper half and the
+/// copy's lower. The lemons moved `1.2` read the crossing; the others
+/// refuse on the budget. Red if any reads `Embedded`, or the lemons
+/// moved `1.2` read anything but `Crosses`.
+#[test]
+fn footballs_through_one_another_never_read_embedded() {
+    for (big, by, crosses) in [(-0.5, 0.3, false), (-0.5, 1.2, true), (0.4, 1.2, false)] {
+        crosses_at_both(
+            &format!("the footballs of R = {big} moved {by}"),
+            crosses,
+            &footballs_through(big, big, by),
+            &footballs_through(big, big, by),
+        );
+    }
+}
+
+/// **Footballs crossing a hair from an apex never read embedded**, at
+/// both scalars: a football and a copy moved up its axis by just short
+/// of the sum of their apex heights, so their sheets meet on a small
+/// circle beside the first's upper apex and the copy's lower one, at
+/// `v` within a few thousandths of `±v*`. Each reads `Crosses`. Red if
+/// a sheet's window falls short of its apexes by more than that.
+#[test]
+fn footballs_crossing_beside_an_apex_never_read_embedded() {
+    let h = |big: f64| ((1.0 - big) * (1.0 + big)).sqrt();
+    for (first, copy, short) in [(-0.5, -0.5, 1e-3), (-0.5, -0.9, 1e-3), (-0.9, -0.5, 1e-5)] {
+        let by = (h(first) + h(copy)) * (1.0 - short);
+        crosses_at_both(
+            &format!("footballs of R = {first} and {copy} moved {by}"),
+            true,
+            &footballs_through(first, copy, by),
+            &footballs_through(first, copy, by),
+        );
+    }
+}
+
 /// **A windowed tube holds across its caps' circles at both scalars**
 /// (the tour's `tube_along_arc` wedge: `R = 2`, `r = 1/2`, the spine
 /// from `1/4` to `7/4` rad). Each cap is a disc on two semicircles,
@@ -911,18 +1056,25 @@ fn a_stepped_rings_floor_holds_against_its_end_caps() {
 
 /// The verdict door over every face of `body`, at the default budgets.
 fn embedding<T: Scalar + geom_core::Certifies>(body: &Body<T>) -> topo::clearance::EmbeddingReport {
-    let side = Side {
+    embedding_within(
         body,
-        faces: body.faces().map(|(k, _)| k).collect(),
-    };
-    topo::clearance::embedded(
-        &side,
-        band(),
         Budgets {
             max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
             max_cell_pairs: BUDGET,
         },
     )
+}
+
+/// The verdict door over every face of `body`, within `budgets`.
+fn embedding_within<T: Scalar + geom_core::Certifies>(
+    body: &Body<T>,
+    budgets: Budgets,
+) -> topo::clearance::EmbeddingReport {
+    let side = Side {
+        body,
+        faces: body.faces().map(|(k, _)| k).collect(),
+    };
+    topo::clearance::embedded(&side, band(), budgets)
 }
 
 /// [`a_stepped_rings_floor_holds_against_its_end_caps`]' ring, at rest.
@@ -1062,7 +1214,7 @@ fn two_arc_lune<T: Scalar>(phi: f64, thick: Option<f64>) -> Body<T> {
     .into_body();
     let sphere = body
         .faces()
-        .find(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Sphere { .. })))
+        .find(|(fk, _)| matches!(body.face_surface(*fk), Ok(Surface::Sphere { .. })))
         .expect("the sphere wall")
         .1
         .surface;
@@ -1120,7 +1272,7 @@ fn a_two_arc_lunes_hollow_holds_its_cavity_read_in_its_caps_poses() {
     .into_body();
     let sphere = body
         .faces()
-        .find(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Sphere { .. })))
+        .find(|(fk, _)| matches!(body.face_surface(*fk), Ok(Surface::Sphere { .. })))
         .expect("the sphere wall")
         .1
         .surface;
@@ -1139,7 +1291,7 @@ fn a_two_arc_lunes_hollow_holds_its_cavity_read_in_its_caps_poses() {
     .body;
     let spheres = hollow
         .faces()
-        .filter(|(k, _)| matches!(hollow.face_surface(*k), Some(Surface::Sphere { .. })))
+        .filter(|(k, _)| matches!(hollow.face_surface(*k), Ok(Surface::Sphere { .. })))
         .count();
     assert_eq!(spheres, 4, "two sphere halves outside, two in the cavity");
     let report = injective(&hollow, None, BUDGET);
@@ -1211,7 +1363,7 @@ fn a_lunes_hollow_with_its_seam_off_the_equator_refuses_across_the_seam() {
             .filter(|&(ek, _)| {
                 topo::edge_faces(&hollow, ek)
                     .iter()
-                    .all(|&f| matches!(hollow.face_surface(f), Some(Surface::Sphere { .. })))
+                    .all(|&f| matches!(hollow.face_surface(f), Ok(Surface::Sphere { .. })))
             })
             .map(|(ek, _)| ek)
             .collect();
@@ -1345,7 +1497,7 @@ fn a_ball_less_two_tilted_half_spaces_holds_its_larger_cap_read_in_a_pose() {
     }
     let cap = body
         .faces()
-        .find(|(k, _)| matches!(body.face_surface(*k), Some(Surface::Sphere { .. })))
+        .find(|(k, _)| matches!(body.face_surface(*k), Ok(Surface::Sphere { .. })))
         .expect("the sphere face")
         .0;
     let poses = topo::test_support::posed_extents_holding(&body, cap, [1.0, 0.0, 0.0], band())
@@ -1533,7 +1685,7 @@ fn lune_moved(body: &Body<f64>, axis: [f64; 3], angle: f64, by: [f64; 3]) -> Bod
 fn posed_extents_hold_its_points(what: &str, body: &Body<f64>) -> usize {
     let mut read = 0;
     for (fk, _) in body.faces() {
-        let Some(Surface::Sphere { frame, radius }) = body.face_surface(fk) else {
+        let Ok(Surface::Sphere { frame, radius }) = body.face_surface(fk) else {
             continue;
         };
         let center = frame.origin();
@@ -2655,7 +2807,10 @@ fn posed_arc_disc<T: Scalar>(pose: Pose) -> Result<Body<T>, String> {
                 tol(),
             )
             .map_err(|e| format!("{e:?}"))?;
-            topo::mirror_body(&home.into_body(), &across, tol()).map_err(|e| format!("{e:?}"))
+            // The mirror image's rows completed, as its finish completes them.
+            let image =
+                topo::mirror_body(&home.into_body(), &across).map_err(|e| format!("{e:?}"))?;
+            topo::test_support::completed(image, tol()).map_err(|e| format!("{e:?}"))
         }
     }
 }
@@ -4783,7 +4938,11 @@ fn one_uneven_plate_is_embedded_in_every_rigid_pose_and_its_axis_mirror() {
     }
     let mirrored = |point, n| {
         let reflection = topo::Reflection::across(point, n, tol()).expect("a plane");
-        let mirrored = topo::mirror_body(&body, &reflection, tol()).expect("mirrors");
+        let mirrored = topo::test_support::completed(
+            topo::mirror_body(&body, &reflection).expect("mirrors"),
+            tol(),
+        )
+        .expect("the mirror image's rows complete");
         door_class::<f64>(&mirrored)
     };
     assert_eq!(
@@ -4876,13 +5035,22 @@ fn at_the_build_limit(e: &sweep::RevolveError) -> bool {
                 ..
             }
         ),
-        sweep::RevolveError::Pcurve(topo::PcurveMintError::Certify { error, .. }) => matches!(
-            error,
-            PcurveCertifyError::Escalated {
-                check: PcurveCheck::EnvelopeTerm(_),
-                ..
-            }
-        ),
+        // The leaf's completion refuses a row whose envelope term
+        // escalates, beside the verdict's findings.
+        sweep::RevolveError::NotFinished { findings } => findings.as_slice().iter().any(|f| {
+            matches!(
+                f,
+                topo::ValidationError::Pcurve {
+                    finding: topo::PcurveMintError::Certify {
+                        error: PcurveCertifyError::Escalated {
+                            check: PcurveCheck::EnvelopeTerm(_),
+                            ..
+                        },
+                        ..
+                    },
+                }
+            )
+        }),
         _ => false,
     }
 }
@@ -4897,19 +5065,15 @@ fn at_the_build_limit(e: &sweep::RevolveError) -> bool {
 /// against the apex alone. `Embedded` at both scalars: the unit
 /// triangle in each of [`apex_frames`] and a thousand units off the
 /// origin, and a triangle a hundred times the size, a needle and a flat
-/// one in the plain frame; and the same poses revolved by `−θ`, but one.
+/// one in the plain frame; and the same poses revolved by `−θ`.
 /// Red while the departure arm reads no plane but those through the
 /// shared ruling. Off the plain frame the `−θ` poses are red, too, where
 /// the shared ruling's image stops a rounding of its stored end short of
 /// the apex and is not run on to the apex's collapsed side
 /// (`ends_on_collapse`): the cone is then not presented at the apex and
-/// no plane is tried.
-///
-/// The one pose that is not embedded: revolved by `−5.5` in the turned
-/// frame the wedge runs out of depth between its start plane and its
-/// cone, at both scalars and every ε, and is pinned as that refusal
-/// (`work/embed/a-mirrored-cone-wedge-refuses-departure-at-its-apex-off-the-plain-frame.md`).
-/// Red when it holds.
+/// no plane is tried. The `−5.5` wedge in the turned frame is red, out
+/// of depth between its start plane and its cone, where its faces'
+/// windows are read off their boundaries' world boxes.
 #[test]
 fn a_cone_wedge_past_a_half_turn_is_embedded_at_its_apex() {
     use geom_core::{Affine3, Mat3, Vec3};
@@ -4992,16 +5156,6 @@ fn a_cone_wedge_past_a_half_turn_is_embedded_at_its_apex() {
                     .into_iter()
                     .filter_map(|(scalar, r)| r.map(|r| (scalar, r)))
                 {
-                    if turn == -5.5 && *name == "turned" {
-                        let verdict = format!("{:?}", report.verdict);
-                        assert!(
-                            verdict.starts_with("Refused(Budget { stop: Depth {")
-                                && verdict.ends_with("a: FaceKey(1v1), b: FaceKey(4v1) })"),
-                            "{what} at {scalar} runs out of depth between its start \
-                             plane and its cone: {verdict}"
-                        );
-                        continue;
-                    }
                     assert_eq!(
                         report.verdict,
                         Embedding::Embedded,
@@ -5091,47 +5245,6 @@ fn door<T: Scalar + geom_core::Certifies>(
     report
 }
 
-/// **The embedding ask ends at its first finding, and a refusal is
-/// one.** The plate's top and a wall of its void run out of depth at
-/// the apex, on cells a rounding off it, before the cell that holds the
-/// apex is offered as a crossing on the same level: the ask ends there,
-/// refused on those two faces, which share no vertex, with one cell
-/// pair refused and the frontier it held abandoned. Red, `Crosses`,
-/// where a refusal is kept and the walk reads on.
-///
-/// The same finding at both scalars and on a second ask. In another
-/// pose or order of its faces the plate is told its crossing instead
-/// ([`a_body_that_does_not_pass_is_told_one_finding_or_another_and_never_that_it_holds`]).
-#[test]
-fn a_plate_whose_void_touches_its_top_reads_the_refusal_it_meets_first() {
-    use topo::clearance::Embedding;
-    fn at<T: Scalar + geom_core::Certifies>() -> Embedding {
-        let rest = void_touching_plate::<T>().into_body();
-        let report = door(&rest, DEFAULT_MAX_CELL_DEPTH, BUDGET);
-        let Embedding::Refused(EngineRefusal::Budget {
-            stop: CellBudget::Depth { .. },
-            a,
-            b,
-        }) = report.verdict
-        else {
-            panic!("the plate refuses out of depth: {:?}", report.verdict)
-        };
-        assert!(
-            a != b && !touching_pairs(&rest).contains(&(a.min(b), a.max(b))),
-            "the refusal names two faces that share no vertex: {a:?} {b:?}"
-        );
-        assert_eq!(report.receipt.refused, 1, "{:?}", report.receipt);
-        assert!(report.receipt.abandoned > 0, "{:?}", report.receipt);
-        assert_eq!(
-            door(&rest, DEFAULT_MAX_CELL_DEPTH, BUDGET),
-            report,
-            "asked again"
-        );
-        report.verdict
-    }
-    assert_eq!(at::<Interval>(), at::<f64>(), "one finding at both scalars");
-}
-
 /// **Whether a body passes is the shape's; which finding a body that
 /// does not pass is told is the walk's.** The plate whose void touches
 /// its top, placed many ways: set off the origin, mirrored, its void's
@@ -5139,9 +5252,11 @@ fn a_plate_whose_void_touches_its_top_reads_the_refusal_it_meets_first() {
 /// reversed, and turned about four axes. No placement reads `Embedded`.
 /// Some are told the crossing and some the refusal met before it, at
 /// each scalar: the level a pair is refused at moves with the pose, and
-/// the candidates' order with the faces'. Red where a placement holds,
-/// and where one class is all there is, which would be a claim the
-/// engine does not make.
+/// the candidates' order with the faces'. A refusal is a finding, so the
+/// ask ends at it: every refusal counts one cell pair refused and leaves
+/// pairs abandoned. Red where a placement holds, where one class is all
+/// there is, which would be a claim the engine does not make, and where
+/// a refusal is kept and the walk reads on.
 #[test]
 fn a_body_that_does_not_pass_is_told_one_finding_or_another_and_never_that_it_holds() {
     use geom_core::{Affine3, Vec3};
@@ -5162,7 +5277,14 @@ fn a_body_that_does_not_pass_is_told_one_finding_or_another_and_never_that_it_ho
         match report.verdict {
             Embedding::Embedded => "embedded",
             Embedding::Crosses(_) => "crosses",
-            Embedding::Refused(_) => "refused",
+            Embedding::Refused(_) => {
+                let r = report.receipt;
+                assert!(
+                    r.refused == 1 && r.abandoned > 0,
+                    "a refusal ends the ask: {r:?}"
+                );
+                "refused"
+            }
         }
     }
     fn at<T: Scalar + geom_core::Certifies>() -> BTreeSet<&'static str> {
@@ -5220,10 +5342,8 @@ fn a_body_that_does_not_pass_is_told_one_finding_or_another_and_never_that_it_ho
     assert_eq!(at::<Interval>(), both, "Interval");
 }
 
-/// **The plate built 100 off the origin is told the refusal it meets
-/// first at `Interval`, at every ε, as at the origin**
-/// ([`a_plate_whose_void_touches_its_top_reads_the_refusal_it_meets_first`]).
-/// Its void's walls are Newell planes whose frames are enclosures about
+/// **The plate built 100 off the origin is told a finding at
+/// `Interval`, at every ε**: it is not embedded. Its void's walls are Newell planes whose frames are enclosures about
 /// 1.8e-12 wide there, so a station of a wall's own chart reads its
 /// residual undecided at ε = 1e-12, centred on zero. Red, in a debug
 /// build (the region door's held check runs there only), where that check
@@ -5233,16 +5353,10 @@ fn the_plate_built_far_off_the_origin_is_told_a_finding_at_interval() {
     use topo::clearance::Embedding;
     let body = void_touching_plate_at::<Interval>([100.0; 3], false, 0).into_body();
     let report = door(&body, DEFAULT_MAX_CELL_DEPTH, BUDGET);
-    assert!(
-        matches!(
-            report.verdict,
-            Embedding::Refused(EngineRefusal::Budget {
-                stop: CellBudget::Depth { .. },
-                ..
-            })
-        ),
-        "the plate 100 off refuses out of depth: {:?}",
-        report.verdict
+    assert_ne!(
+        report.verdict,
+        Embedding::Embedded,
+        "the plate 100 off is told a finding"
     );
 }
 
@@ -5331,22 +5445,42 @@ fn a_budget_refusal_names_its_two_faces_and_ends_the_ask() {
 }
 
 /// **A metric bound still reads a violation past a refusal.** The
-/// plate's top against the four faces of its void, asked `≥ 0.2` at a
-/// depth floor of 10: a cell pair runs out of depth before the pair at
-/// the apex is confirmed closer than the bound, and the verdict is the
-/// violation. The walk ends at the verified violation, which is why
-/// pairs are left abandoned, so a pair counted refused was refused
-/// before it. Red,
-/// refused for the depth, where the metric question ends at its first
+/// plate's top against the four faces of its void, asked `≥ 0.2`, beside
+/// two bricks 30ε across grafted onto the plate's body exactly `0.2`
+/// apart, one on each side of the ask: the bricks' facing cells come to
+/// lie wholly inside the band about the bound, a sliver no refinement
+/// decides, on the first levels, before the pair at the void's apex is
+/// confirmed closer than the bound. The verdict is the violation, and
+/// the walk ends at it, which is why pairs are left abandoned. Red,
+/// refused as a sliver, where the metric question ends at its first
 /// refusal as the embedding question does.
 #[test]
 fn a_metric_bound_reads_a_violation_past_a_refusal() {
     fn at<T: Scalar>() -> String {
-        let plate = void_touching_plate::<T>().into_body();
+        use sweep::test_support::{brick, finished};
+        let mut plate = void_touching_plate::<T>().into_body();
         // The box's six faces come first, its top the first of them;
         // the void's four follow.
         let faces: Vec<FaceKey> = plate.faces().map(|(k, _)| k).collect();
         let (top, void) = (faces[0], faces[6..].to_vec());
+        let s = 30.0 * tol().eps();
+        let mut graft = |x0: f64| -> Vec<FaceKey> {
+            let before: BTreeSet<FaceKey> = plate.faces().map(|(k, _)| k).collect();
+            let tiny = finished(
+                "a brick 30ε across",
+                brick::<T>((x0, x0 + s), (0.5, 0.5 + s), (0.5, 0.5 + s), tol()),
+                tol(),
+            );
+            topo::instance::graft_disjoint(&mut plate, &tiny.into_body())
+                .expect("the brick is off the plate");
+            plate
+                .faces()
+                .map(|(k, _)| k)
+                .filter(|k| !before.contains(k))
+                .collect()
+        };
+        let near = graft(5.0);
+        let far = graft(5.0 + s + 0.2);
         let window = |faces: Vec<FaceKey>, which| {
             Side {
                 body: &plate,
@@ -5360,24 +5494,24 @@ fn a_metric_bound_reads_a_violation_past_a_refusal() {
             bound,
             band: band(),
             budgets: Budgets {
-                max_cell_depth: 10,
+                max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
                 max_cell_pairs: BUDGET,
             },
         };
         let report = sweep.run(
-            &window(vec![top], Which::First),
-            &window(void, Which::Second),
+            &window([vec![top], near].concat(), Which::First),
+            &window([void, far].concat(), Which::Second),
             true,
             verify(&plate, bound),
         );
         assert!(report.receipt.holds(), "{:?}", report.receipt);
         assert!(
             report.receipt.refused > 0 && report.receipt.abandoned > 0,
-            "a refusal is met, and the walk ends after it: {:?}",
+            "a refusal is met, and the walk ends after the violation: {:?}",
             report.receipt
         );
         let BoundVerdict::Violated(w) = &report.verdict else {
-            panic!("the violation outranks it: {:?}", report.verdict)
+            panic!("the violation outranks the refusal: {:?}", report.verdict)
         };
         assert!(w.d < 0.2, "closer than the bound: {w:?}");
         class(&report.verdict)
@@ -5706,20 +5840,6 @@ fn try_cone_tip<T: Scalar>(y0: f64, r: f64, h: f64, up: bool) -> Result<Body<T>,
         .map_err(|e| format!("{e:?}"))
 }
 
-/// **The report is a refusal on the departure arm between `pair`**: the
-/// two faces and the cell they share, as the refusal's `Debug` spells
-/// them (`a: FaceKey(1v1), b: FaceKey(2v1), shared: Edge(EdgeKey(1v1))`).
-fn assert_refuses_departure(what: &str, report: &BoundReport<Witness>, pair: &str) {
-    let verdict = format!("{:?}", report.verdict);
-    assert!(
-        verdict.starts_with("Refused(Uncertified {")
-            && verdict.contains(pair)
-            && verdict.contains("arm: Departure"),
-        "{what} refuses on the departure arm between {pair}: {verdict} {:?}",
-        report.receipt
-    );
-}
-
 /// A rigid turn about a generic axis and a translation, as a sketch
 /// plane: three frames, and the plain one at `0`.
 fn turned_plane(k: usize) -> SketchPlane<f64> {
@@ -5833,17 +5953,20 @@ fn cones_far_from_the_origin_hold_across_their_apexes() {
 /// parted at its poles by `departure`'s plane through the pair's one
 /// shared vertex (before that arm they refused there, each seam meridian
 /// listed in a plane of its own); the
-/// unit cone tip on the first and second of three sketch planes turned
-/// about a generic axis and moved ([`turned_plane`]); and the slender
-/// cone (`r = 0.37`, `h = 2.3`, apex at `y = 103.6`) on all three, at
-/// `f64`. A sphere's poles and a cone's apex are read off the face's own
-/// vertices wherever the body is. The unit cone on the third plane
-/// refuses, on a row of its own below.
+/// unit cone tip on each of three sketch planes turned about a generic
+/// axis and moved ([`turned_plane`]); and the slender cone (`r = 0.37`,
+/// `h = 2.3`, apex at `y = 103.6`) on all three, at `f64`. A sphere's
+/// poles and a cone's apex are read off the face's own vertices wherever
+/// the body is.
 ///
-/// Which turned cones hold has moved with main, not with this reading:
-/// the table on
-/// `work/embed/two-half-cones-sharing-both-rulings-refuse-departure-at-their-apex-in-a-turned-frame.md`
-/// gives each main's. A cone here that refuses is that row's evidence.
+/// The unit cone holds in each frame within 400 splits, as in the plain
+/// frame's 174: its half-cones' windows end at the apex. Red where a
+/// window reaches past the apex into the other nappe, as one read off
+/// the boundary's world box does in a turned frame (thousands of splits
+/// on the first plane, a `Departure` refusal on the third). A cone here
+/// that refuses otherwise is
+/// `work/embed/two-half-cones-sharing-both-rulings-refuse-departure-at-their-apex-in-a-turned-frame.md`'s
+/// evidence.
 #[test]
 fn singular_points_hold_far_from_the_origin_and_in_turned_frames() {
     fn ball<T: Scalar>(y0: f64) -> Body<T> {
@@ -5883,12 +6006,13 @@ fn singular_points_hold_far_from_the_origin_and_in_turned_frames() {
             (at(0.0, 103.6), 0.0),
         ]
     };
-    for (what, k, verts) in [
-        ("the unit cone", 1, unit()),
-        ("the unit cone", 2, unit()),
-        ("the slender cone", 1, slender()),
-        ("the slender cone", 2, slender()),
-        ("the slender cone", 3, slender()),
+    for (what, k, verts, ceiling) in [
+        ("the unit cone", 1, unit(), 400),
+        ("the unit cone", 2, unit(), 400),
+        ("the unit cone", 3, unit(), 400),
+        ("the slender cone", 1, slender(), usize::MAX),
+        ("the slender cone", 2, slender(), usize::MAX),
+        ("the slender cone", 3, slender(), usize::MAX),
     ] {
         let cone = revolved_on(turned_plane(k), verts);
         let report = injective(&cone, None, BUDGET);
@@ -5898,36 +6022,217 @@ fn singular_points_hold_far_from_the_origin_and_in_turned_frames() {
             "{what} in frame {k}: {:?}",
             report.receipt
         );
+        assert!(
+            report.receipt.splits < ceiling,
+            "{what} in frame {k} within {ceiling} splits: {:?}",
+            report.receipt
+        );
     }
 }
 
-/// **The unit cone on the third turned plane refuses on the departure
-/// arm at its apex**: the triangle `(0, 0) (1, 0) (0, 1)` revolved on
-/// [`turned_plane`]`(3)`. Its apex is placed and its meridians run on to
-/// it; the two half-cones, which share both rulings, are then not parted
-/// at the apex: `zero_of` reads `Local` in the cells there, 90,849 times
-/// in the run, with both rulings zero sides of one cell
-/// (`work/embed/two-half-cones-sharing-both-rulings-refuse-departure-at-their-apex-in-a-turned-frame.md`,
-/// exit A). The refusal names the two half-cones across a shared
-/// ruling, at every ε. Red when it holds, and that row's reading has
-/// landed.
-#[test]
-fn the_unit_cone_on_the_third_turned_plane_refuses_departure_at_its_apex() {
-    let at = |x: f64, y: f64| Point2::new(x, y);
-    let cone = revolved_on(
-        turned_plane(3),
-        vec![
-            (at(0.0, 0.0), 0.0),
-            (at(1.0, 0.0), 0.0),
-            (at(0.0, 1.0), 0.0),
+/// The affine chart coordinates of `surface` at `p` that a face's window
+/// bounds from its boundary: a plane's `u` and `v`, a cylinder's axial
+/// `v`, a cone's slant `v`, each `None` where the coordinate is periodic
+/// or the carrier another kind.
+fn affine_coordinates(surface: &Surface<f64>, p: Point3<f64>) -> [Option<f64>; 2] {
+    match surface {
+        Surface::Plane { frame } => {
+            let (o, u) = (frame.origin(), frame.u_ref());
+            let w = frame.axis().cross(u);
+            [
+                Some((p - o).dot(u) / u.norm_squared()),
+                Some((p - o).dot(w) / w.norm_squared()),
+            ]
+        }
+        Surface::Cylinder { frame, .. } => {
+            let a = frame.axis();
+            [None, Some((p - frame.origin()).dot(a) / a.norm_squared())]
+        }
+        Surface::Cone {
+            frame, half_angle, ..
+        } => [
+            None,
+            Some((p - frame.origin()).dot(frame.axis()) / half_angle.cos()),
         ],
+        _ => [None, None],
+    }
+}
+
+/// The windows of every face of `body`, as `(face, u, v)`.
+fn window_rects(what: &str, body: &Body<f64>) -> Vec<topo::clearance::WindowRect> {
+    let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
+    Side { body, faces }
+        .windows(Which::First)
+        .unwrap_or_else(|e| panic!("{what}: every face has a window: {e:?}"))
+        .rects()
+}
+
+/// The range of each of [`affine_coordinates`] over `face`'s boundary,
+/// each half-edge's certified carrier sampled at 401 parameters over its
+/// span; `None` for a coordinate the face does not bound.
+fn boundary_ranges(body: &Body<f64>, face: FaceKey) -> [Option<(f64, f64)>; 2] {
+    let surface = body.face(face).unwrap().surface().unwrap();
+    let mut range: [Option<(f64, f64)>; 2] = [None, None];
+    for (lk, _, _) in body.face(face).unwrap().loops() {
+        let LoopBoundary::Cycle { first } = body.get_loop(lk).unwrap().boundary else {
+            continue;
+        };
+        for he in body.loop_cycle(first).unwrap() {
+            let edge = body.get_edge(body.get_half_edge(he).unwrap().edge).unwrap();
+            let curve = body.get_curve_geom(edge.curve).unwrap();
+            let curve = curve.certified().expect("a certified edge");
+            let (t0, t1) = curve.params();
+            for i in 0..=400 {
+                let t = t0 + (t1 - t0) * f64::from(i) / 400.0;
+                let p = curve.carrier().eval(t);
+                for (r, c) in range.iter_mut().zip(affine_coordinates(surface, p)) {
+                    if let Some(c) = c {
+                        *r = Some(r.map_or((c, c), |(lo, hi)| (lo.min(c), hi.max(c))));
+                    }
+                }
+            }
+        }
+    }
+    range
+}
+
+/// **Every face's window holds its boundary, in every frame**: for each
+/// plane, cylinder and cone face, the window's range of each affine chart
+/// coordinate ([`affine_coordinates`]) holds that coordinate over the
+/// face's boundary, its edges sampled at 401 parameters each, to `1e-12`.
+/// Bodies: the unit cone, a frustum, a ring (a cylinder pair and two
+/// annuli on circle edges) and a cone ring, each revolved on the plain and
+/// the three turned sketch planes ([`turned_plane`]); the oblique cut and
+/// the rod less a tilted slab, turned; the torus cut off its axis, plain
+/// and turned; the one-face torus cut, turned. Red where a window is
+/// narrower than its boundary on any one coordinate, which leaves part
+/// of a face outside the cells the walk reads.
+#[test]
+fn every_face_window_holds_its_boundary_in_every_frame() {
+    use geom_core::{Affine3, Vec3};
+    let at = |x: f64, y: f64| Point2::new(x, y);
+    let mut bodies: Vec<(String, Body<f64>)> = Vec::new();
+    for k in 0..4 {
+        for (what, pts) in [
+            ("the unit cone", &[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)][..]),
+            (
+                "the frustum",
+                &[(0.0, 0.0), (1.0, 0.0), (0.5, 1.0), (0.0, 1.0)][..],
+            ),
+            (
+                "the ring",
+                &[(0.5, 0.0), (1.0, 0.0), (1.0, 1.0), (0.5, 1.0)][..],
+            ),
+            (
+                "the cone ring",
+                &[(0.5, 0.0), (1.0, 0.0), (0.7, 1.0), (0.5, 1.0)][..],
+            ),
+        ] {
+            let verts = pts.iter().map(|&(x, y)| (at(x, y), 0.0)).collect();
+            bodies.push((
+                format!("{what} in frame {k}"),
+                revolved_on(turned_plane(k), verts),
+            ));
+        }
+    }
+    let turn = Affine3::rotation_about_axis(
+        Point3::new(0.3, -0.2, 0.1),
+        Vec3::new(0.48, -0.6, 0.64),
+        1.0,
     );
-    let report = injective(&cone, None, BUDGET);
-    assert_refuses_departure(
-        "the unit cone in frame 3",
-        &report,
-        "a: FaceKey(1v1), b: FaceKey(2v1), shared: Edge(EdgeKey(4v1))",
-    );
+    for (what, body) in [
+        (
+            "the oblique cut, turned",
+            moved(&oblique_cut::<f64>(), &turn),
+        ),
+        (
+            "the rod less a tilted slab, turned",
+            moved(&rod_less_a_tilted_slab::<f64>((-3.0, 3.0)), &turn),
+        ),
+        (
+            "the torus cut off its axis",
+            torus_cut_off_its_axis::<f64>(),
+        ),
+        (
+            "the torus cut off its axis, turned",
+            moved(&torus_cut_off_its_axis::<f64>(), &turn),
+        ),
+        (
+            "the one-face torus cut, turned",
+            moved(&one_face_torus_cut::<f64>(), &turn),
+        ),
+    ] {
+        bodies.push((what.to_owned(), body.into_body()));
+    }
+    let mut read = 0;
+    for (what, body) in &bodies {
+        for (face, u, v) in window_rects(what, body) {
+            for (name, win, range) in [("u", u, 0), ("v", v, 1)]
+                .map(|(name, win, i)| (name, win, boundary_ranges(body, face)[i]))
+            {
+                let Some((lo, hi)) = range else { continue };
+                read += 1;
+                assert!(
+                    win.0 <= lo + 1e-12 && hi <= win.1 + 1e-12,
+                    "{what}, face {face:?}, {name}: the window {win:?} holds the boundary's \
+                     [{lo}, {hi}]"
+                );
+            }
+        }
+    }
+    assert!(read > 100, "the coordinates read: {read}");
+}
+
+/// **A turned half-cone's window runs from its apex to its rim**: the
+/// unit cone revolved on the plain and each turned sketch plane
+/// ([`turned_plane`]), apex up and apex down. Each half-cone's boundary
+/// runs through the apex along its two rulings, so its slant window is
+/// `(−√2, 0)` with the apex up and `(0, √2)` with it down, each end to
+/// `1e-12`. Red where the window reaches past the apex into the other
+/// nappe or past the rim, and where it falls short of either.
+#[test]
+fn a_turned_half_cones_window_runs_from_its_apex_to_its_rim() {
+    let at = |x: f64, y: f64| Point2::new(x, y);
+    let rim = core::f64::consts::SQRT_2;
+    for k in 0..4 {
+        for (what, verts, want) in [
+            (
+                "apex up",
+                vec![
+                    (at(0.0, 0.0), 0.0),
+                    (at(1.0, 0.0), 0.0),
+                    (at(0.0, 1.0), 0.0),
+                ],
+                (-rim, 0.0),
+            ),
+            (
+                "apex down",
+                vec![
+                    (at(0.0, 2.7), 0.0),
+                    (at(0.0, 1.7), 0.0),
+                    (at(1.0, 2.7), 0.0),
+                ],
+                (0.0, rim),
+            ),
+        ] {
+            let cone = revolved_on(turned_plane(k), verts);
+            let mut halves = 0;
+            for (face, _, v) in window_rects(what, &cone) {
+                if !matches!(
+                    cone.face(face).unwrap().surface().unwrap(),
+                    Surface::Cone { .. }
+                ) {
+                    continue;
+                }
+                halves += 1;
+                assert!(
+                    (v.0 - want.0).abs() < 1e-12 && (v.1 - want.1).abs() < 1e-12,
+                    "the cone {what} in frame {k}, face {face:?}: its slant window {v:?} is {want:?}"
+                );
+            }
+            assert_eq!(halves, 2, "the cone {what} in frame {k} has two half-cones");
+        }
+    }
 }
 
 /// **Review sweep (PR 7115): cone tips revolved off the origin, and their
@@ -6722,15 +7027,31 @@ const SPLIT_POSES: [SplitPose; 4] = [
 /// frustum revolved a full turn about `y` (its wall two half-cones
 /// meeting along the rulings at `±x`) and split.
 fn split_cone<T: Scalar>(cut: SplitCone, pose: SplitPose) -> Body<T> {
-    try_split_cone(cut, pose).unwrap_or_else(|e| panic!("the split cone is placed: {e:?}"))
+    match try_split_cone(cut, pose) {
+        Ok(body) => body,
+        Err(SplitConeRefusal::Map(e)) => {
+            panic!("the split cone is placed: the mirror refused {e:?}")
+        }
+        Err(SplitConeRefusal::Rows(e)) => {
+            panic!("the split cone is placed: its mirror image's rows refused {e:?}")
+        }
+    }
 }
 
-/// [`split_cone`], with the mirror door's refusal handed back for a row
-/// that reads a build limit.
+/// Why a split cone was not placed: the mirror's data map refused, or
+/// the mirror image's rows did not complete.
+#[derive(Debug)]
+enum SplitConeRefusal {
+    Map(topo::TransformError),
+    Rows(Vec<topo::ValidationError>),
+}
+
+/// [`split_cone`], with the mirror door's refusal, or its image's
+/// completion refusal, handed back for a row that reads a build limit.
 fn try_split_cone<T: Scalar>(
     ((r0, r1, h), (q, phi, psi), above): SplitCone,
     pose: SplitPose,
-) -> Result<Body<T>, topo::TransformError> {
+) -> Result<Body<T>, SplitConeRefusal> {
     use geom_core::{Affine3, Vec3};
     use sweep::test_support::finished;
     use topo::splitting::{SplitPart, SplitPlane, split};
@@ -6776,7 +7097,10 @@ fn try_split_cone<T: Scalar>(
                 tol(),
             )
             .expect("a mirror plane");
-            topo::mirror_body(&body, &across, tol())?
+            // The mirror image's rows completed, as its finish completes
+            // them: a row the image cannot certify refuses here.
+            let image = topo::mirror_body(&body, &across).map_err(SplitConeRefusal::Map)?;
+            topo::test_support::completed(image, tol()).map_err(SplitConeRefusal::Rows)?
         }
     })
 }
@@ -6894,22 +7218,31 @@ fn a_split_cone_refuses_on_a_pair_holding_its_wall() {
         twin: bool,
     ) -> Option<Body<T>> {
         use geom_brep::{PcurveCertifyError, PcurveCheck};
-        use topo::{PcurveMintError, TransformError};
-        match try_split_cone::<T>(cut, pose) {
-            Ok(body) => Some(body),
-            Err(
-                refusal @ TransformError::Pcurve {
-                    source:
-                        PcurveMintError::Certify {
-                            error:
-                                PcurveCertifyError::Escalated {
-                                    check: PcurveCheck::Envelope,
-                                    ..
-                                },
+        use topo::PcurveMintError;
+        let envelope = |f: &topo::ValidationError| {
+            matches!(
+                f,
+                topo::ValidationError::Pcurve {
+                    finding: PcurveMintError::Certify {
+                        error: PcurveCertifyError::Escalated {
+                            check: PcurveCheck::Envelope,
                             ..
                         },
-                },
-            ) if twin && wall && matches!(pose, SplitPose::Mirrored) && tol().eps() < 1e-11 => {
+                        ..
+                    },
+                }
+            )
+        };
+        match try_split_cone::<T>(cut, pose) {
+            Ok(body) => Some(body),
+            Err(SplitConeRefusal::Rows(refusal))
+                if !refusal.is_empty()
+                    && refusal.iter().all(envelope)
+                    && twin
+                    && wall
+                    && matches!(pose, SplitPose::Mirrored)
+                    && tol().eps() < 1e-11 =>
+            {
                 println!(
                     "SKIPPED (ε = {:e}): {what} {pose:?} at Interval is not placed: {refusal:?}",
                     tol().eps()

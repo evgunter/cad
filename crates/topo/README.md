@@ -54,7 +54,7 @@ that what you need belongs at the root or below.
 | Chart-region overlap (Door 2) | `src/chart_region.rs` (`chart_region_overlap`, `glued_pair_overlap`, `world_carrier`, `cylinder_pair_overlap`, `interior_witness`), `src/chart.rs`, `src/chart_iso.rs`, `src/pcurves/decision.rs` (`branches_astride_as`), `src/pcurves/lift.rs` (`lifted_images`) |
 | The region a face or an edge can occupy | `src/cover.rs` (`face_cover`, `face_cover_toward`, `edge_cover`, `face_nearest`, `meet_within`): a face's carrier cover met with the trim constraints its one arm per kind proves, an edge's carrier cover over its span hulled with its ends, the ball where two covers meet within the band |
 | A loop's position in its face's chart | `src/pcurves/lift.rs` (`Lift`): the chain of the loop's chart images, each moved by the joint elements summed along it (`src/joint.rs`), and the face's boundary in the chart, through a pole or an apex along the face's turn there. `Lift::read` takes the rows a finished body stores, with no band, and a missing row is loud; `Lift::decided` runs the mint's own walk at the caller's band over a loop or an open run, mid-operation, and stores nothing. The caller names which, and neither falls back to the other. Every window, hull and winding is a method on it, and so is every joint's chart point: where a row meets a column it is the meet of the two lines those images hold fixed, exact wherever both lines are, and elsewhere it is the image's value there. A row or column image stores the line it holds and one map along it, and no ends. A chart closed in a direction states its period by its domain's two ends, so an image on one end moved a whole period lies exactly on the other. `decide_joint` is the one decision of a joint's branch |
-| A face's rings in its outer loop's sheet | `src/pcurves_rings.rs` (`Body::face_lift`, `FaceLift`, `PlacedRing`, `RingPlacementError`, `place_ring`): each ring's lift moved by the one whole number of periods per closed channel that puts its first point in the region the outer loop's lift bounds, decided against the outer loop alone in the chart's cover. An analytic chart reads the point by the ray parity over the lifted rows' chart boxes, each clearance metered by the chart's inf-side arms; a spline chart reads it by its trim (`src/spline_trim.rs`), which places its own rings by the same rule. An outer loop or a ring that does not close in the chart, a ring no shift places, one two shifts place, and a spline trim that is not read (`SplineTrimGap`: a placeholder chart, no Bézier cells, a period stated but not decided, a lift that winds, a row moved by a period on a channel the chart states but does not decide closed or onto the twin sheet, an image with no piece reading, a box with no value, naming the ring where it is a ring's chain) each answer typed; the work bounds of both readers live beside the rule, and the ray parity both run is `src/chain_parity.rs` (`ray_parity_as` over each family's `ChainPiece`) |
+| A face's rings in its outer loop's sheet | `src/pcurves_rings.rs` (`Body::face_lift`, `FaceLift`, `PlacedRing`, `RingPlacementError`, `place_ring`): each ring's lift moved by the one whole number of periods per closed channel that puts its first point in the region the outer loop's lift bounds, decided against the outer loop alone in the chart's cover. An analytic chart reads the point by the ray parity over the lifted rows' chart boxes, each clearance metered by the chart's inf-side arms; a spline chart reads it by its trim (`src/spline_trim.rs`), which places its own rings by the same rule. An outer loop or a ring that does not close in the chart, a ring no shift places, one two shifts place, and a spline trim that is not read (`SplineTrimGap`: a pending chart, no Bézier cells, a period stated but not decided, a lift that winds, a row moved by a period on a channel the chart states but does not decide closed or onto the twin sheet, an image with no piece reading, a box with no value, naming the ring where it is a ring's chain) each answer typed; the work bounds of both readers live beside the rule, and the ray parity both run is `src/chain_parity.rs` (`ray_parity_as` over each family's `ChainPiece`) |
 | A point against a spline face's trim | `src/spline_trim.rs` (`Trim`, `bezier_cells`, `Patch`, `ring_decks`): a face's loops in its spline chart as rational Bézier pieces, each ring moved into its outer loop's cover by the ring rule, and a query placed by the ray parity of its centre (`src/chain_parity.rs`), every piece decided clear of it in metres through the chart's inf-side arms over a window; the chart's Bézier cells, which meter the window's arms and the boolean's carrier walk (`src/spline_region.rs`), each box widened by its `f64` rounding |
 | A face's azimuth window on its chart | `src/chart_window.rs` (`face_azimuth_window`): the first-channel hull of the outer loop's lift, decided at the reader's band since its readers run mid-operation too, refusing in its own `ChartWindowError` |
 | Chart cells against a face's region | `src/cell_region.rs` (`cell_region`, `station_region`, `CellRegion`): a cell of a face's stored chart decided `Inside`, `Outside` or `Undecided` off the face's edges on their carriers and its point-in-face door; `src/pcurves/tier3.rs` (`loop_windings`) |
@@ -406,18 +406,19 @@ premises, each proven over the spread: the target's carrier is one graph
 over the junction's tangent plane there (`junction_end_reach`: the
 spread at most half its least radius of curvature, a cone's taken within
 the reach and short of its other nappe), and the spread is short of the
-rim's radius (`junction_end_rim_reach`). A window read past the order's
-own term, whose spread holds roots of the quotient as well as the end's,
-is read only where the target face is bounded within the spread by the
-rim alone, or by edges leaving the end on the target's own side of it
-(`junction_end_boundary_clear`); otherwise it refuses
-`JunctionEndUnread` with `NearBoundary`. At the order's own term the
-target face's other edges are assumed to stand off the spread, and no
-reading checks it. A root nearer the end
+rim's radius (`junction_end_rim_reach`). A root nearer the end
 than where that margin clears the band lies within the band of the
 target face's boundary, not necessarily at the vertex, and is the touch
 the vertex's own placement records. No window, a premise not proven or a
-side not held refuses `JunctionEndUnread` with `Window`. An end where the glued
+side not held refuses `JunctionEndUnread` with `Window`. The window is
+read, at every pivot, only where nothing but the rim bounds the target
+face on the edge's side within the spread
+(`junction_end_boundary_clear`): the rim's own edges pass; an edge
+leaving the end passes where it holds the target's own side of the rim
+out to `1.25σ` and its carrier's distance floor clears the spread past
+that; any other edge passes where its carrier's distance floor clears
+the spread, and a lone vertex where its distance does. Anything else
+refuses `JunctionEndUnread` with `NearBoundary`. An end where the glued
 stretch stops is read only where the target face's corner there is
 decided within π (`junction_end_corner`), since only then does that face
 lie on its own side of the rim's tangent; a reflex or undecided corner

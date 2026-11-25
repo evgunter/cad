@@ -56,7 +56,7 @@ fn walls(body: &Body<f64>) -> Vec<topo::FaceKey> {
         .filter(|&(f, _)| {
             matches!(
                 body.face_surface(f),
-                Some(geom::Surface::Cylinder { radius, .. }) if (radius - R).abs() < 1e-9
+                Ok(geom::Surface::Cylinder { radius, .. }) if (radius - R).abs() < 1e-9
             )
         })
         .map(|(f, _)| f)
@@ -165,7 +165,7 @@ fn a_peg_in_one_segment_of_a_bore_moves_only_its_wall_in_both_orders() {
         let left = walls(&u);
         assert!(!left.is_empty(), "{order}: the bore's wall survives");
         for f in left {
-            let Some(geom::Surface::Cylinder { frame, .. }) = u.face_surface(f) else {
+            let Ok(geom::Surface::Cylinder { frame, .. }) = u.face_surface(f) else {
                 unreachable!("a wall face is a cylinder");
             };
             let axis = frame.axis();

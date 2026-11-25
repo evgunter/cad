@@ -38,7 +38,7 @@ pub fn nurbs_wall<T: SpanLocate>() -> geom::Surface<T> {
         weights,
     )
     .unwrap();
-    assert!(!n.is_placeholder(), "the wall is DESCRIBED");
+    assert!(n.is_finite(), "the wall is DESCRIBED");
     geom::Surface::Nurbs(std::sync::Arc::new(n)).map_scalar(T::from_f64)
 }
 

@@ -2032,7 +2032,7 @@ impl<T: crate::props::AtRestPolicy> GluedPairs<T> {
                 continue;
             }
             // The door verified every face a certificate names.
-            let surface = body(target).proven_face(target.1).surface();
+            let surface = body(target).proven_face(target.1).expect_described();
             *side = read_cover_side(body(parent), parent.1, surface, band);
         }
         Ok(pairs)
@@ -2301,7 +2301,7 @@ fn tangent_struts<T: Real>(
             geom_brep::EdgeDescription::TangentIntersection { .. }
         ) && crate::attach::Named::of_description(curve.description()).adjacent_at_rest(sides)
         {
-            let kind = |f| body.proven_face(f).surface().kind();
+            let kind = |f| body.proven_face(f).expect_described().kind();
             let (k1, k2) = (kind(f1), kind(f2));
             out.push((f1, k1, f2, k2));
             out.push((f2, k2, f1, k1));
@@ -4174,19 +4174,6 @@ pub enum BooleanError {
     ///
     /// An abort: a kernel fault (row 4).
     Euler(EulerOpError),
-    /// The result body's pcurve mint pass refused (M5 PR 9: curved
-    /// results carry certified per-half-edge pcurves at rest — the
-    /// PR 6 contract; loud rather than shipping uncertified caches,
-    /// D4 ¶2).
-    ///
-    /// No ladder reads it (raised by the pcurve mint, on the body the join changed, after the
-    /// reduction where every reader of [`Self::refusal`] runs), so [`geom_core::ladder::Aborts`]
-    /// stands in for a class it does not have: the pcurve pass's refusal mixes limits and kernel
-    /// faults. The first ladder that reads one splits it by cause.
-    Pcurves {
-        /// The typed pcurve-pass refusal, nested whole.
-        source: crate::pcurves::PcurveMintError,
-    },
     /// The joining stage's chord machinery refused, nested whole
     /// (`UnpairedLooseEnds`, `SectionLoopMixed`, …): never a lineage row,
     /// which is [`Self::LineageRow`] ([`BooleanJoin`]).
@@ -4770,8 +4757,6 @@ pub enum BooleanErrorKind {
     NodeUnbuilt,
     /// [`BooleanError::Euler`].
     Euler,
-    /// [`BooleanError::Pcurves`].
-    Pcurves,
     /// [`BooleanError::Join`].
     Join,
     /// [`BooleanError::JoinUndecided`].
@@ -5139,7 +5124,6 @@ impl BooleanError {
             Self::GermSectionOpenConic { .. } => BooleanErrorKind::GermSectionOpenConic,
             Self::NodeUnbuilt { .. } => BooleanErrorKind::NodeUnbuilt,
             Self::Euler(_) => BooleanErrorKind::Euler,
-            Self::Pcurves { .. } => BooleanErrorKind::Pcurves,
             Self::Join(_) => BooleanErrorKind::Join,
             Self::JoinUndecided(_) => BooleanErrorKind::JoinUndecided,
             Self::JoinPartnersTied => BooleanErrorKind::JoinPartnersTied,
@@ -5305,7 +5289,6 @@ impl BooleanError {
             | Self::ClassificationInvariant { .. }
             | Self::CrossingInsertion { .. }
             | Self::Euler(_)
-            | Self::Pcurves { .. }
             | Self::CarryRefused { .. }
             | Self::OneRecordUncertified { .. }
             | Self::JoinDesync { .. }
@@ -5514,11 +5497,10 @@ impl BooleanError {
             } => write!(
                 f,
                 "an edge of the {} operand ends on a rim where its face and a face of the other \
-                 join smoothly, close to where the two faces curve alike across it, and another \
-                 edge of the other face lies too near that end for the Boolean to read which \
-                 face the edge meets there. Moving that edge farther from the end, or turning \
-                 the parts so the edge ends farther from where the faces curve alike, may let \
-                 it through",
+                 join smoothly, and another edge or a lone vertex of the other face lies too \
+                 near that end for the Boolean to read that the edge leaves that face there. \
+                 Making the other face longer past the rim, or moving the edge's end away from \
+                 that edge or vertex, may let it through",
                 operand_word(*operand),
             ),
             Self::JunctionEndUnread {
@@ -5719,14 +5701,21 @@ impl BooleanError {
                          outline (a whole-turn construction circle, or an arc wound past a \
                          full turn, is one it cannot read)"
                     ),
-                    ContainError::RayExhausted => {
+                    ContainError::RayExhausted(_)
+                    | ContainError::Curved(PointInSolidError::RegionRayExhausted { .. }) => {
                         write!(f, "{preamble}: {}", crate::ray_walk::NoRaySettled)
                     }
+                    ContainError::Uncrossable(u) => {
+                        write!(f, "{preamble}: {u}. Recourse: {CONIC_OUTLINE_RECOURSE}")
+                    }
+                    ContainError::ArcEndClearOfCorners(gaps) => write!(
+                        f,
+                        "{preamble}: the point lies at an arc's end clear of its corners: \
+                         {gaps}. Recourse: {}",
+                        placement_lever(Some(ContainDecision::ArcEnd))
+                    ),
                     ContainError::Curved(e) => write!(f, "the Boolean {}", read_at(e, at)),
-                    ContainError::Escalated { .. }
-                    | ContainError::StaleFace(_)
-                    | ContainError::Uncrossable(_)
-                    | ContainError::ArcEndClearOfCorners(_) => {
+                    ContainError::Escalated { .. } | ContainError::StaleFace(_) => {
                         write!(f, "{preamble}: {}", read_at(refusal, at))
                     }
                 }
@@ -5868,12 +5857,6 @@ impl BooleanError {
                      point {where_}. Recourse: {recourse}"
                 )
             }
-            Self::Pcurves { source } => write!(
-                f,
-                "the result's pcurve mint pass refused (curved results carry \
-                 certified per-half-edge pcurves at rest): {}",
-                read_at(source, at)
-            ),
             Self::NonFiniteSectorChord { .. } => write!(
                 f,
                 "a direction the Boolean measures where the solids meet has no finite \
@@ -6704,7 +6687,7 @@ pub fn sweep_records(
 
 /// **The boolean pipeline through its join**, undeclared and realized:
 /// the two operand clones as the join leaves them, every null edge
-/// killed, before the finish, the zip and the closing mint — the
+/// killed, before the finish and the zip — the
 /// production sequence itself (`ops::through_the_join`), stopped there,
 /// with the interior-loop guard's verdict the pipeline raises later.
 /// `None` where the pipeline answers without a join to stop at. Test
@@ -7934,7 +7917,7 @@ fn given_verdicts<T: Decide>(
     band: Band,
 ) -> Result<VerifiedGlue<T>, BooleanError> {
     let invariant = |what| BooleanError::ClassificationInvariant { what };
-    let kind = |body: &Body<T>, f| body.proven_face(f).surface().kind();
+    let kind = |body: &Body<T>, f| body.proven_face(f).expect_described().kind();
     let mut verified = VerifiedGlue::default();
     for pair in &decls.pairs {
         let (fa, fb) = (pair.a, pair.b);
@@ -8120,10 +8103,9 @@ pub enum JunctionEndGap {
     Window,
     /// The edge is closed, both its ends at the one point on the rim.
     Closed,
-    /// The window was read past the order's own term, so its spread holds
-    /// roots of the edge on the other face's carrier, and some boundary of
-    /// that face other than the rim is not decided farther from the end
-    /// than the spread: the face may reach such a root from there.
+    /// Some boundary of the other face, other than the rim, is not decided
+    /// farther from the end than the window's spread: the face may reach a
+    /// root of the edge on its carrier there.
     NearBoundary,
     /// The end lies where two stretches of the junction meet, ridden
     /// opposite ways: the rim names no side of it.
@@ -8328,7 +8310,7 @@ pub(crate) fn tangent_pair_at_rest<T: Decide>(
 #[track_caller]
 fn record_face<T: Real>(body: &Body<T>, f: FaceKey) -> (&geom::Surface<T>, bool) {
     let face = body.proven_face(f);
-    (face.surface(), face.sense())
+    (face.expect_described(), face.sense())
 }
 
 /// A record's tangent line known to run through both faces' interiors
@@ -8394,7 +8376,7 @@ fn glued_face<T: Real>(
     let face = body
         .face(f)
         .ok_or_else(|| invalid("a glued face's key does not resolve"))?;
-    Ok((face.surface().clone(), face.sense()))
+    Ok((face.expect_described().clone(), face.sense()))
 }
 
 /// **What the glue door glues of two distinct carriers**
@@ -8645,8 +8627,8 @@ pub fn rim_door(
                 continue;
             }
             let kinds = (
-                a.proven_face(fa).surface().kind(),
-                b.proven_face(fb).surface().kind(),
+                a.proven_face(fa).expect_described().kind(),
+                b.proven_face(fb).expect_described().kind(),
             );
             let door = match verify_distinct(a, fa, b, fb, DeclarationRead::Moot, band) {
                 Ok(DistinctGlue::Junction(_)) => RimDoor::Junction,
@@ -9225,7 +9207,7 @@ fn validate_declarations<T: Decide>(
     let inventory_face = |body: &Body<T>, f: FaceKey, operand| -> Result<(), BooleanError> {
         let surface = body
             .face(f)
-            .map(|f| f.surface())
+            .map(|f| f.expect_described())
             .ok_or_else(|| bad(operand, "declared face key does not resolve"))?;
         if geom_brep::carrier_eq::in_inventory(surface.kind()) {
             Ok(())
@@ -9833,7 +9815,7 @@ mod tests {
             .find(|(_, f)| {
                 matches!(
                     body.get_surface(f.surface),
-                    Some(geom::Surface::Plane { frame, .. })
+                    Ok(geom::Surface::Plane { frame, .. })
                         if frame.origin().z > 0.5 && frame.axis().z.abs() > 0.5
                 )
             })
@@ -9968,7 +9950,7 @@ mod tests {
         };
         let (fa, fb) = (cap(&a, 1.0), cap(&b, -1.0));
         let face = a.get_face(fa).unwrap();
-        let Some(geom::Surface::Plane {
+        let Ok(geom::Surface::Plane {
             frame: carrier_frame,
         }) = a.get_surface(face.surface).cloned()
         else {
@@ -10229,7 +10211,7 @@ mod tests {
             BooleanError::PointInFaceRefused {
                 operand: Operand::B,
                 face,
-                refusal: ContainError::RayExhausted,
+                refusal: ContainError::RayExhausted(crate::entity::LoopKey::default()),
             },
             BooleanError::InsideOutOperand {
                 operand: Operand::B,
@@ -10358,9 +10340,6 @@ mod tests {
                 a_face: face,
                 b_face: face,
                 why: NodeWhy::OnBoundary(Operand::A),
-            },
-            BooleanError::Pcurves {
-                source: crate::pcurves::PcurveMintError::Unminted { face },
             },
             BooleanError::JoinDesync { what: "a lockstep" },
             BooleanError::Carve {
@@ -10531,7 +10510,6 @@ mod tests {
                 BooleanErrorKind::GermSectionOpenConic => "GermSectionOpenConic",
                 BooleanErrorKind::NodeUnbuilt => "NodeUnbuilt",
                 BooleanErrorKind::Euler => "Euler",
-                BooleanErrorKind::Pcurves => "Pcurves",
                 BooleanErrorKind::Join => "Join",
                 BooleanErrorKind::JoinUndecided => "JoinUndecided",
                 BooleanErrorKind::JoinPartnersTied => "JoinPartnersTied",
@@ -10615,7 +10593,9 @@ mod tests {
         };
         let door = refused(crate::rim_wedge::RimUnread::Unplaced {
             side: geom_brep::PairSide::Second,
-            why: crate::rim_wedge::Unplaced::Door(ContainError::RayExhausted),
+            why: crate::rim_wedge::Unplaced::Door(ContainError::RayExhausted(
+                crate::entity::LoopKey::default(),
+            )),
         });
         assert!(
             matches!(
@@ -10623,7 +10603,7 @@ mod tests {
                 BooleanError::PointInFaceRefused {
                     operand: Operand::B,
                     face,
-                    refusal: ContainError::RayExhausted,
+                    refusal: ContainError::RayExhausted(_),
                 } if face == fb
             ),
             "the door's refusal on the B face: {door:?}"

@@ -87,7 +87,7 @@ pub fn recharted<T: AtRestPolicy>(
     let mut out = body.clone();
     let face = out.get_face(wall).unwrap();
     let (key, sense) = (face.surface, face.sense);
-    let Some(Surface::Nurbs(net)) = out.get_surface(key).cloned() else {
+    let Ok(Surface::Nurbs(net)) = out.get_surface(key).cloned() else {
         panic!("the wall is a spline chart")
     };
     // Lifts RechartUnvouched and RechartStrandsDescriptions: the wall

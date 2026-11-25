@@ -112,7 +112,7 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Real, Sign, Tol};
 use super::ops::{Descendants, describe_minted_edges};
 use super::{BooleanError, Cell};
 use crate::body::Body;
-use crate::entity::{EdgeKey, EntityId, HalfEdgeKey, VertexKey};
+use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::geometry::PointKey;
 use crate::live::proven;
 use crate::readback::edge_sides_of;
@@ -615,11 +615,12 @@ fn joinable<T: Decide>(
         }))
     };
     let (sf, sg) = s1.surfaces();
-    let surface = |side: crate::readback::EdgeSide| {
-        let face = body.proven_face(side.face);
-        face.surface()
+    let surface = |side: crate::readback::EdgeSide| body.proven_face(side.face).surface().ok();
+    // A pending face carries no description a join could keep: the
+    // validator and the merge door read this over bodies mid-build.
+    let (Some(surf_f), Some(surf_g)) = (surface(s1.plus), surface(s1.minus)) else {
+        return Ok(None);
     };
-    let (surf_f, surf_g) = (surface(s1.plus), surface(s1.minus));
     let planar = |s: &geom::Surface<T>| matches!(s, geom::Surface::Plane { .. });
     if planar(surf_f) && planar(surf_g) {
         // One carrier by structure: both edges certified as the
@@ -820,8 +821,8 @@ pub(super) fn join_stage<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<(Vec<EdgeJoin>, Vec<ClassZero>), BooleanError> {
-    // The boolean's own surgery body, re-minted whole after the carry:
-    // no staging and no re-mint here.
+    // The boolean's own surgery body, its rows completed at the gate
+    // after the carry: no staging and no mint here.
     let free = free_vertices(body, recorded);
     let (joined, _, zeros) = join_all(body, band, tol, &|_| true, &free)?;
     for j in &joined {
@@ -1019,14 +1020,8 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
         // Staged: a refusal past the first kill leaves `self` as found.
         let mut work = self.clone();
         let mut staged = work.begin_surgery();
-        let (joined, _, _) = join_all(&mut staged, band, tol, &|_| true, &BTreeSet::new())?;
-        // A kill leaves the rows keyed by its half-edges; a body that
-        // carried rows has them re-derived whole (`pcurves::mint_pcurves`
-        // clears the map first), so none is left keyed by a dead cell.
-        if !staged.pcurves.is_empty() || !staged.joints.is_empty() {
-            crate::pcurves::mint_pcurves(&mut staged, tol)
-                .map_err(|source| BooleanError::Pcurves { source })?;
-        }
+        let (joined, dead, _) = join_all(&mut staged, band, tol, &|_| true, &BTreeSet::new())?;
+        staged.drop_rows(dead);
         staged.sweep_and_close();
         self.adopt(work);
         Ok(joined)
@@ -1047,19 +1042,7 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
             // call has no postcondition to sweep.
             return Ok(joined);
         }
-        if !(body.pcurves.is_empty() && body.joints.is_empty()) {
-            body.drop_rows(dead);
-            let mut faces = BTreeSet::new();
-            for j in &joined {
-                if let Some(e) = body.get_edge(j.kept) {
-                    faces.extend(body.face_of_half_edge(e.he_plus));
-                    faces.extend(body.face_of_half_edge(e.he_minus));
-                }
-            }
-            let faces: Vec<_> = faces.into_iter().collect();
-            crate::pcurves::mint_pcurves_of(&mut body, &faces, tol)
-                .map_err(|source| BooleanError::Pcurves { source })?;
-        }
+        body.drop_rows(dead);
         body.sweep_and_close();
         Ok(joined)
     }
@@ -1103,6 +1086,7 @@ fn join_all<T: Decide + crate::props::AtRestPolicy>(
             dead.extend([gone.he_plus, gone.he_minus]);
         }
         join_one(body, w, &join, band, tol)?;
+        complete_kept_faces(body, join.kept, tol);
         // A closed join's survivor is conventional unless another edge
         // still ends there (a seam strut on the rim it closed).
         let conventional =
@@ -1114,6 +1098,40 @@ fn join_all<T: Decide + crate::props::AtRestPolicy>(
             conventional,
         });
     }
+}
+
+/// **The faces `kept` bounds, completed afresh** after a join grew it:
+/// the join re-describes `kept` over the two edges' interval
+/// (`kev_describing`), and the site rows that description writes or
+/// keeps can stand over the interval `kept` had — on a sphere's two
+/// faces a joined meridian's half reads `LoopDiscontinuity` at tier 3
+/// (`two_rims_review_probes::a_ball_segment_inside_its_ball_builds_every_op`,
+/// through the Boolean fallback's join stage). So each such face's rows
+/// are dropped and derived whole again (`crate::pcurves`' completion,
+/// over those faces alone): current, or — where the derivation refuses —
+/// absent, for the finish to report. Every other face keeps its rows.
+fn complete_kept_faces<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    kept: EdgeKey,
+    tol: Tol,
+) {
+    let Some(edge) = body.get_edge(kept) else {
+        return;
+    };
+    let faces: Vec<FaceKey> = [edge.he_plus, edge.he_minus]
+        .into_iter()
+        .filter_map(|he| body.face_of_half_edge(he))
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    let halves: Vec<HalfEdgeKey> = faces
+        .iter()
+        .flat_map(|&face| body.proven_face(face).half_edges())
+        .collect();
+    body.drop_rows(halves);
+    // A face whose derivation refuses stays rowless: absent, which the
+    // finish completes or refuses with every other finding.
+    let _rowless = crate::pcurves::complete_faces(body, &faces, tol).err();
 }
 
 /// **`gone`'s far parameter, carried**: where `gone` is `kept`'s carrier

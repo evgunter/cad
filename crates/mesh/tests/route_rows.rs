@@ -191,7 +191,7 @@ fn poisoned(
     let (fk, sense, was) = body
         .faces()
         .find(|(fk, f)| {
-            f.rings.is_empty() && matches!(body.face_surface(*fk), Some(Surface::Cylinder { .. }))
+            f.rings.is_empty() && matches!(body.face_surface(*fk), Ok(Surface::Cylinder { .. }))
         })
         .map(|(fk, f)| (fk, f.sense, body.face_surface(fk).unwrap().clone()))
         .expect("a ringless wall");
@@ -233,10 +233,10 @@ fn no_non_iso_form(body: &Body<f64>, fk: topo::FaceKey) -> bool {
 #[test]
 fn a_section_tilted_within_the_band_meshes_to_mains_bytes() {
     const MAIN: [(f64, f64, u64); 8] = [
-        (0.3, 2e-9, 0x8f44_f884_2b54_c898),
-        (0.3, 3e-9, 0x0596_3e5f_aff7_827f),
-        (0.3, 5e-9, 0x3a24_2f4d_5df2_2351),
-        (0.3, 8e-9, 0x63f8_de94_5085_4eb9),
+        (0.3, 2e-9, 0x4fb4_d782_9d86_820a),
+        (0.3, 3e-9, 0xeb27_d2cf_b639_955b),
+        (0.3, 5e-9, 0x972d_8109_9212_a503),
+        (0.3, 8e-9, 0x1bf2_0c86_580c_b165),
         (0.6, 2e-9, 0x5f5b_7e07_e15f_1436),
         (0.6, 3e-9, 0x33aa_c942_b3f8_59c6),
         (0.6, 5e-9, 0x02eb_fa12_532b_212e),
@@ -247,7 +247,7 @@ fn a_section_tilted_within_the_band_meshes_to_mains_bytes() {
         let label = format!("x0 = {x0}, θ = {theta:e}");
         assert!(
             body.faces().any(|(fk, _)| {
-                matches!(body.face_surface(fk), Some(Surface::Sphere { .. }))
+                matches!(body.face_surface(fk), Ok(Surface::Sphere { .. }))
                     && !no_non_iso_form(&body, fk)
             }),
             "{label}: a sphere face stores a projected image"
@@ -343,7 +343,7 @@ fn a_body_that_meshes_records_mains_k_stream() {
             "ball less a slab at 0.3 turned 2e-9",
             0x5dae_4d58_bce4_166f,
             0xcbf2_9ce4_8422_2325,
-            0x8f44_f884_2b54_c898,
+            0x4fb4_d782_9d86_820a,
         ),
         (
             "ball less a slab at 0.6 turned 8e-9",
@@ -454,7 +454,7 @@ fn a_split_side_is_not_read_before_the_doors_answer() {
     let (wall, _) = washer
         .faces()
         .find(|(fk, f)| {
-            f.rings.is_empty() && matches!(washer.face_surface(*fk), Some(Surface::Cylinder { .. }))
+            f.rings.is_empty() && matches!(washer.face_surface(*fk), Ok(Surface::Cylinder { .. }))
         })
         .expect("a ringless wall");
     let seam: Vec<topo::EdgeKey> = washer
@@ -545,7 +545,7 @@ fn poisoned_ellipse_wall() -> (Body<f64>, topo::FaceKey) {
     let (fk, sense, was) = body
         .faces()
         .find(|(fk, f)| {
-            f.rings.is_empty() && matches!(body.face_surface(*fk), Some(Surface::Cylinder { .. }))
+            f.rings.is_empty() && matches!(body.face_surface(*fk), Ok(Surface::Cylinder { .. }))
         })
         .map(|(fk, f)| (fk, f.sense, body.face_surface(fk).unwrap().clone()))
         .expect("the wall");

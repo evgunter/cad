@@ -100,7 +100,7 @@ use geom_core::{Band, Decide, Margin, Point3, Vec3};
 use geom_brep::curve_pair::on_surface::{Charted, SurfaceCurve};
 
 use crate::body::Body;
-use crate::entity::{FaceKey, LoopKey};
+use crate::entity::FaceKey;
 use crate::region::{
     self, End, Fault, Legs, Paths, QueryFoot, Region, RegionEdge, RegionRefusal, Round,
     circle_edge_hit,
@@ -135,8 +135,6 @@ pub(crate) struct TorusFaceRegion<T: geom_core::Real> {
     /// The face's sense bit: `false` points its outward normal into the
     /// tube.
     sense: bool,
-    /// The face's outer loop, named by an exhaustion.
-    outer: LoopKey,
     edges: Vec<Edge<T>>,
 }
 
@@ -174,7 +172,10 @@ pub(crate) fn torus_face_region<T: Decide>(
 ) -> Result<Option<TorusFaceRegion<T>>, PointInSolidError> {
     let corrupt = || PointInSolidError::CorruptFace { face };
     let f = body.proven_face(face);
-    let geom::Surface::Torus { .. } = f.surface() else {
+    let surface = f
+        .surface()
+        .map_err(|_| PointInSolidError::PendingFace { face })?;
+    let geom::Surface::Torus { .. } = surface else {
         return Err(corrupt());
     };
     let planar = [geom::CurveKind::Circle, geom::CurveKind::Spiric];
@@ -182,9 +183,8 @@ pub(crate) fn torus_face_region<T: Decide>(
         return Ok(None);
     };
     Ok(Some(TorusFaceRegion::on(
-        Charted::record(f.record().surface, f.surface()),
+        Charted::record(f.record().surface, surface),
         f.sense(),
-        f.record().outer,
         edges,
     )))
 }
@@ -195,7 +195,7 @@ impl<T: Decide> TorusFaceRegion<T> {
     /// # Panics
     ///
     /// Where `charted` is not a torus: the caller reads the record first.
-    fn on(charted: Charted<T>, sense: bool, outer: LoopKey, edges: Vec<Edge<T>>) -> Self {
+    fn on(charted: Charted<T>, sense: bool, edges: Vec<Edge<T>>) -> Self {
         let &geom::Surface::Torus {
             frame: carrier_frame,
             major_radius,
@@ -210,7 +210,6 @@ impl<T: Decide> TorusFaceRegion<T> {
             major: major_radius,
             minor: minor_radius,
             sense,
-            outer,
             edges,
         }
     }
@@ -286,22 +285,13 @@ impl<T: Decide> Region<T> for TorusFaceRegion<T> {
         &mut self.edges
     }
 
-    fn outer(&self) -> LoopKey {
-        self.outer
-    }
-
     /// A circle on its own carrier, an oval by its contact
     /// ([`PiecedArc::contact`]).
     fn on_edge(&self, edge: &Edge<T>, p: Point3<T>, band: Band) -> Result<bool, RegionRefusal> {
         match edge.carrier {
-            geom::Curve3::Circle(..) => circle_edge_hit(
-                &edge.carrier,
-                edge.turn.as_ref(),
-                BOUNDARY,
-                p,
-                self.outer,
-                band,
-            ),
+            geom::Curve3::Circle(..) => {
+                circle_edge_hit(&edge.carrier, edge.turn.as_ref(), BOUNDARY, p, band)
+            }
             geom::Curve3::Spiric {
                 frame,
                 major_radius: major,
@@ -415,7 +405,7 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod tests {
     use super::*;
-    use crate::entity::EdgeKey;
+    use crate::entity::{EdgeKey, LoopKey};
     use core::f64::consts::{FRAC_PI_2, PI, TAU};
     use slotmap::KeyData;
 
@@ -454,12 +444,7 @@ mod tests {
             major_radius: major,
             minor_radius: minor,
         };
-        TorusFaceRegion::on(
-            Charted::record(Default::default(), &torus),
-            true,
-            LoopKey::default(),
-            edges,
-        )
+        TorusFaceRegion::on(Charted::record(Default::default(), &torus), true, edges)
     }
 
     /// The band of the torus between the minor angles `v0 < v1`, every
@@ -1146,7 +1131,9 @@ mod tests {
     /// edge at 60 stations (480 queries). A query counts where any frame
     /// answers otherwise than the first. With the legs started at
     /// `surface.eval(uv)`, the chart's round trip of the foot, 142 did;
-    /// started at the foot, 33 on frames squared where they are stated.
+    /// started at the foot, 35 on frames squared where they are stated,
+    /// each a frame that answers where another refuses: none answers
+    /// against another.
     /// What is left is the frame a curve
     /// carries in its section and plane
     /// (`work/onecopy/a-cone-or-torus-leg-carries-its-charts-frame-into-a-crossing-at-the-band.md`).
@@ -1173,7 +1160,7 @@ mod tests {
 
     /// [`a_torus_faces_circle_legs_read_no_chart_frame_at_the_escalation`]'s
     /// count.
-    const KEPT_TORUS: usize = 33;
+    const KEPT_TORUS: usize = 35;
 
     /// The frame pins' patch, `0.4 < u < 2.9`, `−0.5 < v < 0.8`, on each of
     /// [`geom::test_support::CHART_FRAMES`], its 3D edges fixed.
@@ -1201,7 +1188,6 @@ mod tests {
                 TorusFaceRegion::on(
                     Charted::record(Default::default(), &torus),
                     true,
-                    LoopKey::default(),
                     vec![
                         parallel_arc(vs.0, us, true, 1),
                         meridian(us.1, true, 2),

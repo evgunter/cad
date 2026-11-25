@@ -547,7 +547,7 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
         let mut offenders: Vec<(FaceKey, geom::SurfaceKind)> = Vec::new();
         for f in body.face_views() {
             let key = f.key();
-            let s = f.surface();
+            let s = f.expect_described();
             if !supported(s) {
                 offenders.push((key, s.kind()));
             }
@@ -561,7 +561,7 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
         let others: Vec<(FaceKey, geom::SurfaceKind, bvh::Aabb)> = other
             .face_views()
             .map(|f| {
-                let (key, kind) = (f.key(), f.surface().kind());
+                let (key, kind) = (f.key(), f.expect_described().kind());
                 Ok((key, kind, crate::boxes::face_box(other, key, pad, band)))
             })
             .collect::<Result<_, BooleanError>>()?;
@@ -762,7 +762,10 @@ pub(super) fn gate_maximal_faces<T: Decide>(
             // exactly what a maximal-faced curved operand looks like
             // (the cosurface merge itself KEEPS such a cut). Only the
             // PLANAR same-key pair is the F7 defect.
-            let planar = matches!(body.proven_face(f1).surface(), geom::Surface::Plane { .. });
+            let planar = matches!(
+                body.proven_face(f1).expect_described(),
+                geom::Surface::Plane { .. }
+            );
             if planar {
                 return Err(BooleanError::NonMaximalFaces {
                     operand,
@@ -1230,7 +1233,9 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     // from the offset along the OUTWARD normal only by the
                     // face's sense bit, so whether an end is ON the plane
                     // reads the same either way.
-                    let &geom::Surface::Plane { frame, .. } = y.proven_face(face).surface() else {
+                    let &geom::Surface::Plane { frame, .. } =
+                        y.proven_face(face).expect_described()
+                    else {
                         return Err(BooleanError::ClassificationInvariant {
                             what: "planar lane: the face's plane resolved above",
                         });
@@ -2208,7 +2213,8 @@ fn junction_window<T: Decide + crate::props::AtRestPolicy>(
         .ok_or(BooleanError::ClassificationInvariant {
             what: "a junction's glued face does not resolve",
         })?;
-    let normal = geom_brep::implicit_outward_normal(p_face.surface(), p_face.sense(), p).vec();
+    let normal =
+        geom_brep::implicit_outward_normal(p_face.expect_described(), p_face.sense(), p).vec();
     let end = match geom_core::k_stats::prove(
         "junction_end_which",
         Margin::of((carrier.eval(t1) - p).norm() - (carrier.eval(t0) - p).norm()),
@@ -2236,9 +2242,7 @@ fn junction_window<T: Decide + crate::props::AtRestPolicy>(
     let Some(window) = junction_end_window(&question, band).map_err(refused)? else {
         return Ok(None);
     };
-    if window.pivot > window.order
-        && !junction_end_boundary_clear(y, face, &question, window.spread, band)?
-    {
+    if !junction_end_boundary_clear(y, face, &question, window.spread, band)? {
         return Err(refused(JunctionEndUnsettled::Gap(
             super::JunctionEndGap::NearBoundary,
         )));
@@ -2308,10 +2312,10 @@ const NEAR_PIECE: f64 = 1.25;
 
 /// **Whether `face` is bounded within `spread` of the end by the rim
 /// alone, or by edges leaving the end on its own side**
-/// (`junction_end_boundary_clear`), asked of a window read past the
-/// order's own term, whose spread holds roots of the edge on `face`'s
-/// carrier: the side reading places them off `face` only where nothing
-/// but the rim bounds `face` on the edge's side within the spread.
+/// (`junction_end_boundary_clear`), asked of every window: the side
+/// reading places the roots of the edge on `face`'s carrier inside the
+/// spread off `face` only where nothing but the rim bounds `face` on the
+/// edge's side within the spread.
 ///
 /// - An edge of `face` on the rim's own circle
 ///   ([`geom_brep::curve_face::end_root::is_the_circle`]) is the rim's:
@@ -2332,7 +2336,7 @@ const NEAR_PIECE: f64 = 1.25;
 /// # Errors
 ///
 /// [`BooleanError::ClassificationInvariant`] for an edge with no
-/// certified carrier.
+/// certified carrier, or a ride along no direction.
 fn junction_end_boundary_clear<T: Decide>(
     y: &Body<T>,
     face: FaceKey,
@@ -2341,9 +2345,10 @@ fn junction_end_boundary_clear<T: Decide>(
     band: Band,
 ) -> Result<bool, BooleanError> {
     use geom_core::ladder::{Answering, Climb, Rung, climb};
-    let Some(conormal) = junction_conormal(q) else {
-        return Ok(false);
-    };
+    // `junction_end_window` read a window only under a ride with a side.
+    let conormal = junction_conormal(q).ok_or(BooleanError::ClassificationInvariant {
+        what: "a junction end's window was read under a ride along no direction",
+    })?;
     let (rim, p) = (q.rim, q.p);
     let past = |gap: T| {
         geom_core::k_stats::decide(
@@ -2429,7 +2434,7 @@ fn face_corner_within_pi<T: Decide>(
     let Some(view) = y.face(face) else {
         return Ok(false);
     };
-    let normal = geom_brep::implicit_outward_normal(view.surface(), view.sense(), p).vec();
+    let normal = geom_brep::implicit_outward_normal(view.expect_described(), view.sense(), p).vec();
     for (_, members, _) in view.boundary_by_loop() {
         let n = members.len();
         for i in 0..n {
@@ -2940,7 +2945,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<CurvedEvent<T>, BooleanError> {
     let (edge_key, edge) = (view.key(), view.record());
-    let surface = y.proven_face(face).surface().clone();
+    let surface = y.proven_face(face).expect_described().clone();
     let frontier = || BooleanError::CurvedPierceUnsupported {
         operand: x_is,
         face,
@@ -4214,7 +4219,7 @@ fn spline_interior<T: Decide + crate::props::AtRestPolicy>(
     if !geom_brep::curve_face::route(curve.carrier().kind(), kind).implemented {
         return Err(unbuilt());
     }
-    let surface = y.proven_face(face).surface().clone();
+    let surface = y.proven_face(face).expect_described().clone();
     let chart = surface
         .spline_chart()
         .ok_or(BooleanError::ClassificationInvariant {
@@ -5012,9 +5017,9 @@ fn parents_distinct_from<T: Decide>(
             match super::carrier_pair::carrier_pair_relation(x, pf, y, face, band) {
                 Ok(Ok(geom_brep::CarrierRelation::Distinct)) => true,
                 Err(super::carrier_pair::PairUnread::OutsideInventory) => {
-                    match x.proven_face(pf).surface() {
+                    match x.proven_face(pf).expect_described() {
                         geom::Surface::Nurbs(sheet) => {
-                            spline_off_carrier(sheet, y.proven_face(face).surface(), band)
+                            spline_off_carrier(sheet, y.proven_face(face).expect_described(), band)
                         }
                         _ => false,
                     }
@@ -5446,7 +5451,7 @@ fn spline_plane_crossings<T: Bounds + crate::props::AtRestPolicy>(
     band: Band,
 ) -> Result<Vec<T>, BooleanError> {
     use geom_brep::curve_face::{Door, route};
-    let surface = y.proven_face(face).surface();
+    let surface = y.proven_face(face).expect_described();
     let arm = route(curve.carrier().kind(), surface.kind());
     let net = match curve.carrier() {
         geom::Curve3::Nurbs(net) if arm.door == Door::SplineComposite && arm.implemented => {
@@ -6079,7 +6084,7 @@ fn landing<T: Decide>(
             crate::contain::ContainError::EmptyLoop(_)
             | crate::contain::ContainError::LoopUnreadable(_)
             | crate::contain::ContainError::Curved(_)
-            | crate::contain::ContainError::RayExhausted
+            | crate::contain::ContainError::RayExhausted(_)
             | crate::contain::ContainError::Uncrossable(_)
             | crate::contain::ContainError::ArcEndClearOfCorners(_),
         ) => Ok(Landing::Unplaced),
@@ -6425,7 +6430,7 @@ pub(super) fn esc(e: ContainError, operand: Operand, face: FaceKey) -> BooleanEr
             BooleanError::ArcLoopContainmentUnsupported { operand, cause }
         }
         ContainError::StaleFace(face) => crate::contain::driver_face_stale(face),
-        refusal @ (ContainError::RayExhausted
+        refusal @ (ContainError::RayExhausted(_)
         | ContainError::EmptyLoop(_)
         | ContainError::LoopUnreadable(_)
         | ContainError::Curved(_)
@@ -7024,7 +7029,7 @@ fn read_lying_in<T: Decide + crate::props::AtRestPolicy>(
                 along_boundary(x_is, y, (w, p), face, contacts, band, tol)?;
             }
             LyingIn::Curved(face, on_curved) => {
-                let surface = y.proven_face(face).surface();
+                let surface = y.proven_face(face).expect_described();
                 let frontier = BooleanError::CurvedPierceUnsupported {
                     operand: x_is,
                     face,
@@ -8140,7 +8145,7 @@ mod edge_span_tests {
             Tol::witness(),
         );
         crate::test_support_fixtures::set_sheet_sense(&mut y, face, true, Tol::witness());
-        let wall = y.proven_face(face).surface().clone();
+        let wall = y.proven_face(face).expect_described().clone();
         let got = wall_crossing(
             &y,
             face,
@@ -8954,7 +8959,7 @@ mod neighbour_extent_rows {
                 geom_brep::EdgeCurveSpec::line_between(p0, p1),
                 p0,
                 p1,
-                |_| None,
+                |_| Err(crate::SurfaceMiss::Stale),
                 geom_brep::ExtentBall::point(p0).lever_from(p1),
                 fine,
                 geom_brep::NurbsLane::certified(),
@@ -9026,7 +9031,7 @@ mod esc_tests {
         for e in [
             ContainError::EmptyLoop(lk),
             ContainError::LoopUnreadable(lk),
-            ContainError::RayExhausted,
+            ContainError::RayExhausted(lk),
             ContainError::Curved(PointInSolidError::CorruptFace { face }),
         ] {
             let got = esc(e.clone(), Operand::B, face);

@@ -64,7 +64,7 @@ One of:
 - **A record.** The split returns its own contact records for the
   pinches it builds.
 
-Neighbour: `work/contacthold/two-coincident-curved-edges-touching-record-no-edge-edge-row.md`
+Neighbour: `work/heldrecords/two-coincident-curved-edges-touching-record-no-edge-edge-row.md`
 (the boolean's curved edge-edge rows).
 
 Once this lands, lift `CurvedSlitTrace` from `Sweep::section_kind`, and

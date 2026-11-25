@@ -49,8 +49,7 @@
 //! Everything is generic over [`geom_core::Real`] with decisions only
 //! through [`geom_core::Decide`]'s trilean door (named predicates, D4
 //! ¶3 escalation); evaluation is comparison-free and total (poison in,
-//! poison out — including the `Nurbs` representable-unimplemented
-//! placeholders, which certification rejects loudly); sampling is
+//! poison out); sampling is
 //! deterministic by fixed schedule (D9). Instantiates at `f64`,
 //! `Dual<f64>`, `Interval`, and `Dual<Interval>`.
 
@@ -231,7 +230,7 @@ pub use intersect::{
     plane_cylinder_section_read, plane_sphere_section, plane_torus_axis_normal,
     plane_torus_section, route, route_pose, sphere_sphere_section, tilted_section_major,
 };
-pub use keys::{CurveKey, PointKey, SurfaceKey, SurfacePair};
+pub use keys::{CurveKey, PENDING_SURFACE, PointKey, SurfaceKey, SurfaceMiss, SurfacePair};
 pub use locus::{
     TangentLocus, TangentLocusError, tangent_locus, tangent_locus_kinds, tangent_locus_of_faces,
 };
