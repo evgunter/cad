@@ -2,12 +2,13 @@
 id: two-bands-of-a-revolved-arc-sharing-their-meridians-spend-the-pair-budget
 kind: issue
 title: Two π-band faces of one revolved arc, sharing both meridians that end on rim corners, spend the whole pair budget: on a spindle sheet and on a ring torus alike
-status: dispatched
+status: review
 opened: 2026-11-25
 priority: P1
 cost: M
 refs: [a-spindle-sheet-or-an-approximated-face-has-no-window-in-the-injectivity-engine]
 branch: embedwalk/two-bands
+pr: 7786
 ---
 
 
