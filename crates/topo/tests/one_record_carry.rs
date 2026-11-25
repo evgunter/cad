@@ -392,7 +392,8 @@ fn a_carried_record_on_cells_the_boolean_keeps_lands_unread() {
 
 /// **A lineage gap on one cell refuses, whatever the other cell lost.**
 /// The edge kiss's edge–edge record through a hand lineage: one edge
-/// divided into itself with a removed member, the other substituted by
+/// divided into itself with a removed member (the cube's bottom front
+/// edge), the other substituted by
 /// a cell the result does not hold, so the lineage does not cover it.
 /// D1: "a cell the lineage does not cover refuses". Red where the first
 /// cell's removed member consumes the record.
@@ -404,8 +405,13 @@ fn a_lineage_gap_beside_a_removal_refuses_unmapped() {
         .into_iter()
         .collect();
     let gap = Cell::Edge(topo::EdgeKey::default());
+    let bottom = edge_at(
+        &base.body,
+        Point3::new(0.0, 0.0, 0.0),
+        Point3::new(1.0, 0.0, 0.0),
+    );
     let lineage = topo::Lineage::new()
-        .with(x, divided(vec![x], vec![x]))
+        .with(x, divided(vec![x], vec![bottom]))
         .and_then(|l| l.with(y, topo::Fate::Substituted(gap)))
         .unwrap();
     assert_eq!(

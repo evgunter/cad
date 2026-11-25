@@ -64,7 +64,11 @@ pub struct Division {
     pub minted: Vec<Cell>,
     /// The cells of the division the op removed (a boolean's discarded
     /// fragments), in the keys of the body the carry reads them in
-    /// ([`crate::ContactRecords::carried_through_removing`]).
+    /// ([`crate::ContactRecords::carried_through_removing`]). That body
+    /// is not the result (the boolean's is its operand clones), so these
+    /// keys share no arena with `pieces` and `minted`, and no key check
+    /// between them means anything: a removed member is a part of the
+    /// cell no piece holds by the op's statement, not by key.
     pub removed: Vec<Cell>,
 }
 
@@ -143,7 +147,7 @@ impl Lineage {
     /// [`LineageError::Restated`] where a different fate of `cell` was
     /// stated before: one cell has one fate, and an op that reaches a
     /// cell by two routes says which fate it is
-    /// ([`Self::with_removal`] merges two removals).
+    /// ([`Self::with_division`] merges two removals).
     pub fn with(mut self, cell: Cell, fate: Fate) -> Result<Self, LineageError> {
         match self.rows.entry(cell) {
             std::collections::btree_map::Entry::Occupied(before) => {
@@ -330,6 +334,14 @@ impl Fate {
         match self {
             Self::Divided(d) => d.pieces.clone(),
             _ => self.images(),
+        }
+    }
+
+    /// The division, where the fate divides its cell.
+    pub(crate) fn division(&self) -> Option<&Division> {
+        match self {
+            Self::Divided(d) => Some(d),
+            _ => None,
         }
     }
 
@@ -966,12 +978,12 @@ mod tests {
         (0..n).map(|_| arena.insert(())).collect()
     }
 
-    fn removed_part(pieces: &[FaceKey]) -> Fate {
-        let cells: Vec<_> = pieces.iter().map(|&f| Cell::Face(f)).collect();
+    fn removed_part(pieces: &[FaceKey], removed: &[FaceKey]) -> Fate {
+        let cells = |fs: &[FaceKey]| -> Vec<_> { fs.iter().map(|&f| Cell::Face(f)).collect() };
         Fate::Divided(Division {
-            pieces: cells.clone(),
+            pieces: cells(pieces),
             minted: Vec::new(),
-            removed: cells,
+            removed: cells(removed),
         })
     }
 
@@ -984,7 +996,7 @@ mod tests {
         let cell = Cell::Face(f[0]);
         let stated = Lineage::new().with(cell, Fate::Removed).unwrap();
         assert_eq!(
-            stated.clone().with(cell, removed_part(&[f[1]])),
+            stated.clone().with(cell, removed_part(&[f[1]], &[])),
             Err(LineageError::Restated { cell }),
             "a different fate refuses"
         );
@@ -1002,7 +1014,7 @@ mod tests {
     /// that keeps it. Red where the later statement wins.
     #[test]
     fn removals_of_one_cell_merge_in_either_order() {
-        let f = faces(3);
+        let f = faces(5);
         let cell = Cell::Face(f[0]);
         let merged = |first: Fate, second: Fate| {
             Lineage::new()
@@ -1011,18 +1023,21 @@ mod tests {
                 .map(|l| l.fate(cell))
         };
         for (first, second) in [
-            (Fate::Removed, removed_part(&[f[1]])),
-            (removed_part(&[f[1]]), Fate::Removed),
+            (Fate::Removed, removed_part(&[f[1]], &[f[3]])),
+            (removed_part(&[f[1]], &[f[3]]), Fate::Removed),
         ] {
             assert_eq!(
                 merged(first, second),
-                Ok(removed_part(&[f[1]])),
+                Ok(removed_part(&[f[1]], &[f[3]])),
                 "whole and part"
             );
         }
         assert_eq!(
-            merged(removed_part(&[f[1]]), removed_part(&[f[2]])),
-            Ok(removed_part(&[f[1], f[2]])),
+            merged(
+                removed_part(&[f[1]], &[f[3]]),
+                removed_part(&[f[2]], &[f[4]])
+            ),
+            Ok(removed_part(&[f[1], f[2]], &[f[3], f[4]])),
             "two parts"
         );
         let kept = Fate::Substituted(Cell::Face(f[1]));

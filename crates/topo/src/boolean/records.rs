@@ -783,14 +783,6 @@ pub(in crate::boolean) struct RemovedIn<'b, T: Real> {
     pub(in crate::boolean) cells: BTreeMap<Cell, Vec<Cell>>,
 }
 
-/// A fate's division, where it divides its cell.
-fn division(fate: &crate::Fate) -> Option<&crate::Division> {
-    match fate {
-        crate::Fate::Divided(d) => Some(d),
-        _ => None,
-    }
-}
-
 impl<T: Real> RemovedIn<'_, T> {
     fn of(&self, cell: Cell) -> Vec<Cell> {
         self.cells.get(&cell).cloned().unwrap_or_else(|| vec![cell])
@@ -809,19 +801,21 @@ impl<T: Real> RemovedIn<'_, T> {
 /// through `region`. The sides hold disjoint keys. A conventional
 /// vertex reads as its closed edge.
 ///
-/// A row that lands nowhere, every pair read definitely, is read the
-/// same way against the members its cells' divisions name removed, each
-/// paired with every cell `removed` holds of the other record cell, in
-/// `removed`'s body; it is consumed where it lands there, where the
-/// lineage removed one of its cells whole, where a cell kept or
-/// substituted whole has an image that does not hold its geometry (the
-/// touch went with what the op moved; a moved piece of a division
-/// consumes nothing), where its
-/// two vertices became one vertex (D1's strict record-drop rule), or,
-/// for an op that glues cells ([`crate::Lineage::glued`]), where every
-/// pair of its images is structure, or a pair on a cell the op minted
-/// in one of them is (the touch now lies on the section the cut ran
-/// along: structure needs no record).
+/// A row that lands nowhere, every pair read definitely, is **consumed**
+/// where:
+///
+/// - it lands on a member its cells' divisions name removed, read the
+///   same way, each member against every cell `removed` holds of the
+///   other record cell, in `removed`'s body;
+/// - the lineage removed one of its cells whole;
+/// - a cell kept or substituted whole has an image that does not hold
+///   its geometry (the touch went with what the op moved; a moved piece
+///   of a division consumes nothing);
+/// - its two vertices became one vertex (D1's strict record-drop rule);
+/// - for an op that glues cells ([`crate::Lineage::glued`]), every pair
+///   of its images is structure, or a cell the op minted in one record
+///   cell is itself an image of the other (the record's edge, now the
+///   section the cut ran along it: structure needs no record).
 ///
 /// # Errors
 ///
@@ -854,7 +848,8 @@ pub(in crate::boolean) fn landings<'b, T: crate::props::AtRestPolicy>(
                 .iter()
                 .map(|&p| lineage.joined(p))
                 .collect();
-            division(&fates[i])
+            fates[i]
+                .division()
                 .map_or(&[][..], |d| &d.minted)
                 .iter()
                 .map(|&m| lineage.joined(m))
@@ -927,11 +922,15 @@ pub(in crate::boolean) fn landings<'b, T: crate::props::AtRestPolicy>(
                     let pair = match Contact::new(body, a, b) {
                         Ok(pair) => pair,
                         Err(error) => {
-                            // Structure on a cell the op minted in a
-                            // record's cell (a section the cut ran along
-                            // the touch) holds the touch, and needs no
-                            // record (D1).
-                            on_structure |= lineage.glues() && (a_minted || b_minted);
+                            // A cell the op minted in one record cell that
+                            // is itself an image of the other (the record's
+                            // edge, now the section the cut ran along it)
+                            // holds the touch as structure, which needs no
+                            // record (D1). A minted cell merely incident to
+                            // an image of the other cell holds nothing.
+                            on_structure |= lineage.glues()
+                                && matches!(error, ContactPairError::OneCell(_))
+                                && (a_minted || b_minted);
                             structure.get_or_insert(error);
                             continue;
                         }
@@ -969,7 +968,7 @@ pub(in crate::boolean) fn landings<'b, T: crate::props::AtRestPolicy>(
         let mut on_removed = false;
         let mut removed_read = false;
         'members: for i in (0..2).filter(|_| held_by == [true, true]) {
-            for &r in division(&fates[i]).map_or(&[][..], |d| &d.removed) {
+            for &r in fates[i].division().map_or(&[][..], |d| &d.removed) {
                 let Some(removed) = removed else {
                     return Err(CarryRefusal::Unread {
                         record,

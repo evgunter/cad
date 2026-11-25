@@ -4520,6 +4520,7 @@ pub(super) fn carry<T: Decide + AtRestPolicy>(
         (desc, &ledger.incidence, discarded),
         Some(Clones {
             bodies: clones,
+            mints: &ledger.mints,
             joint: &joint,
         }),
         false,
@@ -4662,12 +4663,14 @@ fn carried<T: Decide + AtRestPolicy>(
 }
 
 /// **The operand clones as the cuts left them**, where the boolean
-/// reads the members a division names removed: each clone, and the two
-/// in one body (A's copied, B's grafted in), made the first time a row
-/// across the two operands reads one.
+/// reads the members a division names removed: each clone, the edge
+/// splits that read a cell's pieces there ([`clone_cells`]), and the two
+/// clones in one body (A's copied, B's grafted in), made the first time
+/// a row across the two operands reads one.
 #[derive(Clone, Copy)]
 struct Clones<'b, T: Real> {
     bodies: [&'b Body<T>; 2],
+    mints: &'b super::Mints,
     joint: &'b std::cell::OnceCell<(Body<T>, GraftMap)>,
 }
 
@@ -4745,20 +4748,21 @@ fn operand_fate<T: Real>(
     back: &mut Vec<Back>,
 ) -> Result<(crate::Fate, Vec<Cell>), BooleanError> {
     let incidence = &ledger.incidence[side.index()];
-    let copies = |v: VertexKey| desc.copies_of(side, v).into_iter().map(Cell::Vertex);
-    let (pieces, minted, divided): (Vec<Cell>, Vec<Cell>, bool) = match x {
-        Cell::Vertex(v) => (copies(v).collect(), Vec::new(), false),
-        Cell::Edge(e) => {
-            let (keys, ms) = edge_pieces(desc, &ledger.mints, side, e);
-            let divided = keys.len() > 1;
-            (
-                keys.into_iter().map(Cell::Edge).collect(),
-                ms.into_iter().flat_map(copies).collect(),
-                divided,
-            )
-        }
-        Cell::Face(f) => face_pieces(desc, incidence, (side, Keys::Input), f),
-    };
+    // A carried record's cells meeting at two section vertices would
+    // need a decision between cells no input holds, so this path names
+    // the section's edges alone
+    // (`work/heldrecords/a-carried-records-section-vertices-are-not-named-in-the-booleans-division.md`).
+    let CloneCells {
+        pieces,
+        minted,
+        divided,
+    } = clone_cells(
+        desc,
+        incidence,
+        &ledger.mints,
+        (side, Keys::Input, false),
+        x,
+    );
     let removed = |c: Cell| stated_removed(incidence, discarded, c);
     let all: Vec<Cell> = pieces.iter().chain(&minted).copied().collect();
     let mut gone = Vec::new();
@@ -4805,6 +4809,61 @@ fn fate_of(pieces: Vec<Cell>, minted: Vec<Cell>, divided: bool, gone: Vec<Cell>)
     }
 }
 
+/// What one operand cell became in its clone: its pieces, the cells
+/// minted between them, and whether it is divided.
+struct CloneCells {
+    pieces: Vec<Cell>,
+    minted: Vec<Cell>,
+    divided: bool,
+}
+
+impl CloneCells {
+    /// Every clone cell of the cell, pieces then minted.
+    fn all(&self) -> Vec<Cell> {
+        self.pieces.iter().chain(&self.minted).copied().collect()
+    }
+}
+
+/// **Operand cell `x`'s clone cells** in `side`'s clone, read in `keys`:
+/// a vertex and its null-edge copies ([`Descendants::copies_of`]); an
+/// edge's pieces and the vertices minted between them ([`edge_pieces`]);
+/// a face's fragments and the chords and section between them
+/// ([`face_pieces`], its section vertices named where
+/// `section_vertices`).
+fn clone_cells(
+    desc: &Descendants,
+    incidence: &Incidence,
+    mints: &super::Mints,
+    (side, keys, section_vertices): (Operand, Keys, bool),
+    x: Cell,
+) -> CloneCells {
+    let copies = |v: VertexKey| desc.copies_of(side, v).into_iter().map(Cell::Vertex);
+    match x {
+        Cell::Vertex(v) => CloneCells {
+            pieces: copies(v).collect(),
+            minted: Vec::new(),
+            divided: false,
+        },
+        Cell::Edge(e) => {
+            let (keys, ms) = edge_pieces(desc, mints, side, e);
+            CloneCells {
+                divided: keys.len() > 1,
+                pieces: keys.into_iter().map(Cell::Edge).collect(),
+                minted: ms.into_iter().flat_map(copies).collect(),
+            }
+        }
+        Cell::Face(f) => {
+            let (pieces, minted, divided) =
+                face_pieces(desc, incidence, (side, keys), section_vertices, f);
+            CloneCells {
+                pieces,
+                minted,
+                divided,
+            }
+        }
+    }
+}
+
 /// Face `f`'s pieces in `side`'s clone keys: the fragments the
 /// divisions `f`'s `keys` read ([`Descendants::divisions`]) left of it,
 /// each read through the faces the join merged back
@@ -4815,6 +4874,7 @@ fn face_pieces(
     desc: &Descendants,
     incidence: &Incidence,
     (side, keys): (Operand, Keys),
+    section_vertices: bool,
     f: FaceKey,
 ) -> (Vec<Cell>, Vec<Cell>, bool) {
     let mut fragments: Vec<FaceKey> = Vec::new();
@@ -4824,10 +4884,7 @@ fn face_pieces(
             fragments.push(g);
         }
     }
-    // A carried record's cells meeting at two section vertices would
-    // need a decision between cells no input holds, so only a row the
-    // reduction found names them.
-    let chords = incidence.chords(&fragments, keys == Keys::Recut).collect();
+    let chords = incidence.chords(&fragments, section_vertices).collect();
     let divided = fragments.len() > 1;
     (
         fragments.into_iter().map(Cell::Face).collect(),
@@ -5762,6 +5819,18 @@ fn carry_rows<'b, T: Decide + AtRestPolicy>(
     Ok(out)
 }
 
+/// A face of a row the reduction found, divided after the row was
+/// written ([`place_found`]): the record cell's index in the row, its
+/// live pieces and chords, its removed clone cells, and every clone
+/// cell of it.
+struct FoundDivision {
+    at: usize,
+    pieces: Vec<Cell>,
+    chords: Vec<Cell>,
+    gone: Vec<Cell>,
+    all: Vec<Cell>,
+}
+
 /// **A record's cells in result keys**, placed by the one carry
 /// ([`super::records::landings`]): each cell chased through
 /// [`Descendants::live`] lands there by lineage, unread. A row of the
@@ -5793,13 +5862,12 @@ fn place_found<'b, T: Decide + AtRestPolicy>(
     band: Band,
 ) -> Result<Vec<(Cell, Cell)>, BooleanError> {
     let at = |side: Operand| side.index();
-    #[allow(clippy::type_complexity)]
-    let mut divided: Option<(usize, (Vec<Cell>, Vec<Cell>, Vec<Cell>), Vec<Cell>)> = None;
+    let mut divided: Option<FoundDivision> = None;
     if found.is_some() {
         for (i, &(side, cell)) in ends.iter().enumerate() {
             let Cell::Face(f) = cell else { continue };
             let (pieces, chords, true) =
-                face_pieces(desc, &incidence[at(side)], (side, Keys::Recut), f)
+                face_pieces(desc, &incidence[at(side)], (side, Keys::Recut), true, f)
             else {
                 continue;
             };
@@ -5831,7 +5899,13 @@ fn place_found<'b, T: Decide + AtRestPolicy>(
                 &mut gone,
                 &mut back,
             )?;
-            divided = Some((i, (pieces, chords, gone), all));
+            divided = Some(FoundDivision {
+                at: i,
+                pieces,
+                chords,
+                gone,
+                all,
+            });
         }
     }
     let live = |i: usize| {
@@ -5848,7 +5922,13 @@ fn place_found<'b, T: Decide + AtRestPolicy>(
             };
             ([x, y], crate::Lineage::new().glued())
         }
-        Some((i, (pieces, chords, gone), all)) => {
+        Some(FoundDivision {
+            at: i,
+            pieces,
+            chords,
+            gone,
+            all,
+        }) => {
             let Some(other) = live(1 - i)? else {
                 return Ok(Vec::new());
             };
@@ -5868,9 +5948,18 @@ fn place_found<'b, T: Decide + AtRestPolicy>(
                             })
                             .collect::<Result<Vec<Cell>, _>>()
                     };
+                    let (other_side, _) = ends[1 - i];
+                    let others = clone_cells(
+                        desc,
+                        &incidence[at(other_side)],
+                        clones.mints,
+                        (other_side, Keys::Recut, true),
+                        cells[1 - i],
+                    )
+                    .all();
                     let mut held = BTreeMap::new();
                     held.insert(cells[i], there((ends[i].0, all))?);
-                    held.insert(cells[1 - i], there((ends[1 - i].0, vec![cells[1 - i]]))?);
+                    held.insert(cells[1 - i], there((other_side, others))?);
                     removed = Some(super::records::RemovedIn {
                         body: joint,
                         cells: held,
