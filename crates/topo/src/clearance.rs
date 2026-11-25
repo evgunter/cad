@@ -129,6 +129,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::ops::ControlFlow;
 
 use bvh::{Aabb, Bvh};
+use geom::cover::Cover;
 use geom::{NurbsSurface, Surface};
 use geom_brep::{Channel, Pcurve, SpiricImage, WallTorus};
 use geom_core::interval::Interval;
@@ -486,6 +487,11 @@ pub struct Windows<'b, T: Real> {
     of: Vec<Window<'b, T>>,
 }
 
+/// A face's window rectangle, `(face, u, v)` ([`Windows::rects`]).
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+pub type WindowRect = (FaceKey, (f64, f64), (f64, f64));
+
 #[cfg(any(test, feature = "test-support"))]
 impl<T: Real> Windows<'_, T> {
     /// **How many posed boundaries each face built in this ask**
@@ -520,6 +526,12 @@ impl<T: Real> Windows<'_, T> {
             })
             .collect();
         (charts, edges)
+    }
+
+    /// **Each window's parameter rectangle**, by face: `(face, u, v)`.
+    #[doc(hidden)]
+    pub fn rects(&self) -> Vec<WindowRect> {
+        self.of.iter().map(|w| (w.face, w.u, w.v)).collect()
     }
 }
 
@@ -3749,20 +3761,22 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
     let Ok(stored) = f.surface() else {
         return unsupported("the pending face");
     };
-    let Some((bounds, boundary)) = boundary_of(body, face) else {
+    let Some((cover, boundary)) = boundary_of(body, face) else {
         return unsupported("a face whose boundary carries no sound enclosure");
     };
-    let extent = Point3::new(
-        Interval::from_bounds(bounds.min_x, bounds.max_x),
-        Interval::from_bounds(bounds.min_y, bounds.max_y),
-        Interval::from_bounds(bounds.min_z, bounds.max_z),
-    );
-    // The box's range of a chart parameter that the carrier evaluates
-    // as `origin + dir·v`: `Line::param`, correct for any `dir`.
+    // The boundary's range of `(x − origin)·dir`: the hull of each
+    // piece's support along `dir`, which holds the boundary and is tight
+    // in any frame.
+    let offset = |origin: Point3<Interval>, dir: Vec3<Interval>| -> Interval {
+        let (lo, hi) = cover.range_along(dir);
+        Interval::from_bounds(lo.lo(), hi.hi()) - (origin - Point3::origin()).dot(dir)
+    };
+    // The boundary's range of a chart parameter that the carrier
+    // evaluates as `origin + dir·v`: `Line::param`, correct for any `dir`.
     let along = |origin: Point3<Interval>, dir: Vec3<Interval>| -> (f64, f64) {
         // `Line::param`'s coefficient, spelled out: `dir` is the chart's
         // own, not a unit direction.
-        let d = (extent - origin).dot(dir) / dir.norm_squared();
+        let d = offset(origin, dir) / dir.norm_squared();
         (d.lo(), d.hi())
     };
     let Some(charted) = carrier_lifted(stored) else {
@@ -3792,7 +3806,7 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
             // homologous, on the punctured nappe, to the whole boundary,
             // which would wind once. So a boundary winding nowhere
             // leaves the apex off the face, or `0` inside `slant`.
-            let slant = (extent - apex).dot(axis) / half_angle.cos();
+            let slant = offset(apex, axis) / half_angle.cos();
             let v = if winds_nowhere(body, f) {
                 (slant.lo(), slant.hi())
             } else {
@@ -4139,9 +4153,9 @@ pub(crate) fn posed_extents_holding(
     ))
 }
 
-/// The face's boundary enclosure, and the boundary itself lifted.
+/// The face's boundary region, and the boundary itself lifted.
 ///
-/// The enclosure is the hull of every boundary edge's region — its
+/// The region is the hull of every boundary edge's region — its
 /// lifted carrier's cover over its own span ([`crate::cover::arc_cover`],
 /// so a curved edge's bulge is enclosed rather than chorded away, and a
 /// spline edge's by its pieces' control nets) — together with the
@@ -4162,11 +4176,12 @@ pub(crate) fn posed_extents_holding(
 fn boundary_of<T: Decide + CertifiedBounds>(
     body: &Body<T>,
     face: FaceKey,
-) -> Option<(Aabb, Boundary)> {
-    certified_lift(|lift: Lift<'_, T>| -> Option<(Aabb, Boundary)> {
+) -> Option<(Cover<Interval>, Boundary)> {
+    certified_lift(|lift: Lift<'_, T>| -> Option<(Cover<Interval>, Boundary)> {
         let f = body.face(face)?;
         let point = |p: &Point3<T>| p.map(|x| lift.of(x));
         let mut pts: Vec<Point3<Interval>> = Vec::new();
+        let mut arcs: Vec<Cover<Interval>> = Vec::new();
         let mut out = Boundary {
             sense: f.sense(),
             ..Boundary::default()
@@ -4245,17 +4260,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
             let (t0, t1) = curve.params();
             let span = (lift.of(t0), lift.of(t1));
             let carrier = curve.carrier().map_scalar(|x| lift.of(x)).with_span_memo();
-            // The edge's region over its span, as the low and high
-            // corners of its world box: bracket ends, read by
-            // `Aabb::from_points` as the vertices are. No pad is owed:
-            // each corner is the cover's own enclosure at this scalar, and
-            // `Cover::aabb`'s pad would step every side out by an ulp even
-            // at zero, which moves every window off the points its splits
-            // land on.
-            let (lo, hi) = crate::cover::arc_cover(&carrier, span)
-                .ok()?
-                .box_in(&geom::cover::BoxAxes::World);
-            pts.extend([lo, hi]);
+            arcs.push(crate::cover::arc_cover(&carrier, span).ok()?);
             let ends = <[_; 2]>::from(crate::query::edge_ends(body, ek));
             let uses = hes
                 .iter()
@@ -4295,7 +4300,8 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                 })
                 .collect()
         });
-        Aabb::from_points(pts).map(|b| (b, out))
+        let region = arcs.into_iter().fold(Cover::points(pts)?, Cover::hull);
+        Some((region, out))
     })
     .flatten()
 }
