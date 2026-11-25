@@ -74,8 +74,8 @@
 //! straddling the boundary, within `K · ε` of it, or one whose station
 //! the point door does not place, is kept: the set the sweep covers
 //! still contains the face. A NURBS face's window is exact rather than
-//! a superset, and an approximated face's is its fit's, the fit being
-//! its geometry: it is admitted only where the face is the whole patch
+//! a superset (an approximated face's is its fit's, the fit being its
+//! geometry): such a window is admitted only where the face is the whole patch
 //! (`iso_bounded_domain`), so its cells read `Inside` and its stations
 //! are admitted with neither door asked (`Region::Whole`).
 //!
@@ -3711,20 +3711,6 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
     let Ok(stored) = f.surface() else {
         return unsupported("the pending face");
     };
-    // An approximated face's geometry IS its fit (OFFSET-DESIGN O2): its
-    // edges are sections of the fit and its chart images are on the
-    // fit's chart, so the boundary the question asks embedded is the
-    // fit's. The certified distance bounds the fit from the surface it
-    // stands in for, the face's claim, which tier 3 re-derives (O5); it
-    // states nothing about where the boundary is.
-    let fitted;
-    let stored = match stored {
-        Surface::Approx(approx) => {
-            fitted = Surface::Nurbs(std::sync::Arc::new(approx.fit().clone()));
-            &fitted
-        }
-        stored => stored,
-    };
     let Some((bounds, boundary)) = boundary_of(body, face) else {
         return unsupported("a face whose boundary carries no sound enclosure");
     };
@@ -3741,7 +3727,7 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
         let d = (extent - origin).dot(dir) / dir.norm_squared();
         (d.lo(), d.hi())
     };
-    let Some(charted) = certified_lift(|lift| stored.map_scalar(|x| lift.of(x))) else {
+    let Some(charted) = carrier_lifted(stored) else {
         return unsupported("a face whose carrier does not certify");
     };
     let superset = |u, v| (u, v, Region::Trimmed);
@@ -3796,7 +3782,7 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
         Some(motion) => {
             let placed = crate::transform::surface_at(motion, stored)
                 .ok()
-                .and_then(|placed| certified_lift(|lift| placed.map_scalar(|x| lift.of(x))));
+                .and_then(|placed| carrier_lifted(&placed));
             let Some(placed) = placed else {
                 return unsupported(
                     "a face whose carrier, read through its motion, does not certify",
@@ -3898,6 +3884,24 @@ mod lift {
         let lifted = lift(Lift(&cross));
         (!refused.get()).then_some(lifted)
     }
+}
+
+/// **A face's carrier as the engine reads it, lifted**: a spline chart
+/// as the NURBS surface it is, every other carrier as stored. An
+/// approximated face's chart is its fit ([`Surface::spline_chart`]),
+/// which is its geometry (OFFSET-DESIGN O2); the certified distance
+/// bounds the fit from the surface it stands in for, a claim tier 3
+/// re-derives, and says nothing about where the boundary is. That the
+/// boundary lies on the fit is the face's own: tier 3 certifies each
+/// edge against its chart image on the fit, and the window admits a
+/// free-form face only where [`iso_bounded_domain`] finds those images
+/// run once around the fit's knot domain. `None` where a crossing does
+/// not certify ([`certified_lift`]).
+fn carrier_lifted<T: CertifiedBounds>(stored: &Surface<T>) -> Option<Surface<Interval>> {
+    certified_lift(|lift| match stored.spline_chart() {
+        Some(net) => Surface::Nurbs(std::sync::Arc::new(net.map_scalar(|x| lift.of(x)))),
+        None => stored.map_scalar(|x| lift.of(x)),
+    })
 }
 
 /// A rectangle of carrier parameters, `(u, v)` ranges.

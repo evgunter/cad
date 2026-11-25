@@ -67,3 +67,22 @@ pass with the window; the seventh,
 `encl_curved_loft_shell::a_moved_plane_meets_a_fitted_cap_along_their_certified_section`,
 now refuses at the NURBS window's trimmed-face test, filed as
 `a-trimmed-free-form-face-has-no-window-in-the-injectivity-engine`.
+
+## The approximated half: no certificate is composed (2026-11-25)
+
+The "reading of the face through its fit and its distance certificate"
+asked for above reads the fit alone; the certificate is not composed
+into any reading. The fit is the face's geometry (OFFSET-DESIGN O2:
+"geometry questions … read the fit"), the face's edges are sections of
+the fit and its chart images lie on the fit's chart, so the boundary
+the gate asks embedded is the fit's; the certified distance is the
+face's claim about the surface it stands in for, which tier 3
+re-derives (O5). Charging it could not certify the described surface
+anyway: a surface within δ of an embedded fit may fold at scale δ, so
+no touching pair's local certificate carries over, and the described
+body's own edges are not stored. The window reads the fit
+(`clearance::carrier_lifted`, through `Surface::spline_chart`).
+
+On `embed/gate-measure`, `operand_gate_pose::an_approx_cap_clear_of_a_bar_reads_alike_at_every_pose`
+goes from a 0.5 s refusal to a 37 s pass with the window: a slow-set
+candidate once the gate lands.

@@ -4,35 +4,38 @@
 //! from the described surface is the face's own claim, re-derived at
 //! rest).
 //!
-//! The body is [`box_with_approx_cap`]: the box `[0,2]² × [0,1]` whose
-//! top cap is the certified `Approx` of the plane `z = 1`, its edges
-//! re-described as isos of the fit's chart. A small brick is grafted in
-//! as a second solid over the cap's middle, wholly inside the box's
-//! footprint, so the ONLY faces the brick can meet are the cap:
+//! The body is the box `[0,2]² × [0,1]` whose top cap is an `Approx`
+//! whose fit and description genuinely differ ([`loose_cap`]): the fit
+//! is the plane `z = 1`, which the cap's edges lie on; the description
+//! is the plane `z = 0.95` offset by `d = 0.04`, the plane `z = 0.99`;
+//! and the certifier proves the `0.01` between them at a target of
+//! `0.02`. A `0.2` brick is grafted in as a second solid over the cap's
+//! middle, wholly inside the box's footprint, so the only face it can
+//! meet is the cap:
 //!
-//! - floating clear of the cap, and hanging inside the box just under
-//!   it, its top `0.03` below the fit and `0.02` above the description's
-//!   base (the cap plane pulled back by `d = 0.05`), the body is
-//!   `Embedded`: red if the approximated face is refused at its window,
-//!   or read as its base, which the hanging brick pierces;
+//! - floating `0.003` above the fit, the body is `Embedded`: red if the
+//!   window refuses the face, or reads a fit moved up by that much;
+//! - hanging inside the box with its top at `0.995`, between the
+//!   description and the fit, the body is `Embedded`: red if the face is
+//!   read as its description or its base, both of which the brick
+//!   pierces, or as its fit padded by the certified distance, which
+//!   reaches it;
 //! - piercing the cap, the body `Crosses`, the cap one of the witness's
-//!   two faces: red if the cap's cells are dropped or read anywhere but
-//!   on its fit, since no other pair of faces meets;
+//!   two faces: red if the cap's cells are dropped, since no other pair
+//!   of faces meets;
 //! - each verdict and its receipt equal those of the same box capped
-//!   with the fit itself as a plain NURBS face: red if the approximated
-//!   face is read as anything but its fit (the description's base, or a
-//!   chart padded by its certified distance).
+//!   with the fit as a plain NURBS face.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::sync::Arc;
 
-use geom::Surface;
+use geom::{ApproxSurface, ApproxWindow, Surface, SurfaceDescription, SurfaceSpec};
 use geom_core::{Band, RigidMotion, Tol, Vec3};
 use topo::clearance::{Budgets, DEFAULT_MAX_CELL_DEPTH, Embedding, EmbeddingReport, Side};
 use topo::{Body, FaceKey};
 
-use crate::common::approx::{box_with_approx_cap, box_with_spline_cap};
+use crate::common::approx::{box_with_spline_cap, planar_patch, pulled_back};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -59,18 +62,38 @@ fn embedding(body: &Body<f64>) -> EmbeddingReport {
     )
 }
 
-/// The offset-capped box and its cap, and the same box capped with the
-/// cap's fit as a plain NURBS face.
-fn capped() -> [(&'static str, Body<f64>, FaceKey); 2] {
-    let (approx, cap) = box_with_approx_cap(0.05, 1e-9);
-    let Surface::Approx(a) = approx.face(cap).unwrap().surface().unwrap() else {
-        panic!("the cap wears the approximated surface");
+/// **The fit `z = 1` certified as the plane `z = 0.95` offset by `0.04`**,
+/// at a target of `0.02`, by the production certifier.
+fn loose_cap() -> Surface<f64> {
+    let fit = planar_patch(1.0);
+    let base = Arc::new(pulled_back(&fit, 0.05));
+    let window = ApproxWindow::of(&*base);
+    let spec = SurfaceSpec {
+        description: SurfaceDescription::Offset { base, d: 0.04 },
+        fit,
+        window,
     };
-    let (nurbs, nurbs_cap) = box_with_spline_cap(Surface::Nurbs(Arc::new(a.fit().clone())));
-    [
-        ("the approximated cap", approx, cap),
-        ("its fit as a NURBS cap", nurbs, nurbs_cap),
-    ]
+    let approx = ApproxSurface::certify(spec, |description, fit, window| {
+        geom_brep::certify_offset_over_at(description, fit, window, 0.02, band())
+    })
+    .unwrap_or_else(|e| panic!("the fit certifies within 0.02 of its description: {e:?}"));
+    let off = approx.certificate().hull_sup;
+    assert!(
+        (0.009..=0.02).contains(&off),
+        "the certificate proves the fit's 0.01 from its description: {off}"
+    );
+    Surface::Approx(Arc::new(approx))
+}
+
+/// The loosely capped box and its cap, and the same box capped with the
+/// cap's fit as a plain NURBS face.
+fn capped() -> [(Body<f64>, FaceKey); 2] {
+    let cap = loose_cap();
+    let Surface::Approx(a) = &cap else {
+        unreachable!()
+    };
+    let fit = Surface::Nurbs(Arc::new(a.fit().clone()));
+    [box_with_spline_cap(cap), box_with_spline_cap(fit)]
 }
 
 /// `body` with a `0.2` brick grafted in over the cap's middle, its floor
@@ -88,12 +111,16 @@ fn with_brick(body: &Body<f64>, z: f64) -> Body<f64> {
 
 #[test]
 fn an_approximated_cap_reads_as_its_fit_beside_and_through_a_brick() {
-    let [(_, approx, cap), (_, nurbs, _)] = capped();
-    for (how, z) in [("clear of", 1.05), ("just under", 0.77), ("through", 0.9)] {
+    let [(approx, cap), (nurbs, _)] = capped();
+    for (how, z, clear) in [
+        ("just above", 1.003, true),
+        ("between its description and its fit", 0.795, true),
+        ("through", 0.9, false),
+    ] {
         let a = embedding(&with_brick(&approx, z));
         let n = embedding(&with_brick(&nurbs, z));
         println!("[remeter] a brick {how} the approximated cap: {a:?}");
-        match (&a.verdict, how != "through") {
+        match (&a.verdict, clear) {
             (Embedding::Embedded, true) => {}
             (Embedding::Crosses(c), false) => assert!(
                 c.faces.0 == cap || c.faces.1 == cap,
