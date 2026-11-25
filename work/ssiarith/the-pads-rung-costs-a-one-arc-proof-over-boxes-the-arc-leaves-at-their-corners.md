@@ -34,7 +34,9 @@ Each probe timed alone, ε = 1e-6, debug build, the cone pairs of
 | 195 boxes | 2.0e-2, 0.33 s | 9.5e-6, 7.9 s |
 | 166 boxes | 2.0e-2, 0.20 s | 9.5e-6, 3.5 s |
 
-That row runs 18.6 s on main and 45.9 s on the branch.
+That row runs 18.6 s on main and 45.9 s on the branch. On PR 7776's
+hosted run `sweep` `germ_cone_section_rows::the_preview_pairs_clear_with_the_sweeps_events`,
+a fast-set row until then, cost 1.30 s alone and went to the slow set.
 
 Whole carries (march, certificate and readers) of
 `pair_section::wiring`'s fixtures through `march_over_the_ball`, at the
