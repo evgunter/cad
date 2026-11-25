@@ -1534,7 +1534,8 @@ impl<'a, T: Decide + Bounds + CertifiedEnclosure> CoverBase<'a, T> {
         (s1, s2): (&Surface<T>, &Surface<T>),
         radius: f64,
     ) -> bool {
-        if margin.is_some_and(|m| m > 0.0) || !(link.raw.width() > radius) {
+        let wider = link.raw.width().partial_cmp(&radius) == Some(core::cmp::Ordering::Greater);
+        if margin.is_some_and(|m| m > 0.0) || !wider {
             return false;
         }
         let at = self
@@ -2867,9 +2868,8 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
                 });
             };
             let base = CoverBase::of(net);
-            let probe = |radius| {
-                probe_tube_analytic(&base, (s1, s2), radius, (slab, ends, band.zero()))
-            };
+            let probe =
+                |radius| probe_tube_analytic(&base, (s1, s2), radius, (slab, ends, band.zero()));
             let (mut rung, t) = limb_three((widest, extent), band, |radius| Ok(probe(radius)))?;
             // The pad's rung is asked of a search's branch, whose carry
             // reads a pad off it; an edge at rest is read by its tube
@@ -3936,10 +3936,7 @@ mod tests {
             }
             out
         };
-        let at_f64: Vec<Box3> = first_cover(&curve)
-            .into_iter()
-            .map(|(b, _, _)| b)
-            .collect();
+        let at_f64: Vec<Box3> = first_cover(&curve).into_iter().map(|(b, _, _)| b).collect();
         let at_f64 = misses(&at_f64);
         assert!(at_f64.is_empty(), "f64 chain missed {at_f64:?}");
         let at_interval: Vec<Box3> =

@@ -5346,8 +5346,13 @@ mod wiring {
                     section.seeds().len(),
                     "{label}: one branch per witness"
                 );
-                let read = coverage(pose.cylinder(), pose.sphere(), pose.ball(), &tubes(&fitted, (pose.cylinder(), pose.sphere())))
-                    .unwrap_or_else(|cell| panic!("{label}: uncovered at {cell:?}"));
+                let read = coverage(
+                    pose.cylinder(),
+                    pose.sphere(),
+                    pose.ball(),
+                    &tubes(&fitted, (pose.cylinder(), pose.sphere())),
+                )
+                .unwrap_or_else(|cell| panic!("{label}: uncovered at {cell:?}"));
                 assert!(
                     read.depth <= COVERAGE_DEPTH / 3 && read.cells <= COVERAGE_CELLS / 64,
                     "{label}: headroom: {read:?}"
@@ -5357,8 +5362,13 @@ mod wiring {
                     let mut kept = fitted.clone();
                     kept.remove(k);
                     assert!(
-                        coverage(pose.cylinder(), pose.sphere(), pose.ball(), &tubes(&kept, (pose.cylinder(), pose.sphere())))
-                            .is_err(),
+                        coverage(
+                            pose.cylinder(),
+                            pose.sphere(),
+                            pose.ball(),
+                            &tubes(&kept, (pose.cylinder(), pose.sphere()))
+                        )
+                        .is_err(),
                         "{label}: branch {k}'s tubes dropped: a cell uncovered"
                     );
                 }
@@ -5519,7 +5529,11 @@ mod wiring {
                     br.certificate.tube_boxes as usize,
                     "{what}: the tube's chain is the one the certificate counted"
                 );
-                let net = br.carrier.clamped_net(br.span).expect("a spline").expect("its net");
+                let net = br
+                    .carrier
+                    .clamped_net(br.span)
+                    .expect("a spline")
+                    .expect("its net");
                 let chain = crate::ssi::certify::tube_chain(&net, pair, narrow);
                 let dense: Vec<_> = (0..=4096)
                     .map(|i| br.carrier.eval(lo + (hi - lo) * f64::from(i) / 4096.0))
@@ -5537,8 +5551,8 @@ mod wiring {
                             0.5 * (y[0] + y[1]),
                             0.5 * (z[0] + z[1]),
                         );
-                        let corners = (0..8)
-                            .map(|k| Point3::new(x[k & 1], y[(k >> 1) & 1], z[(k >> 2) & 1]));
+                        let corners =
+                            (0..8).map(|k| Point3::new(x[k & 1], y[(k >> 1) & 1], z[(k >> 2) & 1]));
                         for q in corners.chain([centre]) {
                             let d = dense
                                 .iter()
@@ -5619,57 +5633,70 @@ mod wiring {
         }
     }
 
+    /// **What a reader banks is what limb 3 proved, where its cover was
+    /// halved** (C2). The ball round the donut's axis at a band of
+    /// `1e-6`, where the march's samples are coarse: each loop's tube is
+    /// proved over a cover with more boxes than the carrier has spans.
+    /// The chain a reader re-derives at the certificate's rung is that
+    /// cover: it has the boxes the certificate counted, its spans tile
+    /// the carrier's without a gap, and it is the same chain with the
+    /// pair in either order. The march's accounting closed on it, and
+    /// the carry reads it.
     #[test]
-    fn zz_cover_measure() {
+    fn a_halved_cover_is_the_chain_its_readers_bank() {
+        use super::Tube;
         use crate::ssi::SsiTube;
-        let mut poses: Vec<(String, (geom::Surface<f64>, geom::Surface<f64>))> = Vec::new();
-        for (d, big) in [(0.1, 0.7), (0.2, 0.71), (0.2, 0.701), (0.2, 0.69), (0.2, 0.699), (0.2, 0.6995)] {
-            poses.push((format!("({d}, {big})"), wall_and_ball((d, 0.0, 0.0), big)));
-        }
-        for k in 0..8 {
-            let big = 0.7003 + (0.705 - 0.7003) * f64::from(k) / 7.0;
-            poses.push((format!("near node R {big:.5}"), wall_and_ball((0.2, 0.0, 0.0), big)));
-        }
-        for delta in [3e-3, 3e-4] {
-            poses.push((format!("close rings {delta:e}"), wall_and_ball((0.1, 0.0, 0.2), 0.6 + delta)));
-        }
-        if std::env::var("COVER_TORUS").is_ok() {
-            poses.clear();
-            poses.push(("ball round axis".into(), ball_round_the_axis()));
-            use geom_core::{Point3, Vec3};
-            let axis = Vec3::new(0.2, 0.9, -0.4).normalize();
-            let u = axis.cross(Vec3::new(1.0, 0.0, 0.0)).normalize();
-            let center = Point3::new(0.3, -0.7, 1.1);
-            let torus = geom::Surface::Torus { frame: geom::Frame::new(center, axis, u), major_radius: 2.0, minor_radius: 0.5 };
-            for (s, h) in [(0.5f64, 0.0f64), (0.5, 1.49), (0.2, 0.89), (0.9, 1.31), (0.05, 0.01)] {
-                let n = u * s + axis * (1.0 - s * s).sqrt();
-                let side = n.cross(axis).normalize();
-                let plane = geom::Surface::Plane { frame: geom::Frame::new(center + n * h, n, side) };
-                poses.push((format!("plane torus s {s} h {h}"), (plane, torus.clone())));
-            }
-        }
-        for (what, (a, b)) in poses {
-            for (order, x, y) in [("cs", &a, &b)] {
-                let clock = std::time::Instant::now();
-                let section = built(x, y);
-                let pair = section.pose().operands();
-                match march_over_the_ball(&section, band()) {
-                    Err(e) => eprintln!("MEAS {what} {order}: {:?} refused {e:?}", clock.elapsed()),
-                    Ok(fitted) => {
-                        eprintln!("MEAS {what}: {:?}", clock.elapsed());
-                        for br in fitted {
-                            let SsiTube::Spatial { radius, narrow } = br.certificate.tube else { panic!() };
-                            let net = br.carrier.clamped_net(br.span).unwrap().unwrap();
-                            let first = crate::ssi::certify::tube_chain(&net, pair, 10.0).len();
-                            let nar = crate::ssi::certify::tube_chain(&net, pair, narrow).len();
-                            eprintln!(
-                                "MEAS {what} {order}: knots {} first {first} tube {radius:.3e} boxes {} narrow {narrow:.3e} boxes {nar} pad {:.3e} reach {:.3e}",
-                                net.knots_f64_interim().control_count(), br.certificate.tube_boxes, br.pad, br.reach
-                            );
-                        }
-                    }
-                }
-            }
+        use crate::ssi::certify::tube_chain;
+        use geom_core::Bounds as _;
+        let coarse = geom_core::Band::new(1e-6, 1e-5).expect("a band");
+        let (a, b) = ball_round_the_axis();
+        let section = match super::pair_section(&a, &b, None, None::<geom_core::NoLane>, coarse) {
+            Ok(super::SectionRead::Built(s)) => s,
+            other => panic!("the pair's section: {other:?}"),
+        };
+        let pair = section.pose().operands();
+        let fitted = march_over_the_ball(&section, coarse).expect("the march");
+        assert_eq!(fitted.len(), 2, "two loops");
+        for br in &fitted {
+            let SsiTube::Spatial { radius, narrow } = br.certificate.tube else {
+                panic!("a spatial tube");
+            };
+            let net = br
+                .carrier
+                .clamped_net(br.span)
+                .expect("a spline")
+                .expect("its net");
+            // No box is ten metres wide, so nothing is halved at that rung.
+            let first = tube_chain(&net, pair, 10.0).len();
+            let chain = tube_chain(&net, pair, radius);
+            assert_eq!(
+                chain.len(),
+                br.certificate.tube_boxes as usize,
+                "the chain the certificate counted"
+            );
+            assert!(
+                chain.len() > first && narrow < radius,
+                "the tube's cover was halved: {} boxes of {first}, rungs {narrow:e}, {radius:e}",
+                chain.len()
+            );
+            assert!(
+                chain.windows(2).all(|w| w[0].2.1 == w[1].2.0)
+                    && chain.first().map(|l| l.2.0) == Some(br.span.0)
+                    && chain.last().map(|l| l.2.1) == Some(br.span.1),
+                "the halves tile the carrier's span"
+            );
+            let swapped = tube_chain(&net, (pair.1, pair.0), radius);
+            let sides =
+                |l: &super::winds::Piece| ([l.0.x, l.0.y, l.0.z].map(|s| (s.lo(), s.hi())), l.2);
+            assert_eq!(
+                chain.iter().map(sides).collect::<Vec<_>>(),
+                swapped.iter().map(sides).collect::<Vec<_>>(),
+                "the pair's order does not move the cover"
+            );
+            let mid = 0.5 * (br.span.0 + br.span.1);
+            let tube = Tube::of((&br.carrier, br.span), pair, &br.certificate, mid)
+                .expect("the carry reads the tube");
+            assert_eq!(tube.chain.len(), chain.len(), "and reads that chain");
         }
     }
 

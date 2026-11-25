@@ -3342,7 +3342,8 @@ pub(super) mod tests {
     /// short of the far ruling; and the loop's point at height `z` on
     /// the side `y > 0`.
     fn sliver_pair() -> (Surface<f64>, Surface<f64>) {
-        let at = |x: f64| geom::Frame::new(Point3::new(x, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x());
+        let at =
+            |x: f64| geom::Frame::new(Point3::new(x, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x());
         (
             Surface::Cylinder {
                 frame: at(0.0),
@@ -3395,10 +3396,16 @@ pub(super) mod tests {
             }
         }
         // Tight as well as sound: within a quarter of the least sample.
-        assert!(margin > 0.75 * least, "margin {margin:e}, least sample {least:e}");
+        assert!(
+            margin > 0.75 * least,
+            "margin {margin:e}, least sample {least:e}"
+        );
         // The other order reads the same margin: a reader of a
         // certificate's cover need not know the pair's order.
-        assert_eq!(tube_margin(graph_quantity(&ball, &wall, b, e)), Some(margin));
+        assert_eq!(
+            tube_margin(graph_quantity(&ball, &wall, b, e)),
+            Some(margin)
+        );
     }
 
     /// **The one-point enclosure holds the quantity on every quadratic
@@ -3431,7 +3438,9 @@ pub(super) mod tests {
                 for n in 0..125 {
                     let at = |s: Interval, n: i32| s.lo() + (s.hi() - s.lo()) * f64::from(n) / 4.0;
                     let x = Point3::new(at(b.x, n % 5), at(b.y, n / 5 % 5), at(b.z, n / 25));
-                    let value = implicit_gradient(s1, x).cross(implicit_gradient(s2, x)).dot(e);
+                    let value = implicit_gradient(s1, x)
+                        .cross(implicit_gradient(s2, x))
+                        .dot(e);
                     assert!(
                         one.lo() <= value && value <= one.hi(),
                         "{:?} × {:?}: {value:e} at {x:?} outside {one:?}",

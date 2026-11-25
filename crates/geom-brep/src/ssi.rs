@@ -137,9 +137,9 @@ use crate::recourse::{
 pub use boundary::{
     BoundaryChart, BoundaryPoint, ChartCorner, ChartEnd, ChartSide, SsiBoundaryContact,
 };
-pub use certify::{CoverStop, 
-    OneArcRefusal, SSI_CERT_SPANS, SSI_HULL_CUTS, SSI_HULL_WORK, SSI_TUBE_RADIUS, SsiCertificate,
-    SsiLimb, SsiTube,
+pub use certify::{
+    CoverStop, OneArcRefusal, SSI_CERT_SPANS, SSI_HULL_CUTS, SSI_HULL_WORK, SSI_TUBE_RADIUS,
+    SsiCertificate, SsiLimb, SsiTube,
 };
 pub use exhaust::{
     ExhaustLane, Exhaustiveness, ExhaustivenessRefusal, FloorFault, FloorKind, FloorRefusal,
@@ -4080,12 +4080,8 @@ fn finish_r3(
     use system::LocalSystem as _;
     let march_tol = seam_tol(ctx.tol, band)?;
     let closed = trace.end == march::SlabEnd::Closed;
-    let (carrier, cert) = refine::refine_by_certificate(
-        sys,
-        trace.states.clone(),
-        ctx,
-        band,
-        |states, limbs| {
+    let (carrier, cert) =
+        refine::refine_by_certificate(sys, trace.states.clone(), ctx, band, |states, limbs| {
             let points: Vec<Point3<f64>> = states.iter().map(|s| sys.point(s)).collect();
             let carrier = FittedR3::of(&points, closed)?;
             let cert = certify::certify_located(
@@ -4099,8 +4095,7 @@ fn finish_r3(
                 limbs,
             )?;
             Ok((carrier, cert))
-        },
-    )?;
+        })?;
     let params = carrier.net().domain();
     let carrier = carrier.carrier();
     let witness = carrier.mid_point(params.0, params.1);

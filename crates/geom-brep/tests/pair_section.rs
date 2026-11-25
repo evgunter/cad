@@ -1022,8 +1022,8 @@ fn one_loop_keeps_its_order_near_the_node() {
 /// loops of the sphere at `d 0.2` whose radius `R` runs across
 /// `0.7003–0.705`, past `d + r` by hairs, in either order. Every site
 /// whose foot is read lies on its own sheet's component, and the two
-/// sheets' components differ; a refusal, of the carry or of a foot, is
-/// allowed, but most sites read. Marches: in the slow set.
+/// sheets' components differ; every pose carries, and a foot may
+/// refuse, but most sites read. Marches: in the slow set.
 #[test]
 fn near_the_node_no_site_reads_on_the_other_sheets_loop() {
     let (r, d) = (0.5, 0.2);
@@ -1032,10 +1032,9 @@ fn near_the_node_no_site_reads_on_the_other_sheets_loop() {
         let big = 0.7003 + (0.705 - 0.7003) * f64::from(k) / 7.0;
         let (cyl, sph) = (cylinder(r), sphere(d, big));
         for (x, y) in [(&cyl, &sph), (&sph, &cyl)] {
-            let Ok(c) = built(x, y).carry(Some(SsiLane::marched()), band()) else {
-                refused += 1;
-                continue;
-            };
+            let c = built(x, y)
+                .carry(Some(SsiLane::marched()), band())
+                .unwrap_or_else(|e| panic!("R {big}: the pose carries, got {e:?}"));
             let mut owner: [Option<usize>; 2] = [None, None];
             for (s, sheet) in [1.0, -1.0].into_iter().enumerate() {
                 for i in 0..97 {
