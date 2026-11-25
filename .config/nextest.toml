@@ -260,8 +260,16 @@ failure-output = "immediate-final"
 # run 45073621726):
 #    0.61 s  sweep::all pinned_corners_build::a_half_disc_turned_in_the_last_slab_builds_a_lune_on_a_straight_slab
 #    0.51 s  sweep::all pinned_corners_build::a_half_disc_turned_about_its_chord_builds_a_lune
+# Main's K stream over nine bodies, slower since a full revolve's wall is
+# one band (PR 7414's `test (app)` job, 1.63 s; locally 0.70-0.98 s on the
+# branch against 0.41-0.48 s on its base 84588ee6fa). The ball less the
+# slab turned 0.3 is one sphere face where it was two, and that face's
+# trimmed-lane CDT bulk load costs 5.2e9 instructions against 1.5e8
+# (callgrind): 27,048 insertions where 14,373 were, each ~22x dearer.
+#    1.63 s  mesh::all route_rows::a_body_that_meshes_records_mains_k_stream
 default-filter = """
 not (
+  (binary_id(mesh::all) & test(=route_rows::a_body_that_meshes_records_mains_k_stream)) |
   (binary_id(sweep::all) & (test(=snowman::a_coaxial_torus_across_the_ball_builds_under_every_boolean) | test(=snowman::a_coaxial_rod_through_the_ball_builds_under_every_boolean) | test(=tilted_sphere_pair::a_section_through_a_pole_joins_under_every_op))) |
   (binary_id(sweep::all) & (test(=pinned_corners_build::a_half_disc_turned_about_its_chord_builds_a_lune) | test(=pinned_corners_build::a_half_disc_turned_in_the_last_slab_builds_a_lune_on_a_straight_slab))) |
   (binary_id(sweep::all) & (test(=band_planar_cut_off_meters::a_far_side_arc_with_no_vertex_in_the_tube_is_clear_of_the_strip) | test(=band_planar_mitre::a_frustum_top_rim_mitres_at_leaning_walls) | test(=join_pierce_runs_sweep::six_crossing_corners_build_every_op))) |
