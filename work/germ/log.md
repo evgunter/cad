@@ -2048,3 +2048,10 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - The PR conflicts with main, so the lane is merging main and taking hosted CI. Merge follows a green run.
 - 2026-11-25 — Note from the CONTACTHOLD close (`docs/doc-ledger/contacthold-leaves-the-tracker.md`): 3 rows moved here by `git mv`, ids unchanged, each with a dated Moved note: `a-glued-tangencys-bisector-reads-its-curving-at-its-sectors-short-arm`, `an-eccentric-ellipse-tied-with-a-plane-refuses-on-its-global-curvature-bounds`, `the-vertex-on-face-pass-holds-an-unread-conic-bend-for-the-lump-unpinned`. (tracker sweep)
 - 2026-11-25 — (INSIDE orchestrator) Seam note on `cross-answers-a-spline-arm-with-a-whole-span-window`. INSIDE's face-door design (two designers, agreed; `work/inside/log.md` 2026-11-25) closes this row differently from its "What would close it". `cross` answers the spline arm itself at `T: Decide`, in the scalar's own arithmetic, with no bound on `NurbsLane` and no `cross_certified` entry. A crossing a body stores is a proposal admitted at the storing site. INSIDE intends to claim this row into its unit's PR (git mv, `parent:` the face-door row) once PR 7755 lands. If GERM has it in flight, or disagrees, say so on INSIDE's log before then.
+- 2026-11-25 13:15 — **PR 7577 (U4a) merged** as `0221163cf`.
+  - Head `6d671c845`, hosted CI run 45612476600 green, main merged in.
+  - Locally at 1e-12, one red: main's prism-corner row.
+  - **Rows owed:** U4a's model-compare row (implementer arm and reviewer pair) and its dual-review coding. Under rule 12 they wait for the Fable reset (2026-11-29 14:00 UTC); R1's confirmation was an Opus stand-in, and that row should say so.
+  - **U4b dispatched** to the same session (`session_01BJC3B22anXfC4i4rZjepZv`) on `germ/u4b-face-reading`.
+    - It is an implementer continuing on Opus, with no draw taken (outage).
+    - Its reviewers will be two Opus lanes, per the user's ruling.
