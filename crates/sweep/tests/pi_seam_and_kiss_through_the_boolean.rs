@@ -1527,10 +1527,9 @@ fn a_dome_sunk_across_the_tubes_seam_rulings_builds_every_op_undeclared() {
 /// the tube meets the tube's wall along the rim's two semicircles, whose
 /// ends rest on the wall's seam ruling (v-e), and the dome's faces at
 /// each leave it into the wall's material. Each semicircle is two
-/// coincident arcs, which refuses `EdgeInFace` (`CurvedFace`,
-/// [`refuses_the_rims_slit`]); the v-e record carriage this row held is
-/// owed back with a curved face's slit form
-/// (`work/nearpoint/a-zero-area-ring-in-a-cylinder-face-measures-degenerate.md`).
+/// coincident arcs, and an end resting inside the seam ruling refuses
+/// `EdgeInFace` (`EndOnBoundary`); the v-e record carriage this row held
+/// is owed back with the parting of an end there.
 #[test]
 fn a_tube_through_the_domes_base_builds_every_op_undeclared() {
     let tol = Tol::witness();
@@ -1540,7 +1539,17 @@ fn a_tube_through_the_domes_base_builds_every_op_undeclared() {
     let above = cap_volume(rho, R + rho - 2.2);
     let inside = cap_volume(rho, rho - R) - above;
     let tube = PI * R * R * 2.2;
-    refuses_the_rims_slit("t ∖ d", topo::subtract(&tall, &dome, tol));
+    let r = topo::subtract(&tall, &dome, tol);
+    assert!(
+        matches!(
+            r,
+            Err(BooleanError::EdgeInFace {
+                gap: topo::EdgeInFaceGap::EndOnBoundary,
+                ..
+            })
+        ),
+        "t ∖ d: refuses the rim's end on the seam ruling: {r:?}"
+    );
     for (label, r, want, census, contacts) in [
         (
             "t ∪ d",
