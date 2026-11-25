@@ -16,11 +16,12 @@
 use std::sync::Arc;
 
 use geom::{NurbsSurface, Surface};
+use geom_core::Band;
 use geom_core::spline::{KnotVector, Knots};
 use geom_core::{Interval, Point3, Real, Tol};
-use geom_core::Band;
 use topo::clearance::{
-    Budgets, DEFAULT_MAX_CELL_DEPTH, Embedding, EngineRefusal, Side, Which, embedded, min_separation,
+    Budgets, DEFAULT_MAX_CELL_DEPTH, Embedding, EngineRefusal, Side, Which, embedded,
+    min_separation,
 };
 use topo::construction::{Construct, FaceSurface, MefSite, MevSite};
 use topo::{AtRestPolicy, Body, FaceKey};
@@ -50,8 +51,15 @@ fn lamina_in<T: AtRestPolicy>(
     corners: &[(f64, f64)],
 ) -> Vec<FaceKey> {
     let tol = Tol::witness();
-    let at = |(u, v): (f64, f64)| (o.0 + u * a.0 + v * b.0, o.1 + u * a.1 + v * b.1, o.2 + u * a.2 + v * b.2);
-    let pt = |(x, y, z): (f64, f64, f64)| Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z));
+    let at = |(u, v): (f64, f64)| {
+        (
+            o.0 + u * a.0 + v * b.0,
+            o.1 + u * a.1 + v * b.1,
+            o.2 + u * a.2 + v * b.2,
+        )
+    };
+    let pt =
+        |(x, y, z): (f64, f64, f64)| Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z));
     let seed = body.mvfs(pt(at(corners[0])), true).unwrap();
     let span = |w: f64| KnotVector::clamped(vec![0.0, 0.0, w, w], 1).unwrap();
     let net = NurbsSurface::new(
@@ -300,7 +308,10 @@ fn standing_through(at: f64) -> (Embedding, [FaceKey; 2]) {
         body: &body,
         faces: vec![lying, standing],
     };
-    (embedded(&side, band(), budgets()).verdict, [lying, standing])
+    (
+        embedded(&side, band(), budgets()).verdict,
+        [lying, standing],
+    )
 }
 
 /// **A plane through a trimmed spline face crosses it**: the standing
@@ -330,4 +341,3 @@ fn a_lamina_through_the_unused_half_of_a_trimmed_spline_chart_is_embedded() {
     let (verdict, _) = standing_through(1.5);
     assert_eq!(verdict, Embedding::Embedded);
 }
-
