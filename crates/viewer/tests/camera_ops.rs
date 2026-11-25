@@ -649,6 +649,56 @@ fn a_viewport_with_no_area_has_no_projection() {
     assert!(camera.projection_matrix(-1.0).is_err());
 }
 
+/// **A projection that leaves `f64` refuses by name, and a far one that
+/// stays finite answers where the eye sees it.**
+///
+/// `[-MAX, MAX, -MAX]` sums `f64::MAX`-sized terms into every clip
+/// coordinate, which the unfixed door divided through and answered as
+/// a screen position of NaNs. A point that is not one refuses on its
+/// own coordinate. The far half is the pair's other side: a point
+/// `1e300` down the ray through a cursor is an ordinary projection of
+/// that ray, and lands on that cursor, so a door refusing on magnitude
+/// rather than on overflow fails it.
+#[test]
+fn a_projection_that_overflows_refuses_and_a_far_one_lands_on_its_ray() {
+    let aspect = 1.6;
+    let camera = common::framed(aspect);
+    match camera.project(Point3::new(-f64::MAX, f64::MAX, -f64::MAX), aspect) {
+        Err(CameraError::NotFinite { what, value }) => {
+            assert_eq!(
+                what, "projected coordinate",
+                "refused, but not as an overflow"
+            );
+            assert!(!value.is_finite(), "the refusal reported {value}, a number");
+        }
+        other => panic!("an overflowed projection answered {other:?}"),
+    }
+    assert!(
+        matches!(
+            camera.project(Point3::new(0.0, f64::NAN, 0.0), aspect),
+            Err(CameraError::NotFinite {
+                what: "point y",
+                ..
+            })
+        ),
+        "a point that is not one is refused on its coordinate"
+    );
+
+    let viewport = viewer::input::ViewportSize {
+        width_px: 1600.0,
+        height_px: 1000.0,
+    };
+    let cursor = [1210.0, 330.0];
+    let ray = camera.ray_through(cursor, viewport).expect("a ray");
+    let ndc = camera
+        .project(ray.origin + ray.dir * 1.0e300, aspect)
+        .expect("a far point's projection stays finite")
+        .expect("and is in front of the eye");
+    let pixel = viewport.cursor_of([ndc[0], ndc[1]]).expect("a pixel");
+    let off = (pixel[0] - cursor[0]).hypot(pixel[1] - cursor[1]);
+    assert!(off < 1.0e-6, "the far point lands {off}px from its cursor");
+}
+
 /// **Finite bounds do not make a finite radius, and a radius that is
 /// not a length is refused rather than framed against.**
 ///

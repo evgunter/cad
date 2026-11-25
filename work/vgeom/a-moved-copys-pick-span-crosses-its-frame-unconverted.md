@@ -1,7 +1,7 @@
 ---
 id: a-moved-copys-pick-span-crosses-its-frame-unconverted
 kind: issue
-title: A moved copy's pick hit converts its point across the display frame and carries t, t_lo and t_hi over unconverted
+title: A moved copy's pick span is certified on the ray carried into its frame, which is the caller's only to within the carry's rounding
 status: open
 opened: 2026-10-22
 priority: P1
@@ -62,3 +62,39 @@ size. Id and body unchanged.
 ## Released (INTENT, 2026-10-26)
 
 This row was parked on the stage-3 placement pivot (`a-placement-pins-by-written-values-without-a-mate`). All three of its PRs are merged: D′1 (PR 5592), D′2 (PR 5613) and D′3 (PR 5636, `29110056e8`). Re-check this row against main, then fix, narrow or close it. That is the owning track's call.
+
+## Narrowed (vgeom/project-refuses, 2026-11-25)
+
+Re-read on main after D′. `PickIndex::pick_for` now groups every part
+`display_mapped` answers a map for (`DisplayView::display_map`: the
+space's free-move frame composed with the placement editor's carry,
+`PreviewedCopy::carry`), not `moved_placements`; the crossing is
+otherwise the one described above. D′ did not overtake it: nothing
+picks through world coordinates and nothing converts the span.
+
+**The parameter needs no conversion, and never did.** The local ray
+is the caller's carried through `map.inverse()`, and an affine map
+carries a ray's parameter with it: `map(o′ + t·d′) = o + t·d`. So
+`t`, `t_lo` and `t_hi` are already parameters of the caller's ray,
+whatever the map, rigid or not; the rigid-frame argument the site
+leaned on was the wrong reason for a true conclusion. The branch
+reads the point off the caller's ray at `t` (`ray.origin + ray.dir *
+hit.t`, as `pick_face` reads every hit's) instead of mapping the local
+point back, so `PickHit::point` is `origin + t · dir` bit for bit;
+`review_gui4_r1::r1_a_rotated_probe_is_drawn_picked_and_reported_in_world`
+asserts it, and fails on the mapped point (`y` off in the last bit).
+
+**What is left.** The span is CERTIFIED on the carried ray as rounded,
+which is the caller's ray only to within the inverse's rounding, and
+the cross-group merge (`TSpan::survivors`, `answer_of`) and the edge
+lane's occlusion probe (`PickIndex::near`, `own_crossing` against
+`front_of`) order it against spans certified on the caller's ray
+itself. A crossing that sits within that rounding of a world one, a
+moved copy's face coincident with an unmoved body's, or a moved copy's
+edge over its own face, can be ordered or tied where the certificate
+says nothing. Repair shapes: widen the carried span by a bound on the
+carry's rounding in parameter units, or pick a moved copy against
+its triangles placed in world (as `own_crossing` already does) so
+every span is the caller's ray's. Not driven: no witness of a flipped
+verdict was built.
+

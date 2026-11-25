@@ -263,6 +263,14 @@ fn r1_a_rotated_probe_is_drawn_picked_and_reported_in_world() {
          instance's display-local frame: {:?} vs {drawn:?}",
         hit.point
     );
+    // And it is `origin + t · dir` of the ray the call was given, bit
+    // for bit, as every hit's is: the moved copy's span is that ray's.
+    let on_ray = ray.origin + ray.dir * hit.t;
+    assert_eq!(
+        [hit.point.x, hit.point.y, hit.point.z],
+        [on_ray.x, on_ray.y, on_ray.z],
+        "the moved copy's hit point is not the caller's ray at its own t"
+    );
     // …and `t` is the true world distance, which is what makes it
     // comparable against the unmoved batch's hits.
     assert!(

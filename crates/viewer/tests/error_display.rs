@@ -351,6 +351,21 @@ fn pick_error_forwards_its_camera_arm() {
     prose(&outer, "UnusableBounds");
 }
 
+#[test]
+fn pick_error_forwards_its_projection_arm() {
+    let inner = CameraError::NotFinite {
+        what: "projected coordinate",
+        value: f64::INFINITY,
+    };
+    let outer = PickError::Projection(inner).to_string();
+    assert!(outer.contains(&inner.to_string()), "{outer}");
+    assert!(
+        !outer.contains("cursor"),
+        "a drawn point's refusal is not the cursor's: {outer}"
+    );
+    prose(&outer, "Projection");
+}
+
 /// The hit-test arm forwards `editor-core`'s words rather than
 /// composing a sentence about somebody else's refusal.
 #[test]
