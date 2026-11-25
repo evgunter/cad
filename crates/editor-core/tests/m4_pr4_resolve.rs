@@ -944,6 +944,8 @@ fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
         // Segments that embed no name.
         RoleSeg::OutputBody
         | RoleSeg::Cap(_)
+        | RoleSeg::SubArc(_)
+        | RoleSeg::SubArcJoint(_)
         | RoleSeg::Lateral(_)
         | RoleSeg::RimEdge(..)
         | RoleSeg::LateralEdge(_)

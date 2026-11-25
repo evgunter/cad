@@ -114,7 +114,7 @@ mod implicit_chart;
 pub mod jet;
 pub mod march;
 pub(crate) mod node;
-mod one_arc;
+pub(crate) mod one_arc;
 pub(crate) mod pair;
 mod refine;
 pub(crate) mod residual;
