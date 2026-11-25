@@ -1117,6 +1117,7 @@ fn settled_at(
     });
     let isolated = super::Isolated {
         span: (0.0, 2.0),
+        speed: 1.0,
         roots: vec![[(candidate, candidate), (0.5, 0.5), (0.5, 0.5)]],
     };
     super::settle(&up, chart, &isolated, band())

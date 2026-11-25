@@ -7287,7 +7287,12 @@ pub trait AtRestPolicy: Decide {
         params: (Self, Self),
         surface: &geom::Surface<Self>,
         band: geom_core::Band,
-    ) -> Option<Result<Vec<Self>, geom_brep::curve_face::composite::CompositeRefusal>>;
+    ) -> Option<
+        Result<
+            geom_brep::roots::Crossings<Self>,
+            geom_brep::curve_face::composite::CompositeRefusal,
+        >,
+    >;
 
     /// **An analytic span's meetings with a spline chart at this
     /// scalar, or `None` where it is not derived here** — the boolean's
@@ -7604,7 +7609,12 @@ impl AtRestPolicy for f64 {
         params: (Self, Self),
         surface: &geom::Surface<Self>,
         band: geom_core::Band,
-    ) -> Option<Result<Vec<Self>, geom_brep::curve_face::composite::CompositeRefusal>> {
+    ) -> Option<
+        Result<
+            geom_brep::roots::Crossings<Self>,
+            geom_brep::curve_face::composite::CompositeRefusal,
+        >,
+    > {
         Some(geom_brep::NurbsLane::certified().surface_crossings(net, params, surface, band))
     }
 
@@ -7782,7 +7792,12 @@ impl AtRestPolicy for geom_core::Probe {
         params: (Self, Self),
         surface: &geom::Surface<Self>,
         band: geom_core::Band,
-    ) -> Option<Result<Vec<Self>, geom_brep::curve_face::composite::CompositeRefusal>> {
+    ) -> Option<
+        Result<
+            geom_brep::roots::Crossings<Self>,
+            geom_brep::curve_face::composite::CompositeRefusal,
+        >,
+    > {
         Some(geom_brep::NurbsLane::certified().surface_crossings(net, params, surface, band))
     }
 
@@ -7958,7 +7973,12 @@ impl AtRestPolicy for geom_core::interval::Interval {
         params: (Self, Self),
         surface: &geom::Surface<Self>,
         band: geom_core::Band,
-    ) -> Option<Result<Vec<Self>, geom_brep::curve_face::composite::CompositeRefusal>> {
+    ) -> Option<
+        Result<
+            geom_brep::roots::Crossings<Self>,
+            geom_brep::curve_face::composite::CompositeRefusal,
+        >,
+    > {
         Some(geom_brep::NurbsLane::certified().surface_crossings(net, params, surface, band))
     }
 
@@ -8130,7 +8150,12 @@ where
         params: (Self, Self),
         surface: &geom::Surface<Self>,
         band: geom_core::Band,
-    ) -> Option<Result<Vec<Self>, geom_brep::curve_face::composite::CompositeRefusal>> {
+    ) -> Option<
+        Result<
+            geom_brep::roots::Crossings<Self>,
+            geom_brep::curve_face::composite::CompositeRefusal,
+        >,
+    > {
         Some(geom_brep::NurbsLane::certified().surface_crossings(net, params, surface, band))
     }
 
@@ -8318,7 +8343,12 @@ where
         _params: (Self, Self),
         _surface: &geom::Surface<Self>,
         _band: geom_core::Band,
-    ) -> Option<Result<Vec<Self>, geom_brep::curve_face::composite::CompositeRefusal>> {
+    ) -> Option<
+        Result<
+            geom_brep::roots::Crossings<Self>,
+            geom_brep::curve_face::composite::CompositeRefusal,
+        >,
+    > {
         None
     }
 

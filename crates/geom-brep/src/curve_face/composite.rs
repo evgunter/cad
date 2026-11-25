@@ -31,7 +31,10 @@
 //! - **monotone** where `N′D − ND′`, which has `f′`'s sign, is one-signed:
 //!   `f` takes its extremes at the piece's ends, so the ends' readings
 //!   settle it. Ends definitely past the band on one side are clear; on
-//!   opposite sides, one crossing, bisected and read ON the surface
+//!   opposite sides, one crossing: bracketed between the last parameter
+//!   where `f`'s enclosure reads the first side and the first where it
+//!   reads the other, proposed inside the bracket where the surface's
+//!   residual changes sign, and read ON the surface
 //!   ([`crate::implicit_residual`]). An end within the band at the span's
 //!   end is that end's meeting, which the caller reads; one at a knot is
 //!   read with the piece on the knot's other side, a crossing where their
@@ -49,20 +52,34 @@
 //! the span is that end's meeting, and two within the band of each other
 //! cannot be told apart, so they refuse.
 //!
+//! **A crossing's parameter is proposed, and placed for every proposal.**
+//! Its bracket holds the composite's one root in the piece, so every
+//! parameter the arm could store for the crossing lies in it, and the
+//! carrier's length over the bracket is the crossing's reach
+//! ([`geom_core::solved::Reach::along`]): a bound from the carrier's own
+//! rows, about a hundred rounding steps of the composite over the
+//! crossing's sine, and as wide as the form is ill-conditioned (a thin
+//! torus, a family of nets). Each placing above is decided with it
+//! ([`geom_core::solved::decide_reaching`]): apart only where the nearest
+//! point of the reach is, at an end only where the farthest is, and
+//! otherwise the band's escalation. The crossing is returned with it.
+//!
 //! The walk is `geom_core::bisect::bisect_within`, with its piece budget
 //! past the knot spans it starts from.
 
 use geom::{NurbsCurve3, Surface};
 use geom_core::bisect::{Budget, PIECE_BUDGET, Step, bisect_within};
 use geom_core::k_stats::decide;
-use geom_core::solved::decide_admit;
-use geom_core::spline::compose::{CanonicalSurface, CurveCertData, canonical_composite};
+use geom_core::solved::{Admitted, Checked, Reach, decide_admit, decide_reaching};
+use geom_core::spline::compose::{
+    CanonicalSurface, CurveCertData, canonical_composite, linear_composite,
+};
 use geom_core::{Band, Bounds, Indeterminate, Interval, Margin, Point3, Real, Sign, Vec3};
 
 use crate::half_angle::SPLITS;
 use crate::ladder::{Answering, Rung, climb};
 use crate::pcurve_cache::projected::Meters;
-use crate::roots::{Unsettled, touch_or_tangency, unadmitted};
+use crate::roots::{Crossings, Unsettled, touch_or_tangency, unadmitted};
 
 /// Why [`crossings`] gave no answer.
 #[derive(Clone, Copy, Debug)]
@@ -115,8 +132,8 @@ const PAST_THE_BAND: &str = "spline_composite_past_the_band";
 /// shares stay distinct points.
 const FLOOR_SHARE: f64 = 1.0 / 1_099_511_627_776.0;
 
-/// The bisection steps that close on a crossing in its monotone piece:
-/// enough to reach `f64` resolution from any piece.
+/// The bisection steps that close on an end of a crossing's bracket, or
+/// on its proposal: enough to reach `f64` resolution from any piece.
 const BISECTIONS: u32 = 64;
 
 /// One piece of the composite: the parameter interval `[a, b]` and the
@@ -128,10 +145,21 @@ struct Piece {
     den: Vec<Interval>,
 }
 
+/// The carrier over one knot span `[a, b]`, in the chart frame: each
+/// coordinate's weighted Bernstein row and the weight's.
+struct Rail {
+    a: f64,
+    b: f64,
+    coords: [Vec<Interval>; 3],
+    weight: Vec<Interval>,
+}
+
 /// What a meeting the walk found is, before it is placed.
 enum Meeting {
-    /// A crossing at the parameter.
-    Crossing(f64),
+    /// A crossing: the parameter proposed for it, and the carrier's
+    /// length over its bracket in metres, which every parameter the
+    /// crossing could be stored at lies within of this one.
+    Crossing(f64, f64),
     /// A touch at a knot: the carrier comes within the band there and
     /// leaves on the side it came from; the refusal the band's reading
     /// there makes.
@@ -161,8 +189,9 @@ impl Reading {
 /// the parameters strictly inside `params` where the carrier crosses
 /// `surface`, ascending, each read ON it (module docs). A meeting at an
 /// end of the span is not reported: it is the end vertex's. Each is a
-/// parameter whose point reads ON the surface, not an enclosure of the
-/// true crossing's parameter.
+/// parameter whose point reads ON the surface, with how far along the
+/// carrier any other the arm could have stored lies from it, not an
+/// enclosure of the true crossing's parameter.
 ///
 /// `cross` takes a scalar of the body into certification arithmetic: it
 /// is the door's ([`crate::NurbsLane::surface_crossings`]). The routine
@@ -208,7 +237,7 @@ pub fn crossings<T: geom_core::Certifies>(
     surface: &Surface<T>,
     band: Band,
     cross: impl Fn(T) -> Interval,
-) -> Result<Vec<T>, CompositeRefusal> {
+) -> Result<Crossings<T>, CompositeRefusal> {
     let (start, end) = (cross(params.0), cross(params.1));
     if !(start.is_certified() && end.is_certified()) {
         return Err(CompositeRefusal::Unread(
@@ -221,22 +250,24 @@ pub fn crossings<T: geom_core::Certifies>(
             "the span's ends do not certify forward",
         ));
     }
-    let (pieces, divisor) = composite_rows(net, surface, (a, b), &cross)?;
+    let (pieces, rails, divisor) = composite_rows(net, surface, (a, b), &cross)?;
     let floor = (b - a) * FLOOR_SHARE;
     let read = |f: Interval| match decide(PAST_THE_BAND, Margin::of(f / divisor), band) {
         Ok(s @ (Sign::Positive | Sign::Negative)) => Reading::Past(s),
         Ok(Sign::Zero) => Reading::Near(None),
         Err(diag) => Reading::Near(Some(diag)),
     };
-    // The surface's residual at a point of the carrier, read under one
-    // row by two askers: the bisection at a place it chose (`residual`),
-    // to stop on a reading in the zero, and the door at the stored
-    // crossing (`on`, in `settle`). They are one margin, so the door
-    // admits what the search stopped on.
+    // The surface's residual at a point of the carrier, read by two
+    // askers: the proposal at places it chose (`middle`, the middle of
+    // its enclosure, whose sign change it closes on), and the door at the
+    // stored crossing (in `settle`).
     let off = |p: Point3<T>| Margin::of(crate::implicit_residual(surface, p));
-    let residual = |t: f64| -> Result<Sign, CompositeRefusal> {
-        decide("spline_composite_root_on", off(net.eval_at(t)), band)
-            .map_err(CompositeRefusal::Escalated)
+    let middle = |t: f64| {
+        let r = cross(off(net.eval_at(t)).value());
+        geom::mid_param(r.lo(), r.hi())
+    };
+    let crossing = |bracket: (f64, f64)| {
+        Meeting::Crossing(propose(bracket, &middle), length_over(&rails, bracket))
     };
     // The knot at which a piece ended within the band, that piece, and
     // its other end's side: read with the piece that starts there.
@@ -259,7 +290,10 @@ pub fn crossings<T: geom_core::Certifies>(
             match (ra, rb) {
                 (Reading::Past(l), Reading::Past(r)) if l == r => {}
                 (Reading::Past(l), Reading::Past(_)) => {
-                    meetings.push(Meeting::Crossing(bisect_row(&piece, l, &residual)?));
+                    meetings.push(crossing((
+                        last_on_side(&piece, l),
+                        first_on_side(&piece, l.flip()),
+                    )));
                 }
                 (Reading::Near(_), Reading::Near(_)) => {
                     return cut(piece, floor, &read).map(Step::Halve);
@@ -287,7 +321,7 @@ pub fn crossings<T: geom_core::Certifies>(
                     meetings.push(if l == far {
                         Meeting::Touch(k, ra.refused())
                     } else {
-                        Meeting::Crossing(knot_crossing(&before, &piece, l, &residual)?)
+                        crossing(knot_bracket(&before, &piece, l, far))
                     });
                 }
             }
@@ -419,15 +453,16 @@ pub(crate) fn framed_form<T: geom_core::Certifies>(
     Ok((coords, form, meters))
 }
 
-/// The composite's rows over `[a, b]`, one piece per knot span, and an
-/// upper bound on the form's distance divisor over the net's hull
-/// (`projected::Meters::divisor`; one for the plane).
+/// The composite's rows over `[a, b]`, one piece per knot span, the
+/// carrier's own over the same spans, and an upper bound on the form's
+/// distance divisor over the net's hull (`projected::Meters::divisor`;
+/// one for the plane).
 fn composite_rows<T: geom_core::Certifies>(
     net: &NurbsCurve3<T>,
     surface: &Surface<T>,
     (a, b): (f64, f64),
     cross: &impl Fn(T) -> Interval,
-) -> Result<(Vec<Piece>, Interval), CompositeRefusal> {
+) -> Result<(Vec<Piece>, Vec<Rail>, Interval), CompositeRefusal> {
     let unread = CompositeRefusal::Unread;
     let (coords, form, meters) = framed_form(surface, net.control(), cross)?;
     // The net's hull in the chart frame bounds every point of the span,
@@ -463,7 +498,26 @@ fn composite_rows<T: geom_core::Certifies>(
             den: den.clone(),
         })
         .collect();
-    Ok((pieces, divisor))
+    let axis = |k: usize| {
+        let mut coeffs = [0.0; 3];
+        coeffs[k] = 1.0;
+        linear_composite(&data, &coeffs, 0.0).map_err(|_| unread("the composite refused the net"))
+    };
+    let [x, y, z] = [axis(0)?, axis(1)?, axis(2)?];
+    let rails = x
+        .num
+        .breaks()
+        .windows(2)
+        .enumerate()
+        .filter(|(_, w)| w[0] >= a && w[1] <= b)
+        .map(|(i, w)| Rail {
+            a: w[0],
+            b: w[1],
+            coords: [&x, &y, &z].map(|c| c.num.spans()[i].clone()),
+            weight: x.den.spans()[i].clone(),
+        })
+        .collect();
+    Ok((pieces, rails, divisor))
 }
 
 /// The carrier's creases strictly inside `(a, b)`, each at its held
@@ -599,10 +653,15 @@ fn slope_row(num: &[Interval], den: &[Interval]) -> Vec<Interval> {
     }
 }
 
-/// The share of `[a, b]` at which `c` lies, enclosed.
+/// The share of the piece at which `c` lies, enclosed.
 fn share(piece: &Piece, c: f64) -> Interval {
+    share_of((piece.a, piece.b), c)
+}
+
+/// The share of `[a, b]` at which `c` lies, enclosed.
+fn share_of((a, b): (f64, f64), c: f64) -> Interval {
     let point = |x: f64| Interval::from_bounds(x, x);
-    let (a, b) = (point(piece.a), point(piece.b));
+    let (a, b) = (point(a), point(b));
     (point(c) - a) / (b - a)
 }
 
@@ -693,60 +752,114 @@ fn cut(
     ])
 }
 
-/// The crossing of a piece over which `f` is monotone and changes sign,
-/// `left` its side at the piece's start: bisected on `f` while its
-/// enclosure reads a sign, and on the surface's residual at the point
-/// where it does not, until the point reads ON (`residual` deciding
-/// Zero) or the bracket closes on adjacent `f64`s.
-fn bisect_row(
-    piece: &Piece,
-    left: Sign,
-    residual: &impl Fn(f64) -> Result<Sign, CompositeRefusal>,
-) -> Result<f64, CompositeRefusal> {
+/// The greatest parameter a bisection of the piece finds at which `f`'s
+/// enclosure reads `side`, the side of its start: `f` is monotone over
+/// the piece, so its root there lies past it.
+fn last_on_side(piece: &Piece, side: Sign) -> f64 {
     let (mut lo, mut hi) = (piece.a, piece.b);
     for _ in 0..BISECTIONS {
         let c = geom::bracket_mid((lo, hi));
         if !(lo < c && c < hi) {
             break;
         }
-        let side = match strict_sign(value_at(piece, share(piece, c))) {
-            Some(s) => s,
-            None => match residual(c)? {
-                Sign::Zero => return Ok(c),
-                s => s,
-            },
-        };
-        if side == left {
+        if strict_sign(value_at(piece, share(piece, c))) == Some(side) {
             lo = c;
         } else {
             hi = c;
         }
     }
-    Ok(geom::bracket_mid((lo, hi)))
+    lo
 }
 
-/// The crossing of a knot's stretch: `before` ends at the knot within
-/// the band, its start on the side `left`, and `after` starts there,
-/// ending on the other side. It is in whichever piece's ends read
-/// opposite strict signs, or at the knot itself.
-fn knot_crossing(
-    before: &Piece,
-    after: &Piece,
-    left: Sign,
-    residual: &impl Fn(f64) -> Result<Sign, CompositeRefusal>,
-) -> Result<f64, CompositeRefusal> {
+/// The least parameter a bisection of the piece finds at which `f`'s
+/// enclosure reads `side`, the side of its end: its root there lies
+/// before it.
+fn first_on_side(piece: &Piece, side: Sign) -> f64 {
+    let (mut lo, mut hi) = (piece.a, piece.b);
+    for _ in 0..BISECTIONS {
+        let c = geom::bracket_mid((lo, hi));
+        if !(lo < c && c < hi) {
+            break;
+        }
+        if strict_sign(value_at(piece, share(piece, c))) == Some(side) {
+            hi = c;
+        } else {
+            lo = c;
+        }
+    }
+    hi
+}
+
+/// The bracket of the crossing of a knot's stretch: `before` ends at the
+/// knot within the band, its start on the side `left`, and `after`
+/// starts there, ending on the side `far`. The root is in whichever
+/// piece's ends read opposite strict signs, or in either where the knot
+/// reads none.
+fn knot_bracket(before: &Piece, after: &Piece, left: Sign, far: Sign) -> (f64, f64) {
     match strict_sign(end_value(after, true)) {
-        Some(s) if s == left => bisect_row(after, s, residual),
-        Some(_) => bisect_row(before, left, residual),
-        None => Ok(after.a),
+        Some(s) if s == left => (last_on_side(after, left), first_on_side(after, far)),
+        Some(_) => (last_on_side(before, left), first_on_side(before, far)),
+        None => (last_on_side(before, left), first_on_side(after, far)),
     }
 }
 
-/// The meetings found, each placed in metres: against the creases (at
+/// **The parameter proposed for a crossing**, inside its bracket: where
+/// the middle of the surface's residual changes sign between the
+/// bracket's ends, bisected to adjacent `f64`s, or the bracket's middle
+/// where it reads no change. A place the search chose: the door admits
+/// it or refuses it ([`settle`]), and no answer rests on which parameter
+/// of the bracket it is.
+fn propose((mut lo, mut hi): (f64, f64), middle: &impl Fn(f64) -> f64) -> f64 {
+    let below = middle(lo) < 0.0;
+    if (middle(hi) < 0.0) == below {
+        return geom::bracket_mid((lo, hi));
+    }
+    for _ in 0..BISECTIONS {
+        let c = geom::bracket_mid((lo, hi));
+        if !(lo < c && c < hi) {
+            break;
+        }
+        if (middle(c) < 0.0) == below {
+            lo = c;
+        } else {
+            hi = c;
+        }
+    }
+    geom::bracket_mid((lo, hi))
+}
+
+/// **An upper bound on the carrier's length over `[lo, hi]`**, in
+/// metres: over each knot span's part of it, the supremum of the
+/// carrier's speed there times the part's share of the span. The speed
+/// is `(A′W − AW′) / W²` per coordinate, each row cut to the part by de
+/// Casteljau and read by its hull. NaN where a row does not certify,
+/// which bounds nothing.
+// `!(a < b)` is deliberate: a NaN end is no part.
+#[allow(clippy::neg_cmp_op_on_partial_ord)]
+fn length_over(rails: &[Rail], (lo, hi): (f64, f64)) -> f64 {
+    let mut total = Interval::from_bounds(0.0, 0.0);
+    for rail in rails {
+        let (a, b) = (lo.max(rail.a), hi.min(rail.b));
+        if !(a < b) {
+            continue;
+        }
+        let (s0, s1) = (share_of((rail.a, rail.b), a), share_of((rail.a, rail.b), b));
+        let over = |row: Vec<Interval>| split_row(&split_row(&row, s1).0, s0 / s1).1;
+        let scale = hull(&over(product(&rail.weight, &rail.weight)));
+        let [x, y, z] =
+            [0, 1, 2].map(|k| hull(&over(slope_row(&rail.coords[k], &rail.weight))) / scale);
+        total = total + Vec3::new(x, y, z).norm() * (s1 - s0);
+    }
+    total.hi()
+}
+
+/// The meetings found, each placed in metres for every parameter its
+/// crossing could be stored at (module docs): against the creases (at
 /// the candidate as a place, deciding only), then on the surface (`off`,
 /// the surface's residual at a point of the carrier, through the
-/// solved-value door), then, at the point the door read, against the
-/// span's ends and the crossing before it.
+/// solved-value door, which hands the crossing back with its reach),
+/// then, at the point the door read, against the span's ends and the
+/// crossing before it.
 fn settle<T: geom_core::Certifies>(
     net: &NurbsCurve3<T>,
     (t0, t1): (T, T),
@@ -754,47 +867,54 @@ fn settle<T: geom_core::Certifies>(
     creases: &[f64],
     meetings: Vec<Meeting>,
     off: &impl Fn(Point3<T>) -> Margin<T>,
-) -> Result<Vec<T>, CompositeRefusal> {
-    let apart_as =
-        |row, p: Point3<T>, q: Point3<T>| match decide(row, Margin::of((p - q).norm()), band) {
-            Ok(Sign::Zero) => Ok(false),
-            Ok(_) => Ok(true),
-            Err(diag) => Err(CompositeRefusal::Escalated(diag)),
-        };
+) -> Result<Crossings<T>, CompositeRefusal> {
+    let gap_as = |row, p: Point3<T>, q: Point3<T>, reach: f64| {
+        decide_reaching(row, Margin::of((p - q).norm()), reach, band)
+            .map_err(CompositeRefusal::Escalated)
+    };
     let ends = [net.eval(t0), net.eval(t1)];
     let creases: Vec<Point3<T>> = creases.iter().map(|&k| net.eval_at(k)).collect();
-    let mut roots: Vec<(T, Point3<T>)> = Vec::with_capacity(meetings.len());
+    let mut roots: Vec<(Admitted<T, Reach>, Point3<T>)> = Vec::with_capacity(meetings.len());
     for meeting in meetings {
-        let (Meeting::Crossing(t) | Meeting::Touch(t, _)) = meeting;
+        let (t, along) = match meeting {
+            Meeting::Crossing(t, along) => (t, along),
+            Meeting::Touch(t, _) => (t, 0.0),
+        };
         let place = net.eval_at(t);
         for &crease in &creases {
-            if !apart_as("spline_composite_root_at_crease", place, crease)? {
+            if gap_as("spline_composite_root_at_crease", place, crease, along)? == Sign::Zero {
                 return Err(Unsettled::Crease.into());
             }
         }
         if let Meeting::Touch(_, refusal) = meeting {
             return Err(refusal);
         }
-        // Definitely off at the located crossing: the residual's step
-        // between two adjacent scalars is past the band. The check bounds
-        // the point's distance ACROSS the surface; the readers below decide
-        // where it stands ALONG the carrier, which two admissible
-        // candidates can differ in by up to the band over the crossing's
-        // sine (`work/scalar/a-crossing-parameters-check-bounds-across-the-face-and-its-readers-decide-along-the-edge.md`).
+        // Definitely off at the proposal: the residual's step between two
+        // adjacent scalars is past the band.
         let (at, p) = decide_admit("spline_composite_root_on", t, band, |at| {
             let p = net.eval(at);
-            (off(p), p)
+            Checked {
+                residual: off(p),
+                reach: along,
+                witness: p,
+            }
         })
         .map_err(|refused| unadmitted(refused, CompositeRefusal::Escalated))?;
+        let along = at.bound().along();
         let mut at_end = false;
         for end in ends {
-            at_end |= !apart_as("spline_composite_root_at_end", p, end)?;
+            at_end |= gap_as("spline_composite_root_at_end", p, end, along)? == Sign::Zero;
         }
         if at_end {
             continue;
         }
-        if let Some(&(_, before)) = roots.last()
-            && !apart_as("spline_composite_roots_apart", p, before)?
+        if let Some(&(before, q)) = roots.last()
+            && gap_as(
+                "spline_composite_roots_apart",
+                p,
+                q,
+                along + before.bound().along(),
+            )? == Sign::Zero
         {
             return Err(Unsettled::Tangency.into());
         }

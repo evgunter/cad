@@ -1202,15 +1202,24 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     plane.normal,
                     band,
                 );
+                // A conic's roots are closed forms; a spline's crossings
+                // are admitted by their checks, each with its reach.
+                let mut reaches = None;
                 let meet = match lane {
                     PlaneCrossingLane::Line => None,
                     // A spiric or a spline: its endpoints' sides neither
                     // find its crossings nor place them. A spline span is
                     // the curve × face table's ring-composite arm, whose
                     // crossings take the conic's root rows below.
-                    PlaneCrossingLane::Unlaned => Some(ConicPlaneMeet::Roots(Ok(
-                        spline_plane_crossings((x, x_is, edge_key), &curve, (y, face), band)?,
-                    ))),
+                    PlaneCrossingLane::Unlaned => {
+                        let (ts, bounds): (Vec<T>, Vec<_>) =
+                            spline_plane_crossings((x, x_is, edge_key), &curve, (y, face), band)?
+                                .into_iter()
+                                .map(geom_core::solved::Admitted::into_parts)
+                                .unzip();
+                        reaches = Some(bounds);
+                        Some(ConicPlaneMeet::Roots(Ok(ts)))
+                    }
                     PlaneCrossingLane::Conic(meet) => Some(meet),
                 };
                 // Only the line lane's coplanar arm records a plane, and a
@@ -1312,10 +1321,18 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         });
                     }
                     Some(ConicPlaneMeet::Roots(Ok(roots))) => {
-                        for &t in &roots {
+                        for (i, &t) in roots.iter().enumerate() {
                             let p = curve.carrier().eval(t);
-                            let (containment, on) = contfp_decided(y, face, plane.normal, p, band)
-                                .map_err(|e| esc(e, x_is.other(), face))?;
+                            let placed = crate::contain::placed_within_reach(
+                                reaches.as_ref().map(|bounds: &Vec<_>| bounds[i]),
+                                band,
+                                |band| contfp_decided(y, face, plane.normal, p, band),
+                                |&(at, _)| on_boundary(at),
+                            )
+                            .map_err(|e| esc(e, x_is.other(), face))?;
+                            let Ok((containment, on)) = placed else {
+                                return Err(beyond_reach((x, x_is, edge_key), face)?);
+                            };
                             if !matches!(containment, FaceContainment::Out)
                                 && let Some(tr) = trace.as_deref_mut()
                             {
@@ -4236,9 +4253,17 @@ fn spline_interior<T: Decide + crate::props::AtRestPolicy>(
     })?;
     for m in found {
         let esc_y = |e| esc(e, x_is.other(), face);
-        if let Some((at, margin)) =
-            crate::contain::curved_boundary_containment(y, face, m.point, band).map_err(esc_y)?
-        {
+        let on_rim = crate::contain::placed_within_reach(
+            Some(m.reach),
+            band,
+            |band| crate::contain::curved_boundary_containment(y, face, m.point, band),
+            |on| on.as_ref().map(|&(at, _)| at),
+        )
+        .map_err(esc_y)?;
+        let Ok(on_rim) = on_rim else {
+            return Err(beyond_reach((x, x_is, edge_key), face)?);
+        };
+        if let Some((at, margin)) = on_rim {
             return Ok(CurvedEvent::Pierce {
                 t: m.t,
                 p: m.point,
@@ -5444,7 +5469,7 @@ fn spline_plane_crossings<T: Bounds + crate::props::AtRestPolicy>(
     curve: &geom_brep::EdgeCurve<T>,
     (y, face): (&Body<T>, FaceKey),
     band: Band,
-) -> Result<Vec<T>, BooleanError> {
+) -> Result<geom_brep::roots::Crossings<T>, BooleanError> {
     use geom_brep::curve_face::{Door, route};
     let surface = y.proven_face(face).surface();
     let arm = route(curve.carrier().kind(), surface.kind());
@@ -5475,8 +5500,9 @@ fn spline_plane_crossings<T: Bounds + crate::props::AtRestPolicy>(
 /// What the ring composite made of a spline span against an analytic
 /// face ([`composite_count`]).
 enum Counted<T> {
-    /// Every crossing strictly inside the span, ascending.
-    Crossings(Vec<T>),
+    /// Every crossing strictly inside the span, ascending, each with its
+    /// reach.
+    Crossings(geom_brep::roots::Crossings<T>),
     /// The arm refused a touch, and every meeting of the span with the
     /// carrier is certified off the face: the span crosses this face
     /// nowhere inside.
@@ -5547,6 +5573,31 @@ fn composite_count<T: Bounds + crate::props::AtRestPolicy>(
             });
         }
     })
+}
+
+/// Whether a placement is on the face's boundary: the verdicts that
+/// hold only where every parameter a crossing could be stored at reads
+/// them ([`crate::contain::placed_within_reach`]).
+fn on_boundary(at: FaceContainment) -> Option<FaceContainment> {
+    matches!(
+        at,
+        FaceContainment::OnEdge(_) | FaceContainment::OnVertex(_)
+    )
+    .then_some(at)
+}
+
+/// The refusal of a spline crossing whose point reads on `face`'s
+/// boundary and whose reach holds parameters that do not
+/// ([`geom_brep::roots::Unsettled::Reach`]).
+///
+/// # Errors
+///
+/// [`spline_unsettled`]'s.
+fn beyond_reach<T: Decide>(
+    site: (&Body<T>, Operand, EdgeKey),
+    face: FaceKey,
+) -> Result<BooleanError, BooleanError> {
+    spline_unsettled(site, face, geom_brep::roots::Unsettled::Reach)
 }
 
 /// [`BooleanError::SplineCrossingUnsettled`] for `x`'s edge against
@@ -5647,9 +5698,22 @@ fn spline_wall_event<T: Decide + Bounds + crate::props::AtRestPolicy>(
             return Err(frontier());
         }
         let nappe = cone_nappe(y, face, surface, band)?;
-        for &t in ts {
+        for &crossing in ts {
+            let (t, reach) = crossing.into_parts();
             let p = carrier.eval(t);
-            match place_crossing(y, face, p, nappe, band)? {
+            let placed = crate::contain::placed_within_reach(
+                Some(reach),
+                band,
+                |band| place_crossing(y, face, p, nappe, band),
+                |placed| match *placed {
+                    Placed::At(at, _) => on_boundary(at),
+                    _ => None,
+                },
+            )?;
+            let Ok(placed) = placed else {
+                return Err(beyond_reach((x, x_is, edge_key), face)?);
+            };
+            match placed {
                 Placed::OffNappe | Placed::Out => {}
                 Placed::Unplaced => return Err(frontier()),
                 Placed::NappeGap(diag) => return Err(located(BooleanDecision::ConeRoots, diag)),

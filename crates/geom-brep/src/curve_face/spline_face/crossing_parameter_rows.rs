@@ -1,9 +1,9 @@
-//! Measurement rows for the work item
-//! `work/scalar/a-crossing-parameters-check-bounds-across-the-face-and-its-readers-decide-along-the-edge.md`:
-//! what [`super::settle`] answers on parameters its own ON reading
-//! admits, and how wide [`super::isolate`]'s box round the true meeting
-//! is on a shallow crossing, at `f64` and at `Interval`. Each row pins
-//! today's behaviour.
+//! **A meeting's stored parameter decides nothing its box does not**
+//! (the crate README of `geom-core`, DL5.2): what [`super::settle`]
+//! answers on the boxes that hold one meeting, how wide
+//! [`super::isolate`]'s box round the true meeting is on a shallow
+//! crossing, at `f64` and at `Interval`, and that a leaf and its witness
+//! place alike or the leaf refuses.
 
 #![allow(clippy::unwrap_used, clippy::panic)]
 
@@ -13,7 +13,6 @@ use geom_core::spline::KnotVector;
 use geom_core::{Band, Interval, Point3, Vec3};
 
 use super::{ChartMeeting, Isolated, SpanCarrier, SplineFaceRefusal, isolate, settle};
-use crate::roots::Unsettled;
 
 const ZERO: f64 = 1e-9;
 const ESCALATE: f64 = 10.0 * ZERO;
@@ -80,7 +79,13 @@ fn settled(
     span: (f64, f64),
     roots: Vec<[(f64, f64); 3]>,
 ) -> Result<Vec<ChartMeeting<f64>>, SplineFaceRefusal> {
-    settle(&shallow(), &flat(), &Isolated { span, roots }, band())
+    // The line is by arc length: its speed is one.
+    let isolated = Isolated {
+        span,
+        speed: 1.0,
+        roots,
+    };
+    settle(&shallow(), &flat(), &isolated, band())
 }
 
 /// The span whose stop end lies two escalation lengths past the true
@@ -96,17 +101,28 @@ fn off_chart(t: f64) -> f64 {
     (shallow().eval(t) - flat().eval(cell[1].0, cell[2].0)).norm()
 }
 
-/// **`settle` answers three ways on parameters its ON reading admits.**
-/// The line crosses the chart at `SIN`, so every parameter within
-/// `ZERO / SIN` (a hundred zero bands along the edge) of the true meeting
-/// reads ON. With the true meeting two escalation lengths short of the
-/// span's end, a point box at the true meeting is reported; one fifty
-/// zero bands before it is reported at that parameter; one half a zero
-/// band short of the end is dropped as the end's; one five zero bands
-/// short of the end escalates. The boxes are hand-made, each a point,
-/// so nothing here says [`isolate`] proposes them.
+/// The box about the middle `t` just wide enough to hold the true
+/// meeting, as a box the walk proved would.
+fn holding_cell(t: f64) -> [(f64, f64); 3] {
+    let half = (t - T_STAR).abs() + ZERO;
+    let x = shallow().eval(t).x;
+    [(t - half, t + half), (x, x), (0.5, 0.5)]
+}
+
+/// **`settle` answers one way on the boxes that hold one meeting, or
+/// refuses.** The line crosses the chart at `SIN`, so every parameter
+/// within `ZERO / SIN` (a hundred zero bands along the edge) of the true
+/// meeting reads ON, and the true meeting lies two escalation lengths
+/// short of the span's end. Four boxes hold it, each about another
+/// middle: the true meeting; fifty zero bands before it; half a zero band
+/// short of the end; five zero bands short of the end. Read on its
+/// middle's point alone, each answered for itself: reported, reported at
+/// the early parameter, dropped as the end's, escalated. Read with its
+/// box's length as the reach, the narrow box about the true meeting is
+/// reported, and the three whose reach holds the end refuse at the end's
+/// row. A box wholly within the zero band of the end is the end's.
 #[test]
-fn settle_answers_three_ways_on_parameters_its_on_reading_admits() {
+fn settle_answers_one_way_or_refuses_on_the_boxes_that_hold_one_meeting() {
     let (a, b) = span();
     let early = T_STAR - 50.0 * ZERO;
     let at_end = b - 0.5 * ZERO;
@@ -118,32 +134,40 @@ fn settle_answers_three_ways_on_parameters_its_on_reading_admits() {
             off_chart(t)
         );
     }
-    for t in [T_STAR, early] {
-        let got = settled((a, b), vec![point_cell(t)]).unwrap();
+    let got = settled((a, b), vec![holding_cell(T_STAR)]).unwrap();
+    assert!(
+        got.len() == 1
+            && got[0].t.to_bits() == T_STAR.to_bits()
+            && got[0].reach.along() >= 2.0 * ZERO,
+        "the narrow box about the true meeting is reported with its length: {got:?}"
+    );
+    for t in [early, at_end, in_gap] {
+        let got = settled((a, b), vec![holding_cell(t)]);
         assert!(
-            got.len() == 1 && got[0].t.to_bits() == t.to_bits(),
-            "reported at the box's own parameter {t}: {got:?}"
+            matches!(got, Err(SplineFaceRefusal::Escalated(d)) if d.predicate == Some("spline_face_root_at_end")),
+            "the end lies within the reach of the box about {t}: {got:?}"
         );
     }
-    let got = settled((a, b), vec![point_cell(at_end)]).unwrap();
-    assert!(got.is_empty(), "dropped as the end's: {got:?}");
-    let got = settled((a, b), vec![point_cell(in_gap)]);
+    let t = b - 0.25 * ZERO;
+    let x = shallow().eval(t).x;
+    let beside_end = [(t - 0.1 * ZERO, t + 0.1 * ZERO), (x, x), (0.5, 0.5)];
+    let got = settled((a, b), vec![beside_end]).unwrap();
     assert!(
-        matches!(got, Err(SplineFaceRefusal::Escalated(_))),
-        "in the gap of the end: {got:?}"
+        got.is_empty(),
+        "every point of the box is the end's: {got:?}"
     );
 }
 
-/// **The at-end reading is taken on the box's middle before the box is
-/// compared to the ends.** Both boxes hold the true meeting, two
-/// escalation lengths short of the end, and both reach past the end. The
-/// one whose middle is the true meeting refuses (`Unsettled::Meter`): its
-/// middle is definitely apart from the end and the box is not inside the
-/// span. The one whose middle lies half a zero band short of the end is
-/// dropped as the end's, and the box is never compared. Hand-made boxes:
-/// the measurement of how wide [`isolate`]'s are is the row below.
+/// **A box that holds an end of the span is never apart from it.** Both
+/// boxes hold the true meeting, two escalation lengths short of the end,
+/// and both reach past the end. Read on its middle alone, the one whose
+/// middle is the true meeting refused (`Unsettled::Meter`: its middle
+/// apart from the end and the box not inside the span) and the one whose
+/// middle lies half a zero band short of the end was dropped as the
+/// end's, the box never compared. Read with the box's length as the
+/// reach, both refuse at the end's row.
 #[test]
-fn a_box_past_the_end_is_dropped_on_its_middle_before_it_is_compared() {
+fn a_box_past_the_end_refuses_wherever_its_middle_is() {
     let (a, b) = span();
     let boxed = |lo: f64, hi: f64| {
         let mid = geom::bracket_mid((lo, hi));
@@ -154,22 +178,47 @@ fn a_box_past_the_end_is_dropped_on_its_middle_before_it_is_compared() {
         );
         settled((a, b), vec![[(lo, hi), (x, x), (0.5, 0.5)]])
     };
-    let centred = boxed(T_STAR - 3.0 * ESCALATE, T_STAR + 3.0 * ESCALATE);
-    assert!(
-        matches!(
-            centred,
-            Err(SplineFaceRefusal::Unsettled(Unsettled::Meter {
-                row: "spline_face_root_at_end"
-            }))
-        ),
-        "middle apart from the end, box past it: {centred:?}"
-    );
     let lo = T_STAR - ZERO;
-    let near_end = boxed(lo, 2.0 * (b - 0.5 * ZERO) - lo);
+    for (lo, hi) in [
+        (T_STAR - 3.0 * ESCALATE, T_STAR + 3.0 * ESCALATE),
+        (lo, 2.0 * (b - 0.5 * ZERO) - lo),
+    ] {
+        let got = boxed(lo, hi);
+        assert!(
+            matches!(got, Err(SplineFaceRefusal::Escalated(d)) if d.predicate == Some("spline_face_root_at_end")),
+            "the box ({lo}, {hi}) holds the end: {got:?}"
+        );
+    }
+}
+
+/// **Two meetings are told apart for every parameter each box holds.**
+/// The line lying in the chart's plane meets it at every parameter, so
+/// two boxes are handed in, their middles thirty zero bands apart. Each
+/// twenty zero bands long, a parameter of one lies within the band of a
+/// parameter of the other, and they refuse at the row that parts them;
+/// each a zero band long, both are reported.
+#[test]
+fn two_meetings_are_parted_with_their_boxes_lengths() {
+    let level = Curve3::Line(geom::Line {
+        origin: Point3::new(0.0, 0.5, 0.0),
+        dir: geom_core::UnitVec3::exact_x(),
+    });
+    let read = |half: f64| {
+        let cell = |t: f64| [(t - half, t + half), (t, t), (0.5, 0.5)];
+        let isolated = Isolated {
+            span: (0.0, 1.0),
+            speed: 1.0,
+            roots: vec![cell(0.4), cell(0.4 + 30.0 * ZERO)],
+        };
+        settle(&level, &flat(), &isolated, band())
+    };
+    let refused = read(10.0 * ZERO);
     assert!(
-        matches!(&near_end, Ok(found) if found.is_empty()),
-        "middle at the end: dropped, the box unread: {near_end:?}"
+        matches!(refused, Err(SplineFaceRefusal::Escalated(d)) if d.predicate == Some("spline_face_roots_apart")),
+        "the boxes' reaches overlap: {refused:?}"
     );
+    let found = read(0.5 * ZERO).unwrap();
+    assert_eq!(found.len(), 2, "apart past both reaches: {found:?}");
 }
 
 /// A bicubic patch over the square of side `size`, waved by a twentieth
@@ -205,8 +254,8 @@ fn shallow_over(chart: &NurbsSurface<f64>, size: f64) -> (Curve3<f64>, f64) {
 /// under a hundredth of the zero band (measured: `1.4·10⁻¹⁵` m and
 /// `1.5·10⁻¹²` m), so its middle, which [`settle`] stores, is the meeting
 /// to that width. The width is the operator's fixed point, the residual's
-/// rounding over the sine of the crossing; nothing compares it to the
-/// band, and [`settle`] compares the box only to the span's ends.
+/// rounding over the sine of the crossing, and the reach [`settle`]
+/// places the meeting with is the line's length over it.
 #[test]
 fn at_f64_the_walks_box_is_far_narrower_than_the_band() {
     for size in [1.0, 1e3] {
@@ -220,23 +269,29 @@ fn at_f64_the_walks_box_is_far_narrower_than_the_band() {
             "size {size}: the box is {} m of the line wide",
             hi - lo
         );
+        let placed = settle(&line, &chart, &iso, band()).unwrap();
+        assert!(
+            placed.len() == 1 && placed[0].reach.along() < 1e-2 * ZERO,
+            "size {size}: the meeting's reach is its box's length: {placed:?}"
+        );
     }
 }
 
-/// **At `Interval` the leaf's box is bands wide and its middle is its
-/// witness's proposal.** The chart's heights are widened by a tenth of
-/// the zero band each way. Every member's meeting lies within
-/// `0.1·zero / SIN` of the witness's, and the leaf's box holds them all:
-/// it is more than ten zero bands of the line wide. Its middle agrees
-/// with the witness's proposal to a thousandth of the zero band, the box
-/// of members being symmetric about the witness, and [`settle`] reports
-/// it: the middle's point reads ON at every member. So the leaf and its
-/// witness store one parameter here, where the composite arm's
-/// (`composite::crossing_parameter_rows`) store two; what the leaf's
-/// at-end and apart readings are taken on is the middle's point, with
-/// the box compared only to the span's ends.
+/// **At `Interval` the leaf's box is bands wide, and the leaf places its
+/// meeting as its witness does or refuses.** The chart's heights are
+/// widened by a tenth of the zero band each way. Every member's meeting
+/// lies within `0.1·zero / SIN` of the witness's, and the leaf's box
+/// holds them all: it is more than ten zero bands of the line wide, and
+/// that length is the leaf's reach. Its middle agrees with the witness's
+/// proposal to a thousandth of the zero band, the box of members being
+/// symmetric about the witness.
+///
+/// Against the span's own end, far from the meeting, both report it.
+/// Against an end fifteen zero bands past the meeting, outside the leaf's
+/// box and inside its reach, the witness reports and the leaf refuses at
+/// the end's row.
 #[test]
-fn at_interval_the_leafs_box_is_bands_wide_and_its_middle_is_its_witnesss() {
+fn at_interval_the_leaf_places_its_meeting_as_its_witness_does_or_refuses() {
     let chart = waved(1.0);
     let (line, half) = shallow_over(&chart, 1.0);
     let witness = isolate(&SpanCarrier::of(&line), (0.0, 2.0 * half), &chart, band()).unwrap();
@@ -244,20 +299,49 @@ fn at_interval_the_leafs_box_is_bands_wide_and_its_middle_is_its_witnesss() {
     let fat = chart
         .map_scalar(Interval::point)
         .map_points(|q| Point3::new(q.x, q.y, q.z + Interval::from_bounds(-w, w)));
-    let line = line.map_scalar(Interval::point);
+    let fat_line = line.map_scalar(Interval::point);
     let span = (Interval::point(0.0), Interval::point(2.0 * half));
-    let leaf = isolate(&SpanCarrier::of(&line), span, &fat, band()).unwrap();
+    let leaf = isolate(&SpanCarrier::of(&fat_line), span, &fat, band()).unwrap();
     assert!(
         witness.roots.len() == 1 && leaf.roots.len() == 1,
         "{witness:?} {leaf:?}"
     );
     let (lo, hi) = leaf.roots[0][0];
     assert!(hi - lo > 10.0 * ZERO, "the leaf's box: {} m wide", hi - lo);
-    let middles = geom::bracket_mid(leaf.roots[0][0]) - geom::bracket_mid(witness.roots[0][0]);
+    let middle = geom::bracket_mid(witness.roots[0][0]);
+    let middles = geom::bracket_mid(leaf.roots[0][0]) - middle;
     assert!(
         middles.abs() < 1e-3 * ZERO,
         "the middles agree: {middles} m apart"
     );
-    let placed = settle(&line, &fat, &leaf, band()).unwrap();
-    assert_eq!(placed.len(), 1, "the leaf's middle is reported: {placed:?}");
+    let ended = |iso: &Isolated, end: f64| Isolated {
+        span: (0.0, end),
+        ..iso.clone()
+    };
+    let far = 2.0 * half;
+    let (of_witness, of_leaf) = (
+        settle(&line, &chart, &ended(&witness, far), band()).unwrap(),
+        settle(&fat_line, &fat, &ended(&leaf, far), band()).unwrap(),
+    );
+    assert!(
+        of_witness.len() == 1 && of_leaf.len() == 1,
+        "both report against the far end: {of_witness:?} {of_leaf:?}"
+    );
+    assert!(
+        of_witness[0].reach.along() < 1e-2 * ZERO && of_leaf[0].reach.along() >= hi - lo,
+        "the leaf's reach is its box's length: {of_witness:?} {of_leaf:?}"
+    );
+    let near = middle + 15.0 * ZERO;
+    assert!(hi < near, "the near end is outside the leaf's box");
+    let of_witness = settle(&line, &chart, &ended(&witness, near), band()).unwrap();
+    assert_eq!(
+        of_witness.len(),
+        1,
+        "the witness's meeting is apart: {of_witness:?}"
+    );
+    let of_leaf = settle(&fat_line, &fat, &ended(&leaf, near), band());
+    assert!(
+        matches!(of_leaf, Err(SplineFaceRefusal::Escalated(d)) if d.predicate == Some("spline_face_root_at_end")),
+        "the near end lies within the leaf's reach: {of_leaf:?}"
+    );
 }

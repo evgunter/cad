@@ -670,6 +670,59 @@ pub(super) fn curved_boundary_containment<T: Decide>(
     })
 }
 
+#[cfg(test)]
+mod reach_rows;
+
+/// A reading [`placed_within_reach`] could not make every candidate's.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct BeyondReach;
+
+/// **A placement read at an admitted crossing's point, for every
+/// parameter the crossing could be stored at** (`geom-core`'s README,
+/// DL5.2). `read` places the point against a face at a band, and
+/// `boundary` names the boundary cell it answered, if it did.
+///
+/// A crossing with a closed form (`reach` is `None`) is read at `band`.
+/// One admitted by its check has every such parameter's point within
+/// `reach.along()` of this one, so it is read with the band's escalation
+/// moved out by that ([`geom_core::solved::Reach::bands`]): off every
+/// boundary cell there, each candidate is off it past `band` and stands
+/// in the one region the point does, so an interior or exterior answer
+/// is every candidate's. On a boundary cell, the point is read again
+/// with the band's zero moved in by the reach, which answers the same
+/// cell only where every candidate lies within the zero of it.
+///
+/// # Errors
+///
+/// `read`'s; inside, [`BeyondReach`] where the reach is not inside the
+/// band's zero and the point reads on a boundary cell, or forms no band.
+pub(crate) fn placed_within_reach<V, E>(
+    reach: Option<geom_core::solved::Reach>,
+    band: Band,
+    read: impl Fn(Band) -> Result<V, E>,
+    boundary: impl Fn(&V) -> Option<FaceContainment>,
+) -> Result<Result<V, BeyondReach>, E> {
+    let Some(reach) = reach else {
+        return read(band).map(Ok);
+    };
+    let Ok((clear, on)) = reach.bands(band) else {
+        return Ok(Err(BeyondReach));
+    };
+    let placed = read(clear)?;
+    let Some(cell) = boundary(&placed) else {
+        return Ok(Ok(placed));
+    };
+    let Some(on) = on else {
+        return Ok(Err(BeyondReach));
+    };
+    let again = read(on)?;
+    Ok(if boundary(&again) == Some(cell) {
+        Ok(again)
+    } else {
+        Err(BeyondReach)
+    })
+}
+
 /// **The shared boundary pre-pass**: vertex coincidence over ALL
 /// loops FIRST — an edge-interior verdict must never shadow a vertex
 /// coincidence, across loops exactly as within one (the invariant
