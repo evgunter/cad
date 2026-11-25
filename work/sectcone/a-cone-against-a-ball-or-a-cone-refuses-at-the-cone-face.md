@@ -48,7 +48,24 @@ argument). `choose_roles` takes every carrier the paths read, and
 carrier. A face no path reads (a spline whose iso curves are not read)
 still refuses `CurvedBooleanUnsupported` there.
 
+**Behind it, the at-rest volume.** With the ring read, every run
+built and every result failed its finish `ResultInvalid`
+(`VolumeUncomputable`, `Unimplemented`): the cone's closed-form flux
+(`geom_brep::props` `require_on_cone`, `cone_edge_length`) reads lines
+and conics alone, and a polynomial spline rim on a cone did not take
+the quadrature (`topo::props` `takes_quadrature`). It now does: the
+cone cap lane (`quad_lane` `rim_face`, `spiric::cone_cap_rounds`)
+already read a rational rim on a cone, and reads a polynomial one's
+vector area exactly (`cap_about`'s `loop_vector_area`).
+
 **Seam with U3** (`the-join-reads-the-cone-pairs-on-the-value.md`): the
 cause is the join's ring lane, not `rides_carried`, which already carries
 `ConeSphere` and `ConeCone`. The change is the two arms above; U3's
 `rides_carried`, node and `coverage` work is untouched.
+
+## Closed (2026-11-24, PR 7733)
+
+Every run of both fixtures, in both orders, builds a body valid at
+tier 3 whose volumes close (`|A ∪ B| + |A ∩ B| = |A| + |B|`,
+`|A ∖ B| = |A| − |A ∩ B|`); the row pins `built` for all six runs of
+each.
