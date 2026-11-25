@@ -567,6 +567,7 @@ fn lit(
     let step = step_id(session, profile, loop_, step);
     marks::step_focus(index, session.doc(), marks::EditedStep { profile, step })
         .expect("every face of the fixture is named")
+        .lit
 }
 
 /// Every drawn corner of the patch `id`, in world coordinates.
@@ -728,6 +729,16 @@ fn each_fillet_step_lights_its_own_arc() {
             );
         }
     }
+    // What else each step lights is the runs the profile attributes to
+    // it: a run is drawn by the earliest step whose piece lies on it, so
+    // the first fillet holds both runs beside its arc and the last holds
+    // neither. A change to that attribution moves these counts.
+    let counts: Vec<usize> = by_step.iter().map(BTreeSet::len).collect();
+    assert_eq!(
+        counts,
+        [0, 0, 3, 0, 0, 2, 0, 0, 2, 0, 0, 1, 0],
+        "each fillet lights its arc and the runs attributed to it: {by_step:?}"
+    );
     let union: BTreeSet<u32> = by_step.iter().flatten().copied().collect();
     let body = marks::focus(&index, session.doc(), &Selection::Node(profile));
     assert_eq!(
@@ -814,8 +825,8 @@ fn a_step_that_swept_nothing_drawn_lights_nothing() {
         }),
     );
     assert!(
-        by_panel.is_empty(),
-        "the entry step lights nothing: {by_panel:?}"
+        by_panel == marks::PanelFocus::default(),
+        "the entry step lights nothing and owes no note: {by_panel:?}"
     );
     // Under another selection the step is not what the panel shows,
     // and the selection's own extent is lit.
@@ -830,9 +841,28 @@ fn a_step_that_swept_nothing_drawn_lights_nothing() {
     );
     assert_eq!(
         elsewhere,
-        marks::focus(&index, session.doc(), &Selection::Node(extrude)),
+        marks::PanelFocus {
+            lit: marks::focus(&index, session.doc(), &Selection::Node(extrude)),
+            note: None,
+        },
         "a step of a node the panel is not showing narrows nothing"
     );
+}
+
+/// **A copy of `body` in the world**, standing where its body stands,
+/// with the product left alone: a row that draws a union of copies sets
+/// the product to the union itself.
+fn world_copy(doc: &mut pncad::document::ProfileDoc, body: RecipeNodeId, tol: Tol) -> RecipeNodeId {
+    use pncad::document::{BodyRead, Operand, VarId};
+    common::insert_into(
+        doc,
+        Node::place(
+            BodyRead::plain(Operand::from(body)),
+            Operand::Var(VarId::WORLD),
+            pncad::document::stand().bundle(),
+        ),
+        tol,
+    )
 }
 
 /// **A part's wall is no wall of the host's step, whatever its ids.**
@@ -847,7 +877,7 @@ fn a_step_that_swept_nothing_drawn_lights_nothing() {
 /// block's wall on that step's leg.
 #[test]
 fn a_parts_wall_is_no_wall_of_the_hosts_step_whatever_its_ids() {
-    use pncad::document::{BodyRead, Bodies, DocEdit, DocumentId, Operand, ProfileDoc};
+    use pncad::document::{Bodies, BodyRead, DocEdit, DocumentId, Operand, ProfileDoc};
 
     let tol = Tol::witness();
     let (w, d) = (0.04, 0.03);
@@ -882,7 +912,7 @@ fn a_parts_wall_is_no_wall_of_the_hosts_step_whatever_its_ids() {
     let opts = crate::fixture::resolver::with_resolver(store);
     let instance =
         common::asm::instance_at(&mut host, part_ref, [w / 2.0, d / 2.0, 0.0], &opts, tol);
-    let (mut host, placed) = common::placed(&host, extrude, tol);
+    let placed = world_copy(&mut host, extrude, tol);
     let union = common::insert_into(
         &mut host,
         Node::Union {
@@ -924,9 +954,14 @@ fn a_parts_wall_is_no_wall_of_the_hosts_step_whatever_its_ids() {
             profile,
             step: program[0][k],
         };
-        let walls = marks::step_focus(&index, &host, edited).expect("every face is named");
+        let walls = marks::step_focus(&index, &host, edited)
+            .expect("every face is named")
+            .lit;
         let (from, to) = (corners[k - 1], corners[k % 4]);
-        assert!(!walls.is_empty(), "step {k} lights the host's wall: {walls:?}");
+        assert!(
+            !walls.is_empty(),
+            "step {k} lights the host's wall: {walls:?}"
+        );
         for &wall in &walls {
             assert!(
                 on_wall(&index, wall, from, to),
@@ -934,4 +969,111 @@ fn a_parts_wall_is_no_wall_of_the_hosts_step_whatever_its_ids() {
             );
         }
     }
+}
+
+/// **A wall a union merged with its neighbour lights as the merged
+/// face, and is counted as one.** Two blocks stand side by side and are
+/// unioned: their `y = 0` walls are coplanar and touch, so the union
+/// draws them as one merged face. Each block's step over its `y = 0`
+/// leg lights that face, which reaches across both blocks, and says it
+/// is merged; the wall between the blocks is gone, and its step lights
+/// nothing.
+#[test]
+fn a_merged_wall_lights_whole_and_is_counted() {
+    use pncad::document::{Bodies, BodyRead, DocEdit, DocumentId, Operand, ProfileDoc};
+
+    let tol = Tol::witness();
+    let (w, d) = (0.02, 0.03);
+    let mut doc = ProfileDoc::empty(DocumentId::derive("focus-merged"), tol);
+    let mut block = |x0: f64| {
+        let profile = common::insert_into(&mut doc, common::rectangle([x0, 0.0], w, d), tol);
+        let extrude = common::insert_into(
+            &mut doc,
+            Node::Extrude {
+                profile: profile.into(),
+                distance: common::len(DEPTH),
+            },
+            tol,
+        );
+        (profile, extrude)
+    };
+    let (left, left_body) = block(0.0);
+    let (right, right_body) = block(w);
+    let left_copy = world_copy(&mut doc, left_body, tol);
+    let right_copy = world_copy(&mut doc, right_body, tol);
+    let union = common::insert_into(
+        &mut doc,
+        Node::Union {
+            members: Bodies::spelled(vec![
+                BodyRead::plain(Operand::Node(left_copy)),
+                BodyRead::plain(Operand::Node(right_copy)),
+            ]),
+        },
+        tol,
+    );
+    common::edit_into(
+        &mut doc,
+        DocEdit::SetProduct {
+            product: Some(Operand::from(union)),
+        },
+        tol,
+    );
+    let eval = pncad::document::evaluate(
+        &doc,
+        None,
+        &pncad::document::CancelToken::new(),
+        &pncad::document::EvalOptions::default(),
+        tol,
+    );
+    let index = PickIndex::build(
+        &doc,
+        &eval,
+        viewer::pickindex::PictureKey::of(
+            viewer::generation::Generation::FIRST,
+            delta(),
+            viewer::world::Shown::none(),
+        ),
+        tol,
+    )
+    .expect("the union indexes");
+    let step = |profile, k: usize| {
+        let Some(Node::Profile(program)) = doc.node(profile) else {
+            panic!("a profile")
+        };
+        marks::step_focus(
+            &index,
+            &doc,
+            marks::EditedStep {
+                profile,
+                step: program.ids[0][k],
+            },
+        )
+        .expect("every face is named")
+    };
+    let (by_left, by_right) = (step(left, 1), step(right, 1));
+    let [face] = by_left.lit.iter().copied().collect::<Vec<_>>()[..] else {
+        panic!("the left block's y = 0 leg lights one face: {by_left:?}")
+    };
+    assert_eq!(by_left.merged, 1, "and it is a merged face: {by_left:?}");
+    assert_eq!(
+        by_left, by_right,
+        "the right block's leg lights the same face"
+    );
+    assert!(
+        on_wall(&index, face, [0.0, 0.0], [2.0 * w, 0.0]),
+        "the face stands on y = 0"
+    );
+    let reach = corners_of(&index, face)
+        .iter()
+        .map(|c| f64::from(c[0]))
+        .fold(f64::MIN, f64::max);
+    assert!(
+        (reach - 2.0 * w).abs() < 1e-6,
+        "the face is drawn across both blocks, to x = {reach}"
+    );
+    assert_eq!(
+        step(left, 2),
+        marks::StepWalls::default(),
+        "the wall between the blocks is gone, and its step lights nothing"
+    );
 }

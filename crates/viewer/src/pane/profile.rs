@@ -110,10 +110,10 @@ impl ViewerBehavior<'_> {
             step,
         });
         *self.step_edited = edited;
-        if let (Some(edited), Some(index)) = (edited, self.index)
-            && let Err(unread) = crate::marks::step_focus(index, session.doc(), edited)
-        {
-            crate::widgets::message_toned(ui, unread.to_string(), &theme, frame::Tone::Advisory);
+        // The note the last focus built found for the step held then,
+        // said while that step is still the one held.
+        if let (Some(_), Some(note)) = (edited, self.step_note) {
+            crate::widgets::message_toned(ui, note.to_string(), &theme, frame::Tone::Advisory);
         }
         match news.standing {
             Some((slot, text)) => {

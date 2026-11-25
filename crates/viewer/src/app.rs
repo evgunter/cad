@@ -482,6 +482,9 @@ pub struct ViewerApp {
     /// The profile step the editor held on the last frame
     /// ([`ViewerBehavior::step_edited`]).
     step_edited: Option<marks::EditedStep>,
+    /// What the profile editor says under the step it holds, as the
+    /// last focus built found it ([`marks::PanelFocus::note`]).
+    step_note: Option<marks::StepNote>,
     /// Whether the advisory-check findings window is open.
     ///
     /// Application chrome state, not a draft: nothing is being
@@ -1045,6 +1048,7 @@ impl ViewerApp {
             profile_drawn: ProfileDoors::default(),
             row_hovered: None,
             step_edited: None,
+            step_note: None,
             checks_shown: false,
             controls_shown: false,
             camera,
@@ -1228,12 +1232,13 @@ impl ViewerApp {
         let Some(index) = self.picks.index() else {
             return;
         };
-        let focus = marks::panel_focus(
+        let marks::PanelFocus { lit: focus, note } = marks::panel_focus(
             index,
             self.session.doc(),
             self.session.selection(),
             self.step_edited,
         );
+        self.step_note = note;
         if !rebuilt
             && self.scene_display == Some(display_revision)
             && self.scene_focus == focus
@@ -2640,6 +2645,7 @@ impl eframe::App for ViewerApp {
                     row_hovered: &mut row_hovered,
                     row_was_hovered: self.row_hovered,
                     step_edited: &mut step_edited,
+                    step_note: self.step_note,
                     pending_fit: &mut self.pending_fit,
                     projection_fault: &mut self.projection_fault,
                     viewport_reads: &mut self.viewport_reads,
@@ -2839,6 +2845,9 @@ pub(crate) struct ViewerBehavior<'a> {
     /// Set by the profile editor to the step being edited while it
     /// draws; the focus reads it next frame ([`marks::panel_focus`]).
     pub(crate) step_edited: &'a mut Option<marks::EditedStep>,
+    /// What the editor says under the step it held on the last frame
+    /// ([`marks::PanelFocus::note`]).
+    pub(crate) step_note: Option<marks::StepNote>,
     pub(crate) pending_fit: &'a mut bool,
     /// Where the viewport leaves a view matrix it could not form, for
     /// [`frame::projection_badge`] to read: a read of the camera, so
@@ -11993,7 +12002,8 @@ mod properties_pane_tests {
             );
             let index = driven.on_screen();
             let wall = crate::marks::step_focus(index, driven.app.session.doc(), edited)
-                .expect("the plate's faces are named");
+                .expect("the plate's faces are named")
+                .lit;
             assert_eq!(wall.len(), 1, "step 2 sweeps one wall: {wall:?}");
             assert_eq!(
                 driven.app.scene_focus, wall,
