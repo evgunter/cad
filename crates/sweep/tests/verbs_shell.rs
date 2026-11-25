@@ -1645,7 +1645,7 @@ fn the_shell_cost_is_measured_not_asserted() {
         ("vessel", v.clone(), 0.2, Vec::new()),
         ("tube", tube(0.6, 1.0, 2.0), 0.1, Vec::new()),
         // The opened arm: its lift door mints the whole body once more
-        // before the closing mint does.
+        // before the finish completes it.
         ("vessel opened top", v, 0.2, top),
     ];
     for (name, body, t, open) in cases {

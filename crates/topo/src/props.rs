@@ -7436,15 +7436,34 @@ pub trait AtRestPolicy: Decide {
     /// no verdict (DUAL-DESIGN DL3).
     type Finished: crate::FinishedBody<Scalar = Self>;
 
-    /// **The one place a body's verdict is derived**: tier 3, whose
-    /// first act is tiers 1 and 2, with the verdict kept beside the body,
-    /// at a certifying scalar; tier 2 alone at a dual. A finished body
-    /// moved by an isometry stays finished ([`crate::FinishedBody::moved`]).
+    /// **The one place a body's verdict is derived**: its pcurve rows
+    /// completed ([`crate::Completed`]), then [`AtRestPolicy::finish_completed`].
+    /// A finished body moved by an isometry stays finished
+    /// ([`crate::FinishedBody::moved`]).
+    ///
+    /// # Errors
+    ///
+    /// [`crate::NotFinished`]: every finding, none folded into another;
+    /// completion's refusal as [`ValidationError::Pcurve`].
+    fn finish(body: Body<Self>, tol: Tol) -> Result<Self::Finished, crate::NotFinished> {
+        let mut completed = crate::finish::complete(body, tol)?;
+        let refused = completed.take_refused();
+        crate::finish::with_refusals(Self::finish_completed(completed, tol), refused)
+    }
+
+    /// **The verdict of a completed body**: tier 3, whose first act is
+    /// tiers 1 and 2, with the verdict kept beside the body, at a
+    /// certifying scalar; tier 2 alone at a dual. Reached only through
+    /// [`AtRestPolicy::finish`] and [`AtRestPolicy::leaf`], whose
+    /// completion is the one constructor of its argument.
     ///
     /// # Errors
     ///
     /// [`crate::NotFinished`]: every finding, none folded into another.
-    fn finish(body: Body<Self>, tol: Tol) -> Result<Self::Finished, crate::NotFinished>;
+    fn finish_completed(
+        body: crate::Completed<Self>,
+        tol: Tol,
+    ) -> Result<Self::Finished, crate::NotFinished>;
 
     /// **This scalar's leaf** ([`crate::LeafBody`]): what a sweep door
     /// (extrude, revolve, loft, sweep) returns, and what an evaluator
@@ -7506,8 +7525,23 @@ pub trait AtRestPolicy: Decide {
     /// # Errors
     ///
     /// [`crate::NotFinished`]: the finish's findings, or tier 2's at
-    /// the box scalars.
-    fn leaf(body: Body<Self>, tol: Tol) -> Result<Self::Leaf, crate::NotFinished>;
+    /// the box scalars; completion's refusal as [`ValidationError::Pcurve`].
+    fn leaf(body: Body<Self>, tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
+        let mut completed = crate::finish::complete(body, tol)?;
+        let refused = completed.take_refused();
+        crate::finish::with_refusals(Self::leaf_completed(completed, tol), refused)
+    }
+
+    /// **The leaf of a completed body** ([`AtRestPolicy::leaf`], its
+    /// completion run).
+    ///
+    /// # Errors
+    ///
+    /// As [`AtRestPolicy::leaf`], completion's aside.
+    fn leaf_completed(
+        body: crate::Completed<Self>,
+        tol: Tol,
+    ) -> Result<Self::Leaf, crate::NotFinished>;
 
     /// **The one taker door** ([`crate::take`]): `leaf` as the finished
     /// body a door that takes finished bodies takes. At `f64` and `Probe`
@@ -7687,8 +7721,11 @@ impl AtRestPolicy for f64 {
 
     type Finished = crate::AtRestBody<Self>;
 
-    fn finish(body: Body<Self>, tol: Tol) -> Result<Self::Finished, crate::NotFinished> {
-        crate::AtRestBody::validate(body, tol).map_err(crate::NotFinished::new)
+    fn finish_completed(
+        body: crate::Completed<Self>,
+        tol: Tol,
+    ) -> Result<Self::Finished, crate::NotFinished> {
+        crate::AtRestBody::validate(body.into_body(), tol).map_err(crate::NotFinished::new)
     }
     type Leaf = crate::AtRestBody<Self>;
     const TAKE_FINISHES: bool = false;
@@ -7698,9 +7735,12 @@ impl AtRestPolicy for f64 {
     /// (`docs/predicate-dimension-audit.md` F34). A refusal has no
     /// taker: its record is relogged here, so the failure carries what
     /// its frame recorded on the way to it.
-    fn leaf(body: Body<Self>, tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
+    fn leaf_completed(
+        body: crate::Completed<Self>,
+        tol: Tol,
+    ) -> Result<Self::Leaf, crate::NotFinished> {
         let scope = geom_core::k_stats::Bracket::open();
-        let finished = Self::finish(body, tol);
+        let finished = Self::finish_completed(body, tol);
         let record = scope.finish();
         match finished {
             Ok(body) => Ok(body.holding(record)),
@@ -7867,8 +7907,11 @@ impl AtRestPolicy for geom_core::Probe {
 
     type Finished = crate::AtRestBody<Self>;
 
-    fn finish(body: Body<Self>, tol: Tol) -> Result<Self::Finished, crate::NotFinished> {
-        crate::AtRestBody::validate(body, tol).map_err(crate::NotFinished::new)
+    fn finish_completed(
+        body: crate::Completed<Self>,
+        tol: Tol,
+    ) -> Result<Self::Finished, crate::NotFinished> {
+        crate::AtRestBody::validate(body.into_body(), tol).map_err(crate::NotFinished::new)
     }
     type Leaf = crate::AtRestBody<Self>;
     const TAKE_FINISHES: bool = false;
@@ -7878,9 +7921,12 @@ impl AtRestPolicy for geom_core::Probe {
     /// (`docs/predicate-dimension-audit.md` F34). A refusal has no
     /// taker: its record is relogged here, so the failure carries what
     /// its frame recorded on the way to it.
-    fn leaf(body: Body<Self>, tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
+    fn leaf_completed(
+        body: crate::Completed<Self>,
+        tol: Tol,
+    ) -> Result<Self::Leaf, crate::NotFinished> {
         let scope = geom_core::k_stats::Bracket::open();
-        let finished = Self::finish(body, tol);
+        let finished = Self::finish_completed(body, tol);
         let record = scope.finish();
         match finished {
             Ok(body) => Ok(body.holding(record)),
@@ -8042,15 +8088,21 @@ impl AtRestPolicy for geom_core::interval::Interval {
 
     type Finished = crate::AtRestBody<Self>;
 
-    fn finish(body: Body<Self>, tol: Tol) -> Result<Self::Finished, crate::NotFinished> {
-        crate::AtRestBody::validate(body, tol).map_err(crate::NotFinished::new)
+    fn finish_completed(
+        body: crate::Completed<Self>,
+        tol: Tol,
+    ) -> Result<Self::Finished, crate::NotFinished> {
+        crate::AtRestBody::validate(body.into_body(), tol).map_err(crate::NotFinished::new)
     }
     /// The switch's box-scalar arm ([`AtRestPolicy::leaf`]).
     type Leaf = crate::Replay<Self>;
     const TAKE_FINISHES: bool = true;
 
-    fn leaf(body: Body<Self>, _tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
-        crate::Replay::of(body)
+    fn leaf_completed(
+        body: crate::Completed<Self>,
+        _tol: Tol,
+    ) -> Result<Self::Leaf, crate::NotFinished> {
+        crate::Replay::of(body.into_body())
     }
 
     fn take(
@@ -8220,15 +8272,21 @@ where
 
     type Finished = crate::AtRestBody<Self>;
 
-    fn finish(body: Body<Self>, tol: Tol) -> Result<Self::Finished, crate::NotFinished> {
-        crate::AtRestBody::validate(body, tol).map_err(crate::NotFinished::new)
+    fn finish_completed(
+        body: crate::Completed<Self>,
+        tol: Tol,
+    ) -> Result<Self::Finished, crate::NotFinished> {
+        crate::AtRestBody::validate(body.into_body(), tol).map_err(crate::NotFinished::new)
     }
     /// The switch's box-scalar arm ([`AtRestPolicy::leaf`]).
     type Leaf = crate::Replay<Self>;
     const TAKE_FINISHES: bool = true;
 
-    fn leaf(body: Body<Self>, _tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
-        crate::Replay::of(body)
+    fn leaf_completed(
+        body: crate::Completed<Self>,
+        _tol: Tol,
+    ) -> Result<Self::Leaf, crate::NotFinished> {
+        crate::Replay::of(body.into_body())
     }
 
     fn take(
@@ -8409,15 +8467,21 @@ where
 
     /// Tier 2 alone: a dual certifies nothing (DL1), so its finished
     /// body is a replay's, carrying no verdict.
-    fn finish(body: Body<Self>, _tol: Tol) -> Result<Self::Finished, crate::NotFinished> {
-        crate::Replay::of(body)
+    fn finish_completed(
+        body: crate::Completed<Self>,
+        _tol: Tol,
+    ) -> Result<Self::Finished, crate::NotFinished> {
+        crate::Replay::of(body.into_body())
     }
 
     type Leaf = crate::Replay<Self>;
     const TAKE_FINISHES: bool = false;
 
-    fn leaf(body: Body<Self>, tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
-        Self::finish(body, tol)
+    fn leaf_completed(
+        body: crate::Completed<Self>,
+        tol: Tol,
+    ) -> Result<Self::Leaf, crate::NotFinished> {
+        Self::finish_completed(body, tol)
     }
 
     /// The leaf is the finished body: passed through as it is.

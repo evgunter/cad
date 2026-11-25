@@ -940,17 +940,6 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
     }
     crate::replace_face::move_points_then_rechart(&mut work, &moved, charts, &specs, tol)
         .map_err(|error| uncertified_arc(error, &conic_arcs))?;
-    // Every edge OF THE SCOPE was re-described, and the charts here DO
-    // mint pcurve rows (a cylinder, a cone and a sphere all do), so this
-    // pass is load-bearing rather than the planar door's inert one. It
-    // runs over the scope's faces alone: an out-of-scope row belongs to
-    // an edge this door did not touch and stays exactly as it was found.
-    let minting = scope.faces_in_scope();
-    crate::pcurves::mint_pcurves_of(&mut work, &minting, tol).map_err(|source| {
-        ReplaceFaceError::Pcurve {
-            source: source.for_driver(),
-        }
-    })?;
     // Tiers 1 and 2 over the WHOLE clone, in one walk (`Scope`'s docs
     // carry the account of what stays linear in the body).
     work.close_gated("offset_charts_together")
