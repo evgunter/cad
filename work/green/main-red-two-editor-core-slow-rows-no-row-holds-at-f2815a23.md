@@ -7,6 +7,7 @@ opened: 2026-11-24
 priority: P0
 cost: M
 closed: 2026-11-24
+pr: 7737
 ---
 
 Found by BOXFINISH's expression-question lane (PR 7488) on 2026-11-24.
