@@ -924,6 +924,11 @@ impl<T: Decide> Cell<T> {
 impl<T: Decide> Cell<T> {
     /// **The cell restricted to `rect`**, a rectangle inside its own:
     /// each side cut where it falls short of the cell's.
+    ///
+    /// Not `geom_core::spline::blossom::split_restrict`, which restricts
+    /// one row of `Interval` coefficients and is that crate's own: this
+    /// restricts a homogeneous tensor net at the scalar `T`, by the same
+    /// de Casteljau splits the walk halves with ([`Self::split_at`]).
     pub(crate) fn restricted(&self, pu: usize, pv: usize, rect: [f64; 4]) -> Self {
         let mut cell = self.clone();
         for along_u in [true, false] {

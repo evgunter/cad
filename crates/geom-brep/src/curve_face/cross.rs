@@ -75,6 +75,13 @@ pub struct OnChart<T> {
     pub incidence: Sign,
     /// The span's parameters the rectangle's cell spans along it, which
     /// hold the meeting's: its parameter on the span is their middle.
+    ///
+    /// That middle is a bracket's, not a root's: at a dual its tangent is
+    /// the bracket's ends', not the crossing's motion with the geometry.
+    /// It may be decided on (ordered, placed against the span's ends, a
+    /// midpoint between two crossings taken as a run's stop, as
+    /// `topo::boolean::trace`'s `ray_crossings_to` does with a closed
+    /// form's); a reader that wants the crossing's tangent solves for it.
     pub along: (T, T),
 }
 

@@ -1,7 +1,7 @@
 //! **A line against a spline patch** ([`super::Door::SplineFace`]'s line
-//! arm): the line's crossings of the chart, each held in a cell of the
-//! chart it alone crosses, read by signs of Bernstein coefficients at the
-//! scalar.
+//! arm): the line's crossings of the chart, each held in a rectangle of
+//! the chart it alone crosses, read by signs of Bernstein coefficients at
+//! the scalar.
 //!
 //! # The residuals
 //!
@@ -18,88 +18,131 @@
 //! scalar: reals at `f64` with no pad or charge, enclosures at an
 //! interval scalar ([`geom_core::Decide`], DESIGN `[simple.conditioned]`).
 //!
-//! # The cells
+//! # The regions
 //!
-//! The cut's cells are halved across their longer way, and one whose
-//! boundary passes too near the line to be read is cut at three eighths
-//! instead, off the halving's grid (an aimed ray aims at a chart's
-//! middle). Each is decided:
+//! The walk reads **regions**: a rectangle of the chart and the cut's
+//! cells over it, each restricted to its part. A region the walk halves
+//! is one cell, halved across its longer way; a region grown about a
+//! crossing (below) may hold parts of up to four cells, across the cut's
+//! knot lines. Each is decided:
 //!
-//! - **No crossing** where every coefficient of one residual is decided
-//!   past the band on one side (`spline_face_line_residual`): the
-//!   residual is past the band over the cell, so no point of it is on
-//!   the line; or every along-line coefficient is decided past the band
-//!   behind the span's start or ahead of its end
-//!   (`spline_face_line_reach`).
+//! - **No crossing** where every coefficient of one residual, over every
+//!   part, is decided past the band on one side
+//!   (`spline_face_past_the_band`): the residual is past the band over
+//!   the region, so no point of it is on the line; or every along-line
+//!   coefficient is decided past the band behind the span's start or
+//!   ahead of its end (`spline_face_past_the_end`).
 //! - **At most one crossing** where the residuals' gradients lie in
-//!   cones decided apart (`spline_face_line_cone`): the hulls of the
-//!   quotient-rule numerators `w·∂N − N·∂w` (the gradient times `w²`,
-//!   whose sign it is since `w > 0`) bound each gradient to a box, and
-//!   the determinant of every pair of box corners is proved one side of
-//!   zero, exactly: the cut's own inequality, which no tolerance
-//!   governs ([`geom_core::k_stats::prove`]). The determinant is
-//!   multilinear in the corners, so it holds that sign over the boxes,
-//!   and two points of the cell the map `(r₁, r₂)` sends to one value
-//!   would need a gradient of each normal to their chord, parallel, so
-//!   a determinant of zero: the map is one-to-one on the cell. Its sign
-//!   is the sign of `d·(S_u × S_v)` there, the crossing's incidence.
-//! - **Exactly one** where, one-to-one, the image of the cell's boundary
-//!   under `(r₁, r₂)` winds round the origin, read by the parity of a
-//!   ray from it ([`boundary_parity`]): the boundary's four rows, each a
-//!   rational Bézier curve in the plane, crossing the ray an odd number
-//!   of times. A row is read off its coefficients' signs alone, each
-//!   proved exactly (a cell's side is the cut's, not the geometry's): clear
-//!   of the ray where its offset across it is of one sign or its reach
-//!   along it negative, crossed as its ends' sides say where its reach is
-//!   positive, halved otherwise (`spline_face_line_winding`). One-to-one, the
-//!   boundary is a Jordan curve and the cell its inside, so an odd count
-//!   is the one crossing, and an even one none.
-//! - A crossing found is narrowed, half by half, until the along-line
-//!   coefficients' spread is not decided past the band
-//!   (`spline_face_line_narrow`): at most the band's escalation, so the
-//!   line's parameter at the middle is within half of it of the
-//!   crossing's, and the cell's rectangle holds it.
-//! - **Within the band**: a cell not shown one-to-one whose every
-//!   residual coefficient is within the band of the line is a graze or a
-//!   crease no halving reads, a stretch at once.
-//! - **Anything else** at the floor (a cell no wider than half the band's
-//!   zero, or [`CELL_DEPTH`] halvings) is a stretch of the line the arm
-//!   does not read: a graze, a crease the residuals turn on, two
-//!   crossings within the band of each other, a crossing within the band
-//!   of a cell's side, or a reading on the band's gap. It is never
-//!   counted. A decision in the gap is the stretch's diagnostics; a cell
-//!   whose weights are not shown positive is a refusal of the whole
-//!   reading.
+//!   cones apart (`spline_face_line_cone`): the hulls of the quotient-rule
+//!   numerators `w·∂N − N·∂w` (the gradient times `w²`, whose sign it is
+//!   since `w > 0`), met over every part, bound each gradient to a box,
+//!   and the determinant of every pair of box corners is proved one side
+//!   of zero ([`geom_core::k_stats::prove`]): exactly, on the cut's net as
+//!   the scalar holds it, the cut's own inequality, which no tolerance
+//!   governs. The determinant is multilinear in the corners, so it holds
+//!   that sign over the boxes, and over positive multiples of their
+//!   points (each part's numerators are its gradients times `w²`, over
+//!   its largest weight squared, by its rectangle's sides: all positive).
+//!   Two points of the region the map `(r₁, r₂)` sends to one value would
+//!   give, on the chord `e` between them (the region is a rectangle, so
+//!   it holds the chord), `∫ ∇rᵢ·e = 0` for each residual, continuous
+//!   across the parts and smooth on each: the integrals `ḡᵢ = ∫ ∇rᵢ` are
+//!   both normal to `e`, so parallel, yet `det(ḡ₁, ḡ₂)` is the double
+//!   integral of `det(∇r₁(s), ∇r₂(t))`, every integrand of the boxes' one
+//!   sign. The map is one-to-one on the region, and the sign is
+//!   `d·(S_u × S_v)` there, the crossing's incidence.
+//! - **Exactly one** where, one-to-one, the image of the region's
+//!   boundary under `(r₁, r₂)` winds round the origin, read by the parity
+//!   of a ray from it ([`boundary_parity`]): the boundary's rows (each
+//!   part's rows on the region's sides, each a rational Bézier curve in
+//!   the plane) crossing the ray an odd number of times. A row is read off
+//!   its coefficients' signs, each decided past the band: clear of the ray
+//!   where its offset across it is of one sign or its reach along it
+//!   behind, crossed as its ends' sides say where its reach is ahead,
+//!   halved otherwise (`spline_face_line_winding`). One-to-one, the
+//!   boundary is a Jordan curve and the region its inside, so an odd
+//!   count is the one crossing, and an even one none. The boundary is
+//!   read past the band, not by exact signs: a crossing on a halving's
+//!   cut lies on both halves' boundaries, and an exact sign rounded there
+//!   reads it out of both.
+//! - **Near**: one-to-one, its boundary within the band of the line. Its
+//!   crossing, if any, lies near its side, so it is **grown** by half its
+//!   size each way, inside the chart's domain and across the cut's knot
+//!   lines, and the grown region is read again. A grown region that holds
+//!   a crossing **claims** its rectangle: a cell inside a claim is not
+//!   read, and a crossing whose region overlaps a claim is counted only
+//!   where the overlap is shown to hold none.
+//! - **Within the band**: a region not decided whose every coefficient of
+//!   one residual is within the band (the other not of one sign, or it
+//!   would be clear) holds a point on one plane within the band of the
+//!   other, so within the band of the line: a graze, a crease, or a
+//!   crossing no region of this size reads. A stretch, read no further. A
+//!   near cell is grown first, and is a stretch only where its growth
+//!   reads nothing.
+//! - **Anything else** is halved, down to the floor (a cell no wider than
+//!   half the band's zero, or [`CELL_DEPTH`] halvings), where it is a
+//!   stretch.
+//!
+//! A crossing found is **narrowed**, part by part (a half, then the other
+//! way, then at three eighths; across a grown region's knot lines, a
+//! cell's part), until its along-line coefficients' spread is not decided
+//! past the band (`spline_face_line_narrow`) or no part can be shown to
+//! hold it. A part of a one-to-one region is one-to-one, so its cone is
+//! not read again. Its spread is then decided past the band inside the
+//! span, or it is a stretch: a crossing within the band of the span's
+//! ends is never reported. The line's parameter at its middle is within
+//! half the spread of the crossing's, which the reader charges.
+//!
+//! Nothing in a stretch is counted. A decision in the gap of a residual
+//! is the stretch's diagnostics; a cell whose weights are not shown
+//! positive is a refusal of the whole reading.
 //!
 //! The crossings are found where the chart is, with no reading of the
 //! face's trim: the trim is the reader's, on each crossing's rectangle.
-//! A crossing within the band of the span's ends, or of another, is read
-//! by the table's placement ([`super::cross::place`]).
+//! Two crossings within the band of each other are read by the table's
+//! placement ([`super::cross::place`]).
+//!
+//! **A crossing's parameter is the middle of a bracket**, computed at the
+//! scalar: at a dual its tangent is the bracket's, not the crossing's. It
+//! may be decided on (ordered, placed against the span's ends); it is not
+//! a value the body may store.
 
 use geom::NurbsSurface;
 use geom_core::k_stats::{decide, prove};
+use geom_core::spline::pieces::binomial;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
 use crate::curve_pair::MeetFault;
 use crate::pcurve_cache::spline_incidence::{Cell, Control, Cut, Fraction};
 use crate::roots::Unsettled;
 
-/// A residual's coefficient against the band: whether a cell's points
-/// all stand off one plane through the line.
-const RESIDUAL: &str = "spline_face_line_residual";
-/// An along-line coefficient against the span's ends.
-const REACH: &str = "spline_face_line_reach";
-/// A corner determinant of the gradients' boxes, levered by the cell's
-/// extent: whether the cell is one-to-one onto the residuals' plane.
+/// A residual's coefficient against the band: whether a region's points
+/// all stand off one plane through the line. The spline face door's own
+/// name for a box's clearance (`spline_face`'s).
+const PAST_THE_BAND: &str = "spline_face_past_the_band";
+/// An along-line coefficient against the span's ends: whether a region
+/// lies wholly past one.
+const PAST_THE_END: &str = "spline_face_past_the_end";
+/// A corner determinant of the gradients' boxes, proved one sign: whether
+/// the region is one-to-one onto the residuals' plane.
 const CONE: &str = "spline_face_line_cone";
 /// A boundary row's coefficient against the parity ray.
 const WINDING: &str = "spline_face_line_winding";
 /// A found crossing's along-line coefficients' spread against the band.
 const NARROW: &str = "spline_face_line_narrow";
 
-/// How many times a cell is halved at most.
+/// How many times a cell is halved at most. The chart's cell walks'
+/// knobs differ by what each walk asks: this one halves until a crossing
+/// reads or a region is within the band, and narrows a found one to the
+/// band's escalation, about forty halvings below a metre-sized cell at
+/// ε 1e-9; `spline_incidence`'s (96, with 4096 visits) halves toward one
+/// sample's foot, past the band's zero with headroom; `topo`'s spline
+/// face placement's (48 quarterings, 8192 visits) quarters, each level
+/// two halvings.
 pub const CELL_DEPTH: usize = 64;
-/// The cells one reading may visit.
+/// The cells one reading may visit: a refusal's cost on a grazing line,
+/// which visits the cells along its touch. Measured on the spout's walls
+/// at tilts of 1e-3 rad, a reading that answers visits up to ~12 000.
 pub const CELL_VISITS: usize = 1 << 14;
 /// The cuts a found crossing's cell is narrowed by, in the order tried:
 /// across its longer way at the middle, across its shorter way, then the
@@ -117,23 +160,24 @@ const ROW_DEPTH: usize = 48;
 /// **One crossing of the line with the chart** ([`read`]).
 #[derive(Clone, Copy, Debug)]
 pub struct PatchCrossing<T> {
-    /// The line's parameters the crossing's cell spans along it: its
-    /// along-line coefficients' least and greatest, within the band's
-    /// escalation of each other.
+    /// The line's parameters the crossing's region spans along it: its
+    /// along-line coefficients' least and greatest, decided past the band
+    /// inside the span. Narrowed to the band's escalation where a part
+    /// can be shown to hold the crossing; wider where none can.
     pub advance: (T, T),
-    /// The chart rectangle `[u0, u1, v0, v1]` of the cell that holds it,
+    /// The chart rectangle `[u0, u1, v0, v1]` of the region that holds it,
     /// and no other crossing.
     pub rect: [f64; 4],
-    /// The sign of `d·(S_u × S_v)` over the cell: which way the line
+    /// The sign of `d·(S_u × S_v)` over the region: which way the line
     /// passes the chart's orientation.
     pub incidence: Sign,
 }
 
 /// **A stretch of the line the arm did not read** ([`read`]): the line's
-/// parameters an unread cell spans, and why.
+/// parameters an unread region spans, and why.
 #[derive(Clone, Copy, Debug)]
 pub struct Unread<T> {
-    /// The cell's along-line coefficients' least and greatest.
+    /// The region's along-line coefficients' least and greatest.
     pub window: (T, T),
     /// Why.
     pub fault: MeetFault,
@@ -142,8 +186,10 @@ pub struct Unread<T> {
 /// **The arm's refusal** ([`read`]).
 #[derive(Clone, Debug)]
 pub enum PatchRefusal<T> {
-    /// The crossings found outside every unread stretch, and the
-    /// stretches.
+    /// The crossings found and the stretches not read. A found crossing's
+    /// region overlaps no other's past what it is shown to hold, but may
+    /// lie beside or across a stretch: the reader takes the stretches as
+    /// windows, which the found meetings in them are taken into.
     Stretches {
         /// The crossings.
         found: Vec<PatchCrossing<T>>,
@@ -189,10 +235,9 @@ impl<T: Decide> Frame<T> {
 
 /// A cell's control points out of homogeneous form, about the line's
 /// origin.
-fn points<T: Real>(net: &[Control<T>]) -> Vec<Vec3<T>> {
+fn points<T: Real>(net: &[Control<T>]) -> impl Iterator<Item = Vec3<T>> + '_ {
     net.iter()
         .map(|(h, _)| Vec3::new(h[0] / h[3], h[1] / h[3], h[2] / h[3]))
-        .collect()
 }
 
 /// Every value decided past the band on one side under `name`: that
@@ -225,6 +270,11 @@ fn hull<T: Real>(values: impl Iterator<Item = T>) -> Option<(T, T)> {
         None => Some((x, x)),
         Some((lo, hi)) => Some((lo.min(x), hi.max(x))),
     })
+}
+
+/// The hull of two hulls.
+fn joined<T: Real>(a: Option<(T, T)>, b: (T, T)) -> (T, T) {
+    a.map_or(b, |(lo, hi)| (lo.min(b.0), hi.max(b.1)))
 }
 
 /// A tensor-product Bernstein form's coefficients, row-major in `u`, of
@@ -303,12 +353,30 @@ impl<T: Real> Form<T> {
     }
 }
 
-/// `n` choose `k`, exact in `f64` at every degree a cell reads.
-fn binomial(n: usize, k: usize) -> f64 {
-    (0..k).fold(1.0, |acc, i| acc * (n - i) as f64 / (i + 1) as f64)
+/// **A region the walk reads** (module docs): a rectangle `[u0, u1, v0,
+/// v1]` of the chart and the cut's cells over it, each restricted to its
+/// part.
+#[derive(Clone)]
+struct Region<T> {
+    rect: [f64; 4],
+    parts: Vec<Cell<T>>,
 }
 
-/// What [`read`] makes of one cell.
+impl<T> Region<T> {
+    /// A cell of the cut, or a cell halved from one.
+    fn of(cell: Cell<T>) -> Self {
+        Self {
+            rect: cell.rect,
+            parts: vec![cell],
+        }
+    }
+
+    fn depth(&self) -> usize {
+        self.parts.iter().map(|p| p.depth).max().unwrap_or(0)
+    }
+}
+
+/// What [`Walk::verdict`] makes of one region.
 enum Verdict {
     /// No crossing in it.
     Clear,
@@ -316,116 +384,149 @@ enum Verdict {
     One(Sign),
     /// One-to-one, its boundary within the band of the line.
     Near,
-    /// Undecided, and every point of it within the band of the line.
-    Within,
     /// Not decided.
     Open,
     /// A weight not shown positive.
     Unhulled,
 }
 
-/// The walk over the chart's cells ([`read`]).
+/// What a near cell grown about its crossing reads ([`Walk::grown`]).
+enum Grown<T> {
+    /// One crossing in the grown region, which claims it.
+    One(Region<T>, Sign),
+    /// None in the grown region, so none in the near cell.
+    Clear,
+    /// A weight not shown positive.
+    Unhulled,
+    /// Nothing read.
+    Open,
+}
+
+/// The walk over the chart's regions ([`read`]).
 struct Walk<T: Real> {
     frame: Frame<T>,
     span: (T, T),
     pu: usize,
     pv: usize,
     band: Band,
+    /// The cut's cells, which a grown region is restricted from.
+    cut: Vec<Cell<T>>,
+    /// The chart's domain, `[u0, u1, v0, v1]`, which a region is grown
+    /// inside.
+    domain: [f64; 4],
 }
 
 impl<T: Decide> Walk<T> {
-    /// The cell's verdict (module docs), with the first decision in the
-    /// gap.
-    /// `reach` asks the span's ends as well: a cell wholly behind the
-    /// start or past the end is clear of the span, though the line may
-    /// cross it.
+    /// The region over `rect`: every cell of the cut it meets with area,
+    /// restricted to their overlap.
+    fn region(&self, rect: [f64; 4]) -> Region<T> {
+        let parts = self
+            .cut
+            .iter()
+            .filter_map(|cell| {
+                overlap(rect, cell.rect).map(|part| cell.restricted(self.pu, self.pv, part))
+            })
+            .collect();
+        Region { rect, parts }
+    }
+
+    /// The region's control points, every part's.
+    fn points<'a>(&self, region: &'a Region<T>) -> impl Iterator<Item = Vec3<T>> + 'a {
+        region.parts.iter().flat_map(|p| points(&p.net))
+    }
+
+    /// **The region's verdict** (module docs), with the first decision in
+    /// the gap of a residual.
     ///
-    /// `known` is the incidence of a cell already shown one-to-one that
-    /// holds this one, which is one-to-one with it: its cone test is not
-    /// read again.
+    /// `reach` asks the span's ends as well: a region wholly behind the
+    /// start or past the end is clear of the span, though the line may
+    /// cross it. `known` is the incidence of a region already shown
+    /// one-to-one that holds this one, which is one-to-one with it: its
+    /// cone test is not read again.
     fn verdict(
         &self,
-        cell: &Cell<T>,
+        region: &Region<T>,
         reach: bool,
         known: Option<Sign>,
         pending: &mut Option<Indeterminate>,
     ) -> Verdict {
-        if !cell.net.iter().all(|(h, _)| h[3].structure_positive()) {
+        if !region
+            .parts
+            .iter()
+            .flat_map(|p| &p.net)
+            .all(|(h, _)| h[3].structure_positive())
+        {
             return Verdict::Unhulled;
         }
-        let p = points(&cell.net);
         let Frame { d, n1, n2 } = self.frame;
         let band = self.band;
         for n in [n1, n2] {
-            if past_band(RESIDUAL, p.iter().map(|x| x.dot(n)), band, pending).is_some() {
+            if past_band(
+                PAST_THE_BAND,
+                self.points(region).map(|x| x.dot(n)),
+                band,
+                pending,
+            )
+            .is_some()
+            {
                 return Verdict::Clear;
             }
         }
-        let (t0, t1) = self.span;
-        let lo = t0.min(t1);
-        let hi = t0.max(t1);
-        if reach
-            && past_band(REACH, p.iter().map(|x| x.dot(d) - lo), band, pending)
-                == Some(Sign::Negative)
-            || reach
-                && past_band(REACH, p.iter().map(|x| x.dot(d) - hi), band, pending)
-                    == Some(Sign::Positive)
-        {
-            return Verdict::Clear;
+        if reach {
+            let (t0, t1) = self.span;
+            let (lo, hi) = (t0.min(t1), t0.max(t1));
+            let behind = past_band(
+                PAST_THE_END,
+                self.points(region).map(|x| x.dot(d) - lo),
+                band,
+                pending,
+            );
+            let past = past_band(
+                PAST_THE_END,
+                self.points(region).map(|x| x.dot(d) - hi),
+                band,
+                pending,
+            );
+            if behind == Some(Sign::Negative) || past == Some(Sign::Positive) {
+                return Verdict::Clear;
+            }
         }
-        // Not clear, so each residual changes sign over the cell's net, and
-        // one of them within the band over all of it: a point of the
-        // chart on one plane within the band of the other, so within the
-        // band of the line. A graze, a crease, or a crossing no cut of
-        // this size reads.
-        let within = || {
-            [n1, n2].into_iter().any(|n| {
-                p.iter().all(|x| {
-                    !matches!(
-                        decide(RESIDUAL, Margin::of(x.dot(n)), band),
-                        Ok(Sign::Positive | Sign::Negative)
-                    )
-                })
-            })
+        let Some(incidence) = known.or_else(|| self.one_to_one(region)) else {
+            return Verdict::Open;
         };
-        let undecided = |near: Verdict| if within() { Verdict::Within } else { near };
-        let Some(incidence) = known.or_else(|| self.one_to_one(cell)) else {
-            return undecided(Verdict::Open);
-        };
-        match boundary_parity(self, cell) {
+        match boundary_parity(self, region) {
             Some(true) => Verdict::One(incidence),
             Some(false) => Verdict::Clear,
-            None => undecided(Verdict::Near),
+            None => Verdict::Near,
         }
     }
 
-    /// **The cone test** (module docs): the sign of the corner
-    /// determinants where every one is decided past the band on it.
-    fn one_to_one(&self, cell: &Cell<T>) -> Option<Sign> {
-        let (pu, pv) = (self.pu, self.pv);
+    /// Whether every coefficient of one residual over the region is within
+    /// the band (module docs, *Within the band*).
+    fn within(&self, region: &Region<T>) -> bool {
         let Frame { n1, n2, .. } = self.frame;
-        // Weights scaled to at most one, so each numerator is at most the
-        // gradient in metres over the cell.
-        let top = cell
-            .net
-            .iter()
-            .map(|(h, _)| h[3])
-            .fold(T::zero(), |m, w| m.max(w));
-        let form = |f: &dyn Fn(&[T; 4]) -> T| Form {
-            du: pu,
-            dv: pv,
-            c: cell.net.iter().map(|(h, _)| f(h) / top).collect(),
-        };
-        let w = form(&|h| h[3]);
-        let numerators = |n: Vec3<T>| {
-            let r = form(&|h| n.x * h[0] + n.y * h[1] + n.z * h[2]);
-            [true, false].map(|along_u| {
-                w.times(&r.derivative(along_u))
-                    .less(&r.times(&w.derivative(along_u)))
+        [n1, n2].into_iter().any(|n| {
+            self.points(region).all(|x| {
+                !matches!(
+                    decide(PAST_THE_BAND, Margin::of(x.dot(n)), self.band),
+                    Ok(Sign::Positive | Sign::Negative)
+                )
             })
-        };
-        let boxes = |n: Vec3<T>| numerators(n).map(|g| hull(g.c.into_iter()));
-        let ([Some(a_u), Some(a_v)], [Some(b_u), Some(b_v)]) = (boxes(n1), boxes(n2)) else {
+        })
+    }
+
+    /// **The cone test** (module docs): the sign of the corner
+    /// determinants of the gradient boxes met over every part, where every
+    /// one is proved that sign.
+    fn one_to_one(&self, region: &Region<T>) -> Option<Sign> {
+        let Frame { n1, n2, .. } = self.frame;
+        let mut boxes: [Option<(T, T)>; 4] = [None; 4];
+        for part in &region.parts {
+            for (k, b) in self.gradient_boxes(part, [n1, n2])?.into_iter().enumerate() {
+                boxes[k] = Some(joined(boxes[k], b));
+            }
+        }
+        let [Some(a_u), Some(a_v), Some(b_u), Some(b_v)] = boxes else {
             return None;
         };
         let mut sign = None;
@@ -449,57 +550,57 @@ impl<T: Decide> Walk<T> {
         sign
     }
 
-    /// **A near cell grown about its crossing** (module docs): one-to-one
-    /// and its boundary within the band of the line, its crossing, if any,
-    /// lies near its side, so the cell is grown by half its size each way
-    /// (inside the cut's cell `top` it was cut from, and clear of every
-    /// claimed cell) and read again.
-    fn grown(
-        &self,
-        top: &Cell<T>,
-        cell: &Cell<T>,
-        claims: &[[f64; 4]],
-        pending: &mut Option<Indeterminate>,
-    ) -> Grown<T> {
+    /// The boxes of one cell's quotient-rule numerators, `w²·∂rᵢ` along
+    /// `u` and `v`, for `n₁` then `n₂`: `[n₁ u, n₁ v, n₂ u, n₂ v]`. A
+    /// part's derivatives are over its own unit parameters, so each box is
+    /// scaled by the part's rectangle into the chart's parameters, the
+    /// one scale every part's gradients are read at.
+    fn gradient_boxes(&self, cell: &Cell<T>, normals: [Vec3<T>; 2]) -> Option<[(T, T); 4]> {
+        let (pu, pv) = (self.pu, self.pv);
+        // Weights scaled to at most one, so each numerator is at most the
+        // gradient over the cell.
+        let top = cell
+            .net
+            .iter()
+            .map(|(h, _)| h[3])
+            .fold(T::zero(), |m, w| m.max(w));
+        let form = |f: &dyn Fn(&[T; 4]) -> T| Form {
+            du: pu,
+            dv: pv,
+            c: cell.net.iter().map(|(h, _)| f(h) / top).collect(),
+        };
+        let w = form(&|h| h[3]);
         let [u0, u1, v0, v1] = cell.rect;
-        let (du, dv) = ((u1 - u0) / 2.0, (v1 - v0) / 2.0);
-        let [a0, a1, b0, b1] = top.rect;
-        let rect = [
-            (u0 - du).max(a0),
-            (u1 + du).min(a1),
-            (v0 - dv).max(b0),
-            (v1 + dv).min(b1),
+        let scale = [
+            T::from_computed(1.0 / (u1 - u0)),
+            T::from_computed(1.0 / (v1 - v0)),
         ];
-        if rect == cell.rect || claims.iter().any(|c| overlap(rect, *c).is_some()) {
-            return Grown::Open;
+        let mut out = Vec::with_capacity(4);
+        for n in normals {
+            let r = form(&|h| n.x * h[0] + n.y * h[1] + n.z * h[2]);
+            for (k, along_u) in [true, false].into_iter().enumerate() {
+                let g = w
+                    .times(&r.derivative(along_u))
+                    .less(&r.times(&w.derivative(along_u)));
+                let (lo, hi) = hull(g.c.into_iter())?;
+                // A positive scale keeps each hull's order.
+                out.push((lo * scale[k], hi * scale[k]));
+            }
         }
-        let grown = top.restricted(self.pu, self.pv, rect);
-        match self.verdict(&grown, true, None, pending) {
-            Verdict::One(incidence) => Grown::One(grown, incidence),
-            Verdict::Clear => Grown::Clear,
-            Verdict::Unhulled => Grown::Unhulled,
-            Verdict::Near | Verdict::Within | Verdict::Open => Grown::Open,
-        }
+        out.try_into().ok()
     }
 
-    /// Whether `cell` is shown to hold no crossing: decided clear, or
-    /// one-to-one with a boundary that does not wind round the line.
-    fn holds_none(&self, cell: &Cell<T>, pending: &mut Option<Indeterminate>) -> bool {
-        matches!(self.verdict(cell, false, None, pending), Verdict::Clear)
-    }
-
-    /// The along-line coefficients' least and greatest.
-    fn advance(&self, cell: &Cell<T>) -> (T, T) {
+    /// The along-line coefficients' least and greatest, over every part.
+    fn advance(&self, region: &Region<T>) -> (T, T) {
         let d = self.frame.d;
-        hull(points(&cell.net).iter().map(|x| x.dot(d))).unwrap_or_else(|| {
+        hull(self.points(region).map(|x| x.dot(d))).unwrap_or_else(|| {
             let nan = T::from_f64(f64::NAN);
             (nan, nan)
         })
     }
 
-    /// The cell's extent: the diagonal of its control points' box, on
-    /// their brackets' middles (a place, deciding nothing); NaN for the
-    /// poison.
+    /// A cell's extent: the diagonal of its control points' box, on their
+    /// brackets' middles (a place, deciding nothing); NaN for the poison.
     fn extent(cell: &Cell<T>) -> f64 {
         let (mut lo, mut hi) = ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]);
         for x in points(&cell.net) {
@@ -519,31 +620,70 @@ impl<T: Decide> Walk<T> {
         cell.split_at(self.pu, self.pv, longer != across, fraction)
     }
 
+    /// **A near cell grown about its crossing** (module docs): its
+    /// rectangle grown by half its size each way, inside the chart's
+    /// domain and across the cut's knot lines, clear of every claim, and
+    /// read again.
+    fn grown(
+        &self,
+        cell: &Region<T>,
+        claims: &[[f64; 4]],
+        pending: &mut Option<Indeterminate>,
+    ) -> Grown<T> {
+        let [u0, u1, v0, v1] = cell.rect;
+        let (du, dv) = ((u1 - u0) / 2.0, (v1 - v0) / 2.0);
+        let [a0, a1, b0, b1] = self.domain;
+        let rect = [
+            (u0 - du).max(a0),
+            (u1 + du).min(a1),
+            (v0 - dv).max(b0),
+            (v1 + dv).min(b1),
+        ];
+        if rect == cell.rect || claims.iter().any(|c| overlap(rect, *c).is_some()) {
+            return Grown::Open;
+        }
+        let grown = self.region(rect);
+        match self.verdict(&grown, true, None, pending) {
+            Verdict::One(incidence) => Grown::One(grown, incidence),
+            Verdict::Clear => Grown::Clear,
+            Verdict::Unhulled => Grown::Unhulled,
+            Verdict::Near | Verdict::Open => Grown::Open,
+        }
+    }
+
+    /// Whether the region over `rect` is shown to hold no crossing:
+    /// decided clear, or one-to-one with a boundary that does not wind
+    /// round the line.
+    fn holds_none(&self, rect: [f64; 4], pending: &mut Option<Indeterminate>) -> bool {
+        matches!(
+            self.verdict(&self.region(rect), false, None, pending),
+            Verdict::Clear
+        )
+    }
+
     /// **A found crossing narrowed** (module docs): cut until its
     /// along-line coefficients' spread is not decided past the band,
     /// keeping the part that holds it, or until no part can be shown to;
-    /// `Err` where two parts read as holding it, or neither, which the
-    /// cell's one crossing contradicts.
+    /// `Err` where two parts read as holding it, or none, which the
+    /// region's one crossing contradicts.
     fn narrowed(
         &self,
-        mut cell: Cell<T>,
+        mut region: Region<T>,
         incidence: Sign,
         pending: &mut Option<Indeterminate>,
-    ) -> Result<Cell<T>, Cell<T>> {
+    ) -> Result<Region<T>, Region<T>> {
         loop {
-            let (lo, hi) = self.advance(&cell);
+            let (lo, hi) = self.advance(&region);
             if decide(NARROW, Margin::of(hi - lo), self.band) != Ok(Sign::Positive)
-                || cell.depth >= CELL_DEPTH
+                || region.depth() >= CELL_DEPTH
             {
-                return Ok(cell);
+                return Ok(region);
             }
-            // The crossing is in one part; a part decided clear of the
-            // line (its span's ends not asked: the crossing may lie past
-            // them), or shown to hold none, leaves it in the other. A crossing within the
-            // band of the cut leaves both undecided, and the cell is cut
-            // elsewhere: the other way, then off the halving's grid.
-            let held = |c: &Cell<T>, pending: &mut Option<Indeterminate>| match self.verdict(
-                c,
+            // A part decided clear of the line (its span's ends not asked:
+            // the crossing may lie past them), or shown to hold none,
+            // leaves the crossing in the others.
+            let held = |part: &Region<T>, pending: &mut Option<Indeterminate>| match self.verdict(
+                part,
                 false,
                 Some(incidence),
                 pending,
@@ -552,49 +692,100 @@ impl<T: Decide> Walk<T> {
                 Verdict::Clear => Some(false),
                 _ => None,
             };
+            let ways: Vec<Vec<Region<T>>> = match region.parts.as_slice() {
+                // One cell: halved, the other way, then off the halving's
+                // grid, a crossing within the band of a cut leaving both
+                // halves undecided.
+                [cell] => CUTS
+                    .iter()
+                    .map(|&(fraction, across)| {
+                        let (a, b) = self.halves(cell, fraction, across);
+                        vec![Region::of(a), Region::of(b)]
+                    })
+                    .collect(),
+                // A grown region across knot lines: its rectangle cut the
+                // same ways, each side the region over it, then its
+                // cells' parts.
+                parts => {
+                    let longer = parts
+                        .first()
+                        .is_none_or(|p| p.longer_along_u(self.pu, self.pv));
+                    let mut ways: Vec<Vec<Region<T>>> = CUTS
+                        .iter()
+                        .map(|&(fraction, across)| {
+                            let (a, b) = cut(region.rect, fraction, longer != across);
+                            vec![self.region(a), self.region(b)]
+                        })
+                        .collect();
+                    ways.push(parts.iter().cloned().map(Region::of).collect());
+                    ways
+                }
+            };
             let mut next = None;
-            for (fraction, across) in CUTS {
-                let (a, b) = self.halves(&cell, fraction, across);
-                next = match (held(&a, pending), held(&b, pending)) {
-                    (Some(true) | None, Some(false)) | (Some(true), None) => Some(a),
-                    (Some(false), Some(true) | None) | (None, Some(true)) => Some(b),
-                    (None, None) => continue,
-                    (Some(true), Some(true)) | (Some(false), Some(false)) => return Err(cell),
+            for parts in ways {
+                let reads: Vec<Option<bool>> = parts.iter().map(|p| held(p, pending)).collect();
+                let holding = reads.iter().filter(|r| **r == Some(true)).count();
+                let clear = reads.iter().filter(|r| **r == Some(false)).count();
+                if holding > 1 || clear == parts.len() {
+                    return Err(region);
+                }
+                let pick = if holding == 1 {
+                    reads.iter().position(|r| *r == Some(true))
+                } else if clear + 1 == parts.len() {
+                    reads.iter().position(Option::is_none)
+                } else {
+                    None
                 };
-                break;
+                if let Some(k) = pick {
+                    next = parts.into_iter().nth(k);
+                    break;
+                }
             }
             match next {
-                Some(part) => cell = part,
-                None => return Ok(cell),
+                Some(part) => region = part,
+                None => return Ok(region),
             }
         }
     }
 }
 
 /// **The parity of the boundary's image about the origin** (module
-/// docs): `Some` where every row is read clear of the ray or crossing it
-/// as its ends say, along one of the four axis rays of the residuals'
-/// plane; `None` where none reads so.
-fn boundary_parity<T: Decide>(walk: &Walk<T>, cell: &Cell<T>) -> Option<bool> {
+/// docs): `Some` where every row of the region's boundary is read clear
+/// of the ray or crossing it as its ends say, along one of the four axis
+/// rays of the residuals' plane; `None` where none reads so. A part's
+/// row lies on the boundary where its side is the region's.
+fn boundary_parity<T: Decide>(walk: &Walk<T>, region: &Region<T>) -> Option<bool> {
     let band = walk.band;
     let (pu, pv) = (walk.pu, walk.pv);
     let Frame { n1, n2, .. } = walk.frame;
-    let at = |i: usize, j: usize| {
-        let h = cell.net[i * (pv + 1) + j].0;
-        [
-            n1.x * h[0] + n1.y * h[1] + n1.z * h[2],
-            n2.x * h[0] + n2.y * h[1] + n2.z * h[2],
-            h[3],
-        ]
-    };
-    // The boundary in order: v = v0 forward in u, u = u1 forward in v,
-    // v = v1 back in u, u = u0 back in v.
-    let rows: [Vec<[T; 3]>; 4] = [
-        (0..=pu).map(|i| at(i, 0)).collect(),
-        (0..=pv).map(|j| at(pu, j)).collect(),
-        (0..=pu).rev().map(|i| at(i, pv)).collect(),
-        (0..=pv).rev().map(|j| at(0, j)).collect(),
-    ];
+    let mut rows: Vec<Vec<[T; 3]>> = Vec::new();
+    for cell in &region.parts {
+        let at = |i: usize, j: usize| {
+            let h = cell.net[i * (pv + 1) + j].0;
+            [
+                n1.x * h[0] + n1.y * h[1] + n1.z * h[2],
+                n2.x * h[0] + n2.y * h[1] + n2.z * h[2],
+                h[3],
+            ]
+        };
+        // The sides, `[u0, u1, v0, v1]`: the rows at `i = 0`, `i = pu`,
+        // `j = 0`, `j = pv`. Parity is a count, so no row's direction
+        // matters.
+        #[allow(clippy::float_cmp)] // a part's side is the region's own value where it lies on it
+        let on = |k: usize| cell.rect[k] == region.rect[k];
+        if on(0) {
+            rows.push((0..=pv).map(|j| at(0, j)).collect());
+        }
+        if on(1) {
+            rows.push((0..=pv).map(|j| at(pu, j)).collect());
+        }
+        if on(2) {
+            rows.push((0..=pu).map(|i| at(i, 0)).collect());
+        }
+        if on(3) {
+            rows.push((0..=pu).map(|i| at(i, pv)).collect());
+        }
+    }
     // The ray along +x in each frame `(x, y)` of the plane.
     let frames: [fn([T; 3]) -> [T; 3]; 4] = [
         |[a, b, w]| [a, b, w],
@@ -663,13 +854,12 @@ fn row_parity<T: Decide>(row: &[[T; 3]], band: Band, depth: usize) -> Option<boo
 }
 
 /// **The line's crossings of `chart` over the line's parameters `span`**
-/// (module docs), ascending by no order: the table's placement orders
-/// them.
+/// (module docs), in no order: the table's placement orders them.
 ///
 /// # Errors
 ///
-/// [`PatchRefusal`]: the stretches not read, with the crossings outside
-/// them, or the whole reading.
+/// [`PatchRefusal`]: the stretches not read, with the crossings found, or
+/// the whole reading.
 pub fn read<T: Decide>(
     line: &geom::Line<T>,
     span: (T, T),
@@ -679,14 +869,17 @@ pub fn read<T: Decide>(
     read_measured(line, span, chart, band, &mut Measure::default())
 }
 
-/// **What one reading cost** ([`read_measured`]): the cells it visited,
-/// the deepest it halved one, the deepest it narrowed a crossing to.
+/// **What one reading cost** ([`read_measured`]).
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Measure {
     /// Cells visited.
     pub visits: usize,
-    /// The deepest cell visited.
+    /// The deepest cell visited or narrowed to.
     pub depth: usize,
+    /// Near cells grown.
+    pub grown: usize,
+    /// Overlaps with a claim read before a crossing was counted.
+    pub overlaps: usize,
 }
 
 /// [`read`], counting what it cost into `measure`.
@@ -708,21 +901,36 @@ pub fn read_measured<T: Decide>(
             pose: "a spline chart that does not cut to Bézier cells",
         }));
     };
+    let domain = cells.iter().fold(
+        [
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+        ],
+        |d, c| {
+            [
+                d[0].min(c.rect[0]),
+                d[1].max(c.rect[1]),
+                d[2].min(c.rect[2]),
+                d[3].max(c.rect[3]),
+            ]
+        },
+    );
     let walk = Walk {
         frame: Frame::of(line),
         span,
         pu,
         pv,
         band,
+        cut: cells.clone(),
+        domain,
     };
-    // Each cell with the index of the cut's cell it was cut from, which a
-    // grown cell is restricted from.
-    let mut stack: Vec<(Cell<T>, usize)> =
-        cells.iter().cloned().zip(0..cells.len()).rev().collect();
+    let mut stack: Vec<Cell<T>> = cells.into_iter().rev().collect();
     let mut claims: Vec<[f64; 4]> = Vec::new();
     let (mut found, mut unread) = (Vec::new(), Vec::new());
     let mut visits = 0usize;
-    while let Some((cell, top)) = stack.pop() {
+    while let Some(cell) = stack.pop() {
         visits += 1;
         measure.visits += 1;
         measure.depth = measure.depth.max(cell.depth);
@@ -731,55 +939,62 @@ pub fn read_measured<T: Decide>(
                 Unsettled::Exhausted,
             )));
         }
-        // A cell inside a claimed one holds no crossing but its claim's.
+        // A cell inside a claim holds no crossing but its claim's.
         if claims.iter().any(|c| inside(cell.rect, *c)) {
             continue;
         }
         let mut pending = None;
-        let (cell, incidence) = match walk.verdict(&cell, true, None, &mut pending) {
+        let region = Region::of(cell);
+        let (region, incidence) = match walk.verdict(&region, true, None, &mut pending) {
             Verdict::Clear => continue,
             Verdict::Unhulled => return Err(unhulled()),
-            Verdict::One(incidence) => (cell, incidence),
-            Verdict::Within => {
-                unread.push(stretch(&walk, &cell, pending, Unsettled::Tangency));
-                continue;
-            }
-            Verdict::Near => match walk.grown(&cells[top], &cell, &claims, &mut pending) {
-                Grown::One(grown, incidence) => (grown, incidence),
-                Grown::Clear => continue,
-                Grown::Unhulled => return Err(unhulled()),
-                Grown::Open => {
-                    push_halves(&walk, &mut stack, &mut unread, cell, top, pending);
-                    continue;
+            Verdict::One(incidence) => (region, incidence),
+            Verdict::Near => {
+                measure.grown += 1;
+                match walk.grown(&region, &claims, &mut pending) {
+                    Grown::One(grown, incidence) => (grown, incidence),
+                    Grown::Clear => continue,
+                    Grown::Unhulled => return Err(unhulled()),
+                    Grown::Open => {
+                        undecided(&walk, &mut stack, &mut unread, region, pending);
+                        continue;
+                    }
                 }
-            },
+            }
             Verdict::Open => {
-                push_halves(&walk, &mut stack, &mut unread, cell, top, pending);
+                undecided(&walk, &mut stack, &mut unread, region, pending);
                 continue;
             }
         };
-        // The crossing is this cell's alone, and no claimed cell's: where
-        // the two overlap, the overlap is shown to hold none.
-        if !claims
+        // The crossing is this region's alone, and no claim's: where the
+        // two overlap, the overlap is shown to hold none.
+        let overlaps: Vec<[f64; 4]> = claims
             .iter()
-            .filter_map(|c| overlap(cell.rect, *c))
-            .all(|o| walk.holds_none(&cells[top].restricted(pu, pv, o), &mut pending))
+            .filter_map(|c| overlap(region.rect, *c))
+            .collect();
+        measure.overlaps += overlaps.len();
+        if !overlaps
+            .into_iter()
+            .all(|o| walk.holds_none(o, &mut pending))
         {
-            unread.push(stretch(&walk, &cell, pending, Unsettled::Tangency));
+            unread.push(stretch(&walk, &region, pending, Unsettled::Tangency));
             continue;
         }
-        claims.push(cell.rect);
-        let Ok(narrow) = walk.narrowed(cell.clone(), incidence, &mut pending) else {
-            unread.push(stretch(&walk, &cell, pending, Unsettled::Tangency));
-            continue;
+        claims.push(region.rect);
+        let narrow = match walk.narrowed(region, incidence, &mut pending) {
+            Ok(narrow) => narrow,
+            Err(region) => {
+                unread.push(stretch(&walk, &region, pending, Unsettled::Tangency));
+                continue;
+            }
         };
-        measure.depth = measure.depth.max(narrow.depth);
+        measure.depth = measure.depth.max(narrow.depth());
         let advance = walk.advance(&narrow);
         // Inside the span past the band, or wholly outside it; else in
-        // band of an end.
+        // band of an end, a stretch.
         let (t0, t1) = span;
         let (s0, s1) = (t0.min(t1), t0.max(t1));
-        let reach = |x: T| decide(REACH, Margin::of(x), band);
+        let reach = |x: T| decide(PAST_THE_END, Margin::of(x), band);
         match (reach(advance.0 - s0), reach(advance.1 - s1)) {
             (Ok(Sign::Positive), Ok(Sign::Negative)) => found.push(PatchCrossing {
                 advance,
@@ -813,16 +1028,23 @@ fn unhulled<T>() -> PatchRefusal<T> {
     })
 }
 
-/// `cell` halved onto the stack, or, at the floor (a cell no wider than
-/// half the band's zero, or [`CELL_DEPTH`] halvings), a stretch.
-fn push_halves<T: Decide>(
+/// An undecided cell (module docs): within the band, a stretch; at the
+/// floor (a cell no wider than half the band's zero, or [`CELL_DEPTH`]
+/// halvings), a stretch; else halved onto the stack.
+fn undecided<T: Decide>(
     walk: &Walk<T>,
-    stack: &mut Vec<(Cell<T>, usize)>,
+    stack: &mut Vec<Cell<T>>,
     unread: &mut Vec<Unread<T>>,
-    cell: Cell<T>,
-    top: usize,
+    region: Region<T>,
     pending: Option<Indeterminate>,
 ) {
+    if walk.within(&region) {
+        unread.push(stretch(walk, &region, pending, Unsettled::Tangency));
+        return;
+    }
+    let Some(cell) = region.parts.into_iter().next() else {
+        return;
+    };
     let floor = Walk::<T>::extent(&cell);
     // A NaN extent (the poison) is at the floor.
     let wide = matches!(
@@ -830,12 +1052,28 @@ fn push_halves<T: Decide>(
         Some(core::cmp::Ordering::Greater | core::cmp::Ordering::Equal)
     );
     if cell.depth >= CELL_DEPTH || !wide {
-        unread.push(stretch(walk, &cell, pending, Unsettled::Floor));
+        unread.push(stretch(walk, &Region::of(cell), pending, Unsettled::Floor));
         return;
     }
     let (a, b) = walk.halves(&cell, Fraction::Half, false);
-    stack.push((b, top));
-    stack.push((a, top));
+    stack.push(b);
+    stack.push(a);
+}
+
+/// The rectangle cut at `fraction` along `u` (`along_u`) or `v`: the
+/// cut's place, deciding nothing.
+fn cut(rect: [f64; 4], fraction: Fraction, along_u: bool) -> ([f64; 4], [f64; 4]) {
+    let f = match fraction {
+        Fraction::Half => 0.5,
+        Fraction::ThreeEighths => 0.375,
+        Fraction::At(f) => f,
+    };
+    let k = if along_u { 0 } else { 2 };
+    let at = rect[k] + f * (rect[k + 1] - rect[k]);
+    let (mut a, mut b) = (rect, rect);
+    a[k + 1] = at;
+    b[k] = at;
+    (a, b)
 }
 
 /// Whether rectangle `a` lies inside `b`.
@@ -854,28 +1092,16 @@ fn overlap(a: [f64; 4], b: [f64; 4]) -> Option<[f64; 4]> {
     (o[0] < o[1] && o[2] < o[3]).then_some(o)
 }
 
-/// What a near cell grown about its crossing reads ([`Walk::grown`]).
-enum Grown<T> {
-    /// One crossing in the grown cell, which claims it.
-    One(Cell<T>, Sign),
-    /// None in the grown cell, so none in the near one.
-    Clear,
-    /// A weight not shown positive.
-    Unhulled,
-    /// Nothing read: the near cell is halved.
-    Open,
-}
-
-/// An unread cell's stretch: its diagnostics where a decision fell in
+/// An unread region's stretch: its diagnostics where a decision fell in
 /// the gap, else the limit `why`.
 fn stretch<T: Decide>(
     walk: &Walk<T>,
-    cell: &Cell<T>,
+    region: &Region<T>,
     pending: Option<Indeterminate>,
     why: Unsettled,
 ) -> Unread<T> {
     Unread {
-        window: walk.advance(cell),
+        window: walk.advance(region),
         fault: pending.map_or(MeetFault::Unsettled(why), MeetFault::Escalated),
     }
 }
@@ -1092,5 +1318,134 @@ mod rows {
             matches!(got, Err(PatchRefusal::Stretches { ref found, .. }) if found.is_empty()),
             "{got:?}"
         );
+    }
+
+    /// Degree two both ways, an interior knot at a half both ways: four
+    /// cells, a ridged net.
+    fn four_spans() -> NurbsSurface<f64> {
+        let m = |k| NonZeroUsize::new(k).unwrap();
+        let k = || Knots::new(vec![(0.0, m(3)), (0.5, m(1)), (1.0, m(3))], 2).unwrap();
+        let mut control = Vec::new();
+        for i in 0..4 {
+            for j in 0..4 {
+                let z = 0.3 * f64::from((7 * i + 3 * j) % 5) / 5.0;
+                control.push(Point3::new(f64::from(i) / 3.0, f64::from(j) / 3.0, z));
+            }
+        }
+        NurbsSurface::new(k(), k(), control, vec![1.0; 16]).unwrap()
+    }
+
+    /// The line through `S(u, v)` along its normal tilted by `tilt`, from
+    /// half a metre behind it.
+    fn through(s: &NurbsSurface<f64>, u: f64, v: f64, tilt: [f64; 3]) -> geom::Line<f64> {
+        let jet = s.ders(u, v);
+        let n = jet.du.cross(jet.dv).normalize();
+        let d = (n + Vec3::new(tilt[0], tilt[1], tilt[2])).normalize();
+        let o = jet.point - d * 0.5;
+        line([o.x, o.y, o.z], [d.x, d.y, d.z])
+    }
+
+    #[test]
+    fn a_crossing_on_a_knot_line_is_read_once() {
+        // `u = 0.5` is a cut between cells: the crossing lies on both
+        // cells' boundary, where neither reads it, and the near cell is
+        // grown across the knot line into its neighbour.
+        let s = four_spans();
+        let l = through(&s, 0.5, 0.3, [0.3, -0.2, 0.0]);
+        let mut m = Measure::default();
+        match read_measured(&l, (0.0, 1.0), &s, band(), &mut m) {
+            Ok(found) => {
+                assert_eq!(found.len(), 1, "{found:?} after {m:?}");
+                let [u0, u1, v0, v1] = found[0].rect;
+                assert!(
+                    u0 <= 0.5 && 0.5 <= u1 && v0 <= 0.3 && 0.3 <= v1,
+                    "{:?}",
+                    found[0].rect
+                );
+                let t = found[0].advance;
+                assert!(
+                    (0.5 - t.0).abs() < 1e-5 && (t.1 - 0.5).abs() < 1e-5,
+                    "{t:?}"
+                );
+            }
+            Err(e) => panic!("{e:?} after {m:?}"),
+        }
+    }
+
+    #[test]
+    fn a_crossing_on_a_knot_corner_is_read_once() {
+        // `(0.5, 0.5)` is the corner of all four cells.
+        let s = four_spans();
+        for tilt in [[0.0; 3], [0.2, 0.1, 0.0]] {
+            let l = through(&s, 0.5, 0.5, tilt);
+            let mut m = Measure::default();
+            match read_measured(&l, (0.0, 1.0), &s, band(), &mut m) {
+                Ok(found) => assert_eq!(found.len(), 1, "{tilt:?}: {found:?} after {m:?}"),
+                Err(e) => panic!("{tilt:?}: {e:?} after {m:?}"),
+            }
+        }
+    }
+
+    /// **An oracle over random patches**: rational degree-2 patches with
+    /// an interior knot both ways, random heights and weights, each read
+    /// by lines through a known chart point at `t = 3`, at tilts 0.8, 0.1,
+    /// 1e-2 and 1e-3 off its tangent plane. Every reading that answers
+    /// holds the known crossing; the counts printed are the refusals and
+    /// the readings that reached the claimed-rectangle overlap rule.
+    /// Measured 2026-11-25: 480 rays, 0 missed, 118 refused, 0 reached.
+    /// Run: `cargo nextest run --release -p geom-brep
+    /// random_rays_through_known_points --run-ignored only --no-capture`.
+    #[test]
+    #[ignore = "an oracle over 480 random rays; run command in the docs"]
+    #[allow(clippy::cast_precision_loss)]
+    fn random_rays_through_known_points_are_read_there() {
+        let mut seed = 0x2545_f491_4f6c_dd1du64;
+        let mut rnd = move || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            (seed >> 11) as f64 / (1u64 << 53) as f64
+        };
+        let (mut refused, mut reached, mut missed) = (0usize, 0usize, Vec::new());
+        for _ in 0..120 {
+            let m = |k| NonZeroUsize::new(k).unwrap();
+            let k = || Knots::new(vec![(0.0, m(3)), (0.5, m(1)), (1.0, m(3))], 2).unwrap();
+            let mut control = Vec::new();
+            let mut w = Vec::new();
+            for i in 0..4 {
+                for j in 0..4 {
+                    control.push(Point3::new(
+                        f64::from(i) / 3.0,
+                        f64::from(j) / 3.0,
+                        0.4 * rnd(),
+                    ));
+                    w.push(0.5 + rnd());
+                }
+            }
+            let s = NurbsSurface::new(k(), k(), control, w).unwrap();
+            for tilt in [0.8, 0.1, 1e-2, 1e-3] {
+                let (u, v) = (rnd(), rnd());
+                let jet = s.ders(u, v);
+                let n = jet.du.cross(jet.dv).normalize();
+                let d = (n * tilt + jet.du.normalize()).normalize();
+                let o = jet.point - d * 3.0;
+                let l = line([o.x, o.y, o.z], [d.x, d.y, d.z]);
+                let mut me = Measure::default();
+                match read_measured(&l, (0.0, 6.0), &s, band(), &mut me) {
+                    Ok(found)
+                        if !found
+                            .iter()
+                            .any(|c| c.advance.0 <= 3.0 + 1e-5 && 3.0 - 1e-5 <= c.advance.1) =>
+                    {
+                        missed.push((u, v, tilt, found));
+                    }
+                    Ok(_) => {}
+                    Err(_) => refused += 1,
+                }
+                reached += usize::from(me.overlaps > 0);
+            }
+        }
+        eprintln!("refused {refused}, reached the overlap rule {reached}");
+        assert!(missed.is_empty(), "{missed:?}");
     }
 }
