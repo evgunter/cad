@@ -1117,12 +1117,14 @@ impl<T: crate::props::AtRestPolicy> Shelled<T> {
     /// their places. The rim surgery opens each designated chart: on the
     /// outer shell, every designated face is divided into the rim, the
     /// region at each further boundary ([`RimNaming::holes`]) and the
-    /// face itself where it is a branch of a seamed band, with the
-    /// opening removed, the rings' edges and vertices minted in it; a
-    /// divided seam ([`RimNaming::seam_pieces`]) into its pieces and the
-    /// ring corners its pieces end on, its span across the opening
-    /// removed; and an operand seam, slit or apex the chart reduction
-    /// retired ([`ShellNaming::dead`]) into the rims, the rest removed.
+    /// face itself where it is a branch of a seamed band, the rings'
+    /// edges and vertices minted in it; a divided seam
+    /// ([`RimNaming::seam_pieces`]) into its pieces and the ring corners
+    /// its pieces end on; and an operand seam, slit or apex the chart
+    /// reduction retired ([`ShellNaming::dead`]) into the outer rims,
+    /// one of which holds what is left of it. The opening is named as
+    /// no removed member: a record on a designated face or seam is read
+    /// against those cells and lands on them or refuses stale.
     /// On a void, the designated faces are removed, the rim being their
     /// cavity twin's. The cavity twins are new cells and no operand
     /// record names one, so a twin the reduction or the glue retired has
@@ -1132,7 +1134,7 @@ impl<T: crate::props::AtRestPolicy> Shelled<T> {
     #[must_use]
     pub fn lineage(&self) -> crate::Lineage {
         use crate::boolean::Cell;
-        use crate::lineage::{Descent, Division, Fate, Remainder, roots};
+        use crate::lineage::{Descent, Division, Fate, roots};
         let naming = &self.naming;
         let outer: Vec<&RimNaming> = naming
             .rims
@@ -1165,14 +1167,14 @@ impl<T: crate::props::AtRestPolicy> Shelled<T> {
             Fate::Divided(Division {
                 pieces,
                 minted,
-                remainder: Remainder::Removed,
+                removed: Vec::new(),
             })
         };
-        // Every statement is a removal, and removals of one cell merge.
+        // Every statement divides or removes, and two of one cell merge.
         let remove = |lineage: crate::Lineage, cell: Cell, fate: Fate| {
             lineage
-                .with_removal(cell, fate)
-                .unwrap_or_else(|e| unreachable!("the shell states only removals: {e:?}"))
+                .with_division(cell, fate)
+                .unwrap_or_else(|e| unreachable!("the shell keeps no cell it states: {e:?}"))
         };
         let mut lineage = crate::Lineage::new().through_joins(&naming.edge_joins);
         // `dead` is in result keys, and the reductions and the glue kill

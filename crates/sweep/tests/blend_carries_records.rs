@@ -264,17 +264,17 @@ fn a_turns_third_edge_lands_a_resting_corners_record_on_the_surviving_piece() {
     }
 }
 
-/// **A record on a support face is consumed by the strip the blend
-/// carves off it.** A bookkeeping record (the far cube's top corner
-/// against `a`'s bottom face, no touch) through a fillet and a chamfer of
-/// `a`'s bottom front edge, whose support the bottom face is: the face is
-/// divided into itself and the trimline, its remainder removed, so the
-/// record lands on no pair and is consumed while the kiss carries. Red
-/// where the support face's division is read as exhaustive: the record
-/// is then refused stale. The blend refuses a real touch inside its
-/// strip before any carry (`work/band/a-blend-refuses-a-touch-in-its-strip-so-no-real-touch-reaches-its-consumption.md`).
+/// **A record touching nothing on a support face refuses stale.** A
+/// bookkeeping record (the far cube's top corner against `a`'s bottom
+/// face, no touch) through a fillet and a chamfer of `a`'s bottom front
+/// edge, whose support the bottom face is: the face is divided into
+/// itself and the trimline, and the blend names no cell it removed, so
+/// the record, landing on no pair, refuses `Stale`. Red where a
+/// division consumes a record it removed nothing under. The blend
+/// refuses a real touch inside its strip before any carry
+/// (`work/band/a-blend-refuses-a-touch-in-its-strip-so-no-real-touch-reaches-its-consumption.md`).
 #[test]
-fn a_record_on_a_support_face_is_consumed() {
+fn a_record_touching_nothing_on_a_support_face_refuses_stale() {
     let base = kiss();
     let edge = edge_between(
         &base.body,
@@ -327,30 +327,18 @@ fn a_record_on_a_support_face_is_consumed() {
         assert!(
             matches!(
                 out.lineage().fate(topo::Cell::Face(bottom)),
-                topo::Fate::Divided(topo::Division {
-                    remainder: topo::Remainder::Removed,
-                    ..
-                })
+                topo::Fate::Divided(topo::Division { ref removed, .. }) if removed.is_empty()
             ),
-            "{what}: the bottom is a support face"
+            "{what}: the bottom is a support face, divided with nothing removed"
         );
-        let carried = out
-            .carry_contacts(
+        assert_eq!(
+            out.carry_contacts(
                 &records,
                 geom_core::Band::linear(tol()).unwrap(),
                 Some(topo::RegionLane::certified()),
-            )
-            .unwrap_or_else(|refusal| panic!("{what}: {refusal:?}"));
-        assert_eq!(
-            carried
-                .cites()
-                .map(|c| c.iter().collect())
-                .collect::<Vec<Vec<_>>>(),
-            [vec![topo::Backing::Carried {
-                input: 0,
-                record: 0
-            }]],
-            "{what}: the record is consumed, the kiss carries"
+            ),
+            Err(topo::CarryRefusal::Stale { record: 1 }),
+            "{what}: the record touching nothing refuses stale"
         );
     }
 }

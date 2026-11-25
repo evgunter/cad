@@ -1,7 +1,8 @@
 //! **What an op made of each cell it touched** (D1). An op's
 //! [`Lineage`] states, for each input cell it touched, one [`Fate`]:
 //! kept, substituted by a cell that holds its interior, divided into
-//! pieces and the cells minted between them, or removed. The record
+//! pieces, the cells minted between them and the cells removed, or
+//! removed whole. The record
 //! carry ([`crate::ContactRecords::carried_through`]) reads it and nothing else,
 //! so a removal is stated, never read off a missing image.
 //!
@@ -42,14 +43,17 @@ pub enum Fate {
     /// A cell that holds its interior now: a merge's kept face, a
     /// join's edge, a seam.
     Substituted(Cell),
-    /// Divided into pieces and the cells the op minted between them.
+    /// Divided into pieces, the cells the op minted between them, and
+    /// the cells it removed.
     Divided(Division),
-    /// Removed, with whatever lay under a touch on it.
+    /// Removed whole, with whatever lay under a touch on it.
     Removed,
 }
 
 /// **A cell's division**: its pieces, the cells the op minted between
-/// them, and whether the pieces exhaust it.
+/// them, and the cells it removed, each named. A touch on the cell lies
+/// on one of them; the carry consumes a record only where it lands on
+/// removed members alone, so a part the division does not name refuses.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Division {
     /// The pieces, the one that kept the cell's key among them.
@@ -58,19 +62,10 @@ pub struct Division {
     /// pieces: the vertex that splits an edge, the chord that divides a
     /// face.
     pub minted: Vec<Cell>,
-    /// Whether the pieces and minted cells exhaust the cell.
-    pub remainder: Remainder,
-}
-
-/// Whether a division exhausts its cell.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Remainder {
-    /// The pieces and minted cells hold every point of the cell: a
-    /// split's.
-    Exhaustive,
-    /// The op removed the rest: a rim's opening, a blend's carved span,
-    /// a boolean's discarded fragments.
-    Removed,
+    /// The cells of the division the op removed (a boolean's discarded
+    /// fragments), in the keys of the body the carry reads them in
+    /// ([`crate::ContactRecords::carried_through_removing`]).
+    pub removed: Vec<Cell>,
 }
 
 /// How a carry backs two cells an op minted, one on each of a record's
@@ -92,8 +87,8 @@ pub enum LineageError {
         /// The cell.
         cell: Cell,
     },
-    /// A removal stated for `cell` keeps all of it.
-    NotARemoval {
+    /// A statement made as a division or removal keeps `cell` whole.
+    KeepsWhole {
         /// The cell.
         cell: Cell,
     },
@@ -165,34 +160,35 @@ impl Lineage {
         }
     }
 
-    /// The lineage with `cell` removed, whole ([`Fate::Removed`]) or in
-    /// part ([`Fate::Divided`] with its remainder removed), merged with
-    /// a removal of it stated before: an op that removes part of a cell
-    /// by two routes removes the union, its pieces and minted cells
-    /// those of both, and a cell removed whole by one route and in part
-    /// by another keeps the part's pieces.
+    /// The lineage with `cell` removed whole ([`Fate::Removed`]) or
+    /// divided ([`Fate::Divided`]), merged with such a statement of it
+    /// made before: an op that divides a cell by two routes divides it
+    /// into the union, its pieces, minted and removed cells those of
+    /// both, and a cell removed whole by one route and divided by
+    /// another keeps the division.
     ///
     /// # Errors
     ///
-    /// [`LineageError::NotARemoval`] where `fate` keeps all of `cell`,
+    /// [`LineageError::KeepsWhole`] where `fate` keeps all of `cell`,
     /// and [`LineageError::Restated`] where `cell`'s fate was stated
     /// before as one that keeps all of it.
-    pub fn with_removal(mut self, cell: Cell, fate: Fate) -> Result<Self, LineageError> {
-        if !fate.removes() {
-            return Err(LineageError::NotARemoval { cell });
+    pub fn with_division(mut self, cell: Cell, fate: Fate) -> Result<Self, LineageError> {
+        if !matches!(fate, Fate::Removed | Fate::Divided(_)) {
+            return Err(LineageError::KeepsWhole { cell });
         }
         let merged = match self.rows.remove(&cell) {
             None | Some(Fate::Removed) => fate,
-            Some(Fate::Divided(mut d)) if d.remainder == Remainder::Removed => {
+            Some(Fate::Divided(mut d)) => {
                 if let Fate::Divided(more) = fate {
-                    for p in more.pieces {
-                        if !d.pieces.contains(&p) {
-                            d.pieces.push(p);
-                        }
-                    }
-                    for m in more.minted {
-                        if !d.minted.contains(&m) {
-                            d.minted.push(m);
+                    for (into, from) in [
+                        (&mut d.pieces, more.pieces),
+                        (&mut d.minted, more.minted),
+                        (&mut d.removed, more.removed),
+                    ] {
+                        for c in from {
+                            if !into.contains(&c) {
+                                into.push(c);
+                            }
                         }
                     }
                 }
@@ -345,16 +341,17 @@ impl Fate {
         }
     }
 
-    /// Whether the op removed the cell, or part of it.
+    /// Whether the op removed the whole cell.
     pub(crate) fn removes(&self) -> bool {
-        matches!(
-            self,
-            Self::Removed
-                | Self::Divided(Division {
-                    remainder: Remainder::Removed,
-                    ..
-                })
-        )
+        matches!(self, Self::Removed)
+    }
+
+    /// The cells of the division the op removed.
+    pub(crate) fn removed(&self) -> &[Cell] {
+        match self {
+            Self::Divided(d) => &d.removed,
+            _ => &[],
+        }
     }
 }
 
@@ -989,7 +986,7 @@ mod tests {
         Fate::Divided(Division {
             pieces: pieces.iter().map(|&f| Cell::Face(f)).collect(),
             minted: Vec::new(),
-            remainder: Remainder::Removed,
+            removed: pieces.iter().map(|&f| Cell::Face(f)).collect(),
         })
     }
 
@@ -1013,19 +1010,19 @@ mod tests {
         );
     }
 
-    /// Two removals of one cell merge to the same fate in either order:
-    /// a part removal keeps its pieces over a whole removal, and two part
-    /// removals keep both's pieces. A removal over a fate that keeps the
-    /// cell refuses, as does a "removal" that keeps it. Red where the
-    /// later statement wins.
+    /// Two divisions or removals of one cell merge to the same fate in
+    /// either order: a division keeps its cells over a whole removal,
+    /// and two divisions keep both's pieces and removed members. One
+    /// over a fate that keeps the cell refuses, as does a "division"
+    /// that keeps it. Red where the later statement wins.
     #[test]
     fn removals_of_one_cell_merge_in_either_order() {
         let f = faces(3);
         let cell = Cell::Face(f[0]);
         let merged = |first: Fate, second: Fate| {
             Lineage::new()
-                .with_removal(cell, first)
-                .and_then(|l| l.with_removal(cell, second))
+                .with_division(cell, first)
+                .and_then(|l| l.with_division(cell, second))
                 .map(|l| l.fate(cell))
         };
         for (first, second) in [
@@ -1047,13 +1044,13 @@ mod tests {
         assert_eq!(
             Lineage::new()
                 .with(cell, kept.clone())
-                .and_then(|l| l.with_removal(cell, Fate::Removed)),
+                .and_then(|l| l.with_division(cell, Fate::Removed)),
             Err(LineageError::Restated { cell }),
             "a removal over a kept cell"
         );
         assert_eq!(
-            Lineage::new().with_removal(cell, kept),
-            Err(LineageError::NotARemoval { cell }),
+            Lineage::new().with_division(cell, kept),
+            Err(LineageError::KeepsWhole { cell }),
             "a removal that keeps the cell"
         );
     }

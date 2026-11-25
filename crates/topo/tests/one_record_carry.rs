@@ -392,42 +392,169 @@ fn a_carried_record_on_cells_the_boolean_keeps_lands_unread() {
 
 /// **A lineage gap on one cell refuses, whatever the other cell lost.**
 /// The edge kiss's edge–edge record through a hand lineage: one edge
-/// divided with its remainder removed (its one piece itself), the other
-/// substituted by a cell the result does not hold, so the lineage does
-/// not cover it. D1: "a cell the lineage does not cover refuses". Red
-/// where the first cell's removal consumes the record.
+/// divided into itself with a removed member, the other substituted by
+/// a cell the result does not hold, so the lineage does not cover it.
+/// D1: "a cell the lineage does not cover refuses". Red where the first
+/// cell's removed member consumes the record.
 #[test]
 fn a_lineage_gap_beside_a_removal_refuses_unmapped() {
-    let a = box_of((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), "a");
-    let b = box_of((1.0, 2.0), (1.0, 2.0), (0.0, 1.0), "b");
-    let base = union_of(&a, &b);
-    let ee = record_of(&base.contacts, |k| matches!(k, ContactKind::EdgeEdge(..)));
+    let (base, ee) = edge_kiss();
     let [x, y] = base.contacts.rows()[ee as usize].cells();
     let one: ContactRecords = [base.contacts.rows()[ee as usize].clone()]
         .into_iter()
         .collect();
     let gap = Cell::Edge(topo::EdgeKey::default());
     let lineage = topo::Lineage::new()
-        .with(
-            x,
-            topo::Fate::Divided(topo::Division {
-                pieces: vec![x],
-                minted: vec![],
-                remainder: topo::Remainder::Removed,
-            }),
-        )
+        .with(x, divided(vec![x], vec![x]))
         .and_then(|l| l.with(y, topo::Fate::Substituted(gap)))
         .unwrap();
     assert_eq!(
-        one.carried_through(
+        one.carried_through_removing(
             0,
             &lineage,
+            &base.body,
             &base.body,
             band(),
             Some(topo::RegionLane::certified()),
         ),
         Err(topo::CarryRefusal::Unmapped { record: 0, cell: y }),
         "the uncovered cell refuses"
+    );
+}
+
+/// A division into `pieces` with `removed` its removed members.
+fn divided(pieces: Vec<Cell>, removed: Vec<Cell>) -> topo::Fate {
+    topo::Fate::Divided(topo::Division {
+        pieces,
+        minted: vec![],
+        removed,
+    })
+}
+
+/// The edge of `body` from `p` to `q`, either way round.
+fn edge_at(body: &topo::Body<f64>, p: Point3<f64>, q: Point3<f64>) -> Cell {
+    let (u, w) = (vertex_at(body, p), vertex_at(body, q));
+    body.edges()
+        .find(|(e, _)| {
+            body.edge_vertices(*e)
+                .is_some_and(|(a, b)| (a, b) == (u, w) || (a, b) == (w, u))
+        })
+        .map(|(k, _)| Cell::Edge(k))
+        .expect("an edge there")
+}
+
+/// **A removal elsewhere on a record's cell does not consume it; one
+/// under its touch does.** The edge kiss's edge–edge record (the
+/// vertical edge x = y = 1 of each cube) through hand lineages that
+/// divide the first cube's edge, read on the input itself. A lineage
+/// gap: the edge's one piece handed is the cube's bottom front edge,
+/// which does not meet the other cube, and its removed member the top
+/// front edge, which does not either: the record lands nowhere, the
+/// removed member does not hold the touch, and it refuses `Stale` (the
+/// banded ball's pose a sphere cut-in reached, there by a pre-cut key).
+/// The same piece with the kiss edge itself as the removed member: the
+/// touch lies on what the op removed, and the record is consumed. Red
+/// where any removed member consumes (the first is then dropped) and
+/// where removed members are not read (the second then refuses).
+#[test]
+fn a_record_is_consumed_only_where_it_lands_on_a_removed_member() {
+    let (base, ee) = edge_kiss();
+    let [x, _] = base.contacts.rows()[ee as usize].cells();
+    let one: ContactRecords = [base.contacts.rows()[ee as usize].clone()]
+        .into_iter()
+        .collect();
+    let bottom = edge_at(
+        &base.body,
+        Point3::new(0.0, 0.0, 0.0),
+        Point3::new(1.0, 0.0, 0.0),
+    );
+    let top = edge_at(
+        &base.body,
+        Point3::new(0.0, 0.0, 1.0),
+        Point3::new(1.0, 0.0, 1.0),
+    );
+    let carry = |removed: Cell| {
+        let lineage = topo::Lineage::new()
+            .with(x, divided(vec![bottom], vec![removed]))
+            .unwrap();
+        one.carried_through_removing(
+            0,
+            &lineage,
+            &base.body,
+            &base.body,
+            band(),
+            Some(topo::RegionLane::certified()),
+        )
+    };
+    assert_eq!(
+        carry(top),
+        Err(topo::CarryRefusal::Stale { record: 0 }),
+        "a removal away from the touch refuses the gap"
+    );
+    assert_eq!(
+        carry(x).map(|r| r.len()),
+        Ok(0),
+        "a removal under the touch consumes it"
+    );
+    assert!(
+        matches!(
+            one.carried_through(
+                0,
+                &topo::Lineage::new()
+                    .with(x, divided(vec![bottom], vec![top]))
+                    .unwrap(),
+                &base.body,
+                band(),
+                Some(topo::RegionLane::certified()),
+            ),
+            Err(topo::CarryRefusal::Unread { record: 0, .. })
+        ),
+        "a removed member with no body to read it in is unread"
+    );
+}
+
+/// **Only a cell moved whole takes a touch with it** (D1, "moved"):
+/// the edge kiss's edge–edge record through hand lineages over the
+/// input's own geometry ([`topo::Lineage::from_source`]), the first
+/// cube's kiss edge imaged on its bottom front edge, which does not hold
+/// the kiss edge's geometry and does not meet the other cube. Substituted
+/// whole by it, the edge moved and took the touch: consumed. Divided
+/// into it as one piece, nothing is removed and the piece's move licenses
+/// nothing: `Stale`. Red where a moved piece consumes.
+#[test]
+fn a_moved_piece_of_a_division_does_not_consume_a_record() {
+    let (base, ee) = edge_kiss();
+    let [x, _] = base.contacts.rows()[ee as usize].cells();
+    let one: ContactRecords = [base.contacts.rows()[ee as usize].clone()]
+        .into_iter()
+        .collect();
+    let bottom = edge_at(
+        &base.body,
+        Point3::new(0.0, 0.0, 0.0),
+        Point3::new(1.0, 0.0, 0.0),
+    );
+    let carry = |fate: topo::Fate| {
+        let lineage = topo::Lineage::new()
+            .with(x, fate)
+            .unwrap()
+            .from_source(topo::SourceGeometry::of(&base.body));
+        one.carried_through(
+            0,
+            &lineage,
+            &base.body,
+            band(),
+            Some(topo::RegionLane::certified()),
+        )
+    };
+    assert_eq!(
+        carry(topo::Fate::Substituted(bottom)).map(|r| r.len()),
+        Ok(0),
+        "a cell moved whole takes its touch"
+    );
+    assert_eq!(
+        carry(divided(vec![bottom], vec![])),
+        Err(topo::CarryRefusal::Stale { record: 0 }),
+        "a moved piece of a division licenses no drop"
     );
 }
 

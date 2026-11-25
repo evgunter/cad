@@ -11711,6 +11711,11 @@ impl<'b, T: crate::props::AtRestPolicy> RecordConfirm<'b, T> {
         }
     }
 
+    /// The body this confirm reads.
+    pub(crate) fn body(&self) -> &'b Body<T> {
+        self.body
+    }
+
     /// Whether a record of `pair` is confirmed: `Ok(false)` where the
     /// census reads it stale.
     ///

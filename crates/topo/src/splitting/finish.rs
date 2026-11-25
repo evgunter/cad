@@ -309,7 +309,8 @@ impl<T: crate::props::AtRestPolicy + Decide> SplitResult<T> {
     ) -> Result<SplitContacts, CarryRefusal> {
         let sides = self.sides();
         let bodies: Vec<&Body<T>> = sides.iter().map(|&(_, b)| b).collect();
-        let carried = records.carried_onto(0, &self.lineage(), &bodies, band, region, parted)?;
+        let carried =
+            records.carried_onto(0, &self.lineage(), &bodies, None, band, region, parted)?;
         let mut out = SplitContacts::default();
         for ((side, _), list) in sides.iter().zip(carried) {
             match side {
@@ -334,7 +335,7 @@ impl<T: crate::props::AtRestPolicy> SplitResult<T> {
     /// it minted on a record's two cells meet where the record puts them.
     #[must_use]
     pub fn lineage(&self) -> crate::Lineage {
-        use crate::lineage::{Descent, Division, Fate, Remainder, roots};
+        use crate::lineage::{Descent, Division, Fate, roots};
         let bodies: Vec<&Body<T>> = [self.above.body(), self.below.body()]
             .into_iter()
             .flatten()
@@ -398,7 +399,7 @@ impl<T: crate::props::AtRestPolicy> SplitResult<T> {
                 Fate::Divided(Division {
                     pieces: pieces.into_iter().map(Cell::Edge).collect(),
                     minted,
-                    remainder: Remainder::Exhaustive,
+                    removed: Vec::new(),
                 }),
             );
         }
@@ -432,7 +433,7 @@ impl<T: crate::props::AtRestPolicy> SplitResult<T> {
                 Fate::Divided(Division {
                     pieces: pieces.into_iter().map(Cell::Face).collect(),
                     minted,
-                    remainder: Remainder::Exhaustive,
+                    removed: Vec::new(),
                 }),
             );
         }

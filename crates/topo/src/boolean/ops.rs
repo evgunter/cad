@@ -1360,6 +1360,7 @@ pub(super) fn boolean_pipeline<T: Decide + Bounds + crate::props::AtRestPolicy>(
         views,
         &desc,
         [&discarded[0], &discarded[1]],
+        [&fin.clone_a, &fin.clone_b],
         band,
     )?;
     coincidences.extend(join_rows(&class_zeros, &ledger, views, [a, b]));
@@ -4480,16 +4481,26 @@ pub(super) fn carry<T: Decide + AtRestPolicy>(
     views: [&KeyView<'_>; 2],
     desc: &Descendants,
     discarded: [&BTreeSet<FaceKey>; 2],
+    clones: [&Body<T>; 2],
     band: Band,
 ) -> Result<Carried, BooleanError> {
     let mut pending = ledger.pending.clone();
-    let [a, b] = carried(body, ledger, views, desc, discarded, &mut pending, band)?;
+    let [a, b] = carried(
+        body,
+        ledger,
+        views,
+        desc,
+        (discarded, clones),
+        &mut pending,
+        band,
+    )?;
     let records = carry_rows(
         body,
         &tagged(&ledger.discovered),
         [&a, &b],
         views,
         (desc, &ledger.incidence, discarded),
+        Some(clones),
         false,
         band,
     )?;
@@ -4501,7 +4512,10 @@ pub(super) fn carry<T: Decide + AtRestPolicy>(
 /// op made of each input cell ([`operand_fate`]), by the one carry's
 /// placement ([`super::records::landings`]), each landing restated
 /// in its operand's clone keys so the vertex groups read it as they
-/// read the reduction's records ([`carry_rows`]). Two cells the op
+/// read the reduction's records ([`carry_rows`]). The members a
+/// division names removed are the operand clone's discarded cells, read
+/// in `clones`, the operand clones as the cuts left them, against every
+/// clone cell of the record's other cell. Two cells the op
 /// minted on a record's two cells that meet at a point are decided at
 /// this door: the tool has many faces, so a meeting one face did not
 /// make is a value coincidence (D10), and the landing cites the
@@ -4519,7 +4533,7 @@ fn carried<T: Decide + AtRestPolicy>(
     ledger: &Ledger,
     views: [&KeyView<'_>; 2],
     desc: &Descendants,
-    discarded: [&BTreeSet<FaceKey>; 2],
+    (discarded, clones): ([&BTreeSet<FaceKey>; 2], [&Body<T>; 2]),
     pending: &mut Vec<PendingRow>,
     band: Band,
 ) -> Result<[Rows; 2], BooleanError> {
@@ -4534,8 +4548,12 @@ fn carried<T: Decide + AtRestPolicy>(
         let mut lineage = crate::Lineage::new().glued();
         let mut back: Vec<Back> = Vec::new();
         let cells: BTreeSet<Cell> = rows.iter().flat_map(|(c, _)| *c).collect();
+        let mut removed = super::records::RemovedIn {
+            body: clones[s],
+            cells: BTreeMap::new(),
+        };
         for x in cells {
-            let fate = operand_fate(
+            let (fate, all) = operand_fate(
                 body,
                 ledger,
                 (side, views[s]),
@@ -4544,6 +4562,7 @@ fn carried<T: Decide + AtRestPolicy>(
                 x,
                 &mut back,
             )?;
+            removed.cells.insert(x, all);
             lineage = lineage
                 .with(x, fate)
                 .unwrap_or_else(|e| unreachable!("each cell is stated once: {e:?}"));
@@ -4552,7 +4571,7 @@ fn carried<T: Decide + AtRestPolicy>(
         let landed = super::records::landings(
             &pairs,
             &lineage,
-            &[body],
+            (&[body], Some(&removed)),
             &mut confirms,
             band,
             T::region_lane(),
@@ -4648,8 +4667,9 @@ struct Back {
 /// the descendant map ([`Descendants::live`]). One the result does not
 /// hold is removed only where the op discarded it: a face the finish
 /// discarded, or an edge or vertex every face around which it
-/// discarded (`discarded`, [`Incidence`]); the removal makes a division's
-/// remainder removed.
+/// discarded (`discarded`, [`Incidence`]); it is a removed member of
+/// the cell's division, in clone keys. Beside the fate, every clone
+/// cell of `x`, kept or removed.
 ///
 /// # Errors
 ///
@@ -4663,7 +4683,7 @@ fn operand_fate<T: Real>(
     discarded: &BTreeSet<FaceKey>,
     x: Cell,
     back: &mut Vec<Back>,
-) -> Result<crate::Fate, BooleanError> {
+) -> Result<(crate::Fate, Vec<Cell>), BooleanError> {
     let incidence = &ledger.incidence[side.index()];
     let copies = |v: VertexKey| desc.copies_of(side, v).into_iter().map(Cell::Vertex);
     let (pieces, minted, divided): (Vec<Cell>, Vec<Cell>, bool) = match x {
@@ -4680,7 +4700,8 @@ fn operand_fate<T: Real>(
         Cell::Face(f) => face_pieces(desc, incidence, (side, Keys::Input), f),
     };
     let removed = |c: Cell| stated_removed(incidence, discarded, c);
-    let mut gone = false;
+    let all: Vec<Cell> = pieces.iter().chain(&minted).copied().collect();
+    let mut gone = Vec::new();
     let pieces = imaged(
         body,
         desc,
@@ -4701,28 +4722,25 @@ fn operand_fate<T: Real>(
         &mut gone,
         back,
     )?;
-    Ok(fate_of(pieces, minted, divided, gone))
+    Ok((fate_of(pieces, minted, divided, gone), all))
 }
 
-/// A cell's fate from its live pieces and minted cells: removed where
-/// none is left, kept where it is neither divided nor lost any part, and
-/// otherwise divided, its remainder removed where it lost part.
-fn fate_of(pieces: Vec<Cell>, minted: Vec<Cell>, divided: bool, gone: bool) -> crate::Fate {
-    use crate::lineage::{Division, Remainder};
+/// A cell's fate from its live pieces and minted cells and the clone
+/// cells it lost: removed where none is left, kept where it is neither
+/// divided nor lost any part, and otherwise divided, the lost cells its
+/// removed members.
+fn fate_of(pieces: Vec<Cell>, minted: Vec<Cell>, divided: bool, gone: Vec<Cell>) -> crate::Fate {
+    use crate::lineage::Division;
     match pieces.split_first() {
         None if minted.is_empty() => crate::Fate::Removed,
-        Some((&at, copies)) if !divided && !gone => crate::Fate::Kept {
+        Some((&at, copies)) if !divided && gone.is_empty() => crate::Fate::Kept {
             at,
             copies: copies.to_vec(),
         },
         _ => crate::Fate::Divided(Division {
             pieces,
             minted,
-            remainder: if gone {
-                Remainder::Removed
-            } else {
-                Remainder::Exhaustive
-            },
+            removed: gone,
         }),
     }
 }
@@ -4786,8 +4804,8 @@ fn stated_removed(incidence: &Incidence, discarded: &BTreeSet<FaceKey>, c: Cell)
 }
 
 /// The live images of `cells`, clone cells of input cell `x`, each
-/// logged in `back`; one the result does not hold sets `gone` where its
-/// removal is stated.
+/// logged in `back`; one the result does not hold is pushed on `gone`
+/// where its removal is stated.
 ///
 /// # Errors
 ///
@@ -4801,7 +4819,7 @@ fn imaged<T: Real>(
     removed: &dyn Fn(Cell) -> bool,
     x: Cell,
     cells: Vec<Cell>,
-    gone: &mut bool,
+    gone: &mut Vec<Cell>,
     back: &mut Vec<Back>,
 ) -> Result<Vec<Cell>, BooleanError> {
     let mut out: Vec<Cell> = Vec::new();
@@ -4817,7 +4835,11 @@ fn imaged<T: Real>(
                     out.push(r);
                 }
             }
-            None if removed(c) => *gone = true,
+            None if removed(c) => {
+                if !gone.contains(&c) {
+                    gone.push(c);
+                }
+            }
             None => {
                 return Err(BooleanError::JoinDesync {
                     what: "a carried record's cell left the result with no row stating its \
@@ -4850,7 +4872,7 @@ fn carried_vertices<T: Real>(
         for &(pair, _) in &ledger.carried[s] {
             if let [x @ Cell::Vertex(_), y @ Cell::Vertex(_)] = pair {
                 for c in [x, y] {
-                    operand_fate(
+                    let _ = operand_fate(
                         body,
                         ledger,
                         (side, views[s]),
@@ -5323,6 +5345,7 @@ pub(super) fn carry_in_place<T: Decide + AtRestPolicy>(
         [&none, &none],
         [&KeyView::Direct, &KeyView::Direct],
         (desc, &incidence, [&none_discarded, &none_discarded]),
+        None,
         true,
         band,
     )
@@ -5471,12 +5494,14 @@ mod chain_rows {
 
 /// The door's one body, over records in two arenas (`one_arena`
 /// false, the operands') or one.
-fn carry_rows<T: Decide + AtRestPolicy>(
-    body: &Body<T>,
+#[allow(clippy::too_many_arguments)]
+fn carry_rows<'b, T: Decide + AtRestPolicy>(
+    body: &'b Body<T>,
     discovered: &[Tagged<'_>],
     carried: [&Rows; 2],
     views: [&KeyView<'_>; 2],
     (desc, incidence, discarded): (&Descendants, &[Incidence; 2], [&BTreeSet<FaceKey>; 2]),
+    clones: Option<[&'b Body<T>; 2]>,
     one_arena: bool,
     band: Band,
 ) -> Result<ContactRecords, BooleanError> {
@@ -5649,6 +5674,7 @@ fn carry_rows<T: Decide + AtRestPolicy>(
             views,
             [(vs, vc), (fs, fc)],
             found,
+            clones,
             &mut confirms,
             band,
         )? {
@@ -5665,6 +5691,7 @@ fn carry_rows<T: Decide + AtRestPolicy>(
             views,
             [(xs, xc), (ys, yc)],
             found,
+            clones,
             &mut confirms,
             band,
         )? {
@@ -5700,11 +5727,12 @@ fn place_found<'b, T: Decide + AtRestPolicy>(
     views: [&KeyView<'_>; 2],
     ends: [End; 2],
     found: Option<usize>,
+    clones: Option<[&'b Body<T>; 2]>,
     confirms: &mut super::records::Confirms<'b, T>,
     band: Band,
 ) -> Result<Vec<(Cell, Cell)>, BooleanError> {
     let at = |side: Operand| side.index();
-    let mut divided: Option<(usize, crate::Fate)> = None;
+    let mut divided: Option<(usize, crate::Fate, Vec<Cell>)> = None;
     if found.is_some() {
         for (i, &(side, cell)) in ends.iter().enumerate() {
             let Cell::Face(f) = cell else { continue };
@@ -5719,7 +5747,8 @@ fn place_found<'b, T: Decide + AtRestPolicy>(
                 });
             }
             let removed = |c: Cell| stated_removed(&incidence[at(side)], discarded[at(side)], c);
-            let (view, mut gone, mut back) = (views[at(side)], false, Vec::new());
+            let (view, mut gone, mut back) = (views[at(side)], Vec::new(), Vec::new());
+            let all: Vec<Cell> = pieces.iter().chain(&chords).copied().collect();
             let pieces = imaged(
                 body,
                 desc,
@@ -5740,7 +5769,7 @@ fn place_found<'b, T: Decide + AtRestPolicy>(
                 &mut gone,
                 &mut back,
             )?;
-            divided = Some((i, fate_of(pieces, chords, true, gone)));
+            divided = Some((i, fate_of(pieces, chords, true, gone), all));
         }
     }
     let live = |i: usize| {
@@ -5749,6 +5778,7 @@ fn place_found<'b, T: Decide + AtRestPolicy>(
     };
     // The row in the keys the lineage reads: a divided cell in its
     // operand's, a kept one as the result holds it.
+    let mut removed: Option<super::records::RemovedIn<'b, T>> = None;
     let (row, lineage) = match divided {
         None => {
             let (Some(x), Some(y)) = (live(0)?, live(1)?) else {
@@ -5756,11 +5786,29 @@ fn place_found<'b, T: Decide + AtRestPolicy>(
             };
             ([x, y], crate::Lineage::new().glued())
         }
-        Some((i, fate)) => {
+        Some((i, fate, all)) => {
             let Some(other) = live(1 - i)? else {
                 return Ok(Vec::new());
             };
             let cells = ends.map(|(_, c)| c);
+            // The removed fragments are the divided face's operand
+            // clone's, read there against the other cell where that
+            // operand holds it.
+            if let Some(clones) = clones {
+                let side = ends[i].0;
+                let mut there = BTreeMap::new();
+                there.insert(cells[i], all);
+                let other = if ends[1 - i].0 == side {
+                    vec![cells[1 - i]]
+                } else {
+                    Vec::new()
+                };
+                there.insert(cells[1 - i], other);
+                removed = Some(super::records::RemovedIn {
+                    body: clones[at(side)],
+                    cells: there,
+                });
+            }
             let lineage = crate::Lineage::new()
                 .glued()
                 .with(cells[i], fate)
@@ -5791,7 +5839,7 @@ fn place_found<'b, T: Decide + AtRestPolicy>(
     let landed = super::records::landings(
         &[row],
         &lineage,
-        &[body],
+        (&[body], removed.as_ref()),
         confirms,
         band,
         T::region_lane(),
@@ -7695,6 +7743,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 views,
                 &desc,
                 [&discarded[0], &discarded[1]],
+                [&red.a, &red.b],
                 band,
             )?;
             coincidences.extend(join_rows(
@@ -8053,6 +8102,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         [&a_view, &b_view],
         &desc,
         [&discarded[0], &discarded[1]],
+        [&red.a, &red.b],
         band,
     )?;
     coincidences.extend(join_rows(&class_zeros, &ledger, [&a_view, &b_view], inputs));
@@ -8286,6 +8336,7 @@ mod tests {
                 &Default::default(),
                 [&Default::default(), &Default::default()],
             ),
+            None,
             false,
             band(),
         )
@@ -8311,6 +8362,7 @@ mod tests {
                 &Default::default(),
                 [&Default::default(), &Default::default()],
             ),
+            None,
             false,
             band(),
         )
