@@ -1803,11 +1803,13 @@ impl<'a> Resolver<'a> {
             (p - center).norm() - radius,
         )?;
 
-        // The canonical splitting, in the kernel's own sphere chart:
-        // the two poles (v = ±π/2) joined by the pole form's two
-        // meridians (`geom::pole_form`), through u = 0 and u = π, each
-        // starting AT the north pole (angle 0) and reaching the south
-        // at angle π.
+        // The kernel's own ball: a vertex at each pole (v = ±π/2) and
+        // one wrap edge between them, the surface's meridian at its
+        // u_ref azimuth (`geom::pole_form`), starting AT the north pole
+        // (angle 0) and reaching the south at angle π. The face's loop
+        // walks it down and back up; a loop that is all wrap edge bounds
+        // nothing, so the face is the whole sphere, its side the one its
+        // `same_sense` names.
         let [(_, north), (_, south)] = geom_brep::chart_singularity::sphere_poles(
             geom::Line {
                 origin: center,
@@ -1822,33 +1824,26 @@ impl<'a> Resolver<'a> {
         let (nv, sv) = (self.mint_id(), self.mint_id());
         vertices.insert(nv, north);
         vertices.insert(sv, south);
-        let mut meridian = |d: Vec3<f64>| -> Result<u64, StepImportError> {
-            let eid = self.mint_id();
-            let carrier = signed_zero::plus_zero_curve(geom::pole_form::sphere_meridian(
-                center, radius, axis, d,
-            ));
-            let (t0, t1) = geometry::endpoint_params(eid, &carrier, north, south, false)?;
-            edges.insert(
-                eid,
-                EdgeSpec {
-                    start: nv,
-                    end: sv,
-                    carrier,
-                    t0,
-                    t1,
-                    // A minted edge: the importer states its own
-                    // start → end, so there is no sense to compose.
-                    reversed: false,
-                    curve: None,
-                },
-            );
-            Ok(eid)
-        };
-        let [seam_azimuth, pi_azimuth] = geom::pole_form::azimuths(u_ref);
-        let through_pi = meridian(pi_azimuth)?;
-        let through_seam = meridian(seam_azimuth)?;
-
-        let lune = |a: u64, a_fwd: bool, b: u64, b_fwd: bool| FaceSpec {
+        let meridian = self.mint_id();
+        let carrier = signed_zero::plus_zero_curve(geom::pole_form::sphere_meridian(
+            center, radius, axis, u_ref,
+        ));
+        let (t0, t1) = geometry::endpoint_params(meridian, &carrier, north, south, false)?;
+        edges.insert(
+            meridian,
+            EdgeSpec {
+                start: nv,
+                end: sv,
+                carrier,
+                t0,
+                t1,
+                // A minted edge: the importer states its own
+                // start → end, so there is no sense to compose.
+                reversed: false,
+                curve: None,
+            },
+        );
+        let faces = vec![FaceSpec {
             id,
             record,
             sense,
@@ -1856,32 +1851,17 @@ impl<'a> Resolver<'a> {
                 outer: true,
                 uses: vec![
                     EdgeUse {
-                        edge: a,
-                        forward: a_fwd,
+                        edge: meridian,
+                        forward: true,
                     },
                     EdgeUse {
-                        edge: b,
-                        forward: b_fwd,
+                        edge: meridian,
+                        forward: false,
                     },
                 ],
             }],
             band: false,
-        };
-        // Each lune walks one meridian down and the other back up. The
-        // face's `same_sense` is honored, not healed: a reversed face
-        // has its material on the other side, so its cycles run the
-        // other way round.
-        let faces = if sense {
-            vec![
-                lune(through_pi, true, through_seam, false),
-                lune(through_pi, false, through_seam, true),
-            ]
-        } else {
-            vec![
-                lune(through_seam, true, through_pi, false),
-                lune(through_seam, false, through_pi, true),
-            ]
-        };
+        }];
         self.normalizations
             .borrow_mut()
             .push(StructureNormalization {
@@ -1893,8 +1873,8 @@ impl<'a> Resolver<'a> {
                     vertices: 1,
                 },
                 kernel_census: FaceCensus {
-                    faces: 2,
-                    edges: 2,
+                    faces: 1,
+                    edges: 1,
                     vertices: 2,
                 },
             });

@@ -18,8 +18,8 @@
 //!   stops short leaves the pole interior — the state the guard
 //!   refuses, in disguise — and is caught only by the deviation
 //!   certificate. A STEP file stating either never reaches this lane:
-//!   import makes the pole a vertex in the two-meridian pole form
-//!   (`step-import/tests/chart_singularity_vertex.rs`).
+//!   import makes the pole the tip of one wrap edge, the seamed
+//!   statement (`step-import/tests/chart_singularity_vertex.rs`).
 //!
 //! Every outcome here is read where debug assertions run, which is
 //! every profile this workspace builds; the census is a `debug_assert`,

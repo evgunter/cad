@@ -80,8 +80,8 @@
 //!
 //! The **ANNULUS** rim (a full solid of revolution's latitude rim):
 //! ONE closed edge — or SEVERAL arcs of one rim meeting at chart-seam
-//! vertices, on a body whose walls are half-bands of one surface (an
-//! import's half-turn pair, `geom::pole_form`) — with no ladder to walk
+//! vertices, on a body whose walls are half-bands of one surface — with
+//! no ladder to walk
 //! either way. The MATE side is a revolution WALL — a curved
 //! full-revolve wall is one face whose single cycle carries its closed
 //! latitude rims and a doubly-traversed seam meridian; a half-band wall

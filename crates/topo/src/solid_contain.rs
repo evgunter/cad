@@ -901,9 +901,9 @@ pub(crate) enum FaceGeo<T: geom_core::Real> {
 /// of the SAME sphere surface, so the group's union has no boundary
 /// against any other surface and therefore covers the whole sphere.
 ///
-/// A sphere covered by several faces on ONE sphere key is the shape an
-/// import's half-turn pair, or a ball cut into lunes, arrives in: two
-/// half-sphere bands joined along two meridians, not one full-chart
+/// A sphere covered by several faces on ONE sphere key is the shape a
+/// ball cut into lunes arrives in: two half-sphere bands joined along
+/// two meridians, not one full-chart
 /// face (a full revolve's ball is the one face, its meridian a wrap
 /// edge). Asking the question of the GROUP rather than the face is what
 /// lets that whole-sphere class through without inventing a per-face

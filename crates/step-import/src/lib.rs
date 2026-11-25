@@ -375,32 +375,39 @@ pub enum NormalizationKind {
     /// `ADVANCED_FACE` bounded by a `VERTEX_LOOP` (Open CASCADE drops
     /// the seam and both degenerate pole edges on export). The kernel's
     /// half-edge structure cannot represent an edge-free closed face,
-    /// so the locus is adopted whole and the kernel mints its own
-    /// canonical splitting of it — the same 2 faces / 2 edges / 2
-    /// vertices a natively revolved ball carries.
+    /// so the locus is adopted whole and the kernel mints the boundary
+    /// graph a natively revolved ball carries, 1 face / 1 edge / 2
+    /// vertices: a vertex at each pole and one wrap edge between them,
+    /// the surface's `u_ref` meridian, walked down and back up.
     EdgeFreeSphere,
     /// **A chart singularity in a face is a vertex of it.** A sphere's
     /// pole or a cone's apex that lies in a face's closure is a vertex
-    /// of the face, in the pole form (`geom::pole_form`): the end of two
-    /// meridians half a turn apart, the face reaching it between them.
-    /// A file that states the point some other way is re-minted into
-    /// that form, by where the point lies ([`SingularityFound`]), read
-    /// by the kernel's one reading of it
+    /// of the face (DESIGN `[topology]`'s seam clause). Where no edge the
+    /// file states reaches it, it is the tip of one wrap edge, which the
+    /// face's loop walks out and back. A file that states the point some
+    /// other way is re-minted into that form, by where the point lies
+    /// ([`SingularityFound`]), read by the kernel's one reading of it
     /// (`geom_brep::chart_singularity::locate`, whose boundary placement,
     /// `place_on_boundary`, tier 3 shares; tier 3 reads the side through
     /// the face's point-in-face door, and the import's own side reading
     /// is filed to follow it,
     /// `work/importgate/import-reads-a-chart-singularitys-side-by-the-chart-walk-tier-3-is-to-leave.md`):
     /// the face's boundary and the region its sense bit names say which.
-    /// The minted meridians are the surface's own (at its `u_ref`
-    /// azimuth and the half turn, or the half-turn twin of a seam the
-    /// file states), each ending at the first boundary edge it meets,
-    /// which is split there for every face sharing it. What the file
-    /// leaves undecidable refuses typed rather than guessing: a point
-    /// within the band of the boundary but neither on nor off it, a
-    /// boundary carrier the crossing reads nothing of (not a line or a
-    /// circle), a winding the chart inverse cannot read, and a seam
-    /// ending at the point on an orientation-inverted face.
+    /// The minted wrap edge is the surface's own meridian
+    /// (`geom::pole_form`) at the azimuth of the face's boundary point
+    /// nearest the singular point (ties going to the least turn from the
+    /// surface's `u_ref`), so it meets the boundary there first; that
+    /// edge is split there for every face sharing it. A wrap tip the
+    /// file states (Open CASCADE's full cone and sphere cap) is adopted
+    /// as stated, with no record. What the file leaves undecidable, or
+    /// states in a way no wrap tip can be minted from, refuses typed
+    /// rather than guessing: a point within the band of the boundary but
+    /// neither on nor off it, a boundary carrier the crossing reads
+    /// nothing of (not a line or a circle), a winding the chart inverse
+    /// cannot read, a seam ending at the point on an
+    /// orientation-inverted face, and a nearest boundary point that is a
+    /// vertex the face's loop passes more than once, where the wrap edge
+    /// would be walked out and back has no one reading.
     ChartSingularityVertex {
         /// Where the file put the point.
         found: SingularityFound,
@@ -635,23 +642,18 @@ pub const STEP_PLACEMENT_IDENTITY: &str = "step_placement_identity";
 /// read for unit length within its rounding.
 pub const STEP_LINE_DIRECTION_UNIT: &str = "step_line_direction_unit";
 
-/// Where a file put a chart singularity that is not yet a vertex in
-/// the pole form ([`NormalizationKind::ChartSingularityVertex`]).
+/// Where a file put a chart singularity that is not a vertex of the
+/// face holding it ([`NormalizationKind::ChartSingularityVertex`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SingularityFound {
     /// Inside the face, off its boundary: the point is minted as a
-    /// vertex with the pole form's two meridians, and the face is cut
-    /// in two along them (the rim-only sphere cap, a tilted cap, a
-    /// cone cap bounded by its rim alone).
+    /// vertex with one wrap edge to it, which the face's loop walks out
+    /// and back (the rim-only sphere cap, a tilted cap, a cone cap
+    /// bounded by its rim alone).
     Interior,
     /// Inside a boundary edge: the edge is split at the point, for
     /// every face sharing it (a meridian arc stated across the pole).
     InsideEdge,
-    /// At a vertex with one edge, a seam the face uses both ways (Open
-    /// CASCADE's full cone and sphere cap): the pole form is completed
-    /// with the seam's half-turn twin, and the face is cut in two along
-    /// the pair.
-    ValenceOneVertex,
 }
 
 /// A **reported normalization**, one row of the move ledger

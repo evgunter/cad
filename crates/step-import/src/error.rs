@@ -368,7 +368,7 @@ pub enum StepImportError {
     },
     /// Whether a sphere pole or cone apex lies on a face's boundary (at
     /// one of its vertices, or inside one of its edges), or whether a
-    /// pole-form meridian minted from one lands at a boundary vertex or
+    /// wrap edge minted to one lands at a boundary vertex or
     /// beside it, reads in the band
     /// the import decides it at, the coarser of the file's and the run's:
     /// so whether it is a vertex of the face, lies inside an edge, or lies
@@ -407,7 +407,7 @@ pub enum StepImportError {
         /// The file's ε_in: the import door the refusal is read at.
         file: FileCoincidence,
     },
-    /// Where a pole-form meridian minted from a sphere pole or cone apex
+    /// Where a wrap edge's meridian minted from a sphere pole or cone apex
     /// meets a face's boundary did not run to an answer: the kernel's
     /// meeting reading ([`geom_brep::curve_pair::meet`]) of the meridian
     /// and a boundary edge stopped at a limit with no margin to rank it

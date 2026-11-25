@@ -487,7 +487,7 @@ pub struct Located<T: Real> {
 /// # Errors
 ///
 /// The escalation of a distance in the band.
-pub fn on_boundary<T: Decide>(d: T, band: Band) -> Result<bool, Indeterminate> {
+fn on_boundary<T: Decide>(d: T, band: Band) -> Result<bool, Indeterminate> {
     decide("chart_singularity_on_boundary", Margin::of(d), band).map(|s| s == Sign::Zero)
 }
 
