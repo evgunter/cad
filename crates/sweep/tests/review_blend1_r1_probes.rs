@@ -74,7 +74,7 @@ fn tilt_raised_cap(
         .find_map(|he| {
             let h = body.get_half_edge(he)?;
             let f = body.get_loop(h.parent_loop)?.face;
-            matches!(body.face_surface(f)?, geom::Surface::Plane { .. }).then_some(f)
+            matches!(body.face_surface(f).ok()?, geom::Surface::Plane { .. }).then_some(f)
         })
         .expect("the cap side of the rim");
     let geom::Surface::Plane {

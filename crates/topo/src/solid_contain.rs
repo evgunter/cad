@@ -331,6 +331,12 @@ pub enum PointInSolidError {
         /// Its kind — the row the arm is missing for.
         kind: geom::SurfaceKind,
     },
+    /// A face has no surface yet ([`crate::SurfaceMiss::Pending`]): the
+    /// body is mid-construction, and a ray has nothing to cross there.
+    PendingFace {
+        /// The face.
+        face: FaceKey,
+    },
     /// The at-infinity side could be read neither off the sign of the
     /// body's signed volume, which the props lane did not certify, nor
     /// off a ray aimed at one of its planar faces.
@@ -572,6 +578,9 @@ impl PointInSolidError {
                 "the instance carries a face kind the point-in-solid door does not serve \
                  (a spline surface), so its material cannot be probed"
             }
+            Self::PendingFace { .. } => {
+                "a face of the instance has no surface yet, so its material cannot be probed"
+            }
             Self::VolumeUncertified => {
                 "the instance's at-infinity side could not be read — the sign of its \
                  signed volume is uncertified, and no ray aimed at a flat face of it \
@@ -664,6 +673,11 @@ impl PointInSolidError {
                  solid itself is fine. Recourse: build the solid so no spline (NURBS) \
                  face bounds it",
                 kind.word()
+            ),
+            Self::PendingFace { .. } => write!(
+                f,
+                "cannot tell what is inside the solid: one of its faces has no surface \
+                 yet. Recourse: describe every face's surface first"
             ),
             Self::VolumeUncertified => write!(
                 f,
@@ -959,7 +973,10 @@ fn face_geo_arms<T: Decide>(
     splines: Option<crate::region::SplineCrossings<T>>,
 ) -> Result<FaceGeo<T>, PointInSolidError> {
     let f = body.proven_face(face);
-    match f.surface() {
+    let Ok(surface) = f.surface() else {
+        return Err(PointInSolidError::PendingFace { face });
+    };
+    match surface {
         Surface::Plane { frame, .. } => {
             let (origin, normal) = (frame.origin(), frame.axis());
             Ok(FaceGeo::Plane(plane_desc_of(f.record(), origin, normal)))
@@ -1143,7 +1160,10 @@ pub(crate) const fn ray_crosses(kind: geom::SurfaceKind) -> bool {
 ///
 /// Where `face`, a face of the selection, does not resolve.
 pub(crate) fn uncrossable<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<PointInSolidError> {
-    let kind = body.proven_face(face).surface().kind();
+    let Ok(surface) = body.proven_face(face).surface() else {
+        return Some(PointInSolidError::PendingFace { face });
+    };
+    let kind = surface.kind();
     (!ray_crosses(kind)).then_some(PointInSolidError::KindUnsupported { face, kind })
 }
 
@@ -1510,6 +1530,9 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             Err(ChartWindowError::Escalated(diag)) => return Err(escalate(diag)),
             Err(ChartWindowError::Stale(_) | ChartWindowError::NotClosed(_)) => {
                 return Err(PointInSolidError::CorruptFace { face });
+            }
+            Err(ChartWindowError::PendingFace(_)) => {
+                return Err(PointInSolidError::PendingFace { face });
             }
         }
     };
@@ -3662,7 +3685,10 @@ fn root_outward<T: Decide>(
                     "bool_ray_cone_incidence",
                     Margin::levered(
                         d.get().dot(chart_normal(body, face, p)?),
-                        geom_brep::curvature_lever_arm(body.proven_face(face).surface(), p),
+                        geom_brep::curvature_lever_arm(
+                            body.proven_face(face).expect_described(),
+                            p,
+                        ),
                     ),
                     band,
                 )
@@ -3676,7 +3702,7 @@ fn root_outward<T: Decide>(
                     "bool_ray_torus_incidence",
                     Margin::levered(
                         d.get().dot(chart_normal(body, face, p)?),
-                        geom_brep::uniform_curvature_arm(body.proven_face(face).surface()),
+                        geom_brep::uniform_curvature_arm(body.proven_face(face).expect_described()),
                     ),
                     band,
                 )
@@ -3700,7 +3726,7 @@ fn chart_normal<T: Decide>(
     p: Point3<T>,
 ) -> Result<Vec3<T>, RayFault<PointInSolidError>> {
     Ok(geom_brep::implicit_gradient(
-        body.proven_face(face).surface(),
+        body.proven_face(face).expect_described(),
         p,
     ))
 }
@@ -3727,7 +3753,7 @@ fn reach_margin<T: Decide>(
     root: T,
 ) -> Result<T, RayFault<PointInSolidError>> {
     let geom::Line { origin: q, dir: d } = ray.line();
-    let surface = body.proven_face(face).surface();
+    let surface = body.proven_face(face).expect_described();
     let (at, passage) = (q + d.get() * root, q + d.get() * m.at);
     let off = (m.span.0 - root).max(root - m.span.1).max(T::zero());
     let n = chart_normal(body, face, at)?;
@@ -4666,6 +4692,7 @@ fn volume_refusal(
         M::Corrupt { .. } | M::NullScaffoldEdge { .. } => {
             PointInSolidError::CorruptFace { face: first }
         }
+        M::PendingFace { face } => PointInSolidError::PendingFace { face },
         M::NoOutline(no) => no_outline(no),
         M::Band { .. }
         | M::RingOnCurvedFace { .. }
@@ -5619,7 +5646,7 @@ mod kind_arm_tests {
                         major_radius: -0.3,
                         minor_radius: 0.5,
                     },
-                    SurfaceKind::Nurbs => Surface::nurbs_placeholder(),
+                    SurfaceKind::Nurbs => geom::test_support::unit_patch(),
                     SurfaceKind::Approx => Surface::Approx(std::sync::Arc::new(
                         crate::fixtures::bowed_offset_approx::<f64>(),
                     )),
@@ -5629,7 +5656,7 @@ mod kind_arm_tests {
             let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
             let face = faces[0];
             let key = body.get_face(face).unwrap().surface;
-            *body.surfaces.get_mut(key).unwrap() = surface;
+            *body.surfaces.get_mut(key).unwrap() = surface.into();
             let sel = SolidFaces::select(&body, faces).unwrap();
             let read = face_geo_arms(&body, face, &sel.charts, Band::linear(tol).unwrap(), None);
             let refused = matches!(read, Err(PointInSolidError::KindUnsupported { .. }));
@@ -5772,7 +5799,7 @@ mod reach_tests {
             crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
         let face = body.faces().next().expect("a face").0;
         let key = body.get_face(face).expect("the face").surface;
-        *body.surfaces.get_mut(key).expect("its surface") = Surface::Cylinder {
+        *body.surface_mut(key).expect("its surface") = Surface::Cylinder {
             frame: geom::Frame::new(
                 Point3::new(0.0, 0.0, 0.0),
                 Vec3::new(0.0, 0.0, 1.0),

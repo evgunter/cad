@@ -19,7 +19,7 @@ use geom_core::{Arc2, Point2, Tol};
 use profile::test_support::bulge_loop;
 use profile::{ProfileLoop, RawLoop, Segment};
 use sweep::test_support::{brick, finished, stacked_at};
-use sweep::{Lofted, Section, loft_body};
+use sweep::{Lofted, Section, SketchSegment, loft_body};
 use topo::{Body, ContactRecords};
 
 fn tol() -> Tol {
@@ -71,6 +71,45 @@ impl Shape {
             Self::Circle => 2,
             Self::FullTurn => 1,
         }
+    }
+
+    /// Walls per slab: one per segment, cut at every sub-arc joint, so
+    /// one per span of each segment's skinned curve
+    /// ([`sweep::segment_curve`]), read off its knots.
+    fn walls(self) -> usize {
+        let p = Point2::new;
+        let arc = |a, b, sweep| SketchSegment::Arc {
+            a,
+            b,
+            arc: Arc2 {
+                centre: p(0.0, 0.0),
+                radius: 1.0,
+                sweep,
+            },
+        };
+        let corners = [p(-1.0, -1.0), p(1.0, -1.0), p(1.0, 1.0), p(-1.0, 1.0)];
+        let segments: Vec<SketchSegment<f64>> = match self {
+            Self::Square => (0..4)
+                .map(|i| SketchSegment::Line {
+                    a: corners[i],
+                    b: corners[(i + 1) % 4],
+                })
+                .collect(),
+            Self::Circle => vec![
+                arc(p(1.0, 0.0), p(-1.0, 0.0), PI),
+                arc(p(-1.0, 0.0), p(1.0, 0.0), PI),
+            ],
+            Self::FullTurn => vec![arc(p(1.0, 0.0), p(1.0, 0.0), TAU)],
+        };
+        assert_eq!(segments.len(), self.segments(), "{self:?}'s segments");
+        segments
+            .into_iter()
+            .map(|s| {
+                let curve = sweep::segment_curve(0, s, geom_core::Affine3::identity())
+                    .expect("the segment converts");
+                curve.knot_values().runs().count() - 1
+            })
+            .sum()
     }
 }
 
@@ -271,7 +310,12 @@ fn a_degree_one_loft_that_changes_scale_is_its_frusta() {
         )
     });
     assert!(
-        lofted.side_faces.iter().flatten().all(|w| w.len() == 2),
+        lofted
+            .side_faces
+            .iter()
+            .flatten()
+            .flatten()
+            .all(|w| w.len() == 2),
         "every loop's walls are two slabs"
     );
     at_rest(&lofted.body, "holed, scaled");
@@ -297,7 +341,7 @@ fn a_degree_one_loft_that_changes_scale_is_its_frusta() {
     );
 }
 
-/// The structure: `[loop][segment][slab]` walls, each a single span in
+/// The structure: `[loop][segment][sub-arc][slab]` walls, each a single span in
 /// `v` on its own surface; one straight strut per slab; each interior
 /// section a ring on the placed sketch segments, between the walls of
 /// the slabs it divides; `V − E + F = 2`.
@@ -312,12 +356,14 @@ fn the_walls_struts_and_rings_are_one_per_slab() {
         assert_eq!(lofted.side_faces.len(), 1, "{what}: one loop");
         assert_eq!(lofted.side_faces[0].len(), segs, "{what}: segments");
         let mut keys = Vec::new();
-        for (j, walls) in lofted.side_faces[0].iter().enumerate() {
-            assert_eq!(walls.len(), slabs, "{what}: segment {j}'s slabs");
-            for &w in walls {
+        let subs: Vec<&Vec<_>> = lofted.side_faces[0].iter().flatten().collect();
+        assert_eq!(subs.len(), shape.walls(), "{what}: the sub-arc walls");
+        for (j, walls) in subs.iter().enumerate() {
+            assert_eq!(walls.len(), slabs, "{what}: wall {j}'s slabs");
+            for &w in *walls {
                 let w = w.unwrap();
                 let face = body.get_face(w).unwrap();
-                let Some(Surface::Nurbs(net)) = body.face_surface(w) else {
+                let Ok(Surface::Nurbs(net)) = body.face_surface(w) else {
                     panic!("{what}: wall {w:?} is a spline")
                 };
                 assert_eq!(
@@ -330,8 +376,13 @@ fn the_walls_struts_and_rings_are_one_per_slab() {
         }
         keys.sort_unstable();
         keys.dedup();
-        assert_eq!(keys.len(), segs * slabs, "{what}: one surface per wall");
-        for (j, struts) in lofted.seam_edges[0].iter().enumerate() {
+        assert_eq!(
+            keys.len(),
+            shape.walls() * slabs,
+            "{what}: one surface per wall"
+        );
+        let joints = lofted.joint_edges[0].iter().flatten();
+        for (j, struts) in lofted.seam_edges[0].iter().chain(joints).enumerate() {
             assert_eq!(struts.len(), slabs, "{what}: vertex {j}'s struts");
             for &e in struts {
                 let e = e.unwrap();
@@ -349,11 +400,8 @@ fn the_walls_struts_and_rings_are_one_per_slab() {
         // The ring at each interior section: the edges between slab
         // `s − 1`'s and slab `s`'s wall of each segment.
         for s in 1..slabs {
-            for j in 0..segs {
-                let (below, above) = (
-                    lofted.side_faces[0][j][s - 1].unwrap(),
-                    lofted.side_faces[0][j][s].unwrap(),
-                );
+            for (j, walls) in subs.iter().enumerate() {
+                let (below, above) = (walls[s - 1].unwrap(), walls[s].unwrap());
                 let shared = shared_edges(body, below, above);
                 let [rim] = shared[..] else {
                     panic!("{what}: section {s}, segment {j}: walls share {shared:?}")
@@ -391,7 +439,11 @@ fn the_walls_struts_and_rings_are_one_per_slab() {
         #[allow(clippy::cast_possible_wrap)]
         let chi = v as i64 - e as i64 + f as i64;
         assert_eq!(chi, 2, "{what}: V − E + F, ({v}, {e}, {f})");
-        assert_eq!(f, 2 + segs * slabs, "{what}: two caps and the walls");
+        assert_eq!(
+            f,
+            2 + shape.walls() * slabs,
+            "{what}: two caps and the walls"
+        );
     }
 }
 
@@ -402,7 +454,7 @@ fn a_higher_degree_loft_keeps_one_wall_per_segment() {
     let sections: Vec<Section> = (0..4).map(|_| Shape::Square.section(1.0)).collect();
     for degree in [2, 3] {
         let lofted = loft_body::<f64>(&sections, &stacked_at(&zs), degree, tol()).unwrap();
-        for walls in &lofted.side_faces[0] {
+        for walls in lofted.side_faces[0].iter().flatten() {
             assert_eq!(walls.len(), 1, "degree {degree}: one wall per segment");
         }
         assert_eq!(lofted.body.faces().count(), 6, "degree {degree}");
@@ -476,7 +528,7 @@ fn a_degree_one_path_sweep_is_one_wall_per_slab() {
             )
         });
     assert!(
-        swept.side_faces[0].iter().all(|w| w.len() == 4),
+        swept.side_faces[0].iter().flatten().all(|w| w.len() == 4),
         "four slabs a segment"
     );
     at_rest(&swept.body, "path sweep");
@@ -490,15 +542,13 @@ fn a_degree_one_path_sweep_is_one_wall_per_slab() {
 
 /// **An arc whose sub-arc count differs across the sections lofts at
 /// degree 1.** The arc wall carries every section's sub-arc structure,
-/// so the narrow interior arc reaches its row refined at the wide arcs'
-/// joints: uniform sub-arcs whose end weights are not one value, the
-/// same arc through each sub-arc's change of parameter, which its arc
-/// rim's image states (`Pcurve::IsoArc`'s `ends`). Every case builds
-/// and is at rest, and the first meshes to its integrated volume. The
-/// other two each carry a bulge-0 section, whose line rim on a creased
-/// wall meshes only at a δ whose chord points straddle no crease
-/// (`work/tesslane/a-line-rim-on-a-creased-loft-wall-does-not-mesh.md`), so
-/// they are not meshed here.
+/// so the loft cuts it at every section's joints, and the narrow
+/// interior arc reaches each of its walls refined there: a sub-arc whose
+/// end weights are not one value, the same arc through its change of
+/// parameter, which its arc rim's image states (`Pcurve::IsoArc`'s
+/// `ends`). A bulge-0 section's line is cut at the same joints, so no
+/// rim crosses a crease. Every case builds, is at rest, and meshes to
+/// its integrated volume at each δ.
 #[test]
 fn an_interior_arc_refined_by_its_neighbours_lofts() {
     let corners = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
@@ -517,7 +567,7 @@ fn an_interior_arc_refined_by_its_neighbours_lofts() {
         &[1.0, 0.2, 0.0, 0.7, 1.0],
         &[0.0, 1.0, 0.3, 0.0],
     ];
-    for (k, bulges) in cases.into_iter().enumerate() {
+    for bulges in cases {
         let what = format!("{bulges:?}");
         let sections: Vec<Section> = bulges.iter().map(|&b| section(b)).collect();
         #[allow(clippy::cast_precision_loss)]
@@ -529,17 +579,61 @@ fn an_interior_arc_refined_by_its_neighbours_lofts() {
             )
         });
         at_rest(&lofted.body, &what);
-        if k == 0 {
-            let (got, pad) = volume(&lofted.body);
-            let delta = 2e-3;
+        let (got, pad) = volume(&lofted.body);
+        for delta in [1e-3, 2e-3, 5e-3] {
             let v = meshed_volume(&lofted.body, delta, &what);
-            // Measured 4.5e-6 relative at this δ: the chords cut inside
-            // the one arc wall only, far under the 3δ a whole circle's
-            // mesh may lose.
+            // Measured from 2.2e-6 relative at δ 1e-3 to 8.4e-6 at 5e-3.
             assert!(
                 ((v - got) / got).abs() < 1e-5 + pad / got,
-                "{what}: mesh volume {v} vs integrated {got} ± {pad}"
+                "{what}, δ = {delta:e}: mesh volume {v} vs integrated {got} ± {pad}"
             );
         }
     }
+}
+
+/// **An arc refined at non-uniform breaks lofts at v-degree 2.** Bulges
+/// `tan(π/8)`, `tan 50°` and `tan 30°` put the +x side's arc at one,
+/// three and two sub-arcs, so its wall carries joints at `⅓`, `½` and
+/// `⅔`, and the loft cuts it into four walls. Each wall's rows are one
+/// rational-quadratic span, the narrow arcs' refined at end weights
+/// that are not one value, which the arc rim's image states. The body
+/// is at rest and meshes to its integrated volume (measured 2.1e-5
+/// relative at δ 2e-3).
+#[test]
+fn an_arc_refined_at_non_uniform_breaks_lofts_at_degree_two() {
+    let corners = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
+    let section = |b: f64| -> Section {
+        let chain = (0..4)
+            .map(|i| {
+                let (x, y) = corners[i];
+                (Point2::new(x, y), if i == 1 { b } else { 0.0 })
+            })
+            .collect();
+        vec![bulge_loop(chain)]
+    };
+    let bulges = [
+        (PI / 8.0).tan(),
+        50f64.to_radians().tan(),
+        30f64.to_radians().tan(),
+    ];
+    let sections: Vec<Section> = bulges.iter().map(|&b| section(b)).collect();
+    let lofted = loft_body::<f64>(&sections, &stacked_at(&[0.0, 1.0, 2.0]), 2, tol())
+        .unwrap_or_else(|e| {
+            panic!(
+                "the varying arc lofts: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
+    assert_eq!(
+        lofted.side_faces[0][1].len(),
+        4,
+        "the arc wall is cut at ⅓, ½ and ⅔"
+    );
+    at_rest(&lofted.body, "varying arc");
+    let (got, pad) = volume(&lofted.body);
+    let v = meshed_volume(&lofted.body, 2e-3, "varying arc");
+    assert!(
+        ((v - got) / got).abs() < 6e-5 + pad / got,
+        "varying arc: mesh volume {v} vs integrated {got} ± {pad}"
+    );
 }

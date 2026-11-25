@@ -86,18 +86,20 @@ pub(crate) fn faces_apart<T: Decide>(
     let proposed = reads
         .as_ref()
         .map_or_else(Vec::new, |(rx, ry)| depth_gap::proposed(rx, ry, band));
-    let kind = |body: &Body<T>, f| body.proven_face(f).surface().kind();
+    // A pending face is neither a sphere nor a plane: the predicate only
+    // narrows which directions are read again.
+    let kind = |body: &Body<T>, f| body.proven_face(f).surface().ok().map(geom::Surface::kind);
     // The aimed cover differs from the plain one only on a sphere face
     // (its pole-side cut), so the directions the first read tried are
     // read again only where one face is a sphere.
     let sphere = [(x, fa), (y, fb)]
         .into_iter()
-        .any(|(body, f)| kind(body, f) == geom::SurfaceKind::Sphere);
+        .any(|(body, f)| kind(body, f) == Some(geom::SurfaceKind::Sphere));
     if !sphere {
         dirs.clear();
     }
     dirs.extend(proposed.iter().copied());
-    let planar = |body: &Body<T>, f| kind(body, f) == geom::SurfaceKind::Plane;
+    let planar = |body: &Body<T>, f| kind(body, f) == Some(geom::SurfaceKind::Plane);
     apart_by(xi, yi, &dirs, pad, band, &|body, f, aim| {
         crate::cover::face_cover_toward(body, f, band, aim).ok()
     }) || reads

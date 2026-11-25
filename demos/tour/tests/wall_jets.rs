@@ -136,7 +136,7 @@ fn the_klein_loops_walls_hold_against_themselves() {
 /// The widest coordinate of each of `rect_jet`'s three partials over each
 /// cell of an `8 × 32` grid of `wall`'s chart.
 fn grid_widths(body: &Body<f64>, wall: FaceKey) -> Vec<[f64; 3]> {
-    let Some(Surface::Nurbs(net)) = body.face_surface(wall) else {
+    let Ok(Surface::Nurbs(net)) = body.face_surface(wall) else {
         panic!("a blade wall is a spline")
     };
     let net = net.map_scalar(Interval::from_f64);

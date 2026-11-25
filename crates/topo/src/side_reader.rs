@@ -347,7 +347,10 @@ fn aim_at<T: Decide>(
     let f = body
         .face(face)
         .ok_or(PointInSolidError::CorruptFace { face })?;
-    let surface = f.surface();
+    // A pending face is aimed at nowhere.
+    let Ok(surface) = f.surface() else {
+        return Ok(None);
+    };
     let aim = match *geo {
         FaceGeo::Cylinder { ref region, .. } | FaceGeo::Cone { ref region, .. } => {
             match region.aim() {
@@ -929,7 +932,7 @@ pub struct EdgeFrame {
 pub(crate) fn edge_frames(body: &Body<f64>, fractions: &[f64], band: Band) -> Vec<EdgeFrame> {
     let kind = |f: FaceKey| {
         body.face(f)
-            .map(|f| f.surface())
+            .and_then(|f| f.surface().ok())
             .map_or("?".to_owned(), |s| format!("{:?}", s.kind()))
     };
     let mut out = Vec::new();
@@ -1152,7 +1155,6 @@ mod pre_filter_tests {
     #![allow(clippy::expect_used, clippy::panic)]
     use super::*;
     use crate::test_support_fixtures::brick;
-    use geom::Surface;
     use geom_core::Tol;
     use geom_core::k_stats::Bracket;
 
@@ -1182,7 +1184,8 @@ mod pre_filter_tests {
         let (mut body, faces) = brick_and_faces(tol);
         let spline = *faces.last().expect("a brick has faces");
         let key = body.get_face(spline).expect("the face resolves").surface;
-        *body.surfaces.get_mut(key).expect("its surface resolves") = Surface::nurbs_placeholder();
+        *body.surfaces.get_mut(key).expect("its surface resolves") =
+            geom::test_support::unit_patch().into();
         let sel = SolidFaces::select(&body, faces).expect("the faces select");
 
         let bracket = Bracket::open();
@@ -1220,7 +1223,7 @@ mod pre_filter_tests {
     }
 
     /// **A face whose carrier bounds no region refuses the reach**: a
-    /// placeholder spline's net is poison, so no start is shown beyond
+    /// net that is not finite bounds nothing, so no start is shown beyond
     /// it, and the selection's reach refuses naming the face rather than
     /// reading the face as adding nothing. The brick's planar faces alone
     /// read.
@@ -1235,7 +1238,8 @@ mod pre_filter_tests {
         );
         let spline = *faces.last().expect("a brick has faces");
         let key = body.get_face(spline).expect("the face resolves").surface;
-        *body.surfaces.get_mut(key).expect("its surface resolves") = Surface::nurbs_placeholder();
+        *body.surfaces.get_mut(key).expect("its surface resolves") =
+            crate::fixtures::poisoned_net(|_| true).into();
         assert_eq!(
             selection_reach(&body, &faces, aim, band).map(|r| r.length()),
             Err(PointInSolidError::CorruptFace { face: spline }),
@@ -1285,7 +1289,8 @@ mod pre_filter_tests {
 
         let spline = *faces.last().expect("a brick has faces");
         let key = body.get_face(spline).expect("the face resolves").surface;
-        *body.surfaces.get_mut(key).expect("its surface resolves") = Surface::nurbs_placeholder();
+        *body.surfaces.get_mut(key).expect("its surface resolves") =
+            geom::test_support::unit_patch().into();
         let sel = SolidFaces::select(&body, faces).expect("the faces select");
         let read = side_at_infinity(&body, &sel, band, || {
             Err::<SolidContainment, _>("the volume")

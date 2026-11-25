@@ -263,7 +263,7 @@ fn a_flipped_chorded_sphere_face_is_refused_as_a_lamina() {
     let body = &got.body().expect("a body").body;
     let spheres: Vec<_> = body
         .faces()
-        .filter(|(k, _)| matches!(body.face_surface(*k), Some(geom::Surface::Sphere { .. })))
+        .filter(|(k, _)| matches!(body.face_surface(*k), Ok(geom::Surface::Sphere { .. })))
         .map(|(k, _)| k)
         .collect();
     assert!(!spheres.is_empty(), "the union holds a sphere face");
@@ -455,7 +455,7 @@ fn a_torus_operand_passes_the_pair_gate_and_builds() {
             .and_then(|e| torus.get_curve_geom(e.curve))
             .and_then(topo::CurveGeom::certified)
             .is_some_and(|c| matches!(c.carrier(), topo::Curve3::Circle(..)));
-        let wall = matches!(a.face_surface(*f), Some(topo::Surface::Cylinder { .. }));
+        let wall = matches!(a.face_surface(*f), Ok(topo::Surface::Cylinder { .. }));
         circle && wall
     });
     assert!(
@@ -531,9 +531,9 @@ fn cylinder_torus_overlap() -> f64 {
 /// **The refusal is read off the variant, and the NURBS wall that once
 /// reached it end to end is pinned where it stops.** The variant is
 /// per-KIND and its Display carries no per-site branch, so the sentence
-/// is the variant's whatever raises it. A cylinder with one wall
-/// relabelled to the NURBS placeholder is not a finished body — the
-/// at-rest gate refuses the wall as uncertifiable — so it never reaches
+/// is the variant's whatever raises it. A cylinder with one wall moved
+/// onto a pending slot is not a finished body — the at-rest gate
+/// refuses the wall as uncertifiable — so it never reaches
 /// the crossing layer. The cyl×sphere and sphere×sphere crossings are
 /// stopped two layers above (the rows at the top of this file are that
 /// measurement), so the join dispatch's catch-all cannot be reached end
@@ -546,19 +546,16 @@ fn the_join_dispatchs_refusal_says_what_it_actually_wires() {
     // Lifts RechartStrandsDescriptions: the relabelled face is the join dispatch's input.
     b.set_face_surface_unvouched_for_tests(
         face,
-        topo::construction::FaceSurface::New {
-            surface: geom::Surface::Nurbs(std::sync::Arc::new(geom::NurbsSurface::placeholder())),
-            sense: true,
-        },
+        topo::construction::FaceSurface::Pending { sense: true },
     )
     .unwrap();
-    let errors = topo::finish(b, Tol::witness())
-        .expect_err("a NURBS placeholder wall is not a finished body");
+    let errors =
+        topo::finish(b, Tol::witness()).expect_err("a pending wall is not a finished body");
     assert!(
         errors.iter().any(
             |e| matches!(e, topo::ValidationError::UncertifiableSurface { face: f } if *f == face)
         ),
-        "the at-rest gate names the placeholder wall: {errors:?}"
+        "the at-rest gate names the pending wall: {errors:?}"
     );
     let err = BooleanError::CurvedBooleanUnsupported {
         operand: topo::Operand::B,

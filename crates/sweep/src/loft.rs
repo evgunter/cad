@@ -3,9 +3,11 @@
 //!
 //! The topology is EXTRUDE'S with different geometry (item 6(i)):
 //! bottom cap from section 0, top cap from section k−1, one NURBS wall
-//! per profile segment ([`crate::skin::body_walls`]), wall–wall
-//! seams as the walls' `u ∈ {0, 1}` boundary iso-curves, struts swept
-//! per vertex. At v-degree 1 through `k ≥ 3` sections that wall is one
+//! per profile segment ([`crate::skin::body_walls`]) cut at every C⁰
+//! knot its `u` carries, the sections' sub-arc joints
+//! ([`fn@sub_arc_walls`], [`fn@segment_pieces`]), wall–wall seams as the
+//! walls' `u ∈ {0, 1}` boundary iso-curves, struts swept per vertex and
+//! per joint. At v-degree 1 through `k ≥ 3` sections that wall is one
 //! per slab, built from its two sections' rows: the body is `k − 1` such laminae swept
 //! one on the next, each interior section a ring of rims between two
 //! slabs' walls, each in the row `v = 1` of the wall below it. The three
@@ -146,25 +148,44 @@ pub struct Lofted<T: topo::AtRestPolicy, B = <T as topo::AtRestPolicy>::Leaf> {
     pub top: FaceKey,
     /// The bottom cap (section 0's plane, outward against it).
     pub bottom: FaceKey,
-    /// Wall faces `[loop][segment][slab]`, loops in canonical order
-    /// (outer first), segments in canonical order, slabs in stacking
-    /// order. At v-degree ≥ 2, and through two sections, each segment
-    /// has one wall, `side_faces[l][j][0]`, carrying
-    /// `LoftGeometry.walls[l][j]`; at v-degree 1 through `k ≥ 3`
-    /// sections it has one per slab, `side_faces[l][j][s]`, the ruled
-    /// wall whose rows are sections `s` and `s + 1`.
+    /// Wall faces `[loop][segment][sub-arc][slab]`, loops in canonical
+    /// order (outer first), segments in canonical order, sub-arcs along
+    /// the segment, slabs in stacking order. A segment's wall is cut at
+    /// every C⁰ knot its skinned surface carries in `u`, the sub-arc
+    /// joints of an arc wider than the sub-arc ceiling in any section
+    /// (`crate::skin::segment_curve`), so a lofted circle is four walls
+    /// and a segment with no such joint is one. At v-degree ≥ 2, and
+    /// through two sections, each sub-arc has one wall,
+    /// `side_faces[l][j][q][0]`, on the stretch of
+    /// `LoftGeometry.walls[l][j]` between its joints; at v-degree 1
+    /// through `k ≥ 3` sections it has one per slab,
+    /// `side_faces[l][j][q][s]`, the stretch of the ruled wall whose rows
+    /// are sections `s` and `s + 1`.
     /// `None` where the segment is pinned at both ends and is the same
     /// curve in both sections of the slab: it has no wall there, and the
     /// walls beside it share its edge.
-    pub side_faces: Vec<Vec<Vec<Option<FaceKey>>>>,
-    /// Wall–wall seam edges `[loop][vertex][slab]`: `seams[l][j][s]` is
-    /// the strut at vertex `j` across slab `s` — wall `[j][s]`'s
-    /// `u = 0` boundary iso (and wall `[j − 1 mod n][s]`'s `u = 1`).
-    /// Struts of adjacent slabs meet at an interior section's vertex,
-    /// and the edges of that section's ring are the rims between
-    /// adjacent slabs' walls. `None` where the corner is pinned in the
-    /// slab: one vertex in both sections, with no strut.
+    pub side_faces: Vec<Vec<Vec<Vec<Option<FaceKey>>>>>,
+    /// Wall–wall seam edges at the profile's vertices,
+    /// `[loop][vertex][slab]`: `seams[l][j][s]` is the strut at vertex
+    /// `j` across slab `s` — the `u = 0` boundary iso of segment `j`'s
+    /// first sub-arc wall in slab `s` (and the `u = 1` of segment
+    /// `j − 1 mod n`'s last). Struts of adjacent slabs meet at an
+    /// interior section's vertex, and the edges of that section's ring
+    /// are the rims between adjacent slabs' walls. `None` where the
+    /// corner is pinned in the slab: one vertex in both sections, with
+    /// no strut.
     pub seam_edges: Vec<Vec<Vec<Option<EdgeKey>>>>,
+    /// The seams inside a segment, `[loop][segment][joint][slab]`:
+    /// `joints[l][j][q][s]` is the seam between segment `j`'s
+    /// sub-arc walls `q` and `q + 1` across slab `s`, the `u = 0`
+    /// boundary iso of wall `q + 1`. It is a crease in general: smooth
+    /// where every section's joint there is one of arcs of one sweep
+    /// (one weight), as a sweep's are, or at v-degree 1
+    /// (`crates/sweep/README.md`, the sub-arc walls). Empty for a
+    /// segment of one wall;
+    /// `None` where the segment is held flat in the slab, its joints
+    /// one point in both sections.
+    pub joint_edges: Vec<Vec<Vec<Vec<Option<EdgeKey>>>>>,
     /// **The v-parameter each input section sits at** —
     /// [`LoftGeometry::section_params`](crate::skin::LoftGeometry::section_params) carried out to the caller
     /// (`[0] = 0`, `[k − 1] = 1`) instead of dropped with the
@@ -207,6 +228,7 @@ impl<T: topo::AtRestPolicy> Lofted<T, Body<T>> {
             bottom,
             side_faces,
             seam_edges,
+            joint_edges,
             section_params,
         } = self;
         Ok(Lofted {
@@ -217,6 +239,7 @@ impl<T: topo::AtRestPolicy> Lofted<T, Body<T>> {
             bottom,
             side_faces,
             seam_edges,
+            joint_edges,
             section_params,
         })
     }
@@ -279,18 +302,14 @@ pub enum LoftError {
     /// An interior section's rim found no image on the row `v = 1` of the
     /// slab wall below it (degree 1 through `k ≥ 3` sections only).
     ///
-    /// `None`: no arc-rim image holds the rim. Ordinary input reaches
-    /// this. An arc segment's wall carries every section's sub-arc
-    /// structure at once, so where the sections' arcs split into
-    /// different numbers of sub-arcs (a bulge that varies enough across
-    /// the sections), an arc with fewer sub-arcs reaches its row refined
-    /// at the others' joints. The arc-rim class describes only a row with
-    /// the arc's own uniform sub-arc knots, so it does not describe that
-    /// row. The same class refuses a cap rim of a two-section loft at
-    /// the pcurve mint
+    /// `None`: no arc-rim image holds the rim. No input is known to
+    /// reach this: the loft cuts every wall at each sub-arc joint any
+    /// section puts in it, so a rim is one rational-quadratic span, at
+    /// end weights the arc rim's image states, and the case that did
+    /// reach it (sections whose arcs split into different numbers of
+    /// sub-arcs) builds
     /// (`work/isotail/a-loft-whose-arc-bulge-varies-per-section-refuses-its-arc-rim.md`).
-    /// Recourse: loft at v-degree 2 or more, whose walls span every
-    /// section, so the interior section is no rim.
+    /// It stays typed rather than assumed away.
     ///
     /// `Some`: the pick was undecided in band.
     SectionRim {
@@ -339,21 +358,6 @@ pub enum LoftError {
         /// The first slab it moves in.
         moving: usize,
     },
-    /// A one-segment loop's vertex (a full turn's) is pinned: a legal
-    /// body, whose wall is the whole turn with a collapsed side at its
-    /// wrap edge, which the assembly does not build yet (it sweeps a full
-    /// turn's wall around a strut;
-    /// `work/lathe/a-full-turns-pinned-vertex-refuses-at-the-loft-door.md`).
-    /// A limit of the kernel, not a fault in the sections. Every other pinned corner builds: one vertex, no
-    /// strut, and each wall beside it a collapsed side there.
-    PinnedCornerUnsupported {
-        /// The loop, in canonical order (the outer first).
-        loop_index: usize,
-        /// The corner, or the segment hinged on two pinned corners.
-        at: PinnedSite,
-        /// The first slab that pins it — the pair [`SlabPair`] names.
-        slab: usize,
-    },
     /// Whether a corner is the same world point in a slab's two
     /// sections escalated (`loft_corner_pinned`).
     CornerEscalated {
@@ -361,6 +365,22 @@ pub enum LoftError {
         loop_index: usize,
         /// The corner: the start of segment `corner`.
         corner: usize,
+        /// The slab — the pair [`SlabPair`] names.
+        slab: usize,
+        /// The predicate-layer escalation.
+        source: Indeterminate,
+    },
+    /// Whether a sub-arc joint of a segment (a C⁰ knot its compatible
+    /// strip carries, where the loft cuts the wall) is the same world
+    /// point in a slab's two sections escalated (`loft_corner_pinned`,
+    /// the corner's one predicate).
+    JointEscalated {
+        /// The loop, in canonical order (the outer first).
+        loop_index: usize,
+        /// The segment whose wall the joint cuts.
+        segment: usize,
+        /// The joint, counting from zero along the segment.
+        joint: usize,
         /// The slab — the pair [`SlabPair`] names.
         slab: usize,
         /// The predicate-layer escalation.
@@ -470,6 +490,14 @@ pub enum PinnedSite {
     Corner(usize),
     /// Segment `j`, both of whose corners are pinned.
     Segment(usize),
+    /// Sub-arc joint `joint` of segment `segment`: a C⁰ knot of the
+    /// segment's compatible strip, where the loft cuts its wall.
+    Joint {
+        /// The segment.
+        segment: usize,
+        /// The joint, counting from zero along the segment.
+        joint: usize,
+    },
 }
 
 impl fmt::Display for PinnedSite {
@@ -477,6 +505,9 @@ impl fmt::Display for PinnedSite {
         match self {
             Self::Corner(j) => write!(f, "corner {j}"),
             Self::Segment(j) => write!(f, "segment {j} (both its corners)"),
+            Self::Joint { segment, joint } => {
+                write!(f, "sub-arc joint {joint} of segment {segment}")
+            }
         }
     }
 }
@@ -548,10 +579,9 @@ impl LoftError {
                 source: None,
             } => write!(
                 f,
-                "loft section {section}'s arc rim has no image on the degree-1 wall below it: \
-                 the sections' arcs split into different numbers of sub-arcs, so this one \
-                 reaches its row refined, which the arc-rim class does not describe. \
-                 Recourse: loft at v-degree 2 or more, whose walls span every section"
+                "loft section {section}'s arc rim has no image on the degree-1 wall below it, \
+                 though the wall is one rational-quadratic span along it. Recourse: loft at \
+                 v-degree 2 or more, whose walls span every section, so the section is no rim"
             ),
             Self::SectionRim {
                 section,
@@ -609,20 +639,6 @@ impl LoftError {
                 SlabPair(*moving),
                 far = SlabPair(*slab).far()
             ),
-            Self::PinnedCornerUnsupported {
-                loop_index,
-                at,
-                slab,
-            } => write!(
-                f,
-                "loft {} hold the one vertex ({at}) of loop {loop_index}, a full turn, at one \
-                 point; that is a legal body, but the kernel does not yet build a full \
-                 turn's wall that collapses at its wrap edge (a kernel limit, not an input \
-                 fault). Recourse: move it apart between sections {slab} and {far}, or split \
-                 the loop's one segment in two",
-                SlabPair(*slab),
-                far = SlabPair(*slab).far()
-            ),
             Self::CornerEscalated {
                 loop_index,
                 corner,
@@ -634,6 +650,24 @@ impl LoftError {
                 source.undecided(
                     format_args!(
                         "whether loft {} hold corner {corner} of loop {loop_index} at one point",
+                        SlabPair(*slab)
+                    ),
+                    source.ending(geom_core::COINCIDENCE_RECOURSE),
+                )
+            ),
+            Self::JointEscalated {
+                loop_index,
+                segment,
+                joint,
+                slab,
+                source,
+            } => write!(
+                f,
+                "{}",
+                source.undecided(
+                    format_args!(
+                        "whether loft {} hold sub-arc joint {joint} of segment {segment} of loop \
+                         {loop_index} at one point",
                         SlabPair(*slab)
                     ),
                     source.ending(geom_core::COINCIDENCE_RECOURSE),
@@ -735,6 +769,33 @@ fn strip_points<T: Real>(strips: &[Vec<geom::NurbsCurve3<T>>]) -> Vec<Vec<Vec<Po
     strips
         .iter()
         .map(|strip| strip.iter().map(|c| c.control().to_vec()).collect())
+        .collect()
+}
+
+/// Each compatible strip's sub-arc joints as the stacking door reads
+/// them ([`stacking::Joints`]): the control index of every C⁰ knot of
+/// the strip's knot vector, which its curves share
+/// ([`crate::skin::crease_columns`]).
+///
+/// # Errors
+///
+/// [`LoftError::SectionStructure`] for a strip with no curve, or a knot
+/// vector the skin's continuous sections cannot have.
+fn strip_joints<S: geom_core::spline::SpanLocate>(
+    strips: &[Vec<Vec<geom::NurbsCurve3<S>>>],
+) -> Result<stacking::Joints, LoftError> {
+    strips
+        .iter()
+        .map(|lp| {
+            lp.iter()
+                .map(|strip| {
+                    let first = strip.first().ok_or(LoftError::SectionStructure)?;
+                    crate::skin::crease_columns(first.knot_values())
+                        .map(|joints| joints.into_iter().map(|(_, c)| c).collect())
+                        .ok_or(LoftError::SectionStructure)
+                })
+                .collect()
+        })
         .collect()
 }
 
@@ -864,8 +925,9 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> LoftBuild<'_, T, L> {
 
 /// A loft's walls `[loop][segment][slab]`, the v each section sits at
 /// and the stacking door's verdict, over sections validated at `T`: the
-/// compatible strips, the door over them, then the walls
-/// ([`body_walls`]) with the corners the door pinned.
+/// compatible strips and their sub-arc joints ([`strip_joints`]), the
+/// door over them, then the walls ([`body_walls`]) with the corners and
+/// joints the door pinned.
 #[allow(clippy::type_complexity)]
 fn loft_walls<T: Decide + topo::AtRestPolicy>(
     places: &[SketchPlane<T>],
@@ -883,11 +945,18 @@ fn loft_walls<T: Decide + topo::AtRestPolicy>(
 > {
     let band = Band::linear(tol).map_err(LoftError::Band)?;
     let compat = compatible_strips(canonical, places).map_err(LoftError::Skin)?;
+    let joints = strip_joints(&compat)?;
     let strips = compat.iter().map(|lp| strip_points(lp)).collect();
-    let pinned = stacking::stacking_door(places, canonical, &strips, v_degree, band, tol)?;
-    let (walls, section_params) =
-        body_walls(compat, v_degree, shares, &|l, j, s| pinned.at(l, j, s))
-            .map_err(LoftError::Skin)?;
+    let pinned = stacking::stacking_door(places, canonical, &strips, &joints, v_degree, band, tol)?;
+    let (walls, section_params) = body_walls(
+        compat,
+        v_degree,
+        shares,
+        &|l, j, s| pinned.at(l, j, s),
+        &|l, j, i, s| pinned.joint_at(l, j, i, s),
+        &joints,
+    )
+    .map_err(LoftError::Skin)?;
     Ok((walls, section_params, pinned))
 }
 
@@ -948,31 +1017,189 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> ProjectiveSplit<T> for L
     }
 }
 
-/// What a one-segment loop's sweep through every slab minted
-/// (`assemble`'s `full_turn`), slab by slab in stacking order: the top
-/// slab's [`crate::swept::FullTurn`] continued down through each slab
-/// below. Like a `FullTurn` it keeps the ends of what was swept (the far
-/// rim's kept half, the near rim's half in the wall, the near face), here of the whole
-/// stack, and it lists a wall, a strut and a rim per slab where a
-/// `FullTurn` holds one of each.
-struct SlabTurn {
-    /// The top rim's plus half, kept by the loop the turn was built in.
-    far_kept: topo::HalfEdgeKey,
-    /// The bottom rim's plus half, in slab 0's wall.
-    near_in_wall: topo::HalfEdgeKey,
-    /// The face holding the bottom rim's minus half.
-    near_face: FaceKey,
-    /// The wall of each slab.
-    walls: Vec<FaceKey>,
-    /// The strut of each slab.
-    struts: Vec<EdgeKey>,
-    /// The rim at each slab boundary, bottom (`0`) to top (`slabs`).
-    rims: Vec<EdgeKey>,
+/// **A wall cut at its creases in `u`**: one wall per stretch between
+/// consecutive C⁰ knots of `wall`'s `u` ([`geom_core::spline::Knots::crease_values`]),
+/// each on its own `u ∈ [0, 1]`, with the crease values the cuts fall
+/// at (ascending, the domain's ends left out). The skin writes an arc
+/// wider than the sub-arc ceiling as sub-arcs joined at a double knot
+/// ([`crate::skin::segment_curve`]), and the compatible net carries
+/// every section's joints in every row, so a segment's wall is C⁰ at
+/// the union of its sections' joints; a face chart is C¹ by its knot
+/// structure strictly inside its cell (DESIGN `[topology]`), so the loft
+/// cuts there. A wall with no crease is itself, uncut.
+///
+/// # Errors
+///
+/// [`LoftError::SectionStructure`] for an interior run of the knot
+/// vector that would leave the net discontinuous, which no skin of
+/// continuous sections has; [`LoftError::SeamStructure`] where the
+/// spline door refuses a piece.
+#[allow(clippy::type_complexity)]
+fn sub_arc_walls<T: geom_core::spline::SpanLocate>(
+    wall: &Arc<NurbsSurface<T>>,
+) -> Result<(Vec<Arc<NurbsSurface<T>>>, Vec<f64>), LoftError> {
+    let knots = wall.knot_values_u();
+    let creases: Vec<usize> = knots.structure().crease_runs().collect();
+    if creases.is_empty() {
+        return Ok((vec![Arc::clone(wall)], Vec::new()));
+    }
+    let Some(joints) = crate::skin::crease_columns(knots) else {
+        return Err(LoftError::SectionStructure);
+    };
+    let p = knots.degree();
+    let runs: Vec<(T, usize)> = knots.runs().collect();
+    let last = runs.len() - 1;
+    let (nu, nv) = wall.control_counts();
+    // The control column the net interpolates at run `r`.
+    let column = |r: usize| match r {
+        0 => 0,
+        r if r == last => nu - 1,
+        r => {
+            joints[creases.iter().position(|&c| c == r).unwrap_or_else(|| {
+                unreachable!("run {r} bounds a piece only where it is a crease")
+            })]
+            .1
+        }
+    };
+    let seam = |e| LoftError::SeamStructure {
+        source: geom_core::spline::Built::new(e),
+    };
+    let clamp = core::num::NonZeroUsize::MIN.saturating_add(p);
+    let bounds: Vec<usize> = core::iter::once(0)
+        .chain(creases.iter().copied())
+        .chain(core::iter::once(last))
+        .collect();
+    let walls = bounds
+        .windows(2)
+        .map(|w| {
+            let (a, b) = (w[0], w[1]);
+            let (ua, ub) = (runs[a].0, runs[b].0);
+            let mut piece = vec![(T::zero(), clamp)];
+            for &(v, m) in &runs[a + 1..b] {
+                piece.push((
+                    (v - ua) / (ub - ua),
+                    core::num::NonZeroUsize::MIN.saturating_add(m - 1),
+                ));
+            }
+            piece.push((T::one(), clamp));
+            let knots_u = geom_core::spline::Knots::new(piece, p).map_err(seam)?;
+            let at = (column(a)..=column(b)).flat_map(|iu| (0..nv).map(move |iv| iu * nv + iv));
+            let control = at.clone().map(|i| wall.control()[i]).collect();
+            let weights = at.map(|i| wall.weights()[i]).collect();
+            NurbsSurface::new(knots_u, wall.knot_values_v().clone(), control, weights)
+                .map(Arc::new)
+                .map_err(seam)
+        })
+        .collect::<Result<_, _>>()?;
+    Ok((walls, joints.iter().map(|&(u, _)| u).collect()))
 }
 
-impl crate::swept::NearFace for SlabTurn {
-    fn near_face(&self) -> FaceKey {
-        self.near_face
+/// **A section's segment cut where its wall is** ([`sub_arc_walls`]):
+/// one traversal per sub-arc wall, the first from the segment's start
+/// and the last to its end, each cut at the point the section's own
+/// curve ([`crate::skin::segment_curve`]) reaches at that crease. A
+/// line's curve is affine in `u`, so its cut is `a + u·(b − a)`. An
+/// arc's own sub-arc joint `k/m` is `Arc2::point_from` at `k/m`, the
+/// on-arc control point itself; a crease another section put inside
+/// one of its sub-arcs falls at that sub-arc's rational-quadratic
+/// parameter `s`, located on the arc rim's own sub-arc breaks
+/// ([`geom_brep::sub_arc_at`]), whose angle from the sub-arc's middle is
+/// the rational-quadratic identity the arc rim's map inverts
+/// ([`geom_brep::sub_arc_angle_at_fraction`]).
+///
+/// # Errors
+///
+/// [`LoftError::SectionStructure`] where the arc's sweep has no bracket
+/// or a crease lies off `[0, 1]`: the skin admitted both before the
+/// arc reached a wall.
+fn segment_pieces<T: geom_core::spline::SpanLocate>(
+    seg: SweptSeg<T>,
+    cuts: &[f64],
+) -> Result<Vec<SweptSeg<T>>, LoftError> {
+    if cuts.is_empty() {
+        return Ok(vec![seg]);
+    }
+    let piece = |a: Point2<T>, b: Point2<T>, kind| SweptSeg { a, b, kind, ..seg };
+    match seg.kind.get() {
+        profile::SegmentKind::Line { .. } => {
+            // A crease value is structure: the strip's `u` knots are the
+            // sections' sub-arc breaks `k/m`, unioned, so a constant.
+            let at = |u: f64| seg.a + (seg.b - seg.a) * T::from_f64(u);
+            let points: Vec<Point2<T>> = core::iter::once(seg.a)
+                .chain(cuts.iter().map(|&u| at(u)))
+                .chain(core::iter::once(seg.b))
+                .collect();
+            Ok(points
+                .windows(2)
+                .map(|w| piece(w[0], w[1], seg.kind))
+                .collect())
+        }
+        profile::SegmentKind::Arc {
+            arc,
+            radials: [start_radial, end_radial],
+            ..
+        } => {
+            // The skin decided the sub-arc count over the sweep's bracket
+            // (`segment_curve`) before this arc reached a wall, so a
+            // sweep with no bracket here is the two disagreeing.
+            let (lo, _) = arc
+                .sweep
+                .abs()
+                .structure_bracket()
+                .ok_or(LoftError::SectionStructure)?;
+            let m = crate::skin::sub_arc_count(lo);
+            #[allow(clippy::cast_precision_loss)]
+            let steps = T::from_f64(m as f64);
+            let delta = arc.sweep / steps;
+            let tan_q = geom_brep::sub_arc_tan_quarter(delta);
+            let fraction = |u: f64| -> Result<T, LoftError> {
+                let (k, s) = geom_brep::sub_arc_at(u, m).ok_or(LoftError::SectionStructure)?;
+                // The arc's own joint is the on-arc control point itself.
+                if s == 0.0 {
+                    return Ok(T::from_f64(geom_brep::sub_arc_joint(k, m)));
+                }
+                // `s` is `u·m − k` on structure (`u` a break of the strip's
+                // knots), a constant.
+                let from_middle = geom_brep::sub_arc_angle_at_fraction(T::from_f64(s), tan_q);
+                #[allow(clippy::cast_precision_loss)]
+                let into = T::from_f64(k as f64 + 0.5) + from_middle / delta;
+                Ok(into / steps)
+            };
+            let fractions: Vec<T> = core::iter::once(Ok(T::zero()))
+                .chain(cuts.iter().map(|&u| fraction(u)))
+                .chain(core::iter::once(Ok(T::one())))
+                .collect::<Result<_, _>>()?;
+            let last = fractions.len() - 2;
+            // The unit radial at a cut: the start radial turned by the
+            // cut's angle, the rotation `point_from` applies about a
+            // unit circle at the origin, so nothing divides.
+            let unit = geom_core::Arc2 {
+                centre: Point2::new(T::zero(), T::zero()),
+                radius: T::one(),
+                ..arc
+            };
+            let radial_at = |f: T| {
+                unit.point_from(Point2::new(start_radial.x, start_radial.y), f)
+                    - Point2::new(T::zero(), T::zero())
+            };
+            Ok(fractions
+                .windows(2)
+                .enumerate()
+                .map(|(i, f)| {
+                    let (a, ra) = if i == 0 {
+                        (seg.a, start_radial)
+                    } else {
+                        (arc.point_from(seg.a, f[0]), radial_at(f[0]))
+                    };
+                    let (b, rb) = if i == last {
+                        (seg.b, end_radial)
+                    } else {
+                        (arc.point_from(seg.a, f[1]), radial_at(f[1]))
+                    };
+                    piece(a, b, seg.kind.part(arc.sweep * (f[1] - f[0]), [ra, rb]))
+                })
+                .collect())
+        }
     }
 }
 
@@ -1088,30 +1315,90 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
         return Err(LoftError::SectionStructure);
     };
 
-    // ---- The walls, one per segment per slab ([`body_walls`]). Slab
-    // boundary `b ∈ 0 ..= slabs` sits at section `at(b)`. ----
+    // ---- The walls: one per segment per slab ([`body_walls`]), each
+    // cut at its creases into one per sub-arc ([`sub_arc_walls`]). A
+    // segment's slabs share its compatible strip's `u` knots, so they cut
+    // alike. Pieces are numbered along each loop, every segment's
+    // sub-arcs in turn; `owner[l][q]` is piece `q`'s (segment, sub-arc).
+    // Slab boundary `b ∈ 0 ..= slabs` sits at section `at(b)`. ----
     let k = canonical.len();
+    let segment_walls = walls;
+    let mut walls: Vec<Vec<Vec<Arc<NurbsSurface<T>>>>> = Vec::with_capacity(segment_walls.len());
+    let mut owner: Vec<Vec<(usize, usize)>> = Vec::with_capacity(segment_walls.len());
+    let mut cuts: Vec<Vec<Vec<f64>>> = Vec::with_capacity(segment_walls.len());
+    for lp in &segment_walls {
+        let (mut w_l, mut o_l, mut c_l) = (Vec::new(), Vec::new(), Vec::new());
+        for (j, slabs_of) in lp.iter().enumerate() {
+            let cut = slabs_of
+                .iter()
+                .map(sub_arc_walls)
+                .collect::<Result<Vec<_>, _>>()?;
+            let Some((first, c)) = cut.first() else {
+                return Err(LoftError::SectionStructure);
+            };
+            if cut
+                .iter()
+                .any(|(subs, cs)| subs.len() != first.len() || cs != c)
+            {
+                return Err(LoftError::SectionStructure);
+            }
+            for q in 0..first.len() {
+                w_l.push(cut.iter().map(|(subs, _)| Arc::clone(&subs[q])).collect());
+                o_l.push((j, q));
+            }
+            c_l.push(c.clone());
+        }
+        walls.push(w_l);
+        owner.push(o_l);
+        cuts.push(c_l);
+    }
     let slabs = walls.first().and_then(|lp| lp.first()).map_or(1, Vec::len);
     let at = |b: usize| if slabs == 1 { b * (k - 1) } else { b };
     // The door's classes over each body slab's sections: a wall through
     // every section is one slab over all of them, where the door has
     // refused a corner or segment pinned in some and not others.
     let over = |s: usize| if slabs == 1 { 0..k - 1 } else { s..s + 1 };
-    let pinned_at = |li: usize, j: usize, s: usize| door.at_through(li, j, over(s));
-    let flat = |li: usize, j: usize, s: usize| door.flat_through(li, j, over(s));
+    // The door classes the profile's corners, segments and sub-arc
+    // joints. A piece is its segment's: held flat where its segment is,
+    // and its start pinned where that is its segment's corner or a joint
+    // the door pinned, a corner of the two walls the joint parts.
+    let flat = |li: usize, q: usize, s: usize| {
+        let (j, _) = owner[li][q];
+        door.flat_through(li, j, over(s))
+    };
+    let pinned_at = |li: usize, q: usize, s: usize| match owner[li][q] {
+        (j, 0) => door.at_through(li, j, over(s)),
+        (j, sub) => door.joint_through(li, j, sub - 1, over(s)),
+    };
 
-    // ---- Traversals and world points, per section, per loop. ----
+    // ---- Traversals and world points, per section, per loop, per
+    // piece ([`segment_pieces`]). ----
     let loops_at: Vec<Vec<Vec<SweptSeg<T>>>> = canonical
         .iter()
         .map(|c| {
             c.loops()
                 .iter()
-                .map(|lp| swept_segments(lp, false))
-                .collect()
+                .zip(&cuts)
+                .map(|(lp, cuts)| {
+                    swept_segments(lp, false)
+                        .into_iter()
+                        .zip(cuts)
+                        .map(|(seg, c)| segment_pieces(seg, c))
+                        .collect::<Result<Vec<_>, _>>()
+                        .map(|pieces| pieces.into_iter().flatten().collect())
+                })
+                .collect::<Result<_, _>>()
         })
-        .collect();
+        .collect::<Result<_, _>>()?;
     if places.len() < 2
         || places.len() != k
+        || canonical.iter().any(|c| {
+            c.loops().len() != cuts.len()
+                || c.loops()
+                    .iter()
+                    .zip(&cuts)
+                    .any(|(lp, c)| lp.segments().len() != c.len())
+        })
         || loops_at.iter().any(|ls| {
             ls.len() != walls.len() || ls.iter().zip(&walls).any(|(segs, w)| segs.len() != w.len())
         })
@@ -1130,7 +1417,7 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
         })
         .collect();
     let bloops = &loops_at[0];
-    let (bq, tq) = (&q_at[0], &q_at[k - 1]);
+    let bq = &q_at[0];
     // Loop `li`'s segment `j` placed at section `i`, from `q_from`.
     let rim_spec = |i: usize, li: usize, j: usize, q_from| {
         placed_segment_spec(&loops_at[i][li][j], places[i].frame(), q_from, tol)
@@ -1158,147 +1445,52 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
         surface: cap_plane(place_bottom.frame(), false, CapEnd::Start),
         sense: true,
     };
-    // A one-segment loop (D1's full turn) is swept whole in phases 1–2:
-    // its top slab first (`build_full_turn`), then down through the
-    // slabs below, so the face each step opens is the next slab's wall
-    // and the last is `near_cap`. Phases 3–4 skip it.
-    let full_turn = |body: &mut Body<T>, li: usize, r#loop, near_cap: FaceSurface<T>| {
-        let point = |b: usize| q_at[at(b)][li][0];
-        let below = |s: usize| {
-            if s == 0 {
-                near_cap.clone()
-            } else {
-                wall_surface(li, 0, s - 1)
-            }
-        };
-        let top = slabs - 1;
-        let (far, near) = (point(slabs), point(top));
-        let turn = crate::swept::build_full_turn(
-            body,
-            r#loop,
-            near,
-            rim_spec(at(slabs), li, 0, far),
-            wall_surface(li, 0, top),
-            EdgeCurveSpec::line_between(far, near),
-            rim_spec(at(top), li, 0, near),
-            below(top),
-            tol,
-        )?;
-        let mut faces = vec![turn.wall];
-        let mut struts = vec![turn.strut];
-        let mut rims = vec![turn.far, turn.near];
-        let (mut minus, mut in_wall, mut face) =
-            (turn.near_minus, turn.near_in_wall, turn.near_face);
-        for s in (0..top).rev() {
-            let (upper, lower) = (point(s + 1), point(s));
-            let strut = body.mev(
-                MevSite::Fan {
-                    he1: minus,
-                    he2: minus,
-                },
-                lower,
-                EdgeCurveSpec::line_between(upper, lower),
-                tol,
-            )?;
-            let rim = body.mef(
-                MefSite::Chords {
-                    he1: strut.he_minus,
-                    he2: strut.he_minus,
-                },
-                rim_spec(at(s), li, 0, lower),
-                below(s),
-                tol,
-            )?;
-            faces.push(face);
-            struts.push(strut.edge);
-            rims.push(rim.edge);
-            (minus, in_wall, face) = (rim.he_minus, rim.he_plus, rim.face);
-        }
-        faces.reverse();
-        struts.reverse();
-        rims.reverse();
-        Ok::<_, LoftError>(SlabTurn {
-            far_kept: turn.far_kept,
-            near_in_wall: in_wall,
-            near_face: face,
-            walls: faces,
-            struts,
-            rims,
-        })
-    };
-    let mut early: Vec<Option<SlabTurn>> = (0..bloops.len()).map(|_| None).collect();
     let mut bases: Vec<Vec<topo::HalfEdgeKey>> = Vec::with_capacity(bloops.len());
-    let (seed, bottom_face, anchor) = if profile::is_full_turn(outer) {
-        let seed = body.mvfs(tq[0][0], true)?;
-        let turn = full_turn(&mut body, 0, seed.r#loop, bottom_cap)?;
-        bases.push(vec![turn.near_in_wall]);
-        let (bottom_face, anchor) = (turn.near_face, turn.far_kept);
-        early[0] = Some(turn);
-        (seed, bottom_face, anchor)
-    } else {
-        let seed = body.mvfs(qs[0], true)?;
-        let mut hes = Vec::with_capacity(n);
-        let first = body.mev(
-            MevSite::Lone {
-                r#loop: seed.r#loop,
-            },
-            qs[1],
-            rim_spec(0, 0, 0, qs[0]),
-            tol,
-        )?;
-        hes.push(first.he_plus);
-        let mut prev = first;
-        for j in 2..n {
-            let m = body.mev(
-                MevSite::Fan {
-                    he1: prev.he_minus,
-                    he2: prev.he_minus,
-                },
-                qs[j],
-                rim_spec(0, 0, j - 1, qs[j - 1]),
-                tol,
-            )?;
-            hes.push(m.he_plus);
-            prev = m;
-        }
-        let close = body.mef(
-            MefSite::Chords {
+    let seed = body.mvfs(qs[0], true)?;
+    let mut hes = Vec::with_capacity(n);
+    let first = body.mev(
+        MevSite::Lone {
+            r#loop: seed.r#loop,
+        },
+        qs[1],
+        rim_spec(0, 0, 0, qs[0]),
+        tol,
+    )?;
+    hes.push(first.he_plus);
+    let mut prev = first;
+    for j in 2..n {
+        let m = body.mev(
+            MevSite::Fan {
                 he1: prev.he_minus,
-                he2: first.he_plus,
+                he2: prev.he_minus,
             },
-            rim_spec(0, 0, n - 1, qs[n - 1]),
-            bottom_cap,
+            qs[j],
+            rim_spec(0, 0, j - 1, qs[j - 1]),
             tol,
         )?;
-        hes.push(close.he_plus);
-        let anchor = hes[0];
-        bases.push(hes);
-        (seed, close.face, anchor)
-    };
+        hes.push(m.he_plus);
+        prev = m;
+    }
+    let close = body.mef(
+        MefSite::Chords {
+            he1: prev.he_minus,
+            he2: first.he_plus,
+        },
+        rim_spec(0, 0, n - 1, qs[n - 1]),
+        bottom_cap,
+        tol,
+    )?;
+    hes.push(close.he_plus);
+    let (bottom_face, anchor) = (close.face, hes[0]);
+    bases.push(hes);
     let top_face = seed.face;
     let bottom_surface = face_surface_key(&body, bottom_face);
 
     // ---- Phase 2: holes (rings in the seed face + kfmrh into the
-    // bottom cap) — extrude's phase verbatim, loft rim specs. A
-    // one-segment hole is planted at its far vertex and swept whole
-    // into the ring, its near face the transient disc the bottom cap
-    // consumes. ----
+    // bottom cap) — extrude's phase verbatim, loft rim specs. ----
     for (li, segs) in bloops.iter().enumerate().skip(1) {
         let hq = &bq[li];
         let m = segs.len();
-        if profile::is_full_turn(segs) {
-            let (turn, ()) = crate::swept::full_turn_hole(
-                &mut body,
-                anchor,
-                tq[li][0],
-                bottom_face,
-                tol,
-                |b, ring, disc| Ok::<_, LoftError>((full_turn(b, li, ring, disc)?, ())),
-            )?;
-            bases.push(vec![turn.near_in_wall]);
-            early[li] = Some(turn);
-            continue;
-        }
         let (ring, _) = crate::swept::plant_hole_ring(&mut body, anchor, hq[0], tol)?;
         let mut hole_hes = Vec::with_capacity(m);
         let first = body.mev(
@@ -1347,17 +1539,6 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
     // the wall below them.
     let mut section_rims: Vec<(EdgeKey, usize, usize, usize)> = Vec::new();
     for (li, base) in bases.iter().enumerate() {
-        if let Some(turn) = early[li].take() {
-            section_rims.extend(
-                turn.rims[1..slabs]
-                    .iter()
-                    .enumerate()
-                    .map(|(s, &rim)| (rim, li, 0, s)),
-            );
-            side_faces.push(vec![turn.walls.into_iter().map(Some).collect()]);
-            seam_edges.push(vec![turn.struts.into_iter().map(Some).collect()]);
-            continue;
-        }
         let n = base.len();
         let mut base = base.clone();
         let mut faces: Vec<Vec<Option<FaceKey>>> = vec![Vec::with_capacity(slabs); n];
@@ -1471,30 +1652,6 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
                 let wall_key = face_surface_key(&body, wall);
                 let carrier = geom_brep::boundary_iso_u(walls[li][j][s].as_ref(), false)
                     .map_err(|source| LoftError::SeamStructure { source })?;
-                if n == 1 && profile::is_full_turn(&bloops[li]) {
-                    // A one-segment loop's strut is its wall's wrap edge
-                    // in `u` (D1: a closed spline net's boundary column
-                    // wraps `u`), run top to bottom as the turn laid it
-                    // — on the reflected parameter `t ∈ [−1, 0]`,
-                    // `v = −t`, the one reflection of the column that is
-                    // exact.
-                    let carrier = geom_brep::reversed_column(&carrier);
-                    let spec = EdgeCurveSpec {
-                        description: EdgeDescriptionSpec::wrap_iso(
-                            wall_key,
-                            T::zero(),
-                            T::one(),
-                            T::zero(),
-                            -T::one(),
-                            T::zero(),
-                        ),
-                        carrier: Curve3::Nurbs(Arc::new(carrier)),
-                        param_start: -T::one(),
-                        param_end: T::zero(),
-                    };
-                    body.set_edge_curve(strut, spec, tol)?;
-                    continue;
-                }
                 let spec = EdgeCurveSpec {
                     description: EdgeDescriptionSpec::iso(
                         wall_key,
@@ -1533,14 +1690,42 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
 
     body.close_already_checked();
 
+    // ---- The keys by segment: pieces regrouped under the canonical
+    // segment they cut. A segment's first piece starts at its profile
+    // vertex, whose strut is a seam; the struts at its later pieces are
+    // its sub-arc joints. ----
+    let mut by_segment: Vec<Vec<Vec<Vec<Option<FaceKey>>>>> = Vec::with_capacity(owner.len());
+    let mut vertex_seams: Vec<Vec<Vec<Option<EdgeKey>>>> = Vec::with_capacity(owner.len());
+    let mut joint_edges: Vec<Vec<Vec<Vec<Option<EdgeKey>>>>> = Vec::with_capacity(owner.len());
+    for (li, pieces) in owner.iter().enumerate() {
+        let segments = cuts[li].len();
+        let (mut faces, mut seams, mut joints) = (
+            vec![Vec::new(); segments],
+            Vec::with_capacity(segments),
+            vec![Vec::new(); segments],
+        );
+        for (q, &(j, sub)) in pieces.iter().enumerate() {
+            faces[j].push(side_faces[li][q].clone());
+            if sub == 0 {
+                seams.push(seam_edges[li][q].clone());
+            } else {
+                joints[j].push(seam_edges[li][q].clone());
+            }
+        }
+        by_segment.push(faces);
+        vertex_seams.push(seams);
+        joint_edges.push(joints);
+    }
+
     Ok(Lofted {
         body: built,
         solid: seed.solid,
         shell: seed.shell,
         top: top_face,
         bottom: bottom_face,
-        side_faces,
-        seam_edges,
+        side_faces: by_segment,
+        seam_edges: vertex_seams,
+        joint_edges,
         section_params,
     })
 }

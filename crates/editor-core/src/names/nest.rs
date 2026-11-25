@@ -1865,6 +1865,8 @@ pub(super) mod tests {
                 R::LoftSeam(vec![(SectionId::new(1, 1), v)]),
                 R::LoftSectionEdge(SectionId::new(2, 2), e),
                 R::LoftSectionVertex(SectionId::new(3, 3), v),
+                R::SubArc(1),
+                R::SubArcJoint(2),
                 R::Band(e.into()),
                 R::BandRim(v),
                 R::BandRimPi(v),

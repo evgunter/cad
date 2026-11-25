@@ -145,7 +145,7 @@ fn bracket(m: &ClassifiedMargin) -> (f64, f64) {
 /// lies on.
 fn plane_offset<T: Bounds>(body: &Body<T>, f: topo::FaceKey) -> f64 {
     match body.face_surface(f) {
-        Some(geom::Surface::Plane { frame, .. }) => {
+        Ok(geom::Surface::Plane { frame, .. }) => {
             let (origin, normal) = (frame.origin(), frame.axis());
             let d = (origin - Point3::origin()).dot(normal);
             0.5 * (d.lo() + d.hi()).abs()

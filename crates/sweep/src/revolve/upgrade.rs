@@ -75,8 +75,11 @@ pub(super) fn upgrade_meridian_wrap<T: Decide + topo::AtRestPolicy>(
     tol: Tol,
 ) -> Result<(), RevolveError> {
     let is_plane = matches!(
-        body.get_surface(wall).unwrap_or_else(|| {
-            unreachable!("wall surface {wall:?} was read off a live wall face of this revolve")
+        body.get_surface(wall).unwrap_or_else(|miss| {
+            unreachable!(
+                "wall surface {wall:?} was read off a live, classified wall face of this \
+                 revolve: {miss}"
+            )
         }),
         geom::Surface::Plane { .. }
     );

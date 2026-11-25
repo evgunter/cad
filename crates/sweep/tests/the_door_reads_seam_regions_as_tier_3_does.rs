@@ -399,7 +399,7 @@ fn corpus(part: Part) -> (Vec<(String, AB)>, Stops) {
 
 fn sphere_faces(body: &Body<f64>) -> Vec<(FaceKey, topo::SurfaceKey)> {
     body.faces()
-        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Sphere { .. })))
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Ok(Surface::Sphere { .. })))
         .map(|(k, f)| (k, f.surface))
         .collect()
 }

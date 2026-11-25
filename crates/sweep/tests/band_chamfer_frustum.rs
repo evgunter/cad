@@ -471,7 +471,7 @@ fn a_posts_top_past_its_radius_refuses_at_the_screen() {
     let (a, b) = topo::readback::edge_sides(&post, top[0]).unwrap().faces();
     let plane = |f| {
         post.face_surface(f)
-            .is_some_and(|s| s.kind() == geom::SurfaceKind::Plane)
+            .is_ok_and(|s| s.kind() == geom::SurfaceKind::Plane)
     };
     let cap = if plane(a) { a } else { b };
     assert!(plane(cap), "the rim's other face is the post's planar top");

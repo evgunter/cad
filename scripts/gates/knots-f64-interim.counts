@@ -51,8 +51,8 @@ crates/step-export 9
 # step-import 30 -> 25: surface_sig's knot and weight reads went with it
 # (records follow the file, EXPORT).
 crates/step-import 25
-crates/sweep 139
-crates/topo 36
+crates/sweep 137
+crates/topo 34
 demos/tour 2
 # Fields holding f64 knots or weights, by crate (src/ outside test modules):
 # the copies an interim read leaves behind. A ratchet too; S5 states where

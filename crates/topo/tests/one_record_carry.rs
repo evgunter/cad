@@ -215,7 +215,7 @@ fn a_record_lands_by_lineage_and_is_stale_only_on_a_divided_cell() {
         .find(|(fk, _)| {
             matches!(
                 base.body.face_surface(*fk),
-                Some(topo::Surface::Plane { frame, .. })
+                Ok(topo::Surface::Plane { frame, .. })
                     if frame.axis().x.abs() == 1.0 && frame.origin().x == 2.0
             )
         })
@@ -368,7 +368,7 @@ fn a_carried_record_on_cells_the_boolean_keeps_lands_unread() {
         .find(|(fk, _)| {
             matches!(
                 base.body.face_surface(*fk),
-                Some(topo::Surface::Plane { frame, .. })
+                Ok(topo::Surface::Plane { frame, .. })
                     if frame.axis().z.abs() == 1.0 && frame.origin().z == 0.0
             )
         })
@@ -614,7 +614,7 @@ fn face_on(body: &topo::Body<f64>, axis: usize, at: f64) -> topo::FaceKey {
         .find(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(topo::Surface::Plane { frame, .. })
+                Ok(topo::Surface::Plane { frame, .. })
                     if [frame.axis().x, frame.axis().y, frame.axis().z][axis].abs() == 1.0
                         && [frame.origin().x, frame.origin().y, frame.origin().z][axis] == at
             )

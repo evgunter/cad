@@ -7755,6 +7755,8 @@ fn seg_content_tag(tag: SegTag) -> u8 {
         S::LoftSeam => 46,
         S::LoftSectionEdge => 55,
         S::LoftSectionVertex => 56,
+        S::SubArc => 62,
+        S::SubArcJoint => 61,
         S::Band => 7,
         S::BandRim => 8,
         S::BandRimPi => 9,
@@ -7936,6 +7938,9 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
         RoleSeg::LoftSectionVertex(s, v) => {
             h.write_id(s.0);
             pv(h, *v);
+        }
+        RoleSeg::SubArc(q) | RoleSeg::SubArcJoint(q) => {
+            h.write_u64(u64::from(*q));
         }
         RoleSeg::Band(r) => {
             run(h, r);

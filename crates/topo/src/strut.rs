@@ -113,7 +113,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         toward_free: HalfEdgeKey,
     ) -> Result<StrutPrune, StrutRefusal> {
         let view = self.proven_face(face);
-        if view.surface().kind() != geom::SurfaceKind::Plane {
+        if !matches!(view.surface(), Ok(geom::Surface::Plane { .. })) {
             return Err(StrutRefusal::Curved);
         }
         let toward = proven(&self.half_edges, toward_free, EntityId::HalfEdge);
