@@ -963,7 +963,11 @@ fn wrap_azimuth(
                 // the circle is at one distance (a circle about the axis),
                 // which offers its point in `u_ref`'s direction instead.
                 let w = (x - o) - n * (x - o).dot(n);
-                let toward = if read.not_apart(STEP_SINGULARITY_POINT, 2.0 * r * w.norm()) {
+                // |p − x|² runs over A ± 2r|w| round the circle, so the
+                // distance itself spans the difference of their roots.
+                let (a, b) = ((x - o).norm_squared() + r.powi(2), 2.0 * r * w.norm());
+                let spread = 2.0 * b / ((a + b).sqrt() + (a - b).max(0.0).sqrt());
+                let toward = if read.not_apart(STEP_SINGULARITY_POINT, spread) {
                     u_ref - n * u_ref.dot(n)
                 } else {
                     w
