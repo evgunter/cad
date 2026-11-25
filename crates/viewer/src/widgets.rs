@@ -481,22 +481,17 @@ pub(crate) fn number_field<Num: egui::emath::Numeric>(
     value: &mut Num,
     speed: f64,
     over: props::FieldNumber,
-) -> egui::DragValue<'_> {
+) -> NumberField<'_> {
     // The text this frame's field rendered, taken from the formatter
     // that rendered it rather than re-derived: `egui` chooses the
     // decimal range from the drag speed and the display scaling, so a
     // second call here could disagree with the one the field used.
     let rendered = std::rc::Rc::new(core::cell::RefCell::new(String::new()));
-    let shown = std::rc::Rc::clone(&rendered);
-    egui::DragValue::new(value)
+    let parsed = std::rc::Rc::clone(&rendered);
+    let drag = egui::DragValue::new(value)
         .speed(speed)
-        .custom_formatter(move |value, _| {
-            let text = over.text(value);
-            shown.replace(text.clone());
-            text
-        })
         .custom_parser(move |text| {
-            if props::echoed(text, &rendered.borrow()) {
+            if props::echoed(text, &parsed.borrow()) {
                 return None;
             }
             match props::field_edit(text) {
@@ -506,7 +501,181 @@ pub(crate) fn number_field<Num: egui::emath::Numeric>(
                 // text it cannot read.
                 props::FieldEdit::Expression(_) | props::FieldEdit::Empty => None,
             }
-        })
+        });
+    NumberField {
+        drag,
+        prefix: String::new(),
+        rendered,
+    }
+    .custom_formatter(move |value, _| over.text(value))
+}
+
+/// **The widest a numeric field's number is drawn**, in widest glyphs
+/// of the field's font: a sign, ten figures and a point.
+///
+/// A field's text is its value's exact spelling, which can take
+/// seventeen figures and the zeros of its magnitude
+/// ([`props::FieldNumber::text`]), and an `egui::DragValue` lays its
+/// text out unwrapped, as wide as it is. Three such boxes in a row
+/// (the free-move probe's) are wider than a properties pane, so a field
+/// as wide as its text would push the pane out and change width
+/// mid-drag. A field is as wide as its text up to this, and a longer
+/// text is clipped at the field's edge, marked with `…`, and said whole
+/// on hover ([`NumberField`]).
+pub(crate) const FIELD_GLYPHS: usize = 12;
+
+/// **A numeric field: [`number_field`]'s `egui::DragValue`, drawn no
+/// wider than [`FIELD_GLYPHS`] allow.**
+///
+/// egui offers no width for a `DragValue` (it builds its button with
+/// `TextWrapMode::Extend`), so the field is laid out in a child `Ui`
+/// whose clip rect is the field's room, and the parent's cursor moves
+/// past the room only. Its text is still the whole positional spelling:
+/// what a keyboard edit opens on and what the echo veto compares are
+/// unchanged. Clipped, the field ends in `…` and says its whole text on
+/// hover. A keyboard edit over a text longer than the room shows its
+/// head: egui's edit inside a `DragValue` does not clip, so it does not
+/// scroll to its cursor either.
+///
+/// The builder methods are the `egui::DragValue` ones the chrome uses.
+/// [`Self::custom_formatter`] records what the formatter returned, which
+/// is the text [`number_field`]'s echo veto compares against and the
+/// text the hover says.
+pub(crate) struct NumberField<'a> {
+    drag: egui::DragValue<'a>,
+    prefix: String,
+    rendered: std::rc::Rc<core::cell::RefCell<String>>,
+}
+
+impl<'a> NumberField<'a> {
+    /// `egui::DragValue::prefix`, and the prefix counted in the room.
+    pub(crate) fn prefix(mut self, prefix: impl ToString) -> Self {
+        let prefix = prefix.to_string();
+        self.drag = self.drag.prefix(prefix.clone());
+        self.prefix = prefix;
+        self
+    }
+
+    /// `egui::DragValue::range`.
+    pub(crate) fn range<Num: egui::emath::Numeric>(
+        mut self,
+        range: core::ops::RangeInclusive<Num>,
+    ) -> Self {
+        self.drag = self.drag.range(range);
+        self
+    }
+
+    /// `egui::DragValue::clamp_existing_to_range`.
+    pub(crate) fn clamp_existing_to_range(mut self, clamp: bool) -> Self {
+        self.drag = self.drag.clamp_existing_to_range(clamp);
+        self
+    }
+
+    /// `egui::DragValue::update_while_editing`.
+    pub(crate) fn update_while_editing(mut self, update: bool) -> Self {
+        self.drag = self.drag.update_while_editing(update);
+        self
+    }
+
+    /// `egui::DragValue::custom_formatter`, which REPLACES the one
+    /// [`number_field`] built; what `formatter` returns is recorded for
+    /// the clipped field's hover.
+    pub(crate) fn custom_formatter(
+        mut self,
+        formatter: impl 'a + Fn(f64, core::ops::RangeInclusive<usize>) -> String,
+    ) -> Self {
+        let rendered = std::rc::Rc::clone(&self.rendered);
+        self.drag = self.drag.custom_formatter(move |value, range| {
+            let text = formatter(value, range);
+            rendered.replace(text.clone());
+            text
+        });
+        self
+    }
+
+    /// `egui::DragValue::custom_parser`, which REPLACES the one
+    /// [`number_field`] built.
+    pub(crate) fn custom_parser(mut self, parser: impl 'a + Fn(&str) -> Option<f64>) -> Self {
+        self.drag = self.drag.custom_parser(parser);
+        self
+    }
+
+    /// The room a field with `prefix` has in `ui`: the prefix, then
+    /// [`FIELD_GLYPHS`] of the widest glyph a number is spelled in,
+    /// inside the button's padding; never under egui's own minimum.
+    pub(crate) fn room(ui: &egui::Ui, prefix: &str) -> f32 {
+        let font = egui::TextStyle::Button.resolve(ui.style());
+        let (prefix, glyph) = ui.fonts_mut(|fonts| {
+            let prefix = if prefix.is_empty() {
+                0.0
+            } else {
+                fonts
+                    .layout_no_wrap(prefix.to_owned(), font.clone(), egui::Color32::PLACEHOLDER)
+                    .size()
+                    .x
+            };
+            let glyph = crate::readout::GLYPHS
+                .chars()
+                .map(|glyph| fonts.glyph_width(&font, glyph))
+                .fold(0.0, f32::max);
+            (prefix, glyph)
+        });
+        let text = prefix + FIELD_GLYPHS as f32 * glyph + 1.0 / ui.ctx().pixels_per_point();
+        (text + 2.0 * ui.spacing().button_padding.x).max(ui.spacing().interact_size.x)
+    }
+}
+
+impl egui::Widget for NumberField<'_> {
+    fn ui(self, ui: &mut egui::Ui) -> egui::Response {
+        let Self {
+            drag,
+            prefix,
+            rendered,
+        } = self;
+        let room = NumberField::room(ui, &prefix);
+        let origin = ui.cursor().min;
+        let height = ui.spacing().interact_size.y;
+        let bounds = egui::Rect::from_min_size(origin, egui::vec2(room, height));
+        let mut child = ui.new_child(
+            egui::UiBuilder::new()
+                .max_rect(bounds)
+                .layout(egui::Layout::left_to_right(egui::Align::Center)),
+        );
+        child.set_clip_rect(
+            ui.clip_rect()
+                .intersect(bounds.expand2(egui::vec2(0.0, 1.0e4))),
+        );
+        let mut response = child.add(drag);
+        let laid = response.rect;
+        let clipped = laid.width() > room;
+        let rect =
+            egui::Rect::from_min_size(laid.min, egui::vec2(laid.width().min(room), laid.height()));
+        ui.advance_cursor_after_rect(rect);
+        response.rect = rect;
+        response.interact_rect = response.interact_rect.intersect(rect);
+        if clipped {
+            if !response.has_focus() {
+                let visuals = ui.style().interact(&response);
+                let font = egui::TextStyle::Button.resolve(ui.style());
+                let painter = ui.painter_at(rect);
+                let mark = painter.layout_no_wrap("…".to_owned(), font, visuals.text_color());
+                let pad = ui.spacing().button_padding.x;
+                let cover = egui::Rect::from_min_max(
+                    egui::pos2(rect.right() - mark.size().x - pad, rect.top() + 1.0),
+                    egui::pos2(rect.right() - 1.0, rect.bottom() - 1.0),
+                );
+                painter.rect_filled(cover, 0.0, visuals.weak_bg_fill);
+                painter.galley(
+                    egui::pos2(cover.left(), rect.center().y - mark.size().y / 2.0),
+                    mark,
+                    visuals.text_color(),
+                );
+            }
+            let whole = rendered.borrow().clone();
+            response = response.on_hover_text(format!("{prefix}{whole}"));
+        }
+        response
+    }
 }
 
 /// **The floor under [`number_field`]: the same rule, as the
@@ -1347,7 +1516,7 @@ pub(crate) fn named_field(
 /// **A whole-number field** — an index, an instance, a subdivision
 /// count — at a count's tick ([`props::drag_tick`]), so a form's
 /// count steps the way the panel's does.
-pub(crate) fn count_field<Num: egui::emath::Numeric>(value: &mut Num) -> egui::DragValue<'_> {
+pub(crate) fn count_field<Num: egui::emath::Numeric>(value: &mut Num) -> NumberField<'_> {
     let over = props::FieldNumber::bare(value.to_f64());
     number_field(value, props::drag_tick(Some(Dimension::Count)), over)
 }
@@ -3178,6 +3347,85 @@ mod field_tests {
             value *= 3.1;
         }
         assert!(steps > 1_000, "the sweep covered only {steps} magnitudes");
+    }
+
+    /// **A long value does not widen the pane**: the free-move probe's
+    /// three boxes over seventeen-figure computed coordinates take no
+    /// more than three fields' room ([`super::FIELD_GLYPHS`]), in a pane
+    /// that wide; a short value is as wide as its text. The texts are
+    /// wider than the room, which is what gives the row its teeth.
+    #[test]
+    fn a_long_value_does_not_widen_the_pane() {
+        let mm = pncad::quantity::MM.def();
+        let writing = crate::forms::FieldWriting::of(
+            pncad::document::Dimension::Length,
+            None,
+            crate::props::Notation::CANONICAL.with(mm),
+        );
+        let row = |canonical: [f64; 3]| {
+            let over = canonical.map(|canonical| {
+                crate::props::shown_value(writing.unit, canonical).expect("millimetres name it")
+            });
+            let mut shown = over.map(crate::props::FieldNumber::shown);
+            let ctx = egui::Context::default();
+            let mut measured = (0.0, 0.0, 0.0, 0.0);
+            let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+                let room = super::NumberField::room(ui, "");
+                let spacing = ui.spacing().item_spacing.x;
+                let pane = 3.0 * room + 2.0 * spacing;
+                let font = egui::TextStyle::Button.resolve(ui.style());
+                let widest = ui.fonts_mut(|fonts| {
+                    over.map(|number| {
+                        fonts
+                            .layout_no_wrap(number.seed(), font.clone(), egui::Color32::PLACEHOLDER)
+                            .size()
+                            .x
+                    })
+                    .into_iter()
+                    .fold(0.0, f32::max)
+                });
+                let frame_of =
+                    |shown: [f64; 3]| Frame::translation(shown.map(|v| writing.authored(v)));
+                let super::ProbeOps { gesture, typed } =
+                    super::free_move_gesture(RecipeNodeId::new(0, 7), frame_of);
+                let panel = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(pane, 100.0));
+                let width = ui
+                    .scope_builder(egui::UiBuilder::new().max_rect(panel), |ui| {
+                        ui.horizontal(|ui| {
+                            super::vec3_row_ops(
+                                ui,
+                                writing,
+                                (&mut shown, over),
+                                gesture,
+                                typed,
+                                &mut Vec::new(),
+                            );
+                        })
+                        .response
+                        .rect
+                        .width()
+                    })
+                    .inner;
+                measured = (width, pane, room, widest);
+            });
+            output.textures_delta.clear();
+            measured
+        };
+        let long = [1.612_685_348_386_884_8, -0.005 / 3.0, 1.0e-7 / 3.0];
+        let (width, pane, room, widest) = row(long);
+        assert!(
+            widest > room,
+            "the fixture's texts ({widest} points) fit the room ({room}): no teeth"
+        );
+        assert!(
+            width <= pane + 0.5,
+            "three boxes over long values take {width} points of a {pane}-point pane"
+        );
+        let (short, _, _, _) = row([0.0025, 0.0, -0.1]);
+        assert!(
+            short < width,
+            "a short value is as wide as its text: {short} vs {width}"
+        );
     }
 
     /// **Every kind of field shows, and so opens its keyboard edit on,

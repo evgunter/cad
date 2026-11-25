@@ -2,8 +2,11 @@
 id: a-numeric-field-widens-its-pane-with-its-text
 kind: issue
 title: A numeric field is as wide as its exact text, so three free-move boxes can widen the pane
-status: open
+status: closed
 opened: 2026-11-25
+closed: 2026-11-25
+pr: 7775
+branch: vgeom/field-seed
 priority: P1
 cost: M
 ---
@@ -39,3 +42,35 @@ in egui. Candidate fixes:
 - Keep a fixed width and show a told text while not editing. This would
   re-open the ratified rule, since the field's text would no longer be
   its value's exact spelling.
+
+## Closed
+
+Closed (2026-11-25, PR 7775, `vgeom/field-seed`, which introduced it).
+Every numeric field is now `widgets::NumberField`, which
+`number_field` and `count_field` return. It lays the `egui::DragValue`
+out in a child `Ui` whose clip rect is the field's room, and moves the
+parent's cursor past the room only. The room is the prefix plus
+`widgets::FIELD_GLYPHS` (12) of the widest number glyph, inside the
+button padding.
+
+- A field is as wide as its text up to the room.
+- A longer text is clipped at the edge, marked `…`, and given whole on
+  hover. The text itself is still the full positional spelling.
+
+**Why this fix.** It keeps the ratified rule and needs no egui fork.
+
+- *Drawing the text ourselves* would re-implement `DragValue`'s drag,
+  edit and echo handling.
+- *A TextEdit while editing* still leaves the non-editing button as
+  wide as its text.
+
+**Residue.** While a keyboard edit is open over a text longer than the
+room, the field shows the text's head. egui's edit inside a `DragValue`
+is built with `clip_text(false)`, so it does not scroll to its cursor.
+The edit opens with all its text selected, so ordinary typing replaces
+it.
+
+`widgets::field_tests::a_long_value_does_not_widen_the_pane` puts three
+free-move boxes over seventeen-figure values in a pane three rooms
+wide. It goes red when the field is a bare `ui.add(drag)` (checked).
+
