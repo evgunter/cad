@@ -2758,7 +2758,7 @@ fn a_gap_in_the_torus_boundary_refuses() {
     let (w, a) = (PI / 2.0, PI / 4.0);
     let (body, face) = torus_sheet(ring, &[(-w, -a), (0.0, -a), (0.0, a), (-w, a)]);
     let region = |body: &Body<f64>| {
-        crate::torus_region::torus_face_region(body, face, None).map(|r| r.is_some())
+        crate::torus_region::torus_face_region(body, face).map(|r| r.is_some())
     };
     assert!(
         matches!(region(&body), Ok(true)),

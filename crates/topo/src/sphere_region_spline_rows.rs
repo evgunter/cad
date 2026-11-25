@@ -49,7 +49,6 @@ fn circle() -> SphereFaceRegion<f64> {
             turn: crate::region::fixture_turn(0.0, TAU),
             forward: true,
         }],
-        None,
     )
 }
 
@@ -104,7 +103,6 @@ fn halves() -> SphereFaceRegion<f64> {
         sphere(),
         true,
         edges,
-        <f64 as crate::props::AtRestPolicy>::spline_face_reader(),
     )
 }
 

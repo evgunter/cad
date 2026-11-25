@@ -4,7 +4,7 @@
 //! `split_edge` lane, at the meetings the curve × face crossing reading
 //! finds.
 
-use geom_brep::curve_face::{CrossWhy, OnSpan, Pose, PoseRefusal, cross};
+use geom_brep::curve_face::{CrossWhy, OnSpan, Pose, cross};
 use geom_brep::curve_pair::{MeetFault, Span};
 use geom_core::{Band, Decide, Margin, Point3, Sign, Tol};
 use slotmap::SecondaryMap;
@@ -308,10 +308,9 @@ pub(super) fn classify_vertices_margined<T: Decide>(
 ///   finds no meeting inside the span and none at an end, contradict
 ///   each other ([`MeetFault::Contradiction`]): a kernel fault, never a
 ///   pose.
-/// - A spline carrier's span has no closed pose
-///   ([`PoseRefusal::Enclosed`]): it is read by the ring composite at
-///   this scalar (`AtRestPolicy::spline_face_crossings`), and refuses
-///   where the scalar has none.
+/// - A spline carrier's span is read by the table's ring composite, and
+///   each crossing it stores is admitted at the store
+///   ([`stored_crossing`]).
 /// - Any window is [`SplitReduceError::CrossingEscalated`].
 ///
 /// Every split is certified by `split_edge` itself (the span's place of
@@ -399,6 +398,7 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
         }
         let mut target = edge_key;
         for t in roots {
+            let t = stored_crossing::<T>(curve.carrier(), t, &surface, band).map_err(refused)?;
             // Any refusal here (in practice the certification lane's
             // strict-row ResidualExceeded) gets the crossing site
             // attached; the typed Euler error stays nested whole.
@@ -420,6 +420,43 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
     Ok(pieces)
 }
 
+/// **A crossing the split stores**: a closed-form root as the table
+/// read it, and a spline's admitted at the storing site as the proposal
+/// it is ([`geom_brep::NurbsLane::admit_crossing`], DUAL-DESIGN DL5.2),
+/// through the scalar's certification lane. A scalar with no lane (a
+/// dual) has no derivative of a spline crossing to store, and refuses
+/// it as not built.
+fn stored_crossing<T: Decide + crate::props::AtRestPolicy>(
+    carrier: &geom::Curve3<T>,
+    t: T,
+    surface: &geom::Surface<T>,
+    band: Band,
+) -> Result<T, CrossWhy> {
+    use geom_brep::NurbsLaneOf;
+    if !matches!(carrier, geom::Curve3::Nurbs(_)) {
+        return Ok(t);
+    }
+    let door = geom_brep::curve_face::Door::SplineComposite;
+    let Some(lane) = T::nurbs_lane() else {
+        return Err(CrossWhy::Method {
+            door,
+            fault: MeetFault::Unsupported {
+                pose: "a spline crossing is stored only at a scalar that certifies",
+            },
+        });
+    };
+    lane.admit_crossing(carrier, t, surface, band)
+        .map_err(|refused| CrossWhy::Method {
+            door,
+            fault: match refused {
+                geom_core::solved::Unadmitted::Undecided(diag) => MeetFault::Escalated(diag),
+                geom_core::solved::Unadmitted::Off { row, .. } => {
+                    MeetFault::Unsettled(geom_brep::roots::Unsettled::Meter { row })
+                }
+            },
+        })
+}
+
 /// **An edge's meetings with the split plane** ([`insert_crossings`]):
 /// `None` where the carrier lies in the plane or is apart from it; else
 /// the parameters strictly inside the span, ascending, and whether a
@@ -427,9 +464,8 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
 /// placement window at an end (a root in band of it, or two roots in band
 /// of each other there: the window's centre the span reads at an end or
 /// in band of one) is that vertex's, read by its record, and the
-/// meetings outside the windows stand. A spline span is read by the ring composite at this
-/// scalar, whose meetings are interior by its own placement.
-fn edge_roots<T: Decide + crate::props::AtRestPolicy>(
+/// meetings outside the windows stand.
+fn edge_roots<T: Decide>(
     carrier: &geom::Curve3<T>,
     params: (T, T),
     surface: &geom::Surface<T>,
@@ -467,7 +503,8 @@ fn edge_roots<T: Decide + crate::props::AtRestPolicy>(
                     CrossWhy::Method {
                         fault: MeetFault::Escalated(_)
                             | MeetFault::Unsettled(geom_brep::roots::Unsettled::Tangency),
-                        door: geom_brep::curve_face::Door::PlaneCrossing,
+                        door: geom_brep::curve_face::Door::PlaneCrossing
+                            | geom_brep::curve_face::Door::SplineComposite,
                     }
                 ) && !matches!(
                     span.place_param(geom::mid_param(w.window.0, w.window.1), band),
@@ -485,32 +522,7 @@ fn edge_roots<T: Decide + crate::props::AtRestPolicy>(
             else {
                 unreachable!("a crossing refusal holds a window")
             };
-            match (why, carrier) {
-                (CrossWhy::Pose(PoseRefusal::Enclosed), geom::Curve3::Nurbs(net)) => {
-                    let door = geom_brep::curve_face::Door::SplineComposite;
-                    match T::spline_face_crossings(net, params, surface, band) {
-                        Some(Ok(found)) => Ok(Some((found.roots, false))),
-                        Some(Err(refusal)) => Err(CrossWhy::Method {
-                            door,
-                            fault: composite_fault(refusal),
-                        }),
-                        None => Err(why),
-                    }
-                }
-                _ => Err(why),
-            }
-        }
-    }
-}
-
-/// The ring composite's refusal, as a meeting reading's.
-fn composite_fault(refusal: geom_brep::curve_face::composite::CompositeRefusal) -> MeetFault {
-    use geom_brep::curve_face::composite::CompositeRefusal;
-    match refusal {
-        CompositeRefusal::Escalated(diag) => MeetFault::Escalated(diag),
-        CompositeRefusal::Unsettled(why) => MeetFault::Unsettled(why),
-        CompositeRefusal::FaceDegenerate(pose) | CompositeRefusal::Unread(pose) => {
-            MeetFault::Unsupported { pose }
+            Err(why)
         }
     }
 }

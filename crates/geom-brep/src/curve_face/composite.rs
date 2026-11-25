@@ -101,6 +101,33 @@ pub enum CompositeRefusal {
     Unread(&'static str),
 }
 
+impl CompositeRefusal {
+    /// **What the refusal is to a reader of the curve × face table**: the
+    /// one home of the mapping, read by every reader through the table's
+    /// window ([`super::CrossWhy::Method`]).
+    ///
+    /// - [`Self::Escalated`] is a band reading: [`MeetFault::Escalated`],
+    ///   ranked by its margin, which a finer tolerance can settle;
+    /// - [`Self::Unsettled`] is the walk's limit or a reading it has no
+    ///   arm for (a tangency, a crease, the floor, the budget):
+    ///   [`MeetFault::Unsettled`], with no margin;
+    /// - [`Self::FaceDegenerate`] and [`Self::Unread`] are inputs the arm
+    ///   cannot form a composite from (a frame or a meter that does not
+    ///   read, a weight not shown positive, a carrier that does not cut to
+    ///   Bézier pieces): [`MeetFault::Unsupported`], a limit. Neither is a
+    ///   kernel fault: the table routes only analytic faces here, and a
+    ///   poisoned or degenerate input is the input's, not the reading's.
+    #[must_use]
+    pub fn fault(self) -> crate::curve_pair::MeetFault {
+        use crate::curve_pair::MeetFault;
+        match self {
+            Self::Escalated(diag) => MeetFault::Escalated(diag),
+            Self::Unsettled(why) => MeetFault::Unsettled(why),
+            Self::FaceDegenerate(pose) | Self::Unread(pose) => MeetFault::Unsupported { pose },
+        }
+    }
+}
+
 impl From<Unsettled> for CompositeRefusal {
     fn from(why: Unsettled) -> Self {
         Self::Unsettled(why)
@@ -861,8 +888,14 @@ fn settle<T: geom_core::Certifies>(
     Ok((roots.into_iter().map(|(t, _)| t).collect(), at_end))
 }
 
+mod walk;
+pub(in crate::curve_face) use walk::method;
+
 #[cfg(test)]
 mod rows;
 
 #[cfg(test)]
 mod crossing_parameter_rows;
+
+#[cfg(test)]
+mod measure_rows;

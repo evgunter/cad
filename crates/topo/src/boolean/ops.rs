@@ -7241,12 +7241,8 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                         }
                         _ => unread(),
                     };
-                    let region = crate::sphere_region::sphere_face_region(
-                        body,
-                        piece,
-                        T::spline_face_reader(),
-                    )
-                    .map_err(read)?
+                    let region = crate::sphere_region::sphere_face_region(body, piece)
+                        .map_err(read)?
                     .ok_or_else(unread)?;
                     // The region's own refusal: in band of an arc, or no
                     // ray of its walk settled, or an arc that bounds

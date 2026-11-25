@@ -327,7 +327,7 @@ struct Net<'a, T: Real> {
 /// with a first-order bound on each channel's accumulated rounding at
 /// `f64` (module docs, *Rounding*); zero at an enclosure scalar, whose
 /// arithmetic holds the exact value already.
-type Control<T> = ([T; 4], [f64; 4]);
+pub(crate) type Control<T> = ([T; 4], [f64; 4]);
 
 /// One Bézier cell: its parameter rectangle `[u0, u1] × [v0, v1]`, its
 /// control net row-major in `u`, and how many times it was halved.
@@ -939,7 +939,7 @@ fn box_key<T: SpanLocate>(cell: &Cell<T>, q: [f64; 3], pu: usize, pv: usize) -> 
 /// `Interval` channel ([`geom_core::spline::CurvePlan::apply_certified`]),
 /// and this cut runs at every scalar, carrying the `f64` bound beside each
 /// point. `None` where a knot has no value or a plan refuses.
-fn refined<T: Decide>(
+pub(crate) fn refined<T: Decide>(
     knots: &Knots<T>,
     row: Vec<Control<T>>,
     track: bool,

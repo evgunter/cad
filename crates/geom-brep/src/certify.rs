@@ -2836,17 +2836,6 @@ pub struct NurbsLane<T: geom_core::Certifies> {
         crate::edge_nurbs::PlaneNurbsIncidence<T>,
         crate::edge_nurbs::PlaneNurbsRefusal,
     >,
-    /// [`crate::curve_face::composite::crossings`] at `T`, its scalars
-    /// crossed by their certified enclosures.
-    composite: fn(
-        &geom::NurbsCurve3<T>,
-        (T, T),
-        &Surface<T>,
-        Band,
-    ) -> Result<
-        crate::curve_face::SpanCrossings<T>,
-        crate::curve_face::composite::CompositeRefusal,
-    >,
     /// [`NurbsLane::spline_face_meetings`] at `T`.
     spline_face: fn(
         &Curve3<T>,
@@ -2877,7 +2866,6 @@ impl<T: geom_core::Certifies + geom_core::CertifiedBounds> NurbsLane<T> {
             pair_limbs: crate::edge_nurbs::nurbs_pair_limbs::<T>,
             analytic_limbs: crate::edge_nurbs::analytic_edge_limbs::<T>,
             incidence: crate::edge_nurbs::plane_nurbs_incidence::<T>,
-            composite: Self::composite_crossings,
             spline_face: Self::spline_face_meetings,
             surface_foot: geom::NurbsSurface::project,
             chart_arm: Self::certified_chart_arm,
@@ -2899,24 +2887,6 @@ impl<T: geom_core::Certifies + geom_core::CertifiedBounds> NurbsLane<T> {
             _ => f64::NAN,
         };
         crate::offset_meters::chart_arm(&chart.map_scalar(point), p.map(point), point(reach))
-    }
-
-    /// [`crate::curve_face::composite::crossings`], each scalar crossed
-    /// into certification arithmetic by its certified enclosure.
-    fn composite_crossings(
-        net: &geom::NurbsCurve3<T>,
-        params: (T, T),
-        surface: &Surface<T>,
-        band: Band,
-    ) -> Result<crate::curve_face::SpanCrossings<T>, crate::curve_face::composite::CompositeRefusal>
-    {
-        crate::curve_face::composite::crossings(
-            net,
-            params,
-            surface,
-            band,
-            geom_core::Interval::from_certified,
-        )
     }
 
     /// The curve × face table's spline-face arm: the walk
@@ -3074,24 +3044,40 @@ impl<T: geom_core::Certifies> NurbsLane<T> {
         (self.analytic_limbs)(carrier, params, s1, s2, band)
     }
 
-    /// **A spline span against an analytic face's carrier**: the
-    /// crossings strictly inside `params`, ascending, and how the span
-    /// stands at each end, by the curve × face table's ring-composite arm
-    /// ([`crate::curve_face::composite::crossings`]).
+    /// **A spline crossing the body stores, admitted** (DUAL-DESIGN
+    /// DL5.2): `t`, the curve × face table's root of `carrier` on
+    /// `surface` ([`crate::curve_face::cross()`]), is a proposal, so it
+    /// enters the body only through its check. Its bracket's middle is
+    /// the candidate, and the check is the table's own: the surface's
+    /// residual at the carrier's point there, decided within the band's
+    /// zero (`spline_composite_root_on`). At an enclosure scalar the
+    /// admitted value is that one number, with every member's point
+    /// checked there.
     ///
     /// # Errors
     ///
-    /// [`crate::curve_face::composite::CompositeRefusal`], as its
-    /// variants say.
-    pub fn surface_crossings(
+    /// [`geom_core::solved::Unadmitted`] where the candidate's point does
+    /// not read ON.
+    pub fn admit_crossing(
         self,
-        net: &geom::NurbsCurve3<T>,
-        params: (T, T),
+        carrier: &Curve3<T>,
+        t: T,
         surface: &Surface<T>,
         band: Band,
-    ) -> Result<crate::curve_face::SpanCrossings<T>, crate::curve_face::composite::CompositeRefusal>
+    ) -> Result<T, geom_core::solved::Unadmitted>
+    where
+        T: geom_core::CertifiedBounds,
     {
-        (self.composite)(net, params, surface, band)
+        geom_core::solved::decide_admit(
+            "spline_composite_root_on",
+            geom::bracket_mid((t.lo(), t.hi())),
+            band,
+            |at| {
+                let p = carrier.eval(at);
+                (geom_core::Margin::of(crate::implicit_residual(surface, p)), ())
+            },
+        )
+        .map(|(t, ())| t)
     }
 
     /// **A span against a spline chart**: the meetings strictly
@@ -3189,9 +3175,21 @@ pub trait NurbsLaneOf<T: Real>: crate::lane_seal::Sealed + Copy + Send + Sync {
         p: Point3<T>,
         reach: T,
     ) -> Result<f64, crate::ChartArmRefusal>;
+
+    /// [`NurbsLane::admit_crossing`].
+    ///
+    /// # Errors
+    /// The door's own.
+    fn admit_crossing(
+        self,
+        carrier: &Curve3<T>,
+        t: T,
+        surface: &Surface<T>,
+        band: Band,
+    ) -> Result<T, geom_core::solved::Unadmitted>;
 }
 
-impl<T: geom_core::Certifies> NurbsLaneOf<T> for NurbsLane<T> {
+impl<T: geom_core::Certifies + geom_core::CertifiedBounds> NurbsLaneOf<T> for NurbsLane<T> {
     fn surface_foot(
         self,
         surface: &geom::NurbsSurface<T>,
@@ -3207,6 +3205,16 @@ impl<T: geom_core::Certifies> NurbsLaneOf<T> for NurbsLane<T> {
         reach: T,
     ) -> Result<f64, crate::ChartArmRefusal> {
         (self.chart_arm)(chart, p, reach)
+    }
+
+    fn admit_crossing(
+        self,
+        carrier: &Curve3<T>,
+        t: T,
+        surface: &Surface<T>,
+        band: Band,
+    ) -> Result<T, geom_core::solved::Unadmitted> {
+        Self::admit_crossing(self, carrier, t, surface, band)
     }
 }
 
@@ -3225,6 +3233,16 @@ impl<T: Real> NurbsLaneOf<T> for geom_core::NoLane {
         _p: Point3<T>,
         _reach: T,
     ) -> Result<f64, crate::ChartArmRefusal> {
+        match self {}
+    }
+
+    fn admit_crossing(
+        self,
+        _carrier: &Curve3<T>,
+        _t: T,
+        _surface: &Surface<T>,
+        _band: Band,
+    ) -> Result<T, geom_core::solved::Unadmitted> {
         match self {}
     }
 }
@@ -6221,12 +6239,6 @@ mod wiring_rows {
             return Err("incidence is not `edge_nurbs::plane_nurbs_incidence`");
         }
         if !std::ptr::fn_addr_eq(
-            lane.composite,
-            NurbsLane::<T>::composite_crossings as fn(_, _, _, _) -> _,
-        ) {
-            return Err("composite is not `NurbsLane::composite_crossings`");
-        }
-        if !std::ptr::fn_addr_eq(
             lane.surface_foot,
             geom::NurbsSurface::<T>::project as fn(_, _) -> _,
         ) {
@@ -6246,7 +6258,7 @@ mod wiring_rows {
         assert_eq!(
             holds_the_certified_nurbs_lane::<f64>(),
             Ok(()),
-            "`NurbsLane::<f64>::certified()` holds something other than `residual_nurbs_limbs`, `nurbs_pair_limbs`, `plane_nurbs_incidence`, `analytic_edge_limbs` and `composite_crossings`"
+            "`NurbsLane::<f64>::certified()` holds something other than `residual_nurbs_limbs`, `nurbs_pair_limbs`, `plane_nurbs_incidence`, `analytic_edge_limbs`, `project` and `certified_chart_arm`"
         );
     }
 

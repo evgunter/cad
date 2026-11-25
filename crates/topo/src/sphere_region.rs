@@ -149,7 +149,7 @@ use crate::entity::FaceKey;
 use crate::ray_walk::{self, RayFault};
 use crate::region::{
     self, End, Fault, Leg, Legs, Path, Paths, QueryFoot, Region, RegionEdge, RegionRefusal, Round,
-    SplineCrossings, circle_edge_hit, spline_edge_hit, targets,
+    circle_edge_hit, spline_edge_hit, targets,
 };
 use crate::solid_contain::PointInSolidError;
 use crate::splitting::containment::{ConicRows, SCHEDULE};
@@ -181,9 +181,6 @@ pub(crate) struct SphereFaceRegion<T: geom_core::Real> {
     /// centre.
     sense: bool,
     edges: Vec<Arc<T>>,
-    /// A spline arc's crossings of a leg's plane at the region's scalar,
-    /// where its builder reads spline arcs ([`sphere_face_region`]).
-    splines: Option<SplineCrossings<T>>,
 }
 
 /// One boundary arc.
@@ -206,10 +203,8 @@ fn tangent<T: Decide>(a: Vec3<T>, raw: Vec3<T>) -> Vec3<T> {
 /// nothing and is left out ([`region::boundary`]). A spline is read on
 /// its certified carrier (a periodic cubic's clamped view over the
 /// edge's span), which tier 3 places on the face's sphere, as every
-/// edge of the face, and only through `splines`, the scalar's spline
-/// reader ([`crate::props::AtRestPolicy::spline_face_reader`]) where
-/// the caller's bound holds one: without it a face with a spline arc
-/// answers `None` (`work/inside/the-face-door-reads-no-spline-arc-of-a-sphere-face.md`).
+/// edge of the face, and crossed with a leg's plane by the curve × face
+/// table's ring composite at the region's scalar ([`region::landings`]).
 ///
 /// # Errors
 ///
@@ -225,15 +220,11 @@ fn tangent<T: Decide>(a: Vec3<T>, raw: Vec3<T>) -> Vec3<T> {
 pub(crate) fn sphere_face_region<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
-    splines: Option<SplineCrossings<T>>,
 ) -> Result<Option<SphereFaceRegion<T>>, PointInSolidError> {
     let f = body
         .get_face(face)
         .ok_or(PointInSolidError::CorruptFace { face })?;
-    let admits: &[geom::CurveKind] = match splines {
-        Some(_) => &[geom::CurveKind::Circle, geom::CurveKind::Nurbs],
-        None => &[geom::CurveKind::Circle],
-    };
+    let admits = &[geom::CurveKind::Circle, geom::CurveKind::Nurbs];
     let Some(edges) = region::boundary(body, face, admits)? else {
         return Ok(None);
     };
@@ -250,7 +241,6 @@ pub(crate) fn sphere_face_region<T: Decide>(
         Charted::record(f.surface, surface),
         f.sense,
         edges,
-        splines,
     )))
 }
 
@@ -264,7 +254,6 @@ impl<T: Decide> SphereFaceRegion<T> {
         charted: Charted<T>,
         sense: bool,
         edges: Vec<Arc<T>>,
-        splines: Option<SplineCrossings<T>>,
     ) -> Self {
         let &geom::Surface::Sphere { frame, radius, .. } = charted.surface() else {
             unreachable!("a sphere region is built on a sphere record")
@@ -276,7 +265,6 @@ impl<T: Decide> SphereFaceRegion<T> {
             radius,
             sense,
             edges,
-            splines,
         }
     }
 
@@ -561,10 +549,6 @@ impl<T: Decide> Legs<T> for SphereFaceRegion<T> {
         let w = y - self.center;
         geom_brep::OutwardNormal::from_chart(w.normalize(), self.sense).vec()
     }
-
-    fn splines(&self) -> Option<SplineCrossings<T>> {
-        self.splines
-    }
 }
 
 #[cfg(test)]
@@ -618,7 +602,6 @@ mod tests {
                 turn: crate::region::fixture_turn(0.0, core::f64::consts::TAU),
                 forward,
             }],
-            None,
         )
     }
 
@@ -748,7 +731,6 @@ mod tests {
                 meridian(0.0, true, 1),
                 meridian(core::f64::consts::FRAC_PI_2, false, 2),
             ],
-            None,
         )
     }
 
@@ -796,7 +778,7 @@ mod tests {
 
     /// A unit-sphere face of `sense` bounded by `edges`.
     fn face(sense: bool, edges: Vec<RegionEdge<f64>>) -> SphereFaceRegion<f64> {
-        SphereFaceRegion::on(fixture_sphere(Point3::origin(), 1.0), sense, edges, None)
+        SphereFaceRegion::on(fixture_sphere(Point3::origin(), 1.0), sense, edges)
     }
 
     /// **The aim lands in the face**, on the sphere, for both senses:
@@ -914,7 +896,6 @@ mod tests {
                 turn: None,
                 forward,
             }],
-            Some(crate::props::certified_spline_face_crossings::<f64>),
         )
     }
 
@@ -1147,7 +1128,7 @@ mod tests {
     fn reads_as_the_ball(what: &str, body: &Body<f64>, face: FaceKey) {
         use crate::contain::{FaceContainment, curved_face_containment};
         let band = Band::new(1e-9, 1e-8).unwrap();
-        let region = sphere_face_region(body, face, None)
+        let region = sphere_face_region(body, face)
             .unwrap()
             .expect("a region");
         for (q, inside) in sphere_points() {
@@ -1203,7 +1184,7 @@ mod tests {
         let (plain, plain_face, _) = ball();
         reads_as_the_ball("the plain ball", &plain, plain_face);
         let (body, face, _) = struck();
-        let region = sphere_face_region(&body, face, None)
+        let region = sphere_face_region(&body, face)
             .unwrap()
             .expect("a region");
         assert_eq!(region.edges.len(), 2, "the rim's two arcs alone");
@@ -1227,7 +1208,7 @@ mod tests {
     #[test]
     fn a_placeholder_between_two_faces_bounds_nothing() {
         let (body, face) = rim_held();
-        let region = sphere_face_region(&body, face, None)
+        let region = sphere_face_region(&body, face)
             .unwrap()
             .expect("a region");
         assert_eq!(region.edges.len(), 2, "the rim's two arcs alone");
@@ -1270,7 +1251,7 @@ mod tests {
         let (mut body, face, _) = struck();
         crate::region::part_null_edge(&mut body, at(0.4, 1.0));
         assert!(
-            matches!(sphere_face_region(&body, face, None), Ok(None)),
+            matches!(sphere_face_region(&body, face), Ok(None)),
             "a parted null edge is a gap in the boundary"
         );
     }
@@ -1486,7 +1467,6 @@ mod tests {
                 edge(parallel, (0.0, pi / 2.0), true, 2),
                 edge(meridian(1.5 * pi), (1.0, pi), false, 3),
             ],
-            None,
         )
     }
 
@@ -1795,7 +1775,7 @@ mod tests {
                     }
                 })
                 .collect();
-            SphereFaceRegion::on(fixture_sphere(p3(c), l(r)), sense, edges, None)
+            SphereFaceRegion::on(fixture_sphere(p3(c), l(r)), sense, edges)
         }
 
         pub(super) fn sph(polar: f64, az: f64) -> V {
@@ -1962,7 +1942,6 @@ mod tests {
             fixture_sphere(Point3::origin(), 1.0),
             true,
             vec![arc.clone()],
-            Some(crate::props::certified_spline_face_crossings::<f64>),
         );
         let pole = Point3::new(0.0, 0.0, 1.0);
         let mut lost: Vec<String> = Vec::new();

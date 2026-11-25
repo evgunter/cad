@@ -111,6 +111,9 @@ pub(super) enum Formed<T: Real> {
     LineCone { parallel: bool },
     /// A line against a torus, which it never lies on.
     LineTorus,
+    /// A spline span against an analytic face: the method reads the ring
+    /// composite on its pieces ([`super::composite`]).
+    SplineComposite,
     /// A conic on the first-harmonic lane, crossing: its extremes read
     /// definitely on either side.
     FirstHarmonic(super::circle_roots::FirstHarmonic<T>),
@@ -309,7 +312,10 @@ pub fn pose<T: Decide>(
             Door::ConicQuadric => conic_quadric(span, surface, band),
             Door::ConicTorus => conic_torus(span, surface, band).map_err(Refused::from),
             Door::SpiricPlane => spiric_plane(span, surface, band).map_err(Refused::from),
-            Door::SplineComposite | Door::SplineFace => Err(PoseRefusal::Enclosed.into()),
+            // A spline span is read by its method alone: no pose is
+            // decided ahead of the composite's pieces.
+            Door::SplineComposite => Ok(Pose::Isolated(Form(Formed::SplineComposite))),
+            Door::SplineFace => Err(PoseRefusal::Enclosed.into()),
             Door::Spiric | Door::Sheet => Err(PoseRefusal::Unbuilt(way).into()),
         }
     } else {

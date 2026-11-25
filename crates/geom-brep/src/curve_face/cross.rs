@@ -337,7 +337,8 @@ pub fn cross<T: Decide>(
                 }
                 _ => desync(),
             },
-            Door::SplineComposite | Door::SplineFace | Door::Spiric | Door::Sheet => desync(),
+            Door::SplineComposite => super::composite::method(span, surface, band),
+            Door::SplineFace | Door::Spiric | Door::Sheet => desync(),
         },
     };
     let windows = walked
