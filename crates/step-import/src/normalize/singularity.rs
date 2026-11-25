@@ -918,14 +918,16 @@ fn wrap_azimuth(
 ) -> Result<Vec3<f64>, StepImportError> {
     let face_id = solid.faces[fi].id;
     let (axis, origin, u_ref) = (chart.axis(), chart.origin(), chart.u_ref());
-    let v_ref = axis.cross(u_ref);
+    let frame = match chart.surface() {
+        Surface::Sphere { frame, .. } | Surface::Cone { frame, .. } => frame,
+        _ => unreachable!("a chart is a sphere's or a cone's"),
+    };
     let radial = |p: Point3<f64>| geom::Line { origin, dir: axis }.offset(p);
     // How far round the axis `p` lies from `u_ref`: the turn's size,
     // then its sign, so a point a rounding either side of `u_ref` reads
     // as at it.
-    let azimuth = |p: Point3<f64>| {
-        let r = radial(p);
-        let a = r.dot(v_ref).atan2(r.dot(u_ref));
+    let turn = |p: Point3<f64>| {
+        let a = frame.azimuth(p).near(0.0);
         (a.abs(), a)
     };
     let mut offered: Vec<Point3<f64>> = Vec::new();
@@ -938,39 +940,43 @@ fn wrap_azimuth(
     edges.dedup();
     for e in edges {
         let spec = &solid.edges[&e];
-        let (t0, t1) = (spec.t0.min(spec.t1), spec.t0.max(spec.t1));
-        let mut at = vec![t0, t1];
+        offered.push(spec.carrier.eval(spec.t0));
+        offered.push(spec.carrier.eval(spec.t1));
+        // Whether the point `q` of the carrier lies inside the edge's span.
+        let spans = |q: Point3<f64>| {
+            let mid = geom::mid_param(spec.t0, spec.t1);
+            spec.carrier
+                .azimuth(q)
+                .is_some_and(|a| (a.near(mid) - mid).abs() < 0.5 * (spec.t1 - spec.t0).abs())
+        };
         match &spec.carrier {
             Curve3::Line(geom::Line { origin: o, dir }) => {
                 let t = (x - *o).dot(*dir) / dir.dot(*dir);
-                if t > t0 && t < t1 {
-                    at.push(t);
+                if t > spec.t0.min(spec.t1) && t < spec.t0.max(spec.t1) {
+                    offered.push(spec.carrier.eval(t));
                 }
             }
             Curve3::Circle(c) => {
-                let (o, r) = (c.frame().origin(), c.radius());
-                let (u, v) = (
-                    (spec.carrier.eval(0.0) - o) * (1.0 / r),
-                    (spec.carrier.eval(core::f64::consts::FRAC_PI_2) - o) * (1.0 / r),
-                );
-                // |p(t) − x|² = |o − x|² + r² + 2r(A cos t + B sin t).
-                let (a, b) = (u.dot(o - x), v.dot(o - x));
-                let within = |t: f64| {
-                    let k = ((t0 - t) / core::f64::consts::TAU).ceil();
-                    let t = t + k * core::f64::consts::TAU;
-                    (t <= t1).then_some(t)
-                };
-                if !read.not_apart(STEP_SINGULARITY_POINT, 2.0 * r * a.hypot(b)) {
-                    at.extend(within(b.atan2(a) + core::f64::consts::PI));
+                let (o, r, n) = (c.frame().origin(), c.radius(), c.frame().axis());
+                // `x`'s direction in the circle's plane: the nearest point
+                // lies along it, and where it has no length every point of
+                // the circle is at one distance (a circle about the axis),
+                // which offers its point in `u_ref`'s direction instead.
+                let w = (x - o) - n * (x - o).dot(n);
+                let toward = if read.not_apart(STEP_SINGULARITY_POINT, 2.0 * r * w.norm()) {
+                    u_ref - n * u_ref.dot(n)
                 } else {
-                    // Every point at one distance: a circle about the
-                    // axis, which offers its point at the u_ref azimuth.
-                    at.extend(within(v.dot(u_ref).atan2(u.dot(u_ref))));
+                    w
+                };
+                if !read.not_apart(STEP_SINGULARITY_POINT, toward.norm()) {
+                    let q = o + toward.normalize() * r;
+                    if spans(q) {
+                        offered.push(q);
+                    }
                 }
             }
             _ => return Err(foreign_carrier(face_id)),
         }
-        offered.extend(at.into_iter().map(|t| spec.carrier.eval(t)));
     }
     let nearest = offered
         .iter()
@@ -981,7 +987,7 @@ fn wrap_azimuth(
         .filter(|p| read.not_apart(STEP_SINGULARITY_POINT, (*p - x).norm() - nearest))
         .filter(|p| !read.not_apart(STEP_SINGULARITY_POINT, radial(*p).norm()))
         .min_by(|p, q| {
-            let (a, b) = (azimuth(*p), azimuth(*q));
+            let (a, b) = (turn(*p), turn(*q));
             a.0.total_cmp(&b.0).then(a.1.total_cmp(&b.1))
         })
         .ok_or(unreadable(face_id))?;
