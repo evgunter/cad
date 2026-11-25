@@ -4,6 +4,8 @@ kind: issue
 title: sweep's blend reach respells a loop's vertices, lone vertex included, by hand (Body::loop_vertices is crate-private)
 status: open
 opened: 2026-11-22
+priority: P3
+cost: E
 ---
 
 
