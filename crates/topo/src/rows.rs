@@ -579,6 +579,14 @@ geom_core::row_registry! {
         leaf: "bool_sphere_region_spline_leaf",
     };
 
+    /// A torus region's spline edge (`torus_region`).
+    pub(crate) const TORUS_REGION_SPLINE: ArcRows = ArcRows {
+        end: "bool_torus_region_spline_end",
+        clear: "bool_torus_region_spline_clear",
+        on: "bool_torus_region_spline_on",
+        leaf: "bool_torus_region_spline_leaf",
+    };
+
     /// A ruled region's conic edge (`ruled_region`).
     pub(crate) const RULED_REGION_CONIC: ConicRows =
         ConicRows::bounded("bool_ruled_region_arc_span", "bool_ruled_region_arc_straddle");
