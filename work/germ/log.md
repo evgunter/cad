@@ -2066,3 +2066,6 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - **A.** The cull is re-posed as a 1-Lipschitz ball cull: one decision `|g(c)| − a` per kind, no charge. It needs an oracle soundness row, a mutant per kind, and the lost culls listed.
   - **B.** `Through` keeps today's apex placement as a meeting, and `AtApex` is kept for the apex refusals. The spec's `SpanVerdict` line is updated in U4b's PR.
   - Both are reported deviations.
+- 2026-11-25 13:45 — **U4b ruling C.** The four curved wrappers become `#[cfg(test)]` test readers, with no API, and this is a reported deviation.
+  - The safety fuzzes also run through `cross`, so production is fuzzed; a `finish`/`merged` mutant must red one.
+  - A P3 row is to be filed to re-aim the door rows and delete the test wrappers.
