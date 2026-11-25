@@ -2,12 +2,13 @@
 id: a-spindle-sheet-or-an-approximated-face-has-no-window-in-the-injectivity-engine
 kind: issue
 title: The injectivity engine opens no window on a spindle sheet's face or an approximated face, so every finished body holding one refuses Unsupported at the at-rest gate
-status: review
+status: closed
 opened: 2026-11-21
 priority: P0
 cost: H
 branch: embedwalk/approx-window
 pr: 7767
+closed: 2026-11-25
 ---
 
 
@@ -115,3 +116,12 @@ body's own edges are not stored. The window reads the fit
 On `embed/gate-measure`, `operand_gate_pose::an_approx_cap_clear_of_a_bar_reads_alike_at_every_pose`
 goes from a 0.5 s refusal to a 37 s pass with the window: a slow-set
 candidate once the gate lands.
+
+## Closed
+
+2026-11-25, both halves: the spindle sheet's window and its by-kind
+discharge (PR 7769), and the approximated face windowed as its fit
+(PR 7767). What either reached and did not settle is on its own rows:
+`two-bands-of-a-revolved-arc-sharing-their-meridians-spend-the-pair-budget`
+and `a-trimmed-free-form-face-has-no-window-in-the-injectivity-engine`
+here, and the rows the spindle lane filed on EMBED, INSIDE and SPIRICARM.
