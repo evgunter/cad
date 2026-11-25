@@ -810,8 +810,8 @@ fn deleting_the_feature_leaves_the_edge_selection_unresolved() {
 /// **with every input to the door finite** — no cursor, placement or
 /// mesh position has to be a `NaN`, and the two routes that would
 /// need one are closed upstream anyway (`Camera::ray_through` refuses
-/// a cursor that is not a number, and `Camera::project` answers
-/// `None` for a position that is not).
+/// a cursor that is not a number, and `Camera::project` refuses a
+/// position that is not).
 ///
 /// Before the admission at `best_segment`, such a segment took
 /// neither side of `distance > EDGE_PICK_RADIUS_PX`, was installed as

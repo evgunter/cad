@@ -1710,9 +1710,12 @@ pub struct PickHit {
     /// not a second rule. The three are fields rather than one `span`
     /// because 43 call sites read them by name.
     ///
-    /// **The parameter is of the ray this call was given.** A consumer
-    /// that carries a hit across a transform converts all three, or
-    /// none of them mean anything: the viewer's moved-copy crossing is
+    /// **The parameter is of the ray this call was given**, and an
+    /// affine map carries a ray's parameter with it (`map(o + t·d)` is
+    /// `map(o) + t·map(d)`): a consumer that maps the ray into another
+    /// frame before the call gets back all three as parameters of the
+    /// ray it mapped. The certificate is the mapped ray's as rounded,
+    /// which is the viewer's moved-copy crossing:
     /// `work/vgeom/a-moved-copys-pick-span-crosses-its-frame-unconverted.md`.
     pub t: f64,
     /// See [`PickHit::t`].

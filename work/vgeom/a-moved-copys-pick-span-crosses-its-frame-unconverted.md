@@ -1,7 +1,7 @@
 ---
 id: a-moved-copys-pick-span-crosses-its-frame-unconverted
 kind: issue
-title: A moved copy's pick hit converts its point across the display frame and carries t, t_lo and t_hi over unconverted
+title: A moved copy's pick span is certified on the ray carried into its frame, which is the caller's only to within the carry's rounding
 status: open
 opened: 2026-10-22
 priority: P1
@@ -9,56 +9,61 @@ cost: E
 ---
 
 
-Split out of `pickindex-merges-parts-on-a-rounded-t-it-never-converts`
-(its §1) on 2026-10-22, when FIT checked its slate against the D10
-hold. The finding is unchanged; the reason it is parked is new.
+First written (2026-10-22, split out of
+`pickindex-merges-parts-on-a-rounded-t-it-never-converts`) as "the
+span crosses the frame unconverted"; `vgeom/project-refuses` found
+that premise false and narrowed the row to what is left (2026-11-25).
 
 ## Finding
 
-`crates/viewer/src/pickindex.rs`, `PickIndex::pick_for`, the loop over
-`DisplayView::moved_placements`: the ray is carried into a moved copy's
-display-local space through `frame.affine()`'s inverse, and the hit is
-lifted back as
+`crates/viewer/src/pickindex.rs`, `PickIndex::pick_for`: a part drawn
+under a display map (`display_mapped`, which is
+`DisplayView::display_map`: the space's free-move frame composed with
+the placement editor's carry, `PreviewedCopy::carry`) is picked by the
+caller's ray carried through `map.inverse()`.
 
-```rust
-candidates.push(PickHit {
-    point: map.transform_point(hit.point),
-    ..hit
-});
-```
+**The parameter needs no conversion.** An affine map carries a ray's
+parameter with it, `map(o′ + t·d′) = o + t·d`, so the `t`, `t_lo` and
+`t_hi` the kernel answers on the carried ray are parameters of the
+caller's ray under any affine map, rigid or not. The hit's point is
+read off the caller's ray at `t`, as `pick_face` reads every hit's;
+`review_gui4_r1::r1_a_rotated_probe_is_drawn_picked_and_reported_in_world`
+asserts `point == origin + t·dir` bit for bit.
 
-`..hit` carries `t`, `t_lo` and `t_hi` verbatim. They are parameters of
-the LOCAL ray (`inverse.transform_vec(ray.dir)`), not of the caller's.
-The site argues this is safe because the display layer admits only
-rigid probe frames, so `|dir|` is kept and `t` means the same world
-distance. The kernel's own statement at `PickHit::t` is *"a hit carried
-across a transform converts all three or none"*, and since the
-cross-group merge runs `TSpan::survivors` over every group's spans,
-these unconverted spans are compared against world ones directly.
+**What does not carry is the certificate.** The span is certified on
+the carried ray AS ROUNDED, which is the caller's only to within the
+inverse's rounding — even a translation rounds the carried origin, at
+the order of a certificate's own width. That span is then ordered
+against spans certified on the caller's ray itself:
 
-Repair shape: convert the span through the same map (a no-op for a
-rigid map, the correction for any other), or refuse a non-rigid frame
-by name at the door that admits it. The comment at the site cites this
-finding by its old path under `work/vgeom/`; the lane that lands the
-fix points it here.
+- the cross-group merge in `pick_for` (`TSpan::survivors`,
+  `answer_of`), where a moved copy's face coincident with an unmoved
+  body's can be ordered or tied where the certificate says nothing;
+- the edge lane's occlusion probe (`PickIndex::near`): every edge
+  hover on a moved copy runs `own_crossing` on the caller's ray, with
+  the copy's triangles placed in world, against the face spans
+  `front_of` certifies on the carried ray. The two coincide by
+  construction (the `gpu.rs` edge-lift doc says so), so a rounding
+  either way can read the edge as **occluded by its own face**, and
+  the edge does not pick, silently.
 
-## Parked on the D10 hold (2026-10-22)
+## Next step
 
-`moved_placements` is the viewer's free-move over loose copies' spaces.
-Stage 3 D′ (`work/intent/a-placement-pins-by-written-values-without-a-mate.md`,
-`[ev]` PR 5494) retires loose spaces and moves free-move onto shown
-spaces, drawn through one composing door shared with export. That
-rewrites the map this site reads, and possibly the site itself, so
-fixing it now would fix code D′ is about to replace. When D′ lands,
-re-read this site: if the composing door already converts the span, or
-picks through world coordinates, the row closes as overtaken.
+A witness first: a fuzz hovering moved-copy edge midpoints (and a
+coincident moved/unmoved face pair) under rotated and translated
+frames, counting picks the unmoved twin answers and the moved copy
+does not. If one flips, repair by either shape below; if none can
+flip after a fair search, the row drops to P3.
 
-## Moved (2026-10-26)
+Repair shapes: widen the carried span by a bound on the carry's
+rounding, in parameter units; or pick a moved copy against its
+triangles placed in world (as `own_crossing` already does), so every
+span is certified on the caller's ray.
 
-FIT folded back into VGEOM (Ev, in chat, 2026-10-26): FIT was cut from
-VGEOM on 2026-09-20 to run in parallel, a reason that is gone at FIT's
-size. Id and body unchanged.
+## History
 
-## Released (INTENT, 2026-10-26)
-
-This row was parked on the stage-3 placement pivot (`a-placement-pins-by-written-values-without-a-mate`). All three of its PRs are merged: D′1 (PR 5592), D′2 (PR 5613) and D′3 (PR 5636, `29110056e8`). Re-check this row against main, then fix, narrow or close it. That is the owning track's call.
+Parked 2026-10-22 on the stage-3 placement pivot (D′,
+`work/intent/a-placement-pins-by-written-values-without-a-mate.md`);
+moved from FIT into VGEOM 2026-10-26; released by INTENT 2026-10-26
+when D′1–D′3 (PRs 5592, 5613, 5636) merged. Re-read after D′: nothing
+picks through world coordinates, so D′ did not overtake it.

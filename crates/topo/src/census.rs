@@ -3524,7 +3524,7 @@ fn read_containment<V>(
         }
         Err(
             e @ (ContainError::Uncrossable(_)
-            | ContainError::RayExhausted
+            | ContainError::RayExhausted(_)
             | ContainError::EmptyLoop(_)
             | ContainError::LoopUnreadable(_)
             | ContainError::Curved(_)
@@ -7789,7 +7789,9 @@ impl Undecided {
             E::Escalated { .. } => Self::WitnessTooClose(None),
             E::RootCountDisagrees { .. } => Self::WitnessRootCount,
             E::Loop(L::Escalated { decision, .. }) => Self::WitnessTooClose(Some(*decision)),
-            E::RayExhausted | E::Loop(L::RayExhausted { .. }) => Self::WitnessGrazed,
+            E::RayExhausted | E::RegionRayExhausted { .. } | E::Loop(L::RayExhausted { .. }) => {
+                Self::WitnessGrazed
+            }
             E::ZeroVolumeBody => Self::ZeroVolume,
             E::VolumeUncertified => Self::VolumeUncertified,
             E::KindUnsupported { .. }
