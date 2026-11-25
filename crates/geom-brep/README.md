@@ -340,10 +340,11 @@ by kind, a radius in metres or the per-axis chart pad (`SsiTube`), and
 the exhaustiveness accounting banks exactly the region it records.
 On the ℝ³ arm the tube and the pad are two claims about one carrier.
 The tube is the widest rung whose cover proves one arc, and the
-winding and the accounting read it. Beside it the certificate records
+accounting reads it. Beside it the certificate records
 the narrowest rung whose own cover proves one arc, and a marched
 component's pad is that cover's reach, read box by box: the farthest a
-box of it stands from the carrier. Neither cover is stored: it is a
+box of it stands from the carrier. A loop's winding is read over that
+cover too, whose boxes meet only their neighbours. Neither cover is stored: it is a
 function of the carrier, the pair and the rung, a reader re-derives it
 by the one function limb 3 proved over (`ssi::certify::tube_chain`),
 and the certificate's box count is the tube's, which a reader checks,
@@ -1144,8 +1145,8 @@ branch, a loop's on a closed one, each claimed winding held, else a
 desync), and
 otherwise the march's own closed branches (`Components::Marched`), each
 winding about an operand as the fitted loop's turns about the
-operand's axis and core circle, read over the loop's uniqueness tube
-in ℝ³, say (`pair_section::winds`); a point is read on a carried loop within the
+operand's axis and core circle, read over the loop's narrow chain
+in ℝ³ (C2), say (`pair_section::winds`); a point is read on a carried loop within the
 band padded by the loop's pad (`CarriedComponent::pad`, where its
 closeness and uniqueness are argued). A reader that needs a list no closed form
 counts carries; a site's component is its foot on the carried section,

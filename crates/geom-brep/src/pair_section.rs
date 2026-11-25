@@ -2790,7 +2790,7 @@ fn march_over_the_ball(
                 geom::mid_param(br.params.0, br.params.1),
             )?;
             let winding = if closed {
-                let read = |s| winds::winding(s, &br.carrier, br.params, &tube.chain);
+                let read = |s| winds::winding(s, &br.carrier, br.params, &tube.narrow);
                 [read(a), read(b)]
                     .into_iter()
                     .collect::<Result<Vec<_>, _>>()
@@ -2821,17 +2821,19 @@ fn march_over_the_ball(
 ///
 /// - **the tube**, the widest rung's chain: the cover the march's
 ///   exhaustiveness accounts the section to. Every point of the section
-///   in it is on this arc, so it is the winding's pieces ([`winds`]) and
-///   the runs a site's foot is sought over
-///   ([`CarriedComponent::runs`]): an open arc's cut end stands past
-///   the carrier's end by more than the narrow rung, and is found in
-///   the tube's end box;
+///   in it is on this arc, so its boxes are the runs a site's foot is
+///   sought over ([`CarriedComponent::runs`]): an open arc's cut end
+///   stands past the carrier's end by more than the narrow rung, and is
+///   found in the tube's end box;
 /// - **the narrow chain**, the narrowest proving rung's: the same arc,
 ///   a piece of it in every box, from one end of the carrier to the
 ///   other, so the pad ([`CarriedComponent::pad`]) and the witness's
-///   reach ([`CarriedComponent::reach`]) are read off it.
+///   reach ([`CarriedComponent::reach`]) are read off it, and its boxes
+///   are the winding's pieces ([`winds`]), which read a loop whose
+///   boxes meet only their neighbours.
 struct Tube {
-    chain: Vec<winds::Piece>,
+    /// The narrow chain, the winding's pieces.
+    narrow: Vec<winds::Piece>,
     pad: f64,
     reach: f64,
     /// The tube's boxes with the carrier's span over each
@@ -2887,7 +2889,7 @@ impl Tube {
                 LoopTubeRefusal::NotFinite,
             )))?;
         Ok(Self {
-            chain,
+            narrow,
             pad,
             reach,
             runs,
@@ -5524,17 +5526,26 @@ mod wiring {
                 let tube =
                     Tube::of((&br.carrier, br.span), pair, &br.certificate, mid).expect("the tube");
                 assert_eq!((tube.pad, tube.reach), (br.pad, br.reach), "{what}");
-                assert_eq!(
-                    tube.chain.len(),
-                    br.certificate.tube_boxes as usize,
-                    "{what}: the tube's chain is the one the certificate counted"
-                );
                 let net = br
                     .carrier
                     .clamped_net(br.span)
                     .expect("a spline")
                     .expect("its net");
+                let wide = crate::ssi::certify::tube_chain(&net, pair, radius);
+                assert_eq!(
+                    (wide.len(), tube.runs.len()),
+                    (
+                        br.certificate.tube_boxes as usize,
+                        br.certificate.tube_boxes as usize
+                    ),
+                    "{what}: the tube's chain is the one the certificate counted, a run a box"
+                );
                 let chain = crate::ssi::certify::tube_chain(&net, pair, narrow);
+                assert_eq!(
+                    tube.narrow.len(),
+                    chain.len(),
+                    "{what}: the winding's pieces"
+                );
                 let dense: Vec<_> = (0..=4096)
                     .map(|i| br.carrier.eval(lo + (hi - lo) * f64::from(i) / 4096.0))
                     .collect();
@@ -5571,7 +5582,7 @@ mod wiring {
                 );
                 // The tube reaches past the pad: the pad is the narrow
                 // rung's claim, not the tube's.
-                let reach = farthest(&tube.chain);
+                let reach = farthest(&wide);
                 assert!(
                     radius > narrow && br.pad + spacing < reach,
                     "{what}: the pad {:e} stands below the tube's reach {reach:e} (rungs \
@@ -5696,7 +5707,7 @@ mod wiring {
             let mid = 0.5 * (br.span.0 + br.span.1);
             let tube = Tube::of((&br.carrier, br.span), pair, &br.certificate, mid)
                 .expect("the carry reads the tube");
-            assert_eq!(tube.chain.len(), chain.len(), "and reads that chain");
+            assert_eq!(tube.runs.len(), chain.len(), "and reads that chain");
         }
     }
 

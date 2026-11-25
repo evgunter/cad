@@ -3410,8 +3410,10 @@ pub(super) mod tests {
     }
 
     /// **The one-point enclosure holds the quantity on every quadratic
-    /// pairing**: plane, sphere and cylinder, each against each, over a
-    /// box wide against their radii, at a grid of its points.
+    /// pairing**: plane, sphere and cylinder, each against each, at a
+    /// grid of a box's points, its corners among them. Over a box wide
+    /// against their radii the second-order term carries the width, and
+    /// over one a fiftieth of that the first-order term does.
     #[test]
     fn the_one_point_reading_encloses_the_quantity_on_every_quadratic_pairing() {
         let plane = Surface::Plane {
@@ -3430,24 +3432,35 @@ pub(super) mod tests {
             radius: 0.7,
         };
         let kinds = [plane, sphere(), cylinder(), tilted];
-        let b = Box3::between(Point3::new(0.9, -0.3, 0.2), Point3::new(1.3, 0.1, 0.5));
+        let corner = Point3::new(0.9, -0.3, 0.2);
         let e = Vec3::new(0.2, 0.9, -0.4).normalize();
-        for s1 in &kinds {
-            for s2 in &kinds {
-                let one = graph_quantity(s1, s2, b, e);
-                assert!(one.is_certified(), "{:?} × {:?}", s1.kind(), s2.kind());
-                for n in 0..125 {
-                    let at = |s: Interval, n: i32| s.lo() + (s.hi() - s.lo()) * f64::from(n) / 4.0;
-                    let x = Point3::new(at(b.x, n % 5), at(b.y, n / 5 % 5), at(b.z, n / 25));
-                    let value = implicit_gradient(s1, x)
-                        .cross(implicit_gradient(s2, x))
-                        .dot(e);
-                    assert!(
-                        one.lo() <= value && value <= one.hi(),
-                        "{:?} × {:?}: {value:e} at {x:?} outside {one:?}",
-                        s1.kind(),
-                        s2.kind()
+        for size in [1.0, 0.02] {
+            let b = Box3::between(corner, corner + Vec3::new(0.4, 0.4, 0.3) * size);
+            for s1 in &kinds {
+                for s2 in &kinds {
+                    // The one-point arm itself: limb 3's reading meets it
+                    // with the two-point enclosure, which would hide a
+                    // one-point enclosure that is too narrow.
+                    let (g1, g2) = (
+                        AffineGradient::of(s1, b).expect("a quadratic form"),
+                        AffineGradient::of(s2, b).expect("a quadratic form"),
                     );
+                    let one = one_point_margin(&g1, &g2, b, e);
+                    assert!(one.is_certified(), "{:?} × {:?}", s1.kind(), s2.kind());
+                    for n in 0..125 {
+                        let at =
+                            |s: Interval, n: i32| s.lo() + (s.hi() - s.lo()) * f64::from(n) / 4.0;
+                        let x = Point3::new(at(b.x, n % 5), at(b.y, n / 5 % 5), at(b.z, n / 25));
+                        let value = implicit_gradient(s1, x)
+                            .cross(implicit_gradient(s2, x))
+                            .dot(e);
+                        assert!(
+                            one.lo() <= value && value <= one.hi(),
+                            "{:?} × {:?}, size {size}: {value:e} at {x:?} outside {one:?}",
+                            s1.kind(),
+                            s2.kind()
+                        );
+                    }
                 }
             }
         }

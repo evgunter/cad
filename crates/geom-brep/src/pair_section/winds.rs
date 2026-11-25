@@ -1,6 +1,6 @@
 //! **How a fitted loop winds about a surface**: its integer turns about
-//! each of the surface's essential channels, read over the loop's
-//! uniqueness tube in ℝ³ — about the axis on a cylinder and on a cone;
+//! each of the surface's essential channels, read over a chain limb 3
+//! proved the loop one arc in, in ℝ³ — about the axis on a cylinder and on a cone;
 //! about the axis and about the core circle on a ring torus. A sphere has none: every
 //! loop on it is null. On the surface these are the loop's turns in the
 //! chart's periodic parameters; they are read here in ℝ³, where they
@@ -20,11 +20,11 @@
 //!
 //! **The ends are read at `f64`**, uncertified: a piece's end is `C(t)`
 //! evaluated, within its evaluation rounding of the true point, and the
-//! rectangle puts the stretch at least the tube radius from the centre
-//! (the pieces are tube boxes, below), so its angle is off by at most
-//! that rounding over the radius. The premise is that the radius (`1e-4`
-//! m and up at the run's ε) is many orders above the rounding (`1e-15`
-//! of the loop's size). Then a principal difference read within `3π/4`
+//! rectangle puts the stretch at least the chain's rung from the centre
+//! (the pieces are padded boxes, below), so its angle is off by at most
+//! that rounding over the rung. The premise is that the rung (eight ε
+//! at the least, the ladder's floor) is many orders above the rounding
+//! (`1e-15` of the loop's size). Then a principal difference read within `3π/4`
 //! of zero is the true turning to within far less than the `π/4` left
 //! before a wrong branch, and a piece read past it refuses. Neighbouring
 //! pieces share their end, evaluated once each side at the same
@@ -33,9 +33,12 @@
 //!
 //! # The pieces
 //!
-//! The pieces are the loop's uniqueness tube: its certificate's box
-//! chain, each box padded by the tube radius (C2 limb 3), which is the
-//! cover the march's exhaustiveness accounts the section to. Each box
+//! The pieces are the loop's narrow chain: limb 3's cover of the
+//! carrier at the narrowest rung it proves one arc over, each box padded
+//! by that rung (C2 limb 3). The tube, the widest rung's chain, is
+//! proved the same way and would read the same turns, but its boxes
+//! reach across a small loop and meet far along the chain, which the
+//! once-round reading below refuses. Each box
 //! is convex and holds its stretch of the carrier (the hull's
 //! convex-hull property). Limb 3 proves the section's points in the
 //! chain one arc: one connected piece of it in each box, consecutive
@@ -163,8 +166,8 @@ impl WindsRefusal {
             // a carrier that is not a spline as a desync before any winding
             // is read. No row reaches it.
             Self::NotSpline
-            // The tube's chain is one box per span of the carrier's refined
-            // vector, so it tiles the branch's span; the carry row that reads
+            // The chain is one box per span of the carrier's refined
+            // vector, or its halves, so it tiles the branch's span; the carry row that reads
             // marched loops' winding about a wall's axis
             // (`close_rings_carry_counted_and_marched`) refuses on a break.
             | Self::Untiled
@@ -180,13 +183,13 @@ impl WindsRefusal {
 
 /// **The largest principal difference trusted as a piece's turning**:
 /// `3π/4`, leaving `π/4` before the branch cut, which an end's angle
-/// error (its rounding over the tube radius, module docs) cannot cross.
+/// error (its rounding over the chain's rung, module docs) cannot cross.
 pub(super) const TRUSTED_TURN: f64 = 0.75 * core::f64::consts::PI;
 
 /// **How far the turns may miss a whole number and still close**, in
 /// radians: the loop's closing gap (its fitted ends one point to the
 /// fit's rounding) over its distance from the centre, at least the
-/// tube radius, is many orders below `0.25`; a sum past it is a loop
+/// chain's rung, is many orders below `0.25`; a sum past it is a loop
 /// that does not close.
 const CLOSING_SLACK: f64 = 0.25;
 

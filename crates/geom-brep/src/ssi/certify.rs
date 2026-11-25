@@ -215,13 +215,13 @@ pub enum SsiTube<T> {
     Spatial {
         /// The tube's rung, in metres: the widest of the ladder whose
         /// cover of the carrier, each box padded by it, is proved one
-        /// arc. The winding and the exhaustiveness accounting read it.
+        /// arc. The exhaustiveness accounting reads it.
         radius: T,
         /// The narrowest rung of the ladder whose own cover, each box
         /// padded by it, is proved one arc: a second claim about the
-        /// same carrier, which a pad is read off. It is `radius` where
-        /// no narrower rung proves, and on an edge certified at rest,
-        /// where no pad is read and none is asked.
+        /// same carrier, which a pad and a loop's winding are read off.
+        /// It is `radius` where no narrower rung proves, and on an edge
+        /// certified at rest, where neither is read and none is asked.
         narrow: T,
     },
     /// The chart arm (plane × NURBS): a per-span window chain around
