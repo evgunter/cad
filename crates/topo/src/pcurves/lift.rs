@@ -2,7 +2,7 @@
 //! [`Lift`], decided by the walk or read off what the mint stored.
 
 use geom::Surface;
-use geom_brep::{ChartAxis, ChartImage, HeldLine, NoHeldLine, Pcurve, PcurveCertifyError};
+use geom_brep::{ChartAxis, ChartImage, ChartLine, HeldLine, Pcurve, PcurveCertifyError};
 use geom_core::predicate::Band;
 use geom_core::{Decide, Point2, Real};
 
@@ -16,9 +16,9 @@ use crate::joint::{Deck, JointElement, Winding};
 use crate::live::proven;
 use crate::null::Scaffolding;
 
-/// A half-edge charted for a derived lift: its carrier, its window
-/// `(t0, t1)`, and that window as the span its row is read over.
-type Charted<T> = (HalfEdgeKey, geom::Curve3<T>, T, T, geom_brep::StoredSpan<T>);
+/// A half-edge charted for a derived lift: its carrier and its window
+/// `(t0, t1)`.
+type Charted<T> = (HalfEdgeKey, geom::Curve3<T>, T, T);
 
 /// One face's boundary as this module's passes walk it: each loop's
 /// half-edge cycle, **whether that boundary already STORES a row**, and
@@ -78,8 +78,8 @@ impl StoredRows {
     /// face storing no row as found, and `mev_null` derives none. So a
     /// face storing any row was minted, and a half missing one arrived
     /// after that mint; a face storing none — never minted, or emptied
-    /// by a door — is the producer's closing mint's, and stays rowless
-    /// until it runs.
+    /// by a door — is the finish's to complete, and stays rowless until
+    /// it runs.
     ///
     /// **A loop a null edge holds open cannot be walked**: the edge's
     /// halves have no carrier. So no door before the edge leaves the
@@ -97,8 +97,8 @@ impl StoredRows {
     /// operator or a kill walks only the loops it rewires, so a gap on a
     /// loop it keeps stays. **Any other gap is not the site mint's to fill**: a door
     /// left the face half-minted ([`PcurveMintError::MissingCache`]
-    /// lists them) and the site mint leaves it as found, for the
-    /// producer's final pass.
+    /// lists them) and the site mint leaves it as found, for the finish
+    /// to complete.
     ///
     /// [`PcurveMintError::MissingCache`]: super::PcurveMintError::MissingCache
     /// [`site_rows`]: super::site_rows
@@ -199,9 +199,17 @@ pub struct LiftedRow<T: Real> {
     /// The image moved by `lift`: the chart curve the chain draws on
     /// this half-edge.
     pub pcurve: Pcurve<T>,
-    /// The carrier interval the image is over, in the edge's forward
-    /// order: the edge's span ([`geom_brep::Pcurve::span_ends`]).
-    pub params: geom_brep::StoredSpan<T>,
+    /// The carrier interval `(t0, t1)` the image is over, in the edge's
+    /// forward order: the edge's span. Private, with `stored`: a row is
+    /// made by a read of a body's stored row or by a suite's statement,
+    /// so no caller pairs an image with another image's span.
+    params: (T, T),
+    /// The line the half-edge's STORED image holds, before `lift` moved
+    /// it; `None` for an image that is no iso image. What a corner on
+    /// the stored branch is read from ([`Lift::stored_corners`]): the
+    /// stored value is the one a mint placed, where the moved one is a
+    /// sum for every move but one step off a domain's end.
+    stored: Option<ChartLine<T>>,
     /// Whether the chain traverses the image forward.
     pub plus: bool,
 }
@@ -217,39 +225,68 @@ impl<T: Real> LiftedRow<T> {
         Self {
             half_edge: HalfEdgeKey::default(),
             lift: Deck::IDENTITY,
+            stored: pcurve.held_line().map(|held| held.line),
             pcurve,
-            params: geom_brep::StoredSpan::for_tests(t0, t1),
+            params: (t0, t1),
             plus,
         }
     }
 
     /// This row as the lift `deck` moved it, its image unmoved: a row a
     /// suite states on a closed chart's lift (the image itself is the
-    /// suite's to state where the move would put it).
+    /// suite's to state where the move would put it; the stored line
+    /// stays the one the row was stated with).
     #[cfg(test)]
     #[must_use]
     pub(crate) fn moved_for_tests(self, deck: Deck) -> Self {
         Self { lift: deck, ..self }
     }
 
+    /// This row's image over the span `(t0, t1)`: a split's piece, which
+    /// holds its parent's image over its own part of the parent's span.
+    /// What it lets a suite state that no body can: a span no edge was
+    /// certified over.
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) fn piece_for_tests(self, (t0, t1): (T, T)) -> Self {
+        Self {
+            params: (t0, t1),
+            ..self
+        }
+    }
+
+    /// This row traversed the other way by its chain.
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) fn reversed_for_tests(self) -> Self {
+        Self {
+            plus: !self.plus,
+            ..self
+        }
+    }
+
+    /// The carrier interval `(t0, t1)` the image is over, in the edge's
+    /// forward order: the edge's span.
+    #[must_use]
+    pub fn params(&self) -> (T, T) {
+        self.params
+    }
+
     /// The carrier parameters the chain enters and leaves the image at.
     #[must_use]
     pub fn entry_exit(&self) -> (T, T) {
-        let (t0, t1) = self.params.ends();
+        let (t0, t1) = self.params;
         entry_exit(self.plus, t0, t1)
     }
 
     /// **The chart line the image lies on, as the chain runs it**: the
     /// image's own held line ([`Pcurve::held_line`]), its rate negated
     /// where the chain traverses the image backward, so the rate's sign is
-    /// the way the chain runs along the line.
-    ///
-    /// # Errors
-    ///
-    /// [`NoHeldLine`]: the image lies on no held line.
-    pub fn held_line(&self) -> Result<HeldLine<T>, NoHeldLine> {
+    /// the way the chain runs along the line. `None` where the image is
+    /// no iso image.
+    pub fn held_line(&self) -> Option<HeldLine<T>> {
         let line = self.pcurve.held_line()?;
-        Ok(HeldLine {
+        Some(HeldLine {
             rate: if self.plus { line.rate } else { -line.rate },
             ..line
         })
@@ -282,13 +319,11 @@ pub struct HeldRun<T> {
 }
 
 /// Why the chain has no runs ([`Lift::runs`]): the first row, in chain
-/// order, whose image lies on no held line, and why.
+/// order, whose image is no iso image and so lies on no held line.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct NotHeld {
     /// The row's index in [`Lift::rows`].
     pub row: usize,
-    /// Why its image holds no line.
-    pub why: NoHeldLine,
 }
 
 /// Why a loop has no lift to read ([`Lift::read`]): the first
@@ -384,7 +419,7 @@ impl<T: Real> Lift<T> {
         self.rows
             .iter()
             .map(|row| {
-                let (t0, t1) = row.params.ends();
+                let (t0, t1) = row.params;
                 row.pcurve
                     .closed_form_span_box(t0, t1)
                     .map(|b| ((b.u_min, b.u_max), (b.v_min, b.v_max)))
@@ -420,11 +455,11 @@ impl<T: Decide> Lift<T> {
     pub fn runs(&self) -> Result<Vec<HeldRun<T>>, NotHeld> {
         let mut runs: Vec<HeldRun<T>> = Vec::new();
         for (row, lifted) in self.rows.iter().enumerate() {
-            let line = lifted.held_line().map_err(|why| NotHeld { row, why })?;
+            let line = lifted.held_line().ok_or(NotHeld { row })?;
             match runs.last_mut() {
-                Some(run) if run.axis == line.axis => run.members.push((row, line)),
+                Some(run) if run.axis == line.line.axis => run.members.push((row, line)),
                 _ => runs.push(HeldRun {
-                    axis: line.axis,
+                    axis: line.line.axis,
                     members: vec![(row, line)],
                 }),
             }
@@ -450,30 +485,166 @@ impl<T: Decide> Lift<T> {
     ///   point is an enclosure, and a reader that measures the arriving
     ///   image's exit against it measures that enclosure's own width.
     ///
-    /// The rectangle certificate reads it (`props::quad_lane`), and the
-    /// readers of an image's ends that are to move onto it are
-    /// `chart_region::pcurve_entry`, `spline_trim::image_pieces`,
-    /// `boolean::spline_known` and `replace_face::iso_image_row`.
+    /// An image stores no ends, so this is where every reader of a corner
+    /// reads it: the rectangle certificate (`props::quad_lane`), the loop
+    /// polygon (`chart_region`), the spline trim's chain (`spline_trim`),
+    /// the corners two spline walls share (`boolean::spline_known`) and
+    /// an offset's extracted row (`replace_face`). The meet has one
+    /// spelling ([`Lift::corner`]), which this, [`Lift::exit_point`] and
+    /// [`Lift::stored_corners`] each read.
     ///
     /// # Panics
     ///
     /// Where `i` is not a row of the chain.
     #[must_use]
     pub fn joint_point(&self, i: usize) -> Point2<T> {
-        let row = &self.rows[i];
-        let before = match i.checked_sub(1) {
-            Some(b) => Some(&self.rows[b]),
-            None if self.closes_in_chart() => self.rows.last(),
-            None => None,
-        };
-        match (before.map(LiftedRow::held_line), row.held_line()) {
-            (Some(Ok(a)), Ok(b)) if a.axis != b.axis => match b.axis {
-                ChartAxis::U => Point2::new(b.value, a.value),
-                ChartAxis::V => Point2::new(a.value, b.value),
-            },
-            _ => row.entry_exit_points().0,
+        match self.corner(i, End::Entry) {
+            Some((meet, _)) => meet,
+            None => self.rows[i].entry_exit_points().0,
         }
     }
+
+    /// **The chart point row `i` leaves at**: the meet with the row after
+    /// it where one holds a row of the chart and the other a column
+    /// ([`Lift::joint_point`] of that joint), the point the chain leaves
+    /// row `i` at through its own map everywhere else. With
+    /// [`Lift::joint_point`]`(i)`, the two chart points an image runs
+    /// between, for a reader of one row's extent.
+    ///
+    /// # Panics
+    ///
+    /// Where `i` is not a row of the chain.
+    #[must_use]
+    pub fn exit_point(&self, i: usize) -> Point2<T> {
+        match self.corner(i, End::Exit) {
+            Some((meet, _)) => meet,
+            None => self.rows[i].entry_exit_points().1,
+        }
+    }
+
+    /// **The corners at row `i`'s two ends, on the branch its image is
+    /// STORED on**: at its edge's start and at its end (the edge's forward
+    /// order), the coordinate along the row's line of the corner with the
+    /// neighbouring row there ([`Lift::corner`]). The neighbour holds
+    /// that coordinate; its STORED value is moved by the periods the lift
+    /// moved the neighbour by, less the periods it moved row `i` by
+    /// ([`Period::moved`]). Where the two were moved alike that is the
+    /// neighbour's stored value itself, and one step off a domain's end
+    /// is the other end itself, so a corner at a domain's end reads as
+    /// that end at both ends of the row, however far the lift moved it.
+    ///
+    /// `None` at an end:
+    /// - where there is no corner: the neighbour there holds no line
+    ///   across the row's (a cut between two images on one line, an image
+    ///   that is no iso image), or there is no neighbour (an open run's
+    ///   end, the closure joint of a loop that winds a period);
+    /// - where either row sits on the twin sheet (`lift.twin`): the twin
+    ///   map is no whole-period move, and a stored branch across it is
+    ///   not read here.
+    ///
+    /// `[None, None]` for a row whose own image holds no line. A reader
+    /// takes its own image's value at a `None` end
+    /// (`replace_face::iso_image_row`).
+    ///
+    /// For a reader of one edge's own image (its description), whose
+    /// parameter along the line is the stored branch's.
+    ///
+    /// # Panics
+    ///
+    /// Where the lift moved the two rows by different periods of a
+    /// channel that states no period: no deck element moves along an
+    /// open channel, so such a lift is corrupt.
+    ///
+    /// [`Period::moved`]: geom_brep::Period::moved
+    pub(crate) fn stored_corners(&self, i: usize, periods: ChartPeriods<T>) -> [Option<T>; 2] {
+        let row = &self.rows[i];
+        let Some(own) = row.held_line() else {
+            return [None, None];
+        };
+        // The corner's coordinate along row `i`'s line is the channel the
+        // neighbour holds, which is the channel row `i` moves along.
+        let (moved_by, period): (fn(Deck) -> i32, _) = match own.line.axis {
+            ChartAxis::U => (|deck| deck.v, periods.v()),
+            ChartAxis::V => (|deck| deck.u, periods.u()),
+        };
+        let at = |end: End| {
+            let (_, neighbour) = self.corner(i, end)?;
+            let neighbour = &self.rows[neighbour];
+            if row.lift.twin || neighbour.lift.twin {
+                return None;
+            }
+            let stored = neighbour.stored?.value;
+            Some(match moved_by(neighbour.lift) - moved_by(row.lift) {
+                0 => stored,
+                k => match period {
+                    Some(period) => period.moved(stored, k),
+                    None => unreachable!(
+                        "stored_corners: rows {i} and its neighbour are {k} periods apart \
+                         along a channel that states no period"
+                    ),
+                },
+            })
+        };
+        let (entry, exit) = (at(End::Entry), at(End::Exit));
+        if row.plus {
+            [entry, exit]
+        } else {
+            [exit, entry]
+        }
+    }
+
+    /// **The corner at one end of row `i`**: the meet of its held line
+    /// with its neighbour's there (the row before it at its entry, the
+    /// row after it at its exit), where one holds a row of the chart and
+    /// the other a column, with the neighbour's index. The one spelling
+    /// of [`Lift::joint_point`]'s meet. `None` where there is no
+    /// neighbour, or the two do not hold a row and a column.
+    fn corner(&self, i: usize, end: End) -> Option<(Point2<T>, usize)> {
+        let neighbour = match end {
+            End::Entry => self.before(i)?,
+            End::Exit => self.after(i)?,
+        };
+        let (a, b) = (
+            self.rows[i].held_line()?.line,
+            self.rows[neighbour].held_line()?.line,
+        );
+        match (a.axis, b.axis) {
+            (ChartAxis::U, ChartAxis::V) => Some((Point2::new(a.value, b.value), neighbour)),
+            (ChartAxis::V, ChartAxis::U) => Some((Point2::new(b.value, a.value), neighbour)),
+            _ => None,
+        }
+    }
+
+    /// The row before row `i` in the chain: the last, for a first row of
+    /// a loop that closes in its chart; none at an open run's first row.
+    fn before(&self, i: usize) -> Option<usize> {
+        match i.checked_sub(1) {
+            Some(b) => Some(b),
+            None if self.closes_in_chart() => self.rows.len().checked_sub(1),
+            None => None,
+        }
+    }
+
+    /// The row after row `i` in the chain: the first, for the last row of
+    /// a loop that closes in its chart; none at an open run's last row.
+    fn after(&self, i: usize) -> Option<usize> {
+        if i + 1 < self.rows.len() {
+            Some(i + 1)
+        } else if self.closes_in_chart() {
+            Some(0)
+        } else {
+            None
+        }
+    }
+}
+
+/// An end of a row, as the chain runs it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum End {
+    /// Where the chain enters the row.
+    Entry,
+    /// Where the chain leaves it.
+    Exit,
 }
 
 impl<T: Real> IntoIterator for Lift<T> {
@@ -572,11 +743,12 @@ impl<T: Decide> Lift<T> {
     ) -> Result<Self, LiftGap> {
         let cycle = loop_rows(body, r#loop);
         let face = proven(&body.loops, r#loop, EntityId::Loop).face;
-        let surface = body.proven_face(face).surface();
+        // A row on a pending chart lifts nowhere: it is a gap.
+        let surface = body.proven_face(face).surface().ok();
         // No band is at hand, so the periods are the chart's as stated:
         // on every element a door wrote they are the decided ones
         // ([`ChartPeriods::stated`]).
-        let periods = ChartPeriods::stated(surface);
+        let periods = surface.map(ChartPeriods::stated);
         let mut stored = Vec::with_capacity(cycle.len());
         let mut elements = Vec::with_capacity(cycle.len());
         for &half_edge in &cycle {
@@ -599,14 +771,16 @@ impl<T: Decide> Lift<T> {
             .zip(lift_decks(&elements))
             .filter_map(|((half_edge, row), lift)| Some((half_edge, row?, start.compose(lift))))
             .map(|(half_edge, row, lift)| {
-                let pcurve = lift
-                    .apply(row.pcurve(), surface, periods)
+                let pcurve = surface
+                    .zip(periods)
+                    .and_then(|(surface, periods)| lift.apply(row.pcurve(), surface, periods))
                     .ok_or(LiftGap { half_edge })?;
                 Ok(LiftedRow {
                     half_edge,
                     lift,
+                    stored: row.pcurve().held_line().map(|held| held.line),
                     pcurve,
-                    params: row.edge_span(),
+                    params: row.params(),
                     plus: is_plus(body, half_edge),
                 })
             })
@@ -648,22 +822,20 @@ impl<T: Decide> Lift<T> {
         closes: bool,
         band: Band,
     ) -> Result<Self, LiftRefusal> {
-        let Some(chart) = DescribedChart::of(surface) else {
-            return Err(LiftRefusal::Placeholder);
-        };
+        let chart = DescribedChart::of(surface);
         let sense = proven(&body.faces, face, EntityId::Face).sense;
-        // Each half's carrier, its window, and that window as the span its
-        // row is read over, from one read of the edge's certified curve.
+        // Each half's carrier and its window, from one read of the edge's
+        // certified curve.
         let charted: Vec<Charted<T>> = halves
             .iter()
             .filter_map(|&he| {
                 let curve = half_edge_curve(body, he).ok()?;
                 let (t0, t1) = curve.params();
-                Some((he, curve.carrier().clone(), t0, t1, curve.edge_span()))
+                Some((he, curve.carrier().clone(), t0, t1))
             })
             .collect();
         let item = |i: usize| -> Result<WalkItem<T, DerivedRow<T>>, LiftRefusal> {
-            let (he, carrier, t0, t1, _) = &charted[i];
+            let (he, carrier, t0, t1) = &charted[i];
             let ends = super::decision::singular_ends(body, *he, carrier, surface, band);
             let pcurve = geom_brep::chart_pcurve_over_ends(carrier, *t0, *t1, ends, surface, band)
                 .map_err(LiftRefusal::Image)?;
@@ -710,13 +882,14 @@ impl<T: Decide> Lift<T> {
         for (i, (((_, image), _, _, _), lift)) in
             walked.into_iter().zip(lift_decks(&elements)).enumerate()
         {
-            let (half_edge, params) = (charted[i].0, charted[i].4);
+            let (half_edge, params) = (charted[i].0, (charted[i].2, charted[i].3));
             let pcurve = lift
                 .apply(image.pcurve(), surface, periods)
                 .ok_or(LiftRefusal::Joint(PinMiss::Discontinuity))?;
             rows.push(LiftedRow {
                 half_edge,
                 lift,
+                stored: image.pcurve().held_line().map(|held| held.line),
                 pcurve,
                 params,
                 plus: is_plus(body, half_edge),
@@ -729,9 +902,6 @@ impl<T: Decide> Lift<T> {
 /// Why [`Lift::decided`] decided no lift.
 #[derive(Debug)]
 pub(crate) enum LiftRefusal {
-    /// The chart is the placeholder: it has no lever to decide a joint
-    /// by.
-    Placeholder,
     /// A half-edge's closed-form image refused.
     Image(PcurveCertifyError),
     /// A joint of the chain decided no element.
@@ -760,31 +930,53 @@ pub(crate) fn lift_decks(elements: &[JointElement]) -> Vec<Deck> {
         .collect()
 }
 
-/// [`Lift::read`] for a reader that walks `halves` — members of one
-/// loop, in the reader's own order: each one's lifted image, or `None`
-/// for every one where that loop has no lift to read (a member stores
-/// no image, or no element on the joint into it). Empty for no halves.
+/// **The lift of the loop `halves` are members of, with each half's row
+/// in it** ([`Lift::read`]): for a reader that walks `halves` in its own
+/// order and reads the lift's rows and joints ([`Lift::joint_point`],
+/// [`Lift::exit_point`]). A half with no row in that lift reads `None`
+/// (a half of another loop). `None` for no halves, and where the loop
+/// has no lift to read (a member stores no image, or no element on the
+/// joint into it): a reader then has no row for any half, and each
+/// refuses or derives its own.
 ///
 /// # Panics
 ///
 /// [`Lift::read`]'s, and where the first half does not resolve.
 #[track_caller]
+pub(crate) fn lift_of_halves<T: Decide>(
+    body: &Body<T>,
+    halves: &[HalfEdgeKey],
+) -> Option<(Lift<T>, Vec<Option<usize>>)> {
+    let r#loop = proven(&body.half_edges, *halves.first()?, EntityId::HalfEdge).parent_loop;
+    // No lift to read is this reader's `None`, not a fallback to another
+    // reading: each caller refuses or derives per half, by name.
+    let lift = Lift::read(body, r#loop).ok()?;
+    let rows = halves
+        .iter()
+        .map(|he| lift.rows.iter().position(|row| row.half_edge == *he))
+        .collect();
+    Some((lift, rows))
+}
+
+/// Each of `halves`' images as its loop's lift places it
+/// ([`lift_of_halves`]'s rows), `None` for a half with no row and for
+/// every half where the loop has no lift to read.
+///
+/// # Panics
+///
+/// [`lift_of_halves`]'s.
+#[track_caller]
 pub(crate) fn lifted_images<T: Decide>(
     body: &Body<T>,
     halves: &[HalfEdgeKey],
 ) -> Vec<Option<Pcurve<T>>> {
-    let Some(&first) = halves.first() else {
-        return Vec::new();
-    };
-    let r#loop = proven(&body.half_edges, first, EntityId::HalfEdge).parent_loop;
-    let Ok(lift) = Lift::read(body, r#loop) else {
-        return vec![None; halves.len()];
-    };
-    let mut by_half: slotmap::SecondaryMap<HalfEdgeKey, Pcurve<T>> = slotmap::SecondaryMap::new();
-    for row in lift {
-        by_half.insert(row.half_edge, row.pcurve);
+    match lift_of_halves(body, halves) {
+        Some((lift, rows)) => rows
+            .into_iter()
+            .map(|row| row.map(|row| lift.rows[row].pcurve.clone()))
+            .collect(),
+        None => vec![None; halves.len()],
     }
-    halves.iter().map(|&he| by_half.get(he).cloned()).collect()
 }
 
 /// **Whether `he` misses a row** ([`StoredRows::gaps`]): it stores no

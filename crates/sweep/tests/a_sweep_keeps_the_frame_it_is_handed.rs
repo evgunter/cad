@@ -883,7 +883,7 @@ fn a_slab_along_a_boxed_vector_stores_exact_caps_and_wide_walls() {
 fn worst_vertex_off_plane(body: &Body<f64>) -> f64 {
     let mut worst = 0.0_f64;
     for (fk, _) in body.faces() {
-        let Some(Surface::Plane {
+        let Ok(Surface::Plane {
             frame: carrier_frame,
             ..
         }) = body.face_surface(fk)
@@ -993,11 +993,21 @@ fn washer_counts(full: bool) -> (bool, u64, u64) {
 /// revolve's one reading of the side of its axis the profile lies on.
 /// Validation then stopped reading the four corners' shared vertices
 /// (`profile::seg`'s `line_line`), six decisions a corner, 20 symbolic
-/// and 4 numeric: 481 / 458 and 473 / 608.
+/// and 4 numeric: 481 / 458 and 473 / 608. The profile's direction mint
+/// then asks the chord's expression whether it is zero
+/// (`geom_core::Expression::proves_zero`, no decision) where it read a
+/// proved Zero: four symbolic fewer, 477 / 458 and 469 / 608. Of the
+/// full washer's decisions, nine that read a carrier's distance from
+/// the wall of radius `r0` and nine that rest on a ruling's phase there
+/// are then theorems (`geom_core::radius_gap`; the phase read off the
+/// offset over the radius), where a measured norm less the radius and
+/// the angle of the offset at its length left them to the numeric
+/// count: 495 / 440. The partial washer's eight are all the distance's:
+/// 477 / 600.
 #[test]
 fn a_revolves_latitude_identity_is_symbolic_without_a_registration() {
-    assert_eq!(washer_counts(true), (true, 481, 458), "the full washer");
-    assert_eq!(washer_counts(false), (true, 473, 608), "the partial washer");
+    assert_eq!(washer_counts(true), (true, 495, 440), "the full washer");
+    assert_eq!(washer_counts(false), (true, 477, 600), "the partial washer");
 }
 
 /// A plane turned 0.4 about `x` and lifted 2: no axis of it is a world

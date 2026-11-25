@@ -59,6 +59,12 @@ pub enum ReachRefusal {
         /// Its surface kind.
         kind: SurfaceKind,
     },
+    /// The body has a face with no surface yet (a body mid-construction,
+    /// [`topo::SurfaceMiss::Pending`]), so its reach cannot be bounded.
+    FacePending {
+        /// The face, in the part body's own arena.
+        face: FaceKey,
+    },
     /// The body has a face whose surface key resolves to no surface
     /// in its own arena: not a face this module cannot bound but a
     /// body that is not well formed, refused in that voice.
@@ -89,6 +95,10 @@ impl crate::Say for ReachRefusal {
                  mate on this part",
                 crate::sentence::article(kind.name()),
                 kind.name()
+            ),
+            Self::FacePending { .. } => f.write_str(
+                "has a face with no surface yet, so no bound on the part's extent can be \
+                 stated. Recourse: describe every face's surface before mating the part",
             ),
             Self::MalformedBody { .. } => write!(
                 f,
@@ -193,9 +203,10 @@ pub(crate) fn faces_reach_from<T: Decide>(
 ) -> Result<Option<T>, ReachRefusal> {
     let mut reach: Option<T> = None;
     for key in faces {
-        let Some(surface) = body.face_surface(key) else {
-            return Err(ReachRefusal::MalformedBody { face: key });
-        };
+        let surface = body.face_surface(key).map_err(|miss| match miss {
+            topo::SurfaceMiss::Stale => ReachRefusal::MalformedBody { face: key },
+            topo::SurfaceMiss::Pending => ReachRefusal::FacePending { face: key },
+        })?;
         let bound = reach_of(body, key, origin, band).ok_or(ReachRefusal::FaceUnbounded {
             face: key,
             kind: surface.kind(),
@@ -212,6 +223,10 @@ pub(crate) fn faces_reach_from<T: Decide>(
 /// # Errors
 ///
 /// [`ReachRefusal::NoFiniteBound`] for a segment with no finite cover.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic restated on a frame the caller holds, or a point read about a centre an arc-held ellipse derives: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub(crate) fn loops_reach_from<T: Decide>(
     validated: &profile::ValidatedProfile<T>,
     origin: Point3<T>,

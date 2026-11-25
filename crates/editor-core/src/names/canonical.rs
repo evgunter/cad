@@ -170,6 +170,7 @@ pub(crate) fn minted_segment(seg: RoleSeg) -> RoleSeg {
         | RoleSeg::Rim(_)
         | RoleSeg::HoleRim { .. }
         | RoleSeg::Member { .. }
+        | RoleSeg::ConventionalVertex(_)
         | name_free_seg!() => seg,
     }
 }

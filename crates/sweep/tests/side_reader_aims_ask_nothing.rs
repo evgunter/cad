@@ -171,7 +171,7 @@ fn the_aims_at_cylinder_walls_take_no_circle_foot() {
             .filter(|(_, f)| {
                 matches!(
                     body.get_surface(f.surface),
-                    Some(geom::Surface::Cylinder { .. })
+                    Ok(geom::Surface::Cylinder { .. })
                 )
             })
             .map(|(k, _)| format!("{k:?}: "))

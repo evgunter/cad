@@ -451,6 +451,24 @@ impl<T: Real> Traversed<T> {
         })
     }
 
+    /// Part of this traversal, from a point on it onward: a line stays
+    /// a line and keeps its director, and an arc keeps its centre,
+    /// radius and turn, sweeps `sweep` and takes `radials`, its unit
+    /// radials at the part's two ends (a loft's sub-arc piece,
+    /// `loft::segment_pieces`, which hands in the arc's own at the
+    /// segment's ends and its start radial turned by the cut's angle
+    /// between them).
+    pub(crate) fn part(self, sweep: T, radials: [Vec2<T>; 2]) -> Self {
+        Self(match self.0 {
+            line @ SegmentKind::Line { .. } => line,
+            SegmentKind::Arc { arc, turn, .. } => SegmentKind::Arc {
+                arc: Arc2 { sweep, ..arc },
+                turn,
+                radials,
+            },
+        })
+    }
+
     /// The carrier class, in this traversal's orientation.
     pub(crate) fn get(self) -> SegmentKind<T> {
         self.0
@@ -828,6 +846,10 @@ pub(crate) fn register_rigidity<T: Real>(rim: Vec3<T>, arc: Arc2<T>, start: Poin
 /// **What it touches: nothing.** `Curve3::circle_at` over the spec's
 /// own carrier and span is the node the certifier evaluates; the
 /// placed carrier end is built here and thrown away.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn register_placed_carrier_end<T: Real>(
     carrier: &Curve3<T>,
     param_end: T,
@@ -1026,8 +1048,6 @@ pub(crate) struct FullTurn {
     pub(crate) strut: EdgeKey,
     /// The near rim's plus half, in the wall.
     pub(crate) near_in_wall: HalfEdgeKey,
-    /// The near rim's minus half, in `near_face`.
-    pub(crate) near_minus: HalfEdgeKey,
     /// The near rim.
     pub(crate) near: EdgeKey,
     /// The face holding the near rim's minus half.
@@ -1090,7 +1110,6 @@ pub(crate) fn build_full_turn<T: Decide + topo::AtRestPolicy>(
         wall: far.face,
         strut: strut.edge,
         near_in_wall: near.he_plus,
-        near_minus: near.he_minus,
         near: near.edge,
         near_face: near.face,
     })

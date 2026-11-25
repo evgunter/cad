@@ -18,7 +18,7 @@ use super::{
     Around, BoxAxes, Core, Cover, Covered, Entity, Lattice, ParamWindow, Site, Uncovered, Unknown,
 };
 use crate::curves::NurbsCurve3;
-use crate::{Curve3, Frame, Line, Surface, SurfaceKind};
+use crate::{Conic, Curve3, Frame, Line, Surface, SurfaceKind};
 
 test_utils::gated_to![
     "crates/geom/src/curves/boxes.rs",
@@ -1019,13 +1019,26 @@ fn the_lattice_keeps_what_was_proved_and_what_was_not_known() {
             "{kind:?} is unbounded"
         );
     }
+    let kv = || {
+        geom_core::spline::Knots::from(KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap())
+            .lift(f64::from_f64)
+    };
+    let infinite = crate::NurbsSurface::new(
+        kv(),
+        kv(),
+        (0..4)
+            .map(|i| Point3::new(f64::INFINITY, f64::from(i), 0.0))
+            .collect(),
+        vec![1.0; 4],
+    )
+    .unwrap();
     assert_eq!(
-        Surface::<f64>::nurbs_placeholder().cover().err(),
+        Surface::Nurbs(Arc::new(infinite)).cover().err(),
         Some(Uncovered::new(
             Entity::Surface(SurfaceKind::Nurbs),
             Unknown::PoisonedNet
         )),
-        "a placeholder surface's net bounds nothing"
+        "a surface net that is not finite bounds nothing"
     );
 }
 
@@ -2211,4 +2224,367 @@ fn a_hull_folded_on_the_right_reads_another_ball_than_on_the_left() {
     };
     assert_eq!(read(&left), (5.0, 0.0, 0.0, 38.0_f64.sqrt()));
     assert_eq!(read(&right), (5.0, 0.0, 0.0, 6.0));
+}
+
+/// The curve an arc-held ellipse's stored numbers state, in
+/// double-double: the oracle of [`a_far_sections_cover_holds_its_stored_arc`].
+mod stored_arc {
+    use geom_core::exact::{two_product, two_sum};
+    use geom_core::{Point3, Vec3};
+
+    #[derive(Clone, Copy)]
+    pub(super) struct Dd(pub f64, pub f64);
+
+    impl Dd {
+        fn add(self, o: Dd) -> Dd {
+            let (s, e) = two_sum(self.0, o.0);
+            let (hi, lo) = two_sum(s, e + self.1 + o.1);
+            Dd(hi, lo)
+        }
+        fn mul(self, o: Dd) -> Dd {
+            let (p, e) = two_product(self.0, o.0);
+            let (hi, lo) = two_sum(p, e + self.0 * o.1 + self.1 * o.0);
+            Dd(hi, lo)
+        }
+        fn of(x: f64) -> Dd {
+            Dd(x, 0.0)
+        }
+    }
+
+    /// `sin x` for `|x| ≤ 0.3`, by its series to `x²³`.
+    fn sin(x: Dd) -> Dd {
+        let x2 = x.mul(x);
+        let (mut term, mut sum) = (x, x);
+        for k in 1..12 {
+            let n = f64::from(2 * k * (2 * k + 1));
+            term = term.mul(x2).mul(Dd::of(-1.0 / n));
+            // The reciprocal's rounding is a relative `u` of a term at
+            // most `x²/6` of the sum.
+            sum = sum.add(term);
+        }
+        sum
+    }
+
+    /// The point at `theta` of the ellipse held at `anchor` (its point at
+    /// zero) with semi-axes `a` along `u` and `b` along `n × u`, as its
+    /// three coordinates.
+    pub(super) fn point(
+        (anchor, n, u): (Point3<f64>, Vec3<f64>, Vec3<f64>),
+        (a, b): (f64, f64),
+        theta: f64,
+    ) -> [Dd; 3] {
+        let cross = |p: f64, q: f64, r: f64, s: f64| {
+            Dd::of(p).mul(Dd::of(q)).add(Dd::of(-r).mul(Dd::of(s)))
+        };
+        let v = [
+            cross(n.y, u.z, n.z, u.y),
+            cross(n.z, u.x, n.x, u.z),
+            cross(n.x, u.y, n.y, u.x),
+        ];
+        let half = sin(Dd::of(0.5 * theta));
+        let ku = half.mul(half).mul(Dd::of(-2.0));
+        let kv = sin(Dd::of(theta));
+        let (at, u) = ([anchor.x, anchor.y, anchor.z], [u.x, u.y, u.z]);
+        core::array::from_fn(|i| {
+            Dd::of(at[i])
+                .add(Dd::of(u[i]).mul(Dd::of(a)).mul(ku))
+                .add(v[i].mul(Dd::of(b)).mul(kv))
+        })
+    }
+
+    /// `p − q`, to the rounding of the difference.
+    pub(super) fn from(p: [Dd; 3], q: Point3<f64>) -> Vec3<f64> {
+        Vec3::new(
+            (p[0].0 - q.x) + p[0].1,
+            (p[1].0 - q.y) + p[1].1,
+            (p[2].0 - q.z) + p[2].1,
+        )
+    }
+}
+
+/// **A far section's cover holds the arc its stored numbers state.** An
+/// ellipse held on its arc at its near vertex, semi-axes from 22 m to
+/// 2.2e7 m, a short arc about the vertex: 65 points of the stored curve
+/// in double-double (the anchor plus `u·a·(−2·sin²(θ/2)) + v·b·sin θ`,
+/// `v = n × u`) against the cover's ball, its support along three
+/// directions and its distance range from a point beside the arc. Each
+/// holds the points to a few roundings of the points' own coordinates,
+/// and the ball is of the arc's size.
+///
+/// Red where the cover is stated from the derived centre: the ball then
+/// misses the points by a rounding of the semi-axis (`1e-10` m at
+/// `2.2e6`).
+#[test]
+fn a_far_sections_cover_holds_its_stored_arc() {
+    let n = Vec3::new(1.0, 2.0, 2.0) / 3.0;
+    let toward = Vec3::new(2.0, 1.0, -2.0) / 3.0;
+    let anchor = Point3::new(40.25, -7.5, 3.125);
+    let u = f64::EPSILON * 0.5;
+    for (a, half) in [
+        (2.2e1, 1e-3),
+        (2.2e2, 3.0 / 2.2e2),
+        (2.2e3, 3.0 / 2.2e3),
+        (2.2e4, 3.0 / 2.2e4),
+        (2.2e5, 3.0 / 2.2e5),
+        (2.2e6, 3.0 / 2.2e6),
+        (2.2e7, 3.0 / 2.2e7),
+    ] {
+        let b = 0.8 * a;
+        let e = crate::Ellipse::anchored(anchor, n, toward, a, b);
+        let stored = (anchor, e.axis(), e.u_ref());
+        let cover = Curve3::Ellipse(e)
+            .cover_over(ParamWindow::new(-half, half))
+            .unwrap();
+        let (mid, radius) = cover.ball();
+        // The points' own scale: what a rounding of a coordinate is.
+        let own = 8.0 * u * (anchor - Point3::origin()).norm();
+        assert!(
+            radius <= 2.0 * a * half + own,
+            "a {a:e}: the ball is of the arc's size, {radius:e}"
+        );
+        let site_at = anchor + n * 0.5 + toward * 0.25;
+        let (near, far) = cover.distance_range(&Site::Point(site_at));
+        let dirs = [n, toward, Vec3::new(0.6, -0.8, 0.0)];
+        let supports = dirs.map(|d| cover.support(d));
+        let mut worst = [0.0_f64; 4];
+        for k in 0..=64 {
+            let t = -half + 2.0 * half * f64::from(k) / 64.0;
+            let p = stored_arc::point(stored, (a, b), t);
+            worst[0] = worst[0].max(stored_arc::from(p, mid).norm() - radius);
+            let d = stored_arc::from(p, site_at).norm();
+            worst[1] = worst[1].max(near - d);
+            worst[2] = worst[2].max(d - far);
+            for (dir, sup) in dirs.iter().zip(supports) {
+                let h = stored_arc::from(p, Point3::origin()).dot(*dir);
+                worst[3] = worst[3].max(h - sup);
+            }
+        }
+        // The same arc at `Interval`, every datum a point enclosure: each
+        // reading is bounded and encloses the stored points.
+        let ie = crate::Ellipse::anchored(ipt(anchor), ivec(n), ivec(toward), iv(a), iv(b));
+        let icover = Curve3::Ellipse(ie)
+            .cover_over(ParamWindow::new(iv(-half), iv(half)))
+            .unwrap();
+        let (imid, iradius) = icover.ball();
+        let (inear, ifar) = icover.distance_range(&Site::Point(ipt(site_at)));
+        let isupports = dirs.map(|d| icover.support(ivec(d)));
+        for x in [iradius, inear, ifar].into_iter().chain(isupports) {
+            assert!(
+                x.is_bounded(),
+                "a {a:e}: an Interval reading is bounded: {x:?}"
+            );
+        }
+        // An enclosure misses nothing: the bar is the rounding of the
+        // oracle's own last difference.
+        let exact = u * (anchor - Point3::origin()).norm();
+        let m = |x: Interval| 0.5 * (Bounds::lo(x) + Bounds::hi(x));
+        let centre = Point3::new(m(imid.x), m(imid.y), m(imid.z));
+        let spread = Bounds::hi((imid - ipt(centre)).norm());
+        for k in 0..=64 {
+            let t = -half + 2.0 * half * f64::from(k) / 64.0;
+            let p = stored_arc::point(stored, (a, b), t);
+            let out = stored_arc::from(p, centre).norm() - spread - Bounds::hi(iradius);
+            let d = stored_arc::from(p, site_at).norm();
+            assert!(
+                out <= exact && Bounds::lo(inear) - d <= exact && d - Bounds::hi(ifar) <= exact,
+                "a {a:e}: the Interval cover holds the stored point at {t:e}: ball {out:e}, \
+                 distance {d:e} in [{inear:?}, {ifar:?}]"
+            );
+            for (dir, sup) in dirs.iter().zip(isupports) {
+                let h = stored_arc::from(p, Point3::origin()).dot(*dir);
+                assert!(
+                    h - Bounds::hi(sup) <= exact,
+                    "a {a:e}: the Interval support holds the stored point at {t:e}: {h:e} past {sup:?}"
+                );
+            }
+        }
+        for (what, w) in ["ball", "nearest", "farthest", "support"].iter().zip(worst) {
+            assert!(
+                w <= own,
+                "a {a:e}: the cover's {what} misses a point of the stored arc by {w:e}, \
+                 past {own:e}"
+            );
+        }
+    }
+}
+
+mod held_arc_rows;
+mod held_arc_sweep;
+
+/// **A crest beside the anchor of a far arc-held ellipse reads at the
+/// arc's scale, from both sides.** Along a direction a hair off the
+/// seam the harmonic crests `1e-8` rad from the anchor, inside the
+/// window: the extent's upper end is the stored curve's point there (in
+/// double-double) to a few roundings of its coordinates, neither under
+/// it nor over. Red where the crest is read as the difference `A − k`,
+/// which is off by a rounding of the semi-axis (`2e-9` m here), and
+/// where the trough takes the crest's sign.
+#[test]
+fn a_crest_beside_a_far_anchor_reads_at_the_arcs_scale() {
+    let n = Vec3::new(1.0, 2.0, 2.0) / 3.0;
+    let toward = Vec3::new(2.0, 1.0, -2.0) / 3.0;
+    let anchor = Point3::new(40.25, -7.5, 3.125);
+    let own = 8.0 * (f64::EPSILON * 0.5) * (anchor - Point3::origin()).norm();
+    for a in [2.2e5, 2.2e6, 2.2e7] {
+        let b = 0.8 * a;
+        let e = crate::Ellipse::anchored(anchor, n, toward, a, b);
+        let stored = (anchor, e.axis(), e.u_ref());
+        for tilt in [1e-8, -3e-8, 6e-8] {
+            let d = (e.u_ref() + e.v_ref() * tilt).normalize();
+            let (p, q) = Conic::along(&e, d);
+            let crest = q.atan2(p);
+            let half = 3.0 / a;
+            assert!(
+                crest.abs() < half,
+                "the crest {crest:e} is inside the window"
+            );
+            let window = crate::curves::boxes::ArcWindow::new(-half, half);
+            let (lo, hi) = Conic::extent_along(&e, &window, Point3::origin(), d);
+            let at = |t: f64| {
+                stored_arc::from(stored_arc::point(stored, (a, b), t), Point3::origin()).dot(d)
+            };
+            let top = at(crest);
+            assert!(
+                (hi - top).abs() <= own,
+                "a {a:e}, tilt {tilt:e}: the crest reads {hi}, the stored curve's is {top}"
+            );
+            // The same harmonic turned over: its trough is this crest.
+            let (under, _) = Conic::extent_along(&e, &window, Point3::origin(), -d);
+            assert!(
+                (under + top).abs() <= own,
+                "a {a:e}, tilt {tilt:e}: the trough along the reversed direction reads \
+                 {under}, the stored curve's is {}",
+                -top
+            );
+            let bottom = at(-half).min(at(half));
+            assert!(
+                (lo - bottom).abs() <= own,
+                "a {a:e}, tilt {tilt:e}: the lower end reads {lo}, the stored curve's is {bottom}"
+            );
+        }
+    }
+}
+
+/// **A borrowed conic reads as the conic, held on its arc too, and each
+/// kind's own direction doors are the trait's.** The extent and the
+/// cover of `&e` are `e`'s to the bit for an arc-held ellipse (red where
+/// a forwarder falls to the centre-held default), and `axis`, `u_ref`
+/// and `v_ref` read the same bits by a kind's inherent door, by the
+/// trait, through a borrow and through the frame.
+/// An extent, a cover's ball and the three directions, as
+/// [`a_borrowed_conic_and_each_direction_door_read_the_conic`] reads them.
+type ConicRead = ((f64, f64), (Point3<f64>, f64), [Vec3<f64>; 3]);
+
+#[allow(
+    clippy::needless_borrows_for_generic_args,
+    reason = "the borrow is the subject: `&K` reads through the forwarders"
+)]
+#[test]
+fn a_borrowed_conic_and_each_direction_door_read_the_conic() {
+    let n = Vec3::new(1.0, 2.0, 2.0) / 3.0;
+    let toward = Vec3::new(2.0, 1.0, -2.0) / 3.0;
+    let anchor = Point3::new(40.25, -7.5, 3.125);
+    let e = crate::Ellipse::anchored(anchor, n, toward, 2.2e6, 1.7e6);
+    let c = crate::Circle::new(Frame::new(anchor, n, toward), 0.7);
+    let window = crate::curves::boxes::ArcWindow::new(-0.2, 0.9);
+    let d = Vec3::new(0.3, -0.5, 0.8);
+    let o = Point3::new(1.0, 2.0, 3.0);
+    fn through<K: Conic<f64>>(
+        k: K,
+        w: &crate::curves::boxes::ArcWindow<f64>,
+        o: Point3<f64>,
+        d: Vec3<f64>,
+    ) -> ConicRead {
+        (
+            k.extent_along(w, o, d),
+            k.cover_over(ParamWindow::new(-0.2, 0.9)).unwrap().ball(),
+            [k.axis(), k.u_ref(), k.v_ref()],
+        )
+    }
+    let bits = |((lo, hi), (m, r), dirs): ConicRead| {
+        let mut out = vec![lo, hi, m.x, m.y, m.z, r];
+        out.extend(dirs.iter().flat_map(|v| [v.x, v.y, v.z]));
+        out.into_iter().map(f64::to_bits).collect::<Vec<_>>()
+    };
+    assert_eq!(
+        bits(through(&e, &window, o, d)),
+        bits(through(e, &window, o, d)),
+        "an ellipse, borrowed"
+    );
+    assert_eq!(
+        bits(through(&c, &window, o, d)),
+        bits(through(c, &window, o, d)),
+        "a circle, borrowed"
+    );
+    let same = |a: Vec3<f64>, b: Vec3<f64>, what: &str| {
+        assert_eq!(
+            [a.x, a.y, a.z].map(f64::to_bits),
+            [b.x, b.y, b.z].map(f64::to_bits),
+            "{what}"
+        );
+    };
+    let (fe, fc) = (Conic::frame(&e), Conic::frame(&c));
+    same(e.axis(), Conic::axis(&e), "ellipse axis");
+    same(e.u_ref(), Conic::u_ref(&e), "ellipse u_ref");
+    same(e.v_ref(), Conic::v_ref(&e), "ellipse v_ref");
+    same(e.axis(), fe.axis(), "ellipse axis by the frame");
+    same(e.u_ref(), fe.u_ref(), "ellipse u_ref by the frame");
+    same(e.v_ref(), fe.v_ref(), "ellipse v_ref by the frame");
+    same(e.axis_unit().get(), e.axis(), "ellipse axis as a unit");
+    same(
+        Conic::axis_unit(&e).get(),
+        fe.axis_unit().get(),
+        "ellipse axis as a unit, by the frame",
+    );
+    same(c.axis_unit().get(), c.axis(), "circle axis as a unit");
+    same(
+        Conic::axis_unit(&c).get(),
+        fc.axis_unit().get(),
+        "circle axis as a unit, by the frame",
+    );
+    same(
+        Conic::axis_unit(&&e).get(),
+        e.axis(),
+        "a borrowed ellipse's axis as a unit",
+    );
+    same(c.axis(), Conic::axis(&c), "circle axis");
+    same(c.u_ref(), Conic::u_ref(&c), "circle u_ref");
+    same(c.v_ref(), Conic::v_ref(&c), "circle v_ref");
+    same(c.axis(), fc.axis(), "circle axis by the frame");
+    same(c.u_ref(), fc.u_ref(), "circle u_ref by the frame");
+    same(c.v_ref(), fc.v_ref(), "circle v_ref by the frame");
+}
+
+/// **A centre-held arc's farthest distance holds the crest of a piece.**
+/// An ellipse held at its centre, read from a point 50 m off along the
+/// inward normal at the middle of the window's first quarter: the
+/// farthest point of the arc from there is that middle, between the
+/// piece's ends, and the cover's farthest distance is at least its
+/// distance and within the piece's bulge of it. The mean-circle bound is
+/// looser by the semi-axes' difference, so the four-piece bound is the
+/// one read. Red where a piece's bulge is dropped or halved.
+#[test]
+fn a_centre_held_arcs_farthest_distance_holds_a_pieces_crest() {
+    let (a, b) = (1.0, 0.4);
+    let frame = Frame::new(Point3::new(0.5, -1.0, 2.0), Vec3::unit_z(), Vec3::unit_x());
+    let e = crate::Ellipse::new(frame, a, b);
+    for (lo, hi) in [(0.2, 1.8), (2.0, 3.2), (-1.0, -0.2)] {
+        let quarter = (hi - lo) / 4.0;
+        let t = lo + 0.5 * quarter;
+        let p = Conic::point_at(&e, t);
+        // The outward normal of `(a·cos, b·sin)` is along `(cos/a, sin/b)`.
+        let (s, c) = t.sin_cos();
+        let out = (e.u_ref() * (c / a) + e.v_ref() * (s / b)).normalize();
+        let site = p - out * 50.0;
+        let (_, far) = Curve3::Ellipse(e)
+            .cover_over(ParamWindow::new(lo, hi))
+            .unwrap()
+            .distance_range(&Site::Point(site));
+        let bulge = a * (1.0 - (0.5 * quarter).cos());
+        assert!(
+            far >= 50.0 - 1e-12 && far <= 50.0 + bulge,
+            "window [{lo}, {hi}]: the farthest distance {far} against the crest's 50, \
+             a bulge of {bulge}"
+        );
+    }
 }

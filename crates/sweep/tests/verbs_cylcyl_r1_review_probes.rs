@@ -344,7 +344,7 @@ fn off_carrier_points_are_out_at_every_probed_radius() {
     let body = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
     let walls: Vec<topo::FaceKey> = body
         .faces()
-        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(geom::Surface::Cylinder { .. })))
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Ok(geom::Surface::Cylinder { .. })))
         .map(|(k, _)| k)
         .collect();
     assert_eq!(walls.len(), 2);
@@ -387,12 +387,7 @@ fn a_steeply_tilted_cut_wall_is_read_by_its_outline() {
     };
     let walls: Vec<topo::FaceKey> = below
         .faces()
-        .filter(|(fk, _)| {
-            matches!(
-                below.face_surface(*fk),
-                Some(geom::Surface::Cylinder { .. })
-            )
-        })
+        .filter(|(fk, _)| matches!(below.face_surface(*fk), Ok(geom::Surface::Cylinder { .. })))
         .map(|(k, _)| k)
         .collect();
     assert!(!walls.is_empty());
@@ -481,7 +476,7 @@ fn a_revolved_walls_two_half_turns_place_an_on_wall_point_in_one() {
     let body = revolved_cyl(1.0, 2.0);
     let walls: Vec<topo::FaceKey> = body
         .faces()
-        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(geom::Surface::Cylinder { .. })))
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Ok(geom::Surface::Cylinder { .. })))
         .map(|(k, _)| k)
         .collect();
     let q = Point3::new(2.0_f64.cos(), 1.0, -(2.0_f64.sin()));
@@ -547,7 +542,7 @@ fn the_r6_bracket_pocket_edge_no_longer_reaches_the_corner_wall() {
         .find(|(fk, _)| {
             matches!(
                 plate.face_surface(*fk),
-                Some(geom::Surface::Cylinder { frame, radius, .. })
+                Ok(geom::Surface::Cylinder { frame, radius, .. })
                     if (*radius - 6.0).abs() < 1e-9
                         && (frame.origin().x - 6.0).abs() < 1e-9
                         && (frame.origin().y - 6.0).abs() < 1e-9

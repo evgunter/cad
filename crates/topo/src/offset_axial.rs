@@ -574,7 +574,7 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
         let first = *m.faces.first().ok_or(ReplaceFaceError::EmptyGroup)?;
         let first_data = body.proven_face(first);
         let d = match first_data.surface() {
-            Surface::Cone { .. } => {
+            Ok(Surface::Cone { .. }) => {
                 crate::offset_nappe::group_nappe(body, &m.faces, band)?.turn(m.distance)
             }
             _ => m.distance,
@@ -583,7 +583,10 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
             let data = body
                 .face(face)
                 .ok_or(ReplaceFaceError::StaleFace { face })?;
-            let old = data.surface().clone();
+            let old = data
+                .surface()
+                .map_err(|_| ReplaceFaceError::PlaceholderSurface { face })?
+                .clone();
             let new = geom_brep::offset_surface(&old, d, band)
                 .map_err(|error| ReplaceFaceError::Offset { face, error })?;
             let constraint = classify(face, &new, &frame, band)?;
@@ -937,17 +940,6 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
     }
     crate::replace_face::move_points_then_rechart(&mut work, &moved, charts, &specs, tol)
         .map_err(|error| uncertified_arc(error, &conic_arcs))?;
-    // Every edge OF THE SCOPE was re-described, and the charts here DO
-    // mint pcurve rows (a cylinder, a cone and a sphere all do), so this
-    // pass is load-bearing rather than the planar door's inert one. It
-    // runs over the scope's faces alone: an out-of-scope row belongs to
-    // an edge this door did not touch and stays exactly as it was found.
-    let minting = scope.faces_in_scope();
-    crate::pcurves::mint_pcurves_of(&mut work, &minting, tol).map_err(|source| {
-        ReplaceFaceError::Pcurve {
-            source: source.for_driver(),
-        }
-    })?;
     // Tiers 1 and 2 over the WHOLE clone, in one walk (`Scope`'s docs
     // carry the account of what stays linear in the body).
     work.close_gated("offset_charts_together")
@@ -1036,7 +1028,10 @@ pub(crate) fn is_axial_in<T: Decide>(
         if !scope.holds_face(face) {
             continue;
         }
-        let surface = f.surface();
+        // A pending face is no axial chart, as a spline one is not.
+        let Ok(surface) = f.surface() else {
+            return Ok(false);
+        };
         match classify(face, surface, &frame, band) {
             Ok(_) => {}
             // The gate's own definite verdicts: this body is not
@@ -1072,7 +1067,10 @@ fn axial_frame<T: Decide>(
         if !scope.holds_face(face) {
             continue;
         }
-        let found = match f.surface() {
+        let Ok(surface) = f.surface() else {
+            return Err(ReplaceFaceError::PlaceholderSurface { face });
+        };
+        let found = match surface {
             // A torus carries `center` + `axis` exactly as a sphere
             // does: the centre is the tube midplane's own point on the
             // axis, and the axis is the revolution axis itself.
@@ -2179,6 +2177,10 @@ fn tie<T: Decide>(vertex: VertexKey) -> ReplaceFaceError<T> {
 /// caller reads both endpoints back onto it and meters the result, and
 /// meters its midpoint against both moved surfaces.
 #[allow(clippy::too_many_arguments)] // the mint's own inputs, the section read once at the gate
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn mint_carrier<T: Decide>(
     edge: EdgeKey,
     old: &Curve3<T>,
@@ -2897,6 +2899,10 @@ fn end_agrees<T: Decide>(
 /// of metre distances). An equal pair keeps the old parameter, as `q`
 /// then stands a quarter turn from both and neither read is near its
 /// cut; an undecided one escalates.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn param_on<T: Decide>(
     carrier: &Curve3<T>,
     t_old: T,
@@ -3178,6 +3184,10 @@ fn surface_residual<T: Real>(surface: &Surface<T>, p: Point3<T>, frame: &Frame<T
 /// own azimuth and still out of the plane — a sketch plane that does
 /// not contain the axis — refuses typed. Refuses also an arc
 /// whose moved carrier is no circle to subtend at.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn reauthor<T: Decide>(
     mapped: geom_brep::MappedCurve<T>,
     carrier: &Curve3<T>,
@@ -3960,7 +3970,7 @@ mod tests {
         let mut body = wedge;
         let (face, f) = body
             .faces()
-            .find(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Cylinder { .. })))
+            .find(|(_, f)| matches!(body.get_surface(f.surface), Ok(Surface::Cylinder { .. })))
             .map(|(k, f)| (k, f.surface))
             .expect("a wall on the cylinder");
         let dead = body.add_surface(Surface::Plane {

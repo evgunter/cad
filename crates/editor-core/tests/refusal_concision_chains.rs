@@ -15,8 +15,8 @@
 //! `forward` names a roster: `Split(e)` to `SplitError`'s arm and on to
 //! the stage refusal it carries, `SelectResolve` to `ResolveError` and a
 //! vanished name's `Diagnosis` (`every_forwarded_arm_has_a_row`). Below
-//! a level's last roster — an `EulerOpError` inside `ExtrudeError::Op`,
-//! a `PcurveMintError` inside `RevolveError::Pcurve` — a refusal is
+//! a level's last roster — an `EulerOpError` inside `ExtrudeError::Op` —
+//! a refusal is
 //! rendered on one representative arm. The arms `forward` files as
 //! unwelded (the D10-held mate, pose, part and placement refusals, and
 //! the Boolean's) render here on samples, each citing its row.
@@ -43,8 +43,6 @@ pub(crate) fn as_the_viewer_shows_it(kind: NodeErrorKind) -> String {
 /// report needs. Every other row names what it is about in words.
 const KERNEL_KEYED: &[&str] = &[
     "Revolve/VoidInsertion",
-    "Revolve/Pcurve",
-    "Extrude/Pcurve",
     "Split/Reduce/ConsecutiveOnSectors",
     "Split/Reduce/StaleVertex",
     "Split/Reduce/LoneVertex",
@@ -75,30 +73,24 @@ const KERNEL_KEYED: &[&str] = &[
     "Split/Finish/NestingContradiction",
     "Split/Finish/SlitUnplaced",
     "Split/Finish/ResultInvalid",
-    "Split/Pcurves",
-    "Transform/Pcurve",
     "NotFinished/ScaffoldingEmptyLoop",
     "NotFinished/ScaffoldingStrutVertex",
-    "Loft/Pcurve",
     "Blend/BodyNotIntact/Unresolved",
     "Blend/BodyNotIntact/Unwalked",
     "Blend/BodyNotIntact/Disagrees",
     "Blend/BodyNotIntact/Scaffolding",
     "Blend/SurgeryInvariant",
-    "Blend/PcurveMint",
     "Naming/SplitLineage",
     "Naming/UnsupportedSeamVertex",
     "Naming/SeamVertexPartners",
     "Naming/SharedRim",
     "Naming/ChordOffRim",
-    "Naming/ConventionalVertex",
     "Naming/ClosedCarrierUnread",
     "Naming/CarrierUnplaced",
     "Naming/PartnerUnread",
     "Naming/UnsupportedCrossingSenses",
     "Naming/UnsupportedSeamSides",
     "Naming/UnsupportedJoin",
-    "Naming/UnsupportedTurnedCell",
     "Naming/WayInZeroBand",
     "Naming/JoinedPieceOffRoot",
     "Naming/BandVerdictsDisagree",
@@ -602,12 +594,6 @@ mod payloads {
             edge: topo::EdgeSubject::Minted,
         }
     }
-
-    pub(super) fn pcurve() -> topo::PcurveMintError {
-        topo::PcurveMintError::LoopNotClosed {
-            face: topo::FaceKey::default(),
-        }
-    }
 }
 
 /// The chains that carry an operator's refusal out of a kernel
@@ -833,7 +819,7 @@ mod kernel {
         pub(super) const EXTRUDE_ERROR: ExtrudeError = [
             Band, EmptyProfile, DegenerateExtrusion, NegativeDepth, ObliqueExtrusion,
             ExtrusionEscalated, CosurfaceEscalated, SliverJoin, SliverRim,
-            SmoothJoinRefuted, Op, Pcurve, NotFinished,
+            SmoothJoinRefuted, Op, NotFinished,
         ];
     }
 
@@ -845,7 +831,7 @@ mod kernel {
             SliverRadius, ArcCrossesAxis, SliverAxisClearance, ApexEndOffSheet,
             NonManifoldAxisContact, AxisGapEscalated, HoleTouchesAxis, VoidInsertion,
             CosurfaceEscalated, SliverJoin, SliverRim, SmoothJoinRefuted,
-            PinnedRunStation, Op, Pcurve, NotFinished,
+            PinnedRunStation, Op, NotFinished,
         ];
     }
 
@@ -872,9 +858,9 @@ mod kernel {
     test_utils::f6_variants! {
         /// `LoftError`'s arms, for the `Loft/` rows.
         pub(super) const LOFT_ERROR: LoftError = [
-            Band, Skin, Euler, Pcurve, SeamStructure, SectionStructure,
+            Band, Skin, Euler, SeamStructure, SectionStructure,
             SectionRim, SectionNotFinite, PlacementNotFinite, ReversedStacking, DegenerateStacking,
-            PinnedCorner, PinnedCornerUnsupported, CornerEscalated, SectionsTouch,
+            PinnedCorner, CornerEscalated, JointEscalated, SectionsTouch,
             ClearanceUndecided, ClearanceFault, FarSectionNotForward, FarStackingEscalated,
             StackingEscalated, NotFinished,
         ];
@@ -889,7 +875,7 @@ mod kernel {
             ChamferArmUnsupported, WedgeUnsettled, Escalated, RepeatedEdge, NonpositiveSize,
             UnsupportedChain, UnsupportedGeometry, BodyNotIntact,
             NotFinished, SurgeryInvariant,
-            RingClearance, WhollyInside, PcurveMint, Op, Join,
+            RingClearance, WhollyInside, Op, Join,
         ];
     }
 
@@ -948,14 +934,14 @@ mod kernel {
     test_utils::f6_variants! {
         /// `TraceFault`'s arms, for the `Trace/Carrier/` rows.
         pub(super) const TRACE_FAULT: TraceFault = [
-            Unsupported, Unbounded, Grazing, Apex, OnCarrier, Escalated, Unsettled, Torus,
+            Unsupported, Unbounded, Grazing, Apex, OnCarrier, Escalated, Unsettled, Torus, Frame,
         ];
     }
 
     test_utils::f6_variants! {
         /// `SplitError`'s arms, for the `Split/` rows.
         pub(super) const SPLIT_ERROR: SplitError = [
-            Reduce, Join, Finish, Pcurves, Pieces,
+            Reduce, Join, Finish, Pieces,
         ];
     }
 
@@ -968,7 +954,7 @@ mod kernel {
             SectionGermsUnordered, ApexSection, VertexNearConeAxis, ApexUndecided, NonFiniteSectorChord,
             UnderflowedSectorChord,
             ConsecutiveOnSectors, StaleVertex, LoneVertex, NullEdgeAtVertex,
-            UnrecordedSide, UncoveredFace, CrossingInsertion, Euler, LineageRow,
+            UnrecordedSide, UncoveredFace, PendingFace, CrossingInsertion, Euler, LineageRow,
         ];
     }
 
@@ -1008,7 +994,7 @@ mod kernel {
             CavityCrosses, CavityUncertified,
             ChartSenseMixed, Face, OpenFaceStale, OpenFaceRepeated,
             OpenFacesExhaustShell, OpenFacesDisconnect, OpenFaceChartPartial, Lift,
-            Insert, OpenFaceRimNotExpressible, Rim, Escalated, Pcurve, RimSeamMixed,
+            Insert, OpenFaceRimNotExpressible, Rim, Escalated, RimSeamMixed,
             Join, NotValid,
         ];
     }
@@ -1028,7 +1014,7 @@ mod kernel {
             TogetherFaceRepeated, TogetherEdgeDisagreement, TogetherAxialUnsupported,
             TogetherNotAxial, TogetherAxialCorner, TogetherAxialEdge, TogetherConicArc,
             DegenerateTorus,
-            Escalated, Op, Pcurve, Join, ResultNotClosed,
+            Escalated, Op, Join, ResultNotClosed,
         ];
     }
 
@@ -1200,7 +1186,7 @@ fn forward(kind: &NodeErrorKind) -> Forward {
                 topo::SplitError::Reduce(e) => levels.push(level("SplitReduceError", e)),
                 topo::SplitError::Join(e) => levels.push(level("JoinError", e)),
                 topo::SplitError::Finish(e) => levels.push(level("SplitFinishError", e)),
-                topo::SplitError::Pcurves(_) | topo::SplitError::Pieces(_) => {}
+                topo::SplitError::Pieces(_) => {}
             }
             welded(levels)
         }
@@ -1233,7 +1219,6 @@ fn forward(kind: &NodeErrorKind) -> Forward {
                 | S::OpenFaceRimNotExpressible { .. }
                 | S::Rim { .. }
                 | S::Escalated { .. }
-                | S::Pcurve { .. }
                 | S::RimSeamMixed { .. }
                 | S::Join { .. }
                 | S::NotValid { .. } => {}
@@ -1328,7 +1313,7 @@ fn names_arms(label: &str, arms: &[&str]) -> bool {
 ///
 /// What it does not weld: the arms [`forward`] files as `Unwelded` or
 /// `RenderedIn`, and any refusal below a level's last roster (a
-/// `PcurveMintError` inside `Split/Pcurves`, the `RevolveError` inside
+/// `PieceSortError` inside `Split/Pieces`, the `RevolveError` inside
 /// `Tube/Revolve`), each rendered on one sample.
 ///
 /// Each set difference guards one direction that can fire: an arm with
@@ -2085,7 +2070,6 @@ fn extrude() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         ("Op", E::Op { source: euler() }),
-        ("Pcurve", E::Pcurve(pcurve())),
         (
             "NotFinished",
             E::NotFinished {
@@ -2254,7 +2238,6 @@ fn revolve_arms() -> Vec<(&'static str, sweep::RevolveError)> {
             },
         ),
         ("Op", E::Op { source: euler() }),
-        ("Pcurve", E::Pcurve(pcurve())),
         (
             "NotFinished",
             E::NotFinished {
@@ -2496,6 +2479,7 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 )),
             },
         ),
+        ("PendingFace", R::PendingFace { face }),
         (
             "CrossingInsertion",
             R::CrossingInsertion {
@@ -2979,30 +2963,24 @@ fn split() -> Vec<(String, NodeErrorKind)> {
         .into_iter()
         .chain(join)
         .chain(finish)
-        .chain([
-            ("Pcurves".to_owned(), SplitError::Pcurves(pcurve())),
-            (
-                "Pieces".to_owned(),
-                SplitError::Pieces(topo::PieceSortError::NoOwner { shell }),
-            ),
-        ])
+        .chain([(
+            "Pieces".to_owned(),
+            SplitError::Pieces(topo::PieceSortError::NoOwner { shell }),
+        )])
         .map(|(n, e)| row(&format!("Split/{n}"), NodeErrorKind::Split(e)))
         .chain(boolean_join)
         .collect()
 }
 
 fn transform() -> Vec<(String, NodeErrorKind)> {
-    use payloads::*;
     use topo::TransformError as E;
     [
-        ("Pcurve", E::Pcurve { source: pcurve() }),
         (
             "NullScaffold",
             E::NullScaffold {
                 edge: topo::EdgeKey::default(),
             },
         ),
-        ("NurbsPlaceholder", E::NurbsPlaceholder),
         (
             "Corrupt",
             E::Corrupt {
@@ -3013,8 +2991,10 @@ fn transform() -> Vec<(String, NodeErrorKind)> {
     .into_iter()
     .map(|(n, e)| row(&format!("Transform/{n}"), NodeErrorKind::Transform(e)))
     .chain([row(
-        "Mirror/NurbsPlaceholder",
-        NodeErrorKind::Mirror(E::NurbsPlaceholder),
+        "Mirror/NullScaffold",
+        NodeErrorKind::Mirror(E::NullScaffold {
+            edge: topo::EdgeKey::default(),
+        }),
     )])
     .chain(offset_fit_routes())
     .collect()
@@ -3636,7 +3616,6 @@ fn loft() -> Vec<(String, NodeErrorKind)> {
             E::Skin(sweep::SkinError::TooFewSections { have: 1, need: 2 }),
         ),
         ("Euler", E::Euler(euler())),
-        ("Pcurve", E::Pcurve(pcurve())),
         (
             "SeamStructure",
             E::SeamStructure {
@@ -3675,18 +3654,20 @@ fn loft() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "PinnedCornerUnsupported",
-            E::PinnedCornerUnsupported {
-                loop_index: 1,
-                at: sweep::PinnedSite::Corner(0),
-                slab: 10,
-            },
-        ),
-        (
             "CornerEscalated",
             E::CornerEscalated {
                 loop_index: 1,
                 corner: 12,
+                slab: 10,
+                source: diag(),
+            },
+        ),
+        (
+            "JointEscalated",
+            E::JointEscalated {
+                loop_index: 1,
+                segment: 12,
+                joint: 2,
                 slab: 10,
                 source: diag(),
             },
@@ -4065,7 +4046,6 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
                 margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
             },
         ),
-        ("PcurveMint", E::PcurveMint { source: pcurve() }),
         (
             "NotFinished",
             E::NotFinished {
@@ -4896,6 +4876,41 @@ fn trace() -> Vec<(String, NodeErrorKind)> {
                 .expect("a half the band left undecided refuses"),
             )),
         ),
+        (
+            "Carrier/Frame",
+            F::Carrier(TraceFault::Frame(geom_core::OrthonormalizeError {
+                axis: geom_core::OrthoAxis::V,
+                error: geom_core::UnitVec3Error::Degenerate,
+            })),
+        ),
+        (
+            "Carrier/Frame/axis",
+            F::Carrier(TraceFault::Frame(geom_core::OrthonormalizeError {
+                axis: geom_core::OrthoAxis::U,
+                error: geom_core::UnitVec3Error::Degenerate,
+            })),
+        ),
+        (
+            "Carrier/Frame/underflowed",
+            F::Carrier(TraceFault::Frame(geom_core::OrthonormalizeError {
+                axis: geom_core::OrthoAxis::V,
+                error: geom_core::UnitVec3Error::UnderflowedLength,
+            })),
+        ),
+        (
+            "Carrier/Frame/non-finite",
+            F::Carrier(TraceFault::Frame(geom_core::OrthonormalizeError {
+                axis: geom_core::OrthoAxis::V,
+                error: geom_core::UnitVec3Error::NonFiniteLength,
+            })),
+        ),
+        (
+            "Carrier/Frame/escalated",
+            F::Carrier(TraceFault::Frame(geom_core::OrthonormalizeError {
+                axis: geom_core::OrthoAxis::V,
+                error: geom_core::UnitVec3Error::Escalated(diag()),
+            })),
+        ),
         ("Uncovered", F::Uncovered(uncovered_face())),
     ];
     faults
@@ -5158,13 +5173,6 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "UnsupportedTurnedCell",
-            NamingError::UnsupportedTurnedCell {
-                read: editor_core::VarId::new(0, tagged(38)),
-                cell: topo::Cell::Vertex(topo::VertexKey::default()),
-            },
-        ),
-        (
             "WayInZeroBand",
             NamingError::WayInZeroBand {
                 edge: topo::EdgeKey::default(),
@@ -5213,13 +5221,6 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
                 edge: topo::EdgeKey::default(),
                 node: RecipeNodeId::new(0, tagged(3)),
                 face: topo::FaceKey::default(),
-            },
-        ),
-        (
-            "ConventionalVertex",
-            NamingError::ConventionalVertex {
-                vertex: topo::VertexKey::default(),
-                body: 0,
             },
         ),
         (
@@ -6007,7 +6008,6 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
                 },
             ),
             ("Escalated", S::Escalated { source: diag() }),
-            ("Pcurve", S::Pcurve { source: pcurve() }),
             (
                 "RimSeamMixed",
                 S::RimSeamMixed {
@@ -6344,7 +6344,6 @@ fn replace_face() -> Vec<(String, topo::ReplaceFaceError<f64>)> {
                     error: euler(),
                 },
             ),
-            ("Pcurve", R::Pcurve { source: pcurve() }),
             ("Join", join_refused_offset()),
             (
                 "ResultNotClosed",
@@ -6696,6 +6695,17 @@ fn every_blend_detail_renders_within_the_budget() {
                 breach: Breach::Scaffolding,
                 detail,
             },
+            // A stale key is `unresolved`, a pending surface `scaffolding`:
+            // measured at the longer of the two.
+            "surface_missed" => [Breach::Unresolved, Breach::Scaffolding]
+                .into_iter()
+                .map(|breach| E::BodyNotIntact { at, breach, detail })
+                .max_by_key(|e| {
+                    e.render(geom_brep::recourse::Reading::Build)
+                        .split_whitespace()
+                        .count()
+                })
+                .expect("two breaches"),
             other => panic!("no arm for {other}"),
         };
         for verb in [BlendKind::Fillet, BlendKind::Chamfer] {
@@ -6741,7 +6751,12 @@ fn every_blend_detail_renders_within_the_budget() {
             eprintln!("MEASURE {} {name}: {text}", text.split_whitespace().count());
             let keyed = matches!(
                 *helper,
-                "unresolved" | "unwalked" | "disagrees" | "scaffolding" | "degenerate"
+                "unresolved"
+                    | "unwalked"
+                    | "disagrees"
+                    | "scaffolding"
+                    | "degenerate"
+                    | "surface_missed"
             );
             test_utils::refusal::problems(name, text, &[], keyed)
         })
@@ -6801,6 +6816,7 @@ fn blend_details() -> Vec<(&'static str, String, String)> {
             "disagrees",
             "scaffolding",
             "degenerate",
+            "surface_missed",
         ] {
             let call = format!("{helper}(");
             for (at, _) in code.match_indices(&call) {

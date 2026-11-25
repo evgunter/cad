@@ -230,6 +230,7 @@
 //! other charts keep a typed refusal naming that re-mint as the
 //! recourse.
 
+#![cfg_attr(not(test), deny(clippy::disallowed_methods))]
 mod adopt;
 mod assemble;
 mod build;
@@ -1048,6 +1049,7 @@ pub fn import_step(
                                     |findings| StepImportError::TierInvalid {
                                         solid: Some(spec.id),
                                         errors: findings.into_findings(),
+                                        file,
                                     },
                                 )?,
                             }
@@ -1068,7 +1070,7 @@ pub fn import_step(
                                     None => built,
                                 };
                             if topo::per_part_gate_owed(model.instances.len()) {
-                                let one = gate(one, Some(spec.id), tol)?;
+                                let one = gate(one, Some(spec.id), tol, file)?;
                                 finished.insert(
                                     instance.solid,
                                     (one.clone(), motion.as_ref().map(|(m, _)| *m)),
@@ -1145,7 +1147,8 @@ pub fn import_step(
             // two solids that overlap refuse. The per-solid gates above stay
             // tier 3: contact is an aggregate-body fact, and the
             // aggregate census sweeps every entity of every instance.
-            let (body, contacts, coincidences) = gate3(body, tol)?;
+            let (body, contacts, coincidences) =
+                gate3(body, tol, geom_core::FileCoincidence::new(eps_in))?;
             normalizations.retain(|n| promotion_carried(n, &holders));
             Ok(StepImport::Solid {
                 body,
@@ -1216,10 +1219,12 @@ fn gate(
     body: topo::Body<f64>,
     solid: Option<u64>,
     tol: Tol,
+    file: geom_core::FileCoincidence,
 ) -> Result<topo::AtRestBody<f64>, StepImportError> {
     topo::finish(body, tol).map_err(|findings| StepImportError::TierInvalid {
         solid,
         errors: findings.into_findings(),
+        file,
     })
 }
 
@@ -1251,6 +1256,7 @@ fn gate(
 fn gate3(
     body: topo::Body<f64>,
     tol: Tol,
+    file: geom_core::FileCoincidence,
 ) -> Result<
     (
         topo::AtRestBody<f64>,
@@ -1259,7 +1265,7 @@ fn gate3(
     ),
     StepImportError,
 > {
-    let finished = gate(body, None, tol)?;
+    let finished = gate(body, None, tol, file)?;
     let instance: std::collections::BTreeMap<topo::SolidKey, u32> =
         finished.solids().map(|(solid, _)| solid).zip(0..).collect();
     let recorded = topo::record_at_rest(
@@ -1269,7 +1275,7 @@ fn gate3(
         &|solid| instance.get(&solid).copied(),
         0,
     );
-    let (records, rows) = gate3_findings(&finished, tol, &instance, recorded)?;
+    let (records, rows) = gate3_findings(&finished, tol, &instance, recorded, file)?;
     Ok((finished, records, rows))
 }
 
@@ -1281,6 +1287,7 @@ fn gate3_findings(
     tol: Tol,
     instance: &std::collections::BTreeMap<topo::SolidKey, u32>,
     recorded: topo::RecordedAtRest,
+    file: geom_core::FileCoincidence,
 ) -> Result<(topo::ContactRecords, Vec<topo::Coincidence>), StepImportError> {
     // The flush pairs between instances are rows of their own, which no
     // record cites.
@@ -1305,6 +1312,7 @@ fn gate3_findings(
         Err(StepImportError::TierInvalid {
             solid: None,
             errors: findings,
+            file,
         })
     }
 }

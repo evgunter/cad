@@ -204,12 +204,12 @@ fn revert_uses_the_plane_normal_for_planes_and_the_sense_bit_for_charts() {
 
     let planar: Vec<_> = body
         .faces()
-        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Plane { .. })))
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Ok(Surface::Plane { .. })))
         .map(|(k, f)| (k, f.sense, f.surface))
         .collect();
     let curved: Vec<_> = body
         .faces()
-        .filter(|(fk, _)| !matches!(body.face_surface(*fk), Some(Surface::Plane { .. })))
+        .filter(|(fk, _)| !matches!(body.face_surface(*fk), Ok(Surface::Plane { .. })))
         .map(|(k, f)| (k, f.sense, f.surface))
         .collect();
     assert_eq!(planar.len(), 2, "two caps");
@@ -221,7 +221,7 @@ fn revert_uses_the_plane_normal_for_planes_and_the_sense_bit_for_charts() {
     // Planar faces: the BIT is untouched, the stored normal negates.
     for &(k, sense, sk) in &planar {
         assert_eq!(rev.get_face(k).unwrap().sense, sense, "plane bit moved");
-        let (Some(Surface::Plane { frame: f0, .. }), Some(Surface::Plane { frame: f1, .. })) =
+        let (Ok(Surface::Plane { frame: f0, .. }), Ok(Surface::Plane { frame: f1, .. })) =
             (body.get_surface(sk), rev.get_surface(sk))
         else {
             panic!("plane surfaces stay planes");
@@ -301,7 +301,7 @@ fn revert_flips_a_mixed_sense_body_face_by_face() {
     // faces keep theirs (their reversal is in the normal).
     for ((k, _), was) in body.faces().zip(before.iter()) {
         let now = rev.get_face(k).unwrap().sense;
-        let curved = !matches!(body.face_surface(k), Some(Surface::Plane { .. }));
+        let curved = !matches!(body.face_surface(k), Ok(Surface::Plane { .. }));
         assert_eq!(now, if curved { !*was } else { *was }, "face {k:?}");
     }
     assert_ne!(after, before, "something must have moved");
@@ -447,7 +447,7 @@ fn a_boolean_that_splits_a_reversed_wall_inherits_the_parent_bit() {
         // cylinder still bounds material on its INSIDE.
         let reversed_curved = out
             .faces()
-            .filter(|(fk, _)| !matches!(out.face_surface(*fk), Some(Surface::Plane { .. })))
+            .filter(|(fk, _)| !matches!(out.face_surface(*fk), Ok(Surface::Plane { .. })))
             .filter(|(_, f)| !f.sense)
             .count();
         assert!(
@@ -502,7 +502,7 @@ fn the_die_pip_sphere_shape_now_cuts_at_the_opened_door() {
     assert_eq!(cut.shells().count(), 1, "the barrel tunnel is one shell");
     let reversed_sphere = cut
         .faces()
-        .filter(|(fk, f)| matches!(cut.face_surface(*fk), Some(Surface::Sphere { .. })) && !f.sense)
+        .filter(|(fk, f)| matches!(cut.face_surface(*fk), Ok(Surface::Sphere { .. })) && !f.sense)
         .count();
     assert!(
         reversed_sphere > 0,
@@ -556,8 +556,8 @@ fn the_die_pip_sphere_shape_now_cuts_at_the_opened_door() {
 /// pin flipped to** (the pin's own doc comment promised exactly this):
 /// the fallback's vertex probe is now backed by the curved-EXTENT scan
 /// — the sphere group's true extent (center ± r) is consulted against
-/// every face of the other operand — which detects the escape, re-cuts
-/// the operand (rigid re-chart about the escape normal), and re-enters
+/// every face of the other operand — which detects the escape, cuts the
+/// ball's face in along its meridian through each circle, and re-enters
 /// the pipeline, where the crossing layer finds the two section
 /// circles and the `(Plane, Sphere)` germ arm joins them exactly.
 ///

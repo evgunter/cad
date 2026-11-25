@@ -116,7 +116,7 @@ use crate::names::defer::{TieRows, mint_candidates};
 use crate::names::discriminate::{ON_MEMBER_EDGE, band};
 use crate::names::emit::{
     DisagreeShape, Incidence, NamingError, SeamSidesShape, SeamVertexShape, UnionNameShape,
-    check_total, edge_ends, ent, face_half_edges, read_held, vertex_point,
+    edge_ends, ent, face_half_edges, read_held, vertex_point,
 };
 use crate::names::emit_topo::{
     CornerCopies, Cover, EdgeCarrier, EdgePieces, EdgeReading, HeldFace, Lone, ParentEntities,
@@ -256,7 +256,7 @@ fn keyed(
 /// `body` the body it names. The rewrite is one-to-one on rows —
 /// distinct entities keep distinct names, and a collision would be an
 /// emission bug, refused typed by [`NameTable::insert`] rather than
-/// aliased. [`check_total`] re-runs afterwards, so the rewritten table
+/// aliased. The totality check ([`super::emit::finish`]) re-runs afterwards, so the rewritten table
 /// is held to the same totality the fold's was.
 pub(crate) fn name_union<T: geom_core::Decide>(
     node: RecipeNodeId,
@@ -310,7 +310,7 @@ pub(crate) fn name_union<T: geom_core::Decide>(
     }
     pieces.mint(&mut t, &mut tie)?;
     tie.flush(&mut t)?;
-    check_total(&t, body, 0)?;
+    let t = super::emit::finish(t, body, 0)?;
     Ok((Arc::new(t), groups))
 }
 
@@ -1603,7 +1603,8 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
 
     /// **The name of the member vertices finished vertex `v` sits at**,
     /// if any: each vertex `w` of a member `n` at `v`'s point that lies on
-    /// a face of `n` a face around `v` holds, the one such vertex
+    /// a face of `n` a face around `v` holds, and is no conventional
+    /// vertex of `n` (`names/README.md`), the one such vertex
     /// or `Merged` of the several; whether a member's table ties one of
     /// them, a tie its citing name descends from (N2); and the vertices,
     /// each by its member's index.
@@ -1638,7 +1639,10 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
                         )
                     })
                     .start;
-                if !seen.insert((i, w)) {
+                // A member's conventional vertex has no identity of its
+                // own: its point is its closed edge's interior.
+                let own = m.table.name_of(&ent(0, EntityKey::Vertex(w)));
+                if !seen.insert((i, w)) || super::emit::is_named_conventional(m.body, w, own) {
                     continue;
                 }
                 let gap = Margin::of((vertex_point(m.body, w) - p).norm());
@@ -2085,22 +2089,14 @@ impl<T: geom_core::Real> PairSenses<T> {
     /// # Errors
     ///
     /// [`NamingError::Settle`] where a key's rows lead to a cell the
-    /// result does not hold: a corrupt record, not an absent key; and
-    /// [`NamingError::UnsupportedTurnedCell`] where the judgement keeps
-    /// a cell a sphere re-chart turned
-    /// ([`super::emit_topo::refuse_turned_cells`]).
+    /// result does not hold: a corrupt record, not an absent key.
     pub(crate) fn judged(
         &mut self,
         a: usize,
         b: usize,
         naming: &topo::BooleanNaming,
         body: &topo::Body<T>,
-        reads: [crate::VarId; 2],
-        b_body: &topo::Body<T>,
     ) -> Result<(), NamingError> {
-        // A judgement's body is named by no pair emitter.
-        let inv = super::emit_topo::GraftInverse::of(naming);
-        super::emit_topo::refuse_turned_cells(body, naming, &inv, reads, b_body)?;
         let grafted: BTreeMap<topo::VertexKey, topo::VertexKey> =
             naming.graft_vertices.iter().copied().collect();
         let settler = naming.settler(body);
@@ -3023,6 +3019,10 @@ fn orient<'s>(
                 face: done.need(face)?.clone(),
                 sense: collapsed_sense(sense, done)?,
             }],
+            // A closed edge's conventional vertex: its edge collapsed.
+            RoleSeg::ConventionalVertex(edge) => {
+                vec![RoleSeg::ConventionalVertex(done.need(edge)?.clone())]
+            }
             RoleSeg::EdgeCrossing(run) => vec![RoleSeg::EdgeCrossing(
                 run.iter()
                     .map(|l| {
@@ -3123,6 +3123,7 @@ fn orient<'s>(
             | RoleSeg::Crossing { .. }
             | RoleSeg::EdgeCrossing { .. }
             | RoleSeg::Merged(_)
+            | RoleSeg::ConventionalVertex(_)
             | never_in_a_boolean_table!() => foreign(seg, "a head segment in its tail"),
         });
     }

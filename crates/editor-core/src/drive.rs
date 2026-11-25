@@ -259,16 +259,11 @@ pub struct DriveConfig {
 /// arc family it cannot discharge (M10-8) means the box
 /// refuses either way.
 ///
-/// Two things keep that bill down and both are measured rather than
-/// argued. A margin the numeric channel has already proved NON-ZERO
-/// is never DECIDED by its form (`geom_core::sym`'s `Decide` impl —
-/// at this lane's EXACT witness a certified enclosure excluding zero
-/// is a proof no normal form can contradict), which is most margins on
-/// most documents; the form is still BUILT for it by the contradiction
-/// check at that site, which at an exact witness is a `debug_assert!`
-/// and so runs wherever debug assertions are on (dev, test and this
-/// workspace's release profile) — a tenth of the slab's plain forms,
-/// measured (`geom_core::sym`'s `# Cost`). And
+/// Two things keep that bill down. A margin the numeric channel has
+/// already proved NON-ZERO asks the tier nothing (`geom_core::sym`'s
+/// `Decide` impl — at this lane's EXACT witness a certified enclosure
+/// excluding zero is a proof no normal form can contradict), which is
+/// most margins on most documents: no form is built for it. And
 /// `Poly::mul` refuses on pre-bounds instead of building a product and
 /// discarding it, so an over-budget multiplication costs its two
 /// operands' sizes rather than their product.
@@ -938,23 +933,15 @@ impl ParamBoxVerdict {
                 "decisions symbolic={} numeric={} frozen={}",
                 self.decisions.symbolic, self.decisions.numeric, self.decisions.frozen
             );
-            // The door's two REFUSAL columns, present only when non-zero:
-            // a registration the witness
-            // separated, and a registered zero the enclosure
-            // contradicted. Zero on every document that behaves, so a
-            // clean drive serializes what it serialized before.
+            // The door's REFUSAL column, present only when non-zero: a
+            // registration the witness separated. Zero on every
+            // document that behaves, so a clean drive serializes what
+            // it serialized before.
             if self.decisions.registrations_refused != 0 {
                 let _ = write!(
                     s,
                     " registrations_refused={}",
                     self.decisions.registrations_refused
-                );
-            }
-            if self.decisions.registrations_contradicted != 0 {
-                let _ = write!(
-                    s,
-                    " registrations_contradicted={}",
-                    self.decisions.registrations_contradicted
                 );
             }
             // **How many of the discharges above a RETRY carried**
@@ -970,22 +957,6 @@ impl ParamBoxVerdict {
             // second attempt is holding up.
             if self.decisions.retried != 0 {
                 let _ = write!(s, " retried={}", self.decisions.retried);
-            }
-            // The theorem channels' refusal column, by the same rule
-            // again. **It costs no schema bump because there is no
-            // schema to bump**: this text is written and never parsed.
-            // Its two consumers are `content_key`, which hashes it
-            // (derived on demand, never persisted — E10), and the rows
-            // that compare two renderings byte for byte. Neither reads
-            // a FIELD, so a key added here cannot break a reader; what
-            // the present-only-when-nonzero rule buys is that the hash
-            // and those comparisons do not move — and here the column
-            // cannot be non-zero at all, because a drive replays at
-            // `Sym<Interval>`, whose witness is EXACT, so the
-            // contradiction is asserted rather than counted
-            // (`geom_core::SymCounts::theorems_disputed`).
-            if self.decisions.theorems_disputed != 0 {
-                let _ = write!(s, " theorems_disputed={}", self.decisions.theorems_disputed);
             }
             let _ = writeln!(s);
         }
@@ -1089,20 +1060,6 @@ impl ParamBoxVerdict {
                     s,
                     "; {} registration(s) REFUSED by the witness",
                     d.registrations_refused
-                );
-            }
-            if d.registrations_contradicted != 0 {
-                let _ = write!(
-                    s,
-                    "; {} registered identity/identities CONTRADICTED by a definite enclosure",
-                    d.registrations_contradicted
-                );
-            }
-            if d.theorems_disputed != 0 {
-                let _ = write!(
-                    s,
-                    "; {} theorem(s) DISPUTED by an inexact value channel",
-                    d.theorems_disputed
                 );
             }
             let _ = writeln!(s, "; {} form(s) frozen", d.frozen);
@@ -2382,7 +2339,7 @@ mod tests {
             spec,
             p0,
             p1,
-            |k| arena.get(k).cloned(),
+            |k| arena.get(k).cloned().ok_or(geom_brep::SurfaceMiss::Stale),
             geom_core::test_support::fixture_lever(lift(1.0)),
             band(),
             geom_brep::NurbsLane::certified(),

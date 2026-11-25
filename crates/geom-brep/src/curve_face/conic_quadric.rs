@@ -586,6 +586,10 @@ fn deflated<T: Decide>(h: &crate::ConicHarmonics<T>, theta_a: T) -> (T, T, (T, T
 /// geometry, `δ²/per` and `2δ·speed/per` at the point's distance `δ`
 /// from the apex, its own rounding carried, not off the rounded
 /// coefficients, whose noise a square root would amplify past any band.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub(super) fn apex_spread<T: Decide>(
     conic: &dyn geom::Conic<T>,
     (apex, _, _): (geom_core::Point3<T>, geom_core::UnitVec3<T>, T),

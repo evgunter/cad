@@ -214,7 +214,7 @@ impl RingPlacementError {
 /// ([`RingPlacementError::SplineTrimUnread`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SplineTrimGap {
-    /// The chart is a placeholder, mid-operation.
+    /// The face has no surface yet, mid-operation.
     Placeholder,
     /// The chart has no Bézier cells: a degree of zero, a knot past its
     /// degree's multiplicity or with no value, a weight not shown
@@ -391,11 +391,10 @@ pub(crate) fn face_lift<T: Decide>(
             rings: Vec::new(),
         });
     }
-    let surface = view.surface();
-    let decks = if surface.spline_chart().is_some() {
-        let rings: Vec<(LoopKey, &Lift<T>)> = rings.iter().copied().zip(&read).collect();
-        crate::spline_trim::ring_decks(body, face, &outer, &rings, band)?
-    } else {
+    // A pending face takes the spline arm, whose reader refuses it.
+    let decks = if let Ok(surface) = view.surface()
+        && surface.spline_chart().is_none()
+    {
         let periods = ChartPeriods::of(surface, band);
         let reader = Outer::of(&outer, surface, periods.v());
         let lengths = [periods.u(), periods.v()].map(|p| p.map(|p| p.length().value_channel()));
@@ -421,6 +420,9 @@ pub(crate) fn face_lift<T: Decide>(
             decks.push(shift.deck);
         }
         decks
+    } else {
+        let rings: Vec<(LoopKey, &Lift<T>)> = rings.iter().copied().zip(&read).collect();
+        crate::spline_trim::ring_decks(body, face, &outer, &rings, band)?
     };
     // A ring that stays is the lift already read; a moved one is read
     // again in its new gauge, from the stored rows.
@@ -571,7 +573,7 @@ impl<'a, T: Decide> Outer<'a, T> {
         for (i, row) in lift.rows().iter().enumerate() {
             pieces.push(Piece::Image {
                 pcurve: &row.pcurve,
-                span: row.params.ends(),
+                span: row.params(),
             });
             let next = ends[(i + 1) % ends.len()].0;
             pieces.push(Piece::Segment(ends[i].1, next));

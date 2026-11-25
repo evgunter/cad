@@ -161,6 +161,13 @@ pub enum ReadbackError {
     /// certified carrier — a transient state tier 2 refuses at rest,
     /// surfaced rather than guessed around.
     NoCarrier,
+    /// The face has no surface yet ([`crate::SurfaceMiss::Pending`]) — a
+    /// transient state tier 3 refuses at rest, surfaced rather than
+    /// guessed around.
+    PendingSurface {
+        /// The pending face.
+        face: FaceKey,
+    },
 }
 
 // The human-readable rendering (LIB-DOORS F6 shape): each arm states
@@ -188,6 +195,12 @@ impl core::fmt::Display for ReadbackError {
                  certified carrier — a transient state tier 2 refuses at rest; \
                  let the body reach rest before reading it back",
             ),
+            Self::PendingSurface { face } => write!(
+                f,
+                "{} has no surface yet — a transient state tier 3 refuses at \
+                 rest; let the body reach rest before reading it back",
+                EntityId::Face(*face)
+            ),
         }
     }
 }
@@ -195,9 +208,10 @@ impl core::fmt::Display for ReadbackError {
 impl std::error::Error for ReadbackError {}
 
 /// **A face's carrier surface, as the read-back doors refuse it**:
-/// [`Body::face`]'s [`crate::live::FaceView::surface`], its one refusal (a stale face key) spelled
-/// [`ReadbackError::Dangling`], with the surface's key and the face's
-/// orientation sense read off the record beside it.
+/// [`Body::face`]'s [`crate::live::FaceView::surface`], a stale face key
+/// spelled [`ReadbackError::Dangling`] and a pending face
+/// [`ReadbackError::PendingSurface`], with the surface's key and the
+/// face's orientation sense read off the record beside it.
 pub(crate) fn carrier_surface<T: Real>(
     body: &Body<T>,
     face: FaceKey,
@@ -205,7 +219,10 @@ pub(crate) fn carrier_surface<T: Real>(
     let f = body.face(face).ok_or(ReadbackError::Dangling {
         what: EntityId::Face(face),
     })?;
-    Ok((f.record().surface, f.surface(), f.sense()))
+    let surface = f
+        .surface()
+        .map_err(|crate::Pending| ReadbackError::PendingSurface { face })?;
+    Ok((f.record().surface, surface, f.sense()))
 }
 
 /// **A face's carrier frame** — the stored plane/axis data of the
@@ -224,6 +241,7 @@ pub(crate) fn carrier_surface<T: Real>(
 /// # Errors
 ///
 /// [`ReadbackError::Dangling`] for a stale face key;
+/// [`ReadbackError::PendingSurface`] for a face with no surface yet;
 /// [`ReadbackError::NoCanonicalFrame`] for a NURBS carrier.
 ///
 /// ```
@@ -235,11 +253,11 @@ pub(crate) fn carrier_surface<T: Real>(
 /// let mut body = Body::<f64>::new();
 /// let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).expect("mvfs has no preconditions");
 ///
-/// // A seed face carries the "no description yet" placeholder, which
-/// // fixes no frame — and the door says so rather than inventing one.
+/// // A seed face has no surface yet, so it fixes no frame — and the
+/// // door says so rather than inventing one.
 /// assert!(matches!(
 ///     face_pose(&body, seed.face),
-///     Err(ReadbackError::NoCanonicalFrame { .. })
+///     Err(ReadbackError::PendingSurface { .. })
 /// ));
 ///
 /// // Attach a real plane, and the door hands back what was attached.
@@ -354,7 +372,8 @@ pub fn face_pose<T: Real>(body: &Body<T>, face: FaceKey) -> Result<Pose<T>, Read
 ///
 /// # Errors
 ///
-/// [`ReadbackError::Dangling`] for a stale face key.
+/// [`ReadbackError::Dangling`] for a stale face key;
+/// [`ReadbackError::PendingSurface`] for a face with no surface yet.
 pub fn face_stored_surface<T: Real>(
     body: &Body<T>,
     face: FaceKey,
@@ -380,9 +399,10 @@ pub fn face_stored_surface<T: Real>(
 ///
 /// # Errors
 ///
-/// [`ReadbackError::Dangling`] for a stale face key — the
-/// only refusal: every carrier, NURBS and approximating included,
-/// has a kind.
+/// [`ReadbackError::Dangling`] for a stale face key, and
+/// [`ReadbackError::PendingSurface`] for a face whose surface is still
+/// pending: every carrier, NURBS and approximating included, has a
+/// kind, and a pending face has no carrier.
 ///
 /// ```
 /// use geom::SurfaceKind;
@@ -550,6 +570,10 @@ pub fn edge_carrier_kind<T: Real>(
 /// # Panics
 ///
 /// Where the live edge's curve key does not resolve (D2 row 4).
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub fn edge_pose<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<Pose<T>, ReadbackError> {
     match carrier_curve(body, edge)? {
         Curve3::Line(geom::Line { origin, dir }) => Ok(Pose {

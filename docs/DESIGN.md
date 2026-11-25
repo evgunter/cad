@@ -228,6 +228,41 @@ true at every type it can produce
 (`crates/geom-core/README.md`, DL5.2 and DL5.3, is this clause at the
 scalars).
 
+### A size is a type `[sizes]`
+
+A length the kernel stores as a size is a `Size` (not the user-facing
+`quantity::Length`). A `Size` is
+finite and strictly positive: it is bounded and not definitely at or
+below zero, so at an `Interval` an enclosure that straddles zero is
+still one. It has one mint, and that mint is fallible: a zero, a
+negative, a NaN or an unbounded value refuses with a typed error and
+never panics. Finiteness is decided at the mint and nowhere else.
+`decide` stays a sign verdict, so `decide(+∞)` is `Positive`.
+
+- **A conic's sizes** (a circle's radius, an ellipse's semi-axes) are
+  exact `Size`s, with no band. Whether a computed conic exists is
+  its producer's pose decision, or is implied by the surface it lies
+  on. A second band decision at the mint would be a second place for
+  that fact ([one-way.places]). The readers that meter through a
+  conic decide span questions, and keep them.
+- **A surface kind's convention** is a witness decided on the run's
+  band, minted where the surface comes to exist, on the run's
+  tolerance and never on a caller's band. A cylinder's or a sphere's
+  radius is decided positive, a torus holds a `RingTorus`, and a
+  spindle holds its sheet verdict. A witness hands out `Size`s.
+  The at-rest check's radius half and the section arms' radius guards
+  re-decide this fact, and retire.
+- **A cone's half-angle** is an exact type, strictly inside
+  `(0, π/2)`. Where its band fact lives, and at which lever, is a
+  question of its own.
+- **A builder that computes a size returns `Result`.** Evaluators
+  stay total, and poison flows through numbers, never into a stored
+  size. A builder below a predicate battery hands back numbers, and
+  the entity is minted after the battery passes, from that battery's
+  decision. A blend torus's ring witness is minted from the spine
+  regularity predicate's passed decision, through a token only that
+  decision mints.
+
 ### Failure is loud, and its kind is plain `[loud-failure]`
 
 Nothing absorbs a failure: no silent discard, no hidden healing, no
@@ -290,7 +325,7 @@ of them is a defect.
 | Topology construction | the Euler operators | [topology.operators] |
 | A vertex's neighbourhood cut by a surface: its sector walk, the cuts and their germs, the germs' order, the null-edge plan and the mint at a vertex | `topo::star`; a verb supplies its sides and which circle carries its chords | [one-way] |
 | A cavity's birth | `topo::insert_void` | [topology.conventions] |
-| A body's at-rest validity | one gate, for native and imported bodies alike: the scalar's `finish`, the one place a body's verdict is derived; a certificate is a fact about its support and is read wherever that support is bit-identical and derived wherever it is not, so a finish carries the embedding fact of each face pair it finds unchanged in a finished operand, and asks the rest, and an edge's or pcurve row's certificate is carried by every door that keeps its support; a finished body moved by an isometry stays finished and asks only the session box again; the finish also completes a body's pcurve rows before its verdict, the one place they become complete: it drops rows on dead half-edges, keeps every stored row and derives each missing one, so no producer mints to close and a stale row is refused rather than replaced; in construction state a door keeps a stored row current or drops it; a move carries the rows under a motion and re-derives them under a reflection;  doors take and return finished bodies, and none re-gates. One exception, Ev on PR 6371: at the box scalars (`Interval`, `Sym`) the doors that end in the scalar's leaf (`AtRestPolicy::leaf`) return tier 2 alone, and the consumer that takes a finished body finishes it (`topo::take`), until `work/boxfinish/delete-the-box-scalar-sweep-leaf-switch.md`. Those doors are the sweep doors (extrude, revolve, loft, sweep, the tube) and the `⊔` graft | [topology.tiers], [import] |
+| A body's at-rest validity | one gate, for native and imported bodies alike: the scalar's `finish`, the one place a body's verdict is derived; a certificate is a fact about its support and is read wherever that support is bit-identical and derived wherever it is not, so a finish carries the embedding fact of each face pair it finds unchanged in a finished operand, and asks the rest, and an edge's or pcurve row's certificate is carried by every door that keeps its support; a finished body moved by an isometry stays finished and asks only the session box again; the finish also completes a body's pcurve rows before its verdict, and the same completion runs early where a reader inside the pipeline needs the rows: it drops rows on dead half-edges, keeps every stored row and derives each missing one, so no producer mints to close and a stale row is refused rather than replaced; in construction state a door keeps a stored row current or drops it; a move carries the rows under a motion and re-derives them under a reflection;  doors take and return finished bodies, and none re-gates. One exception, Ev on PR 6371: at the box scalars (`Interval`, `Sym`) the doors that end in the scalar's leaf (`AtRestPolicy::leaf`) return tier 2 alone, and the consumer that takes a finished body finishes it (`topo::take`), until `work/boxfinish/delete-the-box-scalar-sweep-leaf-switch.md`. Those doors are the sweep doors (extrude, revolve, loft, sweep, the tube) and the `⊔` graft | [topology.tiers], [import] |
 | Contact records across an op | one lineage, one carry | [topology.records] |
 | Which description a glued pair keeps | decided once, at the glue | [coincidence.booleans] |
 | An edge's geometry | one intensional description; every representation a certified cache | [edges] |
@@ -445,10 +480,11 @@ curve pairs.
   scalar, no longer carry it. A continuous
   value that varies over the box is no choice: chosen at the nominal
   values, it is wrong everywhere else, so the lane builds it. The one
-  such value a lane takes from `f64` is a solved parameter with no
-  closed form, admitted by a check at the lane scalar that leaves
-  every member of the box within the band, and refused where no one
-  number does (`crates/geom-core/README.md`, DL5.2).
+  such value a lane takes from `f64` is a proposal: a solved parameter
+  with no closed form, or a fitted image, admitted by a check at the
+  lane scalar that leaves every member of the box within the band, and
+  refused where no one value does (`crates/geom-core/README.md`,
+  DL5.2).
 - **The editor-core evaluation service is generic over `Real`.** M10's
   error-propagation UI rides the same memoization / cancelation /
   per-node-result machinery as f64 rebuilds; no parallel path.

@@ -767,3 +767,5 @@ report, and the row exists so the next unit that needs that table finds
 the reason rather than re-discovering it.
 
 **2026-09-28:** The chamber row cited above (`m10_3_r1_probes_interval::the_driven_chamber_replays_bit_identically_…`) was deleted in the 2026-09-28 CI-latency cut; the bounded chamber itself stays (`bounded_chamber`, `CHAMBER_LEAVES`).
+
+**2026-11-23:** `boxfinish/decide-path-check` stops a definite numeric sign from walking the tier (the check that walked every definite margin's forms is a test instrument now, `geom_core::sym::contradiction`). Every instruction and form count in `sym.rs`'s `# Cost` was taken with that check's walks in it (918 plain and 1,958 early forms on the slab's nominal, 1.57 M of the chamber drive's 19.1 M plain forms), so each is an upper bound until re-taken on a head with the change.

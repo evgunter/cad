@@ -141,11 +141,11 @@ use crate::cell_region::{
     Ball, BoundaryStop, CellRegion, cell_region_lifted, centre, lift_boundary, station_region,
 };
 use crate::census::depth_gap;
-use crate::entity::{EdgeKey, Face, FaceKey, HalfEdgeKey, VertexKey};
+use crate::entity::{EdgeKey, EntityId, Face, FaceKey, HalfEdgeKey, VertexKey};
 use crate::injective::{
     self, Axis, Boundary, Iso, Local, Near, Outcome, Piece, Rim, Shared, Use, full_turn,
 };
-use crate::live::{BoundaryMember, FaceView};
+use crate::live::{BoundaryMember, FaceView, proven};
 use crate::validate::definitely_positive;
 use lift::{Lift, certified_lift};
 
@@ -486,6 +486,14 @@ pub struct Windows<'b, T: Real> {
 
 #[cfg(any(test, feature = "test-support"))]
 impl<T: Real> Windows<'_, T> {
+    /// **How many posed boundaries each face built in this ask**
+    /// ([`injective::FacePoses`]), by face: a sphere face builds one per
+    /// pose, once, however many cells are read in it.
+    #[doc(hidden)]
+    pub fn posed_builds(&self) -> Vec<(FaceKey, usize)> {
+        self.of.iter().map(|w| (w.face, w.poses.builds())).collect()
+    }
+
     /// **How many readings each spline chart's and spline edge's memo
     /// holds** ([`geom::NurbsSurface::memo_entries`],
     /// [`geom::NurbsCurve3::memo_entries`]): the charts', then the
@@ -2381,9 +2389,9 @@ where
                 } else if let Some((near, la, lb)) = &near {
                     let (px, py) = (piece_of(x, pair.a, la), piece_of(y, pair.b, lb));
                     if same {
-                        injective::certify_self(&px, &py, near, band)
+                        injective::certify_self(&px, &py, near, band, &x.poses)
                     } else {
-                        injective::certify_pair(&px, &py, near, band)
+                        injective::certify_pair_in(&px, &py, near, band, (&x.poses, &y.poses))
                     }
                 } else {
                     unreachable!("a touching pair meets or is near")
@@ -3501,6 +3509,9 @@ struct Window<'b, T: Real> {
     /// The face's boundary, lifted: what the injectivity question reads
     /// two faces' shared cells and a cell's local boundary off.
     boundary: Boundary,
+    /// The face's poses, built once in the ask, when a cell is first read
+    /// in one ([`injective::FacePoses`]).
+    poses: injective::FacePoses,
 }
 
 /// **What a window is of its face.**
@@ -3574,8 +3585,8 @@ impl RegionMemo {
         let region = match w.region {
             Region::Whole => CellRegion::Inside,
             Region::Trimmed => match w.body.face(w.face).map(|f| f.surface()) {
-                None => CellRegion::Undecided,
-                Some(stored) => {
+                None | Some(Err(_)) => CellRegion::Undecided,
+                Some(Ok(stored)) => {
                     // The carrier is the window's own lift, which
                     // [`window_of`] admitted only where it certifies.
                     let boundary = self
@@ -3635,6 +3646,19 @@ fn full_latitude() -> (f64, f64) {
     )
 }
 
+/// **A spindle sheet's canonical tube-angle range** `[−v*, v*]`, its
+/// apexes' angle ([`geom::sheet_apex`]) taken at its widest over the
+/// lifted datums, widened as [`full_latitude`] is. Evaluating a hair
+/// past an apex lands a hair from it, on the torus's other sheet: the
+/// widening can only ADD points to an enclosure.
+fn sheet_latitude(major_radius: Interval, minor_radius: Interval) -> (f64, f64) {
+    let apex = geom::sheet_apex(major_radius, minor_radius)
+        .v
+        .hi()
+        .next_up();
+    (-apex, apex)
+}
+
 /// **Which carriers are admitted, and the argument for each window.**
 ///
 /// A window must be a SUPERSET of the face's region in carrier
@@ -3665,6 +3689,8 @@ fn full_latitude() -> (f64, f64) {
 ///   take their canonical ranges.
 /// - **Torus**: both coordinates are periodic and no boundary bounds
 ///   either.
+/// - **Spindle sheet**: as the sphere, `u` takes the whole turn and `v`
+///   its canonical range between the apexes ([`sheet_latitude`]).
 /// - **NURBS**: a face whose boundary is its chart's own isos, run
 ///   once around the knot domain — every loft and sweep wall — is the
 ///   whole patch, and its window is that domain
@@ -3695,7 +3721,9 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
     let Some(f) = body.face(face) else {
         return unsupported("an unreadable face");
     };
-    let stored = f.surface();
+    let Ok(stored) = f.surface() else {
+        return unsupported("the pending face");
+    };
     let Some((bounds, boundary)) = boundary_of(body, face) else {
         return unsupported("a face whose boundary carries no sound enclosure");
     };
@@ -3712,12 +3740,8 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
         let d = (extent - origin).dot(dir) / dir.norm_squared();
         (d.lo(), d.hi())
     };
-    match stored {
-        Surface::Approx(_) => return unsupported(APPROXIMATED),
-        Surface::Nurbs(net) if net.is_placeholder() => {
-            return unsupported("the placeholder free-form face");
-        }
-        _ => {}
+    if let Surface::Approx(_) = stored {
+        return unsupported(APPROXIMATED);
     }
     let Some(charted) = certified_lift(|lift| stored.map_scalar(|x| lift.of(x))) else {
         return unsupported("a face whose carrier does not certify");
@@ -3756,7 +3780,11 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
         }
         Surface::Sphere { .. } => superset(full_turn(), full_latitude()),
         Surface::Torus { .. } => superset(full_turn(), full_turn()),
-        Surface::Spindle { .. } => return unsupported("a spindle sheet's face"),
+        Surface::Spindle {
+            major_radius,
+            minor_radius,
+            ..
+        } => superset(full_turn(), sheet_latitude(*major_radius, *minor_radius)),
         Surface::Nurbs(net) => match iso_bounded_domain(body, f.record(), net) {
             Ok((u, v)) => (u, v, Region::Whole),
             Err(carrier) => return unsupported(carrier),
@@ -3800,6 +3828,7 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
         v,
         body,
         boundary,
+        poses: injective::FacePoses::default(),
     })
 }
 
@@ -3951,7 +3980,7 @@ fn iso_bounded_domain<T: Decide + CertifiedBounds>(
         if !matches!(&row.pcurve, Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. }) {
             return Err(NOT_ISO);
         }
-        let (t0, t1) = row.params.ends();
+        let (t0, t1) = row.params();
         let point = |t: T| {
             let p = row.pcurve.eval(t);
             (Interval::from_certified(p.x), Interval::from_certified(p.y))
@@ -4044,6 +4073,29 @@ fn narrows(whole: &Aabb, half: &Aabb) -> bool {
             || half.min_z > whole.min_z)
 }
 
+/// **Whether each pose of a sphere face holds `point` in its extent**
+/// ([`injective::posed_extents_holding`]), the face read as the
+/// certificate reads it. `None` where the face or its carrier does not
+/// lift.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn posed_extents_holding(
+    body: &Body<f64>,
+    face: FaceKey,
+    point: [f64; 3],
+    band: Band,
+) -> Option<Vec<Option<bool>>> {
+    let stored = body.face(face)?.surface().ok()?;
+    let (_, boundary) = boundary_of(body, face)?;
+    let surface = certified_lift(|lift| stored.map_scalar(|x| lift.of(x)))?;
+    let p = point.map(|x| Interval::from_bounds(x, x));
+    Some(injective::posed_extents_holding(
+        &surface,
+        &boundary,
+        Point3::new(p[0], p[1], p[2]),
+        band,
+    ))
+}
+
 /// The face's boundary enclosure, and the boundary itself lifted.
 ///
 /// The enclosure is the hull of every boundary edge's region — its
@@ -4078,6 +4130,9 @@ fn boundary_of<T: Decide + CertifiedBounds>(
         };
         let mut halves: BTreeMap<EdgeKey, Vec<HalfEdgeKey>> = BTreeMap::new();
         let mut images: BTreeMap<HalfEdgeKey, Image> = BTreeMap::new();
+        // The outer loop's half-edges in the walk's order; `None` once a
+        // ring has edges.
+        let mut outer: Option<Vec<HalfEdgeKey>> = Some(Vec::new());
         for (lk, members, role) in f.boundary_by_loop() {
             let mut cycle = false;
             for member in &members {
@@ -4088,17 +4143,24 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                     let ek = edge.key();
                     halves.entry(ek).or_default().push(he);
                     cycle = true;
+                    if role.is_outer() {
+                        if let Some(o) = outer.as_mut() {
+                            o.push(he);
+                        }
+                    } else {
+                        outer = None;
+                    }
                 }
             }
             if cycle && let Ok(rows) = crate::pcurves::Lift::read(body, lk) {
                 if role.is_outer() {
-                    let surface = f.surface();
+                    let surface = f.surface().ok()?;
                     let periodic =
                         [Axis::U, Axis::V].map(|axis| injective::periodic(surface, axis));
                     out.extent = extent_of(
                         periodic,
                         rows.iter().map(|row| {
-                            let (t0, t1) = row.params.ends();
+                            let (t0, t1) = row.params();
                             let end = |t: T| {
                                 let q = row.pcurve.eval(t);
                                 [lift.of(q.x), lift.of(q.y)]
@@ -4113,7 +4175,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                     );
                 }
                 for row in rows {
-                    let (t0, t1) = row.params.ends();
+                    let (t0, t1) = row.params();
                     let end = |t: T| {
                         let q = row.pcurve.eval(t);
                         Point2::new(lift.of(q.x), lift.of(q.y))
@@ -4130,6 +4192,10 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                 }
             }
         }
+        let edge_of: BTreeMap<HalfEdgeKey, EdgeKey> = halves
+            .iter()
+            .flat_map(|(&ek, hes)| hes.iter().map(move |&he| (he, ek)))
+            .collect();
         for (ek, hes) in halves {
             let e = body.proven_edge(ek);
             let curve = e.certified()?;
@@ -4176,9 +4242,51 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                 uses,
             });
         }
+        out.outer = outer.filter(|o| !o.is_empty()).and_then(|o| {
+            o.iter()
+                .map(|&he| {
+                    let ek = *edge_of.get(&he)?;
+                    let i = out.edges.iter().position(|r| r.key == ek)?;
+                    let e = proven(&body.edges, ek, EntityId::Edge);
+                    Some((i, e.he_plus == he))
+                })
+                .collect()
+        });
         Aabb::from_points(pts).map(|b| (b, out))
     })
     .flatten()
+}
+
+/// **One use of an edge, read off a chart image held at the interval
+/// scalar**: [`boundary_of`]'s reading of a row, for an image no body
+/// stores (a pose of a sphere's chart, `injective::present_posed`). Its
+/// two ends at the edge's span `(t0, t1)`, and the coordinate line,
+/// harmonic and wall images it is, by variant; `full` where its edge is
+/// closed and the line holds an angle. `None` where a value it reads does
+/// not certify.
+pub(crate) fn chart_use(
+    pcurve: &Pcurve<Interval>,
+    (t0, t1): (Interval, Interval),
+    plus: bool,
+    closed: bool,
+) -> Option<Use> {
+    certified_lift(|lift: Lift<'_, Interval>| {
+        let end = |t: Interval| {
+            let q = pcurve.eval(t);
+            Point2::new(lift.of(q.x), lift.of(q.y))
+        };
+        Use {
+            plus,
+            image: Some([end(t0), end(t1)]),
+            harmonic: harmonic_of(pcurve, lift),
+            wall: wall_of(pcurve, lift),
+            iso: iso_of(pcurve, lift).map(|(held, at, angle)| Iso {
+                held,
+                at,
+                full: angle && closed,
+            }),
+        }
+    })
 }
 
 /// One row of a loop as [`extent_of`] reads it.
@@ -4366,23 +4474,17 @@ fn wall_of<T: CertifiedBounds>(p: &Pcurve<T>, lift: Lift<'_, T>) -> Option<injec
 
 /// **A chart image that is a coordinate line, by variant**: which
 /// coordinate it holds, the value, and whether its moving coordinate is
-/// an angle. The held coordinate is exact structure — a velocity, or a
-/// harmonic channel's three coefficients, that lift to the point zero —
-/// so no zero is decided here. The value is crossed by `lift`.
+/// an angle. An iso image states its line ([`Pcurve::held_line`]: the
+/// coordinate is its variant's, nothing is read off a number). A
+/// harmonic image holds a coordinate where that channel's coefficients
+/// are the point zero, which is exact structure too, so no zero is
+/// decided here. The value is crossed by `lift`.
 fn iso_of<T: CertifiedBounds>(p: &Pcurve<T>, lift: Lift<'_, T>) -> Option<IsoImage> {
     let zero = |x: T| injective::exactly(Interval::from_certified(x), 0.0);
-    let line = |p0: Point2<T>, d: geom_core::Vec2<T>| {
-        if zero(d.x) {
-            Some((Axis::U, lift.of(p0.x), false))
-        } else if zero(d.y) {
-            Some((Axis::V, lift.of(p0.y), false))
-        } else {
-            None
-        }
-    };
     match p {
-        Pcurve::IsoLine { p0, pl, .. } => line(*p0, *pl),
-        Pcurve::IsoArc { p0, pd, .. } => line(*p0, *pd),
+        Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. } => p
+            .held_line()
+            .map(|held| (held.line.axis.into(), lift.of(held.line.value), false)),
         Pcurve::Harmonic { u, v } => {
             let constant = |ch: &Channel<T>| match *ch {
                 Channel::Angle { phase, winding: 0 } => Some(lift.of(phase)),
@@ -6124,7 +6226,9 @@ mod trv_rows {
         };
         for axis in 0..3 {
             let carrier = refusal(&|b| {
-                let Some(Surface::Plane { frame, .. }) = b.surfaces.values_mut().next() else {
+                let Some(crate::SurfaceSlot::Described(Surface::Plane { frame, .. })) =
+                    b.surfaces.values_mut().next()
+                else {
                     panic!("a brick's faces are planes");
                 };
                 let mut origin = frame.origin();

@@ -286,6 +286,14 @@ pub enum PointInSolidError {
     /// kernel builds for itself is not read as given, and answers `In`
     /// there.
     InsideOut,
+    /// A curved face's region reading ([`crate::region`]) left the point
+    /// unplaced: no path of its walk settled against the face's whole
+    /// boundary ([`crate::ray_walk::NoRaySettled`]), or a boundary arc's
+    /// own reading did not place it (`region::circle_edge_hit`).
+    RegionRayExhausted {
+        /// The face whose region was walked.
+        face: FaceKey,
+    },
     /// An in-plane loop test failed (nested typed error).
     Loop(PointInLoopError),
     /// A face is not walkable, or an entity it names is lost — an
@@ -330,6 +338,12 @@ pub enum PointInSolidError {
         face: FaceKey,
         /// Its kind — the row the arm is missing for.
         kind: geom::SurfaceKind,
+    },
+    /// A face has no surface yet ([`crate::SurfaceMiss::Pending`]): the
+    /// body is mid-construction, and a ray has nothing to cross there.
+    PendingFace {
+        /// The face.
+        face: FaceKey,
     },
     /// The at-infinity side could be read neither off the sign of the
     /// body's signed volume, which the props lane did not certify, nor
@@ -517,13 +531,14 @@ impl PointInSolidError {
     }
 
     /// An in-band reading (`Escalated`, `Loop(Escalated)`), or a
-    /// schedule no ray of which settled (`RayExhausted`,
-    /// `Loop(RayExhausted)`).
+    /// schedule no ray or path of which settled (`RayExhausted`,
+    /// `RegionRayExhausted`, `Loop(RayExhausted)`).
     pub(crate) fn in_band(&self) -> bool {
         matches!(
             self,
             Self::Escalated { .. }
                 | Self::RayExhausted
+                | Self::RegionRayExhausted { .. }
                 | Self::Loop(
                     PointInLoopError::Escalated { .. } | PointInLoopError::RayExhausted { .. }
                 )
@@ -565,6 +580,10 @@ impl PointInSolidError {
             Self::InsideOut => {
                 "the instance is inside-out: its material holds the side at infinity"
             }
+            Self::RegionRayExhausted { .. } => {
+                "no path of a curved face's region walk at the instance's boundary \
+                 settled: each grazed it or could not be read — undecided"
+            }
             Self::Loop(_) => "the in-plane region walk at the instance's boundary refused",
             Self::CorruptFace { .. } => {
                 "a face of the instance is not walkable, or an entity it names is lost"
@@ -572,6 +591,9 @@ impl PointInSolidError {
             Self::KindUnsupported { .. } => {
                 "the instance carries a face kind the point-in-solid door does not serve \
                  (a spline surface), so its material cannot be probed"
+            }
+            Self::PendingFace { .. } => {
+                "a face of the instance has no surface yet, so its material cannot be probed"
             }
             Self::VolumeUncertified => {
                 "the instance's at-infinity side could not be read — the sign of its \
@@ -637,11 +659,23 @@ impl PointInSolidError {
                 "cannot tell what is inside the solid: {}",
                 ray_walk::NoRaySettled
             ),
-            Self::Loop(e) => write!(
+            Self::RegionRayExhausted { .. } => write!(
                 f,
-                "cannot tell what is inside the solid: {}",
-                geom_brep::recourse::read_at(e, at)
+                concat!(
+                    "cannot tell what is inside the solid: ",
+                    geom_core::undecided!(
+                        "whether the point lies in one of its curved faces",
+                        payload
+                    )
+                ),
+                ray_walk::NoRaySettled
             ),
+            // This sentence reaches a user verbatim (`BooleanError::Containment`),
+            // so the walk's refusal is read in words, not by its loop's key.
+            Self::Loop(e) => {
+                write!(f, "cannot tell what is inside the solid: ")?;
+                e.write_unnamed(f, at, "one of its faces")
+            }
             Self::ZeroVolumeBody => write!(
                 f,
                 "cannot tell what is inside the solid: it encloses no measurable volume"
@@ -665,6 +699,11 @@ impl PointInSolidError {
                  solid itself is fine. Recourse: build the solid so no spline (NURBS) \
                  face bounds it",
                 kind.word()
+            ),
+            Self::PendingFace { .. } => write!(
+                f,
+                "cannot tell what is inside the solid: one of its faces has no surface \
+                 yet. Recourse: describe every face's surface first"
             ),
             Self::VolumeUncertified => write!(
                 f,
@@ -957,7 +996,10 @@ fn face_geo_arms<T: Decide>(
     band: Band,
 ) -> Result<FaceGeo<T>, PointInSolidError> {
     let f = body.proven_face(face);
-    match f.surface() {
+    let Ok(surface) = f.surface() else {
+        return Err(PointInSolidError::PendingFace { face });
+    };
+    match surface {
         Surface::Plane { frame, .. } => {
             let (origin, normal) = (frame.origin(), frame.axis());
             Ok(FaceGeo::Plane(plane_desc_of(f.record(), origin, normal)))
@@ -1141,7 +1183,10 @@ pub(crate) const fn ray_crosses(kind: geom::SurfaceKind) -> bool {
 ///
 /// Where `face`, a face of the selection, does not resolve.
 pub(crate) fn uncrossable<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<PointInSolidError> {
-    let kind = body.proven_face(face).surface().kind();
+    let Ok(surface) = body.proven_face(face).surface() else {
+        return Some(PointInSolidError::PendingFace { face });
+    };
+    let kind = surface.kind();
     (!ray_crosses(kind)).then_some(PointInSolidError::KindUnsupported { face, kind })
 }
 
@@ -1348,6 +1393,10 @@ pub(crate) fn trim_window_short<T: Decide>(
 /// torn curve is not null scaffolding. The
 /// links hold at rest and, on the reduction's working copies, by
 /// [`crate::live::OPERATORS_KEEP_LINKS`].
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub(crate) fn sphere_chart_trim<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -1403,11 +1452,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
         let geom::Curve3::Circle(conic_k) = *curve.carrier() else {
             return Ok(None);
         };
-        let (c_c, n_c, u_c) = (
-            conic_k.frame().origin(),
-            conic_k.frame().axis(),
-            conic_k.frame().u_ref(),
-        );
+        let (c_c, n_c, u_c) = (conic_k.frame().origin(), conic_k.axis(), conic_k.u_ref());
         let r_c = conic_k.radius();
         let w = c_c - center;
         // A unit-vector cross/dot is a SINE or COSINE (dimensionless)
@@ -1508,6 +1553,9 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             Err(ChartWindowError::Escalated(diag)) => return Err(escalate(diag)),
             Err(ChartWindowError::Stale(_) | ChartWindowError::NotClosed(_)) => {
                 return Err(PointInSolidError::CorruptFace { face });
+            }
+            Err(ChartWindowError::PendingFace(_)) => {
+                return Err(PointInSolidError::PendingFace { face });
             }
         }
     };
@@ -2341,7 +2389,7 @@ fn region_hit(
 ) -> Result<Option<bool>, RayFault<PointInSolidError>> {
     match reading {
         Ok(side) => Ok(side),
-        Err(RegionRefusal::RayExhausted { .. }) => Ok(None),
+        Err(RegionRefusal::RayExhausted) => Ok(None),
         Err(e @ RegionRefusal::Escalated(_)) => Err(RayFault::InBand(e.of_face(face))),
         Err(e @ RegionRefusal::WoundPastPeriod) => Err(RayFault::Fatal(e.of_face(face))),
         Err(e @ RegionRefusal::Unreadable(_)) => Err(RayFault::Blocked(e.of_face(face))),
@@ -2677,6 +2725,13 @@ impl<T: Copy> RayHit<T> {
     /// other's rounding it is negative) are a pair, or a tie that grazes,
     /// on any two of their faces that do not meet
     /// ([`crate::side_reader::meet`]).
+    ///
+    /// The gap is handed back as read, undecided: whether it lies in
+    /// the band is the caller's reading
+    /// ([`crate::validate::in_band`]). Point containment refuses on it
+    /// with its margin either way (`cast_ray`); the side reader takes
+    /// a pair only on a gap in band and sets the ray aside on one that
+    /// reaches past it (`side_reader::aimed_ray`).
     ///
     /// # Errors
     ///
@@ -3055,6 +3110,10 @@ fn crosses_by_turn<T: Decide>(
 /// far the edge is off its ruling or parallel (`bool_wall_turn_true`,
 /// below). The turn is read as a planar face's is ([`turned_inside`]): no
 /// path is walked.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn wall_crosses_by_turn<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -3122,14 +3181,14 @@ fn wall_crosses_by_turn<T: Decide>(
                 .value()
             }
             geom::Curve3::Circle(circle) => {
-                let (center, normal) = (circle.frame().origin(), circle.frame().axis());
+                let (center, normal) = (circle.frame().origin(), circle.axis());
                 let r = circle.radius();
                 r.abs() * normal.normalize().cross(axis.get()).norm()
                     + geom::Line { origin, dir: axis }.distance(center)
             }
             _ => return Ok(None),
         };
-        let Some(clear) = edge_clearance(body, &e, p) else {
+        let Some(clear) = edge_clearance(body, &e, p, None) else {
             return Ok(None);
         };
         if decide(
@@ -3170,12 +3229,22 @@ fn turned_inside<T: Decide>(
         == Sign::Positive)
 }
 
+/// **`n̂·(u × w)` and `u·w` of two vectors across the unit `normal`**,
+/// the dot read as `(n̂ × u)·(n̂ × w)`: equal to `u·w` where neither has
+/// a part along `n̂`, and it multiplies nothing along `n̂`. At `f64` it
+/// is `u·w` to rounding; at `Interval` and `Sym` a part along the
+/// normal that two points' enclosures share is never squared into the
+/// dot. It chooses no frame ([`Vec3::orthonormal_basis`] selects one).
+fn planar_cross_dot<T: Decide>(normal: Vec3<T>, u: Vec3<T>, w: Vec3<T>) -> (T, T) {
+    (normal.dot(u.cross(w)), normal.cross(u).dot(normal.cross(w)))
+}
 /// **The turn of `face`'s loops about `p`**, about `normal`, every point
 /// of them first carried by `map` (the identity for a planar face, which
 /// `p` lies in; an image of a curved face in the plane `p`'s image lies
 /// in): a line edge, carried to a segment, turns by the angle its ends
 /// make at `p`, and a circle arc, carried to a circle arc, by [`arc_turn`]
-/// over its two halves. `None` where an edge is neither.
+/// over its two halves, each read across the normal ([`planar_cross_dot`]). `None`
+/// where an edge is neither.
 fn loop_turn<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -3191,8 +3260,8 @@ fn loop_turn<T: Decide>(
             .ok_or_else(corrupt)
     };
     let angle = |a: Point3<T>, b: Point3<T>| {
-        let (u, w) = (a - p, b - p);
-        normal.dot(u.cross(w)).atan2(u.dot(w))
+        let (cross, dot) = planar_cross_dot(normal, a - p, b - p);
+        cross.atan2(dot)
     };
     let mut turn = T::zero();
     for e in body.proven_face(face).edges() {
@@ -3226,6 +3295,18 @@ fn loop_turn<T: Decide>(
     Ok(Some(turn))
 }
 
+/// [`loop_turn`] of planar `face` about `p`, for the rows that hold its
+/// enclosure over a box.
+#[cfg(test)]
+pub(crate) fn planar_turn<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    normal: Vec3<T>,
+    p: Point3<T>,
+) -> Option<T> {
+    loop_turn(body, face, normal, p, |x| x).ok().flatten()
+}
+
 /// **The turn about `p` of a circle arc** from `a` through `m` to `b`,
 /// at most half a turn, about `normal`, in the plane of `p`: the change
 /// in the direction from `p` to the arc's point as it runs from `a` to
@@ -3243,8 +3324,8 @@ fn arc_turn<T: Decide>(
     (a, m, b): (Point3<T>, Point3<T>, Point3<T>),
 ) -> T {
     let numerator = |x: Point3<T>| {
-        let (u, w) = (x - a, x - b);
-        (u.dot(w), normal.dot(w.cross(u)))
+        let (cross, dot) = planar_cross_dot(normal, x - b, x - a);
+        (dot, cross)
     };
     let ((pr, pi), (mr, mi)) = (numerator(p), numerator(m));
     let zero = T::zero();
@@ -3276,10 +3357,20 @@ pub(crate) fn along_half<T: Decide>(
 /// or a circle arc: its carrier's closed-form distance from the edge's
 /// span ([`geom::Curve3::distance_within`]), the segment between its
 /// vertices for a line. `None` for another edge.
+///
+/// With `across` a planar face's unit normal, a line edge is read
+/// across it: the distance from `n̂ × (m − a)` to the segment along
+/// `n̂ × (b − a)`. `n̂ ×` drops a vector's part along the normal and
+/// turns the rest a quarter turn, so this is never more than the
+/// distance, and is the distance where `m` and the edge lie in one
+/// plane across `n̂`. At `f64` the two readings agree to rounding
+/// there; at `Interval` and `Sym` a part along the normal that the
+/// points' enclosures share is not summed.
 pub(crate) fn edge_clearance<T: Decide>(
     body: &Body<T>,
     e: &crate::live::FaceEdge,
     m: Point3<T>,
+    across: Option<Vec3<T>>,
 ) -> Option<T> {
     let at = |v| Some(*body.get_point(body.get_vertex(v)?.point)?);
     let curve = body
@@ -3288,8 +3379,15 @@ pub(crate) fn edge_clearance<T: Decide>(
     match *curve.carrier() {
         geom::Curve3::Line(_) => {
             let (a, b) = (at(e.ends[0])?, at(e.ends[1])?);
-            let (line, length) = geom::Line::chord(a, b);
-            geom::Curve3::Line(line).distance_within(m, (T::zero(), length))
+            // The chord and the point, each turned across the normal
+            // where one is given.
+            let o = Point3::new(T::zero(), T::zero(), T::zero());
+            let (from, to, at) = match across {
+                Some(n) => (o, o + n.cross(b - a), o + n.cross(m - a)),
+                None => (a, b, m),
+            };
+            let (line, length) = geom::Line::chord(from, to);
+            geom::Curve3::Line(line).distance_within(at, (T::zero(), length))
         }
         geom::Curve3::Circle(_) => curve.carrier().distance_within(m, curve.params()),
         _ => None,
@@ -3604,7 +3702,10 @@ fn root_outward<T: Decide>(
                     "bool_ray_cone_incidence",
                     Margin::levered(
                         d.get().dot(chart_normal(body, face, p)?),
-                        geom_brep::curvature_lever_arm(body.proven_face(face).surface(), p),
+                        geom_brep::curvature_lever_arm(
+                            body.proven_face(face).expect_described(),
+                            p,
+                        ),
                     ),
                     band,
                 )
@@ -3618,7 +3719,7 @@ fn root_outward<T: Decide>(
                     "bool_ray_torus_incidence",
                     Margin::levered(
                         d.get().dot(chart_normal(body, face, p)?),
-                        geom_brep::uniform_curvature_arm(body.proven_face(face).surface()),
+                        geom_brep::uniform_curvature_arm(body.proven_face(face).expect_described()),
                     ),
                     band,
                 )
@@ -3642,7 +3743,7 @@ fn chart_normal<T: Decide>(
     p: Point3<T>,
 ) -> Result<Vec3<T>, RayFault<PointInSolidError>> {
     Ok(geom_brep::implicit_gradient(
-        body.proven_face(face).surface(),
+        body.proven_face(face).expect_described(),
         p,
     ))
 }
@@ -3669,7 +3770,7 @@ fn reach_margin<T: Decide>(
     root: T,
 ) -> Result<T, RayFault<PointInSolidError>> {
     let geom::Line { origin: q, dir: d } = ray.line();
-    let surface = body.proven_face(face).surface();
+    let surface = body.proven_face(face).expect_described();
     let (at, passage) = (q + d.get() * root, q + d.get() * m.at);
     let off = (m.span.0 - root).max(root - m.span.1).max(T::zero());
     let n = chart_normal(body, face, at)?;
@@ -3752,7 +3853,7 @@ fn root_held<T: Decide>(
     };
     match reading {
         Ok(side) => Ok(side),
-        Err(RegionRefusal::RayExhausted { .. }) => Ok(None),
+        Err(RegionRefusal::RayExhausted) => Ok(None),
         Err(e @ RegionRefusal::Escalated(_)) => Err(RayFault::InBand(e.of_face(face))),
         Err(e @ RegionRefusal::WoundPastPeriod) => Err(RayFault::Fatal(e.of_face(face))),
         // An edge whose reading ran out at this hit: a limit of the
@@ -4608,6 +4709,7 @@ fn volume_refusal(
         M::Corrupt { .. } | M::NullScaffoldEdge { .. } => {
             PointInSolidError::CorruptFace { face: first }
         }
+        M::PendingFace { face } => PointInSolidError::PendingFace { face },
         M::NoOutline(no) => no_outline(no),
         M::Band { .. }
         | M::RingOnCurvedFace { .. }
@@ -5546,7 +5648,7 @@ mod kind_arm_tests {
                         major_radius: -0.3,
                         minor_radius: 0.5,
                     },
-                    SurfaceKind::Nurbs => Surface::nurbs_placeholder(),
+                    SurfaceKind::Nurbs => geom::test_support::unit_patch(),
                     SurfaceKind::Approx => Surface::Approx(std::sync::Arc::new(
                         crate::fixtures::bowed_offset_approx::<f64>(),
                     )),
@@ -5556,7 +5658,7 @@ mod kind_arm_tests {
             let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
             let face = faces[0];
             let key = body.get_face(face).unwrap().surface;
-            *body.surfaces.get_mut(key).unwrap() = surface;
+            *body.surfaces.get_mut(key).unwrap() = surface.into();
             let sel = SolidFaces::select(&body, faces).unwrap();
             let read = face_geo_arms(&body, face, &sel.charts, Band::linear(tol).unwrap());
             let refused = matches!(read, Err(PointInSolidError::KindUnsupported { .. }));
@@ -5699,7 +5801,7 @@ mod reach_tests {
             crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
         let face = body.faces().next().expect("a face").0;
         let key = body.get_face(face).expect("the face").surface;
-        *body.surfaces.get_mut(key).expect("its surface") = Surface::Cylinder {
+        *body.surface_mut(key).expect("its surface") = Surface::Cylinder {
             frame: geom::Frame::new(
                 Point3::new(0.0, 0.0, 0.0),
                 Vec3::new(0.0, 0.0, 1.0),

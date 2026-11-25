@@ -16,6 +16,7 @@
 //! parameter, never a re-model); [`ProfileDoc`] is the canonical
 //! instantiation at the profile crate's public description type.
 
+#![cfg_attr(not(test), deny(clippy::disallowed_methods))]
 pub mod analysis;
 pub mod appearance;
 pub mod checks;
@@ -149,7 +150,7 @@ pub use eval::{
     PartFault, Piece, Pieces, PoseValue, ProfileLane, ProfilePieces, SplitSide, Stop, Stopped,
     ValuePayload, evaluate, traced_faces,
 };
-pub use eval::{BoundToRecord, OwnRecord, RecordMispairing, evaluate_recorded};
+pub use eval::{BoundToRecord, OwnRecord, PriorRefusal, RecordMispairing, evaluate_recorded};
 pub use refusal::Refusal;
 pub use sentence::{
     Labelled, LabelledBy, Labels, PASS_A_RESOLVER, RAISE_THE_MEMBER_BUDGET, Recourse, Staged,

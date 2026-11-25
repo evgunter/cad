@@ -1214,8 +1214,11 @@ fn a_crossing_in_band_just_before_the_start_is_a_window_on_the_span() {
 /// of the surface by its residual), its edges bisected to the bit, lies in
 /// a window, unless it holds a meeting `cross` found (a crossing's own
 /// band, which the answer places). W2's `Kε` of arc about every meeting
-/// then holds by itself: the residual is `0` at a meeting and `Kε` at the
-/// stretch's edge, and moves at most a metre per metre of arc. `_speed`
+/// then holds to first order by itself: the residual is `0` at a meeting
+/// and `Kε` at the stretch's edge, and moves near the surface at most
+/// `(1 + Kε/r)` metres per metre of arc (a torus's `(g² − r²)/2r` at
+/// `g/r`; a wall's and a sphere's alike), so the arc between them is at
+/// least `Kε/(1 + Kε/r)`: `Kε`, short by a relative `O(Kε/r)`. `_speed`
 /// is the carrier's least, kept for the callers' reading.
 fn every_unread_stretch_is_in_a_window(
     label: &str,
@@ -1487,9 +1490,11 @@ fn a_span_just_past_a_grazes_reach_is_refused() {
 /// method's local window, and every stretch within `Kε` of the surface,
 /// its edges bisected, lies in it. Red where a walk's refused piece is
 /// dropped or narrowed past what the band cannot read. (The `Kε` a method
-/// window is widened by adds nothing a meeting needs here: a refused
-/// piece ends at cuts the walk read past `Kε`, so every meeting inside
-/// stands `Kε` of arc from them already.)
+/// window is widened by adds nothing a meeting needs here, to a relative
+/// `O(Kε/r)`: a refused piece ends at cuts the walk read past `Kε`, and
+/// the residual moves at most `(1 + Kε/r)` metres per metre of arc near
+/// the surface, so every meeting inside stands `Kε/(1 + Kε/r)` of arc
+/// from them already.)
 #[test]
 fn a_walks_refused_piece_holds_what_the_band_cannot_read() {
     let eps = 1e-9;

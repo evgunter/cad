@@ -3,7 +3,7 @@ use crate::joint::{Deck, JointElement};
 use geom::Surface;
 use geom_brep::Pcurve;
 use geom_core::spline::KnotVector;
-use geom_core::{Band, Decide, Interval, Point2, Point3, Tol, Vec2};
+use geom_core::{Band, Decide, Interval, Point2, Point3, Tol};
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
@@ -49,12 +49,12 @@ fn joint<T: Decide>(s: &Surface<f64>, entry_v: f64, prev_v: f64) -> Result<Joint
     let s: Surface<T> = s.map_scalar(T::from_f64);
     let f = T::from_f64;
     let image = Pcurve::IsoLine {
-        p0: Point2::new(f(0.5), f(entry_v)),
-        pl: Vec2::new(f(0.0), f(0.1)),
-        ends: None,
+        line: geom_brep::ChartLine::column(f(0.5)),
+        at0: f(entry_v),
+        rate: f(0.1),
     };
     decide_plain_joint(
-        DescribedChart::of(&s).unwrap(),
+        DescribedChart::of(&s),
         &image,
         f(0.0),
         Point2::new(f(0.5), f(prev_v)),
@@ -137,11 +137,11 @@ fn a_long_u_domain_crosses_its_seam_by_one_period() {
         geom::NurbsSurface::new(ku, kv, control, vec![1.0; 8]).unwrap(),
     ));
     let out = decide_plain_joint(
-        DescribedChart::of(&s).unwrap(),
+        DescribedChart::of(&s),
         &Pcurve::IsoLine {
-            p0: Point2::new(0.0, 0.5),
-            pl: Vec2::new(0.3 * k, 0.0),
-            ends: None,
+            line: geom_brep::ChartLine::row(0.5),
+            at0: 0.0,
+            rate: 0.3 * k,
         },
         0.0,
         Point2::new(k, 0.5),
@@ -222,11 +222,11 @@ fn u_crossing<T: Decide>(s: &Surface<f64>) -> Result<JointElement, PinMiss> {
     let s: Surface<T> = s.map_scalar(T::from_f64);
     let f = T::from_f64;
     decide_plain_joint(
-        DescribedChart::of(&s).unwrap(),
+        DescribedChart::of(&s),
         &Pcurve::IsoLine {
-            p0: Point2::new(f(0.0), f(0.5)),
-            pl: Vec2::new(f(0.3), f(0.0)),
-            ends: None,
+            line: geom_brep::ChartLine::row(f(0.5)),
+            at0: f(0.0),
+            rate: f(0.3),
         },
         f(0.0),
         Point2::new(f(1.0), f(0.5)),

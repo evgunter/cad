@@ -343,8 +343,10 @@ fn adopt_edges(
             ),
             Description::Tangent => {
                 let surface = |k| {
-                    body.get_surface(k).unwrap_or_else(|| {
-                        unreachable!("{k:?} names a face's surface `attach_surfaces` attached")
+                    body.get_surface(k).unwrap_or_else(|miss| {
+                        unreachable!(
+                            "{k:?} names a face's surface `attach_surfaces` attached: {miss}"
+                        )
                     })
                 };
                 let reach = topo::wedge_reach(
@@ -531,6 +533,10 @@ fn must_carry_rung(
 /// has no arc rims to mint (its profile was a polyline). Arc rims on
 /// a rational wall are held on the wall's boundary by the build's
 /// `step_rim_on_wall` check before this description is stated.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn mapped_self_description(
     carrier: &Curve3<f64>,
     p_start: Point3<f64>,

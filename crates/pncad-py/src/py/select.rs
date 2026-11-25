@@ -117,6 +117,8 @@ pub(crate) enum SegTag {
     LoftSeam,
     LoftSectionEdge,
     LoftSectionVertex,
+    SubArc,
+    SubArcJoint,
     // Revolve
     Band,
     BandRim,
@@ -163,6 +165,8 @@ pub(crate) enum SegTag {
     Member,
     // Blend, appended
     HostFoot,
+    // Any op, appended
+    ConventionalVertex,
 }
 
 impl SegTag {
@@ -179,6 +183,8 @@ impl SegTag {
             Self::LoftSeam => s::SegTag::LoftSeam,
             Self::LoftSectionEdge => s::SegTag::LoftSectionEdge,
             Self::LoftSectionVertex => s::SegTag::LoftSectionVertex,
+            Self::SubArc => s::SegTag::SubArc,
+            Self::SubArcJoint => s::SegTag::SubArcJoint,
             Self::Band => s::SegTag::Band,
             Self::BandRim => s::SegTag::BandRim,
             Self::BandRimPi => s::SegTag::BandRimPi,
@@ -218,6 +224,7 @@ impl SegTag {
             Self::Rim => s::SegTag::Rim,
             Self::HoleRim => s::SegTag::HoleRim,
             Self::Member => s::SegTag::Member,
+            Self::ConventionalVertex => s::SegTag::ConventionalVertex,
         }
     }
 }
@@ -940,6 +947,8 @@ mod growth_tripwire {
             s::SegTag::LoftSeam => SegTag::LoftSeam,
             s::SegTag::LoftSectionEdge => SegTag::LoftSectionEdge,
             s::SegTag::LoftSectionVertex => SegTag::LoftSectionVertex,
+            s::SegTag::SubArc => SegTag::SubArc,
+            s::SegTag::SubArcJoint => SegTag::SubArcJoint,
             s::SegTag::Band => SegTag::Band,
             s::SegTag::BandRim => SegTag::BandRim,
             s::SegTag::BandRimPi => SegTag::BandRimPi,
@@ -979,6 +988,7 @@ mod growth_tripwire {
             s::SegTag::Rim => SegTag::Rim,
             s::SegTag::HoleRim => SegTag::HoleRim,
             s::SegTag::Member => SegTag::Member,
+            s::SegTag::ConventionalVertex => SegTag::ConventionalVertex,
         }
     }
 

@@ -695,7 +695,8 @@ pub(super) fn plane_line<T: Decide>(
 
 /// **A conic against a plane**: its height above the plane,
 /// `d₀ + R cos(θ − φ)` (`Conic::along`), read on its rungs: the belly
-/// (`R − |d₀|`: negative, apart), the parallel gate (`R` in the zero
+/// (`R − |d₀|`, read to its own digits by
+/// [`geom::Conic::belly_along`]: negative, apart), the parallel gate (`R` in the zero
 /// band: the offset `d₀ ± R` decides lies or apart), then the belly's
 /// two roots or its graze, whose side `d₀`'s sign decides and whose
 /// curvature [`kappa`] reads. The roots stand the azimuth of
@@ -715,7 +716,9 @@ pub(super) fn plane_conic<T: Decide>(
     // frames, and an interval product's spurious negative low end makes
     // the sqrt refuse.
     let r = (a.powi(2) + b.powi(2)).sqrt();
-    let depth = r - d0.abs();
+    // `r − |d₀|`, read to its own digits rather than as the difference of
+    // two terms of the conic's size.
+    let depth = conic.belly_along(origin, normal);
     // The miss first: a conic wholly on one side never meets the plane,
     // whatever its tilt reads.
     let belly = decide("curve_face_pose_belly_graze", Margin::of(depth), band);

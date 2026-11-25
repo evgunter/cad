@@ -212,7 +212,7 @@ fn a_dual_and_a_recording_scalar_carry_the_base_scalars_value() {
             max_degree: 128,
         };
         let (sym, _) = with_session_rules(budget, SymRules::shipped(), || {
-            Sym::<f64>::from_f64(x).less_sin().value
+            Sym::<f64>::from_f64(x).less_sin().value()
         });
         assert_eq!(sym.to_bits(), want.to_bits(), "x = {x}: the recorded value");
     }

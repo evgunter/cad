@@ -327,7 +327,7 @@ fn ring_split_mef_keeps_the_ring_on_the_old_face() {
         },
         prov(),
     );
-    let surface_c = body.add_surface(crate::fixtures::test_surface(p(10.0)));
+    let surface_c = body.add_pending_surface();
     let face_c = body.add_face(
         Face {
             sense: true,
@@ -475,7 +475,11 @@ fn tetrahedron_by_ops_with_orientation() {
     assert_eq!(body.faces().count(), 4);
     assert_eq!(body.half_edges().count(), 12);
     assert!(euler_poincare_holds(&body, 1, 0));
-    assert_eq!(body.surfaces().count(), 1, "all faces share mvfs's surface");
+    assert_eq!(
+        body.surface_slots().count(),
+        1,
+        "all faces share mvfs's surface"
+    );
 
     // Orientation: every face's Newell normal points AWAY from the
     // body centroid (convex solid => CCW from outside).
@@ -622,7 +626,7 @@ fn triangular_prism_by_ops_with_orientation() {
     assert_eq!(body.edges().count(), 9);
     assert_eq!(body.faces().count(), 5);
     assert!(euler_poincare_holds(&body, 1, 0));
-    assert_eq!(body.surfaces().count(), 1);
+    assert_eq!(body.surface_slots().count(), 1);
 
     // Orientation sweep (convex prism, centroid ray).
     let centroid = (0.5, 1.0 / 3.0, 0.5);

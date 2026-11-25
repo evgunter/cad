@@ -2177,8 +2177,10 @@ fn inner_arm_tags_are_stable() {
         ("extrude", Some("oblique_extrusion"))
     );
     assert_eq!(
-        pair(&NodeErrorKind::Transform(TransformError::NurbsPlaceholder)),
-        ("transform", Some("nurbs_placeholder"))
+        pair(&NodeErrorKind::Transform(TransformError::NullScaffold {
+            edge: pncad::prelude::EdgeKey::default()
+        })),
+        ("transform", Some("null_scaffold"))
     );
     assert_eq!(
         pair(&NodeErrorKind::Shell(Box::new(ShellError::Thickness {
@@ -4467,7 +4469,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "not_finished",
             "oblique_mixed_corner",
             "op",
-            "pcurve_mint",
             "radius_headroom",
             "repeated_edge",
             "ring_clearance",
@@ -4512,7 +4513,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "germ_edge_carrier_unsupported",
             "germ_frame_unsupported",
             "germ_section_open_conic",
-            "germ_section_spiric",
             "germ_section_unbuilt",
             "graft_recertify",
             "held_pierce_unbuilt",
@@ -4524,6 +4524,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "join_pairs_tied",
             "join_partners_tied",
             "join_undecided",
+            "junction_end_unread",
             "line_material_unread",
             "line_wedges",
             "lineage_row",
@@ -4539,14 +4540,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "one_record_uncertified",
             "pairing_mismatch",
             "partner_along_face",
-            "pcurves",
             "pieces",
             "pierce_lever_unread",
             "pinch_rays_in_a_face",
             "point_in_face_refused",
             "point_split_carrier_unsupported",
             "poisoned_carrier_datum",
-            "recharted_row_unstated",
             "result_invalid",
             "result_pinched_at_cone_apex",
             "revert",
@@ -4987,7 +4986,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "not_finished",
             "oblique_extrusion",
             "op",
-            "pcurve",
             "sliver_join",
             "sliver_rim",
             "smooth_join_refuted",
@@ -5133,10 +5131,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "euler",
             "far_section_not_forward",
             "far_stacking_escalated",
+            "joint_escalated",
             "not_finished",
-            "pcurve",
             "pinned_corner",
-            "pinned_corner_unsupported",
             "placement_not_finite",
             "reversed_stacking",
             "seam_structure",
@@ -5183,6 +5180,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "face",
             "no_outline",
             "null_scaffold_edge",
+            "pending_face",
             "poisoned",
             "resolution_finer_than_eps",
             "ring_on_curved_face",
@@ -5231,7 +5229,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "carrier_unplaced",
             "chord_off_rim",
             "closed_carrier_unread",
-            "conventional_vertex",
             "duplicate",
             "emission",
             "entity_named",
@@ -5248,7 +5245,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "split_lineage_cycle",
             "unnamed",
             "unsettled_vertex",
-            "unsupported_turned_cell",
         ],
         delegates: &[
             "band_error_tag",
@@ -5690,6 +5686,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "reach_refusal_tag",
         values: &[
+            "face_pending",
             "face_unbounded",
             "malformed_body",
             "no_extent",
@@ -5700,7 +5697,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "readback_error_tag",
-        values: &["dangling_entity", "no_canonical_frame", "no_carrier"],
+        values: &[
+            "dangling_entity",
+            "no_canonical_frame",
+            "no_carrier",
+            "pending_surface",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -5774,7 +5776,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "non_manifold_axis_contact",
             "not_finished",
             "op",
-            "pcurve",
             "pinned_run_station",
             "sliver_axis_clearance",
             "sliver_join",
@@ -5922,7 +5923,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "open_faces_disconnect",
             "open_faces_exhaust_shell",
             "partition",
-            "pcurve",
             "rim",
             "rim_seam_mixed",
             "roles",
@@ -6083,7 +6083,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "split_op_error_tag",
-        values: &["finish", "join", "pcurves", "pieces", "reduce"],
+        values: &["finish", "join", "pieces", "reduce"],
         delegates: &["join_refusal_tag"],
     },
     TagEntry {
@@ -6137,7 +6137,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "missing_uncertainty",
             "not_yet_supported",
             "nothing_to_import",
-            "pcurves",
             "placement",
             "recognition_ambiguous",
             "singularity_meet_unread",
@@ -6218,6 +6217,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "trace_step_fault_tag",
         values: &[
             "apex",
+            "circle_frame",
             "escalated",
             "grazing",
             "no_heading",
@@ -6242,7 +6242,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "transform_error_tag",
-        values: &["corrupt", "null_scaffold", "nurbs_placeholder", "pcurve"],
+        values: &["corrupt", "null_scaffold"],
         delegates: &[],
     },
     TagEntry {
@@ -6622,8 +6622,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // `the_edit_and_snapshot_maps_agree_on_the_var_read_words`;
     // these two rows say only that the sharing is deliberate.
     ("payload_var_kind", 2),
-    ("pcurve", 6),
-    ("pcurves", 3),
     // One fact at the edit and load doors and the product slot: a pick
     // whose path names no one piece of its copy
     // (`editor_core::edit::pick_fault`).

@@ -103,11 +103,8 @@ fn holed_sheet(
         #[allow(clippy::float_cmp)]
         let iso = (a.0 == b.0 && !creased_v) || (a.1 == b.1 && !creased_u);
         let image = if iso {
-            Pcurve::IsoLine {
-                p0: Point2::new(a.0, a.1),
-                pl: Vec2::new((b.0 - a.0) / len, (b.1 - a.1) / len),
-                ends: None,
-            }
+            Pcurve::iso_line_for_tests([a.0, a.1], [(b.0 - a.0) / len, (b.1 - a.1) / len])
+                .expect("an edge along one chart axis is a row or a column")
         } else {
             Pcurve::General(std::sync::Arc::new(
                 geom::NurbsCurve2::new(
@@ -932,7 +929,7 @@ fn a_spline_trim_reads_past_a_placeholder_and_no_other_rowless_half() {
         Lift::read_past_placeholders(body, outer(body, face))
             .unwrap()
             .into_iter()
-            .map(|r| (r.half_edge, r.lift, r.pcurve.eval(r.params.ends().0)))
+            .map(|r| (r.half_edge, r.lift, r.pcurve.eval(r.params().0)))
             .collect()
     };
     let (skipped, bare) = (lifted(&nulled, face), lifted(&plain, plain_face));
@@ -1099,7 +1096,7 @@ fn a_placeholder_at_each_joint_across_a_closed_charts_seam_reads_as_the_bare_fac
             crate::pcurves::Lift::read_past_placeholders(b, lk)
                 .unwrap()
                 .into_iter()
-                .map(|r| (r.half_edge, r.lift, r.pcurve.eval(r.params.ends().0)))
+                .map(|r| (r.half_edge, r.lift, r.pcurve.eval(r.params().0)))
                 .collect()
         };
         for &lk in &loops {
@@ -2054,10 +2051,18 @@ fn an_iso_images_ends_hold_their_evaluations_rounding() {
         let p0 = Point2::new(rng.range(-1e4, 1e4), rng.range(-1e4, 1e4));
         let pl = Vec2::new(rng.range(-1.0, 1.0), rng.range(-1.0, 1.0));
         let (t0, t1) = (rng.range(0.0, 1e4), rng.range(1e4, 2e4));
-        let line = Pcurve::IsoLine { p0, pl, ends: None };
+        // A row or a column, by turns: its ends read through its map, as
+        // the lift reads an end that is no corner.
+        let pl = if rng.below(2) == 0 {
+            Vec2::new(0.0, pl.y)
+        } else {
+            Vec2::new(pl.x, 0.0)
+        };
+        let line =
+            Pcurve::iso_line_for_tests([p0.x, p0.y], [pl.x, pl.y]).expect("a row or a column");
         let scale = p0.x.abs().max(p0.y.abs());
-        let run =
-            super::image_pieces(&line, geom_brep::StoredSpan::for_tests(t0, t1), scale).unwrap();
+        let ends = [line.eval(t0), line.eval(t1)];
+        let run = super::image_pieces(&line, (t0, t1), ends, scale).unwrap();
         for (end, t) in [(run[0].first(), t0), (run[0].last(), t1)] {
             let bound = super::point_rounding(&end);
             for (c, (a, b)) in [(p0.x, pl.x), (p0.y, pl.y)].into_iter().enumerate() {
@@ -2089,7 +2094,7 @@ fn a_spline_faces_stations_read_on_its_own_chart() {
         &twisted(1.0),
         &[(0.1, 0.1), (0.9, 0.1), (0.9, 0.9), (0.1, 0.9)],
     );
-    let surface = body.face(face).unwrap().surface().clone();
+    let surface = body.face(face).unwrap().surface().unwrap().clone();
     let n = 10;
     for i in 0..=n {
         for j in 0..=n {

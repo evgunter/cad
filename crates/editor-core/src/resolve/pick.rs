@@ -877,9 +877,11 @@ impl core::error::Error for RimNameFault {}
 /// what may be reused across it is the content keys' business.
 ///
 /// **What admission costs a caller that went through [`PickMemo`]:
-/// nothing.** An index is served back only under the evaluation memo's
-/// own reuse condition, so a later run in which this node's value
-/// MOVED misses the memo and rebuilds; the admitted case is reachable
+/// nothing.** An index is served back only on the node's keys and the
+/// run's computing frame, which between them fix the body tessellated
+/// (the memo's other conditions are about what a value records, not
+/// where its body's points are), so a later run in which this node's
+/// value MOVED misses the memo and rebuilds; the admitted case is reachable
 /// only by holding an index across pictures by hand. The rows are
 /// `edit_pair_apply_names::a_later_evaluation_of_the_same_document_is_admitted`
 /// (what the doors answer) and `::what_the_admitted_later_evaluation_answers`
@@ -910,6 +912,10 @@ struct PickEntry {
     /// tessellation under its own frame.
     body: crate::eval::Held<f64>,
     naming_key: NamingKey,
+    /// The computing frame of the run the body was built in
+    /// ([`Evaluation::computing_frame`]): no key hashes it, and a body
+    /// built in another frame is another body under the same keys.
+    built_in: Option<[u64; 7]>,
     /// δ and the ambient ε and k, by bit pattern.
     tolerances: [u64; 3],
     pick: NodePick,
@@ -1280,7 +1286,9 @@ impl NodePick {
         let picture = memo.picture;
         if let Some(entry) = memo.nodes.get_mut(&(node, body))
             && entry.pick.document == eval.document
-            && ((entry.content_key == value.content_key && entry.naming_key == value.naming_key)
+            && ((entry.content_key == value.content_key
+                && entry.naming_key == value.naming_key
+                && entry.built_in == eval.computing_frame())
                 || entry.body.same(body_arc.holding()))
             && entry.tolerances == tolerances
         {
@@ -1296,6 +1304,7 @@ impl NodePick {
             entry.pick = pick.clone();
             entry.content_key = value.content_key;
             entry.naming_key = value.naming_key;
+            entry.built_in = eval.computing_frame();
             memo.keep_tables(&keys);
             memo.node_hits += 1;
             return Ok(pick);
@@ -1320,6 +1329,7 @@ impl NodePick {
                 content_key: value.content_key,
                 body: body_arc.holding().clone(),
                 naming_key: value.naming_key,
+                built_in: eval.computing_frame(),
                 tolerances,
                 pick: pick.clone(),
                 keys: tessellation.keys,
@@ -1700,9 +1710,12 @@ pub struct PickHit {
     /// not a second rule. The three are fields rather than one `span`
     /// because 43 call sites read them by name.
     ///
-    /// **The parameter is of the ray this call was given.** A consumer
-    /// that carries a hit across a transform converts all three, or
-    /// none of them mean anything: the viewer's moved-copy crossing is
+    /// **The parameter is of the ray this call was given**, and an
+    /// affine map carries a ray's parameter with it (`map(o + t·d)` is
+    /// `map(o) + t·map(d)`): a consumer that maps the ray into another
+    /// frame before the call gets back all three as parameters of the
+    /// ray it mapped. The certificate is the mapped ray's as rounded,
+    /// which is the viewer's moved-copy crossing:
     /// `work/vgeom/a-moved-copys-pick-span-crosses-its-frame-unconverted.md`.
     pub t: f64,
     /// See [`PickHit::t`].

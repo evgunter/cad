@@ -1,7 +1,10 @@
 //! **The semicircle prism and its arc wall**, shared by the rows that
-//! re-chart that wall and ask what its rows derive: the loft of a profile
-//! with one semicircular edge (bulge 1), at any lane scalar. Its arc wall
-//! is a rational-quadratic spline chart whose two seams are described as
+//! re-chart that wall and ask what its rows derive: the `f64` loft of a
+//! profile with one semicircular edge (bulge 1), its carriers held as
+//! points at any lane scalar, which the loft cuts at its sub-arc joint
+//! into two quarter walls. Its arc wall, the first of them, is a
+//! rational-quadratic spline chart whose two seams (one through a
+//! profile vertex, one at the joint) are described as
 //! `IsoLine` images on the neighbouring walls and whose two rims are its
 //! `IsoArc` rows; its knots mirror bitwise, so `reversed_u` and
 //! `reversed_v` both accept it.
@@ -9,7 +12,7 @@
 use geom::{NurbsSurface, Surface};
 use geom_core::{Band, Point2, Tol};
 use profile::test_support::bulge_loop;
-use sweep::test_support::{lift_places, lift_sections, stacked_at};
+use sweep::test_support::stacked_at;
 use topo::construction::Construct;
 use topo::construction::FaceSurface;
 use topo::{AtRestPolicy, Body, FaceKey, HalfEdgeKey, LeafBody as _, Pcurve, PcurveMintError};
@@ -28,7 +31,11 @@ pub fn in_band() -> f64 {
     tol().eps() * tol().k().sqrt()
 }
 
-/// The semicircle prism at `T`, its wall rows minted.
+/// A prism with a semicircle wall at `T`, its wall rows minted: the
+/// `f64` prism's carriers held at `T` as points
+/// ([`sweep::test_support::f64_body_held_as_points`]), so the rows here
+/// have a rational spline wall to read at every scalar. At `f64` that is
+/// the loft's own body.
 pub fn semicircle_prism<T: AtRestPolicy>() -> Body<T> {
     let v = |x: f64, y: f64, bulge: f64| (Point2::new(x, y), bulge);
     let profile = || {
@@ -39,9 +46,9 @@ pub fn semicircle_prism<T: AtRestPolicy>() -> Body<T> {
             v(0.0, 2.0, 0.0),
         ])]
     };
-    sweep::loft_body::<T>(
-        &lift_sections::<T>(&[profile(), profile()]),
-        &lift_places::<T>(&stacked_at(&[0.0, 1.0]), tol()),
+    sweep::test_support::f64_body_held_as_points::<T>(
+        &[profile(), profile()],
+        &stacked_at(&[0.0, 1.0]),
         1,
         tol(),
     )
@@ -50,7 +57,8 @@ pub fn semicircle_prism<T: AtRestPolicy>() -> Body<T> {
     .into_body()
 }
 
-/// The arc wall: the face whose rows include the `IsoArc` rims.
+/// The arc wall: the first face whose rows include an `IsoArc` rim, one
+/// of the semicircle's two quarter walls.
 pub fn arc_wall<T: AtRestPolicy>(body: &Body<T>) -> FaceKey {
     let rim = body
         .pcurves()
@@ -79,7 +87,7 @@ pub fn recharted<T: AtRestPolicy>(
     let mut out = body.clone();
     let face = out.get_face(wall).unwrap();
     let (key, sense) = (face.surface, face.sense);
-    let Some(Surface::Nurbs(net)) = out.get_surface(key).cloned() else {
+    let Ok(Surface::Nurbs(net)) = out.get_surface(key).cloned() else {
         panic!("the wall is a spline chart")
     };
     // Lifts RechartUnvouched and RechartStrandsDescriptions: the wall

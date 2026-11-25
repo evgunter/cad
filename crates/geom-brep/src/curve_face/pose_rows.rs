@@ -725,3 +725,60 @@ fn a_touch_past_the_span_is_windowed_by_its_reach() {
         }
     }
 }
+
+/// The far-centred conic graze rows' readings: `(wrong, of them beyond
+/// the escalation, definite)` of the poses read. Each pose is a graze
+/// from [`crate::curve_pair::far_graze_rows::graze`] (an ellipse of
+/// semi-axes `far` and `far/3`, held at its centre or on its arc, grazed
+/// at any angle round the turn by a point in the box) against a plane
+/// through that point, its normal the ellipse's in-plane normal there
+/// tilted out of the ellipse's plane, its stored origin by the arc and its
+/// gap within twice the band's escalation. Judged exactly on the stored
+/// data ([`crate::curve_pair::far_graze_rows::judge`]).
+fn far_centre_conic_grazes(far: f64, arc_held: bool) -> (usize, usize, usize) {
+    use crate::curve_pair::far_graze_rows::{band, graze, judge};
+    let band = band();
+    let mut rng = test_utils::fuzz::start("curve_face::far_centre_conic_grazes");
+    let (mut wrong, mut beyond, mut definite) = (0, 0, 0);
+    for _ in 0..test_utils::fuzz::scaled(2000) {
+        let g = graze(&mut rng, far, arc_held);
+        let tilt = rng.range(-1.2, 1.2);
+        let n = (g.outward * tilt.cos() + g.axis * tilt.sin()).normalize();
+        let w = n.cross(g.along).normalize();
+        let gap = rng.range(-2.0, 2.0) * band.escalate();
+        let plane = geom::Frame::new(g.crest + n * gap + w * rng.range(-3.0, 3.0), n, w);
+        let span = Span::new(&g.conic, (0.0, TAU));
+        let read = match pose(&span, &geom::Surface::Plane { frame: plane }, band) {
+            Ok(Pose::Isolated(_)) => Some(true),
+            Ok(Pose::Apart) => Some(false),
+            _ => None,
+        };
+        if let Some(meets) = read {
+            definite += 1;
+            let (w, b) = judge(g.stored, (plane.origin(), plane.axis()), meets, band);
+            wrong += usize::from(w);
+            beyond += usize::from(b);
+        }
+    }
+    (wrong, beyond, definite)
+}
+
+/// **A graze of a far-centred conic is read wrong nowhere**: an ellipse
+/// of semi-axes of the order `far`, held at its centre or on its arc,
+/// whose height above a plane grazing it at any angle round the turn has
+/// an amplitude and an offset each of the order `far` and a belly of the
+/// band's order. The pose charges no rounding (`[simple.conditioned]`),
+/// so no reading may be definite where the exact belly is not.
+#[test]
+fn a_graze_of_a_far_centred_conic_is_read_wrong_nowhere() {
+    let got: Vec<_> = [false, true]
+        .into_iter()
+        .flat_map(|held| [1e4, 1e5, 1e6].map(|far| (held, far, far_centre_conic_grazes(far, held))))
+        .collect();
+    println!("(arc-held, far, (wrong, beyond the escalation, definite)): {got:?}");
+    assert!(
+        got.iter().all(|g| g.2.0 == 0),
+        "read wrong: {got:?}; {}",
+        test_utils::fuzz::replay()
+    );
+}

@@ -137,11 +137,12 @@
 //! rule: a stored `Point3<S>` becomes `f64` through `map(S::f)`, once,
 //! where narration begins.
 //!
-//! **The swept and lofted blades are the exception**: their frames
-//! and outlines are built from computed geometry (a spine, a curl), so
-//! they enter `S` as the computed values they are — the frame's inputs
-//! through `map(S::from_computed)` and minted at `S`, `lift_computed`
-//! on each loop.
+//! **The swept and lofted blades' frames are the exception**: they are
+//! built from computed geometry (a spine, a curl), so their inputs
+//! enter `S` as the computed values they are, through
+//! `map(S::from_computed)`, and the frame is minted at `S`. Their
+//! outlines are authored numbers and are drawn at `S` like every other
+//! sketch.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -149,9 +150,7 @@ use core::f64::consts::PI;
 use pncad::sweep::ExtrudeSide;
 use pncad::topo::LeafBody as _;
 
-use pncad::geom_core::{
-    Affine3, Mat3, Point2, Point3, RigidMotion, RigidMotionError, UnitVec3, Vec3,
-};
+use pncad::geom_core::{Affine3, Mat3, Point3, RigidMotion, RigidMotionError, UnitVec3, Vec3};
 use pncad::prelude::{Open, Start, SurfaceKind, SurfaceKindSet, query};
 use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane, Via};
 use pncad::sweep::blend::fillet_edges;
@@ -822,21 +821,21 @@ impl Lance {
     /// The lens, wound counterclockwise in the sketch `(s, t)` frame
     /// from the `+s` margin: over the ridge to the `−s` margin, then
     /// under the keel back.
-    fn outline(self, tol: Tol) -> Vec<ConstructedLoop<f64>> {
+    fn outline<S: Scalar>(self, tol: Tol) -> Vec<ConstructedLoop<S>> {
         let half = 0.5 * self.width;
         let closed = Open
-            .at(Point2::new(half, 0.0))
+            .at(p2::<S>(half, 0.0))
             .arc_to(
                 Via {
-                    q: Point2::new(0.0, self.ridge),
-                    p: Point2::new(-half, 0.0),
+                    q: p2::<S>(0.0, self.ridge),
+                    p: p2::<S>(-half, 0.0),
                 },
                 tol,
             )
             .expect("the blade's ridge arc")
             .arc_to(
                 Via {
-                    q: Point2::new(0.0, -self.keel),
+                    q: p2::<S>(0.0, -self.keel),
                     p: Start,
                 },
                 tol,
@@ -1028,19 +1027,15 @@ fn leaf<S: Scalar>(
         })
         .collect();
     let path = pncad::geom::NurbsCurve3::interpolate(&pts, 3).expect("the leaf spine interpolates");
-    // The outline is built in `f64`, so it enters `S` as the computed
-    // values it is; the frame is minted at `S` from those values.
+    // The frame's inputs are computed in `f64`, so they enter `S` as
+    // the computed values they are, and the frame is minted at `S`.
     let place = sketch_frame::<S>(
         base.map(S::from_computed),
         u.map(S::from_computed),
         v.map(S::from_computed),
         tol,
     );
-    let outline: Vec<_> = section
-        .outline(tol)
-        .iter()
-        .map(|lp| lp.lift_computed())
-        .collect();
+    let outline = section.outline::<S>(tol);
     sweep_body::<S>(&outline, place, &path, LEAF_STATIONS, BLADE_V_DEGREE, tol)
         .expect("the leaf sweeps along its spine")
         .body
@@ -1208,13 +1203,10 @@ fn blade_station<S: Scalar>(
     let (st, ct) = (roll.sin(), roll.cos());
     let uu = u * ct + vk * st;
     let vv = vk * ct - u * st;
-    // Built in `f64`, so they enter `S` as the computed values they are.
+    // The frame's inputs are computed in `f64`, so they enter `S` as
+    // the computed values they are.
     (
-        section
-            .outline(tol)
-            .iter()
-            .map(|lp| lp.lift_computed())
-            .collect(),
+        section.outline(tol),
         sketch_frame::<S>(
             p.map(S::from_computed),
             uu.map(S::from_computed),
@@ -1881,7 +1873,7 @@ fn cone_station_circles<S: Scalar>(
 ) -> Vec<(pncad::topo::FaceKey, Circle)> {
     let mut out = Vec::new();
     for (k, _) in body.faces() {
-        let Some(&pncad::geom::Surface::Cone {
+        let Ok(&pncad::geom::Surface::Cone {
             frame: carrier_frame,
             half_angle,
             ..
@@ -1930,7 +1922,7 @@ struct TorusCarrier {
 /// one silently picks one. That row is the tie.
 fn torus_carrier<S: Scalar>(body: &Body<S>) -> TorusCarrier {
     for (fk, _) in body.faces() {
-        if let Some(&pncad::geom::Surface::Torus {
+        if let Ok(&pncad::geom::Surface::Torus {
             frame,
             major_radius,
             minor_radius,
@@ -2144,7 +2136,7 @@ pub fn seamed_lantern(lantern: Body<f64>, tol: Tol) -> Result<Body<f64>, Boolean
     let (zc, axis) = lantern
         .faces()
         .find_map(|(fk, _)| match lantern.face_surface(fk) {
-            Some(&pncad::topo::Surface::Sphere { frame, .. }) => {
+            Ok(&pncad::topo::Surface::Sphere { frame, .. }) => {
                 let (center, axis) = (frame.origin(), frame.axis());
                 Some((center, axis))
             }
@@ -2318,8 +2310,8 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    scene's own change to make.
     let across = pncad::topo::Reflection::across(p3(0.0, 0.0, 0.0), v3(0.0, 1.0, 0.0), tol)
         .expect("the plant's plane has a normal");
-    let mirrored = pncad::topo::mirror_body(leaf_a, &across, tol)
-        .expect("a leaf mirrors across the plant's plane");
+    let mirrored =
+        pncad::topo::mirror_body(leaf_a, &across).expect("a leaf mirrors across the plant's plane");
     finished("lily_leaf_a mirrored", mirrored, tol);
     println!("   wall 5 — RETIRED: a leaf mirrored across the plant's plane builds at rest");
 
@@ -2335,7 +2327,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    the band: one torus face, coaxial with the flower.
     let bands = lant
         .faces()
-        .filter(|(fk, _)| lant.face_surface(*fk).map(|g| g.kind()) == Some(SurfaceKind::Torus))
+        .filter(|(fk, _)| lant.face_surface(*fk).map(|g| g.kind()) == Ok(SurfaceKind::Torus))
         .count();
     assert_eq!(bands, 1, "the lantern's rolled mouth is one torus band");
     println!(
@@ -2433,7 +2425,8 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    (`work/secttorus/c5-plane-torus-cone-cylinder-arms`). At 1e-12
     //    the lower stem's declared frontier stands the lily walls down
     //    before this one.
-    wall(
+    crate::walls::join_wall(
+        "lily",
         8,
         "grow the long leaf out of the stem (its NURBS walls through the \
          lower stem's torus wall)",
@@ -2444,7 +2437,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
             // side of the root's chord, `+v` of the sheath's frame.
             let (root, (_, sheath_up, _), _, _) = leaf_a_spine(tol);
             let ridge_wall = |f| match leaf_a.face_surface(f) {
-                Some(pncad::topo::Surface::Nurbs(n)) => {
+                Ok(pncad::topo::Surface::Nurbs(n)) => {
                     let lean: f64 = n
                         .control()
                         .iter()
@@ -2461,7 +2454,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
             // The lower stem's tube: the torus on its ring.
             let (lower, _) = lower_stem();
             let lower_tube = |f| match stem.face_surface(f) {
-                Some(pncad::topo::Surface::Torus {
+                Ok(pncad::topo::Surface::Torus {
                     frame,
                     major_radius,
                     ..

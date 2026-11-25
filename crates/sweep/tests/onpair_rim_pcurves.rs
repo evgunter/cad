@@ -56,7 +56,7 @@ fn wall_rims(body: &Body<f64>) -> Vec<(HalfEdgeKey, Pcurve<f64>)> {
                 body.get_curve_geom(curve).and_then(topo::CurveGeom::certified).map(|c| c.description()),
                 Some(EdgeDescription::Chart(c))
                     if c.surface != wall
-                        && matches!(body.get_surface(c.surface), Some(geom::Surface::Plane { .. }))
+                        && matches!(body.get_surface(c.surface), Ok(geom::Surface::Plane { .. }))
             )
         })
         .map(|(h, c)| (h, c.pcurve().clone()))
@@ -173,7 +173,7 @@ fn an_arc_rim_on_its_pair_mints_its_iso_arc_and_certifies_through_it() {
         .into_iter()
         .filter(|(_, p)| matches!(p, Pcurve::IsoArc { .. }))
         .collect();
-    assert_eq!(rims.len(), 2, "the arc wall's two rims");
+    assert_eq!(rims.len(), 4, "the arc's two quarter walls' rims");
     for (h, stored) in rims {
         restate(&mut body, h, None, false);
         assert_eq!(

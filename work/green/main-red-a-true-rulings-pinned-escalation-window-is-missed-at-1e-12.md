@@ -2,10 +2,12 @@
 id: main-red-a-true-rulings-pinned-escalation-window-is-missed-at-1e-12
 kind: issue
 title: Main red at ε 1e-12: geom-brep's a_true_ruling_keeps_the_closed_form_on_both_nappes pins an escalation in (1e-12, 1.1e-12) and reads 1.112e-12
-status: open
+status: closed
 opened: 2026-11-23
 priority: P1
 cost: E
+closed: 2026-11-23
+pr: 7558
 ---
 
 
@@ -16,3 +18,11 @@ Reported by the implementer of ONEROUND's PR 7442 on 2026-11-23, from a run of t
 The file last changed on main in PR 7323 (`onehome/check1-frame-half`, commit `01ebb1c2ca`, "Frame rounding bounds the distance to the polar factor"), merged on 2026-11-23; that it is the cause is likely and not established (nobody ran the row on the commit before it). The 1e-12 row of geom-brep runs on a PR only where the diff touches the crate, so every such PR meets it.
 
 Owed, by the lane that moved it: whether the wider enclosure is right (then the window is re-pinned with what moved and why) or a loosening to undo.
+
+## Closed by PR 7558 (2026-11-23)
+
+The window moved because ONEHOME's check-1 change (7323/7349) re-levered
+the frame's f64 rounding. GREEN's PR 7558 (`5fdf61e7be`) re-pinned it to
+(1.05, 1.2]e-12. The cause is joint: mutant A or F1X alone reds it, and
+F1F leaves it green. Run 45274813404 verifies all four generators at
+default, 1e-6 and 1e-12.

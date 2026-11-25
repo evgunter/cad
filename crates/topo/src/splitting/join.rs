@@ -326,7 +326,7 @@ fn fixed_partners<T: Decide>(
             continue;
         }
         let view = body.face(face).ok_or_else(|| corrupt_face(face))?;
-        let wall = view.surface();
+        let wall = view.expect_described();
         let mut crossings = Vec::with_capacity(halves.len());
         for &h in &halves {
             let start = body.get_half_edge(h).ok_or_else(|| corrupt_he(h))?.start;
@@ -414,7 +414,7 @@ fn split_leave<T: Decide>(
 ) -> Result<geom_core::Vec3<T>, JoinError> {
     let face = he_face(body, half)?;
     let view = body.face(face).ok_or_else(|| corrupt_face(face))?;
-    let wall = view.surface();
+    let wall = view.expect_described();
     leave_on(body, plane_normal, above_set, half, (wall, view.sense()))
 }
 
@@ -1164,9 +1164,8 @@ impl<T: Decide> Sweep<T> {
             let a_pt = body.resolve_vertex_point(he_data.start, crate::live::Proven);
             let b_pt = body.resolve_vertex_point(end, crate::live::Proven);
             let dt_signed = if forward { span } else { T::zero() - span };
-            let excess =
-                geom_brep::props::arc_segment_term(conic.frame().axis(), sa * sb, dt_signed)
-                    .dot(self.plane.normal.get());
+            let excess = geom_brep::props::arc_segment_term(conic.axis(), sa * sb, dt_signed)
+                .dot(self.plane.normal.get());
             twice_area = twice_area + excess;
             // The arc's length over-stated by its larger semi-axis
             // (`reach`), whichever is stored first.

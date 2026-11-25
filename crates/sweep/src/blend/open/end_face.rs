@@ -55,7 +55,8 @@ use crate::blend::reach::{EDGE_SAMPLES, sure};
 use crate::blend::surgery::{
     ContactCarrier, Piece, SourceFaces, SplitFragments, arc_window, chord_site, disagrees,
     face_of_half, halves_of, op, piece_along, piece_distance, point_of, retire_fragment,
-    split_fragment, split_param_in_span, stored_piece, unbuilt_end, unbuilt_geometry, unresolved,
+    split_fragment, split_param_in_span, stored_piece, surface_missed, unbuilt_end,
+    unbuilt_geometry, unresolved,
 };
 use crate::blend::{BlendDecision, BlendError, BlendSite, UnbuiltEnd, classify};
 
@@ -117,6 +118,10 @@ impl<T: Decide + Bounds> EndCut<T> {
     /// [`BlendError::BodyNotIntact`] when the end is not the incidence
     /// the verdict classified or the end face is not a plane.
     #[allow(clippy::too_many_arguments)] // the band's own reads, one per argument.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     pub(in crate::blend) fn plan(
         body: &Body<T>,
         vertex: VertexKey,
@@ -130,12 +135,9 @@ impl<T: Decide + Bounds> EndCut<T> {
         let (rim_a, rim_b, face) = end_rims(body, vertex, crease, face_a, face_b)?;
         // The end plane, from the STORED surface — the battery's
         // classification read the same one.
-        let stored = body.face_surface(face).ok_or_else(|| {
-            unresolved(
-                EntityId::Face(face),
-                "a cut-off's end face's stored surface",
-            )
-        })?;
+        let stored = body
+            .face_surface(face)
+            .map_err(|miss| surface_missed(face, "a cut-off's end face's stored surface", miss))?;
         let Surface::Plane {
             frame: carrier_frame,
             ..
@@ -383,6 +385,10 @@ impl<T: Bounds> SectionFrame<T> {
     }
 
     /// `d` in the section's unit coordinates.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic restated on a frame the caller holds, or a point read about a centre an arc-held ellipse derives: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn unit(self, d: Vec3<T>) -> (T, T) {
         geom::Conic::unit_in_plane(&self.shape, Point3::origin() + d)
     }
@@ -401,6 +407,10 @@ impl<T: Bounds> SectionFrame<T> {
     /// length by more than `1/minor`. A scaled radius `ρ < 1` is at
     /// least `minor·(1 − ρ)` from the section, which shrinks no length
     /// by less than `minor`. `None` for a carrier with no closed form.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn depth(self, carrier: &Curve3<T>, (ta, tb): (T, T), center: Point3<T>) -> Option<T> {
         let rho = match *carrier {
             Curve3::Line(geom::Line { origin, dir }) => self
@@ -423,6 +433,10 @@ impl<T: Bounds> SectionFrame<T> {
     /// `a/minor` short of `c`'s. A scaled radius `ρ > 1` is at least
     /// `minor·(ρ − 1)` from the section, as in [`Self::depth`]. `None`
     /// for a carrier with no closed form.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn outside(self, carrier: &Curve3<T>, (ta, tb): (T, T), center: Point3<T>) -> Option<T> {
         let rho = match *carrier {
             Curve3::Line(geom::Line { origin, dir }) => {
@@ -625,6 +639,10 @@ impl<T: Decide + Bounds> CapSliver<T> {
 /// semi-axis, which holds it, and the disc of its minor, which it holds.
 /// Two segments are read by each one's line: two segments that do not
 /// meet always leave one of them wholly on one side of the other's line.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn apart<T: Decide + Bounds>(a: Piece<'_, T>, b: Piece<'_, T>, n: Vec3<T>) -> Option<T> {
     let round = |c: &Curve3<T>| {
         c.conic()
@@ -839,6 +857,10 @@ impl<T: Decide + Bounds> CapSliver<T> {
     /// old vertex, a rim, or the end face's half of a rim does not
     /// resolve, or a round end curve does not run forward from one foot
     /// to the other.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn of(
         body: &Body<T>,
         vertex: VertexKey,
@@ -862,11 +884,8 @@ impl<T: Decide + Bounds> CapSliver<T> {
                 // (`Curve3::major_frame`).
                 let (center, axis, major, minor, u) = match *arc {
                     Curve3::Circle(circle) => {
-                        let (center, axis, u_ref) = (
-                            circle.frame().origin(),
-                            circle.frame().axis(),
-                            circle.frame().u_ref(),
-                        );
+                        let (center, axis, u_ref) =
+                            (circle.frame().origin(), circle.axis(), circle.u_ref());
                         let radius = circle.radius();
                         (center, axis, radius, radius, u_ref)
                     }
@@ -912,7 +931,7 @@ impl<T: Decide + Bounds> CapSliver<T> {
         let toward = (pv - center).normalize();
         let mut directions = vec![toward];
         if let Some((frame, _)) = round {
-            let (u, w) = (frame.shape.frame().u_ref(), frame.shape.frame().v_ref());
+            let (u, w) = (frame.shape.u_ref(), frame.shape.v_ref());
             directions.extend([u, -u, w, -w]);
         }
         // `reach` and the floors over the rim pieces alone: `A` adds no

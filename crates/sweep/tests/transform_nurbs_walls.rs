@@ -116,8 +116,8 @@ fn check_walls(
     map: &Affine3<f64>,
 ) -> (usize, usize) {
     let (mut walls, mut rational) = (0usize, 0usize);
-    for (key, b) in before.surfaces() {
-        let (Surface::Nurbs(b), Some(Surface::Nurbs(a))) = (b, after.get_surface(key)) else {
+    for (key, b) in before.described_surfaces() {
+        let (Surface::Nurbs(b), Ok(Surface::Nurbs(a))) = (b, after.get_surface(key)) else {
             continue;
         };
         walls += 1;

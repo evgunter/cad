@@ -123,9 +123,10 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom::NurbsCurve3;
+use geom::{NurbsCurve3, NurbsSurface};
 use geom_core::{Affine3, Band, Bounds, Decide, Point2, Point3, Real, RigidMotion, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
+use std::sync::Arc;
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanInputs, EdgeKey, FaceKey, LeafBody as _, LoopBoundary};
 
@@ -710,6 +711,10 @@ pub fn reflex_edge_and_floor_leg(body: &Body<f64>, (x, y): (f64, f64)) -> [EdgeK
 /// The `1e-9` and the sole [`Bounds`] bound are [`rim_arcs_at`]'s, for
 /// its reasons.
 #[must_use]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub fn arcs_at<T: Bounds>(body: &Body<T>, rim_r: f64, rim_y: f64) -> Vec<EdgeKey> {
     let near = |x: T, want: f64| (x.lo() - want).abs() < 1e-9 && (x.hi() - want).abs() < 1e-9;
     body.edges()
@@ -1396,23 +1401,36 @@ pub fn loft_prism(tol: Tol) -> Body<f64> {
 /// at `z = 0` and `z = h`, skinned straight at degree 1 — π·h m³.
 ///
 /// Each semicircle is two rational quarter arcs joined at a knot of
-/// multiplicity two ([`segment_curve`]), so each of the two lateral
-/// walls carries a C⁰ crease in `u`, at `x = 0`: the class the mesher's
-/// crease lines exist for, and the first corpus body with a crease.
+/// multiplicity two ([`segment_curve`]), and the loft cuts each wall at
+/// that joint, so the body has four quarter walls and none carries a
+/// crease ([`lofted_cylinder_walls`] keeps the creased surfaces).
 pub fn lofted_cylinder(h: f64, tol: Tol) -> Body<f64> {
+    let (sections, places) = lofted_cylinder_sections(h);
+    crate::loft_body::<f64>(&sections, &places, 1, tol)
+        .expect("the circle lofts")
+        .body
+        .into_body()
+}
+
+/// **[`lofted_cylinder`]'s two skinned surfaces, uncut**
+/// ([`crate::loft_geometry`]): each semicircle's surface carries a C⁰
+/// crease in `u` at `x = 0`, the sub-arc joint the body is cut at. A
+/// creased net for the readers whose crease arms no built face reaches.
+pub fn lofted_cylinder_walls(h: f64, tol: Tol) -> Vec<Arc<NurbsSurface<f64>>> {
+    let (sections, places) = lofted_cylinder_sections(h);
+    crate::loft_geometry(&sections, &places, 1, &[0.0, 1.0], tol)
+        .expect("the circle skins")
+        .walls
+        .remove(0)
+}
+
+/// The unit circle as two semicircles at `z = 0` and `z = h`.
+fn lofted_cylinder_sections(h: f64) -> (Vec<Section>, Vec<SketchPlane<f64>>) {
     let lp = bulge_loop(vec![
         (Point2::new(1.0, 0.0), 1.0),
         (Point2::new(-1.0, 0.0), 1.0),
     ]);
-    crate::loft_body::<f64>(
-        &[vec![lp.clone()], vec![lp]],
-        &stacked_at(&[0.0, h]),
-        1,
-        tol,
-    )
-    .expect("the circle lofts")
-    .body
-    .into_body()
+    (vec![vec![lp.clone()], vec![lp]], stacked_at(&[0.0, h]))
 }
 
 // ------------------------------------------------------------------
@@ -2064,6 +2082,10 @@ pub fn z_rim(body: &Body<f64>, r: f64, z0: f64, off_axis: bool) -> Vec<EdgeKey> 
 /// Every edge whose stored carrier is a circle that `pick` accepts
 /// (centre, radius, axis), in key order — the seed scan [`z_rim`] and
 /// [`circle_arcs_at_z`] share.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn circle_arcs_where(
     body: &Body<f64>,
     pick: impl Fn(Point3<f64>, f64, Vec3<f64>) -> bool,
@@ -2075,7 +2097,7 @@ fn circle_arcs_where(
                     .and_then(|g| g.certified())
                     .map(|c| c.carrier()),
                 Some(geom::Curve3::Circle(c))
-                    if pick(c.frame().origin(), c.radius(), c.frame().axis())
+                    if pick(c.frame().origin(), c.radius(), c.axis())
             )
         })
         .map(|(k, _)| k)
@@ -2663,17 +2685,23 @@ fn turn_readings_of<T: Decide>(
     (reading.gap, reading.chords)
 }
 
-/// **The loft doors before their finish**: [`crate::loft_body`],
+/// **The loft doors before their finish's verdict**: [`crate::loft_body`],
 /// [`crate::loft_profiles`] and [`crate::sweep_body`] with the built
-/// body in construction state, every key kept. For the suites that read
-/// a loft's walls at an enclosure scalar whose finish does not run on
-/// them: at `Interval`, check 7's quadrature refuses a NURBS wall whose
-/// pcurve endpoints are not exact structure, so the door refuses the
-/// body, and the walls those suites measure are read here instead.
+/// body in construction state, every key kept, its rows completed as the
+/// finish completes them ([`topo::test_support::completed`]). For the
+/// suites that read a loft's walls at an enclosure scalar whose finish
+/// does not run on them: at `Interval`, check 7's quadrature refuses a
+/// NURBS wall whose pcurve endpoints are not exact structure, so the door
+/// refuses the body, and the walls those suites measure are read here
+/// instead.
 ///
 /// # Errors
 ///
 /// The door's own, short of its finish.
+///
+/// # Panics
+///
+/// Where the built body's rows do not complete.
 pub fn loft_body_construction<T: geom_core::Decide + topo::AtRestPolicy>(
     sections: &[crate::skin::Section<impl crate::skin::SectionLoop<T>>],
     places: &[profile::SketchPlane<T>],
@@ -2681,6 +2709,63 @@ pub fn loft_body_construction<T: geom_core::Decide + topo::AtRestPolicy>(
     tol: geom_core::Tol,
 ) -> Result<crate::Lofted<T, topo::Body<T>>, crate::LoftError> {
     crate::loft::loft_body_construction(sections, places, v_degree, tol)
+        .map(|lofted| completed_loft(lofted, tol))
+}
+
+/// `lofted` with its body's rows completed.
+#[allow(clippy::panic)]
+fn completed_loft<T: topo::AtRestPolicy>(
+    lofted: crate::Lofted<T, topo::Body<T>>,
+    tol: geom_core::Tol,
+) -> crate::Lofted<T, topo::Body<T>> {
+    let body = topo::test_support::completed(lofted.body, tol)
+        .unwrap_or_else(|e| panic!("the loft's rows complete: {e:?}"));
+    crate::Lofted { body, ..lofted }
+}
+
+/// **A spline-walled body at `T` whose carriers hold `f64` values as
+/// points**: the `f64` body [`crate::loft_body`] builds over `sections`
+/// and `places`, every carrier value entered at `T` as the point it is,
+/// finished as its scalar's leaf with every key kept. A family of one
+/// whose member has `f64` values.
+///
+/// It is NOT the loft of these sections at `T`: that one is built in
+/// `T`, and at an enclosure scalar its arc weights and chord-length
+/// parameters are enclosures, which a carrier does not hold yet
+/// (`work/inlane/an-enclosure-carrier-holds-point-weights-and-knots.md`).
+/// This door is for rows that hand SOME spline-walled body at an
+/// enclosure scalar to a certifier. No row about the loft may use it,
+/// and it goes when the carrier's door lifts
+/// (`work/scalar/the-point-carrier-fixture-goes-when-the-carriers-door-lifts.md`).
+///
+/// # Errors
+///
+/// [`crate::loft_body`]'s at `f64` short of its finish, the assembly's
+/// at `T`, and the finish's there.
+pub fn f64_body_held_as_points<T: geom_core::Decide + topo::AtRestPolicy>(
+    sections: &[Section],
+    places: &[profile::SketchPlane<f64>],
+    v_degree: usize,
+    tol: geom_core::Tol,
+) -> Result<crate::Lofted<T>, crate::LoftError> {
+    crate::loft::f64_body_held_as_points(sections, places, v_degree, tol)?.leaf(tol)
+}
+
+/// [`f64_body_held_as_points`] before its verdict: the body with its
+/// rows completed, as its finish completes them, for the rows that read
+/// its walls at an enclosure scalar whose finish does not run on them.
+///
+/// # Errors
+///
+/// [`f64_body_held_as_points`]'s, short of the finish.
+pub fn f64_body_held_as_points_construction<T: geom_core::Decide + topo::AtRestPolicy>(
+    sections: &[Section],
+    places: &[profile::SketchPlane<f64>],
+    v_degree: usize,
+    tol: geom_core::Tol,
+) -> Result<crate::Lofted<T, topo::Body<T>>, crate::LoftError> {
+    crate::loft::f64_body_held_as_points(sections, places, v_degree, tol)
+        .map(|lofted| completed_loft(lofted, tol))
 }
 
 /// [`loft_body_construction`]'s twin for [`crate::loft_profiles`].
@@ -2694,6 +2779,7 @@ pub fn loft_profiles_construction<T: geom_core::Decide + topo::AtRestPolicy>(
     tol: geom_core::Tol,
 ) -> Result<crate::Lofted<T, topo::Body<T>>, crate::LoftError> {
     crate::loft::loft_profiles_construction(sections, v_degree, tol)
+        .map(|lofted| completed_loft(lofted, tol))
 }
 
 /// [`loft_body_construction`]'s twin for [`crate::sweep_body`].
@@ -2710,6 +2796,7 @@ pub fn sweep_body_construction<T: geom_core::Decide + topo::AtRestPolicy>(
     tol: geom_core::Tol,
 ) -> Result<crate::Lofted<T, topo::Body<T>>, crate::LoftError> {
     crate::loft::sweep_body_construction(profile, plane, path, stations, v_degree, tol)
+        .map(|lofted| completed_loft(lofted, tol))
 }
 
 /// **[`crate::revolve()`] before its finish**: the built body in

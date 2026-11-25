@@ -125,6 +125,7 @@
 //! # run().unwrap();
 //! ```
 
+#![cfg_attr(not(test), deny(clippy::disallowed_methods))]
 // A comment on a `mod` declaration below is `//`, never `///`: an outer
 // doc comment merges into the module's own `//!` docs and makes rustdoc
 // resolve their intra-doc links in this file's scope instead of theirs.
@@ -188,11 +189,25 @@ pub mod solid_contain;
 #[cfg(test)]
 pub(crate) mod source_walk;
 
+#[cfg(any(test, feature = "test-support"))]
+thread_local! {
+    /// The cuts each of this thread's sphere cut-ins made, A's then B's,
+    /// one entry per cut-in in call order
+    /// ([`test_support::take_cut_ins`]): the witness a test reads to
+    /// count the cuts, which no result holds.
+    static CUT_INS: core::cell::RefCell<Vec<[usize; 2]>> = const { core::cell::RefCell::new(Vec::new()) };
+}
+
+/// Records one cut-in's cuts ([`CUT_INS`]).
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn note_cut_ins(made: [usize; 2]) {
+    CUT_INS.with(|c| c.borrow_mut().push(made));
+}
+
 #[cfg(test)]
 pub(crate) mod cert_m3r1_probes;
 pub(crate) mod held;
 pub mod instance;
-pub(crate) mod invalid_margin;
 #[cfg(test)]
 pub(crate) mod iso;
 pub mod joint;
@@ -343,6 +358,21 @@ pub mod test_support {
     use geom_core::Real;
 
     use crate::body::Body;
+
+    /// **Whether each pose of a sphere face holds `point` in the extent
+    /// it grants**: one entry per pose about an off-axis circle of the
+    /// face, `None` where that pose grants none. `None` overall where the
+    /// face does not lift. The containment pins of the posed extent read
+    /// it.
+    #[must_use]
+    pub fn posed_extents_holding(
+        body: &Body<f64>,
+        face: crate::FaceKey,
+        point: [f64; 3],
+        band: geom_core::Band,
+    ) -> Option<Vec<Option<bool>>> {
+        crate::clearance::posed_extents_holding(body, face, point, band)
+    }
 
     /// The at-rest window's reasons for an incidence refusal, one per
     /// read (`validate::incidence_reasons`): a test outside this crate
@@ -696,7 +726,10 @@ pub mod test_support {
         key: crate::SurfaceKey,
         surface: geom::Surface<T>,
     ) -> bool {
-        body.surfaces.get_mut(key).map(|s| *s = surface).is_some()
+        body.surfaces
+            .get_mut(key)
+            .map(|s| *s = surface.into())
+            .is_some()
     }
 
     /// `host` holding `cavity` as [`crate::insert_void`] would graft it,
@@ -858,6 +891,45 @@ pub mod test_support {
         body.finished(what, tol)
     }
 
+    /// **`body`'s finish, its findings as [`crate::validate_geometric`]
+    /// spells them**: a construction door leaves each row current or
+    /// absent, and that check, a pure one, reads an absent one as
+    /// missing, where the finish ([`crate::AtRestPolicy::finish`])
+    /// completes it first.
+    ///
+    /// # Errors
+    ///
+    /// The finish's findings.
+    pub fn validate_completed<T: crate::AtRestPolicy>(
+        body: &Body<T>,
+        tol: geom_core::Tol,
+    ) -> Result<(), Vec<crate::ValidationError>> {
+        crate::finish(body.clone(), tol)
+            .map(drop)
+            .map_err(|e| e.as_slice().to_vec())
+    }
+
+    /// **`body` with its rows completed**, the finish's first act
+    /// ([`crate::AtRestPolicy::finish`]) without its verdict: for a row
+    /// that reads the rows a construction door left for the finish on a
+    /// body the verdict refuses for another reason.
+    ///
+    /// # Errors
+    ///
+    /// Tiers 1 and 2's findings, or completion's.
+    pub fn completed<T: crate::AtRestPolicy>(
+        mut body: Body<T>,
+        tol: geom_core::Tol,
+    ) -> Result<Body<T>, Vec<crate::ValidationError>> {
+        let refused =
+            crate::finish::complete_in_place(&mut body, tol).map_err(|e| e.as_slice().to_vec())?;
+        if refused.is_empty() {
+            Ok(body)
+        } else {
+            Err(refused)
+        }
+    }
+
     /// **What of `body` lies along a line**: the line through `origin`
     /// along the unit `dir`, and each edge both of whose ends lie on it
     /// (within 1e-9) as their parameters along it, the lesser first, and
@@ -910,6 +982,14 @@ pub mod test_support {
         Recertify,
         /// Carried the source's certificates, handles rewritten.
         RemapKeys,
+    }
+
+    /// The cuts every sphere cut-in this thread ran since the last call
+    /// made, A's then B's, one entry per cut-in in call order, draining
+    /// the record. The output stage closes every cut, so a result holds
+    /// none to count.
+    pub fn take_cut_ins() -> Vec<[usize; 2]> {
+        crate::CUT_INS.with(|c| core::mem::take(&mut *c.borrow_mut()))
     }
 
     /// The bridge of every graft this thread ran since the last call,
@@ -979,7 +1059,7 @@ pub mod test_support {
     }
 
     /// The boolean pipeline through its join: both operand clones with
-    /// every null edge killed, before the finish and the closing mint
+    /// every null edge killed, before the finish
     /// (`boolean::through_the_join`). `None` where the pipeline answers
     /// without a join to stop at.
     ///
@@ -1044,7 +1124,7 @@ pub mod test_support {
     }
 
     /// The direct split run through its join: the scratch body with
-    /// every null edge killed, before the finish and the closing mint
+    /// every null edge killed, before the finish
     /// (`splitting::through_the_join`).
     ///
     /// # Errors
@@ -1297,7 +1377,7 @@ pub mod test_support {
     /// The no-crossings path's certificates on `a` × `b` — the sphere
     /// extent scan, then the section pass — as that path runs them over
     /// `op`'s glue door and reduction, whatever the crossing layer
-    /// found. `Ok` with the number of sphere re-cuts the scan asked for
+    /// found. `Ok` with the number of sphere cut-ins the scan asked for
     /// and the number of refusals held for the `On` verdict (pairs the
     /// reduction settled one carrier), which this door does not run.
     ///
@@ -1393,7 +1473,7 @@ pub mod test_support {
         face: crate::FaceKey,
         band: geom_core::Band,
     ) -> bool {
-        let Some(surface) = body.face(face).map(|f| f.surface()) else {
+        let Some(Ok(surface)) = body.face(face).map(|f| f.surface()) else {
             return false;
         };
         matches!(
@@ -1440,7 +1520,8 @@ pub mod test_support {
     /// # Errors
     ///
     /// The walk's own [`crate::PointInSolidError`]; a face that is not
-    /// planar is `KindUnsupported`.
+    /// planar is `KindUnsupported`, and one with no surface yet
+    /// `PendingFace`.
     pub fn point_in_face<T: geom_core::Decide>(
         body: &Body<T>,
         face: crate::FaceKey,
@@ -1449,10 +1530,12 @@ pub mod test_support {
     ) -> Result<Option<bool>, crate::PointInSolidError> {
         let Some(geom_brep::PlaneDesc { normal, .. }) = crate::face_normal::face_plane(body, face)
         else {
-            let f = body.proven_face(face);
+            let Ok(surface) = body.proven_face(face).surface() else {
+                return Err(crate::PointInSolidError::PendingFace { face });
+            };
             return Err(crate::PointInSolidError::KindUnsupported {
                 face,
-                kind: f.surface().kind(),
+                kind: surface.kind(),
             });
         };
         crate::solid_contain::point_in_face(body, face, normal, p, band)
@@ -1483,16 +1566,16 @@ pub use boolean::{
     DeclarationRead, DiscardRow, EdgeCarrierSite, EdgeInBand, EdgeInFaceGap, EdgeJoin,
     EdgePieceClass, EeContact, EfContact, FaceDescent, FaceSource, FfContact, Fusions, GlueVerdict,
     Held, HeldRefusal, Holdings, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided,
-    JudgedRow, LeverArm, LineUnread, LineWedgeFault, MemberFace, MemberInputs, NaryEnd,
-    NaryJudgement, NaryMember, NaryOp, NaryPlaced, NaryPlacedRun, NaryRefusal, NaryRun, NaryStep,
-    NaryTaken, NodeWhy, NullEdgePairRecord, Operand, OperandKeys, OperandRecords, OverlapRefusal,
-    PairRefusalSite, PairSite, PairTaken, PairUnread, PierceRingRecord, Placed, PlacedBooleanError,
-    ReductionContacts, RefusedRow, SectionUnbuilt, SectorRead, SectorRung, SelfCheck, SettleError,
-    Settler, Settling, SharedStarts, ShellOrientation, SideCode, SlitFaceGap, SlitLineGap,
-    SphereQuestion, SpiricLoops, SubstitutedFace, SweepStrategy, ToolFuseRefusal, TorusConvention,
-    UncutFace, UnreadPartner, VeContact, VfContact, VoidContainment, VoidEvidence, VoidInsertError,
-    VoidInserted, VvContact, WallRung, boolean_op_with, boolean_placed, boolean_reduce,
-    decision_words, flush_pair_relation, insert_void, insert_voids, intersect,
+    JudgedRow, JunctionEndGap, LeverArm, LineUnread, LineWedgeFault, MemberFace, MemberInputs,
+    NaryEnd, NaryJudgement, NaryMember, NaryOp, NaryPlaced, NaryPlacedRun, NaryRefusal, NaryRun,
+    NaryStep, NaryTaken, NodeWhy, NullEdgePairRecord, Operand, OperandKeys, OperandRecords,
+    OverlapRefusal, PairRefusalSite, PairSite, PairTaken, PairUnread, PierceRingRecord, Placed,
+    PlacedBooleanError, ReductionContacts, RefusedRow, SectionUnbuilt, SectorRead, SectorRung,
+    SelfCheck, SettleError, Settler, Settling, SharedStarts, ShellOrientation, SideCode,
+    SlitFaceGap, SlitLineGap, SphereQuestion, SubstitutedFace, SweepStrategy, ToolFuseRefusal,
+    TorusConvention, UncutFace, UnreadPartner, VeContact, VfContact, VoidContainment, VoidEvidence,
+    VoidInsertError, VoidInserted, VvContact, WallRung, boolean_op_with, boolean_placed,
+    boolean_reduce, decision_words, flush_pair_relation, insert_void, insert_voids, intersect,
     is_conventional_vertex, join_covers, joinable_vertices, joined_cell, joined_edge, nary_boolean,
     nary_boolean_apart, nary_placed, overlap, subtract, tangent_pair_relation, union,
 };
@@ -1507,7 +1590,7 @@ pub use geom_brep::rest_locus;
 pub use joint::{Deck, JointElement};
 pub use lineage::{
     ConeCopies, Division, FaceDivisions, Fate, Lineage, LineageError, LineageKey, LineageRows,
-    Minted, Remainder, RowDefect, RowRefusal, SourceGeometry, SplitEdgeDivisions, Substitutions,
+    Minted, RowDefect, RowRefusal, SourceGeometry, SplitEdgeDivisions, Substitutions,
 };
 pub use side_reader::{SIDE as SIDE_AT_INFINITY, SetAside, SetAsideWhy};
 pub use solid_contain::{
@@ -1564,9 +1647,9 @@ pub use geom::Surface;
 pub use geom_brep::{
     CertifyError, ChartCurve, ChartWindow, CurveSelector, EdgeAuthority, EdgeCurve, EdgeCurveSpec,
     EdgeDescription, EdgeDescriptionSpec, Pcurve, PcurveCache, PcurveCertifyError, SharedRow,
-    StoredSpan, Structural, SurfacePair,
+    Structural, SurfacePair,
 };
-pub use geometry::{CurveKey, PointKey, SurfaceKey};
+pub use geometry::{CurveKey, Pending, PointKey, SurfaceKey, SurfaceMiss, SurfaceSlot};
 pub use instance::{
     GraftKeys, graft_disjoint, graft_disjoint_all, graft_disjoint_all_keyed, per_part_gate_owed,
 };
@@ -1582,10 +1665,39 @@ pub use offset_derive::{
 pub use offset_general::offset_surfaces_together;
 pub use offset_nappe::{Nappe, face_nappe, group_nappe};
 pub use offset_together::{ChartMove, offset_planes_together};
-pub use pcurves::{
-    LoopWinding, PcurveMintError, SiteRowRefusal, loop_windings, mint_pcurves, mint_pcurves_of,
-    pcurve_of,
-};
+pub use pcurves::{LoopWinding, PcurveMintError, SiteRowRefusal, loop_windings, pcurve_of};
+
+/// **The minting pass, for a test** (`test-support` only): every curved
+/// face's rows cleared and minted again. Crate-private otherwise — no
+/// production door closes with it: the finish completes a body's rows,
+/// keeping every stored row, so a stale one is refused rather than
+/// replaced.
+///
+/// # Errors
+///
+/// As the pass's.
+#[cfg(any(test, feature = "test-support"))]
+pub fn mint_pcurves<T: AtRestPolicy>(
+    body: &mut Body<T>,
+    tol: geom_core::Tol,
+) -> Result<(), PcurveMintError> {
+    pcurves::mint_pcurves(body, tol)
+}
+
+/// **The minting pass over `faces`, for a test** (`test-support` only):
+/// [`mint_pcurves`] restricted to those faces.
+///
+/// # Errors
+///
+/// As the pass's.
+#[cfg(any(test, feature = "test-support"))]
+pub fn mint_pcurves_of<T: AtRestPolicy>(
+    body: &mut Body<T>,
+    faces: &[FaceKey],
+    tol: geom_core::Tol,
+) -> Result<usize, PcurveMintError> {
+    pcurves::mint_pcurves_of(body, faces, tol)
+}
 pub use props::{
     AtRestPolicy, CertifiedPolicy, MassMeasurement, MassProperties, MassPropsError, QuadLane,
     QuadLaneOf, RoleNames, Settle, SettleVerdict, ShellClassification, ShellClassifyError,
@@ -1606,8 +1718,8 @@ pub use face_boxes::{FaceBox, FaceBoxes};
 #[cfg(debug_assertions)]
 pub use finish::finishes_on_this_thread;
 pub use finish::{
-    FindingFamily, FinishedBody, HeldKind, LeafBody, MoveError, NotFinished, Replay, finish,
-    session_box_at, take,
+    Completed, FindingFamily, FinishedBody, HeldKind, LeafBody, MoveError, NotFinished, Replay,
+    finish, session_box_at, take,
 };
 pub use geom_brep::curve_face::CrossWhy;
 pub use geom_brep::curve_face::plane_crossing::ConicRootFault;
@@ -1652,3 +1764,5 @@ pub use validate::{
     validate_geometric_structural, validate_pseudomanifold, validate_pseudomanifold_certificate,
     validate_pseudomanifold_certificate_structural, validate_pseudomanifold_structural,
 };
+#[cfg(test)]
+mod pending_face_rows;

@@ -280,10 +280,27 @@ pub(super) fn disagrees(at: EntityId, detail: &'static str) -> BlendError {
     BlendError::BodyNotIntact { at, breach, detail }
 }
 
+/// **Row 1**, a face's surface that did not resolve at `face`: a stale
+/// key is [`unresolved`], and a pending surface slot is construction
+/// [`scaffolding`], each naming `detail`.
+pub(super) fn surface_missed(
+    face: FaceKey,
+    detail: &'static str,
+    miss: topo::SurfaceMiss,
+) -> BlendError {
+    let at = EntityId::Face(face);
+    let breach = match miss {
+        topo::SurfaceMiss::Stale => Breach::Unresolved,
+        topo::SurfaceMiss::Pending => Breach::Scaffolding,
+    };
+    BlendError::BodyNotIntact { at, breach, detail }
+}
+
 /// **Row 1**, construction scaffolding at `at`: an edge with no
-/// certified carrier, or a lone-vertex cycle. Tier 2 refuses both at
-/// rest, so the build doors never reach it; a direct battery caller
-/// ([`super::battery::run_battery_for`]) reads a raw body and does.
+/// certified carrier, a lone-vertex cycle, or a face with no surface
+/// yet. Tiers 2 and 3 refuse all three at rest, so the build doors never
+/// reach it; a direct battery caller ([`super::battery::run_battery_for`])
+/// reads a raw body and does.
 pub(super) fn scaffolding(at: EntityId, detail: &'static str) -> BlendError {
     let breach = Breach::Scaffolding;
     BlendError::BodyNotIntact { at, breach, detail }
@@ -805,7 +822,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     };
 
     // ---- Mutation, on a clone. From here on every step is an Euler
-    // operator or a certified setter; refusals map to Op/PcurveMint. ----
+    // operator or a certified setter; refusals map to Op. ----
     // **The one snapshot.** Every face the surgery may NOT kill is a
     // face of the body it was handed, so the set is read once, here,
     // before the clone — not re-assembled per phase from whatever that
@@ -973,7 +990,6 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     for (edge, carrier, link) in described {
         attach_contact(&mut body, edge, carrier, link, band, tol)?;
     }
-    topo::mint_pcurves(&mut body, tol).map_err(|source| BlendError::PcurveMint { source })?;
 
     body.close_already_checked();
     let mut body = blended;
@@ -1135,8 +1151,11 @@ fn resolve_rim<'a, T: Decide + Bounds>(
     chain: &'a Chain<T>,
 ) -> Result<RimPlan<'a, T>, BlendError> {
     let link0 = chain.first();
+    // The battery read every link's two supports through
+    // `surface_missed` before this verdict existed, so a pending support
+    // never reaches here: the miss `.ok()?` folds is unreachable for it.
     let is_plane = |f: FaceKey| -> Option<bool> {
-        Some(matches!(body.face_surface(f)?, Surface::Plane { .. }))
+        Some(matches!(body.face_surface(f).ok()?, Surface::Plane { .. }))
     };
     // Links on different supports are the MIXED rim, one band face per
     // link; links all on one support pair are one torus band.
@@ -1444,7 +1463,7 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
     let is_plane_surface = |k: SurfaceKey| -> Result<bool, BlendError> {
         let s = body
             .get_surface(k)
-            .ok_or_else(|| unresolved(EntityId::Face(link0.face_a), "a rim support's surface"))?;
+            .map_err(|miss| surface_missed(link0.face_a, "a rim support's surface", miss))?;
         Ok(matches!(s, Surface::Plane { .. }))
     };
     let host_surface = if second_support_is_host(is_plane_surface(ka)?, is_plane_surface(kb)?) {
@@ -2550,6 +2569,10 @@ pub(super) fn stored_piece<T: Real>(
 /// CIRCLE it is [`ArcReads::arc_distance`]. On an ELLIPSE it is a bound,
 /// not the extremes: every point lies within the semi-major axis of
 /// the centre, so within that of the centre's distance to `c`.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub(super) fn piece_distance<T: Decide + Bounds>(
     carrier: &Curve3<T>,
     (ta, tb): (T, T),
@@ -2580,6 +2603,10 @@ pub(super) fn piece_distance<T: Decide + Bounds>(
 /// circle of its frame, whose image it is: `(p − center)·u` at `t` is
 /// the unit circle's height at `t` along
 /// `major·(u_ref·u)·u_ref + minor·(v·u)·v`.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub(super) fn piece_along<T: Decide + Bounds>(
     carrier: &Curve3<T>,
     (ta, tb): (T, T),
@@ -2666,6 +2693,10 @@ impl<T: Decide + Bounds> ArcReads<T> for geom::Circle<T> {
         past_misses(self.arc_past(ta, q), (ta, tb))
     }
 
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn arc_past(&self, t: T, q: Point3<T>) -> T {
         self.frame().azimuth(q).near(t + T::pi()) - t
     }
@@ -2684,6 +2715,10 @@ impl<T: Decide + Bounds> ArcReads<T> for geom::Circle<T> {
     /// wherever `c` is — the side [`Self::arc_misses`] falls back to. A
     /// point scalar takes it only at `ρ` exactly zero, where the ends'
     /// values equal the whole circle's.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn arc_distance(&self, (ta, tb): (T, T), c: Point3<T>) -> (T, T) {
         let (da, db) = (
             (self.point_at(ta) - c).norm(),
@@ -2723,6 +2758,10 @@ impl<T: Decide + Bounds> ArcReads<T> for geom::Circle<T> {
     /// guard as [`Self::arc_distance`]'s on-axis read, selecting the pair
     /// that bounds the arc's wherever `u` points, and taken by a point
     /// scalar only where the two pairs are equal.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn arc_along(&self, (ta, tb): (T, T), c: Point3<T>, u: Vec3<T>) -> (T, T) {
         let (la, lb) = (
             (self.point_at(ta) - c).dot(u),
@@ -2730,7 +2769,7 @@ impl<T: Decide + Bounds> ArcReads<T> for geom::Circle<T> {
         );
         let (o, radius) = (self.frame().origin(), self.radius());
         let mid = (o - c).dot(u);
-        let plane = u - self.frame().axis() * u.dot(self.frame().axis());
+        let plane = u - self.axis() * u.dot(self.axis());
         let nu = plane.norm();
         let (whole_low, whole_high) = (mid - radius * nu, mid + radius * nu);
         if nu.lo() <= 0.0 {
@@ -3504,6 +3543,10 @@ struct StripLevel<T: Real> {
 
 impl<T: Decide + Bounds> StripLevel<T> {
     /// The level of link `l`'s strip on `face`, windowed when `windowed`.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn of(body: &Body<T>, l: &Link<T>, face: FaceKey, windowed: bool) -> Result<Self, BlendError> {
         let (rim_carrier, (t0, t1)) = stored_piece(body, l.edge)?;
         let (centre, direction, at_trim, rim_at) = if l.arm.is_coaxial() {
@@ -3518,9 +3561,9 @@ impl<T: Decide + Bounds> StripLevel<T> {
                 .get_face(face)
                 .ok_or_else(|| unresolved(EntityId::Face(face), "a rim's support"))?;
             match body.get_surface(fd.surface) {
-                Some(Surface::Plane { .. }) => (ci, None, si, rim_circle.radius()),
-                Some(Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Sphere { .. }) => {
-                    let u = rim_circle.frame().axis();
+                Ok(Surface::Plane { .. }) => (ci, None, si, rim_circle.radius()),
+                Ok(Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Sphere { .. }) => {
+                    let u = rim_circle.axis();
                     (
                         ci,
                         Some(u),
@@ -3528,14 +3571,14 @@ impl<T: Decide + Bounds> StripLevel<T> {
                         (rim_circle.frame().origin() - ci).dot(u),
                     )
                 }
-                Some(_) => {
+                Ok(_) => {
                     return Err(unbuilt_geometry(
                         EntityId::Face(face),
                         "a rim's support is not a plane, cylinder, cone or sphere, whose \
                          latitudes the support-boundary meter reads",
                     ));
                 }
-                None => return Err(unresolved(EntityId::Face(face), "a rim support's surface")),
+                Err(miss) => return Err(surface_missed(face, "a rim support's surface", miss)),
             }
         } else {
             let (o, m, across) = strip_frame(body, l, face)?;
@@ -3888,13 +3931,17 @@ impl<T: Decide + Bounds> StripLevel<T> {
     /// can be dropped. The turns tried are read off the brackets'
     /// midpoints, a selection only: a turn that meets no window is
     /// dropped as empty by [`StripLevel::within`].
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn arc_within(
         c: &geom::Circle<T>,
         windows: Vec<Clip<T>>,
         (o, u): (Point3<T>, Vec3<T>),
         band: Band,
     ) -> Vec<Clip<T>> {
-        let plane = u - c.frame().axis() * u.dot(c.frame().axis());
+        let plane = u - c.axis() * u.dot(c.axis());
         let reach = c.radius() * plane.norm();
         let k = (c.frame().origin() - o).dot(u);
         if windows.is_empty() || (k - reach).hi() >= 0.0 {
@@ -6234,7 +6281,7 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
         }
         EdgeDescriptionSpec::wrap(s1)
     } else if is_section {
-        let (Some(surf1), Some(surf2)) = (body.get_surface(s1), body.get_surface(s2)) else {
+        let (Ok(surf1), Ok(surf2)) = (body.get_surface(s1), body.get_surface(s2)) else {
             return Err(unresolved(EntityId::Edge(edge), "a section's two surfaces"));
         };
         let pair = SurfacePair::new(s1, s2);
@@ -6287,7 +6334,7 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
         // a transverse station refutes this branch's smooth premise,
         // refused as the invariant it breaks.
         let witness = curve.mid_point(t0, t1);
-        let (Some(surf1), Some(surf2)) = (body.get_surface(s1), body.get_surface(s2)) else {
+        let (Ok(surf1), Ok(surf2)) = (body.get_surface(s1), body.get_surface(s2)) else {
             return Err(unresolved(
                 EntityId::Edge(edge),
                 "a described edge's two surfaces",

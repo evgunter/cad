@@ -22,7 +22,7 @@ No construction mints an arc-held circle today, so each of these reads a stored 
 - mesh: `sizing.rs` `sphere_face_widest_cos`° (one designer reads this as a linear height harmonic, so an extent read, not a datum)
 - step-import: `adopt.rs` `mapped_self_description`°; `normalize.rs` `mint_band`°, `seam_vertex_on_loop`°, `wall_inversion`°
 - sweep: `blend/arms.rs` `chamfer_setback_point`°, `frustum_rim_side`°; `blend/battery.rs` `frustum_arm`°, `curved_arm`°; `blend/reach.rs` `circular_reach`°; `blend/surgery.rs` `arc_past`°, `arc_distance`°, `arc_along`°, `of`°, `arc_within`°; `test_support.rs` `arcs_at`°, `circle_arcs_where`°
-- topo: `boolean/join.rs` `pt_germ_frame`°; `chart_iso.rs` `traversal_kind`°; `contain.rs` `loop_circle`°; `region.rs` `swept`°, `arc`°, `heading`°; `solid_contain.rs` `wall_crosses_by_turn`°; `surface_group.rs` `coaxial_margins`°; `test_support_fixtures.rs` `arc_cap`°; `validate.rs` `ring_outer_meeting`°, `locus_gap`°
+- topo: `boolean/join.rs` `pt_germ_frame`°; `chart_iso.rs` `traversal_kind`°; `contain.rs` `loop_circle`°; `injective.rs` `on_sphere`° (EMBED's second landing, PR 7679: whether a circle lies on a sphere, its centre's offset along and across the circle's axis); `region.rs` `swept`°, `arc`°, `heading`°; `solid_contain.rs` `wall_crosses_by_turn`°; `surface_group.rs` `coaxial_margins`°; `test_support_fixtures.rs` `arc_cap`°; `validate.rs` `ring_outer_meeting`°, `locus_gap`°
 
 ## Decided (Ev, PR 7523, 2026-11-23): `Centre`, a datum no decision reads
 

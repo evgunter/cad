@@ -2,12 +2,14 @@
 id: the-cone-sphere-and-cone-cone-pair-doors
 kind: unit
 title: Cone × sphere and cone × cone in general pose have their rung-3 doors: poses on the section value with tangency and apex margins, the ssi doors, route flipped, the join carried
-status: dispatched
+status: closed
 opened: 2026-11-22
 priority: P0
 cost: H
 parent: cone-sphere-and-cone-cone-in-general-pose-have-no-rung-three-door
 branch: sectcone/cone-sphere-cone-doors
+closed: 2026-11-24
+pr: 7457
 ---
 
 
@@ -46,3 +48,19 @@ The sibling `the-cone-torus-pair-door` (branch `sectcone/cone-torus-door`) is in
 Out of scope: the cone × torus door (sibling), and U2 / U3 (`the-section-certificate-reads-the-cone-pairs-on-the-value`, `the-join-reads-the-cone-pairs-on-the-value`), which move topo's section certificate and its frame-lane copies. Announce the seam with U2's lane where `section_cert` or the join's cone arms are both touched.
 
 Territory: `ssi*` is SSIARITH/SSIEDGE's. Run `python3 scripts/work.py territory --base origin/main` and announce the seam.
+
+
+## Closed (2026-11-24, PR 7457)
+
+Cone × cone, cone × oblique cylinder and cone × sphere are classified on the
+section value (`ConeRuledPose`, a sphere's tangency in closed form) and
+marched from the count's witnesses (`ssi::march_cone_ruled`,
+`ssi::cone_ruled_ssi`); `route` is flipped, `serves` takes the pairs and the
+join carries them. Left open, each on its own row:
+`the-r3-march-ends-no-branch-at-a-cone-node` (node arcs refuse the carry),
+`a-cone-against-a-ball-or-a-cone-refuses-at-the-cone-face` (the boolean
+witness), `route-pose-reads-oblique-cone-cylinder-on-its-closed-form` and
+`the-cone-search-fuzz-reads-near-coincident-coaxial-apexes-intractable`.
+The section certificate still reads cone × sphere on topo's own copy; that
+move is on `the-section-certificate-reads-the-cone-pairs-on-the-value`'s
+addendum.

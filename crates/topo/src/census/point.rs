@@ -65,7 +65,7 @@ enum Touch<T: Real> {
 }
 
 fn surface<T: Real>(body: &Body<T>, f: FaceKey) -> Option<Surface<T>> {
-    let carrier = body.face(f)?.surface();
+    let carrier = body.face(f)?.surface().ok()?;
     match *carrier {
         geom::Surface::Plane { frame, .. } => {
             let (origin, normal) = (frame.origin(), frame.axis());
@@ -257,7 +257,7 @@ pub(super) fn edge_face<T: Decide>(
     let Some(span) = curved::span_of(body, edge, band, errors) else {
         return Read::Pushed;
     };
-    let Some(surface) = body.face(face).map(|f| f.surface().clone()) else {
+    let Some(surface) = body.face(face).and_then(|f| f.surface().ok().cloned()) else {
         errors.push(refused(
             CensusSubject::Entity(EntityId::Face(face)),
             "a point-touch record on a face with no surface",

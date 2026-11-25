@@ -97,7 +97,8 @@ fn class<W>(verdict: &BoundVerdict<W>) -> &'static str {
 
 /// At `f64`; at `Interval` the blade does not build, as the Klein
 /// loop's row below says. The `Interval` twin of its walls is
-/// `self_intersection_proves_injectivity`'s lens-loft walls row.
+/// `self_intersection_proves_injectivity`'s lens walls row, on the `f64`
+/// body's carriers held as points.
 #[test]
 fn the_lily_blades_walls_hold_against_themselves() {
     each_wall_holds("lily_leaf_a", &leaf_a::<f64>(leaf_a_plan(), tol()));
@@ -135,7 +136,7 @@ fn the_klein_loops_walls_hold_against_themselves() {
 /// The widest coordinate of each of `rect_jet`'s three partials over each
 /// cell of an `8 × 32` grid of `wall`'s chart.
 fn grid_widths(body: &Body<f64>, wall: FaceKey) -> Vec<[f64; 3]> {
-    let Some(Surface::Nurbs(net)) = body.face_surface(wall) else {
+    let Ok(Surface::Nurbs(net)) = body.face_surface(wall) else {
         panic!("a blade wall is a spline")
     };
     let net = net.map_scalar(Interval::from_f64);

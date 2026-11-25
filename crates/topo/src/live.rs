@@ -123,7 +123,7 @@ use crate::entity::{
     LoopKey, LoopRole, VertexKey,
 };
 use crate::euler::{BadArgument, EulerOpError};
-use crate::geometry::PointKey;
+use crate::geometry::{Pending, PointKey, SurfaceMiss, SurfaceSlot};
 use crate::null::CurveGeom;
 use geom::Surface;
 use geom_brep::EdgeCurve;
@@ -320,6 +320,25 @@ pub(crate) fn dangling_link(
         "{holder}'s {link} names {key}, which does not resolve: {NAMES_ONLY_LIVE}; \
          {OPERATORS_KEEP_LINKS}"
     )
+}
+
+/// The miss of a surface a certified record names (an edge's
+/// description, a chart image): certification refuses a pending key, so
+/// either miss is a torn body (D2 row 4), and the panic names which.
+#[track_caller]
+pub(crate) fn described_link(
+    holder: impl core::fmt::Display,
+    link: &str,
+    key: crate::geometry::SurfaceKey,
+    miss: SurfaceMiss,
+) -> ! {
+    match miss {
+        SurfaceMiss::Stale => dangling_link(holder, link, GeomRef::Surface(key)),
+        SurfaceMiss::Pending => unreachable!(
+            "{holder}'s {link} names {key:?}, which is pending: certification refuses a \
+             pending key"
+        ),
+    }
 }
 
 /// [`Link`]: `holder`'s field `link`.
@@ -772,15 +791,45 @@ impl<'a, T: Real> FaceView<'a, T> {
         self.record.sense
     }
 
-    /// The surface the face is a region of, a link its record holds.
+    /// The face's surface slot, described or pending, a link its record
+    /// holds.
     #[track_caller]
-    pub fn surface(self) -> &'a Surface<T> {
+    pub fn slot(self) -> &'a SurfaceSlot<T> {
         let surface = self.record.surface;
-        self.body.get_surface(surface).unwrap_or_else(|| {
+        self.body.surface_slot(surface).unwrap_or_else(|| {
             dangling_link(
                 EntityId::Face(self.key),
                 "surface",
                 GeomRef::Surface(surface),
+            )
+        })
+    }
+
+    /// The surface the face is a region of, a link its record holds;
+    /// [`Pending`] while the face has none yet.
+    ///
+    /// # Errors
+    ///
+    /// [`Pending`] for a pending slot.
+    #[track_caller]
+    pub fn surface(self) -> Result<&'a Surface<T>, Pending> {
+        self.slot().described().map_err(|_| Pending)
+    }
+
+    /// The surface of a face a finished body holds: tier 3 refuses a
+    /// pending slot at rest, so a reader that takes only bodies past it
+    /// never meets one, and meeting one is a kernel bug (D2 row 4).
+    ///
+    /// # Panics
+    ///
+    /// On a pending slot.
+    #[track_caller]
+    pub(crate) fn expect_described(self) -> &'a Surface<T> {
+        self.surface().unwrap_or_else(|_| {
+            unreachable!(
+                "{} is pending at a reader of finished bodies: tier 3 refuses a pending \
+                 surface slot at rest",
+                EntityId::Face(self.key)
             )
         })
     }
@@ -2245,7 +2294,7 @@ fn wrong_key(&self, he: K, other: K, from: F) -> Result<Live, E> {
 
     /// **No code in this crate reads a face's surface through the public
     /// door** ([`Body::face_surface`]): inside the crate a face is read
-    /// through a resolved [`FaceView`], so the door's `Option` is never
+    /// through a resolved [`FaceView`], so the door's `Result` is never
     /// a second spelling of [`Body::face`]'s.
     #[test]
     fn the_public_surface_door_is_read_only_outside_the_crate() {

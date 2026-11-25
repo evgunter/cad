@@ -351,7 +351,7 @@ fn ball_off_face<T: Decide + Bounds>(
             ContainError::EmptyLoop(_)
             | ContainError::LoopUnreadable(_)
             | ContainError::Curved(_)
-            | ContainError::RayExhausted
+            | ContainError::RayExhausted(_)
             | ContainError::Uncrossable(_),
         ) => Ok(false),
         // The foot is placed only where every boundary edge's whole
@@ -412,10 +412,28 @@ fn edge_clear_of_ball<T: Decide + Bounds>(
         return Ok(true);
     }
     let curve = reduce::certified(y.proven_edge(edge))?;
-    Ok(
-        crate::splitting::containment::arc_distance_floor(curve.carrier(), curve.params(), at)
-            .is_some_and(|floor| floor.clears(|gap| clear(gap, radius, band))),
-    )
+    Ok(arc_clear_of_ball(
+        curve.carrier(),
+        curve.params(),
+        at,
+        radius,
+        band,
+    ))
+}
+
+/// **Whether the arc `span` of `carrier` stays definitely farther than
+/// `radius` from `at`**: its distance floor
+/// ([`crate::splitting::containment::arc_distance_floor`]) decided past
+/// `radius`. A carrier with no cover over the span is not clear.
+pub(super) fn arc_clear_of_ball<T: Decide>(
+    carrier: &geom::Curve3<T>,
+    span: (T, T),
+    at: Point3<T>,
+    radius: T,
+    band: Band,
+) -> bool {
+    crate::splitting::containment::arc_distance_floor(carrier, span, at)
+        .is_some_and(|floor| floor.clears(|gap| clear(gap, radius, band)))
 }
 
 #[cfg(test)]

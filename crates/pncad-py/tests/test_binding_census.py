@@ -1123,7 +1123,7 @@ BOUND_AS = {
     # `MateFault` arm that carries it (`mate_unleverable`), and its
     # discriminant is the word that arm publishes: why one mated
     # part's reach was not in hand (`part_unresolved`, `face_unbounded`,
-    # `malformed_body`, `no_extent`, `no_finite_bound`), or why the
+    # `face_pending`, `malformed_body`, `no_extent`, `no_finite_bound`), or why the
     # lever the two form is out of the format's range (`out_of_range`)
     # or under the band's zero threshold (`below_zero_band`). The
     # instance a part's refusal is about crosses as
@@ -3001,6 +3001,12 @@ NOT_BOUND = {
     # PROSE about a foreign prior, which `pncad.pyi`'s own paragraph
     # owns, not a missing binding for this payload.
     "Mispaired": INTERIOR,
+    # Why the memo took nothing from a prior: another document's
+    # (`Mispaired`, above), or a run under other options an op reads
+    # and no key hashes. The `evaluate` door here fixes those options,
+    # so only the first arm is reachable from Python, and it reaches
+    # Python as `Mispaired`'s does.
+    "PriorRefusal": INTERIOR,
     # A body value and the frame it computed in (D10 `[placement.frame]`):
     # Python reads a value's body as its `Body` handle, so the frame is
     # never a value there; `in_space` and its argument (`Composing`) are
@@ -4005,6 +4011,7 @@ MEMBERS_BOUND_AS = {
     "ReadbackError::Dangling": "ReadbackError.variant",
     "ReadbackError::NoCanonicalFrame": "ReadbackError.variant",
     "ReadbackError::NoCarrier": "ReadbackError.variant",
+    "ReadbackError::PendingSurface": "ReadbackError.variant",
     # The VERDICT's three arms are `status`, not `variant`: `variant`
     # beside it is the failure's own arm, which is why the two words
     # are separate here (`ResolveError`/`ResolveIndeterminate` in
@@ -4065,7 +4072,6 @@ MEMBERS_BOUND_AS = {
     "StepImportError::Adoption": "StepImportError.variant",
     "StepImportError::WallColumnStructure": "StepImportError.variant",
     "StepImportError::RecognitionAmbiguous": "StepImportError.variant",
-    "StepImportError::Pcurves": "StepImportError.variant",
     "StepImportError::Join": "StepImportError.variant",
     "StepImportError::Interpretation": "StepImportError.variant",
     "StepImportError::SingularityUndecided": "StepImportError.variant",
@@ -4288,7 +4294,7 @@ MEMBERS_BOUND_AS = {
     # (document, evaluation) pair. Four of its ten fields carry names
     # the pair spells anyway (`order`, `recomputed`, `reused`,
     # `part_evaluations`); these are the rest. `prior_refused` is the
-    # `Mispaired` entry's sentence in `NOT_BOUND` — the fact reaches
+    # `PriorRefusal` entry's sentence in `NOT_BOUND` — the fact reaches
     # Python as `reused` being 0 with every node recomputed.
     "Evaluation::document": "Doc.id",
     "Evaluation::prior_refused": "Evaluation.reused",

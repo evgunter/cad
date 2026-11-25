@@ -238,7 +238,7 @@ impl<T: Decide> CylinderCylinderPose<T> {
     /// # Errors
     ///
     /// [`SectionError::RadiusEscalated`] or
-    /// [`SectionError::DegenerateOperand`] for a radius not definitely
+    /// [`SectionError::RadiusNotPositive`] for a radius not definitely
     /// positive; [`SectionError::CoincidentSurfaces`] for one surface;
     /// [`SectionError::Escalated`] for a question in the band.
     pub fn decide(
@@ -305,8 +305,8 @@ impl<T: Decide> CylinderCylinderPose<T> {
                     ..
                 }) => {}
                 Ok(_) => {
-                    return Err(SectionError::DegenerateOperand {
-                        what: "a cylinder's radius is not definitely positive",
+                    return Err(SectionError::RadiusNotPositive {
+                        radius: SectionRadius::Cylinder,
                     });
                 }
                 Err(diag) => {
@@ -771,7 +771,7 @@ fn bisector_nodes<T: Decide>(
     band: Band,
 ) -> (Vec<SectionNode<T>>, [NodeEnds; 4]) {
     let u = |e: &Curve3<T>| match e {
-        Curve3::Ellipse(e) => e.frame().u_ref(),
+        Curve3::Ellipse(e) => e.u_ref(),
         _ => unreachable!("the bisector pose's sections are ellipses"),
     };
     let (u1, u2) = (u(e1), u(e2));

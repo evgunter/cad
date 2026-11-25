@@ -65,6 +65,7 @@ const BOOLEAN: Door = Door {
         "bool_",
         "carrier_",
         "contact_",
+        "junction_",
         "rim_",
         "seam_",
         "section_",
@@ -316,7 +317,6 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("SIDE_ROWS"),
     NameCarrier::Const("APERTURE"),
     NameCarrier::Const("APEX"),
-    NameCarrier::Const("SELF_INTERSECTION_APEX"),
     NameCarrier::Const("TORUS_REGION_CORNER"),
     NameCarrier::Const("PIERCE_SECTOR_SIDE_CURVED"),
     NameCarrier::Const("CLEARANCE_SUPPORT_GAP"),
@@ -378,7 +378,6 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("SECTOR_APEX_WINDOW"),
     NameCarrier::Const("SESSION_BOX_REACH"),
     NameCarrier::Const("CELL_REGION_SINGULAR"),
-    NameCarrier::Const("SELF_INTERSECTION_SLIVER"),
     NameCarrier::Const("SELF_INTERSECTION_SPAN"),
     NameCarrier::Const("SPAN_ORDER_CHARGED"),
     NameCarrier::Const("SPAN_ROUNDING"),
@@ -408,7 +407,6 @@ const CARRIERS: &[NameCarrier] = &[
     // The row structs whose fields are names, read at each literal.
     NameCarrier::Call("Parallelism"),
     NameCarrier::Call("ArcRows"),
-    NameCarrier::Call("ChartRows"),
     NameCarrier::Call("ParityRows"),
     NameCarrier::Call("RayRows"),
     NameCarrier::Call("RoleNames"),
@@ -426,6 +424,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("clear_as"),
     NameCarrier::Call("contains_step"),
     NameCarrier::Call("decided_as"),
+    NameCarrier::Call("definite_as"),
     NameCarrier::Call("definitely_positive"),
     NameCarrier::Call("enclosure_reading"),
     NameCarrier::Call("face_placement"),
@@ -544,8 +543,8 @@ const INDIRECT: &[(&str, &str)] = &[
     ("region.rs: place: at", CARRIER_CALL),
     ("region.rs: short_of_end: end.row", ROW_FIELD),
     ("region.rs: side_at_closest_as: cross", FORWARDS),
-    ("rim_wedge.rs: departures: a", CARRIER_CALL),
-    ("rim_wedge.rs: departures: b", CARRIER_CALL),
+    ("rim_wedge.rs: touch: a", CARRIER_CALL),
+    ("rim_wedge.rs: touch: b", CARRIER_CALL),
     ("rim_wedge.rs: reach_as: name", FORWARDS),
     ("rim_wedge.rs: read_identity#1([)", IDENTITY),
     (
@@ -553,25 +552,6 @@ const INDIRECT: &[(&str, &str)] = &[
         IDENTITY,
     ),
     ("boolean/section_cert.rs: sign_as: name", FORWARDS),
-    ("boolean/section_cert/ruling.rs: assemble: lo", CARRIER_CALL),
-    (
-        "boolean/section_cert/ruling.rs: assemble: theta",
-        CARRIER_CALL,
-    ),
-    ("boolean/section_cert/ruling.rs: before_as: row", FORWARDS),
-    (
-        "boolean/section_cert/ruling.rs: read: rows.precision()",
-        ROW_FIELD,
-    ),
-    (
-        "boolean/section_cert/ruling.rs: reading: rows.asymptote()",
-        ROW_FIELD,
-    ),
-    (
-        "boolean/section_cert/ruling.rs: reading: rows.fold()",
-        ROW_FIELD,
-    ),
-    ("boolean/section_cert/ruling.rs: roots: o", CARRIER_CALL),
     (
         "boolean/sectors.rs: a_crescent_answers_past_bounds_parallel_in_band: x",
         CARRIER_CALL,
@@ -722,8 +702,10 @@ const INDIRECT: &[(&str, &str)] = &[
         "clearance.rs: reading: self.as_bound().predicate()",
         CLOSED_TYPE,
     ),
+    ("injective.rs: definite_as: row", FORWARDS),
     ("injective.rs: interval_sign_as: row", FORWARDS),
     ("injective.rs: of: carrier", CARRIER_CALL),
+    ("injective.rs: present_plane: x", CLOSURE_FORWARDS),
     (
         "link.rs: a_corner_off_the_point_by_its_tie_reads_nothing_in_band: band",
         CARRIER_CALL,
@@ -769,7 +751,7 @@ const INDIRECT: &[(&str, &str)] = &[
         NOT_A_NAME,
     ),
     (
-        "pcurves/net_period_rows.rs: a_long_u_domain_crosses_its_seam_by_one_period: DescribedChart::of(&s).unwrap()",
+        "pcurves/net_period_rows.rs: a_long_u_domain_crosses_its_seam_by_one_period: DescribedChart::of(&s)",
         NOT_A_NAME,
     ),
     (
@@ -788,12 +770,20 @@ const INDIRECT: &[(&str, &str)] = &[
     ("pcurves/mint.rs: chart_u_period: payload", CARRIER_CALL),
     ("pcurves/mint.rs: chart_v_period: payload", CARRIER_CALL),
     (
-        "pcurves/net_period_rows.rs: joint: DescribedChart::of(&s).unwrap()",
+        "pcurves/net_period_rows.rs: joint: DescribedChart::of(&s)",
         NOT_A_NAME,
     ),
     ("pcurves/decision.rs: lever_periods: name", FORWARDS),
     (
-        "pcurves/lift_rows.rs: lift: DescribedChart::of(surface).unwrap()",
+        "pcurves/collapsed_side_rows.rs: joint: DescribedChart::of(surface)",
+        NOT_A_NAME,
+    ),
+    (
+        "pcurves/collapsed_side_rows.rs: joint_at: DescribedChart::of(surface)",
+        NOT_A_NAME,
+    ),
+    (
+        "pcurves/lift_rows.rs: lift: DescribedChart::of(surface)",
         NOT_A_NAME,
     ),
     ("pcurves/mint.rs: net_closes_as: name", FORWARDS),
@@ -815,7 +805,7 @@ const INDIRECT: &[(&str, &str)] = &[
     // `ContainError::Escalated` on `ContainDecision::Carrier`.
     ("spline_trim.rs: decide: name", FORWARDS),
     (
-        "pcurves/pole_slit_tests.rs: only_a_net_closed_in_v_decides_a_v_element: super::DescribedChart::of(s).unwrap()",
+        "pcurves/pole_slit_tests.rs: only_a_net_closed_in_v_decides_a_v_element: super::DescribedChart::of(s)",
         NOT_A_NAME,
     ),
     ("pcurves/decision.rs: decide_plain_joint: chart", NOT_A_NAME),
@@ -847,7 +837,7 @@ const INDIRECT: &[(&str, &str)] = &[
     ("pcurves/site.rs: split_cache: chart", NOT_A_NAME),
     ("pcurves/site.rs: turn_element: chart", NOT_A_NAME),
     (
-        "pcurves/net_period_rows.rs: u_crossing: DescribedChart::of(&s).unwrap()",
+        "pcurves/net_period_rows.rs: u_crossing: DescribedChart::of(&s)",
         NOT_A_NAME,
     ),
     ("pcurves/decision.rs: walk_cycle: chart", NOT_A_NAME),

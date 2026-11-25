@@ -1259,6 +1259,20 @@ pub enum RoleSeg {
     /// A vertex of an interior section: the section's id, and the
     /// profile vertex it lies on there.
     LoftSectionVertex(SectionId, ProfileVertexRef),
+    /// **One sub-arc piece of a loft entity**, composed AFTER the
+    /// segment that names the whole (`[LoftWall(..), SubArc(q)]` a face,
+    /// `[RimEdge(..), SubArc(q)]` or `[LoftSectionEdge(..), SubArc(q)]`
+    /// an edge): piece `q`, counting from zero along the segment, of a
+    /// segment the loft cuts at its wall's sub-arc joints
+    /// (`crates/sweep/README.md`, "Walls"). A segment of one piece
+    /// carries none.
+    SubArc(u32),
+    /// **A sub-arc joint of a loft entity**, composed after the segment
+    /// that names the whole, as [`RoleSeg::SubArc`]: the joint between
+    /// pieces `q − 1` and `q`. After `LoftWall` it is the seam edge
+    /// between those two walls, after `RimEdge` the cap vertex, and
+    /// after `LoftSectionEdge` the interior section's vertex.
+    SubArcJoint(u32),
 
     // ---- Revolve (M2 band/pole/seam taxonomy) ----
     /// A wall (band) face swept from a run of profile pieces on one
@@ -1618,6 +1632,13 @@ pub enum RoleSeg {
         /// The source pair edge whose band ends at the foot.
         edge: NameRef,
     },
+
+    // ---- Any op (appended: a variant's index feeds a name's hash) ----
+    /// **A closed edge's conventional vertex** (`topo::is_conventional_vertex`),
+    /// named for that edge alone: the vertex has no identity of its own
+    /// (`names/README.md`, "A conventional vertex"), so its name cites
+    /// no member, position or fold step, and it resolves to the edge.
+    ConventionalVertex(NameRef),
 }
 
 /// **Where a member stands in its family** ([`RoleSeg::Member`]): each
@@ -1769,7 +1790,8 @@ pub(crate) fn read_edge(seg: &RoleSeg) -> Option<VarId> {
         | RoleSeg::Inner(_)
         | RoleSeg::Rim(_)
         | RoleSeg::HoleRim { .. }
-        | RoleSeg::Member { .. } => None,
+        | RoleSeg::Member { .. }
+        | RoleSeg::ConventionalVertex(_) => None,
     }
 }
 
@@ -1932,6 +1954,8 @@ macro_rules! inert_seg {
             | $crate::names::RoleSeg::RevolveCap(_)
             | $crate::names::RoleSeg::SplitBody
             | $crate::names::RoleSeg::SectionFace
+            | $crate::names::RoleSeg::SubArc(_)
+            | $crate::names::RoleSeg::SubArcJoint(_)
     };
 }
 
@@ -2384,6 +2408,7 @@ impl RoleSeg {
                 of: rewrite_ref(of, w)?,
             },
             R::BlendFace(n) => R::BlendFace(rewrite_ref(n, w)?),
+            R::ConventionalVertex(n) => R::ConventionalVertex(rewrite_ref(n, w)?),
             R::CornerFace(n) => R::CornerFace(rewrite_ref(n, w)?),
             R::TrimEdge { edge, support } => R::TrimEdge {
                 edge: rewrite_ref(edge, w)?,
@@ -2687,7 +2712,8 @@ impl RoleSeg {
             | R::Inner(_)
             | R::Rim(_)
             | R::HoleRim { .. }
-            | R::Member { .. } => Vec::new(),
+            | R::Member { .. }
+            | R::ConventionalVertex(_) => Vec::new(),
         }
     }
 }
@@ -2728,6 +2754,8 @@ macro_rules! never_in_a_boolean_table {
             | $crate::names::RoleSeg::LoftSeam(_)
             | $crate::names::RoleSeg::LoftSectionEdge(..)
             | $crate::names::RoleSeg::LoftSectionVertex(..)
+            | $crate::names::RoleSeg::SubArc(_)
+            | $crate::names::RoleSeg::SubArcJoint(_)
             | $crate::names::RoleSeg::Band(_)
             | $crate::names::RoleSeg::BandRim(_)
             | $crate::names::RoleSeg::BandRimPi(_)

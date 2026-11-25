@@ -112,8 +112,10 @@ fn kind<T: AtRestPolicy + geom_core::Bounds>(image: &Pcurve<T>) -> Kind {
     // endpoint is the value.
     let lo = |x: T| x.lo();
     match image {
-        Pcurve::IsoLine { p0, pl, .. } if lo(pl.y) == 0.0 => Kind::Row(lo(p0.y)),
-        Pcurve::IsoLine { p0, pl, .. } if lo(pl.x) == 0.0 => Kind::Column(lo(p0.x)),
+        Pcurve::IsoLine { line, .. } => match line.axis {
+            geom_brep::ChartAxis::V => Kind::Row(lo(line.value)),
+            geom_brep::ChartAxis::U => Kind::Column(lo(line.value)),
+        },
         Pcurve::General(_) => Kind::General,
         other => panic!("not an image the schedule derives here: {other:?}"),
     }
@@ -297,7 +299,7 @@ fn an_intersection_seam_on_an_interior_column_takes_its_exact_column() {
             !f.rings.is_empty()
                 && matches!(
                     body.face_surface(*fk),
-                    Some(Surface::Plane { frame, .. }) if frame.axis().z > 0.5
+                    Ok(Surface::Plane { frame, .. }) if frame.axis().z > 0.5
                 )
         })
         .map(|(k, _)| k)
@@ -433,7 +435,7 @@ fn holed_cap<T: AtRestPolicy + geom_core::Bounds>(z: f64) -> (Body<T>, Vec<HalfE
             !f.rings.is_empty()
                 && matches!(
                     body.face_surface(*fk),
-                    Some(Surface::Plane { frame, .. }) if frame.axis().z.lo() > 0.5
+                    Ok(Surface::Plane { frame, .. }) if frame.axis().z.lo() > 0.5
                 )
         })
         .map(|(k, _)| k)
