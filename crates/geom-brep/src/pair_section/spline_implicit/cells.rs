@@ -138,7 +138,8 @@ fn unread(why: LoopTubeRefusal) -> CarryError {
 impl<'a> Reader<'a> {
     /// The reader of the branch `b`'s cells on `net` against `partner`
     /// at `band`, its tube's rung `rung` and pads `pads`, with the
-    /// carrier lifted: its points stand evenly over the branch's span,
+    /// witness `carrier(mid)` as an enclosure: the carrier's points stand
+    /// evenly over the branch's span,
     /// [`SAMPLES_PER_RUNG`] a rung of the control polygon's length, which
     /// is no shorter than the carrier.
     fn new(
@@ -148,7 +149,7 @@ impl<'a> Reader<'a> {
         partner: Bracketed<'a>,
         (rung, pads): (f64, (f64, f64)),
         band: Band,
-    ) -> (Self, geom::NurbsCurve3<Interval>) {
+    ) -> (Self, Point3<Interval>) {
         let lift = <Interval as Real>::from_computed;
         let lifted = carrier.map_scalar(lift);
         let length: f64 = carrier
@@ -178,7 +179,8 @@ impl<'a> Reader<'a> {
             samples,
             pads,
         };
-        (reader, lifted)
+        let witness = lifted.eval(lift(geom::mid_param(b.params.0, b.params.1)));
+        (reader, witness)
     }
 
     /// Whether the partner's form, in metres over `image`, lies wholly
@@ -294,7 +296,8 @@ impl<'a> Reader<'a> {
 /// **A fitted arc's cells** (module docs), with what reads them.
 pub(super) struct Enclosure<'a> {
     reader: Reader<'a>,
-    carrier: geom::NurbsCurve3<Interval>,
+    /// The witness `carrier(mid)`, enclosed.
+    witness: Point3<Interval>,
     /// Each window's span of the carrier, in the windows' order.
     spans: Vec<(f64, f64)>,
     /// Which windows are a node's box.
@@ -361,7 +364,7 @@ impl<'a> Enclosure<'a> {
         }
         let windows = crate::ssi::certify::chart_tube(pcurve, (pad_u, pad_v), nodes)
             .ok_or_else(|| unread(LoopTubeRefusal::Uncertified))?;
-        let (reader, carrier) = Reader::new(b, carrier, net, partner, (rung, (pad_u, pad_v)), band);
+        let (reader, witness) = Reader::new(b, carrier, net, partner, (rung, (pad_u, pad_v)), band);
         let domain = reader.boxes.domain();
         let last_sample = reader.samples.len() - 1;
         let last = windows.len() - 1;
@@ -410,7 +413,7 @@ impl<'a> Enclosure<'a> {
         }
         Ok(Self {
             reader,
-            carrier,
+            witness,
             spans: windows.iter().map(|w| w.ends).collect(),
             node_windows: windows.iter().map(|w| w.node).collect(),
             cells,
@@ -515,12 +518,11 @@ impl<'a> Enclosure<'a> {
                 hull_sup: self.hull_sup,
             }));
         }
-        let lift = <Interval as Real>::from_computed;
         let holding: Vec<&[Box3]> = (0..self.spans.len())
             .filter(|&k| self.spans[k].0 <= self.at && self.at <= self.spans[k].1)
             .map(|k| windows[k].as_slice())
             .collect();
-        let reach = witness_reach(self.carrier.eval(lift(self.at)), &holding)?;
+        let reach = witness_reach(self.witness, &holding)?;
         let not_finite = || unread(LoopTubeRefusal::NotFinite);
         let boxes = self
             .cells
