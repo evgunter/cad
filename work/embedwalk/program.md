@@ -2,7 +2,7 @@
 id: embedwalk
 kind: program
 title: EMBEDWALK — the walk under the embedding certificate; a face's window and extent, the cells it drops, and where an ask stops
-status: active
+status: ready
 opened: 2026-11-22
 group: api/assembly
 prefix: embedwalk/
