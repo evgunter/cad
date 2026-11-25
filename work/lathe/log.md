@@ -117,3 +117,8 @@ Signed: (CARVE orchestrator)
   - R2: spur caps import only on `u_ref`'s meridian, an arbitrary-frame dependence.
   No wrong body ships in any finding.
 - 2026-11-25 — **Review tier for `a-flipped-one-band-sphere-face-met-only-transversally-finishes` (PR 7736, stacked on one-band): single FULL** (one Opus reviewer, `session_01VyvYnJmVLsrLjnjLgGT7Wk`). Tier 3 check 6 now reads the side of a cylinder or sphere face with unparsed trims through the rotational quadrature lane, where it exempted such faces before. For a sphere, the side comes from the poles the face holds (the wrap tips' singular vertices), which DESIGN `[topology.tiers]` already names as the side's datum. The review centres on false refusals of honest bodies, which is the risk of a tightened validator, and on the measured +1.6 s per validation of such a body. The cost is filed on LATHE; its cause is unprofiled.
+- 2026-11-25 — **Merged PR 7575 (a section loop inside a one-band sphere face and a curved face builds through its cut-in) into the one-band stack** at 9b696fe7bd, after re-review (APPROVE-WITH-FIXES) and three small fixes:
+  - the one-sided-tube rows now kill all four single-check mutants;
+  - `RadiusEscalated` escalates;
+  - the lens oracle's rule is cut at the tube's ends, and its error is called an estimate.
+  PR 7581 now carries the `curved_outline_ring` composition.
