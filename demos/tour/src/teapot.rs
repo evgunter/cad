@@ -1580,7 +1580,7 @@ pub fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
     // The predicate resolves the face the refusal names and pins it by
     // geometry ([`wall3_pinned`]), not by the key's value: an arena key
     // moves whenever the model is re-authored.
-    crate::walls::wall(
+    crate::walls::join_wall(
         "teapot",
         3,
         "join the CANAL to the vessel (union; the root disc wholly inside the belly)",

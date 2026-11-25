@@ -1081,7 +1081,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     // annular faces — the REST mate — and the union refuses past them,
     // at the join: a seam of the loop meets the bulb's neck cylinder in
     // the band of the cylinder's own edge.
-    crate::walls::wall(
+    crate::walls::join_wall(
         "bottle",
         3,
         "join the loop to the bulb (annular mate)",
@@ -1093,7 +1093,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     // Wall 4: the self-intersection. A Klein bottle immersed in
     // 3-space MUST cross itself once; the honest picture cuts the
     // flare where the neck goes through.
-    crate::walls::wall(
+    crate::walls::join_wall(
         "bottle",
         4,
         "cut the flare where the descending neck passes through it",

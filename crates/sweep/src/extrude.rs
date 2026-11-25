@@ -459,9 +459,6 @@ pub enum ExtrudeError {
         /// The operator-layer failure.
         source: EulerOpError,
     },
-    /// The final whole-body pcurve mint refused: every curved wall
-    /// leaves the door storing its certified rows (C4).
-    Pcurve(topo::PcurveMintError),
 }
 
 impl ExtrudeError {
@@ -548,7 +545,6 @@ impl ExtrudeError {
                     geom_brep::recourse::read_at(source, at)
                 )
             }
-            Self::Pcurve(source) => write!(f, "{}", geom_brep::recourse::read_at(source, at)),
         }
     }
 }
@@ -758,9 +754,8 @@ struct LoopBase {
 /// ([`profile::SketchPlane`]); the extrusion vector or depth
 /// is classified against the plane normal per the crate docs' direction
 /// conventions. The door runs its operators under one surgery scope
-/// (`topo::surgery`), so tier 1 is not re-derived per operator, closes
-/// with the whole-body pcurve mint (`topo::mint_pcurves`), so every
-/// curved wall stores its certified rows at rest, and ends in its
+/// (`topo::surgery`), so tier 1 is not re-derived per operator, and ends
+/// in its
 /// scalar's leaf ([`topo::AtRestPolicy::leaf`]): on success the body is
 /// the scalar's leaf, finished at `f64` and `Probe` and tier 2 alone at
 /// the box scalars, and a body the leaf refuses (a measured case at
@@ -1123,7 +1118,6 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
     }
 
     body.close_already_checked();
-    topo::mint_pcurves(&mut built, tol).map_err(ExtrudeError::Pcurve)?;
 
     Ok(Extruded {
         body: T::leaf(built, tol).map_err(|findings| ExtrudeError::NotFinished { findings })?,

@@ -102,3 +102,12 @@ pass closed it with the release clause.
 - `a-kill-that-re-anchors-a-loops-first-leaves-its-rows-a-period-off-the-pass`
   (P3);
 - `work/zip/the-seam-zips-kef-leaves-the-wall-it-closes-half-minted`.
+
+## Note (2026-11-23, PR 7497)
+
+The producer's closing mint this row reasons from is retired: no producer
+mints to close, and the finish completes a body's rows, keeping every
+stored row and deriving each missing one
+(`crates/topo/src/pcurves/complete.rs`), so a stale row is refused
+there rather than replaced. The reasoning above is the record of its
+time.

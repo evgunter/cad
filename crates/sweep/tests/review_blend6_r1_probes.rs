@@ -218,11 +218,6 @@ fn seeds() -> Vec<BlendError> {
             margin: decided("fillet3_ring_clearance", -1e-3, Sign::Negative),
             bounded: false,
         },
-        BlendError::PcurveMint {
-            source: topo::PcurveMintError::LoopNotClosed {
-                face: FaceKey::default(),
-            },
-        },
         BlendError::Op {
             site: "strut mev",
             source: Box::new(topo::EulerOpError::DescriptionNotAdjacent {

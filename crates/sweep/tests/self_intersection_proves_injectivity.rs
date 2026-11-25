@@ -2655,7 +2655,10 @@ fn posed_arc_disc<T: Scalar>(pose: Pose) -> Result<Body<T>, String> {
                 tol(),
             )
             .map_err(|e| format!("{e:?}"))?;
-            topo::mirror_body(&home.into_body(), &across, tol()).map_err(|e| format!("{e:?}"))
+            // The mirror image's rows completed, as its finish completes them.
+            let image =
+                topo::mirror_body(&home.into_body(), &across).map_err(|e| format!("{e:?}"))?;
+            topo::test_support::completed(image, tol()).map_err(|e| format!("{e:?}"))
         }
     }
 }
@@ -4783,7 +4786,11 @@ fn one_uneven_plate_is_embedded_in_every_rigid_pose_and_its_axis_mirror() {
     }
     let mirrored = |point, n| {
         let reflection = topo::Reflection::across(point, n, tol()).expect("a plane");
-        let mirrored = topo::mirror_body(&body, &reflection, tol()).expect("mirrors");
+        let mirrored = topo::test_support::completed(
+            topo::mirror_body(&body, &reflection).expect("mirrors"),
+            tol(),
+        )
+        .expect("the mirror image's rows complete");
         door_class::<f64>(&mirrored)
     };
     assert_eq!(
@@ -4876,13 +4883,22 @@ fn at_the_build_limit(e: &sweep::RevolveError) -> bool {
                 ..
             }
         ),
-        sweep::RevolveError::Pcurve(topo::PcurveMintError::Certify { error, .. }) => matches!(
-            error,
-            PcurveCertifyError::Escalated {
-                check: PcurveCheck::EnvelopeTerm(_),
-                ..
-            }
-        ),
+        // The leaf's completion refuses a row whose envelope term
+        // escalates, beside the verdict's findings.
+        sweep::RevolveError::NotFinished { findings } => findings.as_slice().iter().any(|f| {
+            matches!(
+                f,
+                topo::ValidationError::Pcurve {
+                    finding: topo::PcurveMintError::Certify {
+                        error: PcurveCertifyError::Escalated {
+                            check: PcurveCheck::EnvelopeTerm(_),
+                            ..
+                        },
+                        ..
+                    },
+                }
+            )
+        }),
         _ => false,
     }
 }
@@ -6722,15 +6738,31 @@ const SPLIT_POSES: [SplitPose; 4] = [
 /// frustum revolved a full turn about `y` (its wall two half-cones
 /// meeting along the rulings at `±x`) and split.
 fn split_cone<T: Scalar>(cut: SplitCone, pose: SplitPose) -> Body<T> {
-    try_split_cone(cut, pose).unwrap_or_else(|e| panic!("the split cone is placed: {e:?}"))
+    match try_split_cone(cut, pose) {
+        Ok(body) => body,
+        Err(SplitConeRefusal::Map(e)) => {
+            panic!("the split cone is placed: the mirror refused {e:?}")
+        }
+        Err(SplitConeRefusal::Rows(e)) => {
+            panic!("the split cone is placed: its mirror image's rows refused {e:?}")
+        }
+    }
 }
 
-/// [`split_cone`], with the mirror door's refusal handed back for a row
-/// that reads a build limit.
+/// Why a split cone was not placed: the mirror's data map refused, or
+/// the mirror image's rows did not complete.
+#[derive(Debug)]
+enum SplitConeRefusal {
+    Map(topo::TransformError),
+    Rows(Vec<topo::ValidationError>),
+}
+
+/// [`split_cone`], with the mirror door's refusal, or its image's
+/// completion refusal, handed back for a row that reads a build limit.
 fn try_split_cone<T: Scalar>(
     ((r0, r1, h), (q, phi, psi), above): SplitCone,
     pose: SplitPose,
-) -> Result<Body<T>, topo::TransformError> {
+) -> Result<Body<T>, SplitConeRefusal> {
     use geom_core::{Affine3, Vec3};
     use sweep::test_support::finished;
     use topo::splitting::{SplitPart, SplitPlane, split};
@@ -6776,7 +6808,10 @@ fn try_split_cone<T: Scalar>(
                 tol(),
             )
             .expect("a mirror plane");
-            topo::mirror_body(&body, &across, tol())?
+            // The mirror image's rows completed, as its finish completes
+            // them: a row the image cannot certify refuses here.
+            let image = topo::mirror_body(&body, &across).map_err(SplitConeRefusal::Map)?;
+            topo::test_support::completed(image, tol()).map_err(SplitConeRefusal::Rows)?
         }
     })
 }
@@ -6894,22 +6929,31 @@ fn a_split_cone_refuses_on_a_pair_holding_its_wall() {
         twin: bool,
     ) -> Option<Body<T>> {
         use geom_brep::{PcurveCertifyError, PcurveCheck};
-        use topo::{PcurveMintError, TransformError};
-        match try_split_cone::<T>(cut, pose) {
-            Ok(body) => Some(body),
-            Err(
-                refusal @ TransformError::Pcurve {
-                    source:
-                        PcurveMintError::Certify {
-                            error:
-                                PcurveCertifyError::Escalated {
-                                    check: PcurveCheck::Envelope,
-                                    ..
-                                },
+        use topo::PcurveMintError;
+        let envelope = |f: &topo::ValidationError| {
+            matches!(
+                f,
+                topo::ValidationError::Pcurve {
+                    finding: PcurveMintError::Certify {
+                        error: PcurveCertifyError::Escalated {
+                            check: PcurveCheck::Envelope,
                             ..
                         },
-                },
-            ) if twin && wall && matches!(pose, SplitPose::Mirrored) && tol().eps() < 1e-11 => {
+                        ..
+                    },
+                }
+            )
+        };
+        match try_split_cone::<T>(cut, pose) {
+            Ok(body) => Some(body),
+            Err(SplitConeRefusal::Rows(refusal))
+                if !refusal.is_empty()
+                    && refusal.iter().all(envelope)
+                    && twin
+                    && wall
+                    && matches!(pose, SplitPose::Mirrored)
+                    && tol().eps() < 1e-11 =>
+            {
                 println!(
                     "SKIPPED (ε = {:e}): {what} {pose:?} at Interval is not placed: {refusal:?}",
                     tol().eps()

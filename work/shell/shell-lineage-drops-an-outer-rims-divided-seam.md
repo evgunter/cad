@@ -38,3 +38,30 @@ divided seam's fate (red today if the suspicion holds), then the
 reader fixed, for instance by reading `seam_pieces` as the map it is
 (group the pieces by their second column) rather than through
 `roots`/`Descent`, which covers both cases.
+
+## Merged in: `the-shell-seam-piece-carry-has-no-fixture` (2026-11-25)
+
+Folded in at the CONTACTHOLD cleanup (`docs/doc-ledger/contacthold-leaves-the-tracker.md`): the same mechanism, fixed by the same change. Its title was: "The shell carry's seam-piece arm has no row: no fixture puts a record on a wrapped chart's divided seam". Its body follows, headings demoted.
+
+### What
+
+`Shelled::lineage` (`crates/topo/src/shell.rs`) divides a divided seam
+(`RimNaming::seam_pieces`) into its pieces and the ring corners they
+end on, its span across the opening removed, so a record on the seam
+of a designated chart that wraps between two boundaries lands on the
+seam piece (or the corner) whose interior still meets its other cell.
+No test reaches that arm: a record needs another body resting on a
+cylinder-like chart's seam line, built by a union, and the boolean's
+support for a vertex or edge resting on a curved face's seam was not
+measured. The carry itself is the one carry every op shares
+(`ContactRecords::carried_through` over a `topo::Lineage`), which is
+rowed (`crates/topo/tests/one_record_carry.rs`,
+`crates/topo/tests/surgery_carries_records.rs`), so what is untested is
+only that the seam's fate is the right one.
+
+### Fix
+
+Find or build a fixture: a tube whose outer wall is designated open
+(`band_between_boundaries`), with a body touching the wall's seam, then
+assert the record lands on the seam piece that holds the touch and
+passes at rest.

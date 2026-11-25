@@ -78,8 +78,8 @@ impl StoredRows {
     /// face storing no row as found, and `mev_null` derives none. So a
     /// face storing any row was minted, and a half missing one arrived
     /// after that mint; a face storing none — never minted, or emptied
-    /// by a door — is the producer's closing mint's, and stays rowless
-    /// until it runs.
+    /// by a door — is the finish's to complete, and stays rowless until
+    /// it runs.
     ///
     /// **A loop a null edge holds open cannot be walked**: the edge's
     /// halves have no carrier. So no door before the edge leaves the
@@ -97,8 +97,8 @@ impl StoredRows {
     /// operator or a kill walks only the loops it rewires, so a gap on a
     /// loop it keeps stays. **Any other gap is not the site mint's to fill**: a door
     /// left the face half-minted ([`PcurveMintError::MissingCache`]
-    /// lists them) and the site mint leaves it as found, for the
-    /// producer's final pass.
+    /// lists them) and the site mint leaves it as found, for the finish
+    /// to complete.
     ///
     /// [`PcurveMintError::MissingCache`]: super::PcurveMintError::MissingCache
     /// [`site_rows`]: super::site_rows

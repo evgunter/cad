@@ -6,7 +6,7 @@ status: open
 opened: 2026-09-26
 priority: P2
 cost: M
-refs: [CONTACT-13, intent-stage4-is-built, the-at-rest-census-is-a-check, the-touch-analysis-reads-curved-cones-tighter-than-the-reach-box]
+refs: [CONTACT-13, intent-stage4-is-built, the-at-rest-census-is-a-check]
 ---
 
 ## Where it stands (2026-10-27): one row, re-read after stage 4
