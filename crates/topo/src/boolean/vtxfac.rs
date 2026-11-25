@@ -2829,7 +2829,7 @@ const fn bend_refusal(diag: geom_core::Indeterminate) -> BooleanError {
 /// `crate::bound_side::Tie::descend`); a tie whose bend reads no side is lumped or
 /// refuses before this runs. Against a curved face it is a first-order
 /// tie
-/// (`work/contacthold/conic-ties-outside-the-vertex-on-face-pass-still-read-first-order.md`).
+/// (`work/tang/conic-ties-outside-the-vertex-on-face-pass-still-read-first-order.md`).
 ///
 /// A bisector entry's On is a direction's, levered at its sector's arm,
 /// and it is resolved only where its code changes no topology. Its two

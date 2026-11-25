@@ -232,7 +232,7 @@ pub(crate) fn reading<P: crate::ProfilePayload, T: LocalizeLane>(
 /// with what it read, which nothing the document says can answer. An
 /// escalation names no entity, so even inside a nested `⊔`'s arrival
 /// the discard cannot place it there, and it is `NoLane`
-/// (`work/contacthold/an-escalated-census-finding-names-no-pair.md`).
+/// (`work/censusread/an-escalated-census-finding-names-no-pair.md`).
 fn could_not_look<T: Decide>(
     body: &Body<T>,
     groups: &BTreeMap<SolidKey, u32>,
@@ -1598,7 +1598,7 @@ pub(crate) fn partition<T: LocalizeLane>(
 ///
 /// `None` for a finding that names no pair of solids: an escalation,
 /// which names no entity at all
-/// (`work/contacthold/an-escalated-census-finding-names-no-pair.md`), a
+/// (`work/censusread/an-escalated-census-finding-names-no-pair.md`), a
 /// stale record, a lane subject that is one entity, a touch with a cell
 /// of an input or a tool, and every finding about one body's own
 /// topology. The match is exhaustive, so the in-arrival discard
@@ -1670,7 +1670,7 @@ pub(crate) fn finding_solids<T: Decide>(
         // Census findings that name no two solids: a stale record is
         // about the record a door carried, not a meeting; an escalation
         // names no entity at all
-        // (`work/contacthold/an-escalated-census-finding-names-no-pair.md`);
+        // (`work/censusread/an-escalated-census-finding-names-no-pair.md`);
         // an arc end off its corner names one face.
         E::StaleContactDeclaration { .. }
         | E::CensusEscalated { .. }
