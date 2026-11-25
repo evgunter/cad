@@ -710,8 +710,8 @@ impl PointInSolidError {
                 f,
                 "cannot tell what is inside the solid: one of its faces is a {} \
                  surface, which the inside/outside test has no way yet to cross. The \
-                 solid itself is fine. Recourse: build the solid so no spline (NURBS) \
-                 face bounds it",
+                 solid itself is fine. Recourse: build the solid so no {} face bounds it",
+                kind.word(),
                 kind.word()
             ),
             Self::PendingFace { .. } => write!(
