@@ -92,3 +92,16 @@ out:
 - Its passenger, `the-ring-composites-refusals-and-end-readings-are-translated-per-caller`,
   goes with it, since its four translating sites are the re-entries it
   retires.
+
+## A second entry to fold back (EMBEDWALK, PR 7772, 2026-11-25)
+
+The embedding walk's cell door (`cell_region::place`, bound on
+certification rights) reaches the face door through
+`contain::curved_face_placement_reading(body, face, q, band, splines)`,
+a twin of `curved_face_placement` that hands
+`props::certified_spline_face_crossings` to the sphere's and the torus's
+regions (`torus_face_region` now takes `splines` too). When the face door
+reads spline arcs at its own bound, `curved_face_placement_reading` folds
+into `curved_face_placement`, and the `splines` parameters of
+`curved_face_placement_decided`, `curved_interior_placement`,
+`sphere_face_containment` and `torus_face_containment` go with it.
