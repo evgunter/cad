@@ -40,10 +40,11 @@ U3 of `cone-germ-pairs-against-a-curved-face-have-no-section-frame`.
   carried, so the row is re-read: each op holds its truth (volume by the
   closed-form overlap, tier 3, membership over a grid), or refuses typed
   at a site that is not the cone × cylinder frame, pinned. Measured on
-  PR 7735: the join builds, and the finish refuses where a cone face
-  trimmed by the marched section has no volume lane, filed P1 as
-  `a-cone-face-trimmed-by-a-marched-section-has-no-volume-lane`; the row
-  pins that refusal op by op.
+  PR 7735: the join builds, and the finish refused where the cone face
+  trimmed by the marched section had no volume lane. PR 7733 routes that
+  face to the cone cap quadrature, and this branch merges it; the residue
+  (no pad for the fit's distance from the cone) is
+  `the-cone-cap-lane-charges-no-pad-for-a-fitted-edge-off-the-cone`.
 - **Coverage's row:** `coverage`'s cone side has a caller but no row in
   the default set; a row holds it to its quadratic on closed-form rings,
   a cone ruled against a coaxial cylinder and against a coaxial cone.
