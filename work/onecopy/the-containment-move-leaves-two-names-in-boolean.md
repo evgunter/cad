@@ -38,3 +38,11 @@ Move `is_conventional_vertex` to the crate root, beside the vertex
 readings that take a body. Rename one of the two `landings`, for what
 each reads (the record's cell landings, the path's boundary landings), so
 neither is a namesake. Both lines in the counts file fall with it.
+
+## 2026-11-25 — `landings` no longer crate-visible (HELDRECORDS PR 7745)
+
+`heldrecords/removed-members` made `records::landings` private to the
+boolean engine (`pub(in crate::boolean)`): its callers are `records.rs`
+and `ops.rs` alone. `engine-leaves` no longer reads it as a namesake of
+`region::landings`, and the `ambiguous landings` line is gone from the
+counts file. `is_conventional_vertex` remains.

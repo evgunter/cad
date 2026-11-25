@@ -486,9 +486,7 @@ pub enum DisplayFault {
     /// The previewed frame is not one the document admits
     /// ([`Frame::admission_fault`]: a finite rigid motion). Refused because a
     /// scaling or mirroring probe would draw geometry the document
-    /// cannot mean, and because the pick path compares hit distances
-    /// across bodies, which only lengths-preserving frames keep
-    /// comparable.
+    /// cannot mean.
     NonRigidFrame {
         /// The offending frame's determinant (NaN when non-finite).
         determinant: f64,

@@ -2366,14 +2366,33 @@ fn refusal(loop_: usize, error: &ReplayError<f64>) -> PreviewError {
     }
 }
 
-/// **The most points one flattened arc is allowed.**
+/// **The most points one flattened arc is allowed**, which is a cap
+/// an ordinary arc reaches: a full circle needs `π·√(r / 2δ)` points
+/// to sag less than `δ`, so at the δ a session opens on
+/// ([`crate::scene::INITIAL_DELTA`]) every circle of radius past about
+/// 21 m is drawn at the cap, and sags more than `δ`.
 ///
-/// A cap, not a budget: the count comes from the chord tolerance, and
-/// this only stops a radius large enough to make that arithmetic ask
-/// for a million points from doing so. At 256 a full circle is drawn
-/// with under a degree and a half between points, which is finer than
-/// any preview pane resolves.
-const MAX_ARC_POINTS: usize = 256;
+/// **What it substitutes, and why that is the lesser failure.** A
+/// capped circle sags `r·(1 − cos(π/N))`, about `4.7e-6·r` — a
+/// fraction of its own radius, whatever δ asked for. The other
+/// failure is a count that grows as `√r` with nothing bounding it,
+/// paid every frame the committed profiles are drawn and again by the
+/// pick index built from them, which no triangle budget prices.
+///
+/// **The nominal case, and the two it does not cover.** The cap is
+/// sized so the sag it permits is under a pixel on an 8K window at the
+/// closest the camera dollies to a scene framed around the circle, at
+/// the target's depth;
+/// `a_capped_arc_sags_under_a_pixel_at_the_closest_seat` measures that
+/// against the camera's own band and field of view, so a change to
+/// either that spends the margin reds there. It does not hold when the
+/// camera's scene radius was fitted before the arc was drawn (a fit is
+/// owed only to the first body and to Zoom to fit, so a circle sketched
+/// far larger than a framed body is seen from a band sized for the
+/// body), nor for points of the arc nearer the eye than the target,
+/// which are magnified toward the near plane. Both are
+/// `work/vgeom/a-capped-arc-sags-past-a-pixel-from-a-stale-fit.md`.
+const MAX_ARC_POINTS: usize = 1024;
 
 /// **Whether a flattened point is a place**: both coordinates finite.
 ///
@@ -2485,10 +2504,10 @@ fn flatten(
 /// other direction and reached the cap, and its points are `±inf` or
 /// `NaN` however many of them are drawn.
 ///
-/// [`MAX_ARC_POINTS`] is still the answer for a genuinely coarse
-/// request, and `1` for a genuinely flat one; `None` is neither, which
-/// is the whole point of it being a third answer rather than one of
-/// those two.
+/// [`MAX_ARC_POINTS`] is still the answer for a request finer than the
+/// cap can honour, and `1` for one coarse enough that the chord is the
+/// arc; `None` is neither, which is the whole point of it being a third
+/// answer rather than one of those two.
 fn arc_points(radius: f64, theta: f64, chord: f64) -> Option<usize> {
     if !(radius.is_finite() && theta.is_finite() && chord.is_finite()) {
         return None;
@@ -2613,7 +2632,7 @@ mod tests {
     /// `0`, so a subdivision that could not be computed used to arrive
     /// as the one-segment floor — indistinguishable from the arc that
     /// genuinely needs one segment. An infinite radius arrived as the
-    /// cap, indistinguishable from the arc that genuinely needs 256.
+    /// cap, indistinguishable from an arc fine enough to need it.
     ///
     /// What this row holds is that DISTINCTION, not the absence of a
     /// `NaN`: the poisoned answer is compared against one of each
@@ -2654,6 +2673,46 @@ mod tests {
         // All three pairs. A set of three has three of them, and
         // checking the two adjacent ones leaves this one unread.
         assert_ne!(floor, cap, "the floor and the cap");
+    }
+
+    /// **The cap is reached at an ordinary δ, and what it costs is
+    /// under a pixel where the camera can look closest.**
+    ///
+    /// A circle far past the cap's reach at the opening δ, framed
+    /// alone so the scene's sphere is the circle's own box, viewed
+    /// from the band's floor on a window 4320 pixels tall: one chord's
+    /// sag, read in that seat's pixels at the target's depth.
+    #[test]
+    fn a_capped_arc_sags_under_a_pixel_at_the_closest_seat() {
+        const WINDOW_HEIGHT_PX: f64 = 4320.0;
+        let radius = 1.0e3;
+        let count = arc_points(radius, core::f64::consts::TAU, crate::scene::INITIAL_DELTA);
+        assert_eq!(
+            count,
+            Some(super::MAX_ARC_POINTS),
+            "a {radius} m circle at the opening δ is drawn at the cap"
+        );
+        let box_ = bvh::Aabb {
+            min_x: -radius,
+            min_y: -radius,
+            min_z: 0.0,
+            max_x: radius,
+            max_y: radius,
+            max_z: 0.0,
+        };
+        let camera = crate::camera::Camera::default()
+            .fitted(Some(box_), 16.0 / 9.0)
+            .expect("a circle frames");
+        let metres_per_px =
+            2.0 * camera.min_distance() * (camera.fov_y() * 0.5).tan() / WINDOW_HEIGHT_PX;
+        #[allow(clippy::cast_precision_loss)]
+        let half_chord = core::f64::consts::PI / super::MAX_ARC_POINTS as f64;
+        let sag = radius * (1.0 - half_chord.cos());
+        assert!(
+            sag < metres_per_px,
+            "a capped circle sags {sag:e} m, {:.2} px at the closest seat",
+            sag / metres_per_px
+        );
     }
 
     /// A drawn loop over three points, ending as asked.
