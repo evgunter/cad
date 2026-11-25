@@ -35,9 +35,9 @@ use geom_core::{Tol, Vec3};
 use sweep::test_support::{ball_poled, brick, finished};
 use topo::{AtRestBody, Body};
 
-use crate::common::cut_trace::assert_no_cut_trace;
 use crate::common::differential::{every_op_both_orders, outcome};
 use crate::common::oracles::{ball_volume, cap_volume};
+use sweep::test_support::cut_trace::assert_no_cut_trace;
 
 fn tol() -> Tol {
     Tol::witness()
@@ -92,7 +92,7 @@ fn zone() -> AtRestBody<f64> {
 fn every_op_sound(a: &AtRestBody<f64>, b: &AtRestBody<f64>, v: (f64, f64, f64)) {
     for (op, r, want) in every_op_both_orders(a, b, v, tol()) {
         if let Ok(built) = &r {
-            assert_no_cut_trace(op, built);
+            assert_no_cut_trace(op, built, [a, b]);
         }
         let line = outcome(r, want, tol());
         assert!(line.starts_with("OK SOUND"), "{op}: {line}");
