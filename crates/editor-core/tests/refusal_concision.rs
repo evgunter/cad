@@ -406,6 +406,34 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
+            "PointInFaceRefused(Curved(RegionRayExhausted))",
+            BooleanError::PointInFaceRefused {
+                operand: Operand::A,
+                face,
+                refusal: topo::ContainError::Curved(PointInSolidError::RegionRayExhausted { face }),
+            },
+        ),
+        (
+            "PointInFaceRefused(Uncrossable)",
+            BooleanError::PointInFaceRefused {
+                operand: Operand::B,
+                face,
+                refusal: topo::ContainError::Uncrossable(topo::Uncrossable {
+                    r#loop: LoopKey::default(),
+                    edge: EdgeKey::default(),
+                    carrier: topo::UncrossableCarrier::Spline,
+                }),
+            },
+        ),
+        (
+            "PointInFaceRefused(ArcEndClearOfCorners)",
+            BooleanError::PointInFaceRefused {
+                operand: Operand::B,
+                face,
+                refusal: topo::test_support::arc_end_clear_of_corners(true),
+            },
+        ),
+        (
             "InsideOutOperand",
             BooleanError::InsideOutOperand {
                 operand: Operand::B,

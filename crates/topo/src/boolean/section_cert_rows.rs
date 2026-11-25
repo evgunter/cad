@@ -2610,7 +2610,8 @@ const RINGS: [(f64, f64); 4] = [(2.0, 0.5), (10.0, 0.1), (1.0, 0.9), (100.0, 1.0
 /// leg's radius `R + r`; a slack past the band's zero refuses it
 /// (`Unsettled::Meter`). On the wide ring at ε `1e-12` it does not, and a
 /// point whose every path must cross a meridian edge on a parallel leg
-/// refuses `RayExhausted`, never answers.
+/// refuses as the region walk no path of which settled
+/// (`PointInSolidError::RegionRayExhausted`), never answers.
 fn parallel_leg_resolves(ring: (f64, f64)) -> bool {
     geom_core::rounding_charge(TAU) * (ring.0 + ring.1) < band().zero()
 }
@@ -2731,7 +2732,12 @@ fn a_torus_rectangle_trims_on_every_ring() {
                     );
                 } else {
                     assert!(
-                        matches!(past, Err(crate::ContainError::RayExhausted(_))),
+                        matches!(
+                            past,
+                            Err(crate::ContainError::Curved(
+                                crate::PointInSolidError::RegionRayExhausted { .. }
+                            ))
+                        ),
                         "ring {ring:?}: past the window: {past:?}"
                     );
                 }

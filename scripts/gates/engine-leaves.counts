@@ -131,7 +131,7 @@ names-splitting            10  review_d18.rs
 names-splitting             1  ruled_region.rs  # work/onedoor/chord-joins-ring-side-reads-the-splitting-engines-loop-containment
 names-splitting             2  separation.rs
 names-splitting             2  shell.rs
-names-splitting            37  solid_contain.rs  # work/onedoor/chord-joins-ring-side-reads-the-splitting-engines-loop-containment
+names-splitting            33  solid_contain.rs  # work/onedoor/chord-joins-ring-side-reads-the-splitting-engines-loop-containment
 names-splitting             4  sphere_region.rs  # work/onedoor/chord-joins-ring-side-reads-the-splitting-engines-loop-containment
 names-splitting             3  spline_region.rs  # work/onedoor/chord-joins-ring-side-reads-the-splitting-engines-loop-containment
 names-splitting             2  surgery.rs

@@ -49,8 +49,10 @@ pub(crate) enum RegionRefusal {
     /// The point is in the band of a boundary edge; or no path decided,
     /// and the first one set aside read in band.
     Escalated(Indeterminate),
-    /// No path settled ([`crate::ray_walk::NoRaySettled`]): each grazed or
-    /// gave nothing to read. The walk reads the face's whole boundary, so
+    /// The point is left unplaced: no path of the walk settled
+    /// ([`crate::ray_walk::NoRaySettled`]; each grazed or gave nothing to
+    /// read), or an arc's own reading did not place it
+    /// ([`circle_edge_hit`]). The walk reads the face's whole boundary, so
     /// its subject is the face, not one of its loops.
     RayExhausted,
     /// A boundary arc winds definitely past a whole turn, which bounds

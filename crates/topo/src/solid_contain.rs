@@ -286,9 +286,10 @@ pub enum PointInSolidError {
     /// kernel builds for itself is not read as given, and answers `In`
     /// there.
     InsideOut,
-    /// No path of a curved face's region walk settled ([`crate::region`];
-    /// [`crate::ray_walk::NoRaySettled`]): each grazed or gave nothing to
-    /// read, against the face's whole boundary.
+    /// A curved face's region reading ([`crate::region`]) left the point
+    /// unplaced: no path of its walk settled against the face's whole
+    /// boundary ([`crate::ray_walk::NoRaySettled`]), or a boundary arc's
+    /// own reading did not place it (`region::circle_edge_hit`).
     RegionRayExhausted {
         /// The face whose region was walked.
         face: FaceKey,
@@ -669,45 +670,12 @@ impl PointInSolidError {
                 ),
                 ray_walk::NoRaySettled
             ),
-            // The loop walk's own text names its loop by arena key; this
-            // sentence reaches a user verbatim (`BooleanError::Containment`),
-            // so the arms that name one are said in words here.
-            Self::Loop(PointInLoopError::RayExhausted { .. }) => write!(
-                f,
-                concat!(
-                    "cannot tell what is inside the solid: ",
-                    geom_core::undecided!(
-                        "whether the point lies in a loop of one of its faces",
-                        payload
-                    )
-                ),
-                ray_walk::NoRaySettled
-            ),
-            Self::Loop(PointInLoopError::Uncrossable(u)) => write!(
-                f,
-                concat!(
-                    "cannot tell what is inside the solid: ",
-                    geom_core::undecided!(
-                        "whether the point lies in a loop of one of its faces",
-                        payload
-                    )
-                ),
-                u
-            ),
-            Self::Loop(PointInLoopError::CorruptLoop { .. }) => write!(
-                f,
-                "cannot tell what is inside the solid: a loop of one of its faces is not walkable"
-            ),
-            Self::Loop(PointInLoopError::LoneLoop { .. }) => write!(
-                f,
-                "cannot tell what is inside the solid: a loop of one of its faces is a lone \
-                 vertex, which bounds no region"
-            ),
-            Self::Loop(e) => write!(
-                f,
-                "cannot tell what is inside the solid: {}",
-                geom_brep::recourse::read_at(e, at)
-            ),
+            // This sentence reaches a user verbatim (`BooleanError::Containment`),
+            // so the walk's refusal is read in words, not by its loop's key.
+            Self::Loop(e) => {
+                write!(f, "cannot tell what is inside the solid: ")?;
+                e.write_unnamed(f, at, "one of its faces")
+            }
             Self::ZeroVolumeBody => write!(
                 f,
                 "cannot tell what is inside the solid: it encloses no measurable volume"

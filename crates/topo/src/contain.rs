@@ -1349,7 +1349,7 @@ mod tests {
     /// the face the door was asked about, where a loop walk's exhaustion
     /// names its loop.
     #[test]
-    fn a_region_walks_exhaustion_names_its_face() {
+    fn a_region_walks_exhaustion_carries_its_face() {
         use crate::solid_contain::PointInSolidError;
         let face = FaceKey::from(slotmap::KeyData::from_ffi((1 << 32) | 7));
         let got = region_placement(face, Err(RegionRefusal::RayExhausted));

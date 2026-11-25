@@ -5719,14 +5719,21 @@ impl BooleanError {
                          outline (a whole-turn construction circle, or an arc wound past a \
                          full turn, is one it cannot read)"
                     ),
-                    ContainError::RayExhausted(_) => {
+                    ContainError::RayExhausted(_)
+                    | ContainError::Curved(PointInSolidError::RegionRayExhausted { .. }) => {
                         write!(f, "{preamble}: {}", crate::ray_walk::NoRaySettled)
                     }
+                    ContainError::Uncrossable(u) => {
+                        write!(f, "{preamble}: {u}. Recourse: {CONIC_OUTLINE_RECOURSE}")
+                    }
+                    ContainError::ArcEndClearOfCorners(gaps) => write!(
+                        f,
+                        "{preamble}: the point lies at an arc's end clear of its corners: \
+                         {gaps}. Recourse: {}",
+                        placement_lever(Some(ContainDecision::ArcEnd))
+                    ),
                     ContainError::Curved(e) => write!(f, "the Boolean {}", read_at(e, at)),
-                    ContainError::Escalated { .. }
-                    | ContainError::StaleFace(_)
-                    | ContainError::Uncrossable(_)
-                    | ContainError::ArcEndClearOfCorners(_) => {
+                    ContainError::Escalated { .. } | ContainError::StaleFace(_) => {
                         write!(f, "{preamble}: {}", read_at(refusal, at))
                     }
                 }
