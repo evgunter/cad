@@ -338,8 +338,11 @@ fn sphere_capped_cone(r0: f64, z0: f64, r1: f64, z1: f64, d_mint: f64) -> (Body<
 /// **Is the per-chart cone offset reachable?** On both nappes: a cone
 /// between two spheres that hold its transported rims at exactly one
 /// inward `d`. If the door BUILDS, the minted cone must be the home's
-/// turn of the request and the body must shrink; the opposite sign, for
-/// which the spheres were not chosen, is the control and must refuse.
+/// turn of the request and the body must shrink. The opposite sign, for
+/// which the spheres were not chosen, builds too on the one-band
+/// operand (no meridian the door cannot redraw): the body grows. Either
+/// build leaves its rows for the finish to complete, and tier 3 reads
+/// the finished body.
 #[test]
 fn r1_per_chart_cone_offset_reachability_attack() {
     for (what, r0, r1, want_nappe) in [
@@ -392,23 +395,32 @@ fn r1_per_chart_cone_offset_reachability_attack() {
             match &got {
                 Ok(_) => {
                     let v1 = volume(&work);
-                    let tier3 = topo::validate_geometric(&work, Tol::witness());
+                    let tier3 = match topo::finish(work.clone(), Tol::witness()) {
+                        Ok(done) => topo::validate_geometric(&done, Tol::witness()),
+                        Err(e) => panic!("{what} d={d}: the built body finishes: {e:?}"),
+                    };
                     let minted = cone_of(&work, cone_faces(&work)[0]);
                     let want = geom_brep::offset_surface(&old, want_nappe.turn(d), band()).unwrap();
                     println!(
                         "[r1] {what} d={d} chosen={chosen}: BUILT volume {v0} -> {v1}, tier3 {tier3:?}"
                     );
                     println!("[r1]   minted {minted:?}\n[r1]   want   {want:?}");
-                    assert!(chosen, "{what}: the control sign built");
-                    assert_eq!(
-                        format!("{minted:?}"),
-                        format!("{want:?}"),
-                        "{what}: the door's mint is the home's turn"
-                    );
-                    assert!(
-                        v1 < v0,
-                        "{what}: an inward per-chart offset must shrink the body"
-                    );
+                    if chosen {
+                        assert_eq!(
+                            format!("{minted:?}"),
+                            format!("{want:?}"),
+                            "{what}: the door's mint is the home's turn"
+                        );
+                        assert!(
+                            v1 < v0,
+                            "{what}: an inward per-chart offset must shrink the body"
+                        );
+                    } else {
+                        assert!(
+                            v1 > v0,
+                            "{what}: the control's outward offset must grow the body"
+                        );
+                    }
                     assert_eq!(tier3, Ok(()), "{what}: tier 3");
                 }
                 Err(e) => println!(
