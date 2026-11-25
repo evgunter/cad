@@ -2028,3 +2028,13 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - **MAJOR M1:** at `T = Interval`, the finiteness guards ask `is_finite_length`, which passes `[MAX, ∞]`. So `replace_face_offset` and `plane_sphere_section` still panic in `Circle::new`.
   - **MINORs:** the blend gate refuses inf as `NonpositiveSize`; collapse variants of the wrong kind; SHELL's row is fixed but not mentioned; the open `Ring::parallel` sign is on GERM's slate, not SECTTORUS's; the torus re-pose has no row and no measured gain; conflicts with main; the `[sizes]` interim guards are not listed for retirement.
   - The fix pass was sent to the audit session.
+- 2026-11-25 — **U4a R1 confirmation (Opus stand-in): APPROVE-WITH-FIXES.**
+  - Both MAJORs are fixed and demonstrated.
+  - MINOR-3 is PARTLY fixed: the walk-`Kε` mutants at `circle_torus.rs:264` and `conic_quadric.rs:389` survive.
+  - NOTEs:
+    - A: `on_span` drops copies on spans past two turns. Such spans are illegal in topo, but unguarded.
+    - B: an in_band_sweep doc and its check disagree.
+    - C: the census panic may be reachable past 5e4 m.
+    - D: no copies for a spiric period.
+    - E: the row over-claims.
+  - A final pass was sent to the U4a session. Merge follows a light check of its new rows.
