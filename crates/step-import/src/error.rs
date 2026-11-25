@@ -1008,10 +1008,9 @@ mod nested_at_the_door {
         };
         // The one verdict's text, the fixed tail cut off.
         let verdict = |text: &str| -> String {
-            let (verdict, _) = text
-                .rsplit_once(TAIL)
-                .unwrap_or_else(|| panic!("TierInvalid's tail: {text}"));
-            verdict.to_owned()
+            let at = text.rfind(TAIL);
+            assert!(at.is_some(), "TierInvalid's tail: {text}");
+            text[..at.unwrap_or(text.len())].to_owned()
         };
         for margin in [
             None,
