@@ -19,10 +19,11 @@
 use crate::common;
 use pncad::document::{Bodies, BodyRead, Doc, Node, Operand, ProfileProgram, RecipeNodeId, VarId};
 use pncad::geom_core::Tol;
+use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
 use viewer::display::{BodyToggle, DisplayView, Held, SpaceToggles};
 use viewer::pickcache::{CacheStep, PickCache};
 use viewer::pickindex::PickIndex;
-use viewer::session::{BooleanSpec, DocSession, SessionOp};
+use viewer::session::{BooleanSpec, DocSession, FaceSelection, SessionOp};
 
 /// The box's side and depth: plate-scale, so `common::plate_delta`
 /// draws it.
@@ -111,28 +112,31 @@ fn visible(index: &PickIndex, view: &DisplayView, node: RecipeNodeId) -> bool {
         })
 }
 
-/// **Every toggle says what the picture does**: a body whose own toggle
-/// and its space's are on is drawn, and no other is — read off the
-/// toggles on one side and the index and the scene's view on the
-/// other. A body whose value the index cannot draw (a refusal, on its
-/// own badge) is not a toggle's to answer for.
+/// **Every toggle says what the picture does**: a node with a row
+/// whose own toggle and its space's are on is drawn, and no other is —
+/// read off the toggles on one side and the index and the scene's view
+/// on the other. A body has one row, in its space; an outline one in
+/// each space it is drawn in. A body whose value the index cannot draw
+/// (a refusal, on its own badge) is not a toggle's to answer for.
 fn assert_toggles_agree(session: &DocSession, index: &PickIndex, at: &str) {
     let view = session.display_view();
     let undrawn: Vec<RecipeNodeId> = index.undrawn().iter().map(|u| u.node()).collect();
+    let mut rows: std::collections::BTreeMap<RecipeNodeId, Vec<(bool, bool)>> =
+        std::collections::BTreeMap::new();
     for group in toggles(session) {
         for body in group.bodies {
-            if undrawn.contains(&body.node) {
-                continue;
-            }
-            assert_eq!(
-                body.on && group.on,
-                visible(index, &view, body.node),
-                "{at}: {:?}'s toggle ({}, its space's {}) says what is drawn",
-                body.node,
-                body.on,
-                group.on
-            );
+            rows.entry(body.node).or_default().push((body.on, group.on));
         }
+    }
+    for (node, rows) in rows {
+        if undrawn.contains(&node) {
+            continue;
+        }
+        assert_eq!(
+            rows.iter().any(|&(on, space_on)| on && space_on),
+            visible(index, &view, node),
+            "{at}: {node:?}'s toggles (own, its space's: {rows:?}) say what is drawn"
+        );
     }
 }
 
@@ -614,4 +618,100 @@ fn a_dropped_show_is_reported() {
         "and not as a hide"
     );
     assert!(session.display().toggled().is_empty(), "and is gone");
+}
+
+/// **An outline shown through a copy is listed, hidden and moved where
+/// it is drawn**: a profile drawn on a box's top cap, whose box is
+/// placed into a second box's space, is drawn in that space and not its
+/// own. Its row is under that space, whose hide drops it, and a
+/// free-move opened on it moves that space.
+///
+/// *Breaks if* an outline's row is grouped by its own space rather than
+/// the one it is drawn in (hiding the drawn space drops it while its
+/// row reads on), or the free-move asks its own space, which the
+/// picture does not show.
+#[test]
+fn an_outline_shown_through_a_copy_is_toggled_where_it_is_drawn() {
+    let tol = Tol::witness();
+    let (doc, cube) = extrude(&Doc::empty_derived("toggles-outline-copy", tol), 0.0, tol);
+    let (doc, other) = extrude(&doc, 3.0 * SIDE, tol);
+    let (mut session, mut cache) = landed(doc, tol);
+    let top = FaceSelection {
+        name: StableName {
+            kind: EntityKind::Face,
+            node: cube,
+            path: vec![RoleSeg::Cap(CapEnd::End)],
+        },
+        node: cube,
+        body: 0,
+    };
+    let drawn = common::session_insert(
+        &mut session,
+        SessionOp::DrawOnFace {
+            face: top,
+            traced: Vec::new(),
+            chains: vec![common::rectangle_chain([0.004, 0.004], 0.006, 0.004)],
+        },
+    );
+    let own = session
+        .committed_doc()
+        .node_space(cube)
+        .expect("the box's space");
+    let there = session
+        .committed_doc()
+        .node_space(other)
+        .expect("the other's space");
+    assert_eq!(
+        session.committed_doc().node_space(drawn),
+        Some(own),
+        "the profile is in the box's space"
+    );
+    perform(
+        &mut session,
+        SessionOp::Place {
+            body: cube.into(),
+            target: Operand::Var(there),
+            name: None,
+        },
+    );
+    session.pump();
+    sync(&session, &mut cache);
+    let listed_under = |session: &DocSession, space: VarId| {
+        toggles(session)
+            .iter()
+            .any(|group| group.space == Some(space) && group.bodies.iter().any(|b| b.node == drawn))
+    };
+    assert!(listed_under(&session, there), "listed where it is drawn");
+    assert!(!listed_under(&session, own), "and not under its own space");
+    let index = cache.index().expect("indexed");
+    assert!(
+        visible(index, &session.display_view(), drawn),
+        "premise: drawn"
+    );
+    assert_toggles_agree(&session, index, "at rest");
+
+    for hidden in [true, false] {
+        perform(
+            &mut session,
+            SessionOp::SetSpaceHidden {
+                space: there,
+                hidden,
+            },
+        );
+        let index = cache.index().expect("indexed");
+        assert_eq!(
+            visible(index, &session.display_view(), drawn),
+            !hidden,
+            "the drawn space's hide reaches it"
+        );
+        assert_toggles_agree(&session, index, "the drawn space toggled");
+    }
+    for on in [false, true] {
+        toggle(&mut session, drawn, on);
+        let index = cache.index().expect("indexed");
+        assert_toggles_agree(&session, index, "its own toggle turned");
+    }
+
+    perform(&mut session, SessionOp::BeginFreeMove { node: drawn });
+    perform(&mut session, SessionOp::CancelFreeMove);
 }

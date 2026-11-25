@@ -1145,6 +1145,9 @@ struct Outline {
     /// The space whose picture it is drawn in
     /// ([`crate::sketch::CommittedProfile::space`]).
     space: Option<VarId>,
+    /// The copy carrying it there
+    /// ([`crate::sketch::CommittedProfile::copy`]).
+    copy: Option<RecipeNodeId>,
 }
 
 impl Outline {
@@ -1159,6 +1162,7 @@ impl Outline {
             loops,
             datum: profile.datum,
             space: profile.space,
+            copy: profile.copy,
         }
     }
 }
@@ -2660,16 +2664,6 @@ impl PickIndex {
         Ok(None)
     }
 
-    /// **A committed profile's drawn outline**: one world polyline per
-    /// loop ([`crate::sketch::PreviewLoop::drawn_on`]); empty for a
-    /// node this index draws no outline of.
-    pub fn profile_outline(&self, node: RecipeNodeId) -> &[Vec<Point3<f64>>] {
-        self.outlines
-            .iter()
-            .find(|outline| outline.node == node)
-            .map_or(&[], |outline| outline.loops.as_slice())
-    }
-
     /// **The outline the picture draws of profile `node`**: the edit
     /// preview's where `display` says the node is drawn by one
     /// ([`DisplayView::previewed_profile`]), else its committed
@@ -2704,7 +2698,12 @@ impl PickIndex {
                     Some(previewed) if previewed.node == outline.node => {
                         Cow::Borrowed(previewed.outline.as_slice())
                     }
-                    _ => display.outline(outline.node, outline.space, &outline.loops)?,
+                    _ => display.outline(
+                        outline.node,
+                        outline.space,
+                        outline.copy,
+                        &outline.loops,
+                    )?,
                 };
                 Some((outline.node, outline.datum, loops))
             })

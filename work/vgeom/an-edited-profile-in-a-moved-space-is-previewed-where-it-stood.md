@@ -1,7 +1,7 @@
 ---
 id: an-edited-profile-in-a-moved-space-is-previewed-where-it-stood
 kind: issue
-title: viewer: a profile in a free-moved space is previewed by its edit where it stood, not where it is drawn
+title: viewer: a profile's edit preview ignores its display state (drawn where its space stood, and drawn while hidden)
 status: open
 opened: 2026-11-25
 priority: P3
@@ -14,3 +14,6 @@ A committed outline in a free-moved space is drawn and picked under that space's
 
 What it should do: the preview of a node in a moved space is drawn and picked under the same frame, through `DisplayView::outline` with the node's space. `PreviewedProfile::of` is handed the node only, so the space has to be read beside it (`Doc::node_space`), and the preview lane needs the display view it is not handed today.
 
+**The hide half.** The same two paths ignore the outline's hide. A profile whose toggle is off, or whose space is hidden, and that is opened in the edit door is drawn by `push_previews` and picked through `PickIndex::drawn_outlines`'s `previewed_profile` arm, which returns the preview's outline before `DisplayView::outline` is asked (found by the review of PR 7771). Whether an edit preview of a hidden profile should be drawn at all is the open half: the edit door may be a reason to show it while it is edited. Either way the draw and the pick should answer it the same way, through `DisplayView::outline`.
+
+Done when: a profile in a free-moved space opened in the edit door is drawn and picked under the space's frame, and a hidden one opened there is drawn and picked as the row's decision says, both read by one test over the lane and the cursor walk.

@@ -317,7 +317,8 @@ pub(crate) fn push_committed(
                 origin + frame.w().get() * (2.0 * sketch::DATUM_HALF),
             ]);
         }
-        let Some(shown) = display.outline(profile.node, profile.space, &polylines) else {
+        let Some(shown) = display.outline(profile.node, profile.space, profile.copy, &polylines)
+        else {
             continue;
         };
         for polyline in shown.iter() {
@@ -4619,6 +4620,95 @@ mod tests {
                 ),
                 "{:?}",
                 refused.refusal
+            );
+        }
+
+        /// **An outline shown through a copy rides the placement
+        /// editor's carry of that copy**, as the copy's body does
+        /// ([`DisplayView::display_map`]): the box is placed into a
+        /// second box's space, so the profile drawn on its cap is drawn
+        /// there through the copy, and a draft standing the copy
+        /// `SHIFT` along `+x` draws and picks the outline there and
+        /// not where the copy stood. The bodies are hidden so that only
+        /// the outline is under the cursor.
+        #[test]
+        fn an_outline_through_a_copy_rides_the_placement_preview() {
+            let mut bench = bench();
+            let other = made(
+                &mut bench.session,
+                SessionOp::AddExtrude {
+                    profile: bench.lone,
+                    distance: crate::test_support::len(0.01),
+                },
+            );
+            bench.session.pump();
+            let there_space = bench
+                .session
+                .committed_doc()
+                .node_space(other)
+                .expect("the extrude's own space");
+            let copy = made(
+                &mut bench.session,
+                SessionOp::Place {
+                    body: bench.cube.into(),
+                    target: pncad::document::Operand::Var(there_space),
+                    name: None,
+                },
+            );
+            bench.session.pump();
+            for node in [copy, other] {
+                let off = bench
+                    .session
+                    .perform(SessionOp::SetBodyOn { node, on: false });
+                assert!(off.refusal.is_none(), "{:?}", off.refusal);
+            }
+            let index = index(&bench.session);
+            let (doc, eval) = bench.session.landed_pair().expect("landed");
+            let through = crate::sketch::committed(doc, eval, chord(), None)
+                .drawn
+                .into_iter()
+                .find(|profile| profile.node == bench.drawn)
+                .expect("the drawn-on profile is drawn");
+            assert_eq!(
+                (through.space, through.copy),
+                (Some(there_space), Some(copy)),
+                "the premise: drawn through the copy, in the second space"
+            );
+            let here = outline_of(&bench.session, bench.drawn);
+            let there = shifted(&here, SHIFT);
+            let carried =
+                bench
+                    .session
+                    .display_view()
+                    .placing(Some(crate::display::PreviewedPlacement {
+                        copies: std::collections::BTreeMap::from([(
+                            copy,
+                            crate::display::PreviewedCopy {
+                                space: there_space,
+                                drawn: Frame::IDENTITY,
+                                stands: Frame::translation([SHIFT, 0.0, 0.0]),
+                            },
+                        )]),
+                    }));
+            assert!(
+                carried.display_map(copy).is_some(),
+                "the premise: the copy's body is carried"
+            );
+            let legs = lane(&bench.session, &carried);
+            assert!(
+                draws_all(&legs, &there),
+                "drawn where the draft stands the copy"
+            );
+            assert!(!draws_any(&legs, &here), "and not where the copy stood");
+            assert_eq!(
+                hovered_at(&bench.session, &index, &carried, &there),
+                Some(Hovered::Profile(bench.drawn)),
+                "picked where it is drawn"
+            );
+            assert_ne!(
+                hovered_at(&bench.session, &index, &carried, &here),
+                Some(Hovered::Profile(bench.drawn)),
+                "and not where it is no longer drawn"
             );
         }
     }

@@ -433,12 +433,31 @@ fn drawing_check_tells_an_absent_node_from_one_that_draws_nothing() {
         Ok(()),
         "a profile builds no body and is drawn as an outline"
     );
-    // The world is a node of the document the picture draws nothing of.
-    let world = RecipeNodeId::WORLD;
+    // A measure is a node of a document the picture draws nothing of:
+    // it builds a value, neither a body nor an outline.
+    let (mut measured, _, plate) = common::parametric_plate(tol);
+    let cap = |end| {
+        pncad::document::SitedRef::new(
+            plate,
+            pncad::prelude::StableName {
+                kind: pncad::prelude::EntityKind::Face,
+                node: plate,
+                path: vec![pncad::prelude::RoleSeg::Cap(end)],
+            },
+        )
+    };
+    let measure = common::insert_into(
+        &mut measured,
+        pncad::document::Node::measure(&pncad::document::MeasurePrimitive::Distance {
+            a: cap(pncad::prelude::CapEnd::Start),
+            b: cap(pncad::prelude::CapEnd::End),
+        }),
+        tol,
+    );
     assert_eq!(
-        display::drawing_check(doc, world),
+        display::drawing_check(&measured, measure),
         Err(AdmissionFault::DrawsNothing {
-            node: doc.spoken(world)
+            node: measured.spoken(measure)
         }),
         "a node that IS in the document and draws nothing names itself"
     );
@@ -457,12 +476,12 @@ fn drawing_check_tells_an_absent_node_from_one_that_draws_nothing() {
         "node 00000000270f is not in the document",
     );
     assert_eq!(
-        display::drawing_check(doc, world)
-            .expect_err("the world draws nothing")
+        display::drawing_check(&measured, measure)
+            .expect_err("a measure draws nothing")
             .to_string(),
         format!(
             "{} builds no body and is no outline, so the picture draws nothing of it",
-            viewer::tree::spelled(&doc.spoken(world))
+            viewer::tree::spelled(&measured.spoken(measure))
         ),
     );
 }

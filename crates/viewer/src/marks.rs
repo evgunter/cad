@@ -1202,12 +1202,12 @@ mod tests {
         let profile = *doc
             .ids()
             .iter()
-            .find(|node| !index.profile_outline(**node).is_empty())
+            .find(|node| !index.drawn_outline(**node, &DisplayView::none()).is_empty())
             .expect("the plate draws a profile");
         let selected = Selection::Node(profile);
         let committed = super::edge_overlay(&index, &DisplayView::none(), &selected, None).selected;
         let outline: Vec<Vec<Point3<f64>>> = index
-            .profile_outline(profile)
+            .drawn_outline(profile, &DisplayView::none())
             .iter()
             .map(|lp| {
                 lp.iter()

@@ -60,7 +60,6 @@ use pncad::quantity::UnitDef;
 
 use crate::frame::Tone;
 use crate::props::{Notation, WorkingNotation as _};
-use crate::session::refuse::{NodeKindWanted, admits};
 
 /// **A step of `verb` with the editor's starting numbers** — what
 /// a row becomes when its verb is picked.
@@ -1975,6 +1974,12 @@ pub struct CommittedProfile {
     /// space: what its display frame and a space's hide are read off
     /// ([`crate::display::DisplayView::outline`]).
     pub space: Option<pncad::document::VarId>,
+    /// The copy whose motion carries this drawing into `space` — the
+    /// outermost of the copies showing it ([`crate::world::Showing`]) —
+    /// `None` where its space is drawn itself: what the placement
+    /// editor's carry of that copy is read off, as for the copy's body
+    /// ([`crate::display::DisplayView::outline`]).
+    pub copy: Option<RecipeNodeId>,
 }
 
 /// **What the landed evaluation's profiles came to as drawings**: the
@@ -2030,9 +2035,14 @@ pub fn committed(
         if Some(node) == except {
             continue;
         }
-        let drawn = match datum_drawing(doc, evaluation, node) {
-            Some(drawn) => drawn,
-            None => match drawing(doc, evaluation, chord, node) {
+        let kind = doc.node(node).and_then(crate::world::outline_kind);
+        let drawn = match kind {
+            Some(crate::world::OutlineKind::Datum) => match datum_drawing(doc, evaluation, node) {
+                Some(drawn) => drawn,
+                None => continue,
+            },
+            Some(crate::world::OutlineKind::Profile) => match drawing(doc, evaluation, chord, node)
+            {
                 Some(Ok(drawn)) => drawn,
                 Some(Err(())) => {
                     out.undrawn.push(node);
@@ -2040,14 +2050,17 @@ pub fn committed(
                 }
                 None => continue,
             },
+            None => continue,
         };
-        for (space, placing) in shown_placings(doc, evaluation, &shown, doc.node_space(node)) {
+        for (space, copy, placing) in shown_placings(doc, evaluation, &shown, doc.node_space(node))
+        {
             let Ok(frame) = placing.compose(drawn.plane.frame()) else {
                 continue;
             };
             out.drawn.push(CommittedProfile {
                 plane: SketchPlane::from_frame(frame),
                 space,
+                copy,
                 ..drawn.clone()
             });
         }
@@ -2055,12 +2068,10 @@ pub fn committed(
     out
 }
 
-/// **Where the picture shows the space `space`**, each with the space
-/// whose picture it is drawn in: the identity, in `space`, where it
-/// shows the space itself (or the node stands in none), else each
-/// copy out of it, carried on through the copies showing the copy's own
-/// space; the identity where nothing shows it, so a drawing in a space
-/// no body is drawn in still stands where its space is.
+/// **Where the picture shows the space `space`**
+/// ([`crate::world::showings`]), each with the outermost copy carrying
+/// a drawing there and the motion it is carried by: the copies' motions
+/// composed, the outermost first.
 fn shown_placings(
     doc: &Doc<ProfileProgram>,
     evaluation: &Evaluation<f64>,
@@ -2068,32 +2079,27 @@ fn shown_placings(
     space: Option<pncad::document::VarId>,
 ) -> Vec<(
     Option<pncad::document::VarId>,
+    Option<RecipeNodeId>,
     pncad::geom_core::RigidMotion<f64>,
 )> {
     let identity = pncad::geom_core::RigidMotion::identity;
-    let Some(unshown) = space.filter(|space| !shown.contains(space)) else {
-        return vec![(space, identity())];
-    };
-    let space = unshown;
-    let through: Vec<_> = doc
-        .copies()
+    crate::world::showings(doc, shown, space)
         .into_iter()
-        .filter(|&copy| doc.copied_read(copy).and_then(|read| doc.space_of(read)) == Some(space))
-        .flat_map(|copy| {
-            let motion = evaluation
-                .value(copy)
-                .and_then(|value| value.motion)
-                .unwrap_or_else(identity);
-            shown_placings(doc, evaluation, shown, doc.node_space(copy))
-                .into_iter()
-                .filter_map(move |(at, outer)| Some((at, outer.compose(motion).ok()?)))
+        .filter_map(|showing| {
+            let motion = showing
+                .through
+                .iter()
+                .rev()
+                .try_fold(identity(), |outer, &copy| {
+                    let motion = evaluation
+                        .value(copy)
+                        .and_then(|value| value.motion)
+                        .unwrap_or_else(identity);
+                    outer.compose(motion).ok()
+                })?;
+            Some((showing.space, showing.through.last().copied(), motion))
         })
-        .collect();
-    if through.is_empty() {
-        vec![(Some(space), identity())]
-    } else {
-        through
-    }
+        .collect()
 }
 
 /// **Half the side of the square a datum is drawn as**, metres: a
@@ -2103,16 +2109,14 @@ pub const DATUM_HALF: f64 = 0.01;
 /// **A datum's picture** (D10 `[placement.datums]`), a display aid in
 /// its space: its xy plane as a square about its origin, its x and y
 /// axes across it, drawn on the plane its frame is, so the pick index
-/// measures a cursor against the same outline. `None` for a node that
-/// is no datum or has no value.
+/// measures a cursor against the same outline. `None` for a node with
+/// no datum value; [`committed`] asks it of a datum
+/// ([`crate::world::outline_kind`]).
 fn datum_drawing(
     doc: &Doc<ProfileProgram>,
     evaluation: &Evaluation<f64>,
     node: RecipeNodeId,
 ) -> Option<CommittedProfile> {
-    if !doc.node(node)?.is_datum() {
-        return None;
-    }
     let pncad::document::ValuePayload::Datum(frame) = &evaluation.value(node)?.payload else {
         return None;
     };
@@ -2137,20 +2141,19 @@ fn datum_drawing(
         ],
         datum: true,
         space: doc.node_space(node),
+        copy: None,
     })
 }
 
-/// `node`'s drawing: `None` for a node that is no profile or has no
-/// validated value, `Err` for one whose loops cannot be flattened.
+/// `node`'s drawing: `None` for a node with no validated profile
+/// value, `Err` for one whose loops cannot be flattened; [`committed`]
+/// asks it of a profile ([`crate::world::outline_kind`]).
 fn drawing(
     doc: &Doc<ProfileProgram>,
     evaluation: &Evaluation<f64>,
     chord: f64,
     node: RecipeNodeId,
 ) -> Option<Result<CommittedProfile, ()>> {
-    if !admits(doc, node, NodeKindWanted::Profile) {
-        return None;
-    }
     let ValuePayload::Profile(profile) = &evaluation.value(node)?.payload else {
         return None;
     };
@@ -2178,6 +2181,7 @@ fn drawing(
                 loops,
                 datum: false,
                 space: doc.node_space(node),
+                copy: None,
             })
             .map_err(|_| ()),
     )

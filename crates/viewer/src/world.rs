@@ -268,11 +268,36 @@ pub fn builds_a_body(node: &Node<ProfileProgram>) -> bool {
     })
 }
 
+/// **Which committed outline `node` is drawn as**, if any — the ONE
+/// dispatch [`crate::sketch::committed`] draws by and every display
+/// reader of an outline asks ([`draws_an_outline`]), so a new kind of
+/// outline added here is drawn, toggled, listed and free-moved at
+/// once. Drawn whenever its value landed, whatever reads it.
+pub fn outline_kind(node: &Node<ProfileProgram>) -> Option<OutlineKind> {
+    if node.is_datum() {
+        Some(OutlineKind::Datum)
+    } else if crate::session::refuse::seat_kind(node)
+        == Some(crate::session::refuse::NodeKindWanted::Profile)
+    {
+        Some(OutlineKind::Profile)
+    } else {
+        None
+    }
+}
+
+/// **A kind of committed outline** ([`outline_kind`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OutlineKind {
+    /// A profile's loops.
+    Profile,
+    /// A datum's square ([`crate::sketch::DATUM_HALF`]).
+    Datum,
+}
+
 /// **Whether `node` is drawn as a committed outline**
-/// ([`crate::sketch::committed`]): a profile's loops, or a datum's
-/// square. Drawn whenever its value landed, whatever reads it.
+/// ([`outline_kind`]): a profile's loops, or a datum's square.
 pub fn draws_an_outline(node: &Node<ProfileProgram>) -> bool {
-    matches!(node, Node::Profile(_)) || node.is_datum()
+    outline_kind(node).is_some()
 }
 
 /// **Whether the picture draws anything of `node`**: a body
@@ -1219,50 +1244,101 @@ impl core::fmt::Display for DatumSpaceFault {
     }
 }
 
+/// **Where the picture shows the space `space`** — the ONE walk of
+/// the copy chain (DI5): `space` itself where the picture shows it (or
+/// where it is `None`), else each copy out of it, carried on through
+/// the copies showing that copy's own space; `space` itself where no
+/// copy shows it, so a drawing in a space no body is drawn in still
+/// stands where its space is. `shown` is [`shown_spaces`], read once
+/// by the caller.
+///
+/// [`crate::sketch::committed`] composes each showing's copies' motions
+/// to place an outline, [`drawn_spaces`] reads where they end, and
+/// [`datum_space`] reads that too.
+pub fn showings(
+    doc: &Doc<ProfileProgram>,
+    shown: &BTreeSet<VarId>,
+    space: Option<VarId>,
+) -> Vec<Showing> {
+    let Some(unshown) = space.filter(|space| !shown.contains(space)) else {
+        return vec![Showing {
+            space,
+            through: Vec::new(),
+        }];
+    };
+    let through: Vec<Showing> = doc
+        .copies()
+        .into_iter()
+        .filter(|&copy| doc.copied_read(copy).and_then(|read| doc.space_of(read)) == Some(unshown))
+        .flat_map(|copy| {
+            showings(doc, shown, doc.node_space(copy))
+                .into_iter()
+                .map(move |mut outer| {
+                    outer.through.insert(0, copy);
+                    outer
+                })
+        })
+        .collect();
+    if through.is_empty() {
+        vec![Showing {
+            space: Some(unshown),
+            through: Vec::new(),
+        }]
+    } else {
+        through
+    }
+}
+
+/// **One place the picture shows a space** ([`showings`]): the space
+/// whose picture it is drawn in, and the copies that carry it there,
+/// the one out of the shown space's own first.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Showing {
+    /// The space the drawing is in; `None` for a node in no space.
+    pub space: Option<VarId>,
+    /// The copies carrying it, innermost first; empty where the space
+    /// is drawn itself.
+    pub through: Vec<RecipeNodeId>,
+}
+
+/// **The spaces `node` is drawn in** ([`showings`] of its own space),
+/// each once: its own where the picture shows it, else the spaces of
+/// the copies that show it. The key an outline's toggle row, its
+/// space's hide and frame, and a free-move opened on it all read
+/// ([`crate::sketch::CommittedProfile::space`] is one of these).
+pub fn drawn_spaces(
+    doc: &Doc<ProfileProgram>,
+    shown: &BTreeSet<VarId>,
+    node: RecipeNodeId,
+) -> BTreeSet<Option<VarId>> {
+    showings(doc, shown, doc.node_space(node))
+        .into_iter()
+        .map(|showing| showing.space)
+        .collect()
+}
+
 /// **The space a new datum goes in for the selected `node`**: the space
-/// `node` is drawn in — its own where the picture shows that space, or
-/// else the space of the one copy that shows it ([`shown_spaces`]), as a
-/// face picked in the viewport on that copy reads — so the tree's path
-/// and the viewport's agree. Its own where nothing shows it.
+/// `node` is drawn in ([`drawn_spaces`]) — its own where the picture
+/// shows that space, or else the space of the one copy that shows it,
+/// as a face picked in the viewport on that copy reads — so the tree's
+/// path and the viewport's agree. Its own where nothing shows it.
 ///
 /// # Errors
 ///
-/// [`DatumSpaceFault`]: a node in no space, or one drawn through two
-/// copies or more.
+/// [`DatumSpaceFault`]: a node in no space, or one drawn in two spaces
+/// or more through copies.
 pub fn datum_space(
     doc: &Doc<ProfileProgram>,
     node: RecipeNodeId,
 ) -> Result<VarId, DatumSpaceFault> {
     let said = || crate::tree::spelled(&doc.spoken(node));
-    let space = doc
-        .node_space(node)
-        .ok_or_else(|| DatumSpaceFault::NoSpace { node: said() })?;
-    let shown = shown_spaces(doc);
-    let mut space = space;
-    // A space shown only through a copy is drawn where that copy's own
-    // space is, which may itself be shown only through one.
-    for _ in 0..doc.len() {
-        if shown.contains(&space) {
-            return Ok(space);
-        }
-        let targets: BTreeSet<VarId> = doc
-            .copies()
-            .into_iter()
-            .filter(|&copy| {
-                doc.copied_read(copy).and_then(|read| doc.space_of(read)) == Some(space)
-            })
-            .filter_map(|copy| doc.node_space(copy))
-            .collect();
-        match targets.len() {
-            0 => return Ok(space),
-            1 => space = *targets.iter().next().unwrap_or(&space),
-            spaces => {
-                return Err(DatumSpaceFault::ShownTwice {
-                    node: said(),
-                    spaces,
-                });
-            }
-        }
+    let spaces = drawn_spaces(doc, &shown_spaces(doc), node);
+    match spaces.iter().collect::<Vec<_>>()[..] {
+        [Some(space)] => Ok(*space),
+        [None] | [] => Err(DatumSpaceFault::NoSpace { node: said() }),
+        _ => Err(DatumSpaceFault::ShownTwice {
+            node: said(),
+            spaces: spaces.len(),
+        }),
     }
-    Ok(space)
 }

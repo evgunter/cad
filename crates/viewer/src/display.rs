@@ -55,10 +55,14 @@
 //! # Free-move admits any shown space but the world's
 //!
 //! Free-move is opened on a node the picture draws in a space, and
-//! moves that space: read off the recipe ([`Doc::node_space`]), every
-//! body and outline drawn in it moves with it, whatever kind of node
-//! drew it. A node in no space — a free profile — has no space to move
-//! and refuses ([`AdmissionFault::InNoSpace`]). A node
+//! moves that space, read off the recipe: a body's own
+//! ([`Doc::node_space`]), an outline's the one it is drawn in
+//! ([`crate::world::drawn_spaces`]). Every body and outline drawn in it
+//! moves with it, whatever kind of node drew it. A node in no space — a
+//! free profile — has no space to move and refuses
+//! ([`AdmissionFault::InNoSpace`]), and an outline drawn through copies
+//! in two spaces or more has no one space
+//! ([`AdmissionFault::DrawnInSpaces`]). A node
 //! in the world refuses ([`AdmissionFault::InTheWorld`]): the world is
 //! the frame the other spaces move against. The test also asks an
 //! evaluation that answers the document whether the body evaluated, and
@@ -245,6 +249,17 @@ pub enum AdmissionFault {
         /// The node, as the document held it.
         node: SpokenNode,
     },
+    /// The node is an outline in a space the picture shows only through
+    /// copies, into more than one space
+    /// ([`crate::world::drawn_spaces`]), so no one space is the one its
+    /// drawing stands in. A free-move opened on one of the copies moves
+    /// that copy's space.
+    DrawnInSpaces {
+        /// The node, as the document held it.
+        node: SpokenNode,
+        /// How many spaces it is drawn in.
+        spaces: usize,
+    },
     /// The node's body has no picture: its value did not evaluate (it
     /// refused, or an input it reads failed), so there is nothing of it
     /// to move.
@@ -335,6 +350,12 @@ impl core::fmt::Display for AdmissionFault {
                 "{node} is in no space, so the free-move probe has no space to move",
                 node = crate::tree::spelled(node)
             ),
+            Self::DrawnInSpaces { node, spaces } => write!(
+                f,
+                "{node} is drawn through copies in {spaces} spaces, so the free-move probe \
+                 has no one space to move: free-move one of the copies",
+                node = crate::tree::spelled(node)
+            ),
             Self::NoSpace { node } => write!(
                 f,
                 "{node} has no picture: it did not evaluate, so there is nothing of it to \
@@ -385,6 +406,10 @@ impl AdmissionFault {
             Self::InTheWorld { node } => Self::InTheWorld { node: again(node) },
             Self::NotEvaluated { node } => Self::NotEvaluated { node: again(node) },
             Self::InNoSpace { node } => Self::InNoSpace { node: again(node) },
+            Self::DrawnInSpaces { node, spaces } => Self::DrawnInSpaces {
+                node: again(node),
+                spaces,
+            },
             Self::NoSpace { node } => Self::NoSpace { node: again(node) },
             Self::MovedSpace { node, into } => Self::MovedSpace {
                 node: again(node),
@@ -637,8 +662,8 @@ pub fn drawn_deriving_from(
 /// (one an operation reads as a body) is no handle on anything drawn,
 /// and refuses ([`AdmissionFault::NotDrawn`]) even where its space is
 /// shown by other bodies. An outline is drawn whatever reads it, so it
-/// is a handle on the space it is in; a free profile is in none and
-/// refuses ([`AdmissionFault::InNoSpace`]).
+/// is a handle on the space it is drawn in ([`handle_space`]); a free
+/// profile is in none and refuses ([`AdmissionFault::InNoSpace`]).
 ///
 /// A body with no value has no picture to move, so the test also asks
 /// an evaluation (DI3): `eval` answers `doc`, the session's
@@ -649,8 +674,9 @@ pub fn drawn_deriving_from(
 ///
 /// [`AdmissionFault::NoSuchNode`], [`AdmissionFault::DrawsNothing`],
 /// [`AdmissionFault::NotDrawn`], [`AdmissionFault::NotEvaluated`],
-/// [`AdmissionFault::InNoSpace`], [`AdmissionFault::NoSpace`],
-/// [`AdmissionFault::InTheWorld`], [`AdmissionFault::NotShown`].
+/// [`AdmissionFault::InNoSpace`], [`AdmissionFault::DrawnInSpaces`],
+/// [`AdmissionFault::NoSpace`], [`AdmissionFault::InTheWorld`],
+/// [`AdmissionFault::NotShown`].
 pub fn free_move_check(
     doc: &Doc<ProfileProgram>,
     eval: Option<&Evaluation<f64>>,
@@ -672,6 +698,10 @@ pub fn free_move_check(
         Ok(space) => shown_check(doc, &picture.shown_spaces(doc), space, node).map(|()| space),
         Err(Unplaced::Nowhere) => Err(AdmissionFault::InNoSpace {
             node: doc.spoken(node),
+        }),
+        Err(Unplaced::Copies(spaces)) => Err(AdmissionFault::DrawnInSpaces {
+            node: doc.spoken(node),
+            spaces,
         }),
         Err(Unplaced::Refused) => Err(AdmissionFault::NoSpace {
             node: doc.spoken(node),
@@ -802,10 +832,11 @@ impl core::fmt::Display for Unrestored {
     }
 }
 
-/// **Whether a held gesture still moves the space its node's body is
-/// in** — the in-flight half of [`DisplayState::prune`]. The gesture
-/// names its node and moves its space, so both are asked: the node is
-/// still in the document and its body still in that space, the space
+/// **Whether a held gesture still moves the space what its node draws
+/// is in** ([`handle_space`]) — the in-flight half of
+/// [`DisplayState::prune`]. The gesture names its node and moves its
+/// space, so both are asked: the node is still in the document and its
+/// drawing still in that space, the space
 /// is still shown ([`space_check`]), and, with an evaluation, the body
 /// still evaluates.
 fn gesture_check(
@@ -835,6 +866,10 @@ fn gesture_check(
         Err(Unplaced::Nowhere) => Err(AdmissionFault::InNoSpace {
             node: doc.spoken(node),
         }),
+        Err(Unplaced::Copies(spaces)) => Err(AdmissionFault::DrawnInSpaces {
+            node: doc.spoken(node),
+            spaces,
+        }),
         Err(Unplaced::Refused) if answers == Answers::Structural => Ok(()),
         Err(Unplaced::Refused) => Err(AdmissionFault::NoSpace {
             node: doc.spoken(node),
@@ -859,25 +894,45 @@ enum Answers {
     Structural,
 }
 
-/// Why a node's body is in no space a free-move moves.
+/// Why what is drawn of a node is in no space a free-move moves.
 enum Unplaced {
     /// It is in the world's space.
     World,
     /// It is in no space ([`Doc::node_space`]).
     Nowhere,
+    /// It is an outline drawn through copies in this many spaces.
+    Copies(usize),
     /// `eval` gave it no value, so it has no picture.
     Refused,
 }
 
-/// **The space `node`'s body is in**, read off the recipe
-/// ([`Doc::node_space`]), the world's refused, and, with `eval`, a body
+/// **The space what is drawn of `node` stands in** — the space a
+/// free-move opened on it moves, read off the recipe: a body's own
+/// ([`Doc::node_space`]; a copy is the handle on the space it shows a
+/// body in), an outline's the one space it is drawn in
+/// ([`crate::world::drawn_spaces`]), which is its own where the picture
+/// shows that.
+fn handle_space(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Result<VarId, Unplaced> {
+    if !doc.node(node).is_some_and(crate::world::draws_an_outline) {
+        return doc.node_space(node).ok_or(Unplaced::Nowhere);
+    }
+    let spaces = crate::world::drawn_spaces(doc, &crate::world::shown_spaces(doc), node);
+    match spaces.iter().collect::<Vec<_>>()[..] {
+        [Some(space)] => Ok(*space),
+        [None] | [] => Err(Unplaced::Nowhere),
+        _ => Err(Unplaced::Copies(spaces.len())),
+    }
+}
+
+/// **The space a free-move opened on `node` moves**
+/// ([`handle_space`]), the world's refused, and, with `eval`, a node
 /// the evaluation gave no value refused.
 fn probe_space_of(
     doc: &Doc<ProfileProgram>,
     eval: Option<&Evaluation<f64>>,
     node: RecipeNodeId,
 ) -> Result<VarId, Unplaced> {
-    let space = doc.node_space(node).ok_or(Unplaced::Nowhere)?;
+    let space = handle_space(doc, node)?;
     if eval.is_some_and(|eval| eval.value(node).is_none()) {
         return Err(Unplaced::Refused);
     }
@@ -1082,13 +1137,19 @@ impl DisplayView {
     /// its world polylines: `None` where it is hidden — its toggle off,
     /// or `space`, the space whose picture it is drawn in
     /// ([`crate::sketch::CommittedProfile::space`]), hidden — else each
-    /// polyline under that space's display frame. The one rule the
-    /// outline lane draws by and the pick index measures by, so an
-    /// outline is picked where it is drawn and nowhere it is not.
+    /// polyline under the display map its drawing is carried by. That is
+    /// the map `copy`'s body is carried by ([`DisplayView::display_map`]:
+    /// the placement editor's carry of the copy, then the frame of the
+    /// space it is drawn in) where a copy carries it
+    /// ([`crate::sketch::CommittedProfile::copy`]), else `space`'s
+    /// display frame. The one rule the outline lane draws by and the
+    /// pick index measures by, so an outline is picked where it is
+    /// drawn and nowhere it is not.
     pub fn outline<'a>(
         &self,
         node: RecipeNodeId,
         space: Option<VarId>,
+        copy: Option<RecipeNodeId>,
         loops: &'a [Vec<pncad::geom_core::Point3<f64>>],
     ) -> Option<std::borrow::Cow<'a, [Vec<pncad::geom_core::Point3<f64>>]>> {
         if self.hidden_outlines.contains(&node)
@@ -1096,17 +1157,26 @@ impl DisplayView {
         {
             return None;
         }
-        Some(match space.and_then(|space| self.moved.get(&space)) {
+        // The frame of the space the placement editor's draft stands
+        // the copy in where it previews the copy, as the copy's body
+        // reads it; else the drawn space's.
+        let previewed = copy.and_then(|copy| self.previewed(copy));
+        let frame = match previewed {
+            Some(previewed) => self.moved.get(&previewed.space),
+            None => space.and_then(|space| self.moved.get(&space)),
+        };
+        let map = crate::scene::composed(
+            frame.map(Frame::affine),
+            previewed.map(PreviewedCopy::carry),
+        );
+        Some(match map {
             None => std::borrow::Cow::Borrowed(loops),
-            Some(frame) => {
-                let map = frame.affine();
-                std::borrow::Cow::Owned(
-                    loops
-                        .iter()
-                        .map(|lp| lp.iter().map(|&p| map.transform_point(p)).collect())
-                        .collect(),
-                )
-            }
+            Some(map) => std::borrow::Cow::Owned(
+                loops
+                    .iter()
+                    .map(|lp| lp.iter().map(|&p| map.transform_point(p)).collect())
+                    .collect(),
+            ),
         })
     }
 
@@ -1151,9 +1221,11 @@ pub struct BodyToggle {
 /// ([`Toggles::body_on`]).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Toggles {
-    /// The world first, then every other space that holds a body, in
-    /// the document order of its first, each with every body of the
-    /// document in it; then the bodies in no space, if any.
+    /// The world first, then every other space that holds a body or an
+    /// outline, in the document order of its first, each with every
+    /// body of the document in it and every outline drawn in it; then
+    /// what is in no space, if any. An outline drawn in two spaces has
+    /// a row in each, the one toggle.
     pub groups: Vec<SpaceToggles>,
 }
 
@@ -1168,7 +1240,8 @@ impl Toggles {
 
     /// **Whether `node`'s toggle is on** — the one reading every pane
     /// draws: some drawing is of its body (the default's, or a show)
-    /// and no toggle turned off reaches it. A body whose space is
+    /// and no toggle turned off reaches it; for an outline, its own
+    /// toggle is not off. A body whose space is
     /// hidden keeps its own toggle on.
     pub fn body_on(&self, node: RecipeNodeId) -> bool {
         self.body(node).is_some_and(|body| body.on)
@@ -1334,10 +1407,11 @@ fn drawing_off(toggled: &Toggled, drawn: &Drawn) -> bool {
 }
 
 /// **Whether `node`'s toggle reads on under `toggled`**, over the
-/// picture it shows: some drawing is of `node`'s body and no toggle
-/// turned off reaches it — the one rule every toggle is read by. An
-/// outline is drawn whatever reads it, so its own toggle is the only
-/// one that reaches it.
+/// picture it shows — the one home every toggle is read from, in two
+/// arms. A body's: some drawing is of its body and no toggle turned off
+/// reaches it. An outline's: it is drawn whatever reads it, so its own
+/// toggle is the only one that reaches it, and it reads on until that
+/// is turned off.
 fn on_in(
     doc: &Doc<ProfileProgram>,
     toggled: &Toggled,
@@ -1436,8 +1510,9 @@ impl DisplayState {
     }
 
     /// **Every toggle, over `doc`** ([`Toggles`]): the world first,
-    /// then every other space holding a body, each with every body of
-    /// `doc` in it, then the bodies in no space.
+    /// then every other space holding a body or an outline, each with every
+    /// body of `doc` in it and every outline drawn in it
+    /// ([`crate::world::drawn_spaces`]), then what is in no space.
     pub fn toggles(&self, doc: &Doc<ProfileProgram>) -> Toggles {
         let default = crate::world::Picture::of(doc);
         let picture = crate::world::Picture::showing(doc, &self.shown());
@@ -1447,6 +1522,7 @@ impl DisplayState {
             on: space_on(VarId::WORLD),
             bodies: Vec::new(),
         }];
+        let shown = crate::world::shown_spaces(doc);
         for node in doc.ids() {
             let Some(built) = doc
                 .node(node)
@@ -1454,19 +1530,28 @@ impl DisplayState {
             else {
                 continue;
             };
-            let space = doc.node_space(node);
+            let outline = crate::world::draws_an_outline(built);
             let body = BodyToggle {
                 node,
                 on: on_in(doc, &self.toggled, &picture, node),
-                drawn_by_default: crate::world::draws_an_outline(built) || default.draws_node(node),
+                drawn_by_default: outline || default.draws_node(node),
             };
-            match groups.iter_mut().find(|group| group.space == space) {
-                Some(group) => group.bodies.push(body),
-                None => groups.push(SpaceToggles {
-                    space,
-                    on: space.is_none_or(space_on),
-                    bodies: vec![body],
-                }),
+            // A body's row is in its own space; an outline's in each
+            // space it is drawn in, whose hide drops it.
+            let spaces = if outline {
+                crate::world::drawn_spaces(doc, &shown, node)
+            } else {
+                BTreeSet::from([doc.node_space(node)])
+            };
+            for space in spaces {
+                match groups.iter_mut().find(|group| group.space == space) {
+                    Some(group) => group.bodies.push(body),
+                    None => groups.push(SpaceToggles {
+                        space,
+                        on: space.is_none_or(space_on),
+                        bodies: vec![body],
+                    }),
+                }
             }
         }
         // The bodies in no space last.
@@ -1741,7 +1826,7 @@ impl DisplayState {
         node: RecipeNodeId,
         frame: Frame,
     ) -> Result<(), DisplayFault> {
-        let space = doc.node_space(node);
+        let space = handle_space(doc, node).ok();
         self.free_move.preview(
             free_move_words(),
             |probed| Some(probed.space) == space,
@@ -1783,7 +1868,7 @@ impl DisplayState {
         doc: &Doc<ProfileProgram>,
         node: RecipeNodeId,
     ) -> Result<(), DisplayFault> {
-        let space = doc.node_space(node);
+        let space = handle_space(doc, node).ok();
         let landed = self
             .free_move
             .commit(free_move_words(), |probed| Some(probed.space) == space)?;

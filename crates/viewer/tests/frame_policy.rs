@@ -360,10 +360,11 @@ fn cause_ordinal(cause: &AdmissionFault) -> usize {
         AdmissionFault::InTheWorld { .. } => 4,
         AdmissionFault::NotEvaluated { .. } => 5,
         AdmissionFault::InNoSpace { .. } => 6,
-        AdmissionFault::NoSpace { .. } => 7,
-        AdmissionFault::MovedSpace { .. } => 8,
-        AdmissionFault::NoSuchSpace { .. } => 9,
-        AdmissionFault::NotShown { .. } => 10,
+        AdmissionFault::DrawnInSpaces { .. } => 7,
+        AdmissionFault::NoSpace { .. } => 8,
+        AdmissionFault::MovedSpace { .. } => 9,
+        AdmissionFault::NoSuchSpace { .. } => 10,
+        AdmissionFault::NotShown { .. } => 11,
     }
 }
 
@@ -399,6 +400,10 @@ fn every_cause() -> Vec<AdmissionFault> {
         },
         AdmissionFault::InNoSpace {
             node: SpokenNode::absent(RecipeNodeId::new(0, tagged(21))),
+        },
+        AdmissionFault::DrawnInSpaces {
+            node: SpokenNode::absent(RecipeNodeId::new(0, tagged(22))),
+            spaces: 2,
         },
         AdmissionFault::NoSpace {
             node: SpokenNode::absent(RecipeNodeId::new(0, tagged(8))),
