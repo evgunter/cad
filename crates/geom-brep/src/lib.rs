@@ -257,9 +257,9 @@ pub use pair_section::{
     ComponentShape, Components, ConeTorusPose, ConeTorusRefusal, CsDecision, CsStance, CtStance,
     CylinderCylinderPose, CylinderSpherePose, CylinderTorusPose, FittedCarrier, Gap, HeldRead,
     KnownPair, KnownRow, KtQuestion, KtStance, LoopTubeRefusal, NoCarrier, NodeEnd, NodeEnds,
-    NodeLine, NodeSet, PadBox, PairPose, PairSection, PairSide, PlaneTorusMeridian, PlaneTorusPose,
-    PoseRefusal, PtCut, PtPinch, PtStance, RaySense, Reached, RegionPlacement, Ring,
-    SectionComponent, SectionDecision, SectionNode, SectionPick, SectionRead, SiteFoot,
+    NodeLine, NodeSet, PadBox, PadsStop, PairPose, PairSection, PairSide, PlaneTorusMeridian,
+    PlaneTorusPose, PoseRefusal, PtCut, PtPinch, PtStance, RaySense, Reached, RegionPlacement,
+    Ring, SectionComponent, SectionDecision, SectionNode, SectionPick, SectionRead, SiteFoot,
     SiteReading, SiteRefusal, SpanEnd, SphereTorusPose, SplineImplicitPose, SplinePairPose,
     SquareWall, SsiLane, SsiLaneOf, StStance, TT_COINCIDENT, TT_COINCIDENT_FLOOR, TorusCoincidence,
     TorusData, TorusDatum, TorusDisplacement, TorusGap, TorusPoseRefusal, TorusQuestion,
@@ -286,7 +286,7 @@ pub use pcurve_cache::{
     chart_pcurve, chart_pcurve_over, chart_pcurve_over_ends, chart_stretch_inf, chart_stretch_sup,
     chart_stretch_sup_v, chart_sup_arms_at, harmonic_form_of, harmonic_range,
     incidence_ended_unwitnessed, iso_arc_skew, iso_arc_spans, minted_refusal, read_edge_incidence,
-    read_incidence, read_point_incidence, reads_singular_ends, ruling_miss,
+    read_incidence, read_point_incidence, reads_singular_ends, ruling_miss, spline_net_closes,
 };
 pub use plane_eq::{PlaneDesc, PlaneRung, oriented_plane_eq};
 pub use polygon_orientation::PolygonOrientation;
