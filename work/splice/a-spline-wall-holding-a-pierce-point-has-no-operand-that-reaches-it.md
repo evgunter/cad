@@ -27,7 +27,7 @@ that chart point, and the wall's bend is `T::spline_chart_arm` (as
 
 No input reaches the arm, so it stays a typed refusal. The wavy loft
 (`editor-core` `emit_topo`'s
-`wavy_loft::a_union_across_a_nurbs_edge_refuses_where_two_arcs_pads_meet`)
+`wavy_loft::a_union_across_a_nurbs_edge_stops_at_its_chords_image_at_rest`)
 reads its spline walls `OffCarrier` at both of its pierce points and
 goes on to the join.
 
