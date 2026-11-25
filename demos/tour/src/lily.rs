@@ -2425,7 +2425,8 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    (`work/secttorus/c5-plane-torus-cone-cylinder-arms`). At 1e-12
     //    the lower stem's declared frontier stands the lily walls down
     //    before this one.
-    wall(
+    crate::walls::join_wall(
+        "lily",
         8,
         "grow the long leaf out of the stem (its NURBS walls through the \
          lower stem's torus wall)",

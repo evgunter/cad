@@ -4,7 +4,7 @@ kind: issue
 title: Point containment's ray test has no arm for a spline face, so a selection holding one casts no aimed ray and reads its side off its volume
 status: open
 opened: 2026-10-25
-priority: P3
+priority: P0
 cost: H
 ---
 
@@ -72,5 +72,14 @@ reach, so the box exit above does not read it.
 
 SECTARMS's join unit (`work/sectarms/the-join-reads-a-spline-implicit-section.md`,
 P0) is done when the sphere × lofted-wall union builds with its volume
-held, and this arm is the last stop measured before that. This row is
-P3.
+held, and this arm is the last stop measured before that.
+
+## Re-banded P0 (2026-11-25)
+
+This arm is teapot wall 3's stop at ε 1e-6 and 1e-9: the spout ∪ vessel
+union is past its join and refuses `Containment(KindUnsupported { kind:
+Nurbs })` on the spout's outer wall (`demos/tour/src/teapot.rs`,
+`wall3_pinned`). That makes it a blocker of the P0 umbrella
+`splice/curved-demo-joins-build`, and a blocker carries the band of
+what waits on it (`work/README.md`, Priority). The umbrella named the
+spout's previous stop until now, so lint did not see the P3.

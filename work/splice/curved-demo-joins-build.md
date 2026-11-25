@@ -6,7 +6,7 @@ status: parked
 opened: 2026-11-03
 priority: P0
 cost: C
-blocked_on: [a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm, c5-plane-torus-cone-cylinder-arms]
+blocked_on: [a-curved-partners-arc-is-imaged-at-rest-no-finer-than-the-mints-finest-rung, a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm, point-containments-ray-test-has-no-spline-arm, the-chart-accounting-clears-a-thin-torus-only-in-sub-millimetre-cells]
 ---
 
 
@@ -19,7 +19,13 @@ refusal changes panics, so the pin cannot rot). This row keeps, in one
 place, the stop each join reaches today and the rows known to stand
 behind it. Its `blocked_on` is the set of current stops, so lint warns
 when one closes. That warning is the cue to re-measure the join and
-update the row.
+update the row. The same set is in code: each join's probe is
+`walls::join_wall`, which names its stop rows in
+`walls::CURVED_JOIN_STOPS` (`demos/tour/src/walls.rs`), and
+`walls::tests::the_umbrella_waits_on_every_join_stop` fails unless this
+row's `blocked_on` is exactly the union of those rows. A probe re-pinned
+onto a new stop therefore moves this row too, and lint's band rule then
+holds the new stop to this row's P0.
 
 Filed 2026-11-03, asked for in chat: the joins' rows were spread over SECT,
 SECTARMS, SPLICE, LATHE and SPIRICARM, and the stops of three joins sat
@@ -34,8 +40,8 @@ the same change.
 | **klein wall 3**: the swept loop ∪ the revolved bulb | `demos/tour/src/klein.rs` `wall3_pinned` | `GermFrameUnsupported { a_face: 6v1 Cone, b_face: 4v1 Nurbs }` at every ε row (measured 2026-11-04 on PR 6481): the join's germ pair of the bulb's cone and the loop's spline wall has no section arm to frame it, the NURBS × cone section, `sectarms/a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm` (its cone stage). Its stop before, the loop's start-cap rim arc lying on the neck cylinder beside the NURBS tube wall, is taken (`splice/a-rim-arc-lying-on-a-cylinder-refuses-as-a-curved-pierce`) | behind the section, `sect/the-cone-has-no-implicit-enclosure-or-metres-conversion` |
 | **klein wall 4**: bulb ∖ loop, the self-intersection cut | `demos/tour/src/klein.rs` `wall4_pinned` | wall 3's stop, the same refusal and payload as wall 3's union (`wall4_pinned` compares them): `GermFrameUnsupported { a_face: 6v1 Cone, b_face: 4v1 Nurbs }` at every ε row (measured 2026-11-04 on PR 6481), `sectarms/a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm` | everything wall 3 meets, under ∖ |
 | **teapot wall 2**: handle (torus) ∪ vessel (sphere) | `demos/tour/src/teapot.rs` `wall_probes` | the union builds and validates: its chorded sphere face and the handle's chorded torus face measure through the rotational lane (SPIRICARM stages 2 and 3, 2026-11-10); the probe is retired to an assertion that the join composes | re-cut the handle's 11.2 mm overshoot, join it into the pot, re-state the caption, and hold the joined teapot to an independent volume (none reads it yet) |
-| **teapot wall 3**: lofted spout ∪ vessel | `demos/tour/src/teapot.rs` `wall_probes` | past its seam split since PR 6441 and past the held pierce since PR 6435 (2026-11-03). `GermFrameUnsupported { a_face: 6v1 Sphere, b_face: 3v3 Nurbs }` at every ε row (measured 2026-11-04 on `splice/teapot-1e6-floor`; `wall3_pinned` is one pin across ε): the belly's sphere against the spout's outer wall in the join, `sectarms/a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm`. Its 1e-6 stop before, `SplineCrossingUnsettled { why: Floor }` on the belly meridian against a spout bore wall, is taken (`splice/teapot-wall-3-at-1e-6-floors-the-meridian-against-a-spout-wall`) | the NURBS × sphere section (the SECTARMS row above) |
-| **lily wall 8**: the lofted leaf grown out of the stem's tube | `demos/tour/src/lily.rs` `wall_probes` | `GermSectionUnbuilt { a_kind: Torus, b_kind: Nurbs, why: Refused(Unaccounted { … 200000-cell budget }) }`, the stem's tube against the leaf's ridge wall, measured at ε 1e-9 on 2026-11-24 (ORBIT's PR 7713, which retired `GermSectionSpiric`, the leaf's tilted cap's old stop; that pair is now the section value's carried section) | the NURBS × torus section, `sectarms/a-nurbs-face-against-a-torus-has-no-section-arm` |
+| **teapot wall 3**: lofted spout ∪ vessel | `demos/tour/src/teapot.rs` `wall3_pinned` | past the join at ε 1e-6 and 1e-9: the section of the belly's sphere and the spout's outer wall is read and its chords certify, and the union stops at the inside/outside test, which cannot cross a spline face: `Containment(KindUnsupported { kind: Nurbs })` on the spout's outer wall, `inside/point-containments-ray-test-has-no-spline-arm`. At 1e-12 it stops in the join instead: a chord of the belly's sphere on a spout wall escalates at rest (`Escalated { check: PlaneNurbsHullValue }`, a 1.01e-12 m miss), `sectarms/a-curved-partners-arc-is-imaged-at-rest-no-finer-than-the-mints-finest-rung`. Its stops before, the NURBS × sphere germ frame (`GermFrameUnsupported { a_face: 6v1 Sphere, b_face: 3v3 Nurbs }`, measured 2026-11-04), the seam split (PR 6441) and the held pierce (PR 6435), are taken. This row named the germ frame until 2026-11-25, after the probe had moved past it | not measured past containment |
+| **lily wall 8**: the lofted leaf grown out of the stem's tube | `demos/tour/src/lily.rs` `wall_probes` | `GermSectionUnbuilt { a_kind: Torus, b_kind: Nurbs, why: Refused(Unaccounted { … 200000-cell budget }) }`, the stem's tube against the leaf's ridge wall, measured at ε 1e-9 on 2026-11-24 (ORBIT's PR 7713, which retired `GermSectionSpiric`, the leaf's tilted cap's old stop; that pair is now the section value's carried section): the chart accounting runs out of cells against the thin torus, `ssiarith/the-chart-accounting-clears-a-thin-torus-only-in-sub-millimetre-cells` | the NURBS × torus section, `sectarms/a-nurbs-face-against-a-torus-has-no-section-arm`, and behind it `secttorus/c5-plane-torus-cone-cylinder-arms`, which that row is parked on |
 
 Not joins, so not on this row: the tour's other walls are other verbs
 (lily 3 and 4, an oblique extrude and a non-uniform scale), meshes
@@ -62,7 +68,7 @@ frontier is.
     `sectarms/a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm`
     (X, staged) and its torus row;
   - plane × torus off the axis's planes (the general spiric), which is
-    `sect/c5-plane-torus-cone-cylinder-arms` (X).
+    `secttorus/c5-plane-torus-cone-cylinder-arms` (X).
 
   `Approx` is off every roster by decision (`reduce.rs`,
   `boolean_arm_exists`), not by gap.
@@ -84,11 +90,15 @@ frontier is.
 ## Keeping this row true
 
 - A PR that re-pins one of these walls updates the join's row in the
-  table above, and `blocked_on` if the stop's row changed. The wall
-  probe panics on any change of refusal, so such a PR cannot miss that
-  it moved one.
+  table above, its entry in `walls::CURVED_JOIN_STOPS`, and
+  `blocked_on` if the stop's row changed. The wall probe panics on any
+  change of refusal, and its panic names the entry and this row; the
+  tour's `the_umbrella_waits_on_every_join_stop` fails when the entry
+  and `blocked_on` disagree.
 - A PR that retires a wall (the join builds) deletes its table row and
   says so in its body. The row closes when the table is empty.
-- A new curved demo join joins the table when its scene pins it.
+- A new curved demo join joins the table when its scene pins it, with
+  `walls::join_wall` as its probe and an entry in
+  `walls::CURVED_JOIN_STOPS`.
 
 Moved from `work/issues/` to `work/splice/` on 2026-11-03, when the `work/issues/` bucket was retired (Ev's direction, in chat); id and body unchanged.
