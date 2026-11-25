@@ -4257,8 +4257,8 @@ impl Incidence {
         section_vertices: bool,
     ) -> impl Iterator<Item = Cell> + 'a {
         let inside = move |c: Cell, fs: &[FaceKey]| {
-            let section =
-                self.section.contains(&c) && (matches!(c, Cell::Edge(_)) || section_vertices);
+            let section = std::env::var("PROBE_NOSECT").is_err()
+                && self.section.contains(&c) && (matches!(c, Cell::Edge(_)) || section_vertices);
             !fs.is_empty()
                 && fs.iter().all(|f| fragments.contains(f))
                 && (fs.iter().any(|f| f != &fs[0]) || section)
@@ -4687,6 +4687,7 @@ impl<'b, T: Decide> Clones<'b, T> {
 fn in_joint(map: &GraftMap, side: Operand, c: Cell) -> Option<Cell> {
     let view = match side {
         Operand::A => KeyView::Direct,
+        Operand::B if std::env::var("PROBE_JOINTBAD").is_ok() => KeyView::Direct,
         Operand::B => KeyView::Graft(map),
     };
     match c {
@@ -4757,6 +4758,16 @@ fn operand_fate<T: Real>(
         x,
     );
     let removed = |c: Cell| stated_removed(incidence, discarded, c);
+    let mut pieces = pieces;
+    let gapkind = std::env::var("PROBE_GAP").unwrap_or_default();
+    let is_kind = match x { Cell::Face(_) => gapkind == "face" || gapkind == "any", Cell::Edge(_) => gapkind == "edge" || gapkind == "any", _ => false };
+    if is_kind && pieces.len() >= 2 {
+        if let Some(ix) = pieces.iter().position(|&c| !removed(c)) {
+            let c = pieces.remove(ix);
+            eprintln!("PROBE_GAP dropped {c:?} of {x:?}");
+            super::records::GAPPED.with(|g| g.borrow_mut().insert(x));
+        }
+    }
     let all: Vec<Cell> = pieces.iter().chain(&minted).copied().collect();
     let mut gone = Vec::new();
     let pieces = imaged(
@@ -5870,6 +5881,14 @@ fn place_found<'b, T: Decide + AtRestPolicy>(
                 });
             }
             let removed = |c: Cell| stated_removed(&incidence[at(side)], discarded[at(side)], c);
+            let mut pieces = pieces;
+            if std::env::var("PROBE_GAP").is_ok_and(|g| g == "recut" || g == "any") && pieces.len() >= 2 {
+                if let Some(ix) = pieces.iter().position(|&c| !removed(c)) {
+                    let c = pieces.remove(ix);
+                    eprintln!("PROBE_GAP recut dropped {c:?} of {cell:?}");
+                    super::records::GAPPED.with(|g| g.borrow_mut().insert(cell));
+                }
+            }
             let (view, mut gone, mut back) = (views[at(side)], Vec::new(), Vec::new());
             let all: Vec<Cell> = pieces.iter().chain(&chords).copied().collect();
             let pieces = imaged(

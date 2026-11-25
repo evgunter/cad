@@ -1,0 +1,341 @@
+diff --git a/crates/sweep/tests/a_pierce_held_in_a_curved_face.rs b/crates/sweep/tests/a_pierce_held_in_a_curved_face.rs
+index 2e5a30671c..2559cfa5db 100644
+--- a/crates/sweep/tests/a_pierce_held_in_a_curved_face.rs
++++ b/crates/sweep/tests/a_pierce_held_in_a_curved_face.rs
+@@ -465,6 +465,11 @@ fn every_op(
+             let findings = topo::validate_pseudomanifold(body, &r.contacts, tol())
+                 .err()
+                 .unwrap_or_default();
++            if std::env::var("PROBE_FINDINGS").is_ok() {
++                eprintln!("PROBE_FINDINGS {what} {name} held_first={held_first}: {} findings", findings.len());
++                for f in &findings { eprintln!("PROBE_FINDING {what} {name} {held_first}: {f:?}"); }
++                for (x, y) in r.contacts.cell_pairs() { eprintln!("PROBE_RECORD {what} {name} {held_first}: {x:?} {y:?}"); }
++            }
+             let unrecorded = findings
+                 .iter()
+                 .filter(|e| {
+diff --git a/crates/topo/src/boolean/ops.rs b/crates/topo/src/boolean/ops.rs
+index 27baed4f82..74cdc5f398 100644
+--- a/crates/topo/src/boolean/ops.rs
++++ b/crates/topo/src/boolean/ops.rs
+@@ -4257,8 +4257,8 @@ impl Incidence {
+         section_vertices: bool,
+     ) -> impl Iterator<Item = Cell> + 'a {
+         let inside = move |c: Cell, fs: &[FaceKey]| {
+-            let section =
+-                self.section.contains(&c) && (matches!(c, Cell::Edge(_)) || section_vertices);
++            let section = std::env::var("PROBE_NOSECT").is_err()
++                && self.section.contains(&c) && (matches!(c, Cell::Edge(_)) || section_vertices);
+             !fs.is_empty()
+                 && fs.iter().all(|f| fragments.contains(f))
+                 && (fs.iter().any(|f| f != &fs[0]) || section)
+@@ -4687,6 +4687,7 @@ impl<'b, T: Decide> Clones<'b, T> {
+ fn in_joint(map: &GraftMap, side: Operand, c: Cell) -> Option<Cell> {
+     let view = match side {
+         Operand::A => KeyView::Direct,
++        Operand::B if std::env::var("PROBE_JOINTBAD").is_ok() => KeyView::Direct,
+         Operand::B => KeyView::Graft(map),
+     };
+     match c {
+@@ -4757,6 +4758,16 @@ fn operand_fate<T: Real>(
+         x,
+     );
+     let removed = |c: Cell| stated_removed(incidence, discarded, c);
++    let mut pieces = pieces;
++    let gapkind = std::env::var("PROBE_GAP").unwrap_or_default();
++    let is_kind = match x { Cell::Face(_) => gapkind == "face" || gapkind == "any", Cell::Edge(_) => gapkind == "edge" || gapkind == "any", _ => false };
++    if is_kind && pieces.len() >= 2 {
++        if let Some(ix) = pieces.iter().position(|&c| !removed(c)) {
++            let c = pieces.remove(ix);
++            eprintln!("PROBE_GAP dropped {c:?} of {x:?}");
++            super::records::GAPPED.with(|g| g.borrow_mut().insert(x));
++        }
++    }
+     let all: Vec<Cell> = pieces.iter().chain(&minted).copied().collect();
+     let mut gone = Vec::new();
+     let pieces = imaged(
+@@ -5870,6 +5881,14 @@ fn place_found<'b, T: Decide + AtRestPolicy>(
+                 });
+             }
+             let removed = |c: Cell| stated_removed(&incidence[at(side)], discarded[at(side)], c);
++            let mut pieces = pieces;
++            if std::env::var("PROBE_GAP").is_ok_and(|g| g == "recut" || g == "any") && pieces.len() >= 2 {
++                if let Some(ix) = pieces.iter().position(|&c| !removed(c)) {
++                    let c = pieces.remove(ix);
++                    eprintln!("PROBE_GAP recut dropped {c:?} of {cell:?}");
++                    super::records::GAPPED.with(|g| g.borrow_mut().insert(cell));
++                }
++            }
+             let (view, mut gone, mut back) = (views[at(side)], Vec::new(), Vec::new());
+             let all: Vec<Cell> = pieces.iter().chain(&chords).copied().collect();
+             let pieces = imaged(
+diff --git a/crates/topo/src/boolean/records.rs b/crates/topo/src/boolean/records.rs
+index 8510ebf219..8ae771714b 100644
+--- a/crates/topo/src/boolean/records.rs
++++ b/crates/topo/src/boolean/records.rs
+@@ -12,6 +12,9 @@
+ //! census.
+ 
+ use std::collections::BTreeMap;
++thread_local! { pub(crate) static GAPPED: core::cell::RefCell<std::collections::BTreeSet<Cell>> = Default::default(); }
++fn probe_consume(path: &str, cells: [Cell; 2]) { if GAPPED.with(|g| cells.iter().any(|c| g.borrow().contains(c))) { eprintln!("SILENT_DROP path={path} cells={cells:?}"); if std::env::var("PROBE_PANIC").is_ok() { panic!("SILENT_DROP path={path}"); } } }
++fn pv(n: &str) -> bool { std::env::var(n).is_ok() }
+ 
+ use geom_core::Real;
+ 
+@@ -936,8 +939,11 @@ pub(in crate::boolean) fn landings<'b, T: crate::props::AtRestPolicy>(
+                             // touch as structure, which needs no record
+                             // (D1). An image merely incident to an image of
+                             // the other cell holds nothing.
+-                            on_structure |=
+-                                lineage.glues() && matches!(error, ContactPairError::OneCell(_));
++                            on_structure |= lineage.glues()
++                                && (matches!(error, ContactPairError::OneCell(_))
++                                    || pv("PROBE_ANYINC")
++                                    || (pv("PROBE_LOOSEINC") && !a_minted && !b_minted));
++                            if pv("PROBE_LOGSTRUCT") && lineage.glues() && matches!(error, ContactPairError::OneCell(_)) { eprintln!("STRUCT_ONECELL record={record} cells={cells:?} a={a:?} b={b:?} am={a_minted} bm={b_minted}"); }
+                             structure.get_or_insert(error);
+                             continue;
+                         }
+@@ -947,10 +953,12 @@ pub(in crate::boolean) fn landings<'b, T: crate::props::AtRestPolicy>(
+                         let confirm = confirm.get_or_insert_with(|| {
+                             crate::census::RecordConfirm::of(body, band, region)
+                         });
+-                        if !confirm.meets(pair).map_err(|_| CarryRefusal::Unread {
+-                            record,
+-                            cells: pair.cells(),
+-                        })? {
++                        let met = match confirm.meets(pair) {
++                            Ok(m) => m,
++                            Err(crate::ValidationError::ContactContradicted { .. }) if pv("PROBE_CONTRALEAK") => true,
++                            Err(_) => return Err(CarryRefusal::Unread { record, cells: pair.cells() }),
++                        };
++                        if !met {
+                             continue;
+                         }
+                     }
+@@ -971,19 +979,21 @@ pub(in crate::boolean) fn landings<'b, T: crate::props::AtRestPolicy>(
+         // not mint: the record is carried by that landing, and the meeting
+         // is nothing recorded and nothing consumed. Where it is the
+         // record's only landing it stays, and refuses.
++        if pv("PROBE_LOGSET") { for l in &out[first..] { if l.minted && !matches!(l.at, [Cell::Vertex(_), Cell::Vertex(_)]) { let b = sides[l.side]; let pt = |v: crate::VertexKey| b.vertex_points().find(|(k, _)| *k == v).map(|(_, p)| format!("{p:?}")); let desc = |c: Cell| match c { Cell::Vertex(v) => format!("V{:?}", pt(v)), Cell::Edge(e) => format!("E{:?}", b.edge_vertices(e).map(|(u, w)| (u, w, pt(u), pt(w)))), c => format!("{c:?}") }; eprintln!("SETASIDE_CAND record={record} at={:?} {} {} beside={} all={:?}", l.at, desc(l.at[0]), desc(l.at[1]), out[first..].iter().any(|l: &Landing| !l.minted), out[first..].iter().map(|l| (l.at, l.minted)).collect::<Vec<_>>()); } } }
+         if lineage.meeting() == crate::lineage::MintedBacking::Refused
+-            && out[first..].iter().any(|l: &Landing| !l.minted)
++            && (pv("PROBE_SETASIDEALONE") || out[first..].iter().any(|l: &Landing| !l.minted))
+         {
+             let mut i = first;
+             while i < out.len() {
+                 let vertices = matches!(out[i].at, [Cell::Vertex(_), Cell::Vertex(_)]);
+-                if out[i].minted && !vertices {
++                if out[i].minted && (!vertices || pv("PROBE_SETASIDEVV")) {
+                     out.remove(i);
+                 } else {
+                     i += 1;
+                 }
+             }
+         }
++        if !landed && on_structure { probe_consume("structure", cells); }
+         if landed || on_structure {
+             continue;
+         }
+@@ -993,7 +1003,7 @@ pub(in crate::boolean) fn landings<'b, T: crate::props::AtRestPolicy>(
+         // unmapped or removed whole, below).
+         let mut on_removed = false;
+         let mut removed_read = false;
+-        'members: for i in (0..2).filter(|_| held_by == [true, true]) {
++        'members: for i in (0..2).filter(|_| held_by == [true, true] && !pv("PROBE_IGNREM")) {
+             for &r in fates[i].division().map_or(&[][..], |d| &d.removed) {
+                 let Some(removed) = removed else {
+                     return Err(CarryRefusal::Unread {
+@@ -1027,7 +1037,11 @@ pub(in crate::boolean) fn landings<'b, T: crate::props::AtRestPolicy>(
+                     // than the record does: found is found.
+                     let met = match confirm.meets(pair) {
+                         Ok(met) => met,
+-                        Err(crate::ValidationError::ContactContradicted { .. }) => true,
++                        Err(crate::ValidationError::ContactContradicted { .. }) if !pv("PROBE_NOCONTRA") => {
++                            if pv("PROBE_LOGSTRUCT") { eprintln!("CONTRA_TOUCHED record={record} cells={cells:?}"); }
++                            true
++                        }
++                        Err(_) if pv("PROBE_CONTRAANY") => true,
+                         Err(_) => {
+                             return Err(CarryRefusal::Unread {
+                                 record,
+@@ -1043,13 +1057,16 @@ pub(in crate::boolean) fn landings<'b, T: crate::props::AtRestPolicy>(
+             }
+         }
+         if on_removed {
++            probe_consume("removed", cells);
+             continue;
+         }
+         let whole = fates.iter().any(crate::Fate::removes);
+         if read {
+             // A touch on a cell the op removed whole, or on one it moved
+             // whole, went with it.
+-            if whole || moved_whole {
++            let anyrem = pv("PROBE_ANYREM") && fates.iter().any(|f| f.division().is_some_and(|d| !d.removed.is_empty()));
++            if whole || moved_whole || anyrem {
++                probe_consume("whole", cells);
+                 continue;
+             }
+             return Err(CarryRefusal::Stale { record });
+@@ -1060,6 +1077,7 @@ pub(in crate::boolean) fn landings<'b, T: crate::props::AtRestPolicy>(
+             // Structure needs no record (D1): two vertices made one, or
+             // cells an op glued ([`crate::Lineage::glued`]).
+             if fused || lineage.glues() {
++                probe_consume("allstructure", cells);
+                 continue;
+             }
+             return Err(CarryRefusal::Pair { record, error });
+@@ -1320,4 +1338,59 @@ mod tests {
+             "the corner, minted in the bottom's division, is structure"
+         );
+     }
++
++    /// PROBE (review of PR 7799): an edge–edge record of a top and a bottom
++    /// edge of the prism (apart: no touch anywhere) through a glued
++    /// lineage whose two divisions each name one other bottom edge as a
++    /// PIECE. The record's touch (none) is off the shared piece. Before
++    /// PR 7799 a shared piece consumed nothing (only a minted one did).
++    #[test]
++    fn probe_a_shared_glued_piece_consumes_a_record_touching_nothing() {
++        use crate::props::AtRestPolicy;
++        let p = prism();
++        let edge = |u: crate::VertexKey, v: crate::VertexKey| {
++            p.body
++                .edges()
++                .map(|(e, _)| e)
++                .find(|&e| {
++                    p.body
++                        .edge_vertices(e)
++                        .is_some_and(|(a, b)| [a, b] == [u, v] || [a, b] == [v, u])
++                })
++                .map(Cell::Edge)
++                .expect("an edge")
++        };
++        let t0 = edge(p.top[0], p.top[1]);
++        let b0 = edge(p.bottom[0], p.bottom[1]);
++        let b1 = edge(p.bottom[1], p.bottom[2]);
++        let band = geom_core::Band::linear(Tol::witness()).unwrap();
++        let carry = |shared_minted: bool| {
++            let div = |own: Cell| {
++                crate::Fate::Divided(if shared_minted {
++                    crate::Division { pieces: vec![own], minted: vec![b1], removed: vec![] }
++                } else {
++                    crate::Division { pieces: vec![own, b1], minted: vec![], removed: vec![] }
++                })
++            };
++            let lineage = crate::Lineage::new()
++                .glued()
++                .with(t0, div(t0))
++                .and_then(|l| l.with(b0, div(b0)))
++                .unwrap();
++            super::landings(
++                &[[t0, b0]],
++                &lineage,
++                (&[&p.body], None),
++                &mut super::Confirms::new(1),
++                band,
++                <f64 as AtRestPolicy>::region_lane(),
++                None,
++            )
++            .map(|landed| landed.len())
++        };
++        let piece = carry(false);
++        let minted = carry(true);
++        eprintln!("PROBE shared piece: {piece:?}; shared minted: {minted:?}");
++        assert_eq!(piece, Err(super::CarryRefusal::Stale { record: 0 }), "shared piece");
++    }
+ }
+diff --git a/crates/topo/tests/vertex_on_edge_records.rs b/crates/topo/tests/vertex_on_edge_records.rs
+index 42d78c46a7..a02507fdb9 100644
+--- a/crates/topo/tests/vertex_on_edge_records.rs
++++ b/crates/topo/tests/vertex_on_edge_records.rs
+@@ -1137,3 +1137,88 @@ fn a_kept_pair_read_as_contradicted_is_unread() {
+         "the contradicted kept pair is unread: {got:?}"
+     );
+ }
++
++// ---- PROBE (review of PR 7799): (2) on a removed member that touches nothing ----
++
++/// The bottom (−z) or top (+z) face at z = 0 of the brick spanning
++/// `xs` and the given z range.
++fn z0_face(body: &Body<f64>, x_mid: f64, up: bool) -> Cell {
++    let fs: Vec<Cell> = body
++        .faces()
++        .map(|(f, _)| f)
++        .filter(|&f| {
++            matches!(
++                body.face_surface(f),
++                Ok(topo::Surface::Plane { frame, .. })
++                    if frame.origin().z == 0.0
++                        && frame.axis().z == if up { 1.0 } else { -1.0 }
++            )
++        })
++        .filter(|&f| {
++            body.half_edges().any(|(h, _)| {
++                body.face_of_half_edge(h) == Some(f)
++                    && body
++                        .half_edge_start_point(h)
++                        .is_some_and(|p| (p.x - x_mid).abs() <= 0.5)
++            })
++        })
++        .map(Cell::Face)
++        .collect();
++    let [f] = fs[..] else { panic!("one face at x={x_mid} up={up}: {fs:?}") };
++    f
++}
++
++/// PROBE: a face–face record of `x` (P's bottom, −z, x∈[0,1]) and `y`
++/// (Q's top, +z, x∈[3,4]) on z = 0, apart; `x`'s division keeps `x` and
++/// names R's z = 0 face (x∈[6,7]) removed. R touches neither. With R's
++/// face +z (same sense as `y`) and −z (opposed): the clause says Stale
++/// both ways, since the removed member touches nothing.
++#[test]
++fn probe_a_removed_member_touching_nothing_consumes_by_sense_alone() {
++    let tol = Tol::witness();
++    let run = |r_up: bool| {
++        let mut body: Body<f64> = common::brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
++        let q: Body<f64> = common::brick((3.0, 4.0), (0.0, 1.0), (-1.0, 0.0), tol);
++        topo::graft_disjoint_all_keyed(&mut body, &q).unwrap();
++        let r: Body<f64> = if r_up {
++            common::brick((6.0, 7.0), (0.0, 1.0), (-1.0, 0.0), tol)
++        } else {
++            common::brick((6.0, 7.0), (0.0, 1.0), (0.0, 1.0), tol)
++        };
++        topo::graft_disjoint_all_keyed(&mut body, &r).unwrap();
++        let x = z0_face(&body, 0.5, false);
++        let y = z0_face(&body, 3.5, true);
++        let rf = z0_face(&body, 6.5, r_up);
++        let one = common::records(&body, [(x, y)]);
++        let lineage = topo::Lineage::new()
++            .with(
++                x,
++                topo::Fate::Divided(topo::Division {
++                    pieces: vec![x],
++                    minted: vec![],
++                    removed: vec![rf],
++                }),
++            )
++            .unwrap();
++        one.carried_through_removing(
++            0,
++            &lineage,
++            &body,
++            &body,
++            geom_core::Band::linear(tol).unwrap(),
++            Some(topo::RegionLane::certified()),
++        )
++        .map(|c| c.cell_pairs().count())
++    };
++    let same = run(true);
++    let opposed = run(false);
++    eprintln!("PROBE same-sense removed member: {same:?}; opposed: {opposed:?}");
++    assert!(
++        matches!(opposed, Err(topo::CarryRefusal::Stale { record: 0 })),
++        "opposed: {opposed:?}"
++    );
++    assert!(
++        matches!(same, Err(topo::CarryRefusal::Stale { record: 0 })),
++        "same sense, touching nothing, must not consume: {same:?}"
++    );
++}

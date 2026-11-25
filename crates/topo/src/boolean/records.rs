@@ -12,6 +12,9 @@
 //! census.
 
 use std::collections::BTreeMap;
+thread_local! { pub(crate) static GAPPED: core::cell::RefCell<std::collections::BTreeSet<Cell>> = Default::default(); }
+fn probe_consume(path: &str, cells: [Cell; 2]) { if GAPPED.with(|g| cells.iter().any(|c| g.borrow().contains(c))) { eprintln!("SILENT_DROP path={path} cells={cells:?}"); if std::env::var("PROBE_PANIC").is_ok() { panic!("SILENT_DROP path={path}"); } } }
+fn pv(n: &str) -> bool { std::env::var(n).is_ok() }
 
 use geom_core::Real;
 
@@ -936,8 +939,11 @@ pub(in crate::boolean) fn landings<'b, T: crate::props::AtRestPolicy>(
                             // touch as structure, which needs no record
                             // (D1). An image merely incident to an image of
                             // the other cell holds nothing.
-                            on_structure |=
-                                lineage.glues() && matches!(error, ContactPairError::OneCell(_));
+                            on_structure |= lineage.glues()
+                                && (matches!(error, ContactPairError::OneCell(_))
+                                    || pv("PROBE_ANYINC")
+                                    || (pv("PROBE_LOOSEINC") && !a_minted && !b_minted));
+                            if pv("PROBE_LOGSTRUCT") && lineage.glues() && matches!(error, ContactPairError::OneCell(_)) { eprintln!("STRUCT_ONECELL record={record} cells={cells:?} a={a:?} b={b:?} am={a_minted} bm={b_minted}"); }
                             structure.get_or_insert(error);
                             continue;
                         }
@@ -947,10 +953,12 @@ pub(in crate::boolean) fn landings<'b, T: crate::props::AtRestPolicy>(
                         let confirm = confirm.get_or_insert_with(|| {
                             crate::census::RecordConfirm::of(body, band, region)
                         });
-                        if !confirm.meets(pair).map_err(|_| CarryRefusal::Unread {
-                            record,
-                            cells: pair.cells(),
-                        })? {
+                        let met = match confirm.meets(pair) {
+                            Ok(m) => m,
+                            Err(crate::ValidationError::ContactContradicted { .. }) if pv("PROBE_CONTRALEAK") => true,
+                            Err(_) => return Err(CarryRefusal::Unread { record, cells: pair.cells() }),
+                        };
+                        if !met {
                             continue;
                         }
                     }
@@ -971,19 +979,21 @@ pub(in crate::boolean) fn landings<'b, T: crate::props::AtRestPolicy>(
         // not mint: the record is carried by that landing, and the meeting
         // is nothing recorded and nothing consumed. Where it is the
         // record's only landing it stays, and refuses.
+        if pv("PROBE_LOGSET") { for l in &out[first..] { if l.minted && !matches!(l.at, [Cell::Vertex(_), Cell::Vertex(_)]) { let b = sides[l.side]; let pt = |v: crate::VertexKey| b.vertex_points().find(|(k, _)| *k == v).map(|(_, p)| format!("{p:?}")); let desc = |c: Cell| match c { Cell::Vertex(v) => format!("V{:?}", pt(v)), Cell::Edge(e) => format!("E{:?}", b.edge_vertices(e).map(|(u, w)| (u, w, pt(u), pt(w)))), c => format!("{c:?}") }; eprintln!("SETASIDE_CAND record={record} at={:?} {} {} beside={} all={:?}", l.at, desc(l.at[0]), desc(l.at[1]), out[first..].iter().any(|l: &Landing| !l.minted), out[first..].iter().map(|l| (l.at, l.minted)).collect::<Vec<_>>()); } } }
         if lineage.meeting() == crate::lineage::MintedBacking::Refused
-            && out[first..].iter().any(|l: &Landing| !l.minted)
+            && (pv("PROBE_SETASIDEALONE") || out[first..].iter().any(|l: &Landing| !l.minted))
         {
             let mut i = first;
             while i < out.len() {
                 let vertices = matches!(out[i].at, [Cell::Vertex(_), Cell::Vertex(_)]);
-                if out[i].minted && !vertices {
+                if out[i].minted && (!vertices || pv("PROBE_SETASIDEVV")) {
                     out.remove(i);
                 } else {
                     i += 1;
                 }
             }
         }
+        if !landed && on_structure { probe_consume("structure", cells); }
         if landed || on_structure {
             continue;
         }
@@ -993,7 +1003,7 @@ pub(in crate::boolean) fn landings<'b, T: crate::props::AtRestPolicy>(
         // unmapped or removed whole, below).
         let mut on_removed = false;
         let mut removed_read = false;
-        'members: for i in (0..2).filter(|_| held_by == [true, true]) {
+        'members: for i in (0..2).filter(|_| held_by == [true, true] && !pv("PROBE_IGNREM")) {
             for &r in fates[i].division().map_or(&[][..], |d| &d.removed) {
                 let Some(removed) = removed else {
                     return Err(CarryRefusal::Unread {
@@ -1027,7 +1037,11 @@ pub(in crate::boolean) fn landings<'b, T: crate::props::AtRestPolicy>(
                     // than the record does: found is found.
                     let met = match confirm.meets(pair) {
                         Ok(met) => met,
-                        Err(crate::ValidationError::ContactContradicted { .. }) => true,
+                        Err(crate::ValidationError::ContactContradicted { .. }) if !pv("PROBE_NOCONTRA") => {
+                            if pv("PROBE_LOGSTRUCT") { eprintln!("CONTRA_TOUCHED record={record} cells={cells:?}"); }
+                            true
+                        }
+                        Err(_) if pv("PROBE_CONTRAANY") => true,
                         Err(_) => {
                             return Err(CarryRefusal::Unread {
                                 record,
@@ -1043,13 +1057,16 @@ pub(in crate::boolean) fn landings<'b, T: crate::props::AtRestPolicy>(
             }
         }
         if on_removed {
+            probe_consume("removed", cells);
             continue;
         }
         let whole = fates.iter().any(crate::Fate::removes);
         if read {
             // A touch on a cell the op removed whole, or on one it moved
             // whole, went with it.
-            if whole || moved_whole {
+            let anyrem = pv("PROBE_ANYREM") && fates.iter().any(|f| f.division().is_some_and(|d| !d.removed.is_empty()));
+            if whole || moved_whole || anyrem {
+                probe_consume("whole", cells);
                 continue;
             }
             return Err(CarryRefusal::Stale { record });
@@ -1060,6 +1077,7 @@ pub(in crate::boolean) fn landings<'b, T: crate::props::AtRestPolicy>(
             // Structure needs no record (D1): two vertices made one, or
             // cells an op glued ([`crate::Lineage::glued`]).
             if fused || lineage.glues() {
+                probe_consume("allstructure", cells);
                 continue;
             }
             return Err(CarryRefusal::Pair { record, error });
@@ -1319,5 +1337,60 @@ mod tests {
             Ok(0),
             "the corner, minted in the bottom's division, is structure"
         );
+    }
+
+    /// PROBE (review of PR 7799): an edge–edge record of a top and a bottom
+    /// edge of the prism (apart: no touch anywhere) through a glued
+    /// lineage whose two divisions each name one other bottom edge as a
+    /// PIECE. The record's touch (none) is off the shared piece. Before
+    /// PR 7799 a shared piece consumed nothing (only a minted one did).
+    #[test]
+    fn probe_a_shared_glued_piece_consumes_a_record_touching_nothing() {
+        use crate::props::AtRestPolicy;
+        let p = prism();
+        let edge = |u: crate::VertexKey, v: crate::VertexKey| {
+            p.body
+                .edges()
+                .map(|(e, _)| e)
+                .find(|&e| {
+                    p.body
+                        .edge_vertices(e)
+                        .is_some_and(|(a, b)| [a, b] == [u, v] || [a, b] == [v, u])
+                })
+                .map(Cell::Edge)
+                .expect("an edge")
+        };
+        let t0 = edge(p.top[0], p.top[1]);
+        let b0 = edge(p.bottom[0], p.bottom[1]);
+        let b1 = edge(p.bottom[1], p.bottom[2]);
+        let band = geom_core::Band::linear(Tol::witness()).unwrap();
+        let carry = |shared_minted: bool| {
+            let div = |own: Cell| {
+                crate::Fate::Divided(if shared_minted {
+                    crate::Division { pieces: vec![own], minted: vec![b1], removed: vec![] }
+                } else {
+                    crate::Division { pieces: vec![own, b1], minted: vec![], removed: vec![] }
+                })
+            };
+            let lineage = crate::Lineage::new()
+                .glued()
+                .with(t0, div(t0))
+                .and_then(|l| l.with(b0, div(b0)))
+                .unwrap();
+            super::landings(
+                &[[t0, b0]],
+                &lineage,
+                (&[&p.body], None),
+                &mut super::Confirms::new(1),
+                band,
+                <f64 as AtRestPolicy>::region_lane(),
+                None,
+            )
+            .map(|landed| landed.len())
+        };
+        let piece = carry(false);
+        let minted = carry(true);
+        eprintln!("PROBE shared piece: {piece:?}; shared minted: {minted:?}");
+        assert_eq!(piece, Err(super::CarryRefusal::Stale { record: 0 }), "shared piece");
     }
 }

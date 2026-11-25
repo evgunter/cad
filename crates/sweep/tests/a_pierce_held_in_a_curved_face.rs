@@ -465,6 +465,11 @@ fn every_op(
             let findings = topo::validate_pseudomanifold(body, &r.contacts, tol())
                 .err()
                 .unwrap_or_default();
+            if std::env::var("PROBE_FINDINGS").is_ok() {
+                eprintln!("PROBE_FINDINGS {what} {name} held_first={held_first}: {} findings", findings.len());
+                for f in &findings { eprintln!("PROBE_FINDING {what} {name} {held_first}: {f:?}"); }
+                for (x, y) in r.contacts.cell_pairs() { eprintln!("PROBE_RECORD {what} {name} {held_first}: {x:?} {y:?}"); }
+            }
             let unrecorded = findings
                 .iter()
                 .filter(|e| {
