@@ -6860,11 +6860,11 @@ mod wavy_loft {
     //! operand crosses them, the sector walk reads the spline walls
     //! around each crossing vertex, the spline walls' trims place the
     //! pierce points past the sweep's null edges, the join reads each
-    //! spline wall × plane pair on its section value, and the union
-    //! refuses where the carry cannot hold two arcs of the wall's section
-    //! apart
-    //! ([`a_union_across_a_nurbs_edge_refuses_where_two_arcs_pads_meet`],
-    //! which reds the day those pads narrow).
+    //! spline wall × plane pair on its section value, each arc carried,
+    //! and the union stops at the chord the join mints, whose image
+    //! misses it at rest
+    //! ([`a_union_across_a_nurbs_edge_stops_at_its_chords_image_at_rest`],
+    //! which reds the day that image holds).
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use crate::edit::DocEdit;
@@ -7008,21 +7008,19 @@ mod wavy_loft {
     /// wall's trim lifted past the sweep's null edges
     /// (`topo::null::Scaffolding::Skipped`). The join reads the loft's
     /// side wall `y = −1` against the face `x = 1` on the pair's section
-    /// value, whose two arcs stand closer than the pads their points are
-    /// read within, so the carry refuses them (`GermSectionUnbuilt`,
-    /// `Nurbs` × `Plane`, `CarryRefusal::PadsMeet`;
-    /// `work/sectarms/a-rim-arcs-pad-is-its-widest-certifying-rung.md`).
-    /// Past it, the plane × NURBS lane's own image of a chord misses it at
-    /// rest
-    /// (`work/sectarms/a-planes-carried-arc-across-a-flared-spline-wall-misses-its-own-image-at-rest.md`).
+    /// value, whose two arcs, two and a half rungs apart, are each read
+    /// in their own cells and carried. The join mints a chord on them,
+    /// and the plane × NURBS lane's own image of it misses it at rest
+    /// (`DescriptionUncertified`, `PlaneNurbs`, `ImageMiss`;
+    /// `work/sectarms/a-planes-carried-arc-across-a-flared-spline-wall-misses-its-own-image-at-rest.md`).
     ///
-    /// It reds the day those pads narrow. The end-to-end row, the
+    /// It reds the day that image holds. The end-to-end row, the
     /// crossings named through the boolean (the first and third, of one
     /// sense, tie), is
     /// `work/splice/a-spline-wall-cannot-say-whether-it-holds-a-pierce-point.md`'s,
     /// carried on that stop's row.
     #[test]
-    fn a_union_across_a_nurbs_edge_refuses_where_two_arcs_pads_meet() {
+    fn a_union_across_a_nurbs_edge_stops_at_its_chords_image_at_rest() {
         let (doc, loft) = wavy_doc(0.3);
         let (doc, profile) = ins(
             doc,
@@ -7085,74 +7083,31 @@ mod wavy_loft {
                  {senses:?}"
             );
         }
-        let Some(crate::eval::NodeError {
-            kind:
-                crate::eval::NodeErrorKind::Boolean(topo::BooleanError::GermSectionUnbuilt {
-                    a_face: face,
-                    a_kind: geom::SurfaceKind::Nurbs,
-                    b_face: pierced,
-                    b_kind: geom::SurfaceKind::Plane,
-                    why: topo::SectionUnbuilt::Carry(geom_brep::CarryRefusal::PadsMeet { .. }),
-                }),
-            ..
-        }) = ev.node_error(union)
-        else {
-            panic!(
-                "the union refuses where the carry cannot hold two arcs of a spline wall of \
-                 the loft against the box's face apart, got {:?}",
-                ev.node_error(union).map(|e| &e.kind)
-            );
+        let refusal = ev.node_error(union).map(|e| &e.kind);
+        let chord = match refusal {
+            Some(crate::eval::NodeErrorKind::Boolean(topo::BooleanError::Join(join))) => {
+                match join.error() {
+                    topo::JoinError::Euler(topo::EulerOpError::DescriptionUncertified {
+                        error,
+                        ..
+                    }) => Some(error),
+                    _ => None,
+                }
+            }
+            _ => None,
         };
-        // The recipe mints both bodies fresh, so their keys collide: the
-        // A face is read in the loft, the first member, and the B face
-        // in the box.
-        assert!(
-            matches!(body.face_surface(*face), Some(geom::Surface::Nurbs(_))),
-            "the refusal names a spline wall of the loft"
-        );
-        let block = ev
-            .value(copy)
-            .expect("the box evaluates")
-            .payload
-            .output_body(0)
-            .expect("the placed box");
-        // Where the placed box stands: its body is its source's, in its
-        // own coordinates, under its frame (D10 `[placement.frame]`).
-        let plane = block.body().face_surface(*pierced);
         assert!(
             matches!(
-                plane,
-                Some(geom::Surface::Plane { frame, .. })
-                    if (block.point_in_space(frame.origin()).x - 1.0).abs() < 1e-9
-                        && block.vec_in_space(frame.axis()).x.abs() > 1.0 - 1e-9
+                chord,
+                Some(geom_brep::CertifyError::PlaneNurbs(
+                    geom_brep::PlaneNurbsRefusal::Limb {
+                        limb: geom_brep::SsiLimb::ImageMiss,
+                        ..
+                    }
+                ))
             ),
-            "the pierced face is the box's face x = 1"
-        );
-        let walls: Vec<_> = near
-            .iter()
-            .filter_map(|&e| body.get_edge(e))
-            .flat_map(|e| [e.he_plus, e.he_minus])
-            .filter_map(|he| body.face_of_half_edge(he))
-            .collect();
-        assert!(
-            walls.contains(face),
-            "the refusal names a wall on a crossed corner: {face:?} of {walls:?}"
-        );
-        // Of those, the side wall `y = −1` the face `x = 1` cuts across:
-        // its corners stand at `x = ±1 ± a`, on both sides of `x = 1`.
-        let corners: Vec<_> = body
-            .half_edges()
-            .filter(|&(he, _)| body.face_of_half_edge(he) == Some(*face))
-            .filter_map(|(_, h)| body.get_vertex(h.start))
-            .filter_map(|v| body.get_point(v.point))
-            .collect();
-        assert!(
-            !corners.is_empty()
-                && corners.iter().all(|p| (p.y + 1.0).abs() < 1e-9)
-                && corners.iter().any(|p| p.x > 1.0)
-                && corners.iter().any(|p| p.x < 1.0),
-            "the refusal names the loft's side wall y = −1, which x = 1 cuts across: \
-             {corners:?}"
+            "the carry holds the two arcs of the loft's wall against the box's face apart, \
+             and the union stops at the chord's image at rest, got {refusal:?}"
         );
     }
 }

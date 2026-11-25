@@ -114,3 +114,30 @@ The cause was topo's mapping of `ConeAtTheBand` to `Intractable`. It is now R-ta
 - **Split.** `the-cone-stores-its-slope` and `the-cone-convention-ladder-is-spelled-five-times` moved by `git mv` into the new program `coneslope` (`ready`). The seam is the cone's representation versus the cone pairs' section and join. Ev agreed to the slope on PR 7326.
 - **Still running.** 7733 (the P0 cone face, in its fix pass) and 7735 (U3) are to land. After that the track hands back `ready`.
 - **Banded the three unbanded rows** (Ev asked). The coaxial-torus fuzz mismatch is P2: it might be a wrong class, but it was seen once on another branch and never replayed on main. The cylinder pinch's missing node is P3: a consistency question with no behaviour change. The sphere cut-in reading its circle from the door is P3: a second reading that cannot disagree today. That brings the load under budget with no further split.
+## 2026-11-24 — (GREEN U21) the tour at 1e-6 is red since 7395
+Filed `the-lily-lanterns-weld-still-refuses-at-the-interior-loop-guard-at-1e-6` (P1). It is bisected on hosted CI to PR 7395 (`f5744c8c20`). Lily wall 2, which 7395 retired, still refuses `CurvedPairUnsupported { InteriorLoopGuard, Cone, Torus }` at ε 1e-6. `demos/tour`'s `tour_runs_green_at_eps_1e_6` is red on main because of it, and it is not held. The judgement is yours: a fix, or a re-pin of the wall at 1e-6. Also yours, and already fixed: editor-core's `trim_3_windows_interval::a_holed_cylinder_wall_drops_the_cells_in_its_hole` went red at PR 7408 (`323c16d098`) on the straight-carrier `section_site_foot_bend` cause, which PR 7734 fixes.
+
+## 2026-11-25: 7733 and 7735 merged; the track goes back
+- **7733 (P0 cone face).** The site was the ring lane's chord arm in `choose_roles`. The fix pass closed the review's two certification MINORs: the cap lane now uses the rational spline enclosure, and `require_cone_cap` gates nappe, apex and on-cone. Orchestrator's read of the fix pass. CI was fully green.
+- **7735 (U3).** The tilted rod builds all four ops to their closed-form volumes, and there is a new coverage row for the cone rulings. I merged main into it (7733's final cap lane; the duplicate cap-lane pad row was deduped to main's text). Closed U3 and the parent `cone-germ-pairs-against-a-curved-face-have-no-section-frame`. The remainder is `the-cone-poses-read-elsewhere-have-no-germ-frame` (P2), and the inside row `point-in-solid-refuses-a-ruled-face-a-spline-bounds` (P2).
+
+## 2026-11-25: hand-back, track `ready` (Ev: finish what's started, then stop)
+- **7735 merged.** The kernel job was green with 7733's final cap lane. Lint was red only on `cover-kind-match` (`spline_implicit.rs` arm 1 → 2), which came in from main via SECTARMS and is already filed as `sectarms/main-red-cover-kind-match-raised-arm-in-spline-implicit`.
+- **Merged this sitting:**
+  - 7350, 7354, 7357, 7358, 7395, 7408, 7455, 7457, 7637, 7725, 7733, 7734 and 7735 (units and P0s);
+  - 7591 and 7720 (main reds);
+  - 7539 (build-slot policy, merged by Ev);
+  - 7730 (census note);
+  - 7606 (tracker).
+- **Left for a successor:**
+  - **Sectcone P1s:**
+    - `conic-germ-pairs-rank-by-the-frames-turn-not-the-foot-parameter` (H);
+    - `conic-pairs-on-the-value-moved-two-band-edge-refusals-and-boss-unions-section` (M);
+    - `the-r3-march-ends-no-branch-at-a-cone-node` (H; splitdoor's apex germ row is parked on it).
+  - **The P2/P3 tail.** It includes the cap lane's fitted-edge pad, the cone poses read elsewhere, the coaxial-torus fuzz mismatch, and the stalled-polish foot cases (P3).
+  - **CONESLOPE** holds the slope unit.
+- **Known reds not ours to fix:** the `square_search` fuzz (germ), and the `cover-kind-match` raise (sectarms). One copysign census row (not on this track) names sites in `pair_section/cones.rs` and `ruling.rs` since our merges; its owner has it filed.
+- **Process notes for a successor:**
+  - The host disk is small, so lanes should build on CI only.
+  - When gates fail first, CI skips clippy and the slow roster, so run them or declare the names.
+  - Merge main before merging a PR whose branch is behind: 7395 and 7651 each left main red that way.
