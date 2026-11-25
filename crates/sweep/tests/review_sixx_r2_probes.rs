@@ -574,8 +574,10 @@ fn review_sixx_counter_reads_the_pr_pose() {
     assert_eq!(count(&a, &Other::Cube { edge: true }, frame(m, 1.0)).0, 6);
 }
 
-fn rest_rows(records: &topo::ContactRecords) -> Vec<topo::CarriedRecord<topo::VvContact>> {
-    records.carried().vv
+fn rest_rows(records: &topo::ContactRecords) -> topo::OperandRecords {
+    let mut carried = records.carried();
+    carried.retain(|c| matches!(c.contact.kind(), topo::ContactKind::VertexVertex(..)));
+    carried
 }
 
 /// **The nested plan at a shared vertex.** A pinch: a reflex wedge and a
@@ -646,10 +648,7 @@ fn review_sixx_pinch() {
                 convex_volume(&all)
             })
             .sum();
-        let rows = topo::OperandRecords {
-            vv: carried.clone(),
-            ..Default::default()
-        };
+        let rows = carried.clone();
         let ab = topo::BooleanInputs {
             records_a: rows.clone(),
             ..Default::default()

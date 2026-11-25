@@ -212,10 +212,7 @@ fn a_rod_on_a_plate_records_its_touch_and_a_bridge_lands_it() {
             tol(),
         )
     };
-    let ff = topo::OperandRecords {
-        ff: u.contacts.carried().ff,
-        ..topo::OperandRecords::default()
-    };
+    let ff = face_face(u.contacts.carried());
     match bridged(ff) {
         Ok(BooleanResult::Body(r)) => {
             assert_eq!(r.body.solids().count(), 1, "∪ bridge: one solid");
@@ -453,9 +450,10 @@ fn a_given_tangency_through_both_interiors_records_the_face_face_touch() {
 }
 
 /// **A carried edge–face or face–face row is validated at the door**,
-/// as its siblings are: a key that does not resolve, a face–face row
-/// naming one face twice, and an edge–face row whose edge bounds its
-/// face (no record: their interiors cannot meet) each refuse there.
+/// as its siblings are: a key that does not resolve and an edge–face
+/// row whose edge bounds its face (no record: their interiors cannot
+/// meet) each refuse there, and a face–face row naming one face twice
+/// is no record at all.
 #[test]
 fn a_carried_curve_touch_row_with_a_bad_key_refuses_at_the_door() {
     let plate = finished(
@@ -481,35 +479,40 @@ fn a_carried_curve_touch_row_with_a_bad_key_refuses_at_the_door() {
         .find(|&(he, _)| u.body.face_of_half_edge(he) == Some(face))
         .map(|(_, h)| h.edge)
         .unwrap();
-    let ef = |edge, face| topo::OperandRecords {
-        ef: vec![topo::CarriedRecord {
-            contact: topo::EfContact { edge, face },
+    // Each pair is built in an empty body, which holds no cell and so
+    // bounds none: what the door is handed is checked against `u`.
+    let one = |x, y| {
+        topo::OperandRecords::from_iter([topo::CarriedRecord {
+            contact: topo::Contact::new(&topo::Body::<f64>::new(), x, y).unwrap(),
             record: 0,
-        }],
-        ..topo::OperandRecords::default()
+        }])
     };
-    let ff = |a, b| topo::OperandRecords {
-        ff: vec![topo::CarriedRecord {
-            contact: topo::FfContact { a, b },
-            record: 0,
-        }],
-        ..topo::OperandRecords::default()
-    };
+    let (ef, ff) = (
+        |edge, face| one(topo::Cell::Edge(edge), topo::Cell::Face(face)),
+        |a, b| one(topo::Cell::Face(a), topo::Cell::Face(b)),
+    );
+    assert_eq!(
+        topo::Contact::new(&u.body, topo::Cell::Face(fa), topo::Cell::Face(fa)),
+        Err(topo::ContactPairError::OneCell(topo::Cell::Face(fa))),
+        "a pair naming one face twice is no record to carry"
+    );
     for (records_a, what) in [
         (
             ef(topo::EdgeKey::default(), face),
-            "carried e-f edge key does not resolve",
+            "a carried record's edge key does not resolve",
         ),
         (
             ef(edge, topo::FaceKey::default()),
-            "carried e-f face key does not resolve",
+            "a carried record's face key does not resolve",
         ),
-        (ef(rim, face), "carried e-f edge bounds its face"),
+        (
+            ef(rim, face),
+            "a carried record's one cell bounds the other",
+        ),
         (
             ff(fa, topo::FaceKey::default()),
-            "carried f-f face key does not resolve",
+            "a carried record's face key does not resolve",
         ),
-        (ff(fa, fa), "carried f-f pair names one face twice"),
     ] {
         let got = topo::boolean_op_with(
             topo::BooleanOp::Union,
@@ -901,10 +904,7 @@ fn bridged_rod_posed(
         tol(),
     );
     let records_a = if carry {
-        topo::OperandRecords {
-            ff: u.contacts.carried().ff,
-            ..topo::OperandRecords::default()
-        }
+        face_face(u.contacts.carried())
     } else {
         topo::OperandRecords::default()
     };
@@ -1359,4 +1359,10 @@ fn contacthold_m2_a_restated_tangency_carries_the_first_of_two_verdicts_margins(
         step.body.coincidences[k].margin, m0,
         "m2 (open): the restated row carries the first verdict's margin alone"
     );
+}
+
+/// `records`' face–face records alone.
+fn face_face(mut records: topo::OperandRecords) -> topo::OperandRecords {
+    records.retain(|c| matches!(c.contact.kind(), topo::ContactKind::FaceFace(..)));
+    records
 }

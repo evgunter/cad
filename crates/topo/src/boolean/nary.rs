@@ -1264,15 +1264,14 @@ fn tool_parts<T: Decide + AtRestPolicy>(
     records: &OperandRecords,
     tol: Tol,
 ) -> Result<Option<ToolParts<T>>, BooleanError> {
-    use super::Cell::{Edge, Face, Vertex};
-    let OperandRecords {
-        vv,
-        vf,
-        ve,
-        ee,
-        ef,
-        ff,
-    } = records;
+    use super::Cell::Face;
+    let ff = records
+        .rows()
+        .iter()
+        .filter_map(|c| match c.contact.kind() {
+            super::ContactKind::FaceFace(a, b) => Some((c, a, b)),
+            _ => None,
+        });
     let solids: Vec<crate::SolidKey> = tool.solids().map(|(s, _)| s).collect();
     let place = |cell: super::Cell| {
         crate::census_cell_solid(tool, cell).and_then(|s| solids.iter().position(|&k| k == s))
@@ -1283,8 +1282,7 @@ fn tool_parts<T: Decide + AtRestPolicy>(
     // a curved one between two refuses, and a planar one inside one solid
     // is a solid touching itself over an area, which no finished body is.
     let mut verdicts: Vec<PairVerdict<T>> = Vec::new();
-    for carried in ff {
-        let (x, y) = (carried.contact.a, carried.contact.b);
+    for (carried, x, y) in ff {
         let cells = [Face(x), Face(y)];
         let (Some(i), Some(j)) = (place(cells[0]), place(cells[1])) else {
             continue;
@@ -1362,32 +1360,23 @@ fn tool_parts<T: Decide + AtRestPolicy>(
         (Some(i), Some(j)) if fused(i) && roots[i] == roots[j] => Err(unread(record, cells)),
         _ => Ok(Ride::Material),
     };
-    macro_rules! split_list {
-        ($list:ident, |$c:ident| $cells:expr) => {
-            for carried in $list {
-                let $c = &carried.contact;
-                match split($cells, carried.record)? {
-                    Ride::Member(g, m) => own[g][m].$list.push(*carried),
-                    Ride::Standing => standing_records.$list.push(*carried),
-                    Ride::Material => riding.$list.push(*carried),
+    for carried in records.rows() {
+        let cells = carried.contact.cells();
+        if let [Face(_), Face(_)] = cells {
+            if let (Some(i), Some(j)) = (place(cells[0]), place(cells[1]))
+                && i == j
+            {
+                match at[i] {
+                    Some((g, m)) => own[g][m].push(*carried),
+                    None => standing_records.push(*carried),
                 }
             }
-        };
-    }
-    split_list!(vv, |c| [Vertex(c.a), Vertex(c.b)]);
-    split_list!(vf, |c| [Vertex(c.vertex), Face(c.face)]);
-    split_list!(ve, |c| [Vertex(c.vertex), Edge(c.edge)]);
-    split_list!(ee, |c| [Edge(c.a), Edge(c.b)]);
-    split_list!(ef, |c| [Edge(c.edge), Face(c.face)]);
-    for carried in ff {
-        let cells = [Face(carried.contact.a), Face(carried.contact.b)];
-        if let (Some(i), Some(j)) = (place(cells[0]), place(cells[1]))
-            && i == j
-        {
-            match at[i] {
-                Some((g, m)) => own[g][m].ff.push(*carried),
-                None => standing_records.ff.push(*carried),
-            }
+            continue;
+        }
+        match split(cells, carried.record)? {
+            Ride::Member(g, m) => own[g][m].push(*carried),
+            Ride::Standing => standing_records.push(*carried),
+            Ride::Material => riding.push(*carried),
         }
     }
     let carved = |keep: crate::SolidKey| {

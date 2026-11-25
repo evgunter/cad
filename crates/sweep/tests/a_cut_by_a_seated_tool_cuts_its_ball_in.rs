@@ -56,11 +56,9 @@ fn a_cut_by_a_seated_tool_cuts_its_ball_in_and_reads_back_to_the_tool() {
         .collect();
     assert_eq!(seat.len(), 2, "the premise: the bricks meet on z = 3");
     let mut records = OperandRecords::default();
-    records.ff.push(topo::CarriedRecord {
-        contact: topo::FfContact {
-            a: seat[0].min(seat[1]),
-            b: seat[0].max(seat[1]),
-        },
+    records.push(topo::CarriedRecord {
+        contact: topo::Contact::new(&tool, topo::Cell::Face(seat[0]), topo::Cell::Face(seat[1]))
+            .unwrap(),
         record: 0,
     });
     topo::test_support::take_cut_ins();

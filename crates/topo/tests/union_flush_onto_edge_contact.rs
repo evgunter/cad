@@ -253,10 +253,9 @@ fn carried_records_certify_every_order_of_the_fold() {
 /// Every row of `records` carried in: the v-v rows, and the
 /// `(vertex, edge)` and edge-edge rows a join leaves.
 fn carried_rows(records: &topo::ContactRecords) -> topo::OperandRecords {
-    topo::OperandRecords {
-        vf: Vec::new(),
-        ..records.carried()
-    }
+    let mut carried = records.carried();
+    carried.retain(|c| !matches!(c.contact.kind(), topo::ContactKind::VertexFace(..)));
+    carried
 }
 
 /// **With the records carried, every order certifies and builds one

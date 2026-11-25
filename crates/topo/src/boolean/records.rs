@@ -15,10 +15,7 @@ use std::collections::BTreeMap;
 
 use geom_core::Real;
 
-use super::{
-    CarriedRecord, Cell, EeContact, EfContact, FfContact, OperandRecords, VeContact, VfContact,
-    VvContact,
-};
+use super::{CarriedRecord, Cell, OperandRecords};
 use crate::body::Body;
 use crate::coincidence::{Backing, Cited, Cites};
 use crate::entity::{EdgeKey, EntityId, FaceKey, VertexKey};
@@ -234,6 +231,28 @@ impl Contact {
             }
         }
     }
+
+    /// Where the carry takes this record's kind among the others:
+    /// vertex pairs, then vertex–face, vertex–edge, edge pairs,
+    /// edge–face and face pairs ([`file_by_kind`]).
+    pub(crate) fn carry_order(self) -> u8 {
+        match self.kind() {
+            ContactKind::VertexVertex(..) => 0,
+            ContactKind::VertexFace(..) => 1,
+            ContactKind::VertexEdge(..) => 2,
+            ContactKind::EdgeEdge(..) => 3,
+            ContactKind::EdgeFace(..) => 4,
+            ContactKind::FaceFace(..) => 5,
+        }
+    }
+}
+
+/// Files `row` into `list`, kept in [`Contact::carry_order`], after the
+/// rows of its kind.
+pub(crate) fn file_by_kind<R>(list: &mut Vec<R>, row: R, contact: impl Fn(&R) -> Contact) {
+    let order = contact(&row).carry_order();
+    let at = list.partition_point(|r| contact(r).carry_order() <= order);
+    list.insert(at, row);
 }
 
 /// Whether the lesser cell of `cells` bounds the greater in `body`: a
@@ -662,37 +681,14 @@ impl ContactRecords {
     /// with its index here.
     #[must_use]
     pub fn carried(&self) -> OperandRecords {
-        let mut out = OperandRecords::default();
-        for (k, c) in self.rows.iter().enumerate() {
-            let record = super::reduce::index(k);
-            match c.kind() {
-                ContactKind::VertexVertex(a, b) => out.vv.push(CarriedRecord {
-                    contact: VvContact { a, b },
-                    record,
-                }),
-                ContactKind::VertexFace(vertex, face) => out.vf.push(CarriedRecord {
-                    contact: VfContact { vertex, face },
-                    record,
-                }),
-                ContactKind::VertexEdge(vertex, edge) => out.ve.push(CarriedRecord {
-                    contact: VeContact { vertex, edge },
-                    record,
-                }),
-                ContactKind::EdgeEdge(a, b) => out.ee.push(CarriedRecord {
-                    contact: EeContact { a, b },
-                    record,
-                }),
-                ContactKind::EdgeFace(edge, face) => out.ef.push(CarriedRecord {
-                    contact: EfContact { edge, face },
-                    record,
-                }),
-                ContactKind::FaceFace(a, b) => out.ff.push(CarriedRecord {
-                    contact: FfContact { a, b },
-                    record,
-                }),
-            }
-        }
-        out
+        self.rows
+            .iter()
+            .enumerate()
+            .map(|(k, c)| CarriedRecord {
+                contact: c.record,
+                record: super::reduce::index(k),
+            })
+            .collect()
     }
 
     /// The same records with every cell re-keyed through `key` into
@@ -1072,7 +1068,7 @@ impl FromIterator<Cited<Contact>> for ContactRecords {
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::{Cell, Contact, ContactKind, ContactPairError, ContactRecords};
-    use crate::boolean::{CarriedRecord, EfContact, FfContact};
+    use crate::boolean::CarriedRecord;
     use crate::coincidence::{Backing, Cited, Cites};
     use crate::test_support_fixtures::prism_z;
     use geom_core::Tol;
@@ -1162,8 +1158,9 @@ mod tests {
     }
 
     /// An operand's edge–face and face–face records re-enter an op as
-    /// its own, each with its index. Red if either kind is dropped, or
-    /// filed under the other's index.
+    /// its own, each with its index, in the carry's kind order. Red if
+    /// either kind is dropped, filed under the other's index, or out of
+    /// kind order.
     #[test]
     fn curve_and_patch_records_carry_back_in_with_their_indices() {
         let p = prism();
@@ -1192,32 +1189,18 @@ mod tests {
             ));
         }
         let carried = records.carried();
-        let (low, high) = if p.top_face < p.bottom_face {
-            (p.top_face, p.bottom_face)
-        } else {
-            (p.bottom_face, p.top_face)
+        let filed = |k: usize, x, y| CarriedRecord {
+            contact: Contact::new(&p.body, x, y).unwrap(),
+            record: u32::try_from(k).unwrap(),
         };
         assert_eq!(
-            carried.ff,
-            [CarriedRecord {
-                contact: FfContact { a: low, b: high },
-                record: 1
-            }]
-        );
-        assert_eq!(
-            carried.ef,
-            [CarriedRecord {
-                contact: EfContact {
-                    edge,
-                    face: p.bottom_face
-                },
-                record: 2
-            }]
-        );
-        assert_eq!(
-            carried.vf.len(),
-            1,
-            "the vertex record stays filed as before"
+            carried.rows(),
+            [
+                filed(0, Cell::Vertex(p.top[0]), Cell::Face(p.bottom_face)),
+                filed(2, Cell::Edge(edge), Cell::Face(p.bottom_face)),
+                filed(1, Cell::Face(p.bottom_face), Cell::Face(p.top_face)),
+            ],
+            "each record with its index, in the carry's kind order"
         );
     }
 

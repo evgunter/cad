@@ -137,8 +137,10 @@ pub(super) fn pierced_and_paired<T: Decide>(
     ] {
         let theirs = operand.other().index();
         let declared = |x: FaceKey, y: FaceKey| {
-            records[theirs].ff.iter().any(|r| {
-                ([r.contact.a, r.contact.b] == [x, y] || [r.contact.a, r.contact.b] == [y, x])
+            records[theirs].rows().iter().any(|r| {
+                let cells = r.contact.cells();
+                (cells == [super::Cell::Face(x), super::Cell::Face(y)]
+                    || cells == [super::Cell::Face(y), super::Cell::Face(x)])
                     && crate::contact::area_record(bodies[theirs], x, y)
             })
         };

@@ -128,9 +128,8 @@ use super::voids;
 use super::zip::{Fusions, Seam, SeamCorrespondence, zip_seam, zip_split};
 use super::{BooleanDecision, LineWedgeFault};
 use super::{
-    BooleanError, BooleanInputs, BooleanOp, BooleanReduction, Cell, Contact, ContactRecords,
-    EeContact, EfContact, FfContact, Glue, GlueVerdict, Operand, OperandRecords, ReductionContacts,
-    SweepStrategy, VeContact, VfContact, VvContact,
+    BooleanError, BooleanInputs, BooleanOp, BooleanReduction, Cell, Contact, ContactKind,
+    ContactRecords, Glue, GlueVerdict, Operand, OperandRecords, ReductionContacts, SweepStrategy,
 };
 use crate::body::Body;
 use crate::boxes;
@@ -4136,53 +4135,19 @@ pub(super) fn ledger<T: crate::props::AtRestPolicy>(
 /// One operand's carried records as input cell pairs, each citing the
 /// operand's record it is.
 fn carried_rows(records: &OperandRecords, side: Operand) -> Vec<([Cell; 2], Cites)> {
-    let OperandRecords {
-        vv,
-        vf,
-        ve,
-        ee,
-        ef,
-        ff,
-    } = records;
     let input = side.input();
-    let cite = |record| Cites::one(Backing::Carried { input, record });
-    vv.iter()
+    records
+        .rows()
+        .iter()
         .map(|c| {
             (
-                [Cell::Vertex(c.contact.a), Cell::Vertex(c.contact.b)],
-                cite(c.record),
+                c.contact.cells(),
+                Cites::one(Backing::Carried {
+                    input,
+                    record: c.record,
+                }),
             )
         })
-        .chain(vf.iter().map(|c| {
-            (
-                [Cell::Vertex(c.contact.vertex), Cell::Face(c.contact.face)],
-                cite(c.record),
-            )
-        }))
-        .chain(ve.iter().map(|c| {
-            (
-                [Cell::Vertex(c.contact.vertex), Cell::Edge(c.contact.edge)],
-                cite(c.record),
-            )
-        }))
-        .chain(ee.iter().map(|c| {
-            (
-                [Cell::Edge(c.contact.a), Cell::Edge(c.contact.b)],
-                cite(c.record),
-            )
-        }))
-        .chain(ef.iter().map(|c| {
-            (
-                [Cell::Edge(c.contact.edge), Cell::Face(c.contact.face)],
-                cite(c.record),
-            )
-        }))
-        .chain(ff.iter().map(|c| {
-            (
-                [Cell::Face(c.contact.a), Cell::Face(c.contact.b)],
-                cite(c.record),
-            )
-        }))
         .collect()
 }
 
@@ -4323,93 +4288,50 @@ fn uncopied(
 
 /// One operand's own records re-entering an op, in its keys: the cell
 /// pairs alone, each citing the operand's record it is
-/// ([`Backing::Carried`]). A carried row's class is the recipe's and
-/// stays there; what an op carries through its cells is the record.
+/// ([`Backing::Carried`]), in the carry's kind order. A carried row's
+/// class is the recipe's and stays there; what an op carries through its
+/// cells is the record.
 #[derive(Clone, Debug, Default)]
 pub(super) struct Rows {
-    vv: Vec<Cited<VvContact>>,
-    vf: Vec<Cited<VfContact>>,
-    ve: Vec<Cited<VeContact>>,
-    ee: Vec<Cited<EeContact>>,
-    ef: Vec<Cited<EfContact>>,
-    ff: Vec<Cited<FfContact>>,
+    rows: Vec<Cited<Contact>>,
 }
 
 impl Rows {
-    /// Adds a landing in clone keys, filed by its two cells' kinds, a
-    /// pair of one kind in key order, or where its pair is already here
-    /// adds its citations.
-    fn push(&mut self, x: Cell, y: Cell, cites: Cites) {
-        fn add<R: PartialEq>(list: &mut Vec<Cited<R>>, record: R, cites: Cites) {
-            match list.iter_mut().find(|r| r.record == record) {
-                Some(r) => r.cites = r.cites.union(&cites),
-                None => list.push(Cited::new(record, cites)),
+    /// Adds a landing in clone keys, filed after the rows of its kind, or
+    /// where its pair is already here adds its citations.
+    ///
+    /// # Errors
+    ///
+    /// [`BooleanError::JoinDesync`] where `x` and `y` are one cell.
+    fn push(&mut self, x: Cell, y: Cell, cites: Cites) -> Result<(), BooleanError> {
+        let pair = Contact::of(x, y).map_err(|_| BooleanError::JoinDesync {
+            what: "a carried record landed on one cell of its operand's clone twice",
+        })?;
+        match self.rows.iter_mut().find(|r| r.record == pair) {
+            Some(r) => r.cites = r.cites.union(&cites),
+            None => {
+                super::records::file_by_kind(&mut self.rows, Cited::new(pair, cites), |r| r.record)
             }
         }
-        fn ordered<K: Ord>(a: K, b: K) -> (K, K) {
-            if a <= b { (a, b) } else { (b, a) }
-        }
-        match (x, y) {
-            (Cell::Vertex(a), Cell::Vertex(b)) => {
-                let (a, b) = ordered(a, b);
-                add(&mut self.vv, VvContact { a, b }, cites);
-            }
-            (Cell::Vertex(vertex), Cell::Edge(edge)) | (Cell::Edge(edge), Cell::Vertex(vertex)) => {
-                add(&mut self.ve, VeContact { vertex, edge }, cites);
-            }
-            (Cell::Vertex(vertex), Cell::Face(face)) | (Cell::Face(face), Cell::Vertex(vertex)) => {
-                add(&mut self.vf, VfContact { vertex, face }, cites);
-            }
-            (Cell::Edge(a), Cell::Edge(b)) => {
-                let (a, b) = ordered(a, b);
-                add(&mut self.ee, EeContact { a, b }, cites);
-            }
-            (Cell::Edge(edge), Cell::Face(face)) | (Cell::Face(face), Cell::Edge(edge)) => {
-                add(&mut self.ef, EfContact { edge, face }, cites);
-            }
-            (Cell::Face(a), Cell::Face(b)) => {
-                let (a, b) = ordered(a, b);
-                add(&mut self.ff, FfContact { a, b }, cites);
-            }
-        }
+        Ok(())
     }
 
     #[cfg(test)]
     pub(super) fn of(carried: &OperandRecords, side: Operand) -> Self {
-        let OperandRecords {
-            vv,
-            vf,
-            ve,
-            ee,
-            ef,
-            ff,
-        } = carried;
         let input = side.input();
-        let cite = |record| Cites::one(Backing::Carried { input, record });
         Self {
-            vv: vv
+            rows: carried
+                .rows()
                 .iter()
-                .map(|c| Cited::new(c.contact, cite(c.record)))
-                .collect(),
-            vf: vf
-                .iter()
-                .map(|c| Cited::new(c.contact, cite(c.record)))
-                .collect(),
-            ve: ve
-                .iter()
-                .map(|c| Cited::new(c.contact, cite(c.record)))
-                .collect(),
-            ee: ee
-                .iter()
-                .map(|c| Cited::new(c.contact, cite(c.record)))
-                .collect(),
-            ef: ef
-                .iter()
-                .map(|c| Cited::new(c.contact, cite(c.record)))
-                .collect(),
-            ff: ff
-                .iter()
-                .map(|c| Cited::new(c.contact, cite(c.record)))
+                .map(|c| {
+                    Cited::new(
+                        c.contact,
+                        Cites::one(Backing::Carried {
+                            input,
+                            record: c.record,
+                        }),
+                    )
+                })
                 .collect(),
         }
     }
@@ -4649,7 +4571,7 @@ fn carried<T: Decide + AtRestPolicy>(
                 );
                 cites = cites.union(&Cites::decided(fresh));
             }
-            out[s].push(x, y, cites);
+            out[s].push(x, y, cites)?;
         }
     }
     Ok(out)
@@ -5629,61 +5551,27 @@ fn carry_rows<'b, T: Decide + AtRestPolicy>(
     // face ([`place_found`]); a carried one was placed by the carry.
     let mut vf_rows: Vec<(Tagged<'_>, Option<usize>)> = Vec::new();
     let mut cell_rows: Vec<(Tagged<'_>, Option<usize>)> = Vec::new();
-    for (k, &([x, y], cites)) in discovered.iter().enumerate() {
+    let found = discovered
+        .iter()
+        .enumerate()
+        .map(|(k, &(pair, cites))| (pair, cites, Some(k)));
+    let carried = sides.into_iter().zip(carried).flat_map(|(side, rows)| {
+        rows.rows.iter().map(move |c| {
+            let [x, y] = c.cells();
+            ([(side, x), (side, y)], &c.cites, None)
+        })
+    });
+    for ([x, y], cites, k) in found.chain(carried) {
         match (x.1, y.1) {
             (Cell::Vertex(_), Cell::Vertex(_)) => vv_rows.push(([x, y], cites)),
             (Cell::Vertex(_), Cell::Edge(_)) => ve_rows.push(([x, y], cites)),
             (Cell::Edge(_), Cell::Vertex(_)) => ve_rows.push(([y, x], cites)),
-            (Cell::Vertex(_), Cell::Face(_)) => vf_rows.push((([x, y], cites), Some(k))),
-            (Cell::Face(_), Cell::Vertex(_)) => vf_rows.push((([y, x], cites), Some(k))),
+            (Cell::Vertex(_), Cell::Face(_)) => vf_rows.push((([x, y], cites), k)),
+            (Cell::Face(_), Cell::Vertex(_)) => vf_rows.push((([y, x], cites), k)),
             (Cell::Edge(_) | Cell::Face(_), Cell::Edge(_) | Cell::Face(_)) => {
-                cell_rows.push((([x, y], cites), Some(k)));
+                cell_rows.push((([x, y], cites), k));
             }
         }
-    }
-    for (side, rows) in sides.into_iter().zip(carried) {
-        vv_rows.extend(rows.vv.iter().map(|c| {
-            (
-                [(side, Cell::Vertex(c.a)), (side, Cell::Vertex(c.b))],
-                &c.cites,
-            )
-        }));
-        ve_rows.extend(rows.ve.iter().map(|c| {
-            (
-                [(side, Cell::Vertex(c.vertex)), (side, Cell::Edge(c.edge))],
-                &c.cites,
-            )
-        }));
-        vf_rows.extend(rows.vf.iter().map(|c| {
-            (
-                (
-                    [(side, Cell::Vertex(c.vertex)), (side, Cell::Face(c.face))],
-                    &c.cites,
-                ),
-                None,
-            )
-        }));
-        cell_rows.extend(rows.ee.iter().map(|c| {
-            (
-                ([(side, Cell::Edge(c.a)), (side, Cell::Edge(c.b))], &c.cites),
-                None,
-            )
-        }));
-        cell_rows.extend(rows.ef.iter().map(|c| {
-            (
-                (
-                    [(side, Cell::Edge(c.edge)), (side, Cell::Face(c.face))],
-                    &c.cites,
-                ),
-                None,
-            )
-        }));
-        cell_rows.extend(rows.ff.iter().map(|c| {
-            (
-                ([(side, Cell::Face(c.a)), (side, Cell::Face(c.b))], &c.cites),
-                None,
-            )
-        }));
     }
     // Groups over vertex ends, closed transitively; `ends` holds each
     // end once, in the order the rows first name it.
@@ -6274,14 +6162,17 @@ impl<'a> Held<'a> {
                          boolean's inputs are its two operands"
                     );
                 };
-                let Some(carried) = self.records[operand.index()]
-                    .ff
+                let Some(faces) = self.records[operand.index()]
+                    .rows()
                     .iter()
                     .find(|c| c.record == record)
+                    .and_then(|c| match c.contact.kind() {
+                        ContactKind::FaceFace(a, b) => Some([a, b]),
+                        _ => None,
+                    })
                 else {
                     continue;
                 };
-                let faces = [carried.contact.a, carried.contact.b];
                 return Err(BooleanError::TouchesItself {
                     operand,
                     record,
@@ -9064,13 +8955,14 @@ mod tests {
             ..ReductionContacts::default()
         };
         let decls = Glue {
-            records_a: OperandRecords {
-                vv: vec![CarriedRecord {
-                    contact: pair,
-                    record: 0,
-                }],
-                ..OperandRecords::default()
-            },
+            records_a: OperandRecords::from_iter([CarriedRecord {
+                contact: crate::boolean::Contact::of(
+                    crate::boolean::Cell::Vertex(c),
+                    crate::boolean::Cell::Vertex(partner),
+                )
+                .unwrap(),
+                record: 0,
+            }]),
             ..Glue::none()
         };
 
@@ -9162,13 +9054,14 @@ mod tests {
 
         // The carried lane reads the same chase.
         let decls = Glue {
-            records_a: OperandRecords {
-                vf: vec![CarriedRecord {
-                    contact: VfContact { vertex, face: d0 },
-                    record: 0,
-                }],
-                ..OperandRecords::default()
-            },
+            records_a: OperandRecords::from_iter([CarriedRecord {
+                contact: crate::boolean::Contact::of(
+                    crate::boolean::Cell::Vertex(vertex),
+                    crate::boolean::Cell::Face(d0),
+                )
+                .unwrap(),
+                record: 0,
+            }]),
             ..Glue::none()
         };
         let carry = |desc: &Descendants| carried_in(&body, &decls, [&KeyView::Direct; 2], desc);

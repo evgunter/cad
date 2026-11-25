@@ -710,8 +710,7 @@ pub struct EdgeInBand {
 
 /// A coincident vertex pair in the reduction's working set (`sonvv`):
 /// vertex `a` of operand A and vertex `b` of operand B, each in its
-/// operand clone's keys ([`ReductionContacts`]). Carried within one
-/// operand ([`OperandRecords`]), both are that operand's.
+/// operand clone's keys ([`ReductionContacts`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct VvContact {
     /// The A-side vertex (key into the A clone).
@@ -721,8 +720,8 @@ pub struct VvContact {
 }
 
 /// A vertex on a face in the reduction's working set (`sonva`/`sonvb`):
-/// `vertex`, of the operand the containing list names, lies within
-/// `face` of the other operand ([`ReductionContacts`]).
+/// `vertex`, of the operand the read names, lies within `face` of the
+/// other operand ([`ReductionContacts`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct VfContact {
     /// The piercing vertex.
@@ -731,32 +730,20 @@ pub struct VfContact {
     pub face: FaceKey,
 }
 
-/// A vertex resting on an edge's interior, within one operand carried
-/// back into an op ([`OperandRecords`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct VeContact {
-    /// The resting vertex.
-    pub vertex: VertexKey,
-    /// The edge whose interior holds it.
-    pub edge: crate::entity::EdgeKey,
-}
-
-/// Two edges whose interiors meet: within one operand carried back into
-/// an op, both that operand's ([`OperandRecords`]); in the reduction's
-/// working set, `a` an edge of A and `b` one of B, each in its operand
-/// clone's keys ([`ReductionContacts`]).
+/// Two edges whose interiors meet in the reduction's working set: `a`
+/// an edge of A and `b` one of B, each in its operand clone's keys
+/// ([`ReductionContacts`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct EeContact {
-    /// One edge.
+    /// A's edge.
     pub a: crate::entity::EdgeKey,
-    /// The other.
+    /// B's edge.
     pub b: crate::entity::EdgeKey,
 }
 
-/// An edge whose interior meets a face's: within one operand carried
-/// back into an op ([`OperandRecords`]); in the reduction's working
-/// set, the edge one operand's and the face the other's
-/// ([`ReductionContacts::a_in_b`]).
+/// An edge whose interior meets a face's in the reduction's working
+/// set: the edge one operand's and the face the other's
+/// ([`ReductionContacts`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct EfContact {
     /// The edge.
@@ -765,16 +752,15 @@ pub struct EfContact {
     pub face: FaceKey,
 }
 
-/// Two faces whose interiors meet along a tangent line: within one
-/// operand carried back into an op, both that operand's
-/// ([`OperandRecords`]); in the reduction's working set, `a` a face of A
-/// and `b` one of B, each in its operand clone's keys
-/// ([`ReductionContacts`]).
+/// Two faces, `a` of operand A and `b` of operand B, tangent along a
+/// line through both interiors: the reduction's face pair, each key in
+/// its operand clone's arena ([`ReductionContacts`]). Two faces of one
+/// operand carried into an op are a [`Contact`] instead.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct FfContact {
-    /// One face.
+pub struct TangentFaces {
+    /// A's face.
     pub a: FaceKey,
-    /// The other.
+    /// B's face.
     pub b: FaceKey,
 }
 
@@ -1006,7 +992,7 @@ pub struct ReductionContacts {
     /// each citing the glue door's tangency decision
     /// ([`verify_distinct`]). Written at the door, whatever the op: the
     /// carry keeps a row where both faces survive.
-    pub ff: Vec<Cited<FfContact>>,
+    pub ff: Vec<Cited<TangentFaces>>,
     /// Pieces of line edges of A lying in planar faces of B, each citing
     /// the records that placed the piece's two ends on the face: inside
     /// it (`a_on_b`), or one with a vertex bounding it (`vv`)
@@ -1056,50 +1042,55 @@ impl ReductionContacts {
 /// survivors into result keys (the strict drop rule discovered records
 /// take: a record whose entity was consumed drops), each citing the
 /// operand's record it is ([`Backing::Carried`](crate::Backing::Carried)).
+///
+/// One list, kept in the carry's kind order (vertex pairs, vertex–face,
+/// vertex–edge, edge pairs, edge–face, face pairs), each kind in the
+/// order its records were filed.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct OperandRecords {
-    /// Coincident vertex pairs within the operand.
-    pub vv: Vec<CarriedRecord<VvContact>>,
-    /// Vertex-on-face rests within the operand.
-    pub vf: Vec<CarriedRecord<VfContact>>,
-    /// Vertex-on-edge records within the operand.
-    pub ve: Vec<CarriedRecord<VeContact>>,
-    /// Edge-edge records within the operand.
-    pub ee: Vec<CarriedRecord<EeContact>>,
-    /// Edge-face records within the operand.
-    pub ef: Vec<CarriedRecord<EfContact>>,
-    /// Face-face records within the operand.
-    pub ff: Vec<CarriedRecord<FfContact>>,
+    rows: Vec<CarriedRecord>,
 }
 
 /// A record of the operand's own list carried back in, and its index
 /// in that list: the record the op's result cites for it
 /// ([`Backing::Carried`](crate::Backing::Carried)).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct CarriedRecord<R> {
+pub struct CarriedRecord {
     /// The record's cells.
-    pub contact: R,
+    pub contact: Contact,
     /// Its index in the operand's records ([`ContactRecords::rows`]).
     pub record: u32,
 }
 
 impl OperandRecords {
     /// True iff nothing is carried.
+    #[must_use]
     pub fn is_empty(&self) -> bool {
-        let Self {
-            vv,
-            vf,
-            ve,
-            ee,
-            ef,
-            ff,
-        } = self;
-        vv.is_empty()
-            && vf.is_empty()
-            && ve.is_empty()
-            && ee.is_empty()
-            && ef.is_empty()
-            && ff.is_empty()
+        self.rows.is_empty()
+    }
+
+    /// Every record, in the carry's kind order.
+    #[must_use]
+    pub fn rows(&self) -> &[CarriedRecord] {
+        &self.rows
+    }
+
+    /// Files `row` after the records of its kind.
+    pub fn push(&mut self, row: CarriedRecord) {
+        records::file_by_kind(&mut self.rows, row, |r| r.contact);
+    }
+
+    /// Keeps only the records `keep` holds to.
+    pub fn retain(&mut self, keep: impl FnMut(&CarriedRecord) -> bool) {
+        self.rows.retain(keep);
+    }
+}
+
+impl FromIterator<CarriedRecord> for OperandRecords {
+    fn from_iter<I: IntoIterator<Item = CarriedRecord>>(iter: I) -> Self {
+        let mut out = Self::default();
+        iter.into_iter().for_each(|row| out.push(row));
+        out
     }
 }
 
@@ -6882,7 +6873,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         );
         glued.push((reduce::index(k), touch.row));
         contacts.ff.push(Cited::new(
-            FfContact {
+            TangentFaces {
                 a: touch.a,
                 b: touch.b,
             },
@@ -9239,79 +9230,28 @@ fn validate_declarations<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`BooleanError::InvalidInput`] naming the first record kind that
-/// fails.
+/// [`BooleanError::InvalidInput`] for the first record that fails,
+/// naming the kind of cell that does not resolve.
 pub(in crate::boolean) fn validate_carried<T: Real>(
     body: &Body<T>,
     c: &OperandRecords,
     operand: Operand,
 ) -> Result<(), BooleanError> {
-    let bad = |operand, what| BooleanError::InvalidInput { operand, what };
-    // A record's two cells' interiors meet, so neither bounds the other.
-    let bounds = |body: &Body<T>, x, y| {
-        matches!(Contact::new(body, x, y), Err(ContactPairError::Incident(_)))
-    };
-    for carried in &c.vv {
-        let pair = carried.contact;
-        if body.get_vertex(pair.a).is_none() || body.get_vertex(pair.b).is_none() {
-            return Err(bad(operand, "carried v-v vertex key does not resolve"));
-        }
-        if pair.a == pair.b {
-            return Err(bad(operand, "carried v-v pair names one vertex twice"));
-        }
-    }
-    for carried in &c.vf {
-        let rest = carried.contact;
-        if body.get_vertex(rest.vertex).is_none() {
-            return Err(bad(operand, "carried v-on-f vertex key does not resolve"));
-        }
-        if body.get_face(rest.face).is_none() {
-            return Err(bad(operand, "carried v-on-f face key does not resolve"));
-        }
-        if bounds(body, Cell::Vertex(rest.vertex), Cell::Face(rest.face)) {
-            return Err(bad(operand, "carried v-on-f vertex bounds its face"));
-        }
-    }
-    for CarriedRecord { contact: rest, .. } in &c.ve {
-        if body.get_vertex(rest.vertex).is_none() {
-            return Err(bad(operand, "carried v-on-e vertex key does not resolve"));
-        }
-        if body.get_edge(rest.edge).is_none() {
-            return Err(bad(operand, "carried v-on-e edge key does not resolve"));
-        }
-        if bounds(body, Cell::Vertex(rest.vertex), Cell::Edge(rest.edge)) {
-            return Err(bad(operand, "carried v-on-e vertex bounds its edge"));
-        }
-    }
-    for CarriedRecord { contact: touch, .. } in &c.ee {
-        if touch.a == touch.b {
-            return Err(bad(operand, "carried e-e pair names one edge twice"));
-        }
-        for e in [touch.a, touch.b] {
-            if body.get_edge(e).is_none() {
-                return Err(bad(operand, "carried e-e edge key does not resolve"));
+    let bad = |what| BooleanError::InvalidInput { operand, what };
+    for carried in c.rows() {
+        let cells = carried.contact.cells();
+        for cell in cells {
+            if !records::holds(body, cell) {
+                return Err(bad(match cell {
+                    Cell::Vertex(_) => "a carried record's vertex key does not resolve",
+                    Cell::Edge(_) => "a carried record's edge key does not resolve",
+                    Cell::Face(_) => "a carried record's face key does not resolve",
+                }));
             }
         }
-    }
-    for CarriedRecord { contact: touch, .. } in &c.ef {
-        if body.get_edge(touch.edge).is_none() {
-            return Err(bad(operand, "carried e-f edge key does not resolve"));
-        }
-        if body.get_face(touch.face).is_none() {
-            return Err(bad(operand, "carried e-f face key does not resolve"));
-        }
-        if bounds(body, Cell::Edge(touch.edge), Cell::Face(touch.face)) {
-            return Err(bad(operand, "carried e-f edge bounds its face"));
-        }
-    }
-    for CarriedRecord { contact: touch, .. } in &c.ff {
-        if touch.a == touch.b {
-            return Err(bad(operand, "carried f-f pair names one face twice"));
-        }
-        for f in [touch.a, touch.b] {
-            if body.get_face(f).is_none() {
-                return Err(bad(operand, "carried f-f face key does not resolve"));
-            }
+        // A record's two cells' interiors meet, so neither bounds the other.
+        if records::incident(body, cells) {
+            return Err(bad("a carried record's one cell bounds the other"));
         }
     }
     Ok(())
