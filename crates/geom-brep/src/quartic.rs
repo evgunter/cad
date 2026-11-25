@@ -290,7 +290,7 @@ fn sign_algebra<T: geom_core::Real>(p: T, q_hat: T, s: T) -> (Rounded<T>, Rounde
 /// separation.
 ///
 /// **And `Δ` and `D` are decided held to their own rounding**
-/// ([`sign_algebra`]): near a repeated root `Δ`'s terms are orders larger
+/// (`sign_algebra`): near a repeated root `Δ`'s terms are orders larger
 /// than it, and on a kilometre-scale lever their rounding alone is past
 /// the band. A reading within that rounding is the same Zero as one
 /// within the band, so the band widens by the rounding's reach, and the
@@ -469,7 +469,7 @@ pub fn depressed_quartic_roots<T: Decide>(
 }
 
 /// **`Δ` and `D` of `y⁴ + p y² + q̂ y + s` exactly** on its `f64`
-/// coefficients: what [`sign_algebra`] evaluates, as exact expansions.
+/// coefficients: what `sign_algebra` evaluates, as exact expansions.
 #[cfg(any(test, feature = "test-support"))]
 #[must_use]
 pub fn exact_sign_algebra(

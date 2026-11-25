@@ -2,10 +2,11 @@
 id: ray-torus-count-certifies-on-an-uncharged-discriminant
 kind: issue
 title: The quartic ladder's rung 1 certifies a root count on f64 discriminant noise far past the band; at R = 1e6 a ray gets a silent wrong Miss
-status: open
+status: closed
 opened: 2026-10-11
 priority: P1
 cost: M
+closed: 2026-11-25
 refs: [the-half-angle-ladder-certifies-in-band-configurations, line-torus-roots-may-certify-noise-when-the-line-origin-is-far, classification-invariant-family-types-bug-only-states-against-d9-row-4]
 ---
 
@@ -101,3 +102,23 @@ for `Δ > 0` four roots iff `p < 0` and `64s − 16p² < 0`.
 `reduce.rs` `line_roots` answers `CountDisagrees` with
 `ClassificationInvariant` and the kernel-defect ending, which is true:
 the cause is this defect.
+
+## Closed by INSIDE (2026-11-25)
+
+On branch `inside/quartic-disc-rounding`, `depressed_quartic_roots`
+decides `Δ`, `D` and the biquadratic arm's `p² − 4s` held to their own
+`f64` evaluation rounding (`quartic.rs` `sign_algebra`, on
+`geom_core::Rounded`), so a reading within that rounding is Zero, an
+uncertain count. Rows 1–3 are closed: on a fresh 200k-ray near-tangent
+probe at `(1e6, 1e4)` the kernel had certified 1173 `Miss`es on
+coefficients with two real roots, some of those rays crossing the tube by
+6.4e-7 m, plus 20 `CountDisagrees`; after the change it certifies no
+count the coefficients contradict, at any of `R = 1, 1e3, 3e4, 1e6`.
+The pins are `torus_predicate_rows::a_crossing_ray_is_no_miss_on_rounding`
+(seven such rays, each with its exact count asserted),
+`a_lanes_coefficients_certify_no_count_on_rounding` and
+`a_far_rays_count_on_rounding_reads_uncertain`; the bound's own guard is
+`quartic.rs` `sign_algebra_rows::the_bound_holds_the_sign_algebras_rounding`.
+Rows 4–5, the coefficients' formation, are
+`line-torus-coefficients-lose-a-shallow-crossing-to-their-formation`.
+
