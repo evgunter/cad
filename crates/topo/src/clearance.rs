@@ -3716,7 +3716,8 @@ fn within_turn<T: CertifiedBounds>(lo: T, hi: T) -> (f64, f64) {
         Interval::from_certified(lo).lo(),
         Interval::from_certified(hi).hi(),
     );
-    if hi - lo < core::f64::consts::TAU {
+    let turn = full_turn();
+    if hi - lo < turn.1 - turn.0 {
         (lo, hi)
     } else {
         full_turn()
@@ -3827,6 +3828,16 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
         return unsupported("a face whose carrier does not certify");
     };
     let superset = |u, v| (u, v, Region::Trimmed);
+    // The chart windows a torus or sheet face's boundary reads, each
+    // `None` off its own carrier.
+    let torus_rect = || {
+        bounded_side_steps(body, f)
+            .and_then(|steps| crate::cover::torus_carrier_window(&steps, stored))
+    };
+    let sheet_lat = || {
+        bounded_side_steps(body, f)
+            .and_then(|steps| crate::cover::sheet_chart_latitude(&steps, stored))
+    };
     let (u, v, region) = match &charted {
         Surface::Plane { frame } => {
             let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
@@ -3860,20 +3871,9 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
         }
         Surface::Sphere { .. } => superset(full_turn(), full_latitude()),
         Surface::Torus { .. } => {
-            let (u, v) = match stored {
-                Surface::Torus {
-                    major_radius,
-                    minor_radius,
-                    ..
-                } => bounded_side_steps(body, f)
-                    .and_then(|steps| {
-                        crate::cover::torus_chart_window(&steps, *major_radius, *minor_radius)
-                    })
-                    .map_or((full_turn(), full_turn()), |(u, v)| {
-                        (within_turn(u.lo, u.hi), within_turn(v.lo, v.hi))
-                    }),
-                _ => (full_turn(), full_turn()),
-            };
+            let (u, v) = torus_rect().map_or((full_turn(), full_turn()), |(u, v)| {
+                (within_turn(u.lo, u.hi), within_turn(v.lo, v.hi))
+            });
             superset(u, v)
         }
         Surface::Spindle {
@@ -3882,12 +3882,7 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
             ..
         } => {
             let sheet = sheet_latitude(*major_radius, *minor_radius);
-            let read = match stored {
-                Surface::Spindle { minor_radius, .. } => bounded_side_steps(body, f)
-                    .and_then(|steps| crate::cover::sheet_chart_latitude(&steps, *minor_radius)),
-                _ => None,
-            };
-            let v = read
+            let v = sheet_lat()
                 .map(|(lo, hi)| {
                     (
                         Interval::from_certified(lo).lo(),

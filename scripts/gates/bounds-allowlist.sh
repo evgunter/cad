@@ -801,8 +801,13 @@ BOUNDS_ALLOWLIST=(
   # candidate's already-crossed carriers, and its table helper
   # (`the_verdict_door_on_a_cube`), as the wiring helper is. Neither
   # reads a bracket of `T`: the same plumbing at the same door.
+  # 18 -> 19 (EMBEDWALK, two bands): `bounded_side_steps`, `window_of`'s
+  # read of a torus or sheet face's loop, which reads its images' ends
+  # at `T` and lifts them as `iso_bounded_domain` does; the shoelace and
+  # its sign are interval arithmetic on the lift, and no bracket of `T`
+  # is branched on.
   'crates/topo/src/cell_region.rs 4 M5 PR 11, the certified-quadrature plumbing'
-  'crates/topo/src/clearance.rs 18 M5 PR 11, the certified-quadrature plumbing'
+  'crates/topo/src/clearance.rs 19 M5 PR 11, the certified-quadrature plumbing'
   # M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery.
   # 15 -> 17: `chain_turns` is predicate 4's loop moved out of
   # `run_battery_for` whole (its junction-end pick the one bracket read,

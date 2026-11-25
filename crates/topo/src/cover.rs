@@ -1143,12 +1143,32 @@ pub(crate) fn face_window_steps<T: Decide>(
 
 /// **A spindle sheet face's `v` window**, folded over its loops as
 /// [`torus_chart_window`] folds a torus face's, under the same guards
-/// ([`TorusChartWindow::finish_latitude`]).
+/// ([`TorusChartWindow::finish_latitude`]). `None` on any other carrier.
 pub(crate) fn sheet_chart_latitude<T: SpanLocate>(
     loops: &[WindowLoop<'_, T>],
-    minor: T,
+    carrier: &Surface<T>,
 ) -> Option<(T, T)> {
-    fold_window(loops).finish_latitude(minor)
+    let Surface::Spindle { minor_radius, .. } = *carrier else {
+        return None;
+    };
+    fold_window(loops).finish_latitude(minor_radius)
+}
+
+/// [`torus_chart_window`] of a face on `carrier`, its radii read off it;
+/// `None` on any other carrier.
+pub(crate) fn torus_carrier_window<T: SpanLocate>(
+    loops: &[WindowLoop<'_, T>],
+    carrier: &Surface<T>,
+) -> Option<TorusWindowPair<T>> {
+    let Surface::Torus {
+        major_radius,
+        minor_radius,
+        ..
+    } = *carrier
+    else {
+        return None;
+    };
+    torus_chart_window(loops, major_radius, minor_radius)
 }
 
 fn fold_window<T: SpanLocate>(loops: &[WindowLoop<'_, T>]) -> TorusChartWindow<T> {
