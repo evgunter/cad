@@ -47,7 +47,7 @@ fn cubic(z: [f64; 4]) -> NurbsCurve3<f64> {
 
 fn read(net: &NurbsCurve3<f64>, surface: &Surface<f64>) -> Result<Vec<f64>, CompositeRefusal> {
     let (lo, hi) = net.domain();
-    crossings(net, (lo, hi), surface, band(), Interval::from_certified)
+    crossings(net, (lo, hi), surface, band(), Interval::from_certified).map(|found| found.roots)
 }
 
 /// Each crossing reads ON the surface, and the residual changes sign
@@ -268,20 +268,27 @@ fn a_cubic_leaves_a_sphere_through_the_door() {
     let lane = crate::NurbsLane::<f64>::certified();
     let roots = lane
         .surface_crossings(&net, (0.0, 1.0), &ball, band())
-        .unwrap();
+        .unwrap()
+        .roots;
     assert_eq!(roots.len(), 1, "{roots:?}");
     assert!((net.eval(roots[0]).x - 0.5).abs() < 1e-9, "{roots:?}");
     let short = lane
         .surface_crossings(&net, (0.0, 0.25), &ball, band())
-        .unwrap();
+        .unwrap()
+        .roots;
     assert_eq!(short, vec![]);
     let from_it = lane
         .surface_crossings(&net, (0.5, 1.0), &ball, band())
         .unwrap();
     assert_eq!(
-        from_it,
+        from_it.roots,
         vec![],
         "the span's start on the sphere is its end vertex's"
+    );
+    assert!(
+        matches!(from_it.ends, [super::EndReading::Near { reach }, super::EndReading::Past(_)] if 0.5 < reach && reach < 1.0),
+        "the start reads near, and its stretch stops short of the stop: {:?}",
+        from_it.ends
     );
 }
 
@@ -494,6 +501,7 @@ fn settled(net: &NurbsCurve3<Interval>, candidate: f64) -> Result<Vec<Interval>,
         vec![super::Meeting::Crossing(candidate)],
         &off,
     )
+    .map(|(roots, _)| roots)
 }
 
 /// The door admits a crossing whose point reads on for the whole
@@ -559,6 +567,7 @@ fn admissible_candidates_of_one_shallow_crossing_settle_three_ways() {
             vec![super::Meeting::Crossing(candidate)],
             &off,
         )
+        .map(|(roots, _)| roots)
     };
     let reported = at(root);
     assert!(

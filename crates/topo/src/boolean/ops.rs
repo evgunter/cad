@@ -7244,7 +7244,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                     let region = crate::sphere_region::sphere_face_region(
                         body,
                         piece,
-                        Some(T::spline_face_crossings),
+                        T::spline_face_reader(),
                     )
                     .map_err(read)?
                     .ok_or_else(unread)?;

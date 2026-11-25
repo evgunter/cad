@@ -330,7 +330,8 @@ pub(crate) enum Ends {
     /// It passes.
     Sound,
     /// Its census cannot tell curved faces of two of its parts apart,
-    /// and refuses with that alone (`CensusUndecidable`, `MayOverlap`:
+    /// and refuses with that alone (`CensusUndecidable`, `MayOverlap`, the
+    /// census's curved-within-reach cause:
     /// `work/reachhold/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`):
     /// a difference that cuts its first operand in two.
     PartsUndecided,
@@ -376,8 +377,9 @@ pub(crate) fn at_its_volume(
                 f,
                 topo::ValidationError::CensusUndecidable {
                     reason: topo::Undecidable::MayOverlap,
+                    what,
                     ..
-                }
+                } if what.starts_with("a curved face of one is within reach of the other")
             )
         }),
         _ => false,

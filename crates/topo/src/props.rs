@@ -7293,19 +7293,31 @@ pub trait AtRestPolicy: Decide {
     /// ([`crate::ReplaceFaceError::NurbsLaneUnsupported`]).
     fn spline_foot() -> Option<Self::SplineFoot>;
 
-    /// **A spline span's crossings of an analytic face's carrier at this
-    /// scalar, or `None` where it is not derived here** — the boolean's
-    /// planar lane ([`geom_brep::NurbsLane::surface_crossings`], the
-    /// curve × face table's ring-composite arm). The arm crosses its
+    /// **The scalar's reading of a spline span against an analytic
+    /// face's carrier, or `None` where it is not derived here** — the
+    /// boolean's planar lane ([`geom_brep::NurbsLane::surface_crossings`],
+    /// the curve × face table's ring-composite arm). The arm crosses its
     /// scalars into certification arithmetic by their certified
-    /// enclosures, so it is read at the certifying scalars alone, and
-    /// a dual answers `None` and the lane refuses the class by name.
+    /// enclosures, so it is read at the certifying scalars alone, and a
+    /// dual has none: the one place the reader's absence is stated.
+    fn spline_face_reader() -> Option<crate::region::SplineCrossings<Self>>;
+
+    /// **A spline span's crossings of an analytic face's carrier at this
+    /// scalar** by [`AtRestPolicy::spline_face_reader`], `None` where the
+    /// scalar has none and the lane refuses the class by name.
     fn spline_face_crossings(
         net: &geom::NurbsCurve3<Self>,
         params: (Self, Self),
         surface: &geom::Surface<Self>,
         band: geom_core::Band,
-    ) -> Option<Result<Vec<Self>, geom_brep::curve_face::composite::CompositeRefusal>>;
+    ) -> Option<
+        Result<
+            geom_brep::curve_face::composite::SpanCrossings<Self>,
+            geom_brep::curve_face::composite::CompositeRefusal,
+        >,
+    > {
+        Self::spline_face_reader().map(|read| read(net, params, surface, band))
+    }
 
     /// **An analytic span's meetings with a spline chart at this
     /// scalar, or `None` where it is not derived here** — the boolean's
@@ -7651,13 +7663,10 @@ impl AtRestPolicy for f64 {
         Some(geom_brep::SplineFoot::certified())
     }
 
-    fn spline_face_crossings(
-        net: &geom::NurbsCurve3<Self>,
-        params: (Self, Self),
-        surface: &geom::Surface<Self>,
-        band: geom_core::Band,
-    ) -> Option<Result<Vec<Self>, geom_brep::curve_face::composite::CompositeRefusal>> {
-        Some(geom_brep::NurbsLane::certified().surface_crossings(net, params, surface, band))
+    fn spline_face_reader() -> Option<crate::region::SplineCrossings<Self>> {
+        Some(|net, params, surface, band| {
+            geom_brep::NurbsLane::certified().surface_crossings(net, params, surface, band)
+        })
     }
 
     fn spline_chart_meetings(
@@ -7835,13 +7844,10 @@ impl AtRestPolicy for geom_core::Probe {
         Some(geom_brep::SplineFoot::certified())
     }
 
-    fn spline_face_crossings(
-        net: &geom::NurbsCurve3<Self>,
-        params: (Self, Self),
-        surface: &geom::Surface<Self>,
-        band: geom_core::Band,
-    ) -> Option<Result<Vec<Self>, geom_brep::curve_face::composite::CompositeRefusal>> {
-        Some(geom_brep::NurbsLane::certified().surface_crossings(net, params, surface, band))
+    fn spline_face_reader() -> Option<crate::region::SplineCrossings<Self>> {
+        Some(|net, params, surface, band| {
+            geom_brep::NurbsLane::certified().surface_crossings(net, params, surface, band)
+        })
     }
 
     fn spline_chart_meetings(
@@ -8017,13 +8023,10 @@ impl AtRestPolicy for geom_core::interval::Interval {
         Some(geom_brep::SplineFoot::certified())
     }
 
-    fn spline_face_crossings(
-        net: &geom::NurbsCurve3<Self>,
-        params: (Self, Self),
-        surface: &geom::Surface<Self>,
-        band: geom_core::Band,
-    ) -> Option<Result<Vec<Self>, geom_brep::curve_face::composite::CompositeRefusal>> {
-        Some(geom_brep::NurbsLane::certified().surface_crossings(net, params, surface, band))
+    fn spline_face_reader() -> Option<crate::region::SplineCrossings<Self>> {
+        Some(|net, params, surface, band| {
+            geom_brep::NurbsLane::certified().surface_crossings(net, params, surface, band)
+        })
     }
 
     fn spline_chart_meetings(
@@ -8195,13 +8198,10 @@ where
         Some(geom_brep::SplineFoot::certified())
     }
 
-    fn spline_face_crossings(
-        net: &geom::NurbsCurve3<Self>,
-        params: (Self, Self),
-        surface: &geom::Surface<Self>,
-        band: geom_core::Band,
-    ) -> Option<Result<Vec<Self>, geom_brep::curve_face::composite::CompositeRefusal>> {
-        Some(geom_brep::NurbsLane::certified().surface_crossings(net, params, surface, band))
+    fn spline_face_reader() -> Option<crate::region::SplineCrossings<Self>> {
+        Some(|net, params, surface, band| {
+            geom_brep::NurbsLane::certified().surface_crossings(net, params, surface, band)
+        })
     }
 
     fn spline_chart_meetings(
@@ -8389,12 +8389,7 @@ where
     }
 
     /// The arm reads certified enclosures, which a dual does not hold.
-    fn spline_face_crossings(
-        _net: &geom::NurbsCurve3<Self>,
-        _params: (Self, Self),
-        _surface: &geom::Surface<Self>,
-        _band: geom_core::Band,
-    ) -> Option<Result<Vec<Self>, geom_brep::curve_face::composite::CompositeRefusal>> {
+    fn spline_face_reader() -> Option<crate::region::SplineCrossings<Self>> {
         None
     }
 

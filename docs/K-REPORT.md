@@ -1141,7 +1141,7 @@ spline arc through piece by piece:
 | `bool_sphere_region_spline_clear` | `ArcRows` field (`SPLINE`): a piece's ball's clearance from the point |
 | `bool_sphere_region_spline_on` | `ArcRows` field (`SPLINE`): the distance to a point of the arc |
 | `bool_sphere_region_spline_leaf` | `ArcRows` field (`SPLINE`): a piece's ball's radius |
-| `bool_sphere_region_spline_landing` | a bare literal: an end of a spline arc against a leg's plane, in metres: a landing at the end, or none |
+| `bool_sphere_region_spline_landing` | a bare literal: a spline arc's near end's stretch, its farthest control point from the end in metres, against the band's zero: a landing at the end, or a graze |
 
 They pool with nothing: the region is read by the point-in-solid door
 at points on a sphere, a population apart from the planar walk's and

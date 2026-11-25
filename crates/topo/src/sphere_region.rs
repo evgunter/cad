@@ -136,10 +136,12 @@
 //! - `bool_sphere_region_spline_end`, `_clear`, `_on`, `_leaf`: a spline
 //!   arc's boundary reading
 //!   ([`PiecedArc::contact`](crate::splitting::pieced_arc::PiecedArc::contact)'s rows).
-//! - `bool_sphere_region_spline_landing`: an end of a spline arc against
-//!   a leg's plane, in metres: a landing that reads no side, or none
-//!   ([`region::landings`]). Where a spline arc crosses the plane inside
-//!   its span is the ring composite's (`spline_composite_*`).
+//! - `bool_sphere_region_spline_landing`: a spline arc's near end's
+//!   stretch against the band's zero, its farthest control point from the
+//!   end in metres: a landing at the end that reads no side, or a graze
+//!   ([`region::landings`]). Whether the end is near a leg's plane, and
+//!   where the arc crosses it inside its span, is the ring composite's
+//!   (`spline_composite_*`).
 
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
@@ -210,7 +212,7 @@ fn tangent<T: Decide>(a: Vec3<T>, raw: Vec3<T>) -> Vec3<T> {
 /// its certified carrier (a periodic cubic's clamped view over the
 /// edge's span), which tier 3 places on the face's sphere, as every
 /// edge of the face, and only through `splines`, the scalar's spline
-/// reader ([`crate::props::AtRestPolicy::spline_face_crossings`]) where
+/// reader ([`crate::props::AtRestPolicy::spline_face_reader`]) where
 /// the caller's bound holds one: without it a face with a spline arc
 /// answers `None` (`work/inside/the-face-door-reads-no-spline-arc-of-a-sphere-face.md`).
 ///
@@ -542,11 +544,7 @@ impl<T: Decide> Region<T> for SphereFaceRegion<T> {
                 Some(pieces) => {
                     pieced_edge_hit(&pieces, arc, (SPLINE, UncrossableCarrier::Spline), p, band)
                 }
-                None => Err(RegionRefusal::Unreadable(crate::splitting::Uncrossable {
-                    r#loop: arc.r#loop,
-                    edge: arc.edge,
-                    carrier: UncrossableCarrier::Spline,
-                })),
+                None => Err(arc.uncrossable(UncrossableCarrier::Spline)),
             },
             _ => unreachable!("sphere_face_region admits circles and splines only"),
         }
@@ -931,7 +929,7 @@ mod tests {
                 turn: None,
                 forward,
             }],
-            Some(<f64 as crate::props::AtRestPolicy>::spline_face_crossings),
+            <f64 as crate::props::AtRestPolicy>::spline_face_reader(),
         )
     }
 
@@ -1947,3 +1945,7 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "sphere_region_spline_rows.rs"]
+mod sphere_region_spline_rows;

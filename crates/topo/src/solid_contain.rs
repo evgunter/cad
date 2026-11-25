@@ -362,7 +362,9 @@ pub enum PointInSolidError {
     /// planar face offers no ray to aim.
     VolumeUncertified,
     /// A `Sphere` face that is not closed on its own surface and has a
-    /// boundary edge that is neither a circle nor a spline arc.
+    /// boundary edge the region reading cannot read: one that is neither a
+    /// circle nor a spline arc, or a spline arc at a scalar with no spline
+    /// reader (a dual, [`crate::props::AtRestPolicy::spline_face_reader`]).
     ///
     /// A trimmed sphere face is read from its boundary arcs
     /// ([`crate::sphere_region`]), a circle's or a spline's, the curves a
@@ -717,7 +719,8 @@ impl PointInSolidError {
                 "cannot tell what is inside the solid: one of its sphere faces has an \
                  outline the inside/outside test cannot read. The solid itself is fine. \
                  Recourse: bound the sphere face only with edges that lie on the sphere — \
-                 the circles and curves other solids cut it in"
+                 the circles and curves other solids cut it in — and read it at a scalar \
+                 that certifies: a dual reads no curve but a circle"
             ),
             Self::PartialConeFace { .. } => write!(
                 f,
@@ -967,7 +970,7 @@ pub(super) fn closed_sphere_group<T: Decide>(
 /// kinds have no ray-crossing arm), and a TRIMMED sphere face with a
 /// boundary edge that is not a circle arc, nor a spline arc read by
 /// `splines` (the scalar's spline reader, where the caller holds one:
-/// [`crate::props::AtRestPolicy::spline_face_crossings`]), as
+/// [`crate::props::AtRestPolicy::spline_face_reader`]), as
 /// [`PointInSolidError::PartialSphereFace`]. A face of the selection that
 /// does not resolve panics.
 pub(crate) fn face_geo<T: Decide>(
@@ -2100,7 +2103,7 @@ fn point_in_faces<T: Decide + crate::props::AtRestPolicy>(
             face,
             &sel.charts,
             band,
-            Some(T::spline_face_crossings),
+            T::spline_face_reader(),
         ) {
             Ok(geo) => geo,
             // **A point past the whole selection's reach**, read only
