@@ -458,7 +458,9 @@ def selftest() -> int:
             rc, slog = _quiet(lambda: judge("kernel", by, runs_now, run))
             assert rc == 1, slog
             assert f"under the bar alone: sweep::all a::cheap_alone 0.200 s scaled ({raw} s alone" in slog, slog
-            for n in ("a::stepped: 0.310 s", "a::always: 0.250 s", "a::between: 0.260 s", "a::fails_alone: failed"):
+            # (a::always sits exactly at the bar, where a scaled reading is
+            # a float rounding from either side; it is checked at 1x above.)
+            for n in ("a::stepped: 0.310 s", "a::between: 0.260 s", "a::fails_alone: failed"):
                 assert n in slog, f"named on a {f}x runner too: {slog}"
             assert f"scaled from a runner at {f:.3f}x the median one" in slog, slog
         speed[0] = 0.7
