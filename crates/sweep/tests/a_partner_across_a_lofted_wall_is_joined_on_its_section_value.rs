@@ -152,13 +152,21 @@ fn a_ball_across_two_close_arcs_of_a_lofted_wall_passes_the_carry_and_the_join()
     }
 }
 
+/// The loft prism's volume in closed form: its section at height `z` is
+/// `4 + 3v(1 − v)` square metres, `v = z/2`, so over `z ∈ [0, 2]` it holds
+/// `2·(4 + 1/2) = 9`.
+const PRISM_VOLUME: f64 = 9.0;
+
 /// **Every operation of `a` and `b` builds a valid body, and their
-/// volumes agree**: the union and the common part together are the two
-/// operands, each difference its operand less the common part.
+/// volumes agree**: the operands and their common part are the closed
+/// forms `volumes` states, the union and the common part together are
+/// the two operands, and each difference its operand less the common
+/// part.
 fn every_op_builds_and_its_volumes_agree(
     what: &str,
     a: &topo::AtRestBody<f64>,
     b: &topo::AtRestBody<f64>,
+    (a_is, b_is, common_is): (f64, f64, f64),
     t: Tol,
 ) {
     let volume = |body: &topo::AtRestBody<f64>| {
@@ -189,6 +197,10 @@ fn every_op_builds_and_its_volumes_agree(
     let less = built(topo::subtract(a, b, t), "a ∖ b");
     let other = built(topo::subtract(b, a, t), "b ∖ a");
     let near = |x: f64, y: f64| (x - y).abs() < 1e-9;
+    assert!(
+        near(va, a_is) && near(vb, b_is) && near(common, common_is),
+        "{what}: {va}, {vb} and ∩ {common} against the closed forms {a_is}, {b_is} and {common_is}"
+    );
     assert!(
         common > 0.0
             && near(joined, swapped)
@@ -237,7 +249,15 @@ fn a_brick_across_a_lofted_wall_is_joined_on_its_carried_arcs() {
         !cleared.is_empty(),
         "the flat wall: the brick crosses it, and the guard clears its pairs: {report:?}"
     );
-    every_op_builds_and_its_volumes_agree("the flat wall's brick", &prism, &flat, t);
+    // The brick holds `[−0.25, 0.25] × [0.75, 1] × [0, 0.25]` of the
+    // prism, inside its flat wall `y = 1` and above its floor.
+    every_op_builds_and_its_volumes_agree(
+        "the flat wall's brick",
+        &prism,
+        &flat,
+        (PRISM_VOLUME, 0.125, 0.5 * 0.25 * 0.25),
+        t,
+    );
     let flared = brick((-0.25, 0.35), (-1.3, -0.8), (0.75, 1.25));
     let refusal = topo::union(&prism, &flared, t).expect_err("the plane × spline lane refuses");
     // At `ε = 1e-6` the lane's hull value escalates before its image is
@@ -408,5 +428,15 @@ fn a_slab_round_the_prism_closes_a_ring_on_each_of_its_big_faces() {
         topo::test_support::brick_with_fresh_keys::<f64>((-3.0, 3.0), (-3.0, 3.0), (0.75, 1.25), t),
         t,
     );
-    every_op_builds_and_its_volumes_agree("the slab", &prism, &slab, t);
+    // The slab holds the prism over `z ∈ [0.75, 1.25]`, `v ∈ [3/8, 5/8]`:
+    // `2·∫(4 + 3v − 3v²) dv = 2·(1 + 3·[v²/2 − v³/3]) = 2.3671875`.
+    let between = |v: f64| v * v / 2.0 - v * v * v / 3.0;
+    let common = 2.0 * (1.0 + 3.0 * (between(0.625) - between(0.375)));
+    every_op_builds_and_its_volumes_agree(
+        "the slab",
+        &prism,
+        &slab,
+        (PRISM_VOLUME, 36.0 * 0.5, common),
+        t,
+    );
 }

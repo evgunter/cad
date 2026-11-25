@@ -450,6 +450,12 @@ fn lofted_continuation_walls_carry_one_key_per_segment() {
         (joined - want).abs() < 1e-9 && common > 0.0,
         "the union's volume is the operands' less their common part: {joined} against {want}"
     );
+    // In closed form: the loft is the box `[0, 2]² × [0, 2]`, 8; the cube
+    // `[0.5, 1.5] × [−0.5, 0.5] × [0.5, 1.5]` holds half of itself in it.
+    assert!(
+        (common - 0.5).abs() < 1e-9 && (joined - 8.5).abs() < 1e-9,
+        "∩ {common} against 0.5, ∪ {joined} against 8.5"
+    );
 }
 
 /// The blend radius the rows below request.

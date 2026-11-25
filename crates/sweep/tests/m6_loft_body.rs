@@ -236,6 +236,12 @@ fn the_cut_loft_builds_and_takes_the_cutters_part() {
         (cut + taken - whole).abs() < 1e-9 && taken > 0.0 && cut > 0.0,
         "the cut and the part it takes make the loft: {cut} + {taken} against {whole}"
     );
+    // In closed form: the prism is 9 m³ and mirror-symmetric in `x`
+    // (its sections are), and the cutter holds all of it on `x ≥ 0`.
+    assert!(
+        (whole - 9.0).abs() < 1e-9 && (taken - 4.5).abs() < 1e-9 && (cut - 4.5).abs() < 1e-9,
+        "{whole}, ∩ {taken} and ∖ {cut} against 9, 4.5 and 4.5"
+    );
 }
 
 /// **§9.3 interval rows:** the loft assembles at the INTERVAL scalar,
