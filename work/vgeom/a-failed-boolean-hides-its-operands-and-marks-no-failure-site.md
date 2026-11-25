@@ -8,6 +8,7 @@ priority: P1
 cost: H
 design: true
 branch: vgeom/ev-failed-picture
+pr: 7761
 ---
 
 **Ev reported this** (in chat, 2026-11-22): "when a boolean fails, it'd be cool if the parts did not disappear but instead highlighted where the problem was".
