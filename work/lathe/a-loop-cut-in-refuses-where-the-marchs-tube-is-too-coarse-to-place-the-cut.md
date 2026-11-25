@@ -20,7 +20,8 @@ A section loop the section certificate places inside a sphere face and
 a curved face (R-loop) is cut in along a meridian of the sphere's chart
 (`crates/topo/src/boolean/ops/interior_cuts.rs`, `loop_cut_in`), and
 `apply_cut_ins` (`crates/topo/src/boolean/ops.rs`, the
-`CutSection::Loop` arm) reads where the loop lies off the march's tube:
+`read_loop_tube` and `height_against_tube`) reads where the loop lies off
+the march's tube:
 every piece in the cut's half-plane, a piece wholly on each side of the
 meridian's plane, and each boundary hit on the half-meridian above or
 below every piece. Where a piece's box straddles one of those, the cut
@@ -31,8 +32,8 @@ is such a pose: the ball of radius 0.5 at `(0, 1.8, 0)`, poled along
 `z`, against the cylinder of radius 2. Its oval lies about 0.2 off the
 ball's centre and comes within about 0.04 of both poles, and the march
 lists it in 1121 tube pieces each about 0.25 across. Directly, a piece
-straddles the half-plane (`the section loop is not certified inside one
-half of a meridian plane`); on the re-posed twin, a pole lies between
+straddles the half-plane (`the section loop is not read inside one half
+of a meridian plane`); on the re-posed twin, a pole lies between
 the pieces' heights (`the sphere face's boundary meets the cut's
 meridian inside the section`). Both refuse typed, as the row asserts.
 

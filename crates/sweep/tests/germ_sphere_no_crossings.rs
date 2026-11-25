@@ -203,49 +203,42 @@ fn a_ball_inside_the_tube_unions_to_the_donut() {
 /// faces — clear of the donut's seams and parallels, and of the ball's
 /// own meridians in the plane `z = 2.7`. No crossing sees it, and the
 /// certificate proves it a loop inside both faces (R-loop). The ball's
-/// face is cut in along a meridian of its chart the oval's tube is
-/// certified across, the op re-enters on the crossings, and the output
+/// face is cut in along a meridian of its chart the oval's tube is read
+/// crossing, the op re-enters on the crossings, and the output
 /// merge glues the cut away. Every op builds in both operand orders, with
 /// no trace of the cut. The lens is the intersection: the union and the
-/// differences answer the operands' closed forms with it, it answers a
-/// quadrature of the two solids' closed-form insides. (A result is not
+/// differences answer the operands' closed forms with it, and it answers
+/// its integral over slices across the donut's axis
+/// (`sweep::test_support::lens`) within the volume claim and ten times
+/// the integral's stated error. (A result is not
 /// read by `point_in_solid`, which refuses the ball's face bounded by the
 /// oval: `work/inside/point-in-solid-refuses-a-sphere-face-bounded-by-a-spline-chord.md`.)
 #[test]
 fn a_ball_scraping_the_tube_builds_through_a_cut_in() {
     let (d, b) = (donut(), ball_at(0.3, Vec3::new(0.0, 0.0, 2.7)));
     let (vd, vb) = (DONUT_VOLUME, ball_volume(0.3));
-    // The lens by the midpoint rule over the ball's cube: inside the ball
-    // and inside the donut (major radius 2, tube 1/2, about `y`).
-    let n = 120;
-    let h = 0.6 / f64::from(n);
-    let mut inside = 0u32;
-    for i in 0..n {
-        for j in 0..n {
-            for k in 0..n {
-                let at = |m: i32| -0.3 + (f64::from(m) + 0.5) * h;
-                let (x, y, z) = (at(i), at(j), 2.7 + at(k));
-                let rho = (x * x + z * z).sqrt() - 2.0;
-                if x * x + y * y + (z - 2.7) * (z - 2.7) < 0.09 && rho * rho + y * y < 0.25 {
-                    inside += 1;
-                }
-            }
-        }
-    }
-    let quadrature = f64::from(inside) * h * h * h;
+    // The lens over slices across the donut's axis (major radius 2,
+    // tube 1/2, about `y`), the ball's centre 2.7 off it at height 0.
+    let (integral, error) = sweep::test_support::lens::ball_in_revolved(
+        0.3,
+        (2.7, 0.0),
+        sweep::test_support::lens::torus_slice(2.0, 0.5),
+        2000,
+    );
+    let claim = 1e-6 * (vd + vb);
     for (x, y, order) in [(&d, &b, "d, b"), (&b, &d, "b, d")] {
         let built = |op: BooleanOp, r: Result<topo::BooleanResult<f64>, BooleanError>| {
             let label = format!("{order}, {op:?}");
             let r = r.unwrap_or_else(|e| panic!("{label}: the op builds, got {e:?}"));
-            sweep::test_support::cut_trace::assert_no_cut_trace(&label, &r);
+            sweep::test_support::cut_trace::assert_no_cut_trace(&label, &r, [x, y]);
             let v = volume(&r.body().expect("a body").body);
             (label, v)
         };
         let lens = built(BooleanOp::Intersect, topo::intersect(x, y, Tol::witness()));
         let l = lens.1;
         assert!(
-            (l - quadrature).abs() <= 0.02 * quadrature,
-            "{}: the lens {l} against its quadrature {quadrature}",
+            (l - integral).abs() <= claim + 10.0 * error,
+            "{}: the lens {l} against its integral {integral} ± {error}",
             lens.0
         );
         let (vx, vy) = if order == "d, b" { (vd, vb) } else { (vb, vd) };
@@ -265,7 +258,7 @@ fn a_ball_scraping_the_tube_builds_through_a_cut_in() {
             ),
         ] {
             assert!(
-                (v - want).abs() <= 1e-6 * (vd + vb),
+                (v - want).abs() <= claim,
                 "{label}: {v} against the closed forms with the lens, {want}"
             );
         }

@@ -2977,7 +2977,9 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     ///
     /// [`MergeCoplanarError::PeriodClosure`], naming the last edge the
     /// run killed, where no slot or more than one is left: the run is
-    /// left unmerged.
+    /// left unmerged. [`MergeCoplanarError::Pcurve`] where the face's
+    /// rows, dropped by a join that re-cut its loops, do not mint again,
+    /// its escalation carried as it is.
     fn curved_outline_ring(
         &self,
         face: FaceKey,
@@ -2998,14 +3000,8 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         let minted;
         let read = if unminted {
             let mut copy = self.clone();
-            crate::pcurves::mint_pcurves_of(&mut copy, &[face], tol).map_err(|_| {
-                MergeCoplanarError::PeriodClosure {
-                    edge: *group
-                        .killed_edges
-                        .last()
-                        .unwrap_or_else(|| unreachable!("a role pass runs after a kemr")),
-                }
-            })?;
+            crate::pcurves::mint_pcurves_of(&mut copy, &[face], tol)
+                .map_err(|source| MergeCoplanarError::Pcurve { source })?;
             minted = copy;
             &minted
         } else {

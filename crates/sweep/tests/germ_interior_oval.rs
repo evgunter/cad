@@ -479,7 +479,7 @@ fn a_sphere_cap_behind_crossings_elsewhere_builds_every_op() {
         ),
     ] {
         let r = r.unwrap_or_else(|e| panic!("{what}: {e:?}"));
-        sweep::test_support::cut_trace::assert_no_cut_trace(what, &r);
+        sweep::test_support::cut_trace::assert_no_cut_trace(what, &r, [&d, &c]);
         let b = &r.body().expect("non-empty").body;
         assert_eq!(
             topo::validate_geometric(b, Tol::witness()),

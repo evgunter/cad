@@ -563,7 +563,9 @@ BOUNDS_ALLOWLIST=(
   # operand into the computing frame (`Placed::taken`) and runs the cut
   # by material and the pipeline (`boolean_op_given`), and reads no
   # bracket of its own (without `Bounds` neither call compiles).
-  # 26 + 1 = 27.
+  # 26 + 1 = 27. `section_extent_pass` left the seam: it reads the
+  # verdicts `no_crossings_pass` hands it, no body and no box, so it
+  # carries no bound. 27 − 1 = 26.
   'crates/topo/src/boolean/ops.rs 26 2026-07-29 (M5 PR 8), the driver amendment'
   # reduce.rs's four are the sweep's own doors (`first_unsupported_pair`,
   # `gate_operand_pairs`, `face_tree`, `sweep_direction`); the fifth,

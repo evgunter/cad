@@ -16,12 +16,14 @@
 //! ([`super::reenter_recut`]).
 //!
 //! Against a plane or a sphere the loop is the carriers' one circle.
-//! Against a torus, a cylinder or a cone it is the march's one loop, and
-//! the cut runs along the meridian through its net's mean, which its
-//! tube is certified to cross ([`super::CutSection::Loop`]). A pair with
-//! no sphere face (two tori, a torus and a cylinder) takes no cut: a
-//! torus, cylinder or cone face is not cut through a chart meridian here,
-//! so the refusal stands.
+//! Against a torus or a cylinder it is the march's one loop, and the cut
+//! runs along the meridian through the sum of its carrier's net's points
+//! about the sphere's centre, where the cut-in reads the loop off its
+//! tube ([`super::CutSection::Loop`]). A ball's pair with a cone is
+//! refused at the operand gate and never reaches here. A pair with no
+//! sphere face (two tori, a torus and a cylinder) takes no cut: a torus,
+//! cylinder or cone face is not simply connected, so a cut of it need not
+//! glue back, and the refusal stands.
 //!
 //! A refusing pair of any other kind, or of any other refusal, keeps its
 //! refusal for the whole op, and so does a cut-in that cannot be made:
@@ -33,6 +35,7 @@ use geom_core::{Band, Decide, NonzeroSign};
 
 use super::super::section_cert::Refusal as SectionRefusal;
 use super::super::section_table::SectionTable;
+use super::super::{BooleanDecision, SphereQuestion};
 use super::{CutSection, PairVerdict, SphereCutIn};
 use crate::body::Body;
 use crate::entity::FaceKey;
@@ -122,21 +125,27 @@ fn cut_in<T: Decide + AtRestPolicy>(
             }
         }
         geom::Surface::Sphere { .. } => Some(super::sphere_pair_cut((operand, face), x, y, band)?),
-        geom::Surface::Torus { .. }
-        | geom::Surface::Cylinder { .. }
-        | geom::Surface::Cone { .. } => {
-            loop_cut_in((operand, face), (center, radius), x, y, sections, band)
+        // A cone's pair with a ball never reaches here: the operand gate
+        // refuses it (`GermFrameUnsupported`), so its loop is not read.
+        geom::Surface::Torus { .. } | geom::Surface::Cylinder { .. } => {
+            loop_cut_in((operand, face), (center, radius), x, y, sections, band)?
         }
         _ => None,
     })
 }
 
 /// **The cut-in across the march's one loop** of the sphere `x` (centre
-/// and radius) with the curved `y`: its meridian through the sum of
-/// the loop's carrier's net's points about the centre, and what [`super::apply_cut_ins`] reads the
-/// loop by. `None` where the section is not one marched loop with a net
-/// and a tube, or its reading refuses: the certificate read the same
-/// section, so the refusal it raised stands.
+/// and radius) with the curved `y`: its meridian through the sum of the
+/// loop's carrier's net's points about the centre, and the tube
+/// [`super::apply_cut_ins`] reads the loop by. `None` where the section
+/// is not one marched loop with a net and a tube, or the section or its
+/// march refuses it: the pair's refusal then stands.
+///
+/// # Errors
+///
+/// A reading of the section or its march in band escalates as the
+/// cut-in's own ([`SphereQuestion::CutIn`]); a march that desyncs is a
+/// kernel fault.
 fn loop_cut_in<T: Decide + AtRestPolicy>(
     (operand, face): (Operand, FaceKey),
     (center, radius): (geom_core::Point3<T>, T),
@@ -144,30 +153,47 @@ fn loop_cut_in<T: Decide + AtRestPolicy>(
     y: &geom::Surface<T>,
     sections: &SectionTable<T>,
     band: Band,
-) -> Option<SphereCutIn<T>> {
-    let geom_brep::SectionRead::Built(section) = geom_brep::pair_section(
+) -> Result<Option<SphereCutIn<T>>, BooleanError> {
+    let esc = |diag| BooleanError::Escalated {
+        decision: BooleanDecision::Sphere(SphereQuestion::CutIn),
+        diag,
+    };
+    let section = match geom_brep::pair_section(
         x,
         y,
         sections.region_for(x, y),
         None::<geom_core::NoLane>,
         band,
-    )
-    .ok()?
-    else {
-        return None;
+    ) {
+        Ok(geom_brep::SectionRead::Built(section)) => section,
+        Err(geom_brep::SectionError::Escalated(diag)) => return Err(esc(diag)),
+        Ok(geom_brep::SectionRead::Elsewhere(_)) | Err(_) => return Ok(None),
     };
-    let carried = section.carry(T::ssi_lane(), band).ok()?;
+    let carried = match section.carry(T::ssi_lane(), band) {
+        Ok(carried) => carried,
+        Err(geom_brep::CarryError::Escalated(diag)) => return Err(esc(diag)),
+        Err(geom_brep::CarryError::Desync(what)) => {
+            return Err(BooleanError::ClassificationInvariant { what });
+        }
+        Err(geom_brep::CarryError::Refused(_)) => return Ok(None),
+    };
     let [component] = carried.components() else {
-        return None;
+        return Ok(None);
     };
-    let net = component.carrier.whole_net()?.control();
+    let Some(net) = component
+        .carrier
+        .whole_net()
+        .map(geom::NurbsCurve3::control)
+    else {
+        return Ok(None);
+    };
     if component.runs.is_empty() || net.is_empty() || !component.closed() {
-        return None;
+        return Ok(None);
     }
     let toward = net
         .iter()
         .fold(geom_core::Vec3::zero(), |acc, &q| acc + (q - center));
-    Some(SphereCutIn {
+    Ok(Some(SphereCutIn {
         operand,
         face,
         center,
@@ -176,5 +202,5 @@ fn loop_cut_in<T: Decide + AtRestPolicy>(
             toward,
             tube: component.runs.iter().map(|r| (r.lo, r.hi)).collect(),
         },
-    })
+    }))
 }

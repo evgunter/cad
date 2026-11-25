@@ -14,7 +14,7 @@ use geom::CurveKind;
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::test_support::bulge_loop;
 use profile::{Profile, SketchPlane};
-use sweep::test_support::{finished, revolved_about_y};
+use sweep::test_support::{finished, lens, revolved_about_y};
 use sweep::{ExtrudeSide, Extrusion, Revolution, extrude, revolve};
 use topo::{AtRestBody, Body, BooleanError, BooleanResult};
 
@@ -338,9 +338,9 @@ fn a_loops_edges_read_simple_knots_at_every_scale() {
 /// face's seam: the section certificate counts it inside both faces, the
 /// ball's face is cut in along a meridian the oval crosses and glued
 /// back, and the result carries no trace of the cut. Every op of the
-/// pair builds, both orders of the difference; each volume answers the
-/// operands' closed forms with the lens's, and the lens answers a
-/// quadrature of the two solids' closed-form insides. The union, the
+/// pair builds in both operand orders; each volume answers the operands'
+/// closed forms with the lens's, and the lens answers its integral over
+/// slices across the donut's axis (`sweep::test_support::lens`). The union, the
 /// intersection and the difference of the donut and the rod build too.
 /// The mesh of each union and intersection stops at the sphere's and the
 /// torus's faces' projected spline images.
@@ -351,26 +351,12 @@ fn a_ball_and_a_rod_against_a_donut_build_on_periodic_loops() {
     let pose = Affine3::translation(Vec3::new(0.1, 0.35, 0.2))
         * Affine3::rotation_about_axis(Point3::origin(), x, 0.7);
     let ring = posed("the donut", donut(0.6, 0.2), pose);
-    let runs = [
-        ("A ∪ B", topo::union(&ball, &ring, tol())),
-        ("A ∩ B", topo::intersect(&ball, &ring, tol())),
-        ("A ∖ B", topo::subtract(&ball, &ring, tol())),
-        ("B ∖ A", topo::subtract(&ring, &ball, tol())),
-    ];
-    // The donut in its own frame (`pose`'s inverse): about `y`, major
-    // radius 0.6, tube 0.2.
-    let (c, s) = (0.7f64.cos(), 0.7f64.sin());
-    let in_ring = |p: Point3<f64>| {
-        let q = [p.x - 0.1, p.y - 0.35, p.z - 0.2];
-        let (ly, lz) = (c * q[1] + s * q[2], -s * q[1] + c * q[2]);
-        let rho = (q[0] * q[0] + lz * lz).sqrt() - 0.6;
-        rho * rho + ly * ly < 0.04
-    };
+    let runs = six(&ball, &ring);
     cut_in_volumes(
         "the ball and the donut",
-        &runs,
-        (ball_volume(0.5), 2.0 * PI * PI * 0.6 * 0.04),
-        lens_quadrature((Point3::origin(), 0.5), in_ring),
+        (&runs, [&ball, &ring]),
+        (ball_volume(0.5), DONUT_VOLUME),
+        donut_lens(Vec3::new(0.1, 0.35, 0.2), 0.7),
     );
     assert_ops(
         "the ball and the donut",
@@ -396,11 +382,41 @@ fn a_ball_and_a_rod_against_a_donut_build_on_periodic_loops() {
     );
 }
 
+/// **A ball against a donut turned a quarter builds in both operand
+/// orders.** The donut turned a quarter about `x` and moved by
+/// `(0.05, 0, 0.3)` scrapes the ball in an oval inside both faces, which
+/// the ball's face is cut in across. Taken ball first, the oval's carrier
+/// is the loop run back, and the edge the output's join closes round it
+/// is a whole period of that carrier, not the far end of the arc it
+/// absorbs, which names the same point only up to rounding: every op
+/// builds in both orders, with no trace of the cut, at the operands'
+/// closed forms with the lens.
+#[test]
+fn a_ball_against_a_donut_turned_a_quarter_builds_in_both_orders() {
+    let x = Vec3::new(1.0, 0.0, 0.0);
+    // The turn the pose was found at, short of a quarter by a few
+    // parts in 10⁸: the witness, not the constant.
+    #[allow(clippy::approx_constant)]
+    let (by, turn) = (Vec3::new(0.05, 0.0, 0.30), 1.570_796_3);
+    let ball = finished("the ball", ball(0.5), tol());
+    let ring = posed(
+        "the donut",
+        donut(0.6, 0.2),
+        Affine3::translation(by) * Affine3::rotation_about_axis(Point3::origin(), x, turn),
+    );
+    cut_in_volumes(
+        "the ball and the donut turned a quarter",
+        (&six(&ball, &ring), [&ball, &ring]),
+        (ball_volume(0.5), DONUT_VOLUME),
+        donut_lens(by, turn),
+    );
+}
+
 /// **A loop with no site takes one from a cut-in.** The ball turned so
 /// its seam plane misses the cap the wall cuts from it, and the cylinder
 /// turned so its seam lines miss it: the section loop is interior to a
 /// face of each solid, so no event seats it. The ball's face is cut in
-/// along a meridian the loop is certified to cross, which seats it where
+/// along a meridian its tube is read crossing, which seats it where
 /// it crosses, and the output merge glues the cut away: every op builds
 /// with no trace of the cut, and each volume answers the operands'
 /// closed forms with the lens's, which answers its quadrature. The
@@ -422,12 +438,12 @@ fn a_loop_with_no_site_takes_one_from_a_cut_in() {
         Affine3::translation(Vec3::new(0.7, 0.0, 0.0))
             * Affine3::rotation_about_axis(Point3::origin(), y, quarter),
     );
-    let in_rod = |p: Point3<f64>| p.x * p.x + p.y * p.y < 0.25 && p.z.abs() < 1.0;
+    let rod = |z: f64| (z.abs() < 1.0).then_some((0.0, 0.5));
     cut_in_volumes(
         "the cylinder and the ball",
-        &six(&cylinder, &ball),
+        (&six(&cylinder, &ball), [&cylinder, &ball]),
         (PI * 0.25 * 2.0, ball_volume(0.3)),
-        lens_quadrature((Point3::new(0.7, 0.0, 0.0), 0.3), in_rod),
+        lens::ball_in_revolved(0.3, (0.7, 0.0), rod, LENS_PANELS),
     );
 }
 
@@ -436,38 +452,54 @@ fn ball_volume(r: f64) -> f64 {
     4.0 / 3.0 * PI * r * r * r
 }
 
-/// **The volume of the ball about `centre` of radius `r` inside the
-/// solid `inside` reads**, by the midpoint rule over the ball's cube,
-/// `200³` cells.
-fn lens_quadrature((centre, r): (Point3<f64>, f64), inside: impl Fn(Point3<f64>) -> bool) -> f64 {
-    let n = 200;
-    let h = 2.0 * r / f64::from(n);
-    let at = |m: i32| -r + (f64::from(m) + 0.5) * h;
-    let mut count = 0u32;
-    for i in 0..n {
-        for j in 0..n {
-            for k in 0..n {
-                let d = Vec3::new(at(i), at(j), at(k));
-                if d.norm_squared() < r * r && inside(centre + d) {
-                    count += 1;
-                }
-            }
-        }
-    }
-    f64::from(count) * h * h * h
+/// `2π²Rr²` of [`donut`]`(0.6, 0.2)`.
+const DONUT_VOLUME: f64 = 2.0 * PI * PI * 0.6 * 0.04;
+
+/// The midpoint rule's coarser panel count for a lens
+/// ([`lens::ball_in_revolved`]); the finer is twice it.
+const LENS_PANELS: u32 = 2000;
+
+/// How many times the lens integral's stated error a volume may stand
+/// from it, beside the measured pads.
+const LENS_ERRORS: f64 = 10.0;
+
+/// **The lens of [`ball`]`(0.5)` at the origin and [`donut`]`(0.6, 0.2)`
+/// turned `turn` about `x` and moved by `by`**: the ball's centre read in
+/// the donut's frame, where the donut is about `y`, and the lens
+/// integrated over slices across that axis, with its error.
+fn donut_lens(by: Vec3<f64>, turn: f64) -> (f64, f64) {
+    let (c, s) = (turn.cos(), turn.sin());
+    let q = Vec3::new(-by.x, -by.y, -by.z);
+    let (x, y, z) = (q.x, c * q.y + s * q.z, -s * q.y + c * q.z);
+    lens::ball_in_revolved(
+        0.5,
+        ((x * x + z * z).sqrt(), y),
+        lens::torus_slice(0.6, 0.2),
+        LENS_PANELS,
+    )
 }
 
 /// **What a pair whose section loop is cut in builds**: every run, with
 /// no trace of the cut (`sweep::test_support::cut_trace`), each volume
 /// against the operands' closed forms `va` and `vb` with the lens, the
-/// intersection's volume, and the lens against its `quadrature` within
-/// 2%. A run's label names its op as [`six`] does.
-fn cut_in_volumes(what: &str, runs: &[Run], (va, vb): (f64, f64), quadrature: f64) {
+/// intersection's volume, and the lens against its integral `want`, within
+/// its pad and [`LENS_ERRORS`] times the integral's stated `error`. A
+/// run's label names its op as [`six`] does.
+fn cut_in_volumes(
+    what: &str,
+    (runs, operands): (&[Run], [&Body<f64>; 2]),
+    (va, vb): (f64, f64),
+    (want, error): (f64, f64),
+) {
     let volume = |op: &str, r: &Result<BooleanResult<f64>, BooleanError>| {
         let built = r
             .as_ref()
             .unwrap_or_else(|e| panic!("{what}, {op}: the op builds, got {e:?}"));
-        sweep::test_support::cut_trace::assert_no_cut_trace(&format!("{what}, {op}"), built);
+        sweep::test_support::cut_trace::assert_no_cut_trace(
+            &format!("{what}, {op}"),
+            built,
+            operands,
+        );
         let body = &built.body().expect("a body").body;
         let m = topo::mass_properties(body, tol(), topo::test_support::pinned_resolution(tol()))
             .unwrap_or_else(|e| panic!("{what}, {op}: a volume, got {e:?}"));
@@ -479,8 +511,8 @@ fn cut_in_volumes(what: &str, runs: &[Run], (va, vb): (f64, f64), quadrature: f6
         .find(|(op, _)| op.contains('∩'))
         .expect("an intersection among the runs");
     assert!(
-        lens > 0.0 && (lens - quadrature).abs() <= 0.02 * quadrature,
-        "{what}: the lens {lens} against its quadrature {quadrature}"
+        lens > 0.0 && (lens - want).abs() <= lens_pad + LENS_ERRORS * error + 1e-12,
+        "{what}: the lens {lens} ± {lens_pad} against its integral {want} ± {error}"
     );
     for (op, (got, pad)) in read {
         let want = match op {

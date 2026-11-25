@@ -195,6 +195,7 @@ failure-output = "immediate-final"
 #   85 s     mesh::all quadric_pair_sections::a_loops_edges_read_simple_knots_at_every_scale
 #  150 s     mesh::all quadric_pair_sections::a_ball_and_a_rod_against_a_donut_build_on_periodic_loops
 #   40 s     mesh::all quadric_pair_sections::a_loop_with_no_site_takes_one_from_a_cut_in
+#  254 s     mesh::all quadric_pair_sections::a_ball_against_a_donut_turned_a_quarter_builds_in_both_orders
 # A ball scraping a torus's tube, every op in both orders through a
 # cut-in (unmeshed):
 #   93 s     sweep::all germ_sphere_no_crossings::a_ball_scraping_the_tube_builds_through_a_cut_in
@@ -532,7 +533,7 @@ not (
   (binary_id(sweep::all) & test(=verbs_germarms_interval::the_ring_lane_builds_at_the_certified_scalar)) |
   (binary_id(step-export::all) & test(=periodic_loop_edge::a_lens_between_a_cylinder_and_a_ball_writes_its_loop_as_one_clamped_spline)) |
   (binary_id(sweep::all) & test(=parallel_cylinder_join::rods_across_the_wall_join_along_their_rulings)) |
-  (binary_id(mesh::all) & (test(=quadric_pair_sections::two_rods_crossing_build_and_mesh) | test(=quadric_pair_sections::a_ball_across_a_cylinder_wall_builds_on_one_loop_and_its_arcs_rejoin) | test(=quadric_pair_sections::a_loops_edges_read_simple_knots_at_every_scale) | test(=quadric_pair_sections::a_ball_and_a_rod_against_a_donut_build_on_periodic_loops) | test(=quadric_pair_sections::a_loop_with_no_site_takes_one_from_a_cut_in))) |
+  (binary_id(mesh::all) & (test(=quadric_pair_sections::two_rods_crossing_build_and_mesh) | test(=quadric_pair_sections::a_ball_across_a_cylinder_wall_builds_on_one_loop_and_its_arcs_rejoin) | test(=quadric_pair_sections::a_loops_edges_read_simple_knots_at_every_scale) | test(=quadric_pair_sections::a_ball_and_a_rod_against_a_donut_build_on_periodic_loops) | test(=quadric_pair_sections::a_loop_with_no_site_takes_one_from_a_cut_in) | test(=quadric_pair_sections::a_ball_against_a_donut_turned_a_quarter_builds_in_both_orders))) |
   (binary_id(sweep::all) & test(=ring_carry_through_by_piece::a_three_arc_ring_is_metered_arc_by_arc_in_every_subtraction_order)) |
   (binary_id(topo) & (test(=side_reader::boxed_brick_rows::no_aim_of_a_boxed_brick_reads_the_side_no_member_has) | test(=side_reader::boxed_brick_rows::no_ray_about_a_boxed_brick_reads_the_side_no_member_has) | test(=side_reader::boxed_brick_rows::no_own_aim_of_a_random_boxed_brick_reads_the_side_no_member_has) | test(=side_reader::boxed_brick_rows::a_ray_beside_a_moving_silhouette_edge_is_set_aside_at_it))) |
   (binary_id(sweep::all) & (test(=volume_premises_door_bodies::a_misfit_wall_by_every_amount_reads_no_volume_it_lacks) | test(=volume_premises_door_bodies::walked_and_lifted_agree_bitwise_on_door_built_bodies_and_moved_copies) | test(=volume_premises_door_bodies::a_kept_certificate_under_a_move_settles_the_images_volume))) |
