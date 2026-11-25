@@ -126,8 +126,8 @@ fn cut_in<T: Decide + AtRestPolicy>(
 /// # Errors
 ///
 /// A reading of the section or its march in band escalates as the
-/// cut-in's own ([`SphereQuestion::CutIn`]); a march that desyncs is a
-/// kernel fault.
+/// cut-in's own ([`SphereQuestion::CutIn`]); a section asked in the wrong
+/// lane or with no region, and a march that desyncs, are kernel faults.
 fn loop_cut_in<T: Decide + AtRestPolicy>(
     (operand, face): (Operand, FaceKey),
     (center, radius): (geom_core::Point3<T>, T),
@@ -148,7 +148,22 @@ fn loop_cut_in<T: Decide + AtRestPolicy>(
         band,
     ) {
         Ok(geom_brep::SectionRead::Built(section)) => section,
-        Err(geom_brep::SectionError::Escalated(diag)) => return Err(esc(diag)),
+        Err(
+            geom_brep::SectionError::Escalated(diag)
+            | geom_brep::SectionError::RadiusEscalated { diag, .. },
+        ) => return Err(esc(diag)),
+        // The cut-in asks the pair it was handed, over the operation's
+        // region: a lane or region it was not handed is its own defect.
+        Err(geom_brep::SectionError::WrongLane { .. }) => {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "cut-in: the loop's section was asked in a lane not the pair's",
+            });
+        }
+        Err(geom_brep::SectionError::NoRegion { .. }) => {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "cut-in: the loop's section was asked with no region to read it over",
+            });
+        }
         Ok(geom_brep::SectionRead::Elsewhere(_)) | Err(_) => return Ok(None),
     };
     let carried = match section.carry(T::ssi_lane(), band) {

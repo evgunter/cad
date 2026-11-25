@@ -443,7 +443,7 @@ fn a_loop_with_no_site_takes_one_from_a_cut_in() {
         "the cylinder and the ball",
         (&six(&cylinder, &ball), [&cylinder, &ball]),
         (PI * 0.25 * 2.0, ball_volume(0.3)),
-        lens::ball_in_revolved(0.3, (0.7, 0.0), rod, LENS_PANELS),
+        lens::ball_in_revolved(0.3, (0.7, 0.0), (rod, &[-1.0, 1.0]), LENS_PANELS),
     );
 }
 
@@ -459,8 +459,9 @@ const DONUT_VOLUME: f64 = 2.0 * PI * PI * 0.6 * 0.04;
 /// ([`lens::ball_in_revolved`]); the finer is twice it.
 const LENS_PANELS: u32 = 2000;
 
-/// How many times the lens integral's stated error a volume may stand
-/// from it, beside the measured pads.
+/// How many times the lens integral's estimated error a volume may stand
+/// from it, beside the measured pads: the estimate is no bound, and its
+/// measured ratio to the error stays near a third (`sweep::test_support::lens`).
 const LENS_ERRORS: f64 = 10.0;
 
 /// **The lens of [`ball`]`(0.5)` at the origin and [`donut`]`(0.6, 0.2)`
@@ -471,10 +472,11 @@ fn donut_lens(by: Vec3<f64>, turn: f64) -> (f64, f64) {
     let (c, s) = (turn.cos(), turn.sin());
     let q = Vec3::new(-by.x, -by.y, -by.z);
     let (x, y, z) = (q.x, c * q.y + s * q.z, -s * q.y + c * q.z);
+    let (slice, ends) = lens::torus_slice(0.6, 0.2);
     lens::ball_in_revolved(
         0.5,
         ((x * x + z * z).sqrt(), y),
-        lens::torus_slice(0.6, 0.2),
+        (slice, &ends),
         LENS_PANELS,
     )
 }
@@ -483,7 +485,7 @@ fn donut_lens(by: Vec3<f64>, turn: f64) -> (f64, f64) {
 /// no trace of the cut (`sweep::test_support::cut_trace`), each volume
 /// against the operands' closed forms `va` and `vb` with the lens, the
 /// intersection's volume, and the lens against its integral `want`, within
-/// its pad and [`LENS_ERRORS`] times the integral's stated `error`. A
+/// its pad and [`LENS_ERRORS`] times the integral's estimated `error`. A
 /// run's label names its op as [`six`] does.
 fn cut_in_volumes(
     what: &str,

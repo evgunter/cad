@@ -12189,6 +12189,7 @@ mod witness_rows {
 
 #[cfg(test)]
 mod loop_tube_rows {
+    #![allow(clippy::unwrap_used)]
     use super::{LoopTubeRefusal, height_against_tube, read_loop_tube, tube_corners};
     use geom_core::{Band, Point3, Sign, Tol, Vec3};
 
@@ -12235,7 +12236,12 @@ mod loop_tube_rows {
         assert_eq!(
             read(&[above, ([0.4, 0.2, 0.1], [0.6, 0.3, 0.3])]),
             Err(LoopTubeRefusal::NoCrossing),
-            "every piece on one side"
+            "every piece on the positive side"
+        );
+        assert_eq!(
+            read(&[below, ([0.4, -0.3, 0.1], [0.6, -0.2, 0.3])]),
+            Err(LoopTubeRefusal::NoCrossing),
+            "every piece on the negative side"
         );
         assert_eq!(
             read(&[above, ([0.4, -0.1, 0.1], [0.6, 0.1, 0.3])]),

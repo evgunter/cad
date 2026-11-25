@@ -6,11 +6,19 @@
 //! two-disc lens in closed form ([`disc_overlap`]).
 //!
 //! The integral is the midpoint rule over the ball's heights, read as
-//! `z = h + r·sin θ` so the slice's square-root ends are smooth in `θ`.
-//! The overlap is only continuous where a slice meets a circle
-//! tangentially, so the rule is read at `n` and at `2n` panels and their
-//! difference stands for its error ([`ball_in_revolved`]); a reader
-//! bounds the volume it checks by a stated multiple of that.
+//! `z = h + r·sin θ` so the ball's own square-root ends are smooth in
+//! `θ`. The solid's slice has square-root ends of its own (a torus's
+//! annulus closes at the tube's top and bottom heights), where the
+//! integrand's slope is unbounded, and a panel straddling one makes the
+//! rule converge irregularly: there two panel counts can agree better than
+//! either agrees with the integral. So the rule takes panel edges at the
+//! solid's slice ends (`ends`), and within each stretch the error falls
+//! regularly as the panels halve. The rule is read at `n` and at `2n`
+//! panels, and their difference stands for the error of the finer one
+//! ([`ball_in_revolved`]). It is an estimate, not a bound: on the four
+//! poses the rows read, the finer rule's error against one 128 times
+//! finer measured at most 0.34 of the difference at `n = 2000`, so a
+//! reader's tenfold margin holds it with room.
 
 use core::f64::consts::{FRAC_PI_2, PI};
 
@@ -34,27 +42,45 @@ pub fn disc_overlap(a: f64, b: f64, d: f64) -> f64 {
 /// **The volume of the ball of radius `r` inside a solid of revolution**:
 /// the ball's centre at distance `e` from the solid's axis and height `h`
 /// along it, the solid's slice at height `z` the annulus `annulus(z)`
-/// (inner and outer radii; `None` past the solid). The midpoint rule at
-/// `2n` panels, and the difference from the rule at `n`, which stands
-/// for its error (module docs).
+/// (inner and outer radii; `None` past the solid), whose square-root ends
+/// lie at the heights `ends`. The midpoint rule at `2n` panels, with panel
+/// edges at those of `ends` inside the ball, and the difference from the
+/// rule at `n`, which estimates its error (module docs).
 #[must_use]
 pub fn ball_in_revolved(
     r: f64,
     (e, h): (f64, f64),
-    annulus: impl Fn(f64) -> Option<(f64, f64)>,
+    (annulus, ends): (impl Fn(f64) -> Option<(f64, f64)>, &[f64]),
     n: u32,
 ) -> (f64, f64) {
+    let mut edges = vec![-FRAC_PI_2, FRAC_PI_2];
+    edges.extend(
+        ends.iter()
+            .filter(|&&z| (z - h).abs() < r)
+            .map(|&z| ((z - h) / r).asin()),
+    );
+    edges.sort_by(f64::total_cmp);
+    let slice = |theta: f64| {
+        let (s, c) = theta.sin_cos();
+        let rho = r * c;
+        annulus(h + r * s).map_or(0.0, |(inner, outer)| {
+            disc_overlap(rho, outer, e) - disc_overlap(rho, inner, e)
+        }) * r
+            * c
+    };
     let rule = |n: u32| {
-        let step = PI / f64::from(n);
-        (0..n)
-            .map(|i| {
-                let theta = -FRAC_PI_2 + (f64::from(i) + 0.5) * step;
-                let (s, c) = theta.sin_cos();
-                let rho = r * c;
-                let slice = annulus(h + r * s).map_or(0.0, |(inner, outer)| {
-                    disc_overlap(rho, outer, e) - disc_overlap(rho, inner, e)
-                });
-                slice * r * c * step
+        edges
+            .windows(2)
+            .map(|w| {
+                let (a, b) = (w[0], w[1]);
+                // The stretch's share of the panels, at least one.
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                let m = ((f64::from(n) * (b - a) / PI).round() as u32).max(1);
+                let step = (b - a) / f64::from(m);
+                (0..m)
+                    .map(|i| slice(a + (f64::from(i) + 0.5) * step))
+                    .sum::<f64>()
+                    * step
             })
             .sum::<f64>()
     };
@@ -63,12 +89,14 @@ pub fn ball_in_revolved(
 }
 
 /// The slices of the torus of major radius `big` and tube radius `small`
-/// about its axis, centred at height zero: the annulus at height `z`.
-pub fn torus_slice(big: f64, small: f64) -> impl Fn(f64) -> Option<(f64, f64)> {
-    move |z: f64| {
+/// about its axis, centred at height zero: the annulus at height `z`, and
+/// the heights it closes at, the tube's top and bottom.
+pub fn torus_slice(big: f64, small: f64) -> (impl Fn(f64) -> Option<(f64, f64)>, [f64; 2]) {
+    let slice = move |z: f64| {
         (z.abs() < small).then(|| {
             let s = (small.powi(2) - z.powi(2)).sqrt();
             (big - s, big + s)
         })
-    }
+    };
+    (slice, [-small, small])
 }

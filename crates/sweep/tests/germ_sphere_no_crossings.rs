@@ -210,7 +210,7 @@ fn a_ball_inside_the_tube_unions_to_the_donut() {
 /// differences answer the operands' closed forms with it, and it answers
 /// its integral over slices across the donut's axis
 /// (`sweep::test_support::lens`) within the volume claim and ten times
-/// the integral's stated error. (A result is not
+/// the integral's estimated error. (A result is not
 /// read by `point_in_solid`, which refuses the ball's face bounded by the
 /// oval: `work/inside/point-in-solid-refuses-a-sphere-face-bounded-by-a-spline-chord.md`.)
 #[test]
@@ -219,12 +219,9 @@ fn a_ball_scraping_the_tube_builds_through_a_cut_in() {
     let (vd, vb) = (DONUT_VOLUME, ball_volume(0.3));
     // The lens over slices across the donut's axis (major radius 2,
     // tube 1/2, about `y`), the ball's centre 2.7 off it at height 0.
-    let (integral, error) = sweep::test_support::lens::ball_in_revolved(
-        0.3,
-        (2.7, 0.0),
-        sweep::test_support::lens::torus_slice(2.0, 0.5),
-        2000,
-    );
+    let (slice, ends) = sweep::test_support::lens::torus_slice(2.0, 0.5);
+    let (integral, error) =
+        sweep::test_support::lens::ball_in_revolved(0.3, (2.7, 0.0), (slice, &ends), 2000);
     let claim = 1e-6 * (vd + vb);
     for (x, y, order) in [(&d, &b, "d, b"), (&b, &d, "b, d")] {
         let built = |op: BooleanOp, r: Result<topo::BooleanResult<f64>, BooleanError>| {
