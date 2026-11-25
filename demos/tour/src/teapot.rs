@@ -178,19 +178,18 @@
 //!    is inside a solid with a spline wall. Wall 3 pins it and the note
 //!    carries the payload.
 //!
-//!    **The refusal arrives through the DOCUMENT**: each join is a `Node::Union` that lowers to the
-//!    same kernel `union` and fails at `evaluate`, and what the note
-//!    quotes is that node's own carried refusal rather than a second
-//!    measurement of it.
+//!    **The refusal arrives through the DOCUMENT**: each join is a
+//!    `Node::Union` that lowers to the same kernel `union`; the spout's
+//!    fails at `evaluate`, and what the note quotes is that node's own
+//!    carried refusal rather than a second measurement of it.
 //!
-//!    Neither wall's probe ever pinned an arena KEY, and that is why
-//!    both survived a re-authoring that moved one: the same physical
-//!    face, the mouth-rim annulus at `y = 1/8`, was `FaceKey(1v1)`
-//!    when the cup came from a plane scan and became `FaceKey(2v1)`
-//!    once it came from the document. Wall 2 matches on `operand`
-//!    (the vessel's split planar walls); wall 3 resolves the face its
-//!    refusal names in the spout's body and matches it by its geometry,
-//!    never by the key's value.
+//!    Wall 3's probe pins no arena KEY, and that is why it survived a
+//!    re-authoring that moved one: the same physical face, the
+//!    mouth-rim annulus at `y = 1/8`, was `FaceKey(1v1)` when the cup
+//!    came from a plane scan and became `FaceKey(2v1)` once it came from
+//!    the document. It resolves the face its refusal names in the
+//!    spout's body and matches it by its geometry, never by the key's
+//!    value.
 //! 5. **A spout the shape of a spout IS authorable — and this row was
 //!    half wrong when it was written.** It used to read: *"there is no
 //!    variable-section sweep, so the shape on screen is a straight
@@ -484,8 +483,8 @@ const DELTA: f64 = 2e-4;
 // values. Every station below is still the `const` it was; what the
 // document changes is the SEAT: a meridian is a `LoopProgram` over
 // `Formula::literal`, the mouth and the lid's rims are named by ROLE
-// rather than found by a numeric scan, and the two unions the scene
-// cannot compose are nodes that refuse at `evaluate`.
+// rather than found by a numeric scan, and the two unions are nodes:
+// the handle's composes, the spout's refuses at `evaluate`.
 // ---------------------------------------------------------------------
 
 /// A length in the canonical metres this document is authored in.
@@ -1274,8 +1273,8 @@ fn describe_join(ev: &Evaluation<f64>, node: RecipeNodeId) -> String {
 ///
 /// Both arms are reachable, which is the point: a probe whose success
 /// arm cannot be reached is a probe that can never tell the scene its
-/// wall is gone, and this scene's two walls are exactly the frontier
-/// whose retirement has to be noticed.
+/// wall is gone, and this scene's walls are exactly the frontier whose
+/// retirement has to be noticed (wall 2's was).
 fn join_outcome(ev: &Evaluation<f64>, node: RecipeNodeId) -> Result<(), &BooleanError> {
     match ev.node_error(node).map(|e| &e.kind) {
         None => Ok(()),
@@ -1679,10 +1678,10 @@ fn per_rim_answers(tol: Tol) -> Vec<(&'static str, String, Option<Census>)> {
         .collect()
 }
 
-/// **The teapot's two walls** — the handle union and the spout union,
-/// each ATTEMPTED for real on every pass and pinned by its own typed
-/// refusal, in the shape `lily::wall_probes` and `klein::wall_probes`
-/// carry theirs.
+/// **The teapot's walls** — the handle union, retired into the scene
+/// and asserted to compose, and the spout union, ATTEMPTED for real on
+/// every pass and pinned by its own typed refusal, in the shape
+/// `lily::wall_probes` and `klein::wall_probes` carry theirs.
 ///
 /// It takes the scene's evaluation rather than building one of its
 /// own: each union is a NODE of the document and refuses at
