@@ -557,8 +557,8 @@ fn faces_of_one_carrier_that_only_abut_are_no_interference() {
         let (n, rows, all) = same_sides(&body);
         assert_eq!(n, 0, "{label}: no interference: {all}");
         // Each face pair sharing a run of boundary on one carrier facing
-        // the same way: a hemisphere's two halves against the other's
-        // two, along the equator; the lunes' and wedges' walls along a
+        // the same way: a hemisphere's one sphere face against the
+        // other's, along the equator; the lunes' and wedges' walls along a
         // meridian or ruling, the wedges' discs along a radius; the
         // tubes' walls and bores along a rim; the rod's and the shaft's
         // end discs against the tube's end annuli, along the circle they
@@ -566,8 +566,10 @@ fn faces_of_one_carrier_that_only_abut_are_no_interference() {
         // opposed pairs (the walls about a rod or a shaft) are no flush
         // pair.
         let flush = match label {
-            "hemispheres on the equator" | "cap and cut ball" => 4,
-            "lunes side by side" | "reflex lune and its complement" => 1,
+            "hemispheres on the equator"
+            | "cap and cut ball"
+            | "lunes side by side"
+            | "reflex lune and its complement" => 1,
             "reflex wedge and its complement" | "half cylinder and its mirror" => 3,
             "tubes end to end" | "rod in a tube" | "shaft in its bore" => 2,
             _ => 0,
