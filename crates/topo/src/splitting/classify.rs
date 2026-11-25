@@ -594,8 +594,14 @@ mod tests {
             )
         };
         let reach = (-0.6, 0.6);
-        assert!(at(Door::PlaneCrossing, reach), "the placement's window is the start's");
-        assert!(!at(Door::SplineComposite, reach), "the stretch reaches inside the span");
+        assert!(
+            at(Door::PlaneCrossing, reach),
+            "the placement's window is the start's"
+        );
+        assert!(
+            !at(Door::SplineComposite, reach),
+            "the stretch reaches inside the span"
+        );
         let near = (0.0, 1e-12);
         assert!(at(Door::PlaneCrossing, near) && at(Door::SplineComposite, near));
         let whole = (0.0, 1.0);

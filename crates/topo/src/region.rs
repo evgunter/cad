@@ -348,7 +348,8 @@ impl<T: Decide> QueryFoot<T> {
 /// # Errors
 ///
 /// A reading in band, a component in band, or a touch sets the path
-/// aside. No landing is read off a refusal.
+/// aside; a limit of the ring composite's blocks it on the edge
+/// ([`RayFault::Blocked`]). No landing is read off a refusal.
 pub(crate) fn landings<T: Decide, D: Legs<T>>(
     door: &D,
     edge: &RegionEdge<T>,
@@ -357,6 +358,7 @@ pub(crate) fn landings<T: Decide, D: Legs<T>>(
 ) -> Result<Vec<Landing<T>>, Fault> {
     use geom_brep::curve_face::{CrossWhy, OnSpan};
     use geom_brep::curve_pair::MeetFault;
+    use geom_brep::roots::Unsettled;
     let curve = leg.course.curve();
     let on_leg = |y: Point3<T>| -> Result<bool, Fault> {
         on_section(curve.section_of(y, D::COMPONENT, band).map_err(in_band)?)
@@ -397,6 +399,28 @@ pub(crate) fn landings<T: Decide, D: Legs<T>>(
                 ) => {
                     let y = edge.at(geom::mid_param(w.window.0, w.window.1));
                     Ok(off_leg(y) || !on_leg(y)?)
+                }
+                // The ring composite's limits (a piece at the floor, a
+                // budget run out, a located crossing off the surface, a
+                // form it cannot build or ends whose sides its count
+                // contradicts) block the path on the edge: no other path
+                // reads the edge better. A tangency or a crease grazes
+                // and a meeting in band sets the path aside on its margin,
+                // below.
+                (
+                    _,
+                    CrossWhy::Method {
+                        door: geom_brep::curve_face::Door::SplineComposite,
+                        fault: fault @ (MeetFault::Unsupported { .. } | MeetFault::Unsettled(_)),
+                    },
+                ) if !matches!(
+                    fault,
+                    MeetFault::Unsettled(Unsettled::Tangency | Unsettled::Crease)
+                ) =>
+                {
+                    Err(RayFault::Blocked(
+                        edge.uncrossable(UncrossableCarrier::Spline),
+                    ))
                 }
                 _ => Ok(false),
             })?;

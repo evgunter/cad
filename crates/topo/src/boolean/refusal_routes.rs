@@ -2878,7 +2878,10 @@ pub(in crate::boolean) mod tests {
                 && !composite.contains("declare"),
             "{composite}"
         );
-        assert!(short_of_the_guard(&composite, &[]).is_empty(), "{composite}");
+        assert!(
+            short_of_the_guard(&composite, &[]).is_empty(),
+            "{composite}"
+        );
         let plane = render(geom_brep::curve_face::Door::PlaneCrossing);
         assert!(
             plane.starts_with("which of two crossings on an edge comes first is undecided: "),
