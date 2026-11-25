@@ -88,6 +88,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("END_ROOT_TAIL"),
     NameCarrier::Const("END_ROOT_SPREAD"),
     NameCarrier::Const("END_ROOT_WINDOW_CLEAR"),
+    NameCarrier::Const("END_ROOT_RIM_CARRIER"),
     // The carrier ladder's data names, and each kind's reach row with
     // its straddle row (`carrier_eq.rs`).
     NameCarrier::Const("CARRIER_CONE_APEX"),

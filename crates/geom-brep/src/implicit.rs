@@ -355,6 +355,27 @@ pub fn min_radius_of_curvature<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
     toward(SurfaceSide::Inner).min(toward(SurfaceSide::Outer))
 }
 
+/// **The radius within which `surface` is one graph over its tangent
+/// plane at `p`, out to `spread`**: its least radius of curvature
+/// ([`min_radius_of_curvature`], global for a plane, cylinder,
+/// sphere or torus, whose other sheets lie at least twice that away). A
+/// cone's is its parallel's radius at `p` less `spread`, the least within
+/// the reach, and no more than `p`'s distance from its other nappe, at
+/// least `|p − apex|·sin 2α`.
+#[must_use]
+pub fn one_sheet_radius<T: Real>(surface: &Surface<T>, p: Point3<T>, spread: T) -> T {
+    let radius = min_radius_of_curvature(surface, p);
+    match *surface {
+        Surface::Cone {
+            frame, half_angle, ..
+        } => {
+            let nappe = (p - frame.origin()).norm() * (T::from_f64(2.0) * half_angle).sin();
+            (radius - spread).min(nappe)
+        }
+        _ => radius,
+    }
+}
+
 /// **A side of a surface, named against its chart normal** (the
 /// implicit gradient).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
