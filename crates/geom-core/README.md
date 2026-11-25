@@ -242,21 +242,24 @@ read's verdict ends in:
   interior as well as at its doors, and on the dual's value as well as
   its tangent: the finding is the base evaluation's (DL3), and a dual
   pass does not make it again.
-- **A selection** (which of two constructions is built, or a place the
-  construction is built at). This is a decision, and a dual takes the
-  one its base build took, on its value alone (DL1, DL3). Where a
-  selection rests on arithmetic of its own (pads, a hull, a
-  subdivision, a solve), that interior is declared over `Certifies` and
-  a dual reaches it only by handing it its value view; no finding and
-  no certificate is reached that way.
+- **A selection** (a side, a sign, a count, which of two constructions
+  is built). This is a decision, and a dual takes the one its base
+  build took, on its value alone (DL1, DL3). A selection is piecewise
+  constant in the inputs, so it has no tangent to get wrong. Code a
+  dual reaches through its value view returns a selection and nothing
+  else, by its return type: no `T` comes back, since a number solved on
+  the value and re-entered as a `T` would claim a zero tangent.
 
 A certificate's verdict never selects a construction: its refusal is a
 finding, or the gap of its lane. A door that both builds and certifies
 is two functions (derive, generic over every deciding scalar; certify,
-over `Certifies`), so a dual derives and holds no certificate. What only
-a certifying lane can derive is, at a dual, not built: a typed value of
-derive's return that names the lane, never a refusal a predicate then
-excuses.
+over `Certifies`), so a dual derives what the model determines and
+holds no certificate. A proposal (DL5.2) has no derivative the model
+determines, so the variants that hold one have no values at a dual, and
+nothing at run time says so. A solved value the model does determine (a
+crossing parameter a body stores) is owed to a dual with the tangent of
+the equation it solves; where that construction is not built, the dual
+build refuses there as not implemented.
 
 Code that certifies is closed to a dual by these:
 
