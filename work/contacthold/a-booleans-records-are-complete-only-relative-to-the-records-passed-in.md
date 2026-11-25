@@ -2,11 +2,12 @@
 id: a-booleans-records-are-complete-only-relative-to-the-records-passed-in
 kind: issue
 title: A boolean's records are complete only relative to the records its caller passed in: a kernel op on a bare body whose own contacts were dropped ships a body that claims tier-3′ currency and fails 3′
-status: open
+status: closed
 opened: 2026-10-13
 priority: P3
 cost: M
 design: true
+closed: 2026-11-25
 ---
 
 
@@ -109,3 +110,6 @@ pair doors (`union`, `subtract`, `intersect`, `boolean_op_with`), whose
 results are complete only relative to the `BooleanInputs` records a
 caller passes, and the other direction below.
 
+## Closed
+
+Closed 2026-11-25 as a **duplicate** of `a-finished-body-holds-its-contact-records-at-every-door`, in the CONTACTHOLD cleanup (`docs/doc-ledger/contacthold-leaves-the-tracker.md`). That unit (P1, X, dispatched, PR 7124 open) makes `AtRestBody` hold its records. It retires `BooleanInputs` / `BooleanBody::contacts` and the shorthand `union/subtract/intersect` that pass default inputs, which is this row's option (c). It also closes the "other direction" (caller-minted `OperandRecords`). `BooleanInputs` is still at `crates/topo/src/boolean/mod.rs:1112` until 7124 lands. Close it as covered, or park it on PR 7124 if a pin is wanted. The n-ary half was already closed by FLUSH (PR 5772).

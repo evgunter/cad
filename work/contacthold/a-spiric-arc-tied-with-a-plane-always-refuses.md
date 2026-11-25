@@ -2,11 +2,12 @@
 id: a-spiric-arc-tied-with-a-plane-always-refuses
 kind: issue
 title: A spiric arc tied with a plane face always refuses ConicBend, even lying in the face's plane
-status: open
+status: closed
 opened: 2026-10-10
 priority: P4
 cost: M
 refs: [boolean-conic-side-code-zero-is-first-order, 4575]
+closed: 2026-11-25
 ---
 
 
@@ -37,3 +38,7 @@ the boolean's alone; a cure lands once, in
 ## The edge extent's new home (OFFSET, 2026-10-27)
 
 `geom_brep::edge_extent` no longer exists (OFFSET, PR 5875). Its home is `geom_brep::extent`, beside the reach family, as three functions: `edge_extent_inf` (≤ the edge's diameter `D`: the chord, the minor-axis folds and the sampled pairs; the lever of a reading whose Zero only refuses), `edge_extent_sup` (≥ `D`; a reading whose Zero is acted on and whose definite signs only refuse) and `edge_reach_from` (the edge's farthest distance from a point of it; a reading that acts on every sign, read from that point). `ConicDeparture`, which this row's citation reads, levers at `edge_extent_inf`, which now also reads the spiric's sampled pairs.
+
+## Closed
+
+Closed 2026-11-25: **merged into** `an-eccentric-ellipse-tied-with-a-plane-refuses-on-its-global-curvature-bounds`, which carries this row's body under `## Merged in`, in the CONTACTHOLD cleanup (`docs/doc-ledger/contacthold-leaves-the-tracker.md`). `ConicBend::of` still gives `Spiric` `BendBounds::Unbounded` (`crates/geom-brep/src/conic_bend.rs:156-157`), whose lift is zero (`:245`); the boolean's `bound_bend` drops it (`crates/topo/src/boolean/sectors.rs:2292-2297`)

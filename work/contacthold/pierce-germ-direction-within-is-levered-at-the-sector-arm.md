@@ -2,10 +2,11 @@
 id: pierce-germ-direction-within-is-levered-at-the-sector-arm
 kind: issue
 title: The pierce germ direction's within test is levered at the sector's shorter arm, so a transition sector the germ-line gate reads at its reach refuses in band
-status: open
+status: closed
 opened: 2026-09-29
 priority: P3
 cost: E
+closed: 2026-11-25
 ---
 
 
@@ -80,3 +81,7 @@ this row still owes is the per-bound lever in `sectors::within` itself:
 `:2233`) and the polygon-cone reader.
 
 Moved from SECTOR to CONTACTHOLD on 2026-11-20, by `git mv`, when SECTOR merged into CONTACTHOLD: SECTOR held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CONTACTHOLD carries.
+
+## Closed
+
+Closed 2026-11-25 as **fixed**, in the CONTACTHOLD cleanup (`docs/doc-ledger/contacthold-leaves-the-tracker.md`), against main at `6003877ad`. `crates/topo/src/boolean/sectors.rs:1349-1370` `within_signs` now levers each bound at `exact_lever(r.lever(), own)`, which is min(the bound's reach, the direction's reach), per bound. Doc `:1278-1290` says "The sector's `arm` … is neither's". `within` routes through `within_reaching` (`:1268-1276`), so `pair_search`, `insert::germ_dir` and the fan reader all get it (`fan.rs:113` takes the same lever closure). The pierce half was already fixed (row's 10-26 re-read) This is the per-bound lever the row owed (`sectors::least_lever` → `reading_lever`/`exact_lever`). It landed before the graft, so there is no SHA.

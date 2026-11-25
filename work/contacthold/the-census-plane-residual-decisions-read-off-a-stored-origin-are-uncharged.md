@@ -2,10 +2,11 @@
 id: the-census-plane-residual-decisions-read-off-a-stored-origin-are-uncharged
 kind: issue
 title: The census decides plane residuals read off the face's stored origin uncharged: their rounding, about 4u·|p − o|, passes ε = 1e-12 a few hundred metres from it
-status: open
+status: closed
 opened: 2026-10-19
 priority: P3
 cost: M
+closed: 2026-11-25
 ---
 
 
@@ -47,3 +48,7 @@ read each residual's enclosure `r ± rounding_charge(|p − o|)` through
 `enclosure_reading`, as `pierce_span` reads the pierce's lever.
 
 Moved from RESTREAD to CONTACTHOLD on 2026-11-20, by `git mv`, when RESTREAD merged into CONTACTHOLD: RESTREAD held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CONTACTHOLD carries.
+
+## Closed
+
+Closed 2026-11-25: **merged into** `the-census-pierce-refuses-a-grazing-edge-within-its-placement-span-of-the-boundary`, which carries this row's body under `## Merged in`, in the CONTACTHOLD cleanup (`docs/doc-ledger/contacthold-leaves-the-tracker.md`). Still uncharged: `census.rs:3884` (`pm_census_ef_residual`, `Margin::of(r)`), `:3613` (`pm_census_vf_residual`), `:1680-1685` (`pm_census_confined_carrier`, `Margin::of(plane_offset(origin,…))`), `:11193-11195` (`pm_census_confirm_ef`)

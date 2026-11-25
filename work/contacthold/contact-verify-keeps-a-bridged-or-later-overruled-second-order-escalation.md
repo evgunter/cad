@@ -2,10 +2,11 @@
 id: contact-verify-keeps-a-bridged-or-later-overruled-second-order-escalation
 kind: issue
 title: contact_verify's tangency ladder keeps a second-order escalation on the log when a declaration bridges it, or when a later sample contradicts
-status: open
+status: closed
 opened: 2026-10-10
 priority: P3
 cost: M
+closed: 2026-11-25
 ---
 
 
@@ -46,3 +47,7 @@ refusal. A red-first row brackets the ladder on a declared pair whose
 second-order reading is in band at one sample and whose residual is
 definitely off at a later one, then asserts the log holds no
 second-order escalation.
+
+## Closed
+
+Closed 2026-11-25 as **fixed**, in the CONTACTHOLD cleanup (`docs/doc-ledger/contacthold-leaves-the-tracker.md`), against main at `6003877ad`. Bridged: PR #6079 (`7e7627d53`) retired the declared posture (`Bridged`, `declared: bool`). `tangent_table` has no `declared` parameter (`contact_verify.rs:315-325`). Across samples: a deferred in-band second order now goes to `sag_logs` (`:577-579`), which is spliced superseded unless the finest pass settles on the sag (`:362-368`). Every other in-band second order returns at once (`:648-656`), so no later sample can overrule it. The log discipline is pinned by `an_overruled_second_order_escalation_leaves_the_log` (`:1386`) Both shapes are gone. Close it, citing #6079 and the sag_logs hold.

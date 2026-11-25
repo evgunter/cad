@@ -2,9 +2,10 @@
 id: a-carried-touch-whose-edge-dissolves-reaches-a-face-interior-touch-3-prime-cannot-read
 kind: issue
 title: A union then a subtract reaches a two-solid tangent touch through a face's interior: the op answers, 3′ refuses CensusUnsupported, and asking for that state directly refuses TangentSlitArmUnbuilt
-status: open
+status: closed
 opened: 2026-10-12
 priority: P3
+closed: 2026-11-25
 ---
 
 
@@ -60,3 +61,7 @@ an edge–face pair the census's confirm has no lane for
 The op no longer answers a result 3′ cannot read; it refuses the record
 it cannot place. The direct route (the cut disc unioned with the right
 disc) was not re-run. What remains is that lane.
+
+## Closed
+
+Closed 2026-11-25 as a **duplicate** of `an-edge-face-record-off-a-line-and-a-plane-has-no-curve-touch-lane`, in the CONTACTHOLD cleanup (`docs/doc-ledger/contacthold-leaves-the-tracker.md`). The row's 2026-10-12 note: the carried route now refuses at the op (`CarryRefused … Unread [Edge, Face]`), "What remains is that lane", meaning the edge–face curve-touch lane row (live, P2, contacthold). `TangentSlitArmUnbuilt` is gone from `crates/` (grep: 0 hits), so the direct-route half is retired. When that lane lands, add `review_4781_r2_record_survives`'s `∖ far box` step as one of its pins.

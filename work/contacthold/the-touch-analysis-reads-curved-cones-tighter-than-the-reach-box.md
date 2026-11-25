@@ -2,10 +2,11 @@
 id: the-touch-analysis-reads-curved-cones-tighter-than-the-reach-box
 kind: issue
 title: The census touch analysis reads a curved star face only through its reach box; reading curved cones would be tighter (fewer false refusals of true curved rests), and stays owed after the box reading lands
-status: open
+status: closed
 opened: 2026-09-29
 priority: P3
 cost: H
+closed: 2026-11-25
 ---
 
 
@@ -39,3 +40,7 @@ first step is a measurement:
 The designers agreed on one constraint. A curved face can dip between
 its vertices, so any tighter reading still has to bound the face's
 whole extent, not only its cone at the point.
+
+## Closed
+
+Closed 2026-11-25 as **obsolete** (its premise is gone), in the CONTACTHOLD cleanup (`docs/doc-ledger/contacthold-leaves-the-tracker.md`), against main at `6003877ad`. The premise was "a curved star face enters the touch analysis as its reach box's corners". It no longer holds. `crates/topo/src/link.rs:64-79`: a link holds planar faces only; a curved face refuses `CurvedUnread::Unreadable`; a sphere or cylinder is read by its carrier (`Round`); a self-touch is read by tangent cones (`FaceSector::tangent`, `second_order`). `rest::judge` (link.rs:4304) reads no `face_reach`. The cone and second-order reading the row wanted now exists, for self-touch only. If two-solid touches on cone, torus or spline faces (now an `Unreadable` refusal) need a lane, file a fresh row for that against link.rs:64-79 (ATREST), rather than keep this C1-era row.

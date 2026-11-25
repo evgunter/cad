@@ -2,11 +2,12 @@
 id: a-tangent-locus-run-between-schedule-stations-is-read-through-no-face
 kind: issue
 title: line_through_both_faces reads a non-line tangent locus at schedule stations, so a run of both faces' interiors shorter than their spacing reads 'through no face' rather than refusing
-status: open
+status: closed
 opened: 2026-11-03
 priority: P2
 cost: M
 refs: [census-confirms-a-two-carrier-face-pair-at-one-midpoint, the-tangent-interiors-schedule-escalates-on-a-sample-it-places-in-band-of-a-corner]
+closed: 2026-11-25
 ---
 
 Filed by SPLICE's `splice/kind-reads` lane (PR 6437), from its sweep for
@@ -45,3 +46,6 @@ the trims' meetings with the locus (the curve-pair reading against each
 trim edge, as the line lane's closed forms cut it), with a row whose run
 through both faces falls between two schedule stations.
 
+## Closed
+
+Closed 2026-11-25 as **fixed**, in the CONTACTHOLD cleanup (`docs/doc-ledger/contacthold-leaves-the-tracker.md`), against main at `6003877ad`. `crates/topo/src/boolean/mod.rs:9072-9156`: `line_through_both_faces` now cuts at `boundary_cuts` → `FaceBoundary::located` (`crates/topo/src/face_boundary.rs:84`, curve-pair table). A face whose cuts are unknown, or a run inside a member's undecided window, settles no run and returns `Err` (`settles`, `open_unknown`). No `sample_param`/`CERT_SAMPLES` is left in mod.rs. PR 6451 removed the schedule fallback (`work/onecopy/a-boundary-touch-refusal-locates-no-window.md:18`). The silent `Ok(false)` is gone and now refuses typed. What is left (a located window for a Touch refusal) is the live row `onecopy/a-boundary-touch-refusal-locates-no-window`.

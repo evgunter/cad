@@ -2,10 +2,11 @@
 id: a-boolean-drops-its-operands-curve-and-patch-records
 kind: issue
 title: A boolean drops its operands' curve and patch records: only vertex and edge granularity carries
-status: open
+status: closed
 opened: 2026-10-11
 priority: P2
 cost: M
+closed: 2026-11-25
 ---
 
 ## What
@@ -114,3 +115,7 @@ census a check. The refusals in (a) are not the editor's at-rest gate:
 `review_4737_span_battery` calls the kernel's tier-3′ door
 (`topo::validate_pseudomanifold`) on a boolean's result, which C leaves as
 it was. So (a) and (b) both stand, and the row is open.
+
+## Closed
+
+Closed 2026-11-25: **merged into** `a-carried-line-contact-an-op-cuts-is-dropped`, which carries this row's body under `## Merged in`, in the CONTACTHOLD cleanup (`docs/doc-ledger/contacthold-leaves-the-tracker.md`). The title is overtaken: the row's own 2026-10-17 note says `ContactRecords::carried` files all six kinds. What remains: (a) the records a cut's new ends and pieces imply from a carried edge–face span (`crates/sweep/tests/review_4737_span_probes.rs:141`, ignored battery); (b) a three-member fold witness. (b)'s blocker `a-union-fold-step-mints-no-face-face-row-for-a-given-tangency` is closed (PR 4982), so (b) is now buildable.

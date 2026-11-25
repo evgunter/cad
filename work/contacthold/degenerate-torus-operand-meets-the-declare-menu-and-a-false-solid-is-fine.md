@@ -2,10 +2,11 @@
 id: degenerate-torus-operand-meets-the-declare-menu-and-a-false-solid-is-fine
 kind: issue
 title: contact: a torus operand outside the ring convention reaches the Boolean's front door as CurvedPierceUnsupported's declare menu or Containment's 'the solid itself is fine'
-status: open
+status: closed
 opened: 2026-09-30
 priority: P3
 cost: M
+closed: 2026-11-25
 ---
 
 
@@ -71,3 +72,7 @@ shape is unchanged: carry the convention's verdict out, and end it as
 `DegenerateTorus` or `BooleanDecision::Torus`. Re-measure on main first.
 
 Moved from SECTOR to CONTACTHOLD on 2026-11-20, by `git mv`, when SECTOR merged into CONTACTHOLD: SECTOR held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CONTACTHOLD carries.
+
+## Closed
+
+Closed 2026-11-25 as **obsolete** (its premise is gone), in the CONTACTHOLD cleanup (`docs/doc-ledger/contacthold-leaves-the-tracker.md`), against main at `6003877ad`. Boolean operands are `FinishedBody`, tier-3 certified (`boolean/ops.rs:654`). Tier 3 refuses a horn/spindle/no-tube torus as `ValidationError::DegenerateTorus`/`DegenerateTorusEscalated` (`validate.rs:1225-1240`), so no such operand reaches the front door. `contact_verify.rs:134-137` says the same. The declare-menu half was already gone (row's 2026-10-26 re-read) The `set_face_surface` witness can no longer get to `union` without passing tier 3. "The solid itself is fine" (`solid_contain.rs:696`) still renders, but only for genuine L-shaped or spline outlines. Re-measure only if a non-finished door turns up.

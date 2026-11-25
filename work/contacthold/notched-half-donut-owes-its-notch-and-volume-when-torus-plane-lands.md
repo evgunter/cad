@@ -2,10 +2,11 @@
 id: notched-half-donut-owes-its-notch-and-volume-when-torus-plane-lands
 kind: issue
 title: When the torus x plane boolean is admitted, the notched half donut owes a point_in_solid Out at its notch and a volume of 3pi^2/8
-status: open
+status: closed
 opened: 2026-10-08
 priority: P3
 cost: E
+closed: 2026-11-25
 ---
 
 Found by CONTACT-11's review (Style 6).
@@ -52,3 +53,7 @@ the other quarter's top, `Out` past the half turn, and the analytic
 membership at a 400-point lattice over the tube, beside the volume
 `3π²/8` the row already held. Both obligations above are met. Set `open`,
 its trigger having fired; closing it is CONTACTHOLD's.
+
+## Closed
+
+Closed 2026-11-25 as **fixed**, in the CONTACTHOLD cleanup (`docs/doc-ledger/contacthold-leaves-the-tracker.md`), against main at `6003877ad`. `crates/sweep/tests/contact11_torus_chart_l.rs:24` `a_notched_half_donut_answers_its_volume` asserts the volume `3π²/8`, `Out` at the notch, and a 400-point lattice (`:39-72`). The row's own 2026-10-18 note says both obligations are met Close it: the row said it was waiting only for CONTACTHOLD to close it.

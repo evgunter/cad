@@ -2,10 +2,11 @@
 id: an-at-rest-shared-crescent-reads-as-a-contradicted-contact-not-an-interference-finding
 kind: issue
 title: At rest, a shared crescent on a two-carrier face-face record reads ContactContradicted rather than an interference finding
-status: open
+status: closed
 opened: 2026-10-12
 priority: P3
 cost: E
+closed: 2026-11-25
 ---
 
 
@@ -29,3 +30,7 @@ Between two distinct solids a shared crescent is interference (C6), not
 `ContactContradicted`: the census reports it as an interference
 finding. Inside one solid, along a line it is a missing edge (the op's
 defect), and at a point touch it is legal (C4).
+
+## Closed
+
+Closed 2026-11-25: **merged into** `a-material-crescent-face-face-record-refuses-typed-at-the-op-and-the-carry`, which carries this row's body under `## Merged in`, in the CONTACTHOLD cleanup (`docs/doc-ledger/contacthold-leaves-the-tracker.md`). `crates/topo/src/census.rs:11368-11371`: `TangentVerdict::Ruled → ContactContradicted`, with no same/cross-solid split. Ev's ruling on [ev] PR 5395 decides both branches: cross-solid is interference (C6), same-solid is `CuspEdgesMissing`.

@@ -2,9 +2,10 @@
 id: a-touch-only-rim-with-no-derivable-locus-refuses-every-op-as-a-cusp
 kind: issue
 title: verify_tangency_declaration routes a touch-only rim with no derivable tangent locus to RimCuspArmUnbuilt at every op, including the differences and the intersection
-status: open
+status: closed
 opened: 2026-10-11
 priority: P3
+closed: 2026-11-25
 ---
 
 
@@ -38,3 +39,7 @@ here.
 ## Since SEAL's tangent-verdict unit (`seal/tangent-verdict`)
 
 The op no longer re-reads a glued tangency (`verify_glued_contacts` records what the door certified), so the only reader of `route_rim`'s refusal is the glue door, which reads any unrouted rim as no tangency. `TangencyFailure::Unrouted` therefore carries no payload, and `BooleanError::RimCuspArmUnbuilt` is minted nowhere; the variant stays as the name of the arm the per-op routing here would raise.
+
+## Closed
+
+Closed 2026-11-25 as **obsolete** (its premise is gone), in the CONTACTHOLD cleanup (`docs/doc-ledger/contacthold-leaves-the-tracker.md`), against main at `6003877ad`. Its title's premise is gone. `RimCuspArmUnbuilt` is minted nowhere (only the def, `mod.rs:3594`, Kind/Display/tags). `glue.rs:288-292` maps `TangencyFailure::Unrouted` to `Ok(None)` (left unglued), and so does `mod.rs:8801` (`RimRouting::Cusp → Unrouted`). The row's own 2026-11 note says the same. There is no over-refusal at ∖/∩ any more. The variant's doc (`mod.rs:3588-3591`) cites this row as the per-op routing's home, so closing it must also repoint or retire that citation, or reopen it as a fresh design row ("per-op routing of an unglued cusp rim") in TANG.

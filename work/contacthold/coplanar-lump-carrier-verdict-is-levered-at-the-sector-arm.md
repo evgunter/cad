@@ -2,10 +2,11 @@
 id: coplanar-lump-carrier-verdict-is-levered-at-the-sector-arm
 kind: issue
 title: The coplanar lump's carrier verdict (vtxfac carrier_eq, recl require_same) is levered at the sector's shorter arm, so a face whose far vertices stand 2500 bands off is called one carrier
-status: open
+status: closed
 opened: 2026-09-29
 priority: P3
 cost: M
+closed: 2026-11-25
 ---
 
 
@@ -39,3 +40,7 @@ the side codes. This touches the same arm as the `tang` row's door lever
 (`work/tang/torus-carrier-axis-margin-is-levered-by-one-not-the-ring`).
 
 Moved from SECTOR to CONTACTHOLD on 2026-11-20, by `git mv`, when SECTOR merged into CONTACTHOLD: SECTOR held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CONTACTHOLD carries.
+
+## Closed
+
+Closed 2026-11-25 as **obsolete** (its premise is gone), in the CONTACTHOLD cleanup (`docs/doc-ledger/contacthold-leaves-the-tracker.md`), against main at `6003877ad`. The sector-arm carrier ladder is gone. `recl::require_same` takes no `arm`: it reads the glue door's recorded relation or refuses `unglued_corner` (`crates/topo/src/boolean/recl.rs:59-112`). The vtxfac Delta-2 site reads `declared.glued_relation(…)` with no `carrier_eq` (`boolean/vtxfac.rs:1085-1095`). This is PR #6079: "consumers (recl, vtxfac, …) read the glue table's relation and run no ladder" Carrier identity is now decided once, by the glue door, at the faces' consumed extent. If the P4 witness still lumps wrongly, that is a new row about the glue door or `unglued_corner`, not this one.

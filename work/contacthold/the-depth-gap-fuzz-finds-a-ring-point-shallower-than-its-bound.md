@@ -2,10 +2,11 @@
 id: the-depth-gap-fuzz-finds-a-ring-point-shallower-than-its-bound
 kind: issue
 title: The depth-gap fuzz finds a point on a zero-minor ring 4.5e-14 shallower than its centre bound (seed 0xb4d28f0aaf5101ad)
-status: open
+status: closed
 priority: P2
 cost: M
 opened: 2026-10-21
+closed: 2026-11-25
 ---
 
 Found by `tier-3-prime-reads-no-side-for-a-face-touching-a-vertex-of-its-own-solid`'s
@@ -46,3 +47,7 @@ PR 5956 (cone apex) does not touch `census/`. Reproduce with
 Seed `0xf23e6cc2b421332e` (PR 6430 CI) is written up in `work/restread/a-sampled-depth-on-a-zero-minor-ring-lies-past-its-core-bound.md`.
 
 Moved from RESTREAD to CONTACTHOLD on 2026-11-20, by `git mv`, when RESTREAD merged into CONTACTHOLD: RESTREAD held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CONTACTHOLD carries.
+
+## Closed
+
+Closed 2026-11-25 as **fixed**, in the CONTACTHOLD cleanup (`docs/doc-ledger/contacthold-leaves-the-tracker.md`), against main at `6003877ad`. `crates/topo/src/census/depth_gap_fuzz.rs:155-161`: the fuzz now draws `Piece::Tube { circle: minor == 0.0 }` (line 273) and charges the sample's own rounding (`SAMPLE_REL`). All three cited seeds pass on HEAD (`0xb4d28f0aaf5101ad`, `0xe2bf3f192c072cb8`@1e-6, `0xf23e6cc2b421332e`), and effort 100 × 2 seeds × 2 ε (about 240k draws) passes. The worst Interval excess was 2.5e-16 relative, against the 4.5e-14 absolute in the row. The fix landed before the graft, so no SHA is reachable. The rewritten draw means the old seeds no longer replay the same point, which is why the evidence is a broad re-run rather than one seed.

@@ -2,11 +2,12 @@
 id: declared-surface-pairs-emits-duplicate-pairs
 kind: issue
 title: boolean::ops declared_surface_pairs emits one surviving declared pair per FACE sharing the key - nine identical pairs per three-arc bore wall
-status: open
+status: closed
 opened: 2026-09-07
 refs: [2105]
 priority: P0
 cost: D
+closed: 2026-11-25
 ---
 
 
@@ -32,3 +33,7 @@ Unowned at filing — `boolean/ops.rs` is S-BOOL's glob; on the CURVED
 handover list. Filed by the CURVED orchestrator.
 
 Moved from `work/issues/` to `work/contacthold/` on 2026-11-03, when the `work/issues/` bucket was retired (Ev's direction, in chat); id and body unchanged.
+
+## Closed
+
+Closed 2026-11-25 as **obsolete** (its premise is gone), in the CONTACTHOLD cleanup (`docs/doc-ledger/contacthold-leaves-the-tracker.md`), against main at `6003877ad`. `declared_surface_pairs` gets no hit in `crates/`. The boolean merge no longer takes declared surface pairs: a glued pair reaches it on one surface record (`merge_faces.rs:1862-1875` `merge_coplanar_faces_unjoined`, `one_record.rs`) The machinery was retired, so close it as obsolete. Its sibling `joindesync-swallows-the-certification-payload` is a separate row.

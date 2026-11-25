@@ -2,11 +2,12 @@
 id: an-inherited-pinch-decided-onto-the-ops-face-records-nothing
 kind: issue
 title: A cut whose face passes through a pinch an operand already holds decides the copies onto that face and records nothing
-status: open
+status: closed
 opened: 2026-10-12
 design: true
 priority: P2
 cost: M
+closed: 2026-11-25
 ---
 
 
@@ -67,3 +68,7 @@ is now `records_cite_their_decision::a_decision_at_copies_an_operand_already_hel
 (4 rows at normal `(1, 1, 0)`), and
 `coincidence_door::a_ring_serving_two_pierces_records_their_fusion_unproven`
 asserts the slab's intersection records the copies on its face.
+
+## Closed
+
+Closed 2026-11-25 as **fixed**, in the CONTACTHOLD cleanup (`docs/doc-ledger/contacthold-leaves-the-tracker.md`), against main at `6003877ad`. The row's own "Answered 2026-10-19" section: `pinch_rows` and its skip were removed (no `pinch_rows` in crates/). `crates/topo/tests/records_cite_their_decision.rs:700` `a_decision_at_copies_an_operand_already_held_is_a_row` asserts the copies are decided onto the face (4/2/2 rows); `crates/editor-core/tests/coincidence_door.rs:2431` covers the slab case The row was answered and fixed by WIRE `wire-citerows` but never closed. `PendingRow` (`boolean/reduce.rs:174`) is still there, now as the row emitter rather than the skip.

@@ -2,10 +2,11 @@
 id: a-bore-tangent-to-a-plates-face-mints-a-face-face-record-the-census-contradicts
 kind: issue
 title: A plate minus a rod tangent to its face from inside mints a face–face record the census contradicts on the material crescent
-status: open
+status: closed
 opened: 2026-10-19
 priority: P2
 refs: [a-two-carrier-face-pair-off-its-tangent-line-reads-contradicted-not-stale, an-at-rest-shared-crescent-reads-as-a-contradicted-contact-not-an-interference-finding, the-census-discovers-no-same-solid-tangent-touch-through-face-interiors]
+closed: 2026-11-25
 ---
 
 Found by `contacthold/ff-divided-reads-stale` (the unit
@@ -105,3 +106,7 @@ crescent reads material (the mould). Built by
 `a-material-crescent-tangent-line-builds-two-coincident-cusp-edges`;
 the interim is
 `a-material-crescent-face-face-record-refuses-typed-at-the-op-and-the-carry`.
+
+## Closed
+
+Closed 2026-11-25 as a **duplicate** of `a-material-crescent-tangent-line-builds-two-coincident-cusp-edges`, in the CONTACTHOLD cleanup (`docs/doc-ledger/contacthold-leaves-the-tracker.md`). Ev answered the fork on `[ev]` PR 5395: two coincident cusp edges, with no face–face row. The build row's refs, its body at :24-46 (including the through-bore slot) and the interim row `a-material-crescent-face-face-record-refuses-typed-at-the-op-and-the-carry` (body :19-51) both carry this fixture as their pin. Nothing is owed beyond the two build rows.

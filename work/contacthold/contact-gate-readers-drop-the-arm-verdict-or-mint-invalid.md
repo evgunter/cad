@@ -2,10 +2,11 @@
 id: contact-gate-readers-drop-the-arm-verdict-or-mint-invalid
 kind: issue
 title: topo: census's dihedral read drops the arm's rung and verdict, and contact_verify mints its gate refusals as Invalid
-status: open
+status: closed
 opened: 2026-09-29
 priority: P3
 cost: M
+closed: 2026-11-25
 ---
 
 ## What
@@ -50,3 +51,7 @@ The seven `contact_verify` sites are SEAL's I1–I7 (`work/seal/glue-disagreemen
 - **I1–I6 are closed by PR 6673** (`a-tangent-reading-returns-a-verdict-and-only-a-record-is-contradicted`). The tangent table's rows return `TangentVerdict::Ruled { row, by: Decided }` on the reading that decided them, and the `Rest` door's `RestVerdict::Ruled { row, by: Option<Decided> }`; none mints `MarginDiag::INVALID`. The contact_verify half of this row is closed; the census-dihedral half above stays open.
 
 Moved from SECTOR to CONTACTHOLD on 2026-11-20, by `git mv`, when SECTOR merged into CONTACTHOLD: SECTOR held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CONTACTHOLD carries.
+
+## Closed
+
+Closed 2026-11-25 as **fixed**, in the CONTACTHOLD cleanup (`docs/doc-ledger/contacthold-leaves-the-tracker.md`), against main at `6003877ad`. contact_verify half closed by PRs 6634 and 6673 (the row's own notes; no `MarginDiag::INVALID` in `contact_verify.rs`). Census half: `classify_dihedral`/`LeverEscalation` no longer appear in `census.rs` or `census/*`. The census wedge (`census.rs:2839`) reads `edge_wedge_shape` and routes a gate-decided straight rung (`diag.margin.rejected_sign().is_some()`) to `TouchUnread::Degenerate`, apart from `Undecided` Both halves are now resolved. The census's dihedral read was replaced (before the graft, so no SHA) by a reader that keeps the decided arm apart from the undecided one.
