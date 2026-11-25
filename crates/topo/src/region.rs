@@ -983,10 +983,12 @@ impl<T: Decide> Course<T> for Round<T> {
         Ok(Some(self.arc(y)))
     }
 
-    /// Read without a decision. Only a first leg is bounded round a
-    /// circle, and it starts at the query, which the boundary pre-pass
-    /// placed off every edge; an unbounded leg runs along an edge on its
-    /// circle wherever the edge lies.
+    /// Read without a decision: a circle has no behind. An unbounded leg
+    /// runs along an edge on its circle wherever the edge lies; a bounded
+    /// one (a first leg, a sheet's meridian) decides the place against its
+    /// end, and an edge's end at its start reads `0`, so grazes, or a
+    /// whole turn, past the end, either of which is true of an edge
+    /// that ends there.
     fn reach(&self, y: Point3<T>, _: &'static str, _: Band) -> Result<Option<T>, Fault> {
         Ok(Some(self.arc(y)))
     }

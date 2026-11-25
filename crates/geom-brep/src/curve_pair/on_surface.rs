@@ -68,8 +68,9 @@ pub enum Section<T: Real> {
         /// The nappe, on a cone (`true` the opening one).
         opening: Option<bool>,
     },
-    /// A plane square to a torus's axis: the parallel on the tube side
-    /// `toward`, a unit along the radial component of the tube angle.
+    /// A plane square to a torus's or a spindle sheet's axis: the parallel
+    /// on the tube side `toward`, a unit along the radial component of the
+    /// tube angle.
     TubeSide {
         /// The tube side's unit direction.
         toward: Azimuth<T>,
@@ -141,12 +142,14 @@ pub enum Family {
     /// A cylinder's or a cone's parallel: its plane square to the axis
     /// meets the surface square all along it.
     Parallel,
-    /// A torus's parallel: its plane is square to the axis, tangent to the
-    /// torus along the crest parallels (its top and bottom circles) and
-    /// all but tangent along the parallels near them.
+    /// A torus's or a spindle sheet's parallel: its plane is square to the
+    /// axis, tangent to the surface along the crest parallels (its top and
+    /// bottom circles, which a lemon has none of) and all but tangent along
+    /// the parallels near them.
     TorusParallel,
-    /// A torus's or a sphere's meridian: its plane holds the axis and is
-    /// normal to the surface everywhere.
+    /// A torus's, a spindle sheet's or a sphere's meridian: its plane holds
+    /// the axis and is normal to the surface everywhere but at a sheet's
+    /// apexes, where the surface has no normal.
     Meridian,
     /// A cylinder's or a cone's ruling through a chart point.
     Ruling,
@@ -429,9 +432,10 @@ impl<T: Decide> SurfaceCurve<T> {
         }
     }
 
-    /// **The parallel through `uv`** on a cylinder, a cone or a torus,
-    /// run `forward` (right-handed about the axis) or back, starting at
-    /// the point `uv` names: at the surface's own radius there.
+    /// **The parallel through `uv`** on a cylinder, a cone, a torus or a
+    /// spindle sheet, run `forward` (right-handed about the axis) or back,
+    /// starting at the point `uv` names: at the surface's own radius
+    /// there, which is zero at a sheet's apex.
     ///
     /// # Errors
     ///
@@ -458,7 +462,7 @@ impl<T: Decide> SurfaceCurve<T> {
                     Section::Whole,
                 )
             }
-            ChartArm::Torus { major, minor } => {
+            ChartArm::Torus { major, minor } | ChartArm::Spindle { major, minor } => {
                 let (sin, cos) = uv.y.sin_cos();
                 // The tube side `uv` lies on, as a unit: a root's `ρ − R`
                 // is read along it in metres.
@@ -479,9 +483,12 @@ impl<T: Decide> SurfaceCurve<T> {
         ))
     }
 
-    /// **A meridian through `uv`**: a torus's tube circle at `uv`'s
-    /// azimuth, or a sphere's great circle through its poles there, run
-    /// `forward` (the second chart angle increasing) or back.
+    /// **A meridian through `uv`**: a torus's or a spindle sheet's tube
+    /// circle at `uv`'s azimuth, or a sphere's great circle through its
+    /// poles there, run `forward` (the second chart angle increasing) or
+    /// back. A sheet's tube circle leaves the sheet at its apexes, and
+    /// runs past them on the spindle's other sheet: a reader that walks
+    /// it stops at the apex.
     ///
     /// # Errors
     ///
@@ -500,7 +507,9 @@ impl<T: Decide> SurfaceCurve<T> {
             opening: None,
         };
         let (center, radius) = match chart.arm() {
-            ChartArm::Torus { major, minor } => (f.origin() + radial * major, minor),
+            ChartArm::Torus { major, minor } | ChartArm::Spindle { major, minor } => {
+                (f.origin() + radial * major, minor)
+            }
             ChartArm::Sphere { radius } => (f.origin(), radius),
             _ => return Err(Self::refused("meridian", surface)),
         };
@@ -822,6 +831,7 @@ impl<T: Decide> SurfaceCurve<T> {
             ChartArm::Cylinder { .. } => ChartChannels::Cylinder,
             ChartArm::Sphere { .. } => ChartChannels::Sphere,
             ChartArm::Torus { major, .. } => ChartChannels::Torus { major },
+            ChartArm::Spindle { major, .. } => ChartChannels::Spindle { major },
             ChartArm::Cone { half_angle } => {
                 let mirror = match decide(row, Margin::of(h), band)? {
                     Sign::Zero => return Ok(Sign::Positive),
@@ -834,17 +844,17 @@ impl<T: Decide> SurfaceCurve<T> {
                 let (sin, cos) = half_angle.sin_cos();
                 ChartChannels::Cone { sin, cos, mirror }
             }
-            ChartArm::Plane | ChartArm::Spindle { .. } => {
-                unreachable!("no surface curve is built on a plane or a spindle")
-            }
+            ChartArm::Plane => unreachable!("no surface curve is built on a plane"),
         };
-        let want = match self.section {
-            Section::TubeSide { .. } => ChartAngle::Tube,
-            _ => ChartAngle::Azimuth,
-        };
+        let tube = matches!(self.section, Section::TubeSide { .. });
         let mut read = None;
         channels.read((x, yy, h), |angle, direction| {
-            if angle == want {
+            let wanted = match angle {
+                ChartAngle::Tube | ChartAngle::SheetTube => tube,
+                ChartAngle::Azimuth => !tube,
+                ChartAngle::Latitude => false,
+            };
+            if wanted {
                 read = Some(direction);
             }
             T::zero()
