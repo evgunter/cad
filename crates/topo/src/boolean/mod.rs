@@ -462,7 +462,6 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "bool_sphere_region_spline_clear"
         | "bool_sphere_region_spline_on"
         | "bool_sphere_region_spline_leaf"
-        | "bool_sphere_region_spline_landing"
         | "bool_torus_region_component"
         | "bool_torus_region_at"
         | "bool_torus_region_corner"

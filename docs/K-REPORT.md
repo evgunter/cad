@@ -1112,8 +1112,8 @@ the ray's are the walk's own, bare literals:
 | `point_in_arc_loop_spline_turn` | a `const` in `spline_arc`: a step of those offsets along the control polygon, its monotonicity across the ray line |
 | `point_in_arc_loop_spline_advance` | a `const` in `spline_arc`: a control point's advance along the ray |
 
-**Roster addition (CLEAVE): a trimmed sphere face's region.** Nineteen
-names from `topo/src/sphere_region.rs`. Ten are its rays',
+**Roster addition (CLEAVE): a trimmed sphere face's region.** Eighteen
+names from `topo/src/sphere_region.rs`. Nine are its rays',
 which entered without an entry here: bare literals at their `decide`
 sites, and a `FirstHarmonicRows` value (`ROOT_ROWS`) for the
 first-harmonic root door. Nine are its boundary pre-pass's: a
@@ -1141,7 +1141,6 @@ spline arc through piece by piece:
 | `bool_sphere_region_spline_clear` | `ArcRows` field (`SPLINE`): a piece's ball's clearance from the point |
 | `bool_sphere_region_spline_on` | `ArcRows` field (`SPLINE`): the distance to a point of the arc |
 | `bool_sphere_region_spline_leaf` | `ArcRows` field (`SPLINE`): a piece's ball's radius |
-| `bool_sphere_region_spline_landing` | a bare literal: a spline arc's near end's stretch, its farthest control point from the end in metres, against the band's zero: a landing at the end, or a graze |
 
 They pool with nothing: the region is read by the point-in-solid door
 at points on a sphere, a population apart from the planar walk's and

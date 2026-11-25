@@ -136,12 +136,9 @@
 //! - `bool_sphere_region_spline_end`, `_clear`, `_on`, `_leaf`: a spline
 //!   arc's boundary reading
 //!   ([`PiecedArc::contact`](crate::splitting::pieced_arc::PiecedArc::contact)'s rows).
-//! - `bool_sphere_region_spline_landing`: a spline arc's near end's
-//!   stretch against the band's zero, its farthest control point from the
-//!   end in metres: a landing at the end that reads no side, or a graze
-//!   ([`region::landings`]). Whether the end is near a leg's plane, and
-//!   where the arc crosses it inside its span, is the ring composite's
-//!   (`spline_composite_*`).
+//! - Where a spline arc crosses a leg's plane, and whether an end of it
+//!   is near the plane, is the ring composite's (`spline_composite_*`,
+//!   [`region::landings`]).
 
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
@@ -152,7 +149,7 @@ use crate::entity::FaceKey;
 use crate::ray_walk::{self, RayFault};
 use crate::region::{
     self, End, Fault, Leg, Legs, Path, Paths, QueryFoot, Region, RegionEdge, RegionRefusal, Round,
-    SplineCrossings, Splines, circle_edge_hit, pieced_edge_hit, targets,
+    SplineCrossings, circle_edge_hit, pieced_edge_hit, targets,
 };
 use crate::solid_contain::PointInSolidError;
 use crate::splitting::UncrossableCarrier;
@@ -574,11 +571,8 @@ impl<T: Decide> Legs<T> for SphereFaceRegion<T> {
         geom_brep::OutwardNormal::from_chart(w.normalize(), self.sense).vec()
     }
 
-    fn splines(&self) -> Option<Splines<T>> {
-        self.splines.map(|crossings| Splines {
-            crossings,
-            end: "bool_sphere_region_spline_landing",
-        })
+    fn splines(&self) -> Option<SplineCrossings<T>> {
+        self.splines
     }
 }
 

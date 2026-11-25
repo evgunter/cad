@@ -35,7 +35,7 @@
 //!   ([`crate::implicit_residual`]). An end within the band at the span's
 //!   end is that end's meeting, reported as the end's reading with the
 //!   stretch it may lie on, bisected to where `f` is definitely past the
-//!   band ([`EndReading::Near`]), so a caller reads the end on this one
+//!   band ([`EndReading::Within`]), so a caller reads the end on this one
 //!   margin and decides it nowhere else; one at a knot is
 //!   read with the piece on the knot's other side, a crossing where their
 //!   far ends lie on opposite sides and a touch otherwise;
@@ -171,12 +171,12 @@ pub enum EndReading {
     /// The span's end is not definitely past the band (within it, or in
     /// its gap). A meeting of the span near that end is the end's and is
     /// not among the crossings: it lies on the stretch from the end to
-    /// the parameter `reach`, past which the span is definitely off the
-    /// surface. `reach` is the end's own parameter where a located
+    /// the parameter `until`, past which the span is definitely off the
+    /// surface. `until` is the end's own parameter where a located
     /// crossing was decided at the end.
-    Near {
+    Within {
         /// The far side of the end's stretch, a parameter of the span.
-        reach: f64,
+        until: f64,
     },
 }
 
@@ -273,12 +273,12 @@ pub fn crossings<T: geom_core::Certifies>(
             .map_err(CompositeRefusal::Escalated)
     };
     // Each end of the span, read on the one margin every piece end is
-    // read on; a near end's reach is found by the walk.
+    // read on; how far a near end's stretch runs is found by the walk.
     let at_ends = match (pieces.first(), pieces.last()) {
         (Some(first), Some(last)) => [read(end_value(first, true)), read(end_value(last, false))],
         _ => return Err(CompositeRefusal::Unread("the span holds no piece")),
     };
-    let mut reach: [Option<f64>; 2] = [None, None];
+    let mut until: [Option<f64>; 2] = [None, None];
     // The knot at which a piece ended within the band, that piece, and
     // its other end's side: read with the piece that starts there.
     let mut open: Option<(f64, Piece, Sign)> = None;
@@ -309,10 +309,10 @@ pub fn crossings<T: geom_core::Certifies>(
                 // meeting, `f` being monotone over the piece, on the
                 // stretch to where it is definitely past the band.
                 (Reading::Near(_), Reading::Past(_)) if piece.a == a => {
-                    reach[0] = Some(near_reach(&piece, true, &read));
+                    until[0] = Some(near_stretch(&piece, true, &read));
                 }
                 (Reading::Past(_), Reading::Near(_)) if piece.b == b => {
-                    reach[1] = Some(near_reach(&piece, false, &read));
+                    until[1] = Some(near_stretch(&piece, false, &read));
                 }
                 (Reading::Past(far), Reading::Near(_)) => {
                     if open.is_some() {
@@ -353,24 +353,24 @@ pub fn crossings<T: geom_core::Certifies>(
     let (roots, at_end) = settle(net, params, band, &creases, meetings, &off)?;
     let mut ends = [EndReading::Past(Sign::Zero); 2];
     for (k, end) in [a, b].into_iter().enumerate() {
-        ends[k] = match (at_ends[k], reach[k], at_end[k]) {
-            (Reading::Near(_), Some(reach), _) => EndReading::Near { reach },
+        ends[k] = match (at_ends[k], until[k], at_end[k]) {
+            (Reading::Near(_), Some(until), _) => EndReading::Within { until },
             // A near end is read with the monotone piece that starts or
-            // ends there, so the walk found its reach.
+            // ends there, so the walk found its stretch.
             (Reading::Near(_), None, _) => return Err(Unsettled::Tangency.into()),
-            (Reading::Past(_), _, true) => EndReading::Near { reach: end },
+            (Reading::Past(_), _, true) => EndReading::Within { until: end },
             (Reading::Past(side), _, false) => EndReading::Past(side),
         };
     }
     Ok(SpanCrossings { roots, ends })
 }
 
-/// **How far a span's near end reaches** along the monotone `piece` that
+/// **How far a span's near end's stretch runs** along the monotone `piece` that
 /// starts (`at_start`) or ends at it: the parameter, found by bisection,
 /// past which `f` is definitely past the band. `f` is monotone over the
 /// piece, so the parameters where it is not past the band are one
 /// stretch from the end, and every meeting of the piece lies on it.
-fn near_reach(piece: &Piece, at_start: bool, read: &impl Fn(Interval) -> Reading) -> f64 {
+fn near_stretch(piece: &Piece, at_start: bool, read: &impl Fn(Interval) -> Reading) -> f64 {
     let (mut near, mut past) = if at_start {
         (piece.a, piece.b)
     } else {
