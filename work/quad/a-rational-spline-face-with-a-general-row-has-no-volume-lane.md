@@ -4,7 +4,7 @@ kind: issue
 title: A face on a rational spline chart bounded by a General row refuses its volume at the trimmed lane, which reads polynomial charts only
 status: open
 opened: 2026-11-04
-priority: P2
+priority: P0
 cost: H
 ---
 
@@ -45,3 +45,16 @@ A rational chart in the trimmed lane: the integrand
 `⟨S, S_u×S_v⟩` is a quotient, so either a rule with a certified
 remainder for it, or a polynomial reparameterization of the face's
 region.
+
+## A shipped body reaches it: teapot wall 3 (2026-11-25, INSIDE `inside/ray-spline-face-arm`)
+
+With point containment's ray test crossing spline faces, the spout ∪
+vessel union (`demos/tour/src/teapot.rs`, `wall3_pinned`) passes the
+join and the inside/outside test at ε 1e-6 and 1e-9 and stops here: the
+gate's one finding is `VolumeUncomputable { source: Face { face,
+source: QuadratureUnsupported { what: "a RATIONAL chart reached the
+trimmed lane — …" } } }`. The spout is lofted round sections, so its
+walls are rational. Which row the stopping face carries (`General`, or
+another) is not measured. Re-banded P0: it is now a blocker of the P0
+umbrella `splice/curved-demo-joins-build`, and a blocker carries the
+band of what waits on it (`work/README.md`, Priority).
