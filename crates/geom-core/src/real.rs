@@ -2045,6 +2045,10 @@ pub mod bounds_allowlist {
     //! image is one per scalar, since the midpoints differ in the last
     //! places between `f64` and `Interval`. `CertifiedEnclosure` is the
     //! projection's.
+    //! `geom_brep::ssi::certify`'s `partner_before_image_miss`, the one
+    //! order in which that refusal and an analytic partner's limbs are
+    //! read, rides at the same bound: it reads no bracket, and the bound
+    //! is `incidence_limbs`'s, which it calls on the partner.
     //!
     //! **2026-11-12 (under the M7-8 / C2 precedent; retroactive Ev review)
     //! — `geom_brep::edge_nurbs`'s `curved_nurbs_limbs`**, the lane's

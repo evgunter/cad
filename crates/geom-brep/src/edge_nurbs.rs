@@ -1183,8 +1183,7 @@ pub(crate) fn residual_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEncl
     };
     // An image that misses past its cap reads the partner's limbs first,
     // by the one rule.
-    let pcurve = chart_image(carrier, params, wall, band, per_sample)
-        .map_err(|missed| partner_first(missed, carrier, params, partner, band))?;
+    let pcurve = chart_image(carrier, params, (wall, Some(partner)), band, per_sample)?;
     // FAIL LOUD on a poisoned aggregate. A NaN sine cannot reach here
     // today — the per-sample `decide` above escalates on its levered
     // margin first — but the reported transversality must not depend on
@@ -1229,42 +1228,6 @@ fn plane_partner<T: Real>(plane: &Surface<T>) -> Result<(), PlaneNurbsRefusal> {
         _ => Err(PlaneNurbsRefusal::WrongLane {
             expected: "a plane as the analytic operand",
         }),
-    }
-}
-
-/// An image's refusal after the analytic partner's own limbs, by the one
-/// rule ([`crate::ssi::certify::partner_before_image_miss`]): a miss past
-/// the cap, decided or escalated, stands behind what the partner refuses
-/// of the carrier alone.
-fn partner_first<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
-    missed: PlaneNurbsRefusal,
-    carrier: &Curve3<T>,
-    params: (T, T),
-    partner: &Surface<T>,
-    band: Band,
-) -> PlaneNurbsRefusal {
-    let image_miss = matches!(
-        missed,
-        PlaneNurbsRefusal::Limb {
-            limb: SsiLimb::ImageMiss,
-            ..
-        } | PlaneNurbsRefusal::Escalated {
-            limb: SsiLimb::ImageMiss,
-            ..
-        }
-    );
-    if !image_miss {
-        return missed;
-    }
-    match crate::ssi::certify::incidence_limbs(
-        carrier,
-        params,
-        &[crate::ssi::certify::IncidenceOperand::Analytic(partner)],
-        band,
-        &mut crate::ssi::certify::Refused::default(),
-    ) {
-        Err(partner) => refusal(partner),
-        Ok(_) => missed,
     }
 }
 
@@ -1760,8 +1723,7 @@ pub fn plane_nurbs_incidence<T: Decide + Bounds + geom_core::CertifiedEnclosure>
     }
     // The carrier's fitted chart image alone: the wall's grid and chart
     // speeds are the tube's, which incidence does not ask.
-    let image = chart_image(carrier, params, chart, band, |_, _| Ok(()))
-        .map_err(|missed| partner_first(missed, carrier, params, plane, band));
+    let image = chart_image(carrier, params, (chart, Some(plane)), band, |_, _| Ok(()));
     let fitted = image.and_then(|pcurve| {
         crate::ssi::certify::incidence_limbs(
             carrier,
@@ -3132,6 +3094,11 @@ impl core::fmt::Display for AnalyticRung3Refusal {
 /// image of a carrier on a wall, which the trace's certificate and the
 /// pcurve mint read too.
 ///
+/// `partner` is the analytic surface the carrier is read beside, where
+/// there is one: an image that misses past its cap then reads the
+/// partner's limbs first
+/// ([`crate::ssi::certify::partner_before_image_miss`]).
+///
 /// `per_sample` is a hook run at every sample of the D9-fixed
 /// [`PXN_FIT_SAMPLES`] schedule in order, with the sample index and the
 /// image's chart point there; it is where the edge lanes put their
@@ -3151,7 +3118,7 @@ impl core::fmt::Display for AnalyticRung3Refusal {
 pub(crate) fn chart_image<T, F>(
     carrier: &Curve3<T>,
     params: (T, T),
-    wall: &NurbsSurface<T>,
+    (wall, partner): (&NurbsSurface<T>, Option<&Surface<T>>),
     band: Band,
     mut per_sample: F,
 ) -> Result<NurbsCurve2<T>, PlaneNurbsRefusal>
@@ -3159,8 +3126,25 @@ where
     T: Decide + Bounds + geom_core::CertifiedEnclosure,
     F: FnMut(u32, Point2<f64>) -> Result<(), PlaneNurbsRefusal>,
 {
-    let image =
-        crate::carrier_image::carrier_image(carrier, params, wall, band).map_err(crate::carrier_image::ImageRefusal::into_lane)?;
+    use crate::carrier_image::ImageRefusal;
+    let image = crate::carrier_image::carrier_image(carrier, params, wall, band).map_err(|e| {
+        match (e, partner) {
+            // Beside an analytic partner, a miss past the cap stands
+            // behind what the partner's limbs refuse of the carrier
+            // alone, by the one rule.
+            (ImageRefusal::Miss(missed), Some(partner)) => {
+                refusal(crate::ssi::certify::partner_before_image_miss(
+                    missed,
+                    carrier,
+                    params,
+                    partner,
+                    band,
+                    &mut crate::ssi::certify::Refused::default(),
+                ))
+            }
+            (e, _) => e.into_lane(),
+        }
+    })?;
     for (i, foot) in (0..).zip(schedule_feet(carrier, params, &image)) {
         per_sample(i, foot)?;
     }

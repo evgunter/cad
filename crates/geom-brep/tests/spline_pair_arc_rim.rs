@@ -567,12 +567,21 @@ fn a_fitted_answer_after_an_in_band_exact_image_stands_as_itself<
         "the pick reads the row in band, at {}",
         T::NAME
     );
-    let got = plane_lane_at::<T>(&carrier, (0.0, TURN), in_band());
+    let got = plane_lane_at::<T>(&carrier, (0.0, TURN), in_band()).unwrap_or_else(|e| {
+        panic!(
+            "the fitted image's certificate stands as itself, at {}: {e:?}",
+            T::NAME
+        )
+    });
+    // The certificate is the derived image's own: its bound is the
+    // image's miss of the arc, above the exact row image's rounding and
+    // within the band.
+    let (sampled, bound) = (Bounds::hi(got.on_locus_max), Bounds::hi(got.hull_sup));
     assert!(
-        got.is_ok(),
-        "the fitted image's certificate stands as itself, at {}: {:?}",
-        T::NAME,
-        got.as_ref().map(|_| ())
+        sampled <= bound && bound > 0.0 && bound <= band().zero(),
+        "limb 2 bounds the derived image's miss within the band, at {}: sampled {sampled:e}, \
+         bound {bound:e}",
+        T::NAME
     );
 }
 

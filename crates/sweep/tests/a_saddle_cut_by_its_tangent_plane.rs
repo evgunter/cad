@@ -56,13 +56,15 @@ fn above() -> AtRestBody<f64> {
     )
 }
 
-/// **Every op, either way round, carries the saddle's arcs to the node,
-/// certifies their chords at rest, and refuses where the join pairs its
-/// loose ends**: the edge certificates of the plane's chord along
-/// `x = −1` and of the four node arcs' chords hold, each on the wall's
-/// image of its carrier built on the carrier's own knots, graded toward
-/// the node. The join then leaves the four chord ends that meet at the
-/// node unpaired
+/// **Every op, either way round, carries the saddle's arcs to the node
+/// and refuses where the join pairs its loose ends**, not at an edge
+/// certificate. The row reads the chords' certificates only through
+/// that: the plane's chord along `x = −1` and the four node arcs' chords
+/// are certified at rest before the join pairs loose ends, each on the
+/// wall's image of its carrier built on the carrier's own knots, graded
+/// toward the node, and a refusal of one would stand here in the
+/// pairing's place. The join then leaves the four chord ends that meet
+/// at the node unpaired, for a cause not yet known
 /// (`work/sectarms/a-saddle-cut-by-its-tangent-plane-leaves-its-nodes-four-chord-ends-unpaired.md`).
 /// Its held pierce reads first: the block's corner edges pierce the
 /// plane at `(±1, 0, ±1)`, a unit off the wall, which reads them off
@@ -89,7 +91,8 @@ fn a_saddle_cut_by_its_tangent_plane_refuses_at_its_node_under_every_op() {
     ] {
         assert!(
             frame(&r),
-            "{op}: refuses at the node's four unpaired chord ends, not {r:?}"
+            "{op}: refuses at the node's four unpaired chord ends, past every edge certificate, \
+             not {r:?}"
         );
     }
 }

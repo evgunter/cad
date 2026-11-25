@@ -207,7 +207,7 @@ fn the_curved_lofts_cap_moves_its_corners_along_the_slanted_seams() {
 /// thin solid is assembled; tier 3 then discards it, a fitted face's
 /// volume being one the kernel does not yet measure.
 #[test]
-fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
+fn shelling_the_curved_loft_refuses_at_a_walls_fit_or_at_tier_three() {
     let body = twisted_loft(0.3);
     let e = topo::shell(
         &finished("the operand", body.clone(), Tol::witness()),

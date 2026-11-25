@@ -5014,7 +5014,8 @@ fn rounds_at_the_wall(
 /// branch's 20 000 steps, and limb 2 reads it in band at about 8.4e-15 m
 /// over more gaps than the steps left can halve: the first refinement
 /// round would overrun the budget, so the wall refuses on the marched
-/// carrier, its one refused round named and the residual's trend unread.
+/// carrier, its one refused round named and the residual's trend unread
+/// (`ResidualTrend::Falling`, which is also what no earlier round reads).
 /// At 9e-15 the loop certifies on its marched samples, so 8e-15 is where
 /// this row's subject is. A branch never grows past the wall, and the
 /// refusal is the resource limit, not a verdict on the carrier.
@@ -5034,10 +5035,13 @@ fn a_loop_past_the_step_budget_refuses_typed_at_the_wall() {
     }
     let r = ssi::plane_nurbs_ssi(&level, &dome_wall(d), dom, band_at(8e-15));
     let (samples, rounds, shown, trend) = rounds_at_the_wall("the level loop at 8e-15", &r);
+    // `Falling` is the trend's value where no earlier round shows the
+    // residual did not fall, which one refused round cannot: the trend
+    // is unread, and the wall named is the branch's size.
     assert_eq!(
         trend,
         ResidualTrend::Falling,
-        "one round reads no trend: {rounds:?}"
+        "one refused round shows no stall: {rounds:?}"
     );
     assert_eq!(rounds.len(), 1, "one refused round: {rounds:?}");
     assert!(

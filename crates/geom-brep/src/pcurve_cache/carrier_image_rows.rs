@@ -16,10 +16,18 @@
 //! - The threshold: a line on the uneven wall whose chain misses by 0.6
 //!   of the image's share of the band keeps its chain, one at 1.6 of it
 //!   takes a knot.
-//! - A miss beside a standoff across the wall takes a knot: the standoff
-//!   is subtracted as a vector, not a norm.
-//! - A spline carrier's image holds the carrier's knots, each at the
-//!   multiplicity that keeps its continuity.
+//! - A miss beside a standoff across the wall takes a knot where it
+//!   passes a quarter of the standoff: the miss is read on the wall, the
+//!   standoff apart from it.
+//! - A carrier's knots are the image's: a polyline's corner is a break
+//!   of its cubic image, a carrier above cubic is imaged at its own
+//!   degree, and a periodic carrier on its clamped view's knots.
+//! - The foot path: it reads a closed wall's seam from the side it runs
+//!   on, stays on the sheet of a folded wall it started on, and where it
+//!   crosses a wall's knot line the image breaks with its foot on the
+//!   line, at any fraction of the span.
+//! - A pair's image is the single image refined onto the union of the
+//!   two charts' knots, and the image is one per scalar.
 
 use std::sync::Arc;
 
@@ -394,11 +402,18 @@ fn the_threshold_is_the_images_share_at_interval() {
     the_threshold_is_the_images_share(FittedLane::<Interval>::certified());
 }
 
-/// **The standoff is read out as a vector.** A line 0.9 ε off the uneven
-/// wall, across it, whose chain misses its path by 0.3 ε along it: read as
-/// norms the excess is `√(0.9² + 0.3²) − 0.9 ≈ 0.05` ε, under the share,
-/// and the image would keep its chain; read as vectors it is the chain's
-/// 0.3 ε, and the image takes a knot.
+/// **A miss beside a standoff takes a knot where it passes the
+/// standoff's share.** A line 0.9 ε off the uneven wall, across it, whose
+/// chain misses its foot path by 0.3 ε along the wall. The miss is read
+/// on the wall, between the image's point and the carrier's foot, apart
+/// from the standoff; its allowance is the larger of the image's share
+/// of the band (ε/16) and a quarter of the standoff (0.225 ε), and
+/// 0.3 ε is past it: the image takes a knot.
+///
+/// Red against: the miss read as how far the carrier's distance from the
+/// image's point exceeds its standoff, as norms
+/// (`√(0.9² + 0.3²) − 0.9 ≈ 0.05` ε, under the share: the chain is
+/// kept), and a standoff share of a half (0.45 ε).
 fn a_miss_beside_a_standoff_takes_a_knot<T: geom_core::Certifies>(lane: FittedLane<T>) {
     let l = uneven_line_at(0.3);
     let r = core::f64::consts::FRAC_1_SQRT_2;
@@ -621,7 +636,7 @@ fn the_foot_path_stays_on_the_sheet_its_carrier_lies_on() {
         .map(|i| image.eval(f64::from(i) / 64.0).x)
         .fold(f64::INFINITY, f64::min);
     assert!(
-        miss <= 1e-6 && lowest > 0.5,
+        miss <= band().zero() && lowest > 0.5,
         "the image stays on the upper sheet: {miss:e} m off the carrier, u down to {lowest}"
     );
 }
@@ -907,7 +922,7 @@ fn a_periodic_carriers_image_is_on_its_own_knots() {
         gap <= band().zero(),
         "the image holds the carrier: {gap:e} m"
     );
-    let rest = crate::edge_nurbs::chart_image(&carrier, span, &wall, band(), |_, _| Ok(()))
+    let rest = crate::edge_nurbs::chart_image(&carrier, span, (&wall, None), band(), |_, _| Ok(()))
         .unwrap_or_else(|e| panic!("rest images the carrier: {e:?}"));
     assert!(
         bits(&rest) == bits(&minted),
