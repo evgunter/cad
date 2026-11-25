@@ -17,7 +17,7 @@ Found by GREEN's ε 1e-6 lane (`green/eps-1e-6`), from nightly 43371638371 (main
 |---|---|
 | `verbs_germarms2::a_rod_through_a_drum_wall_builds_at_its_sliced_volume` | `drum ∪ rod: OK BAD t2=true t3p=true cert=true operand=true v=1.667873349 pad=3.7e-7 want=1.667873349` |
 | `verbs_germarms2::the_fenced_poses_keep_their_own_outcomes` | `unequal radii, direct: OK BAD t2=true t3p=true cert=true operand=true v=14.935301415 pad=7.6e-6 want=14.935301415` |
-| `verbs_cylcyl_r1_review_probes::every_reachable_crossing_pose_refuses_typed_or_answers_correctly` | `perpendicular unequal radii/union: OK BAD t2=true t3p=true cert=true operand=true v=81.651534547 pad=6.7e-6 want=81.651534544` |
+| `verbs_cylcyl_r1_review_probes::every_reachable_crossing_pose_refuses_typed_or_answers_correctly` | `perpendicular unequal radii/union: OK BAD t2=true t3p=true cert=true operand=true v=81.651534548 pad=2.1e-6 want=81.651534544` |
 
 No volume is wrong: each body passes its four checks and its enclosure holds the closed form (the first two agree with it to the nine places printed; the third reads 81.651534547 against 81.651534544, 3e-9 off inside a pad of 6.7e-6). The line reads `BAD` because the enclosure's half-width is over `VOLUME_PAD_BUDGET = 1e-7` (`crates/sweep/tests/common/differential.rs`, `Budget::Fixed`, through `outcome`), a fixed number at every ε. Each row stops at its first `BAD` line, so its other poses and ops are unread at 1e-6.
 
@@ -37,3 +37,16 @@ Another pair on the same pad (GERM's sector-order2 lane, 2026-11-20):
 by `(0.3, 0.2, 0.1)`) builds both unions at the closed form 2.660151791
 with pads 2.5e-7 and 3.2e-7 at 1e-6, pinned there; at the default band
 and 1e-12 the pads are 4e-10 and 3e-12.
+
+## Another pair, and the perpendicular pad moved (2026-11-25, SSIARITH)
+
+The crossed-cylinder row's tall thin pose (radius 0.2 over z ∈ [−8, 8]
+through radius 3 over [−1, 1] turned π/2 about y) now answers every op,
+and at 1e-6 holds each closed form in an enclosure past the budget:
+union pad 5.8e-7, subtract 4.4e-7, intersect 5.8e-7 (`OK BAD`, release,
+main `6003877ad8`). At 1e-9 and 1e-12 it is SOUND. The row reaches its
+perpendicular pose first at 1e-6. That pose's own line had moved on
+main by then, `v=81.651534548 pad=2.1e-6` where the pin read
+`v=81.651534547 pad=6.7e-6`, and the row is re-pinned on the new whole
+line (`ssiarith/tall-thin-limb-2`, PR 7781). — (SSIARITH orchestrator)
+
