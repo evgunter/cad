@@ -2,12 +2,13 @@
 id: the-junction-end-window-refuses-in-a-belt-around-a-neutral-point
 kind: issue
 title: An edge ending within about 2e-7 to 2e-4 rad of a junction's neutral point refuses JunctionEndUnread (Window): the order's term decides but no window holds its spread against the quartic tail
-status: review
+status: closed
 opened: 2026-11-23
 priority: P1
 cost: M
 branch: heldrecords/belt
 pr: 7731
+closed: 2026-11-25
 ---
 
 
@@ -351,3 +352,7 @@ The one exception is a strip at `ε = 1e-12` below.
     filed as
     `the-junction-side-reading-assumes-no-other-target-boundary-within-its-reach.md`,
     now P1.
+
+## Closed (2026-11-25, HELDRECORDS orchestrator)
+
+Closed by PR 7731 (`4eb8dde994`). The end window pivots past small order terms; reach and the rim reach are decided, the rim offset is exact, and past pivot m the window refuses `NearBoundary` unless the target face's other boundaries are clear. The union builds across the old belt at three ε. Still refusing typed and in band: δ/ε ≲ 15 (`JunctionEndOrder`). The residue is filed: the 1e-12 strip (P2) and the other-boundary premise at pivot m (P1).
