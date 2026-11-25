@@ -43,8 +43,9 @@
 //!   *Point coincidence*, `|r| ≤` [`PROJECT_EPS_POINT`], is not an exit
 //!   of its own: a point that near `P` may lie that far along the
 //!   surface from the foot, so it takes one Newton step, kept where it
-//!   brings the foot no farther from `P` (and stands where the chart is
-//!   singular and there is no step). *Cosine*, **both** directions
+//!   brings the foot strictly nearer `P` and moves a parameter past the
+//!   double beside it (the point stands otherwise, and where the chart
+//!   is singular and there is no step). *Cosine*, **both** directions
 //!   `|S_u·r| ≤ ε₂·|S_u|·|r|` **and** `|S_v·r| ≤ ε₂·|S_v|·|r|` with
 //!   ε₂ = [`PROJECT_EPS_COSINE`]; *stagnation*
 //!   `|Δu·S_u + Δv·S_v| ≤` [`PROJECT_EPS_POINT`] (this is how a
@@ -303,9 +304,14 @@ impl<T: CertifiedBounds> NurbsSurface<T> {
                 let rn = jn.point - p;
                 let stepped = rn.norm();
                 // A coincident point's one step is kept where it brings
-                // the foot no farther from `P`; otherwise the point
-                // stands, as near as the surface's own evaluation tells.
-                if coincident && !(mid(stepped) <= dist) {
+                // the foot strictly nearer `P`. A step that moves each
+                // parameter to itself or to the double beside it moves
+                // the foot nowhere the chart can tell, and one that
+                // brings it no nearer is no step: the point stands, as
+                // near as the surface's own evaluation tells.
+                let beside = |a: f64, b: f64| b == a || b == a.next_up() || b == a.next_down();
+                let unresolved = beside(u, un) && beside(v, vn);
+                if coincident && (unresolved || !(mid(stepped) < dist)) {
                     return Ok(SurfaceProjection {
                         u,
                         v,

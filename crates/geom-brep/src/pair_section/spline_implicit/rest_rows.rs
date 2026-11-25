@@ -496,22 +496,33 @@ fn the_stand_off_is_decided_on_the_runs_band() {
 }
 
 /// **An arc that leaves the wall past its rim between two of the image's
-/// nodes is refused at limb 2**: the flat wall `y = 1` over `z ∈ [0, 2]`,
-/// and a sphere whose section circle of radius `0.3` on the wall's plane
-/// dips `d` below the rim `z = 0`, its lowest point half a node past the
-/// hundredth of the finest image's 256 spans. The carrier is `d` off the
-/// wall there while it stays on the wall's plane, which the wall's
-/// polynomial extension past the rim is; the image follows it out, so
-/// limb 2's composite alone reads nothing, and limb 2's hold of the image
-/// to the knot rectangle (`chart_domain_limb`) escalates a dip in the band
-/// (3 ε) and refuses one past it. Once the dip is wide enough to hold a
-/// node (`d` past `1e-5`, measured), limb 1 or 2's value reads the foot
-/// held at the rim and may refuse first. An arc a micrometre inside the
-/// rim certifies.
+/// nodes is refused**: the flat wall `y = 1` over `z ∈ [0, 2]`, and a
+/// sphere whose section circle of radius `0.3` on the wall's plane dips
+/// `d` below the rim `z = 0`, its lowest point half a node past the
+/// hundredth of 256 spans. The carrier is `d` off the wall there while
+/// it stays on the wall's plane, which the wall's polynomial extension
+/// past the rim is. The carrier's image is held to the wall's knot
+/// rectangle by the image function (its feet are the wall's, and a
+/// control point the interpolation puts past a side is put on it), so
+/// limb 2 reads the wall itself under the dip and the carrier's own
+/// distance from it:
 ///
-/// Red against: a limb 2 that does not hold the image to the rectangle
-/// (the dip then reaches limb 3, whose boxes are cut to the rectangle,
-/// and refuses `TubeNotOneArc` there).
+/// - a dip in the band (3 ε) escalates at limb 2's value on the chart,
+///   its margin the dip to within 20 %;
+/// - a dip past the band refuses at a limb with its bound. The foot
+///   path of an arc that leaves the wall has a corner where it meets the
+///   rim, so which limb reads it first moves with ε and the dip: limb 2's
+///   value on the chart, limb 1 where a sample lands in the dip, or the
+///   image's own miss at its cap, where the corner is not resolved.
+///   Each case is pinned at the three ε the suite runs.
+///
+/// An arc a micrometre inside the rim certifies. Limb 2's own hold of an
+/// image to the rectangle (`chart_domain_limb`) is the row below's, for
+/// an image this function did not make.
+///
+/// Red against: neither the image nor limb 2 held to the rectangle (the
+/// dip then reaches limb 3, whose boxes are cut to the rectangle, and
+/// refuses `TubeNotOneArc` there).
 #[test]
 fn an_arc_that_dips_past_the_walls_rim_between_two_nodes_is_refused_at_limb_2() {
     let eps = band().zero();
@@ -537,42 +548,82 @@ fn an_arc_that_dips_past_the_walls_rim_between_two_nodes_is_refused_at_limb_2() 
         "an arc whose lowest point is a micrometre inside the rim certifies: {:?}",
         inside.err()
     );
-    for k in [3.0, 30.0, 100.0, 400.0] {
+    // In the band: limb 2's value on the chart escalates, on the dip.
+    let read = dipping(3.0 * eps);
+    match &read {
+        Err(CertifyError::Escalated { cause, .. })
+            if cause.predicate == Some("ssi_hull_value_chart") =>
+        {
+            let margin = cause
+                .margin
+                .diagnostic_f64_for_error_text()
+                .value()
+                .expect("an f64 read is a point margin");
+            assert!(
+                (margin / (3.0 * eps) - 1.0).abs() <= 0.2,
+                "the escalated margin {margin:e} is the dip {:e}",
+                3.0 * eps
+            );
+        }
+        other => panic!(
+            "an arc dipping 3 ε past the rim escalates at limb 2's value on the chart: {other:?}"
+        ),
+    }
+    // Past the band: the limb that reads the dip first, measured at each
+    // ε the suite runs; at any other, one of the three.
+    use SsiLimb::{HullValueChart as Value, ImageMiss as Miss, OnLocus as Sample};
+    let pinned: Option<[SsiLimb; 3]> = if eps == 1e-6 {
+        Some([Value, Sample, Sample])
+    } else if eps == 1e-9 {
+        Some([Value, Miss, Miss])
+    } else if eps == 1e-12 {
+        Some([Miss, Value, Miss])
+    } else {
+        None
+    };
+    for (i, k) in [30.0, 100.0, 400.0].into_iter().enumerate() {
         let d = k * eps;
         let read = dipping(d);
-        let held = |cause: &geom_core::Indeterminate| cause.predicate == Some("ssi_chart_domain");
-        let expected = match &read {
-            Err(CertifyError::Escalated { cause, .. }) => k < 10.0 && held(cause),
-            Err(CertifyError::PlaneNurbs(PlaneNurbsRefusal::Limb { limb, .. })) => matches!(
-                limb,
-                SsiLimb::HullSupChart | SsiLimb::OnLocus | SsiLimb::HullValueChart
-            ),
-            _ => false,
+        let Err(CertifyError::PlaneNurbs(PlaneNurbsRefusal::Limb { limb, .. })) = &read else {
+            panic!("an arc dipping {k} ε = {d:e} m past the rim refuses at a limb: {read:?}");
+        };
+        let expected = match pinned {
+            Some(limbs) => *limb == limbs[i],
+            None => matches!(limb, Value | Miss | Sample),
         };
         assert!(
             expected,
-            "an arc dipping {k} ε = {d:e} m past the rim is refused at limb 2, escalated at \
-             its domain hold in the band: {read:?}"
+            "an arc dipping {k} ε = {d:e} m past the rim refuses at {:?}: {read:?}",
+            pinned.map(|limbs| limbs[i])
         );
     }
 }
 
 /// **A general row whose image leaves the wall's knot rectangle between
-/// two nodes is not certified**: the dipping arc of the row above, its
-/// image the mint's own (`FittedLane::general_image`), certified alone
-/// through `PcurveCache::certify_general` as an edge that owes no limb
-/// 3 would be. Past the rim the composite reads the wall's polynomial
-/// extension, on which the carrier still lies, so the hull bound alone
-/// holds the carrier `d` off the wall. Check 4 holds the image to the
-/// rectangle (`chart_domain_limb`): a dip of `ε/2` certifies with its
-/// reach in the envelope, one of `3ε` escalates or refuses, and from
-/// `30ε` up it refuses. An arc a
-/// micrometre inside the rim certifies with no reach added.
+/// two nodes is not certified**: the dipping arc of the row above,
+/// certified alone through `PcurveCache::certify_general` as an edge
+/// that owes no limb 3 would be, on two images.
+///
+/// - **An image that follows the arc out**: the cubic through the arc's
+///   own chart points on the wall's plane, the dip between a few of its
+///   nodes, as a stored row may hold. Past the rim the composite
+///   reads the wall's polynomial extension, on which the carrier still
+///   lies, so the hull bound alone holds the carrier `d` off the wall.
+///   Check 4 holds the image to the rectangle (`chart_domain_limb`): a
+///   dip of `ε/2` certifies with its reach in the envelope, one of `3ε`
+///   escalates or refuses, and from `30ε` up it refuses.
+/// - **The mint's own image** (`FittedLane::general_image`), which its
+///   producer holds to the rectangle: the same verdicts, read as the
+///   carrier's distance from the wall under the dip, or, where the foot
+///   path's corner at the rim is not resolved at the cap, as the
+///   producer's refusal of the image.
+///
+/// An arc a micrometre inside the rim certifies on either.
 ///
 /// Red against: a check 4 that does not hold the image to the knot
-/// rectangle (every dip certifies, up to `1e-5` m at ε = 1e-9), and
-/// one that reads the control hull alone (the arc inside the rim
-/// refuses: its lowest control `v` is `−2.2e-5`).
+/// rectangle (every dip of the followed image certifies, up to `1e-5` m
+/// at ε = 1e-9), and one that reads the control hull alone (the arc
+/// inside the rim refuses: its lowest control `v` is past the rim).
 #[test]
 fn a_general_row_whose_image_leaves_the_knot_rectangle_is_not_certified() {
     use crate::pcurve_cache::PcurveCertifyError as E;
@@ -581,45 +632,91 @@ fn a_general_row_whose_image_leaves_the_knot_rectangle_is_not_certified() {
     let wall = Surface::Nurbs(std::sync::Arc::new(flat()));
     let at = 100.5 / 256.0;
     let span = (-at, 1.0 - at);
-    let row = |d: f64| {
-        let carrier = Curve3::Circle(geom::Circle::new(
+    let arc = |d: f64| {
+        Curve3::Circle(geom::Circle::new(
             geom::Frame::new(pt(0.0, 1.0, rho - d), Vec3::unit_y(), -Vec3::unit_z()),
             rho,
-        ));
-        let lane = crate::FittedLane::<f64>::certified();
-        let image = lane
-            .general_image(&carrier, span, chart(&wall), band())
-            .expect("the mint's image");
+        ))
+    };
+    let lane = crate::FittedLane::<f64>::certified();
+    let certify = |carrier: &Curve3<f64>, image: geom::NurbsCurve2<f64>| {
         crate::PcurveCache::certify_general(
             std::sync::Arc::new(image),
             span.0,
             span.1,
-            &carrier,
+            carrier,
             &wall,
             band(),
             Some(lane),
         )
     };
-    let inside = row(-1e-6).expect("an arc a micrometre inside the rim certifies");
-    let half = row(0.5 * eps).expect("a dip of half the band certifies");
-    assert!(
-        half.certificate().envelope >= 0.5 * eps,
-        "a dip of half the band is in the envelope: {:?} against {:?}",
-        half.certificate(),
-        inside.certificate()
-    );
-    for k in [3.0, 30.0, 400.0] {
-        let d = k * eps;
-        let read = row(d);
-        let refused = matches!(
-            read,
-            Err(E::FittedLimb { .. } | E::FittedCertificate { .. } | E::Incidence(..))
-        );
-        let escalated = matches!(read, Err(E::FittedEscalated { .. }));
+    // The arc's own chart points on the wall's plane: `u = (x + 1)/2`,
+    // `v = z/2`, past the rim where the arc is.
+    let followed = |d: f64| {
+        let carrier = arc(d);
+        // Nodes close enough that the cubic holds the arc within the
+        // band, and far enough apart that the widest dip lies between a
+        // few of them.
+        let nodes: u32 = if eps >= 1e-7 {
+            16
+        } else if eps >= 1e-10 {
+            256
+        } else {
+            1024
+        };
+        let params: Vec<f64> = (0..=nodes)
+            .map(|i| f64::from(i) / f64::from(nodes))
+            .collect();
+        let points: Vec<geom_core::Point2<f64>> = params
+            .iter()
+            .map(|s| {
+                let p = carrier.eval(span.0 + s);
+                geom_core::Point2::new(0.5 * (p.x + 1.0), 0.5 * p.z)
+            })
+            .collect();
+        let image = geom::NurbsCurve2::interpolate_with_params(&points, 3, &params)
+            .expect("the arc's chart points interpolate")
+            .on_domain(span.0, span.1)
+            .expect("the image is put on the arc's interval");
+        certify(&carrier, image)
+    };
+    let minted = |d: f64| {
+        let carrier = arc(d);
+        lane.general_image(&carrier, span, chart(&wall), band())
+            .and_then(|image| certify(&carrier, image))
+    };
+    // The followed image's deepest dip is 30 ε: check 4 cuts every piece
+    // past the rim in half sixteen times, and a wider dip is more of them.
+    type Row<'a> = &'a dyn Fn(f64) -> Result<crate::PcurveCache<f64>, E>;
+    let rows: [(&str, Row<'_>, &[f64]); 2] = [
+        ("an image that follows the arc out", &followed, &[3.0, 30.0]),
+        ("the mint's image", &minted, &[3.0, 30.0, 400.0]),
+    ];
+    for (what, row, dips) in rows {
+        let inside = row(-1e-6)
+            .unwrap_or_else(|e| panic!("{what}: an arc inside the rim certifies: {e:?}"));
+        let half = row(0.5 * eps)
+            .unwrap_or_else(|e| panic!("{what}: a dip of half the band certifies: {e:?}"));
         assert!(
-            refused || (k < 10.0 && escalated),
-            "a row whose image dips {k} ε = {d:e} m past the rim is not certified: {read:?}"
+            half.certificate().envelope >= 0.5 * eps,
+            "{what}: a dip of half the band is in the envelope: {:?} against {:?}",
+            half.certificate(),
+            inside.certificate()
         );
+        for &k in dips {
+            let d = k * eps;
+            let read = row(d);
+            let refused = matches!(
+                read,
+                Err(E::FittedLimb { .. } | E::FittedCertificate { .. } | E::Incidence(..))
+            );
+            let escalated = matches!(read, Err(E::FittedEscalated { .. }));
+            assert!(
+                refused || (k < 10.0 && escalated),
+                "{what}: a row whose arc dips {k} ε = {d:e} m past the rim is not certified: \
+                 {read:?}"
+            );
+        }
     }
 }
 
