@@ -5,6 +5,7 @@ title: The unit cone revolved on one turned sketch plane held until a face's win
 status: open
 opened: 2026-11-23
 priority: P1
+cost: M
 ---
 
 ## Finding
