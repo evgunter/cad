@@ -1512,7 +1512,3 @@ mod a_station_frame_is_minted_to_its_floor;
 mod check_1_reads_no_frame_on_a_turned_disc;
 #[path = "separation_reads_turned_directions.rs"]
 mod separation_reads_turned_directions;
-
-// TEMPORARY (sectcone/foot-bend-escalation, removed before merge): spells the
-// two slow rows for the PR gate: a_notched_rod_holds_across_its_reflex_corners_in_every_pose
-// the_ring_lane_builds_at_the_certified_scalar
