@@ -41,3 +41,20 @@ It is a rounding charge at a site outside `geom-core`
 The projection's acceptance is posed so a foot settles at the wall's
 own scale (the two items above), and the image reads its feet and its
 miss with no ulp count of its own.
+
+
+## Removing it, tried (2026-11-25, PR 7537's fix pass)
+
+With both readers gone the two rows above go red:
+
+- `m5_pr7_ssi::a_far_plane_wall_pair_certifies_or_refuses_by_scale` at
+  500 m: `FootPointInconclusive { t: 0.441, last_distance: 1.15e-13 }`.
+  With `settle`'s floor kept and `miss`'s removed it reads
+  `CertificateLimb { ImageMiss, 4.1e-13 }` at the cap, which now always
+  refuses.
+- `plane_nurbs_readings::the_plane_reads_the_kilometre_foot_frontier_on_both_sides`
+  at 1000 m: `FootPointInconclusive { t: 0.82, last_distance: 1.99e-10 }`.
+
+Both rows certify a pose the trace certified before, so the floor stays
+until the projection's acceptance is posed at the wall's own scale. Its
+width is still pinned by nothing: 64 to 4096 is green.

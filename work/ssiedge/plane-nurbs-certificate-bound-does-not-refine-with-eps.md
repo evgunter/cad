@@ -264,3 +264,15 @@ the band `[1e-6, 1e-5)` and escalates (`Escalated { PlaneNurbsHullValue }`,
 escalates the pair's transversality in band at sample 12 (margin 8.3e-6)
 before it. Both pins name the site, the rim's certification, not the
 cause.
+
+
+**The image this row describes is gone (2026-11-25, PR 7537).** The
+degree-1 interpolant of a fixed foot schedule was deleted with PR 7032's
+decision: a carrier's image on a spline wall is now one function
+(`geom_brep::carrier_image`), the wall's foot path interpolated on the
+carrier's own knots at the carrier's degree and no lower than cubic,
+with a knot more wherever its measured miss passes its share of the
+band, read by the trace, the mint and rest alike. This row's
+measurements were taken on the deleted image and have not been taken
+again; it stays open until they are, or until its "done when" is read
+against the new image.
