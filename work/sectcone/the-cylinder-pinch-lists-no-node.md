@@ -4,6 +4,7 @@ kind: issue
 title: The cylinder pair's inner pinch lists two lobes and no node, where C5 lists a Zero tangency with carriers as a node
 status: open
 opened: 2026-11-22
+priority: P3
 ---
 
 

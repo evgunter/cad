@@ -1,8 +1,10 @@
 //! **The semicircle prism and its arc wall**, shared by the rows that
 //! re-chart that wall and ask what its rows derive: the `f64` loft of a
 //! profile with one semicircular edge (bulge 1), its carriers held as
-//! points at any lane scalar. Its arc wall
-//! is a rational-quadratic spline chart whose two seams are described as
+//! points at any lane scalar, which the loft cuts at its sub-arc joint
+//! into two quarter walls. Its arc wall, the first of them, is a
+//! rational-quadratic spline chart whose two seams (one through a
+//! profile vertex, one at the joint) are described as
 //! `IsoLine` images on the neighbouring walls and whose two rims are its
 //! `IsoArc` rows; its knots mirror bitwise, so `reversed_u` and
 //! `reversed_v` both accept it.
@@ -55,7 +57,8 @@ pub fn semicircle_prism<T: AtRestPolicy>() -> Body<T> {
     .into_body()
 }
 
-/// The arc wall: the face whose rows include the `IsoArc` rims.
+/// The arc wall: the first face whose rows include an `IsoArc` rim, one
+/// of the semicircle's two quarter walls.
 pub fn arc_wall<T: AtRestPolicy>(body: &Body<T>) -> FaceKey {
     let rim = body
         .pcurves()

@@ -920,8 +920,7 @@ fn iso_arc_g<T: SpanLocate>(t: T, t0: T, angle: T, breaks: &KnotVector, ends: &[
     let h = angle / m;
     // tan(h/4) through sin/cos — no transcendental beyond the scalar's
     // own `sin_cos` (the same door every harmonic pcurve uses).
-    let (s_q, c_q) = (h * T::from_f64(0.25)).sin_cos();
-    let tan_q = s_q / c_q;
+    let tan_q = crate::edge_nurbs::sub_arc_tan_quarter(h);
     let x = (t - t0) / angle;
     // A poison parameter locates no span; `g` is poison in every
     // channel `x` carries.
@@ -935,8 +934,7 @@ fn iso_arc_g<T: SpanLocate>(t: T, t0: T, angle: T, breaks: &KnotVector, ends: &[
         #[allow(clippy::cast_precision_loss)]
         let kf = T::from_f64(span.saturating_sub(degree) as f64);
         let phi = (t - t0) - (kf + T::from_f64(0.5)) * h;
-        let (s_h, c_h) = (phi * T::from_f64(0.5)).sin_cos();
-        let s = T::from_f64(0.5) + (s_h / c_h) / (T::from_f64(2.0) * tan_q);
+        let s = crate::edge_nurbs::sub_arc_fraction_at_angle(phi, tan_q);
         let s = match (ends.get(k), ends.get(k + 1)) {
             (Some(&a), Some(&b)) => {
                 let lambda = iso_arc_skew(a, b);

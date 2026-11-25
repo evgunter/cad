@@ -596,18 +596,17 @@ fn one_segment_circles_revolve_at_interval() {
     }
 }
 
-/// **A lofted one-segment section is one spline wall** (D1's wrap
-/// edge, #4175): the strut through the vertex is both the `u = 0` and
-/// the `u = 1` column of the one wall, its wrap edge in `u`, laid top
-/// to bottom and carried by the column run back. A circle, and a square
-/// with a round hole, each lofted between two stacked copies: one wall
-/// per one-segment loop with its strut the body's one wrap edge, all
-/// three tiers at `f64`; at `Interval` both lofts refuse at the
-/// carrier's door, pinned. A rational wall is not meshed
-/// (`work/tesslane/lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late.md`);
-/// its volume is the next row's.
+/// **A lofted one-segment section is four spline walls**, one per
+/// quarter turn the skin writes the full turn as: the skin joins its
+/// sub-arcs at a double knot, a face chart is C¹ by its knot structure
+/// strictly inside its cell (DESIGN `[topology]`), so the loft cuts a wall
+/// at each joint and nothing wraps. A circle, and a square with a round
+/// hole, each lofted between two stacked copies: four walls per
+/// one-segment loop, one strut at its vertex and three joints, no wrap
+/// edge, all three tiers at `f64`; at `Interval` both lofts refuse at the
+/// carrier's door, pinned. Its volume is the next row's.
 #[test]
-fn a_lofted_one_segment_section_is_one_spline_wall_with_a_wrap_strut() {
+fn a_lofted_one_segment_section_is_four_quarter_walls() {
     let places = sweep::test_support::stacked_at(&[0.0, 2.0]);
     type Case = (
         &'static str,
@@ -641,17 +640,28 @@ fn a_lofted_one_segment_section_is_one_spline_wall_with_a_wrap_strut() {
                 )
             });
         tiers(&one.body, what);
-        let [Some(wall)] = one.side_faces[li][0][..] else {
-            panic!("{what}: one wall, got {:?}", one.side_faces[li]);
-        };
-        let [Some(strut)] = one.seam_edges[li][0][..] else {
-            panic!("{what}: one strut, got {:?}", one.seam_edges[li]);
-        };
         assert_eq!(
-            wrap_edges(&one.body),
-            vec![(wall, strut)],
-            "{what}: the strut is the body's one wrap edge"
+            one.side_faces[li][0]
+                .iter()
+                .map(Vec::len)
+                .collect::<Vec<_>>(),
+            vec![1; 4],
+            "{what}: four quarter walls"
         );
+        assert_eq!(
+            one.seam_edges[li][0].len(),
+            1,
+            "{what}: one strut at the vertex"
+        );
+        assert_eq!(
+            one.joint_edges[li][0]
+                .iter()
+                .map(Vec::len)
+                .collect::<Vec<_>>(),
+            vec![1; 3],
+            "{what}: three sub-arc joints"
+        );
+        assert_eq!(wrap_edges(&one.body), vec![], "{what}: nothing wraps");
         // At `Interval` the loft is built there, and an arc's weight
         // `cos(Δ/2)` is an enclosure no carrier holds yet
         // (`work/inlane/an-enclosure-carrier-holds-point-weights-and-knots.md`).
@@ -677,6 +687,89 @@ fn a_lofted_one_segment_section_is_one_spline_wall_with_a_wrap_strut() {
                 ),
             }
         }
+    }
+}
+
+/// **Every one-segment circle stack builds, at every degree.** At
+/// degree ≥ 2 the wall's `v` column carries the sections' chord-length
+/// parameters, and on many of these stacks some have no reflection
+/// about `[0, 1]` that is an `f64` (`1 − fl(1/3)` is not one). Every
+/// stack builds at every degree up to 3 it supports, as four quarter
+/// walls per slab with no C⁰ knot inside any (the skin's cut), closed
+/// (tier 2), and its volume enclosure holds the cylinder's `π·h`, at
+/// every ε, whether or not the quadrature reached its target there.
+#[test]
+fn every_one_segment_circle_stack_builds_at_every_degree() {
+    let stacks: Vec<Vec<f64>> = [&[0.0, 1.0, 3.0][..], &[0.0, 0.7, 2.0]]
+        .into_iter()
+        .map(<[f64]>::to_vec)
+        .chain((2..=9).map(|k| (0..k).map(f64::from).collect()))
+        .collect();
+    let cases: Vec<(&[f64], usize)> = stacks
+        .iter()
+        .flat_map(|z| (1..z.len().min(4)).map(move |degree| (&z[..], degree)))
+        .collect();
+    assert_eq!(
+        cases.len(),
+        25,
+        "every stack at every degree up to 3 it supports"
+    );
+    for (z, degree) in cases {
+        let what = format!("{z:?} at degree {degree}");
+        let places = sweep::test_support::stacked_at(z);
+        let sections: Vec<_> = z
+            .iter()
+            .map(|_| vec![circle::<f64>(0.0, 0.0, 1.0, TAU)])
+            .collect();
+        let lofted =
+            sweep::loft_body::<f64>(&sections, &places, degree, tol()).unwrap_or_else(|e| {
+                panic!(
+                    "{what}: the loft builds: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
+        let slabs = if degree == 1 { z.len() - 1 } else { 1 };
+        let mut walls = 0;
+        for (k, _) in lofted.body.faces() {
+            let Ok(geom::Surface::Nurbs(s)) = lofted.body.face_surface(k) else {
+                continue;
+            };
+            walls += 1;
+            let p = s.knot_values_u().degree();
+            assert!(
+                s.knot_values_u()
+                    .runs()
+                    .collect::<Vec<_>>()
+                    .iter()
+                    .skip(1)
+                    .rev()
+                    .skip(1)
+                    .all(|&(_, m)| m < p),
+                "{what}: face {k:?} carries no C⁰ knot in u"
+            );
+        }
+        assert_eq!(walls, 4 * slabs, "{what}: four quarter walls per slab");
+        assert_eq!(validate(&lofted.body), Ok(()), "{what}: tier 1");
+        assert_eq!(validate_closed(&lofted.body), Ok(()), "{what}: tier 2");
+        let m = topo::mass_properties(
+            &topo::test_support::finished("the stack", topo::Body::clone(&lofted.body), tol()),
+            tol(),
+            topo::test_support::pinned_resolution(tol()),
+        )
+        .unwrap_or_else(|e| panic!("{what}: the volume refused: {e:?}"));
+        // The enclosure brackets the volume whatever stopped its
+        // refinement (`Stop` says why it stopped, not whether it holds),
+        // so the cylinder's `π·h` (identical coaxial sections: the wall is
+        // the cylinder at every degree) is held at every ε; its pad is
+        // read too, so the bracket says something.
+        let want = PI * z[z.len() - 1];
+        close((m.enclosure.volume, m.enclosure.volume_pad), want, &what);
+        assert!(
+            m.enclosure.volume_pad <= 1e-3 * want,
+            "{what}: the bracket is {} wide around {want} ({:?})",
+            m.enclosure.volume_pad,
+            m.stop
+        );
     }
 }
 
@@ -1124,21 +1217,17 @@ fn segment_curve_converts_a_closed_arc_only_as_one_full_turn() {
 /// fit's boundary column rather than sectioning it with anything,
 /// re-stated as a `u` row of the wall's own chart.
 ///
-/// A lofted circle's wall carries the rational circle's C⁰ knots, which
-/// the offset fit refuses as a crease, so the one-segment cylinder's
-/// wall is re-charted onto a smooth closed chart through the same wrap
-/// line `(1, 0, z)`: a flat ring in the plane `y = 0`, one cubic span
-/// closed in `u` about `(1, 0, −1)` and linear in `v` from radius 1 to
-/// 3, whose offset its fit reproduces exactly. The strut is re-described as that chart's wrap column; the
-/// rims, which the plan of the wrap edge does not read, stay as the
-/// loft left them.
+/// An extruded one-segment cylinder's wall is re-charted onto a smooth
+/// closed spline chart through the same wrap line `(1, 0, z)`: a flat
+/// ring in the plane `y = 0`, one cubic span closed in `u` about
+/// `(1, 0, −1)` and linear in `v` from radius 1 to 3, whose offset its
+/// fit reproduces exactly. The strut is re-described as that chart's
+/// wrap column; the rims, which the plan of the wrap edge does not
+/// read, stay as the extrude left them.
 #[test]
 fn a_moved_closed_walls_wrap_edge_is_a_row_of_its_fit() {
     use geom_core::spline::KnotVector;
-    let places = sweep::test_support::stacked_at(&[0.0, 2.0]);
-    let section = vec![circle(0.0, 0.0, 1.0, TAU)];
-    let mut body = sweep::loft_body::<f64>(&[section.clone(), section], &places, 1, tol())
-        .expect("the cylinder lofts")
+    let mut body = extruded(vec![circle(0.0, 0.0, 1.0, TAU)], 2.0, ExtrudeSide::Along)
         .body
         .into_body();
     let [(wall, strut)] = wrap_edges(&body)[..] else {
@@ -1230,75 +1319,5 @@ fn a_moved_closed_walls_wrap_edge_is_a_row_of_its_fit() {
             "the column stands on the wrap line carried d off the ring's plane, at z = {z}, \
              got {p:?}"
         );
-    }
-}
-
-/// **A one-segment strut runs its column back without rounding a knot.**
-/// At degree ≥ 2 the wall's `u = 0` column carries the sections'
-/// chord-length parameters, and on many of these stacks some have no
-/// reflection about `[0, 1]` that is an `f64` (`1 − fl(1/3)` is not
-/// one; refusing those would stop 6, 7 and 8 sections at several
-/// degrees), so the strut
-/// is the column reflected through 0: on `[−1, 0]`, the column's knots
-/// negated. Every stack builds at every degree up to 3 it supports,
-/// and each strut's carrier is exactly that, on each slab's wall at
-/// degree 1.
-#[test]
-fn a_one_segment_strut_runs_its_column_back_on_the_negated_knots() {
-    let stacks: Vec<Vec<f64>> = [&[0.0, 1.0, 3.0][..], &[0.0, 0.7, 2.0]]
-        .into_iter()
-        .map(<[f64]>::to_vec)
-        .chain((2..=9).map(|k| (0..k).map(f64::from).collect()))
-        .collect();
-    let cases: Vec<(&[f64], usize)> = stacks
-        .iter()
-        .flat_map(|z| (1..z.len().min(4)).map(move |degree| (&z[..], degree)))
-        .collect();
-    assert_eq!(
-        cases.len(),
-        25,
-        "every stack at every degree up to 3 it supports"
-    );
-    for (z, degree) in cases {
-        let places = sweep::test_support::stacked_at(z);
-        let sections: Vec<_> = z
-            .iter()
-            .map(|_| vec![circle::<f64>(0.0, 0.0, 1.0, TAU)])
-            .collect();
-        let lofted =
-            sweep::loft_body::<f64>(&sections, &places, degree, tol()).unwrap_or_else(|e| {
-                panic!(
-                    "{z:?} at degree {degree}: the loft builds: {e_at}",
-                    e_at = e.render(geom_brep::recourse::Reading::Build)
-                )
-            });
-        // A degree-1 stack is one wall per slab, each with its strut.
-        let wraps = wrap_edges(&lofted.body);
-        let slabs = if degree == 1 { z.len() - 1 } else { 1 };
-        assert_eq!(
-            wraps.len(),
-            slabs,
-            "{z:?} at degree {degree}: a wrap edge per wall"
-        );
-        for (wall, strut) in wraps {
-            let Some(topo::CurveGeom::Certified(c)) = lofted
-                .body
-                .get_curve_geom(lofted.body.get_edge(strut).unwrap().curve)
-            else {
-                panic!("{z:?}: the strut is certified")
-            };
-            let geom::Curve3::Nurbs(carrier) = c.carrier() else {
-                panic!("{z:?}: the strut is a spline")
-            };
-            let Ok(geom::Surface::Nurbs(chart)) = lofted.body.face_surface(wall) else {
-                panic!("{z:?}: the wall is a spline chart")
-            };
-            assert_eq!(c.params(), (-1.0, 0.0), "{z:?}: the strut's interval");
-            assert_eq!(
-                carrier.knots_f64_interim().knots(),
-                chart.knots_v_f64_interim().negated().knots(),
-                "{z:?}: the strut's knots are the column's, negated"
-            );
-        }
     }
 }

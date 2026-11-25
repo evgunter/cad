@@ -8,12 +8,12 @@
 //! every Bézier piece of its net has a point off the cylinder
 //! (`reduce::spline_off_carrier`).
 //!
-//! The union then stops further on, describing the result's rim arc
-//! between the cylinder and the spline wall. Each of the tube's two wall
-//! faces is a semicircle made of two rational arcs, whose joint is a knot
-//! of multiplicity the degree inside the arc, tangent continuous, and the
-//! describer reads it as a crease by its multiplicity alone
-//! (`work/splice/a-meeting-on-a-g1-arc-joint-of-a-spline-face-refuses-as-a-crease.md`).
+//! The union then stops further on, at every ε alike: the tube's walls
+//! are cut at each half arc's sub-arc joint, four quarter walls, and a
+//! seam of the tube ending on the cylinder's top rim meets the
+//! cylinder's wall at that rim, a meeting exact in ℝ that the curve-pair
+//! reading encloses at about 1.5 ε, in band
+//! (`work/splice/a-loop-seam-meeting-the-neck-cylinder-at-its-edge-reads-in-band.md`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -24,7 +24,7 @@ use geom_core::spline::KnotVector;
 use geom_core::{Arc2, Point2, Point3, Tol};
 use profile::{Profile, ProfileLoop, RawLoop, Segment, SketchPlane};
 use sweep::{ExtrudeSide, Extrusion, extrude, sweep_body};
-use topo::{AtRestBody, BooleanError, EdgeDescribeFailure};
+use topo::{AtRestBody, BooleanError};
 
 use crate::common::normal_start_place;
 
@@ -87,86 +87,103 @@ fn tube(end: Point3<f64>) -> AtRestBody<f64> {
 
 /// The tube bends toward `+x`, so its wall leaves the cylinder above
 /// the rim on every piece: the rim arc is taken, and the union goes on.
-/// Where it stops depends on the run's ε. At `1e-6` the tube's edge 4v1,
-/// which leaves the rim tangent to the cylinder, is read in band of the
-/// wall (an honest escalation, a second-order departure inside a wide
-/// band). At `1e-9` and `1e-12` it stops describing the result's rim arc
-/// on the wall's arc joint, the edge `9v1`. Any other ε is unmeasured,
-/// and only the arc's being taken is asserted there. The same holds with
-/// every reduction taking its vertex pairs and their records in reverse
-/// (`test_support::with_vertex_pairs_reversed`): red if a two-crossing
-/// pair's run follows its records' order (`insert::start_pairs`), which
-/// puts the stop on `10v1` one way round and `9v1` the other.
+/// It stops, at every ε row, where the tube's seam `6v1` meets the
+/// cylinder's wall `3v1` on the wall's top rim: the curve-pair reading
+/// against that edge (`Crossing(OnEdge)`) encloses the meeting at about
+/// 1.5 ε, measured 1.521e-6, 1.538e-9 and 1.556e-12 at ε 1e-6, 1e-9 and
+/// 1e-12, inside the band. The same holds with every reduction taking
+/// its vertex pairs and their records in reverse
+/// (`test_support::with_vertex_pairs_reversed`).
 #[test]
 fn a_rim_arc_beside_a_bent_spline_wall_is_taken_on_the_cylinder() {
     let union = || topo::union(&cylinder(), &tube(Point3::new(1.5, 0.0, 3.0)), tol());
     let (reversed, _) = topo::test_support::with_vertex_pairs_reversed(union);
+    let eps = tol().eps();
     for (order, got) in [("as read", union()), ("reversed", reversed)] {
         assert!(
             !matches!(got, Err(BooleanError::CurvedPierceUnsupported { .. })),
             "{order}: the cap's rim arc lies on the cylinder beside a spline wall off it: {got:?}"
         );
         let key = |k: &dyn core::fmt::Debug| format!("{k:?}");
-        let eps = tol().eps();
-        if eps == 1e-6 {
-            assert!(
-                matches!(
-                    &got,
-                    Err(BooleanError::CurvedPierceEscalated { operand: topo::Operand::B, face, edge, diag, .. })
-                        if key(face) == "FaceKey(3v1)"
-                            && key(edge) == "EdgeKey(4v1)"
-                            && diag.predicate == Some("spline_composite_past_the_band")
-                ),
-                "{order}: at ε 1e-6 the tube's tangent edge escalates against the wall: {got:?}"
-            );
-        } else if eps == 1e-9 || eps == 1e-12 {
-            assert!(
-                matches!(
-                    &got,
-                    Err(BooleanError::EdgeUndescribed {
-                        edge,
-                        failure: EdgeDescribeFailure::Crease,
-                        cause: None,
-                        fitted: false,
-                    }) if key(edge) == "EdgeKey(9v1)"
-                ),
-                "{order}: the union stops describing the result's rim arc on the wall's arc joint: {got:?}"
-            );
-        }
+        let Err(BooleanError::CurvedPierceEscalated {
+            operand: topo::Operand::B,
+            face,
+            edge,
+            decision,
+            diag,
+        }) = &got
+        else {
+            panic!("{order}: the tube's seam escalates against the cylinder's rim: {got:?}")
+        };
+        assert!(
+            key(face) == "FaceKey(3v1)"
+                && key(edge) == "EdgeKey(6v1)"
+                && key(decision) == "Crossing(OnEdge)"
+                && diag.predicate == Some("spline_composite_past_the_band"),
+            "{order}: the seam on the cylinder's rim: {got:?}"
+        );
+        // The reading's farther end from zero, through the margin's one
+        // door to its numbers.
+        let margin = match diag.margin.diagnostic_f64_for_error_text() {
+            geom_core::ErrorTextReading::Value(m) => m.abs(),
+            geom_core::ErrorTextReading::Enclosure { lo, hi } => lo.abs().max(hi.abs()),
+            geom_core::ErrorTextReading::Invalid => f64::NAN,
+        };
+        // `margin / ε ∈ [1, 2)` records TODAY's reader, which encloses an
+        // exact meeting a few ε wide. It should go red when SPLICE's class
+        // row (`work/splice/a-loop-seam-meeting-the-neck-cylinder-at-its-edge-reads-in-band.md`)
+        // improves the reader, and be re-pinned at the stop that follows.
+        assert!(
+            (1.0..2.0).contains(&(margin / eps)),
+            "{order}: the reading encloses an exact meeting at about 1.5 ε, read {margin:e}"
+        );
     }
 }
 
-/// The joint the describer stops on is tangent continuous: each of the
-/// tube's spline wall faces has one interior `u` run, of multiplicity the
-/// degree (a crease by multiplicity), and its one-sided `∂u` agree there.
+/// **The tube's sub-arc joints are edges, and smooth ones.** The tube
+/// sweeps one section, two half arcs, so every station holds its joints
+/// at one place on the section: the sweep cuts each half arc's wall
+/// there, four quarter walls with no interior `u` knot, and the edge
+/// between two of them is a 180° wedge, the one-sided normals of its two
+/// walls agreeing along it. The same holds at the profile's own two
+/// vertices, where the half arcs meet tangent.
 #[test]
-fn the_tube_walls_u_joint_is_tangent_continuous() {
+fn the_tube_walls_sub_arc_joints_are_smooth_edges() {
     let t = tube(Point3::new(1.5, 0.0, 3.0));
-    let mut walls = 0;
-    for (k, _) in t.faces() {
-        let Ok(geom::Surface::Nurbs(s)) = t.face_surface(k) else {
-            continue;
-        };
-        walls += 1;
+    let walls: Vec<_> = t
+        .faces()
+        .filter_map(|(k, _)| match t.face_surface(k) {
+            Ok(geom::Surface::Nurbs(s)) => Some(s.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(walls.len(), 4, "the tube's wall is four quarter walls");
+    for s in &walls {
         let ku: Vec<(f64, usize)> = s.knot_values_u().runs().collect();
-        let interior = &ku[1..ku.len() - 1];
-        assert_eq!(interior.len(), 1, "face {k:?}: one interior u run, {ku:?}");
-        let (b, m) = interior[0];
-        assert_eq!(
-            m,
-            s.knot_values_u().degree(),
-            "face {k:?}: a run of multiplicity the degree"
-        );
-        for v in [0.0, 0.3, 0.7] {
-            let h = 1e-6;
-            let p = s.eval(b, v);
-            let left = (p - s.eval(b - h, v)) / h;
-            let right = (s.eval(b + h, v) - p) / h;
-            assert!(
-                (left - right).norm() <= 1e-3 * left.norm(),
-                "face {k:?} at u = {b}, v = {v}: one-sided ∂u {left:?} and {right:?}"
-            );
+        assert_eq!(ku.len(), 2, "a quarter wall is one span in u: {ku:?}");
+    }
+    let normal = |s: &geom::NurbsSurface<f64>, u: f64, v: f64| {
+        let h = 1e-7;
+        let du = (s.eval((u + h).min(1.0), v) - s.eval((u - h).max(0.0), v)) / h;
+        let dv = (s.eval(u, v + h) - s.eval(u, v - h)) / (2.0 * h);
+        let n = du.cross(dv);
+        n / n.norm()
+    };
+    let mut seams = 0;
+    for a in &walls {
+        for b in &walls {
+            if a.eval(1.0, 0.5).distance(b.eval(0.0, 0.5)) > 1e-9 {
+                continue;
+            }
+            seams += 1;
+            for v in [0.1, 0.5, 0.9] {
+                let (na, nb) = (normal(a, 1.0, v), normal(b, 0.0, v));
+                assert!(
+                    (na - nb).norm() <= 1e-5,
+                    "the two walls' normals at a seam, v = {v}: {na:?} and {nb:?}"
+                );
+            }
         }
     }
-    assert_eq!(walls, 2, "the tube's wall is two spline faces");
+    assert_eq!(seams, 4, "four seams, each between two quarter walls");
 }

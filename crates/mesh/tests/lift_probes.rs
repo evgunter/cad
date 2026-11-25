@@ -232,7 +232,8 @@ fn ball_across_a_wall() -> Vec<Named> {
     .collect()
 }
 
-/// The reach probes' lofts: one creased wall and the twisted blade.
+/// The reach probes' lofts: a semicircle's wall between two lines, which
+/// the loft cuts at its sub-arc joint, and the twisted blade.
 fn lofts() -> Vec<Named> {
     let corners = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
     let section = |b: f64| -> Section {
@@ -1207,8 +1208,8 @@ fn door_built() -> Vec<Named> {
 /// and the lift closes in the chart.** Over the reach probes' bodies
 /// (the spline section's two are
 /// [`the_spline_section_bodies_read_lifts_that_close`]), `common/`'s
-/// swept fixtures and the operands: `loop_lift` answers on all 175 loops
-/// of the 151 curved faces, the 24 rings among them. Each winds nothing
+/// swept fixtures and the operands: `loop_lift` answers on all 177 loops
+/// of the 153 curved faces, the 24 rings among them. Each winds nothing
 /// and returns to its start, through the face's turn along the pole or
 /// apex row where it passes one (22 loops), and its sampled polygon is
 /// simple and wound with the face ([`not_closing`]). The 10 faces a
@@ -1224,7 +1225,7 @@ fn every_loop_of_a_door_built_curved_face_has_a_lift_that_closes() {
         rows(&[
             ("Cone", 34, 0, 3, 11),
             ("Cylinder", 68, 2, 12, 0),
-            ("Nurbs", 12, 0, 0, 0),
+            ("Nurbs", 14, 0, 0, 0),
             ("Sphere", 14, 0, 3, 11),
             ("Torus", 23, 8, 6, 0),
         ]),

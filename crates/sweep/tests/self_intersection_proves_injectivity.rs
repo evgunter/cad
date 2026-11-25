@@ -432,6 +432,7 @@ fn top_wall<T: Scalar>(lofted: &sweep::Lofted<T, Body<T>>) -> FaceKey {
         .iter()
         .flatten()
         .flatten()
+        .flatten()
         .copied()
         .max_by(|&a, &b| centre(a).total_cmp(&centre(b)))
         .unwrap()
@@ -537,6 +538,7 @@ fn the_carvetail_fold_reads_violated_at_its_middle_station() {
         };
         let walls: Vec<FaceKey> = lofted.side_faces[0]
             .iter()
+            .flatten()
             .flatten()
             .flatten()
             .copied()
@@ -1910,7 +1912,7 @@ fn role<T: topo::AtRestPolicy<Finished = topo::AtRestBody<T>> + Real>(
     }
     lofted.side_faces[0]
         .iter()
-        .position(|seg| seg.contains(&Some(f)))
+        .position(|seg| seg.iter().flatten().any(|w| *w == Some(f)))
         .map_or_else(|| format!("{f:?}"), |j| format!("wall {j}"))
 }
 
@@ -2130,6 +2132,7 @@ fn arc_spine_walls_with_knots_ulps_off_their_splits_hold_against_themselves() {
             .flatten()
             .flatten()
             .flatten()
+            .flatten()
             .copied()
             .collect();
         let what = format!("the {curl} rad arc spine");
@@ -2141,6 +2144,7 @@ fn arc_spine_walls_with_knots_ulps_off_their_splits_hold_against_themselves() {
         let walls: Vec<FaceKey> = twin
             .side_faces
             .iter()
+            .flatten()
             .flatten()
             .flatten()
             .flatten()
@@ -2187,6 +2191,7 @@ fn the_s_duct_walls_hold_against_themselves() {
         .flatten()
         .flatten()
         .flatten()
+        .flatten()
         .copied()
         .collect();
     walls_hold_against_themselves("the S duct", &float.body, &walls);
@@ -2194,6 +2199,7 @@ fn the_s_duct_walls_hold_against_themselves() {
     let walls: Vec<FaceKey> = twin
         .side_faces
         .iter()
+        .flatten()
         .flatten()
         .flatten()
         .flatten()
@@ -4050,8 +4056,8 @@ fn slab_wall_pair<T: Scalar>(
     )
     .expect("the slab builds");
     let walls = [
-        lofted.side_faces[0][0][0].unwrap(),
-        lofted.side_faces[0][2][0].unwrap(),
+        lofted.side_faces[0][0][0][0].unwrap(),
+        lofted.side_faces[0][2][0][0].unwrap(),
     ];
     (lofted, walls)
 }

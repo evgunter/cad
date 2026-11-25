@@ -1259,6 +1259,20 @@ pub enum RoleSeg {
     /// A vertex of an interior section: the section's id, and the
     /// profile vertex it lies on there.
     LoftSectionVertex(SectionId, ProfileVertexRef),
+    /// **One sub-arc piece of a loft entity**, composed AFTER the
+    /// segment that names the whole (`[LoftWall(..), SubArc(q)]` a face,
+    /// `[RimEdge(..), SubArc(q)]` or `[LoftSectionEdge(..), SubArc(q)]`
+    /// an edge): piece `q`, counting from zero along the segment, of a
+    /// segment the loft cuts at its wall's sub-arc joints
+    /// (`crates/sweep/README.md`, "Walls"). A segment of one piece
+    /// carries none.
+    SubArc(u32),
+    /// **A sub-arc joint of a loft entity**, composed after the segment
+    /// that names the whole, as [`RoleSeg::SubArc`]: the joint between
+    /// pieces `q − 1` and `q`. After `LoftWall` it is the seam edge
+    /// between those two walls, after `RimEdge` the cap vertex, and
+    /// after `LoftSectionEdge` the interior section's vertex.
+    SubArcJoint(u32),
 
     // ---- Revolve (M2 band/pole/seam taxonomy) ----
     /// A wall (band) face swept from a run of profile pieces on one
@@ -1940,6 +1954,8 @@ macro_rules! inert_seg {
             | $crate::names::RoleSeg::RevolveCap(_)
             | $crate::names::RoleSeg::SplitBody
             | $crate::names::RoleSeg::SectionFace
+            | $crate::names::RoleSeg::SubArc(_)
+            | $crate::names::RoleSeg::SubArcJoint(_)
     };
 }
 
@@ -2738,6 +2754,8 @@ macro_rules! never_in_a_boolean_table {
             | $crate::names::RoleSeg::LoftSeam(_)
             | $crate::names::RoleSeg::LoftSectionEdge(..)
             | $crate::names::RoleSeg::LoftSectionVertex(..)
+            | $crate::names::RoleSeg::SubArc(_)
+            | $crate::names::RoleSeg::SubArcJoint(_)
             | $crate::names::RoleSeg::Band(_)
             | $crate::names::RoleSeg::BandRim(_)
             | $crate::names::RoleSeg::BandRimPi(_)
