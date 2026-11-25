@@ -1425,7 +1425,7 @@ fn iso_of_wall(
     let walls: Vec<(Side, &geom::NurbsSurface<f64>)> = [(Side::Plus, sa), (Side::Minus, sb)]
         .into_iter()
         .filter_map(|(side, s)| match s {
-            Surface::Nurbs(p) if !p.is_placeholder() => Some((side, p.as_ref())),
+            Surface::Nurbs(p) => Some((side, p.as_ref())),
             _ => None,
         })
         .collect();
@@ -1529,7 +1529,7 @@ fn cap_row(
     let walls: Vec<(Side, &geom::NurbsSurface<f64>)> = [(Side::Plus, sa), (Side::Minus, sb)]
         .into_iter()
         .filter_map(|(side, s)| match s {
-            Surface::Nurbs(p) if !p.is_placeholder() => Some((side, p.as_ref())),
+            Surface::Nurbs(p) => Some((side, p.as_ref())),
             _ => None,
         })
         .collect();
@@ -3415,8 +3415,9 @@ mod tests {
                 outer: folded_lid(fold),
                 voids: Vec::new(),
             };
-            crate::assemble::build_one_solid(&record, tol, geom_core::FileCoincidence::new(1e-3))
-                .and_then(|(body, _, _)| crate::gate(body, Some(1), tol))
+            let file = geom_core::FileCoincidence::new(1e-3);
+            crate::assemble::build_one_solid(&record, tol, file)
+                .and_then(|(body, _, _)| crate::gate(body, Some(1), tol, file))
         };
         let done = import(1e-2).unwrap_or_else(|e| panic!("a 1e-2 fold: {e}"));
         assert_eq!((done.faces().count(), done.edges().count()), (5, 7));

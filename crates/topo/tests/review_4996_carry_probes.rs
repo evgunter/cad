@@ -30,7 +30,7 @@ fn faces_at_x(body: &Body<f64>, x: f64) -> Vec<FaceKey> {
         .filter(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(Surface::Plane { frame, .. })
+                Ok(Surface::Plane { frame, .. })
                     if frame.axis().x.abs() == 1.0 && frame.origin().x == x
             )
         })

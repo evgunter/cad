@@ -45,7 +45,7 @@
 //! 3. **The NURBS containment pin** (`CENSUS`) — spline geometry
 //!    appears exactly where the kernel put it (loft_prism's 4 walls +
 //!    4 seams, and the #210 fold's two skinned documents), and nowhere
-//!    else, plus the placeholder-surface refusal.
+//!    else.
 //!
 //!    *Lineage*:
 //!    `CENSUS` succeeds `no_body_at_rest_carries_a_nurbs_carrier_or_face`,
@@ -221,7 +221,7 @@ fn placement(recs: &HashMap<u64, (String, String)>, id: u64) -> ([f64; 3], [f64;
 ///    axis`) — the `CHART-AXIS` assertions.
 /// 5. **NURBS containment** (was `nurbs_geometry_appears_exactly_\
 ///    where_the_kernel_put_it`) — the `CENSUS` assertions, whole
-///    corpus, plus the placeholder-surface refusal.
+///    corpus.
 /// 6. **Single-shell reachability** (was `single_shell_curved_solids_\
 ///    never_reach_the_classifier`) — the `SINGLE-SHELL` assertions.
 ///

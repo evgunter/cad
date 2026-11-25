@@ -1268,9 +1268,9 @@ pub(super) fn boolean_pipeline<T: Decide + Bounds + crate::props::AtRestPolicy>(
         Pass::First => super::slit::CutRoots::default(),
         Pass::CutIn(cuts) => cuts_in_result(cuts, &fin),
     };
-    // The zip, the merge, the re-description and the closing mint are
-    // one door's surgery (`crate::surgery`): the operators inside them
-    // do not each re-derive the whole body, and `gate` below — tier 3
+    // The zip, the merge and the re-description are one door's surgery
+    // (`crate::surgery`): the operators inside them do not each
+    // re-derive the whole body, and `gate` below — tier 3
     // over the result, on every build — is what this door pays instead.
     // The guard owns the borrow, so a refusal on the way closes the
     // scope by dropping it.
@@ -1347,13 +1347,6 @@ pub(super) fn boolean_pipeline<T: Decide + Bounds + crate::props::AtRestPolicy>(
         tol,
     )?;
     let output = output_substitutions(&closed, &merged, &slivers, &edge_joins)?;
-    // Curved results carry certified per-half-edge pcurves at rest
-    // (M5 PR 9, the PR 6 contract): re-derive the whole cache set on
-    // the finished body — the same pass the split lane runs. A planar
-    // body mints nothing (no curved faces), so the M3 lane is
-    // untouched bit-identically.
-    crate::pcurves::mint_pcurves(&mut body, tol)
-        .map_err(|source| BooleanError::Pcurves { source })?;
     let (contacts, mut coincidences) = carry(
         &body,
         &ledger,
@@ -1366,10 +1359,6 @@ pub(super) fn boolean_pipeline<T: Decide + Bounds + crate::props::AtRestPolicy>(
     coincidences.extend(join_rows(&class_zeros, &ledger, views, [a, b]));
     share_recorded_points(&mut body, (&contacts, &coincidences), views, band)?;
     let (parted, contacts) = super::slit::part_riders(&mut body, &contacts, band, tol)?;
-    if !parted.is_empty() {
-        crate::pcurves::mint_pcurves(&mut body, tol)
-            .map_err(|source| BooleanError::Pcurves { source })?;
-    }
     // Each parted edge now bounds a face of each operand, as a seam does.
     seam_edges.extend(parted.iter().flat_map(|p| [p.kept, p.minted]));
     body.sweep_and_close();
@@ -1927,8 +1916,7 @@ fn walk_certify_refusal(error: &geom_brep::PcurveCertifyError) -> WalkRefusal {
         // margin that could not be read) is torn, a read in band unread.
         C::Incidence(refusal) if refusal.read().is_definite() => WalkRefusal::Torn,
         C::Incidence(_) => WalkRefusal::Unread,
-        C::PlaceholderChart
-        | C::ChartRow { .. }
+        C::ChartRow { .. }
         | C::ImageMismatch { .. }
         | C::ChannelKindMismatch { .. }
         | C::WindingMismatch { .. }
@@ -2136,7 +2124,7 @@ pub(crate) fn face_rows<T: Decide + Bounds>(
     let pad = boxes::sweep_pad(band);
     body.face_views()
         .map(|fd| {
-            let (face, surface) = (fd.key(), fd.surface().clone());
+            let (face, surface) = (fd.key(), fd.expect_described().clone());
             let cover = crate::cover::face_cover(body, face, band);
             let bbox = boxes::cover_box(&cover, pad);
             Ok(FaceRow {
@@ -3349,7 +3337,8 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
         let (v0, v1) = crate::query::edge_ends(body, edge);
         let p0 = body.linked_vertex_point(v0, EntityId::HalfEdge(sides.plus.half_edge), "start");
         let p1 = body.linked_vertex_point(v1, EntityId::HalfEdge(sides.plus.half_edge), "end");
-        let surface_of = |side: crate::readback::EdgeSide| body.proven_face(side.face).surface();
+        let surface_of =
+            |side: crate::readback::EdgeSide| body.proven_face(side.face).expect_described();
         let (surf1, surf2) = (surface_of(sides.plus), surface_of(sides.minus));
         let existing = body.proven_edge(edge).certified().cloned();
         let draft = geom_brep::IntersectionDraft::of(existing.as_ref(), p0, p1);
@@ -6135,10 +6124,8 @@ impl OneRecordTokens {
                     // preserve them); B bridges through the graft.
                     let ka = fa.surface;
                     let kb = graft.surfaces.get(fb.record().surface).copied()?;
-                    (ka != kb
-                        && result.get_surface(ka).is_some()
-                        && result.get_surface(kb).is_some())
-                    .then_some(())?;
+                    (ka != kb && result.get_surface(ka).is_ok() && result.get_surface(kb).is_ok())
+                        .then_some(())?;
                     let census = pair.census(a, b, &decided);
                     let (kept, other) = match census.kept {
                         Operand::A => (ka, kb),
@@ -6146,7 +6133,7 @@ impl OneRecordTokens {
                     };
                     let subtracts = op == BooleanOp::Subtract;
                     let b_sense = if subtracts {
-                        crate::revert::reverted_sense(fb.surface(), fb.sense())
+                        crate::revert::reverted_sense(fb.expect_described(), fb.sense())
                     } else {
                         fb.sense()
                     };
@@ -6199,7 +6186,7 @@ impl OneRecordTokens {
         tol: Tol,
     ) -> Result<(), BooleanError> {
         for token in &self.tokens {
-            if body.get_surface(token.kept()).is_none() {
+            if body.get_surface(token.kept()).is_err() {
                 continue;
             }
             body.one_record(crate::policy_lane::KernelSite::OneRecord, token, tol)
@@ -6328,10 +6315,21 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
     tol: Tol,
 ) -> Result<T::Finished, BooleanError> {
     let mut body = body;
+    // The sort reads stored rows on a spline face, which no closed-form
+    // lift derives, so it reads them completed. A face completion leaves
+    // short is the finish's to report: the gate answers with the finish's
+    // finding set, the refusals beside every other finding, sorted where
+    // the sort reads the body whole and unsorted where its probe met the
+    // unfilled face.
     let pad = crate::boxes::sweep_pad(band);
     let face_box = |body: &Body<T>, f| Some(crate::boxes::face_box(body, f, pad, band));
-    crate::pieces::sort_into_pieces(&mut body, band, tol, T::quad_lane(), Some(&face_box))
-        .map_err(BooleanError::Pieces)?;
+    crate::finish::fed(&mut body, tol, |body| {
+        crate::pieces::sort_into_pieces(body, band, tol, T::quad_lane(), Some(&face_box))
+    })
+    .map_err(|fed| match fed {
+        crate::finish::Fed::NotFinished(findings) => BooleanError::ResultInvalid { findings },
+        crate::finish::Fed::Read(e) => BooleanError::Pieces(e),
+    })?;
     held.apart(&body)?;
     pinched_at_cone_apex(&body, band)?;
     #[cfg(feature = "door-tier3-meter")]
@@ -6378,7 +6376,7 @@ mod refused_faces {
     /// takes the body.
     pub(super) fn kinds<T: Real>(body: &Body<T>) -> Vec<(FaceKey, geom::SurfaceKind)> {
         body.face_views()
-            .map(|face| (face.key(), face.surface().kind()))
+            .map(|face| (face.key(), face.expect_described().kind()))
             .collect()
     }
 
@@ -6443,7 +6441,7 @@ pub fn refused_face_kind(e: &BooleanError) -> Option<geom::SurfaceKind> {
 fn pinched_at_cone_apex<T: Decide>(body: &Body<T>, band: Band) -> Result<(), BooleanError> {
     for view in body.face_views() {
         let face = view.key();
-        let geom::Surface::Cone { frame, .. } = *view.surface() else {
+        let geom::Surface::Cone { frame, .. } = *view.expect_described() else {
             continue;
         };
         let (apex, axis) = (frame.origin(), frame.axis_unit());
@@ -6577,7 +6575,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
     // surface, a refusal.
     for body in [a, b] {
         for face in body.face_views() {
-            let _ = face.surface();
+            let _ = face.slot();
         }
     }
     let pad = boxes::sweep_pad(band);
@@ -6623,7 +6621,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
         let mut seen: Vec<SurfaceKey> = Vec::new();
         for view in x.face_views() {
             let face = view.key();
-            let x_surface = view.surface();
+            let x_surface = view.expect_described();
             let &geom::Surface::Sphere { frame, radius } = x_surface else {
                 continue;
             };
@@ -7146,11 +7144,12 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         let sign_as = |name, m: Margin<T>| decide(name, m, band).map_err(esc);
         let face = body.proven_face(cut.face);
         let sphere = face.record().surface;
-        let &geom::Surface::Sphere { frame, .. } = face.surface() else {
+        let &geom::Surface::Sphere { frame, .. } = face.expect_described() else {
             return Err(corrupt("cut-in: the face is not on a sphere"));
         };
         let axis = frame.axis();
-        let record = geom_brep::curve_pair::on_surface::Charted::record(sphere, face.surface());
+        let record =
+            geom_brep::curve_pair::on_surface::Charted::record(sphere, face.expect_described());
         let axis = axis.normalize();
         // The meridian plane through the circle's centre direction, or
         // through a point of it where the circle is a rim of the chart.
@@ -7596,10 +7595,6 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         side.arc_splits.extend(arc_splits);
         side.surfaces.push(sphere);
     }
-    for body in [a, b] {
-        crate::pcurves::mint_pcurves(body, tol)
-            .map_err(|source| BooleanError::Pcurves { source })?;
-    }
     Ok(made)
 }
 
@@ -7899,8 +7894,6 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 tol,
             )?;
             let output = output_substitutions(&closed, &merged, &slivers, &edge_joins)?;
-            crate::pcurves::mint_pcurves(&mut body, tol)
-                .map_err(|source| BooleanError::Pcurves { source })?;
             let (contacts, mut coincidences) = carry(
                 &body,
                 &ledger,
@@ -7918,10 +7911,6 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
             ));
             share_recorded_points(&mut body, (&contacts, &coincidences), views, band)?;
             let (parted, contacts) = super::slit::part_riders(&mut body, &contacts, band, tol)?;
-            if !parted.is_empty() {
-                crate::pcurves::mint_pcurves(&mut body, tol)
-                    .map_err(|source| BooleanError::Pcurves { source })?;
-            }
             let body = gate(body, &Held::of(&contacts, decls), band, tol)?;
             let FallbackFates {
                 substituted,
@@ -8258,8 +8247,6 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         tol,
     )?;
     let output = output_substitutions(&closed, &merged, &slivers, &edge_joins)?;
-    crate::pcurves::mint_pcurves(&mut body, tol)
-        .map_err(|source| BooleanError::Pcurves { source })?;
     let (contacts, mut coincidences) = carry(
         &body,
         &ledger,
@@ -8345,6 +8332,10 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         coincidences,
     }))
 }
+
+#[cfg(test)]
+#[path = "ops_gate_finding_set_rows.rs"]
+mod gate_finding_set_rows;
 
 #[cfg(test)]
 mod tests {
@@ -8873,7 +8864,7 @@ mod tests {
         );
     }
 
-    /// **The NURBS re-gate, pinned (M5 S13 §1), and the placeholder's
+    /// **The NURBS re-gate, pinned (M5 S13 §1), and the pending face's
     /// own door.** The fallback's curved-extent test is UNWRITABLE for
     /// NURBS today (`implicit_residual` is poison there, and no
     /// projection-based extent argument has been written — the
@@ -8882,8 +8873,8 @@ mod tests {
     /// typed refusal naming its TRUE blocker — a future NURBS body
     /// constructor inherits this door, never the vertex-probe silence
     /// the S12 finding executed. That re-gate is pinned here at the
-    /// mechanism, because a body on the `mvfs` `Nurbs` PLACEHOLDER
-    /// surface cannot reach the boolean at all: it is not a finished
+    /// mechanism, on a finite NURBS face. A body whose faces are still
+    /// pending cannot reach the boolean at all: it is not a finished
     /// body, and the at-rest gate refuses each of its faces as
     /// uncertifiable. Both are pinned below; what neither may become is
     /// a silent assembly.
@@ -8896,27 +8887,27 @@ mod tests {
         // translating map. The fixture is anchored at the origin, and
         // this operand needs a disjoint certified box so the realized
         // sweep examines no pair at all.
-        let far_cube = |dx: f64| {
+        let far_cube = |dx: f64, faces: FaceGeometry| {
             let mut body = crate::Body::<f64>::new();
             prism_ops(
                 &mut body,
                 &UNIT_SQUARE,
                 (0.0, 1.0),
                 |x, y, z| Point3::new(x + dx, y, z),
-                FaceGeometry::Declined,
+                faces,
                 Tol::witness(),
             );
             body
         };
 
         let a = declined_cube::<f64>(Tol::witness()).body;
-        let b = far_cube(10.0);
-        // Door 1 — the placeholder is not a finished body: the at-rest
-        // gate that would hand it to the boolean refuses each of its
-        // faces as uncertifiable, so no NURBS placeholder reaches a pair.
+        let b = far_cube(10.0, FaceGeometry::Declined);
+        // Door 1 — a body with pending faces is not a finished body: the
+        // at-rest gate that would hand it to the boolean refuses each of
+        // its faces as uncertifiable, so no pending face reaches a pair.
         for (what, body) in [("the declined cube", &a), ("the far declined cube", &b)] {
             let errors = crate::finish(body.clone(), Tol::witness())
-                .expect_err("a NURBS placeholder is not a finished body");
+                .expect_err("a body with pending faces is not a finished body");
             let mut uncertifiable: Vec<_> = errors
                 .iter()
                 .filter_map(|e| match e {
@@ -8932,10 +8923,21 @@ mod tests {
 
         // Door 2 — the fallback's own re-gate, at the mechanism: a
         // fallback entry carrying a NURBS face whose box may meet a face
-        // of the other operand refuses BEFORE a vertex is probed. A
-        // placeholder's net is poison, so its box meets every face, far
-        // or not. `sweep`'s `s16_box_soundness` pins the re-gate end to
-        // end on a lofted operand.
+        // of the other operand refuses BEFORE a vertex is probed. Two
+        // certified cubes, one face of `a` re-described as a finite
+        // NURBS patch whose net reaches past `b`'s near face, so its box
+        // meets `b`'s. `sweep`'s `s16_box_soundness` pins the re-gate end
+        // to end on a lofted operand.
+        let mut a = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
+        let b = far_cube(10.0, FaceGeometry::Certified);
+        let wall = a.faces().next().map(|(k, f)| (k, f.surface)).unwrap();
+        assert!(a.describe_slot_for_tests(
+            wall.1,
+            crate::fixtures::patch_spanning(
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(11.0, 1.0, 1.0),
+            )
+        ));
         let band = Band::linear(Tol::witness()).unwrap();
         let Err(err) = super::sphere_extent_scan(&a, &b, &super::Evidence::NONE, band) else {
             panic!("the NURBS fallback must be re-gated, never vertex-probed");
@@ -10312,7 +10314,9 @@ mod tests {
                 },
             )
             .unwrap();
-        let &geom::Surface::Sphere { frame, radius, .. } = capped.proven_face(top).surface() else {
+        let &geom::Surface::Sphere { frame, radius, .. } =
+            capped.proven_face(top).expect_described()
+        else {
             panic!("the cap's carrier is the sphere");
         };
         let center = frame.origin();

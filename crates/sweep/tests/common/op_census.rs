@@ -181,7 +181,7 @@ pub fn names_its_own_face(e: &BooleanError, [a, b]: [&AtRestBody<f64>; 2]) -> Re
             face,
             kind,
         } => check(
-            owned(operand, face) && kind_of(operand, face) == Some(kind),
+            owned(operand, face) && kind_of(operand, face) == Ok(kind),
             format!("{face:?} is no {kind:?} face of {operand:?} alone"),
         ),
         BooleanError::CurvedPairUnsupported {
@@ -193,9 +193,9 @@ pub fn names_its_own_face(e: &BooleanError, [a, b]: [&AtRestBody<f64>; 2]) -> Re
             ..
         } => check(
             owned(operand, face)
-                && kind_of(operand, face) == Some(kind)
+                && kind_of(operand, face) == Ok(kind)
                 && owned(operand.other(), other_face)
-                && kind_of(operand.other(), other_face) == Some(other_kind),
+                && kind_of(operand.other(), other_face) == Ok(other_kind),
             format!(
                 "{face:?}/{other_face:?} are not {kind:?}/{other_kind:?} faces of {operand:?} and its partner"
             ),

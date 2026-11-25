@@ -38,7 +38,7 @@ use geom_core::spline::KnotVector;
 use geom_core::{Point3, Tol};
 use std::sync::Arc;
 
-/// A DESCRIBED (non-placeholder) degree-2 NURBS patch on the plane
+/// A degree-2 NURBS patch on the plane
 /// `y = 0`, u along +x, v along +z (normal −y = the front wall's outward
 /// normal). `bow` lifts the centre control point off the plane.
 fn nurbs_wall(bow: f64) -> Surface<f64> {
@@ -53,7 +53,7 @@ fn nurbs_wall(bow: f64) -> Surface<f64> {
         }
     }
     let n = NurbsSurface::new(k.clone(), k, control, weights).unwrap();
-    assert!(!n.is_placeholder());
+    assert!(n.is_finite());
     Surface::Nurbs(Arc::new(n))
 }
 
@@ -75,7 +75,7 @@ pub(crate) fn m7_8_cube() -> (
     // reordering that kept `[MefCreated; 5]` full would move this probe
     // onto another face and still pass everything below.
     {
-        let plane = body.proven_face(front).surface();
+        let plane = body.proven_face(front).surface().unwrap();
         let Surface::Plane { frame, .. } = plane else {
             panic!("the cube's walls are planes");
         };
@@ -210,7 +210,7 @@ fn m3_a_corrupt_m7_8_wall_is_caught_at_every_door_at_f64() {
         );
     }
     // CORRUPT: the wall bows 0.05 at its centre, under its own key.
-    body.surfaces[wall] = nurbs_wall(0.05);
+    *body.surface_mut(wall).unwrap() = nurbs_wall(0.05);
     let after = six_doors(&body);
     let caught =
         |d: &String| d.contains("EdgeCertification") && !d.contains("(0 EdgeCertification");
@@ -252,7 +252,7 @@ fn m3_a_corrupt_m7_8_wall_is_caught_at_every_door_at_f64() {
 fn m3_the_plain_names_report_the_corrupt_m7_8_wall_edge_by_edge_and_nothing_else() {
     let (mut body, wall, lane_edges) = m7_8_cube();
     let bow = 0.05;
-    body.surfaces[wall] = nurbs_wall(bow);
+    *body.surface_mut(wall).unwrap() = nurbs_wall(bow);
     // The bowed wall's height over y = 0 is `bow · B(u) · B(v)` with
     // `B(t) = 2t(1 − t)`, and the cube's edges lie at u or v = 1/3 or
     // 2/3 (`x = 3u − 1`), where B = 4/9, the other parameter in

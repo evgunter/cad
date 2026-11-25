@@ -650,8 +650,8 @@ impl SplitNaming {
 /// [`SplitFinishError::EdgeJoin`] where the merge's join refuses, and
 /// [`SplitFinishError::Merge`] for every other refusal of the merge or
 /// of the skipped faces' re-description. [`SplitFinishError::Desync`]
-/// where the merge names a placeholder face: a side carved from a
-/// finished operand has none.
+/// where the merge names a pending face: a side carved from a finished
+/// operand has none.
 pub(super) fn end_maximal<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     side: PlaneSide,
@@ -777,7 +777,7 @@ impl Default for SplitNaming {
 pub enum FinishDesync {
     /// A key the finish was reading does not resolve.
     Unresolved(Unresolved),
-    /// The coplanar merge a side ends with left placeholder faces.
+    /// The coplanar merge a side ends with left pending faces.
     MergePlaceholders {
         /// The side whose merge left them.
         side: PlaneSide,
@@ -822,7 +822,7 @@ impl core::fmt::Display for FinishDesync {
             Self::Unresolved(unresolved) => write!(f, "in the body being split, {unresolved}"),
             Self::MergePlaceholders { side } => write!(
                 f,
-                "the merge of the piece on the {} side of the plane left placeholder faces",
+                "the merge of the piece on the {} side of the plane left pending faces",
                 side.word()
             ),
             Self::NullEdgeUncopied { vertex } => write!(
@@ -1998,8 +1998,8 @@ pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
         let p0 = body.resolve_vertex_point(start, crate::live::Proven);
         let p1 = body.resolve_vertex_point(end, crate::live::Proven);
         let (surf_self, surf_other) = (
-            body.proven_face(face).surface(),
-            body.proven_face(other_face).surface(),
+            body.proven_face(face).expect_described(),
+            body.proven_face(other_face).expect_described(),
         );
         let existing = body.proven_edge(edge).certified().cloned();
         let draft = geom_brep::IntersectionDraft::of(existing.as_ref(), p0, p1);
@@ -2404,7 +2404,7 @@ mod torn_hop_rows {
             .find(|(_, f)| {
                 matches!(
                     body.get_surface(f.surface),
-                    Some(geom::Surface::Plane { frame, .. }) if (frame.origin().z - 0.5).abs() < 1e-12
+                    Ok(geom::Surface::Plane { frame, .. }) if (frame.origin().z - 0.5).abs() < 1e-12
                 )
             })
             .map(|(k, _)| k)
@@ -2486,7 +2486,7 @@ mod smooth_arm_rows {
             .find(|(_, f)| {
                 matches!(
                     body.get_surface(f.surface),
-                    Some(Surface::Plane { frame, .. })
+                    Ok(Surface::Plane { frame, .. })
                         if (frame.origin().z - 0.5).abs() < 1e-12 && frame.axis().z.abs() == 1.0
                 )
             })
@@ -2506,7 +2506,7 @@ mod smooth_arm_rows {
         };
         let other = body.face_of_half_edge(mate).unwrap();
         let s_other = body.get_face(other).unwrap().surface;
-        let Some(Surface::Plane {
+        let Ok(Surface::Plane {
             frame: carrier_frame,
             ..
         }) = body.get_surface(s_self).cloned()
@@ -2551,7 +2551,8 @@ mod smooth_arm_rows {
     /// section's: the two faces' outward normals opposed at the contact.
     fn opposed_wall(r: f64) -> (SectionEdge, FaceKey) {
         let mut edge = section_edge();
-        edge.body.surfaces[edge.s_other] = cylinder_of_radius_under(edge.mid, edge.along, r);
+        *edge.body.surface_mut(edge.s_other).unwrap() =
+            cylinder_of_radius_under(edge.mid, edge.along, r);
         let wall = edge
             .body
             .faces()
@@ -2633,7 +2634,7 @@ mod smooth_arm_rows {
             along,
             ..
         } = section_edge();
-        body.surfaces[s_other] = cylinder_under(mid, Vec3::unit_z().cross(along));
+        *body.surface_mut(s_other).unwrap() = cylinder_under(mid, Vec3::unit_z().cross(along));
         let band = Band::linear(tol()).unwrap();
         match super::describe_section_boundary(&mut body, face, band, tol()) {
             Err(SplitFinishError::WedgeEscalated {
@@ -2688,7 +2689,7 @@ mod smooth_arm_rows {
             } = section_edge();
             let cos = (1.0 - sin * sin).sqrt();
             let lean = Vec3::unit_z() * cos + Vec3::unit_z().cross(along) * sin;
-            body.surfaces[s_other] = Surface::Cylinder {
+            *body.surface_mut(s_other).unwrap() = Surface::Cylinder {
                 frame: geom::Frame::new(mid - lean, along, lean),
                 radius: 1.0,
             };
@@ -2729,7 +2730,7 @@ mod smooth_arm_rows {
             // The offer is true: just below it, the same pose describes.
             let (k, below) = (escalate / zero, 0.99 * quoted);
             let mut body = section_edge().body;
-            body.surfaces[s_other] = Surface::Cylinder {
+            *body.surface_mut(s_other).unwrap() = Surface::Cylinder {
                 frame: geom::Frame::new(mid - lean, along, lean),
                 radius: 1.0,
             };
@@ -2761,7 +2762,7 @@ mod smooth_arm_rows {
             mid,
             along,
         } = section_edge();
-        body.surfaces[s_other] = cylinder_under(mid, along);
+        *body.surface_mut(s_other).unwrap() = cylinder_under(mid, along);
         let curve = body.get_edge(edge).unwrap().curve;
         let mut spec = body
             .get_curve_geom(curve)
@@ -2775,13 +2776,13 @@ mod smooth_arm_rows {
         };
         body.set_edge_curve(edge, spec, tol())
             .expect("plane against a unit cylinder along the edge certifies tangent");
-        let Some(Surface::Plane {
+        let Ok(Surface::Plane {
             frame: carrier_frame,
         }) = body.get_surface(s_self).cloned()
         else {
             panic!("the section face is planar");
         };
-        body.surfaces[s_other] = Surface::Plane {
+        *body.surface_mut(s_other).unwrap() = Surface::Plane {
             frame: carrier_frame,
         };
         let band = Band::linear(tol()).unwrap();
@@ -3324,7 +3325,7 @@ mod desync_rows {
                 FinishDesync::MergePlaceholders {
                     side: PlaneSide::Above,
                 },
-                "placeholder faces",
+                "pending faces",
             ),
             (
                 FinishDesync::NullEdgeUncopied { vertex },

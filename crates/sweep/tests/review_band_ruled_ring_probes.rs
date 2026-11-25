@@ -197,7 +197,7 @@ fn a_bore_in_a_keyhole_creases_removed_sliver_goes_with_it_at_the_closed_form() 
         .filter(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(geom::Surface::Cylinder { radius, .. }) if (radius - a).abs() < 1e-12
+                Ok(geom::Surface::Cylinder { radius, .. }) if (radius - a).abs() < 1e-12
             )
         })
         .map(|(k, _)| k)
@@ -278,7 +278,7 @@ fn past_the_discs_radius_a_keyhole_crease_first_meets_the_support_screen() {
             assert!(
                 matches!(
                     body.face_surface(face),
-                    Some(geom::Surface::Cylinder { radius, .. }) if (*radius - BR).abs() < 1e-12
+                    Ok(geom::Surface::Cylinder { radius, .. }) if (*radius - BR).abs() < 1e-12
                 ),
                 "r 0.6: the face named is the disc's wall"
             );

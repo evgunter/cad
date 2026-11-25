@@ -16,7 +16,7 @@ use geom_core::spline::Knots;
 use std::sync::Arc;
 use topo::construction::Construct;
 
-use geom::{NetState, NurbsSurface, Surface};
+use geom::{NurbsSurface, Surface};
 use geom_core::Tol;
 use geom_core::spline::KnotVector;
 use geom_core::{Bounds, Interval, Point3, Real};
@@ -126,10 +126,9 @@ fn interval_described_net_carrying_poison_is_named_by_the_surface_check() {
         vec![Real::one(); 4],
     )
     .unwrap();
-    assert_eq!(
-        net.net_state(),
-        NetState::Poisoned,
-        "the fixture is corrupt DESCRIBED geometry at this scalar, not the placeholder"
+    assert!(
+        !net.is_finite(),
+        "the fixture is a corrupt net at this scalar"
     );
     // Lifts RechartStrandsDescriptions: the poisoned described net is the surface check's subject.
     body.set_face_surface_unvouched_for_tests(
@@ -151,6 +150,6 @@ fn interval_described_net_carrying_poison_is_named_by_the_surface_check() {
         !errs
             .iter()
             .any(|e| matches!(e, ValidationError::UncertifiableSurface { .. })),
-        "the placeholder's verdict is a different state's answer: {errs:?}",
+        "the pending slot's verdict is a different state's answer: {errs:?}",
     );
 }

@@ -196,6 +196,37 @@ impl<'a> CurveCertData<'a> {
         self.coords.len()
     }
 
+    /// **Each span's enclosure of coordinate `d`**, over the Bernstein
+    /// form's breaks (its own knots and the extras): on a span the
+    /// coordinate is `Σ Bₖ·Nₖ / Σ Bₖ·Wₖ`, a convex combination of the
+    /// ratios `Nₖ / Wₖ` where every `Wₖ > 0`, so their hull encloses it
+    /// (the rational convex-hull property). A span whose weight
+    /// coefficient an enclosure does not hold positive is refused.
+    /// Caller guarantees `d < dims()`.
+    #[must_use]
+    pub fn coordinate_spans(&self, d: usize) -> (Vec<f64>, Vec<Interval>) {
+        use crate::real::Bounds;
+        let (num, den) = (self.weighted_channel(d), self.weight_channel());
+        let hulls = num
+            .spans()
+            .iter()
+            .zip(den.spans())
+            .map(|(n, w)| {
+                n.iter()
+                    .zip(w)
+                    .try_fold(None, |acc: Option<Interval>, (n, w)| {
+                        (w.lo() > 0.0).then(|| {
+                            let ratio = *n / *w;
+                            Some(acc.map_or(ratio, |a| Interval::hull(a, ratio)))
+                        })
+                    })
+                    .flatten()
+                    .unwrap_or_else(Interval::refused)
+            })
+            .collect();
+        (num.breaks().to_vec(), hulls)
+    }
+
     /// The weight channel `W_i = w_i`, Bézier-decomposed.
     fn weight_channel(&self) -> BernsteinSpans {
         self.kv.with_coeffs_from_fn(

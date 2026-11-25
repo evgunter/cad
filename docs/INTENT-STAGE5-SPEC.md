@@ -96,7 +96,7 @@ The state C starts from (D′3 over main):
 
 For the product (the `⊔`, or other body, the slot reads) and for each `AssembleGather` the product carries, the resident takes the gather's census verdicts as the gate reads them today:
 
-1. `Product::census` as the gather kept it (a part's pair-less escalation re-found inside its copy is reported, loud, until it names its pair: `work/contacthold/an-escalated-census-finding-names-no-pair.md`);
+1. `Product::census` as the gather kept it (a part's pair-less escalation re-found inside its copy is reported, loud, until it names its pair: `work/censusread/an-escalated-census-finding-names-no-pair.md`);
 2. `partition` into interference findings and the rest;
 3. the product's carried findings (`carried_interference`, `carried_at_rest`), each once per part row.
 

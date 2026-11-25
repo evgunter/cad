@@ -65,8 +65,8 @@ pub enum PairUnread {
     /// there is no description to compare.
     OutsideInventory,
     /// The face's consumed extent cannot be read ([`pair_extent`]): its
-    /// key does not resolve, its box has no claim to make (a NURBS
-    /// placeholder, a boundary edge with no sound box), or the ball
+    /// key does not resolve, its box has no claim to make (a pending
+    /// face, a net that is not finite, a boundary edge with no sound box), or the ball
     /// around it does not read.
     Extent(PairSide),
 }
@@ -1118,7 +1118,7 @@ mod lever_rows {
         let (a, fa) = sphere_zone_sheet(u, h, tol);
         let (mut b, fb) = sphere_zone_sheet(u, h, tol);
         let key = b.get_face(fb).unwrap().surface;
-        b.surfaces[key] = geom::Surface::Sphere {
+        *b.surface_mut(key).unwrap() = geom::Surface::Sphere {
             frame: geom::Frame::new(
                 Point3::new(0.9 * e, 0.0, 0.0),
                 Vec3::unit_z(),

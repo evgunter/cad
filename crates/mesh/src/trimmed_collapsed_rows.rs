@@ -29,10 +29,14 @@ fn loft(sections: usize, ms: &[Affine3<f64>], v_degree: usize) -> Body<f64> {
     let section = if sections == 4 {
         pinned_square()
     } else {
-        // A half disc on the chord from (−1, 0) to (1, 0).
+        // A segment of a disc on the chord from (−1, 0) to (1, 0), its
+        // arc a quarter turn (bulge tan 22.5°): one rational-quadratic
+        // sub-arc, so the loft builds it as one wall, which a lune turned
+        // about the chord collapses at both ends of its `u`. A half disc's
+        // arc is two sub-arcs, two walls with one collapsed side each.
         vec![profile::test_support::bulge_loop(vec![
             (Point2::new(-1.0, 0.0), 0.0),
-            (Point2::new(1.0, 0.0), 1.0),
+            (Point2::new(1.0, 0.0), core::f64::consts::FRAC_PI_8.tan()),
         ])]
     };
     sweep::loft_body::<f64>(
@@ -391,8 +395,8 @@ fn the_wall_pinned_through_three_sections_meshes_only_with_its_side_walked() {
     }
 }
 
-/// **Two collapsed sides on one face, each walked**: the lune, the half
-/// disc's arc wall turned about its chord, is collapsed at both ends of
+/// **Two collapsed sides on one face, each walked**: the lune, the
+/// quarter-turn segment's arc wall turned about its chord, is collapsed at both ends of
 /// its chart's `u`, each at its own vertex. The polygon holds each
 /// vertex's copies down its own column, ⌈1/h_v⌉ pieces on each.
 #[test]
@@ -560,8 +564,8 @@ fn the_class_meshes_to_one_digest_at_every_eps() {
         0x7cae_777e_ef9e_68ce,
         0x8367_7240_b74f_176b,
         0xb069_2be6_2b6a_9a55,
-        0x519c_93fe_1c05_8ee4,
-        0xcb4d_3e8b_8647_42ef,
+        0x758d_081e_2182_e9dd,
+        0x7ea9_5432_c8e3_2bb5,
     ];
     let got: Vec<u64> = the_class()
         .iter()

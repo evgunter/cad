@@ -66,7 +66,7 @@ fn reversing_a_chart_under_its_face_strands_the_parameters_on_it() {
     let faces: Vec<_> = body.faces().map(|(fk, f)| (fk, f.surface)).collect();
     let mut reversed = 0usize;
     for (fk, sk) in faces {
-        let Some(Surface::Nurbs(n)) = body.get_surface(sk) else {
+        let Ok(Surface::Nurbs(n)) = body.get_surface(sk) else {
             continue;
         };
         let n = (**n).clone();

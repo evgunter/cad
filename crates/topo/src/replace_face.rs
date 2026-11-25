@@ -207,8 +207,8 @@
 //!
 //! Every decision — the mint, the refusals, the whole boundary plan —
 //! runs read-only against the incoming body. Mutation then runs on a
-//! clone in the attach layer's order (surface, then edge descriptions,
-//! then the whole-body pcurve mint), the clone is validated once at
+//! clone in the attach layer's order (surface, then edge descriptions),
+//! the clone is validated once at
 //! tier 2 — closed, every edge certified on its charts — and only a
 //! clone that passes is adopted. The body is untouched on every `Err`.
 //! Tier 2 does not read orientation: a move that carries a face through
@@ -236,10 +236,9 @@ use crate::body::Body;
 use crate::chart_groups::ChartGroups;
 use crate::entity::{EdgeKey, EntityId, FaceKey, GeomRef, SolidKey, VertexKey};
 use crate::euler::EulerOpError;
-use crate::geometry::SurfaceKey;
+use crate::geometry::{SurfaceKey, SurfaceMiss};
 use crate::live::{dangling_link, linked, proven};
 use crate::offset_derive::WallSlot;
-use crate::pcurves::{PcurveMintError, mint_pcurves};
 use crate::validate::ValidationError;
 
 /// Typed refusal of the face-replacement door. Scalar payloads echo the
@@ -333,12 +332,12 @@ pub enum ReplaceFaceError<T: Real> {
         /// The first face carrying a different surface.
         other: FaceKey,
     },
-    /// The face carries the "not yet described" placeholder surface,
-    /// which has no locus to offset.
+    /// The face's surface is still pending, which has no locus to
+    /// offset.
     ///
     /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     PlaceholderSurface {
-        /// The face carrying the placeholder.
+        /// The pending face.
         face: FaceKey,
     },
     /// **The apex-window predicate.** The face's `v`-window, shifted by
@@ -826,13 +825,6 @@ pub enum ReplaceFaceError<T: Real> {
         /// The attach layer's typed refusal.
         error: EulerOpError,
     },
-    /// The whole-body pcurve mint refused on the re-described body.
-    ///
-    /// Standing ([`Self::refusal`]): a payload that mixes classes: aborts until it is split.
-    Pcurve {
-        /// The mint's typed refusal.
-        source: PcurveMintError,
-    },
     /// The join the public offset doors end with
     /// ([`Body::join_edges`](crate::construction::Construct::join_edges)) refused on the offset body. The body is
     /// untouched.
@@ -869,7 +861,7 @@ impl<T: Real> ReplaceFaceError<T> {
     /// ([`crate::cover::EdgeUncovered::refusal`]); the unbuilt lanes, row 2 (`*Unsupported`, the C5 boundary's
     /// `*Unroutable`), are limits; an invalid input (1(a)), a kernel or
     /// stored-data fault (4) and a payload that mixes classes (`Offset`,
-    /// `Fit`, `IsoRow`, the sections, `Op`, `Pcurve`,
+    /// `Fit`, `IsoRow`, the sections, `Op`,
     /// `Join`) abort until split. Exhaustive with no catch-all arm, so an
     /// added variant states its standing here before it compiles.
     ///
@@ -921,7 +913,6 @@ impl<T: Real> ReplaceFaceError<T> {
             | Self::TogetherAxialEdge { .. }
             | Self::TogetherConicArc { .. }
             | Self::Op { .. }
-            | Self::Pcurve { .. }
             | Self::Join { .. } => Err(geom_brep::ladder::Aborts),
         }
     }
@@ -1166,11 +1157,6 @@ impl<T: Real> ReplaceFaceError<T> {
                 f,
                 "the moved faces could not be put onto their offset surface: {}",
                 read_at(error, at)
-            ),
-            Self::Pcurve { source } => write!(
-                f,
-                "the offset body's edges could not be parametrized on their faces: {}",
-                read_at(source, at)
             ),
             Self::Join { refusal } => write!(f, "offsetting the face: {}", read_at(refusal, at)),
             Self::TogetherChartMixed { .. } => write!(
@@ -1699,7 +1685,7 @@ fn planned_charts<T: Decide + crate::props::AtRestPolicy>(
             let face = faces[0];
             let view = body.proven_face(face);
             let old_key = view.record().surface;
-            let old_surface = view.surface().clone();
+            let old_surface = view.surface().expect("the face is described").clone();
             assert!(
                 !matches!(old_surface, Surface::Cone { .. }),
                 "a cone's nappe and apex window are the door's"
@@ -1775,7 +1761,7 @@ pub fn offset_corner_arms_for_tests<T: Decide + crate::props::AtRestPolicy>(
     let band = Band::linear(tol).expect("the witness band");
     let view = body.proven_face(face);
     let old_key = view.record().surface;
-    let old_surface = view.surface().clone();
+    let old_surface = view.surface().expect("the face is described").clone();
     let new_surface = mint_offset(
         face,
         &old_surface,
@@ -1952,8 +1938,9 @@ fn wall_charts<'s, T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     moved: usize,
 ) -> Option<crate::offset_derive::WallCharts<'s>> {
-    T::section_lane()
-        .map(|_| crate::offset_derive::WallCharts::new(moved, body.surfaces().map(|(key, _)| key)))
+    T::section_lane().map(|_| {
+        crate::offset_derive::WallCharts::new(moved, body.described_surfaces().map(|(key, _)| key))
+    })
 }
 
 /// The moved chart wearing `key`, if one does.
@@ -2063,7 +2050,10 @@ pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
         if let Some(&other) = groups.of(old_key).iter().find(|k| !faces.contains(k)) {
             return Err(ReplaceFaceError::SharedSurfaceKey { face, other });
         }
-        let old_surface = view.surface().clone();
+        let old_surface = view
+            .surface()
+            .map_err(|_| ReplaceFaceError::PlaceholderSurface { face })?
+            .clone();
         // **The cone's mirror nappe is a consumer obligation, and this is
         // where this door discharges it.** `geom_brep::ConeOffset`'s
         // action moves the surface along the OPENING nappe's normal
@@ -2300,14 +2290,12 @@ pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
     // A row is stated over its edge's interval, which ends at the
     // edge's vertices, so the move stales every row of an edge that
     // ends at a moved vertex. They go before the re-anchors' site mints
-    // could keep them; the closing mint re-derives every face. That
-    // includes a fitted row on a neighbour that keeps its chart, which
-    // the closing mint would otherwise carry (`pcurves::carry_rows`):
-    // its image ends on the chart point of the vertex where it was
-    // stated, so once that vertex is displaced past the band the carry
-    // re-certifies it against an edge that ends elsewhere and refuses.
-    // A vertex in `moved` that lands within the band of where it was
-    // keeps a carryable row that this drop loses
+    // could keep them, for the finish to complete. That includes a
+    // fitted row on a neighbour that keeps its chart: its image ends on
+    // the chart point of the vertex where it was stated, so once that
+    // vertex is displaced past the band it is stale. A vertex in `moved`
+    // that lands within the band of where it was keeps a current row
+    // that this drop loses
     // (`work/shell/replace-faces-offset-drops-rows-at-a-vertex-the-move-leaves-in-place`).
     let staled: Vec<_> = work
         .half_edges
@@ -2342,7 +2330,6 @@ pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
                 },
             })?;
     }
-    mint_pcurves(&mut work, tol).map_err(|source| ReplaceFaceError::Pcurve { source })?;
     work.close_gated("offset_charts_staged")
         .map_err(|errors| ReplaceFaceError::ResultNotClosed { errors })?;
     let ends: std::collections::BTreeSet<crate::VertexKey> = written
@@ -2376,9 +2363,6 @@ fn mint_offset<T: Decide>(
     offset_fit: Option<impl geom_brep::OffsetFitLaneOf<T>>,
 ) -> Result<Surface<T>, ReplaceFaceError<T>> {
     if let Surface::Nurbs(base) = old {
-        if base.is_placeholder() {
-            return Err(ReplaceFaceError::PlaceholderSurface { face });
-        }
         return match offset_fit {
             None => Err(ReplaceFaceError::ApproxLaneUnsupported {
                 face,
@@ -2635,7 +2619,8 @@ fn iso_image_row<T: Decide>(
             // No lift to read: the ends are the image's own (above).
             let lift = crate::pcurves::Lift::read(body, half.parent_loop).ok()?;
             let row = lift.rows().iter().position(|row| row.half_edge == he)?;
-            let periods = crate::pcurves::ChartPeriods::stated(body.proven_face(face).surface());
+            let periods =
+                crate::pcurves::ChartPeriods::stated(body.proven_face(face).expect_described());
             Some(lift.stored_corners(row, periods))
         })
         .unwrap_or([None, None]);
@@ -2782,8 +2767,16 @@ fn plan_edge<'s, T: Decide>(
         // (`IsoRowError::Interior`) rather than reading another row.
         let extract = row.filter(|&(axis, at, _)| {
             self_shared || {
-                let held = body.proven_face(other).surface();
-                crate::offset_derive::holds_the_move(old_surface, held, Some((axis, at)), d, band)
+                // A pending neighbour holds nothing: its section refuses below.
+                body.proven_face(other).surface().is_ok_and(|held| {
+                    crate::offset_derive::holds_the_move(
+                        old_surface,
+                        held,
+                        Some((axis, at)),
+                        d,
+                        band,
+                    )
+                })
             }
         });
         iso_section = extract.is_none() && !self_shared;
@@ -2880,9 +2873,7 @@ fn plan_edge<'s, T: Decide>(
         sides[0]
     };
     if other_key != old_key {
-        let held = body.get_surface(other_key).unwrap_or_else(|| {
-            dangling_link(EntityId::Edge(edge), "face", GeomRef::Surface(other_key))
-        });
+        let held = held_surface(body, edge, other_key)?;
         let extent = geom_brep::edge_extent_inf(&old_carrier, t0, t1);
         if !crate::offset_derive::holds_the_move(old_surface, held, None, d, band) {
             return derive_edge(
@@ -2960,8 +2951,8 @@ fn plan_edge<'s, T: Decide>(
     // Whether the section of the moved chart and an untouched neighbour
     // is one this kernel can state.
     let neighbour_section = |other: SurfaceKey| -> Result<(), ReplaceFaceError<T>> {
-        let other_surface = body.get_surface(other).unwrap_or_else(|| {
-            dangling_link(EntityId::Edge(edge), "description", GeomRef::Surface(other))
+        let other_surface = body.get_surface(other).unwrap_or_else(|miss| {
+            crate::live::described_link(EntityId::Edge(edge), "description", other, miss)
         });
         let other_kind = other_surface.kind();
         let kind = new_surface.kind();
@@ -3048,9 +3039,7 @@ fn plan_edge<'s, T: Decide>(
         // and an offset leaves the normals along the edge as they were,
         // so the edge was already a corner, where an image is refused.
         EdgeDescription::Chart(ref c) if c.surface == old_key => {
-            let held = body.get_surface(other_key).unwrap_or_else(|| {
-                dangling_link(EntityId::Edge(edge), "face", GeomRef::Surface(other_key))
-            });
+            let held = held_surface(body, edge, other_key)?;
             let demanded = crate::offset_restate::re_ask_chart(
                 edge,
                 [(old_key, new_surface), (other_key, held)],
@@ -3081,8 +3070,8 @@ fn plan_edge<'s, T: Decide>(
         // now stands.
         EdgeDescription::OnPair { pair } if let Some(other) = pair.other(old_key) => {
             neighbour_section(other)?;
-            let held = body.get_surface(other).unwrap_or_else(|| {
-                dangling_link(EntityId::Edge(edge), "description", GeomRef::Surface(other))
+            let held = body.get_surface(other).unwrap_or_else(|miss| {
+                crate::live::described_link(EntityId::Edge(edge), "description", other, miss)
             });
             crate::offset_restate::re_ask_on_pair(
                 edge,
@@ -3171,12 +3160,8 @@ fn plan_edge<'s, T: Decide>(
         // rule reads, declared or not.
         EdgeDescription::Chart(ref c) => {
             neighbour_section(c.surface)?;
-            let held = body.get_surface(c.surface).unwrap_or_else(|| {
-                dangling_link(
-                    EntityId::Edge(edge),
-                    "description",
-                    GeomRef::Surface(c.surface),
-                )
+            let held = body.get_surface(c.surface).unwrap_or_else(|miss| {
+                crate::live::described_link(EntityId::Edge(edge), "description", c.surface, miss)
             });
             crate::offset_restate::re_ask_on_pair(
                 edge,
@@ -3215,6 +3200,31 @@ fn plan_edge<'s, T: Decide>(
         refused: None,
         apex_pair: None,
     })
+}
+
+/// The surface a face beside a moved edge wears: [`ReplaceFaceError::PlaceholderSurface`]
+/// naming that face where it is still pending, which has no locus to
+/// hold or section.
+fn held_surface<T: Real>(
+    body: &Body<T>,
+    edge: EdgeKey,
+    key: SurfaceKey,
+) -> Result<&Surface<T>, ReplaceFaceError<T>> {
+    match body.get_surface(key) {
+        Ok(surface) => Ok(surface),
+        Err(SurfaceMiss::Stale) => {
+            dangling_link(EntityId::Edge(edge), "face", GeomRef::Surface(key))
+        }
+        Err(SurfaceMiss::Pending) => {
+            let [a, b] = crate::edge_faces(body, edge);
+            let face = if body.proven_face(a).record().surface == key {
+                a
+            } else {
+                b
+            };
+            Err(ReplaceFaceError::PlaceholderSurface { face })
+        }
+    }
 }
 
 /// The surface keys on `edge`'s two sides.
@@ -4123,8 +4133,8 @@ fn plan_reanchors<T: Decide>(
             EdgeDescriptionSpec::OnPair { pair, declared } => {
                 let [ka, kb] = pair.keys();
                 let surface = |k| {
-                    body.get_surface(k).unwrap_or_else(|| {
-                        dangling_link(EntityId::Edge(edge), "description", GeomRef::Surface(k))
+                    body.get_surface(k).unwrap_or_else(|miss| {
+                        crate::live::described_link(EntityId::Edge(edge), "description", k, miss)
                     })
                 };
                 crate::offset_restate::re_ask_on_pair(
@@ -4439,8 +4449,8 @@ fn solve_corners<T: Decide>(
     let surface_of = |key: SurfaceKey| -> &Surface<T> {
         match moved_of(charts, key) {
             Some(chart) => &chart.new_surface,
-            None => body.get_surface(key).unwrap_or_else(|| {
-                unreachable!("{key:?} is a face's surface, read off a live face")
+            None => body.get_surface(key).unwrap_or_else(|miss| {
+                unreachable!("{key:?} is a face's described surface, read off a live face: {miss}")
             }),
         }
     };

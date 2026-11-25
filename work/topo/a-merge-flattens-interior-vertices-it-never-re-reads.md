@@ -16,4 +16,4 @@ So on one body whose interior facets drift (a terraced dome inside a flat ring, 
 
 **First job:** build the terraced-dome fixture and measure. If the merge flattens past ε silently, this is a live wrong answer: re-band it P0, and add the missing read (each constituent's vertices within ε of the kept description, refusing typed otherwise). If it refuses, close the row with the measurement.
 
-Related: `work/contacthold/a-fold-step-glues-a-pair-its-door-reads-in-band.md` (the chain probe's measured cases); probe on branch `reads/chain-drift-probe`.
+Related: `work/topo/a-fold-step-glues-a-pair-its-door-reads-in-band.md` (the chain probe's measured cases); probe on branch `reads/chain-drift-probe`.

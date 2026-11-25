@@ -9,7 +9,7 @@ cost: H
 parent: topo-mints-indeterminates-outside-the-funnel
 closed: 2026-11-10
 pr: 6693
-refs: [decided-coincidence-carries-a-synthetic-invalid-margin, contact-gate-readers-drop-the-arm-verdict-or-mint-invalid, 4641]
+refs: [decided-coincidence-carries-a-synthetic-invalid-margin, 4641]
 ---
 
 Unit 5 of `topo-mints-indeterminates-outside-the-funnel`'s re-scope

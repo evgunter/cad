@@ -126,7 +126,7 @@ fn a_record_on_the_blended_edge_is_consumed() {
         .find(|(fk, _)| {
             matches!(
                 base.body.face_surface(*fk),
-                Some(topo::Surface::Plane { frame, .. })
+                Ok(topo::Surface::Plane { frame, .. })
                     if frame.axis().z.abs() == 1.0 && frame.origin().z == 2.0
             )
         })
@@ -294,7 +294,7 @@ fn a_record_touching_nothing_on_a_support_face_refuses_stale() {
             .find(|(fk, _)| {
                 matches!(
                     base.body.face_surface(*fk),
-                    Some(topo::Surface::Plane { frame, .. })
+                    Ok(topo::Surface::Plane { frame, .. })
                         if frame.axis().z.abs() == 1.0 && frame.origin().z == z
                 )
             })

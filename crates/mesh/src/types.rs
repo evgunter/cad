@@ -105,10 +105,9 @@ pub enum TessellateError {
         /// The offending value.
         value: f64,
     },
-    /// A face's surface is the [`geom::Surface::Nurbs`]
-    /// **placeholder** (`NurbsSurface::is_placeholder`) — the mvfs "no
-    /// description yet" state has no evaluable description to
-    /// tessellate against.
+    /// A face's surface is still **pending**
+    /// ([`topo::SurfaceMiss::Pending`]) — a face mid-construction has
+    /// no description to tessellate against.
     ///
     /// A DESCRIBED `Nurbs` face never lands here: it routes through
     /// `trimmed` with the control-net Hessian certificate, and one
@@ -170,8 +169,8 @@ pub enum TessellateError {
     /// The curved lane reads the same door for a rimless loop, a wrap
     /// strip or a pole-to-pole band, whose columns are its lift's
     /// (`walk::wrap_strip`, `walk::band_columns`): such a face on a body
-    /// whose rows were never minted (built through the Euler doors and
-    /// not passed through `topo::mint_pcurves`) refuses here too.
+    /// whose rows were never completed (built through the Euler doors and
+    /// never finished, `topo::finish`) refuses here too.
     DomainUnread {
         /// The offending face.
         face: FaceKey,
@@ -797,9 +796,9 @@ impl TessellateError {
                  ask for a real sag budget",
             ),
             Self::UnsupportedSurface { .. } => f.write_str(
-                "tessellate: a face's NURBS surface is still the mvfs \
-                 placeholder — there is no description to tessellate against; \
-                 give the face its surface before meshing the body",
+                "tessellate: a face's surface is still pending — there is no \
+                 description to tessellate against; give the face its surface \
+                 before meshing the body",
             ),
             Self::UnsupportedNurbsFace { note, .. } => write!(
                 f,
@@ -822,9 +821,8 @@ impl TessellateError {
                     R::Gap(_) => {
                         "a loop of it has no lift in the face's chart: an edge of it \
                          stores no chart image, or no element on the joint into it, or \
-                         an image its lift does not apply to — the boolean, split and \
-                         sweep doors mint them, and `topo::mint_pcurves` mints them on \
-                         a body built through the Euler doors"
+                         an image its lift does not apply to — the finish completes \
+                         them, so a finished body (`topo::finish`) stores every one"
                     }
                     R::OuterOpen { .. } => {
                         "its outer loop does not close in the face's chart: it winds the \
@@ -1144,15 +1142,16 @@ impl TessellateError {
                 }
                 write!(
                     f,
-                    ". The body's chart rows contradict its loop; re-mint them \
-                     (`topo::mint_pcurves`)"
+                    ". The body's chart rows contradict its loop, which a finished \
+                     body's never do: finish it (`topo::finish`), which refuses a stale row"
                 )
             }
             Self::LiftedColumnOff { .. } => write!(
                 f,
                 "tessellate: a meridian of a face's pole-to-pole band stands more than a \
                  quarter turn from where the face's stored chart image of it lies, so the \
-                 body's chart rows contradict the edge; re-mint them (`topo::mint_pcurves`)"
+                 body's chart rows contradict the edge, which a finished body's never do: \
+                 finish it (`topo::finish`), which refuses a stale row"
             ),
         }
     }
