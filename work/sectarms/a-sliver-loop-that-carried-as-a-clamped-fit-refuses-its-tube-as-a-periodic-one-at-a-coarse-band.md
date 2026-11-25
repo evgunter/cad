@@ -345,7 +345,7 @@ rewrites the row.
   `pair_section::a_seated_loop_has_no_start` does), so it goes red the
   day the pose carries.
 
-## 2026-11-25 — built (branch `sectarms/limb3-halves-cover`)
+## 2026-11-25 — built (PR 7776)
 
 The decision is built as decided: the one-point reading on plane,
 sphere and cylinder pairs (`ssi::enclose::graph_quantity`), limb 3's own
@@ -385,8 +385,9 @@ pairs that read two points: at ε = 1e-6 the ball round the donut's
 axis proves its tube 7.8e-3 over 293 and 235 boxes of 200 and 195, where
 main reached the same rung by re-marching to 329 and 273 samples.
 
-**Two things the decision did not say, decided in the build**, both in
-the PR body's Choices:
+**Three things the decision did not say, decided in the build**, all in
+the PR body's Choices. The third departs from the plan as written and is
+the PR's one question:
 
 - A site's runs stay on the tube's chain. Read off the narrow chain,
   `cylinder_pair_section::a_region_through_a_branch_point_escalates`
@@ -398,6 +399,14 @@ the PR body's Choices:
   padding halves every box to the work bound, and
   `pair_section::the_count_is_the_morse_count_at_every_pose_near_every_critical_height`
   ran 1116 s at ε = 1e-6 against main's 226 s.
+- **A loop's winding is read over the narrow chain, not the tube.** The
+  plan had the winding read the tube. With the one-point reading the
+  tubes are a rung or two wider, and
+  `pair_section::wiring::the_cylinder_sphere_coverage_keeps_its_headroom`
+  refused `Winds(Unordered)` at ε = 1e-12 on its turned one-loop pose:
+  the tube's boxes meet across the small loop, so the walk through
+  them is not shown once round. Read over the narrow chain, which limb 3
+  proves one arc the same way, the row passes at all three bands.
 
 The rows pinned on this pose are unpinned and pass at ε = 1e-6:
 `pair_section::a_seated_loop_has_no_start`,

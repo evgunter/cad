@@ -12,14 +12,14 @@ cost: M
 
 Filed by SECTARMS's `sectarms/limb3-halves-cover` lane (the build of Ev's
 decision on PR 7056,
-`work/sectarms/a-sliver-loop-that-carried-as-a-clamped-fit-refuses-its-tube-as-a-periodic-one-at-a-coarse-band.md`).
+`work/sectarms/a-sliver-loop-that-carried-as-a-clamped-fit-refuses-its-tube-as-a-periodic-one-at-a-coarse-band.md`; PR 7776).
 
 ## Measured
 
 A marched branch's certificate records two rungs
 (`ssi::certify`'s `SsiTube::Spatial`): the tube, the widest that
 proves, and the narrowest that proves one arc, which the carry reads
-the pad off (`narrowest_proving`). The second costs one more probe,
+the pad and a loop's winding off (`narrowest_proving`). The second costs one more probe,
 its cover's graph margins and one `one_arc_r3` run. On every row
 measured the ladder's narrowest rung proves on that first probe, so it
 is exactly one run. It is not a cheap one.

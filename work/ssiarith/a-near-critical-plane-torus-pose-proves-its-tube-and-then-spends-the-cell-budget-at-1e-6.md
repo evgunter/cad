@@ -11,7 +11,7 @@ cost: M
 
 
 Filed by SECTARMS's `sectarms/limb3-halves-cover` lane (the build of Ev's
-decision on PR 7056).
+decision on PR 7056, PR 7776).
 
 ## Measured
 

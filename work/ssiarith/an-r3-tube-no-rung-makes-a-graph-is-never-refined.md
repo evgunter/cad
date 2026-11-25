@@ -85,7 +85,7 @@ rung is no graph, and retires `refine_for_tube`. Both designers expect
 that to close both instances of this row. SECTARMS builds it; the build
 will cite this row.
 
-## 2026-11-25 — both instances carry (SECTARMS, branch `sectarms/limb3-halves-cover`)
+## 2026-11-25 — both instances carry (SECTARMS, PR 7776)
 
 Built as the note above says. Measured at ε = 1e-6:
 
