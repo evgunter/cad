@@ -235,10 +235,13 @@ pub enum ContainError {
         /// The escalation diagnostics (named predicate inside).
         diag: Indeterminate,
     },
-    /// No ray of the walk's schedule settled — each grazed or gave
-    /// nothing to read ([`crate::ray_walk::NoRaySettled`]) — a planar
-    /// loop's, or a sphere face's region ([`crate::sphere_region`]).
-    RayExhausted,
+    /// No ray of a planar loop walk's schedule settled against this loop
+    /// — each grazed or gave nothing to read
+    /// ([`crate::ray_walk::NoRaySettled`]). A curved face's region walk
+    /// reads the face's whole boundary, and its exhaustion is the solid
+    /// door's ([`Self::Curved`],
+    /// [`PointInSolidError::RegionRayExhausted`](crate::solid_contain::PointInSolidError::RegionRayExhausted)).
+    RayExhausted(LoopKey),
     /// The face the caller passed does not resolve in this body.
     StaleFace(FaceKey),
     /// A loop of the face is a lone vertex: it bounds no region a
@@ -274,7 +277,7 @@ impl ContainError {
         use geom_brep::ladder::{Aborts, Refusal};
         match self {
             Self::Escalated { diag, .. } => Ok(Refusal::Margin(*diag)),
-            Self::RayExhausted => Ok(Refusal::InBand),
+            Self::RayExhausted(_) => Ok(Refusal::InBand),
             Self::EmptyLoop(_) => Ok(crate::live::LONE_LOOP_REFUSAL),
             Self::LoopUnreadable(_) | Self::Uncrossable(_) => Ok(Refusal::Limit),
             Self::Curved(e) => e.refusal(),
@@ -300,6 +303,8 @@ impl ContainError {
 /// readings of one end disagreeing.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ArcEndGaps {
+    /// The arc's edge.
+    pub(crate) edge: EdgeKey,
     /// `gaps[i][j]`: the carrier's start (`i = 0`) or end (`i = 1`)
     /// against the edge's start (`j = 0`) or end (`j = 1`) corner, in
     /// the loop's order, with the margin each was decided on.
@@ -348,9 +353,11 @@ impl core::fmt::Display for ArcEndGaps {
     }
 }
 
-// Each arm names WHAT STOPPED, and the repair that moves it where one
-// does, because a consumer that carries this refusal renders it verbatim
-// and adds no sentence of its own. `RayExhausted` and `Uncrossable` want
+// Each arm names WHAT STOPPED, the loop, edge or face it stopped at
+// (`Escalated` names its decision instead, and `Curved` is the solid
+// door's own sentence), and the repair that moves it where one does,
+// because a consumer that carries this refusal renders it verbatim and
+// adds no sentence of its own. `RayExhausted` and `Uncrossable` want
 // different repairs — move the geometry, re-model the loop — so
 // one shared tail would name the wrong one.
 //
@@ -377,7 +384,18 @@ impl ContainError {
                     at.map(|at| placement_ending(*decision, *escalation, diag, at)),
                 )
             ),
-            Self::RayExhausted => write!(f, "contfp: {}", crate::ray_walk::NoRaySettled),
+            Self::RayExhausted(lp) => write!(
+                f,
+                concat!(
+                    "contfp: ",
+                    geom_core::undecided!(
+                        "whether the point lies in loop {:?} of the face",
+                        payload
+                    )
+                ),
+                lp,
+                crate::ray_walk::NoRaySettled
+            ),
             Self::StaleFace(face) => {
                 write!(f, "contfp: face {face:?} does not resolve in this body")
             }
@@ -393,12 +411,16 @@ impl ContainError {
             Self::Curved(e) => write!(f, "contfp: {}", geom_brep::recourse::read_at(e, at)),
             Self::Uncrossable(u) => write!(
                 f,
-                "contfp: {u}. Recourse: {}",
+                "contfp: loop {:?} of the face cannot be read at edge {:?}: {u}. Recourse: {}",
+                u.r#loop,
+                u.edge,
                 crate::meeting::CONIC_OUTLINE_RECOURSE
             ),
             Self::ArcEndClearOfCorners(gaps) => write!(
                 f,
-                "contfp: the point lies at an arc's end clear of its corners: {gaps}. Recourse: {}",
+                "contfp: the point lies at an end of arc {:?} clear of its corners: {gaps}. \
+                 Recourse: {}",
+                gaps.edge,
                 placement_lever(Some(ContainDecision::ArcEnd))
             ),
         }
@@ -772,6 +794,7 @@ fn cycles_pre_pass<T: Decide>(
                 };
                 let gaps = [[gap(c0, v0)?, gap(c0, v1)?], [gap(c1, v0)?, gap(c1, v1)?]];
                 return Err(ContainError::ArcEndClearOfCorners(Box::new(ArcEndGaps {
+                    edge: lp.keys[i],
                     gaps,
                     band,
                 })));
@@ -1123,8 +1146,10 @@ fn sphere_face_containment<T: Decide>(
 }
 
 /// A region reading's verdict ([`crate::sphere_region`],
-/// [`crate::torus_region`]) as this door states it: `None` on the
-/// region's boundary, which the boundary walk did not place.
+/// [`crate::torus_region`], [`crate::ruled_region`]) as this door states
+/// it: `None` on the region's boundary, which the boundary walk did not
+/// place. A refusal other than an escalation is the solid door's about
+/// `face` ([`RegionRefusal::of_face`]), carried as [`ContainError::Curved`].
 fn region_placement(
     face: FaceKey,
     reading: Result<Option<bool>, RegionRefusal>,
@@ -1138,10 +1163,11 @@ fn region_placement(
             escalation: Escalation::Margin,
             diag,
         }),
-        Err(RegionRefusal::RayExhausted { .. }) => Err(ContainError::RayExhausted),
-        Err(e @ (RegionRefusal::WoundPastPeriod | RegionRefusal::Unreadable(_))) => {
-            Err(solid_err(e.of_face(face)))
-        }
+        Err(
+            e @ (RegionRefusal::RayExhausted
+            | RegionRefusal::WoundPastPeriod
+            | RegionRefusal::Unreadable(_)),
+        ) => Err(solid_err(e.of_face(face))),
     }
 }
 
@@ -1317,6 +1343,24 @@ mod tests {
     use super::*;
     use crate::entity::LoopBoundary;
     use geom_core::Tol;
+
+    /// **A curved face's exhausted region walk is the solid door's refusal
+    /// about that face** ([`region_placement`]): carried as `Curved`, with
+    /// the face the door was asked about, where a loop walk's exhaustion
+    /// names its loop.
+    #[test]
+    fn a_region_walks_exhaustion_carries_its_face() {
+        use crate::solid_contain::PointInSolidError;
+        let face = FaceKey::from(slotmap::KeyData::from_ffi((1 << 32) | 7));
+        let got = region_placement(face, Err(RegionRefusal::RayExhausted));
+        assert_eq!(
+            got,
+            Err(ContainError::Curved(
+                PointInSolidError::RegionRayExhausted { face }
+            )),
+            "the region walk's exhaustion is the face's"
+        );
+    }
 
     /// **The face-level containment door keeps its two kinds of `Out`
     /// apart on a cone** (on `crate::boxes`' cone-wall fixture). A point

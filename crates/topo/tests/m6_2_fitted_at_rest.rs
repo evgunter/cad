@@ -103,11 +103,10 @@ fn a_rung3_edge_at_rest_carries_its_projected_rows_and_its_edge_the_tube() {
         .expect("AT-REST: the edge re-certifies with its tube");
 }
 
-/// **A producer's closing mint re-derives the row.** The mint has a
-/// route to this face's rung-3 carrier (the projected image), so a
-/// second mint and a rigid map — which ends with that mint — leave
-/// projected rows, the same bits for the mint, and tier 3 reads the body
-/// clean.
+/// **The mint re-derives the row, and a rigid map carries it.** The
+/// mint has a route to this face's rung-3 carrier (the projected
+/// image), so a second mint leaves the same bits; a rigid map carries
+/// the projected rows, and tier 3 reads the body clean.
 #[test]
 fn a_producers_closing_mint_re_derives_the_projected_row() {
     let built = fixture::build::<f64>();

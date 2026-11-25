@@ -203,9 +203,11 @@ impl Default for Camera {
 /// A camera state that is not a camera (closed enum, D4 ¶3).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum CameraError {
-    /// A coordinate, angle, distance or radius was not finite.
+    /// A coordinate, angle, distance or radius was not finite: an
+    /// argument, or a quantity a door computed from finite ones (a
+    /// scene radius, a ray direction, a clip `w`, a screen coordinate).
     NotFinite {
-        /// Which of the constructor's arguments.
+        /// Which quantity.
         what: &'static str,
         /// The offending value.
         value: f64,
@@ -825,24 +827,42 @@ impl Camera {
     /// without a renderer — which is what lets a test assert that a
     /// framed scene actually fits the frustum.
     ///
+    /// A far point whose arithmetic stays finite answers where its
+    /// direction from the eye lands, which is where the eye sees it.
+    ///
     /// # Errors
     ///
-    /// As [`Camera::projection_matrix`].
+    /// As [`Camera::projection_matrix`], plus
+    /// [`CameraError::NotFinite`] for a point that is not one, and for
+    /// a projection that leaves `f64`: a clip `w` (`"clip w"`), or an
+    /// answered coordinate (`"screen coordinate"`, a finite point so
+    /// far off the view axis that its quotient overflows), that is not
+    /// a number. Such a point has no screen
+    /// position, but it is not behind the eye, so it is not `None`.
     pub fn project(
         &self,
         point: Point3<f64>,
         aspect: f64,
     ) -> Result<Option<[f64; 3]>, CameraError> {
         let m = self.view_projection(aspect)?;
+        finite("point x", point.x)?;
+        finite("point y", point.y)?;
+        finite("point z", point.z)?;
         let v = [point.x, point.y, point.z, 1.0];
         let mut out = [0.0f64; 4];
         for (row, slot) in out.iter_mut().enumerate() {
             *slot = m[0][row] * v[0] + m[1][row] * v[1] + m[2][row] * v[2] + m[3][row] * v[3];
         }
-        if out[3].is_nan() || out[3] <= 0.0 {
+        let w = out[3];
+        finite("clip w", w)?;
+        if w <= 0.0 {
             return Ok(None);
         }
-        Ok(Some([out[0] / out[3], out[1] / out[3], out[2] / out[3]]))
+        let ndc = [out[0] / w, out[1] / w, out[2] / w];
+        for coordinate in ndc {
+            finite("screen coordinate", coordinate)?;
+        }
+        Ok(Some(ndc))
     }
 
     /// The world ray through a cursor position — the **un-projection**,

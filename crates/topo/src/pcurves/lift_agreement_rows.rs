@@ -298,7 +298,13 @@ fn no_file_outside_the_mint_pins_a_chart_branch() {
         ),
     ];
     // (file, constructions of an element from a deck, what they are).
-    const MAKERS: [(&str, usize, &str); 3] = [
+    const MAKERS: [(&str, usize, &str); 4] = [
+        (
+            "topo/src/boolean/ops_gate_finding_set_rows.rs",
+            1,
+            "a row that states a stale element, a period off, for completion to keep and the \
+             gate to refuse with the finish's finding set",
+        ),
         (
             "topo/src/joint.rs",
             5,

@@ -2310,8 +2310,8 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    scene's own change to make.
     let across = pncad::topo::Reflection::across(p3(0.0, 0.0, 0.0), v3(0.0, 1.0, 0.0), tol)
         .expect("the plant's plane has a normal");
-    let mirrored = pncad::topo::mirror_body(leaf_a, &across, tol)
-        .expect("a leaf mirrors across the plant's plane");
+    let mirrored =
+        pncad::topo::mirror_body(leaf_a, &across).expect("a leaf mirrors across the plant's plane");
     finished("lily_leaf_a mirrored", mirrored, tol);
     println!("   wall 5 — RETIRED: a leaf mirrored across the plant's plane builds at rest");
 
@@ -2405,37 +2405,36 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    that pair's section is a torus × spline one, read whole over
     //    the wall's chart. The section hugs the leaf's lower cap rim,
     //    within a hundredth of the wall's chart of the root station
-    //    along the middle two thirds of the rim. The reading refuses at
-    //    its accounting, which exceeds the subdivision's 200000-cell
-    //    budget, and the section value hands that on as `Unaccounted`.
-    //    The cells go to the wall's corner at the margin of the root,
-    //    more than a centimetre outside the tube: the accounting clears a
-    //    cell by the torus's canonical quartic over the cell's box, and
-    //    on a torus this thin (ring/pipe ~83) that bound is far wider
-    //    than the form's own variation over the cell, so a cell there
-    //    clears only once it is under half a millimetre across
-    //    (`work/ssiarith/the-chart-accounting-clears-a-thin-torus-only-in-sub-millimetre-cells.md`).
-    //    It refuses the same way at 1e-9 and 1e-6.
+    //    along the middle two thirds of the rim. The reading marches it
+    //    and accounts the rest of the chart, each cell cleared by the
+    //    torus's quartic over the cell's box, read as the meet of its
+    //    expanded and its factored forms.
     //
-    //    Past the germ mint, the join frames the torus wall against the
-    //    leaf's lower cap, the cap the tube crosses in two chords. That
-    //    plane is tilted against the torus's axis, so it cuts a general
-    //    spiric quartic whose loops wind round the tube, and C5 routes
-    //    that section to its unbuilt general rung
-    //    (`work/secttorus/c5-plane-torus-cone-cylinder-arms`). At 1e-12
-    //    the lower stem's declared frontier stands the lily walls down
-    //    before this one.
-    wall(
+    //    The pierce pass then asks the faces of the leaf whether they
+    //    hold the point where one of its vertices pierces the tube, and
+    //    the leaf's other NURBS wall cannot say: its trim reads no closed
+    //    lift of its loop in its chart, so the union refuses
+    //    `HeldPierceUnbuilt` with `placed: false`
+    //    (`work/splice/lily-wall-8s-leaf-wall-lifts-no-closed-trim-at-the-pierce-pass.md`).
+    //    It stops there at 1e-9 and at 1e-6, though at 1e-6 wall 2 stops
+    //    the probes before this one.
+    //
+    //    At 1e-12 the lower stem's declared frontier stands the lily
+    //    walls down before this one.
+    crate::walls::join_wall(
+        "lily",
         8,
         "grow the long leaf out of the stem (its NURBS walls through the \
          lower stem's torus wall)",
         crate::booleans::try_union(stem, leaf_a, tol),
         |e| {
-            // The leaf's ridge wall: of its two NURBS walls, the one
-            // whose control points about the root stand on the ridge
-            // side of the root's chord, `+v` of the sheath's frame.
+            // Which of the leaf's two NURBS walls a face is: `Some(true)`
+            // for the ridge wall, whose control points about the root
+            // stand on the ridge side of the root's chord (`+v` of the
+            // sheath's frame), `Some(false)` for the other, `None` off
+            // both.
             let (root, (_, sheath_up, _), _, _) = leaf_a_spine(tol);
-            let ridge_wall = |f| match leaf_a.face_surface(f) {
+            let ridge_side = |f| match leaf_a.face_surface(f) {
                 Ok(pncad::topo::Surface::Nurbs(n)) => {
                     let lean: f64 = n
                         .control()
@@ -2444,9 +2443,9 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
                         .filter(|c| (*c - root).norm() < 0.1)
                         .map(|c| (c - root).dot(sheath_up))
                         .sum();
-                    lean > 0.0
+                    Some(lean > 0.0)
                 }
-                _ => false,
+                _ => None,
             };
             let scalar = <S as pncad::geom_core::Real>::NAME;
             let marches = scalar == <f64 as pncad::geom_core::Real>::NAME;
@@ -2464,31 +2463,40 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
                 }
                 _ => false,
             };
-            matches!(
-                e,
+            match e {
+                // At the tour's own scalar the torus × spline section
+                // marches and is accounted, and the pierce pass asks the
+                // leaf's other wall whether it holds the point.
+                BooleanError::HeldPierceUnbuilt {
+                    operand: pncad::topo::Operand::B,
+                    face,
+                    pierced,
+                    kind: SurfaceKind::Nurbs,
+                    pierced_kind: SurfaceKind::Torus,
+                    placed: false,
+                } => marches && lower_tube(*pierced) && ridge_side(*face) == Some(false),
+                // PINNED, not wanted: a scalar handed no march lane (the
+                // K sweep's) reads the ridge wall's section one refusal
+                // short of the tour, and the refusal names that scalar.
+                // It waits on
+                // `work/sectarms/the-torus-spline-germ-section-has-no-march-lane-at-the-recording-scalar.md`.
                 BooleanError::GermSectionUnbuilt {
                     a_face,
                     a_kind: SurfaceKind::Torus,
                     b_face,
                     b_kind: SurfaceKind::Nurbs,
-                    why: SectionUnbuilt::Refused(why),
-                } if lower_tube(*a_face) && ridge_wall(*b_face) && match why {
-                    // At the tour's own scalar the torus × spline section
-                    // marches, and runs to its cell budget.
-                    pncad::geom_brep::SectionError::Unaccounted { cause } => {
-                        marches && cause.contains("cell budget")
-                    }
-                    // PINNED, not wanted: a scalar handed no march lane
-                    // (the K sweep's) reads this wall one refusal short
-                    // of the tour, and the refusal names that scalar. It
-                    // waits on
-                    // `work/sectarms/the-torus-spline-germ-section-has-no-march-lane-at-the-recording-scalar.md`.
-                    pncad::geom_brep::SectionError::NoMarch { scalar: unmarched } => {
-                        !marches && *unmarched == scalar
-                    }
-                    _ => false,
+                    why:
+                        SectionUnbuilt::Refused(pncad::geom_brep::SectionError::NoMarch {
+                            scalar: unmarched,
+                        }),
+                } => {
+                    !marches
+                        && *unmarched == scalar
+                        && lower_tube(*a_face)
+                        && ridge_side(*b_face) == Some(true)
                 }
-            )
+                _ => false,
+            }
         },
         "join the long leaf to the stem it grows from",
     );
