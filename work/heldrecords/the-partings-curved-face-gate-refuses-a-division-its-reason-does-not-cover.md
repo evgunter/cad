@@ -2,7 +2,7 @@
 id: the-partings-curved-face-gate-refuses-a-division-its-reason-does-not-cover
 kind: issue
 title: The parting's CurvedFace gate refuses every parting on a curved face, though its reason covers only a zero-area ring or a slit; a division (and a closed edge inside one face) has no arm
-status: open
+status: dispatched
 opened: 2026-11-25
 priority: P1
 cost: M

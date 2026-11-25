@@ -2,10 +2,11 @@
 id: the-junction-side-reading-assumes-no-other-target-boundary-within-its-reach
 kind: issue
 title: The junction's side reading assumes the target face has no boundary but the rim within the spread's reach of the end, and never checks it
-status: open
+status: review
 opened: 2026-11-24
 priority: P1
 cost: M
+pr: 7757
 ---
 
 
