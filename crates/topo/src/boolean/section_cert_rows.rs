@@ -2731,7 +2731,7 @@ fn a_torus_rectangle_trims_on_every_ring() {
                     );
                 } else {
                     assert!(
-                        matches!(past, Err(crate::ContainError::RayExhausted)),
+                        matches!(past, Err(crate::ContainError::RayExhausted(_))),
                         "ring {ring:?}: past the window: {past:?}"
                     );
                 }

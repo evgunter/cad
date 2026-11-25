@@ -786,7 +786,7 @@ mod piece_ranking {
     use super::{OverlapRefusal, OverlapUnread, keep_piece_refusal};
 
     fn in_band() -> OverlapRefusal {
-        OverlapRefusal::Placement(super::super::ContainError::RayExhausted)
+        OverlapRefusal::Placement(super::super::ContainError::RayExhausted(crate::entity::LoopKey::default()))
     }
 
     fn unread() -> OverlapRefusal {

@@ -4169,7 +4169,7 @@ fn classify_contain(e: &ContainError) -> (Cow<'static, str>, Cow<'static, str>) 
             escalation,
             diag,
         } => close_to_boundary(*decision, *escalation, diag),
-        ContainError::RayExhausted => (GRAZED.into(), geom_core::MOVE_RECOURSE.into()),
+        ContainError::RayExhausted(_) => (GRAZED.into(), geom_core::MOVE_RECOURSE.into()),
         ContainError::StaleFace(_) => (
             "a face the check asked about does not resolve in the body".into(),
             DEFECT.into(),
@@ -12871,10 +12871,10 @@ mod tests {
                     diag,
                 },
             ),
-            (S::RayExhausted, ContainError::RayExhausted),
+            (S::RayExhausted, ContainError::RayExhausted(r#loop)),
             (
                 S::Loop(L::RayExhausted { r#loop }),
-                ContainError::RayExhausted,
+                ContainError::RayExhausted(r#loop),
             ),
             (
                 S::Loop(L::CorruptLoop { r#loop }),
@@ -12921,7 +12921,7 @@ mod tests {
         // Every ray grazed a point the pre-pass placed off the boundary:
         // nothing about it is close, at either level.
         assert_eq!(
-            top(ContainError::RayExhausted),
+            top(ContainError::RayExhausted(r#loop)),
             (super::GRAZED.into(), geom_core::MOVE_RECOURSE.into())
         );
         assert_eq!(read(S::Loop(L::CorruptLoop { r#loop })).1, super::DEFECT);

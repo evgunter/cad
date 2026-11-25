@@ -390,7 +390,7 @@ fn contain_errors() -> Vec<ContainError> {
     v.extend([
         arc_end_clear_of_corners(true),
         arc_end_clear_of_corners(false),
-        ContainError::RayExhausted,
+        ContainError::RayExhausted(LoopKey::default()),
         ContainError::StaleFace(crate::entity::FaceKey::default()),
         ContainError::EmptyLoop(LoopKey::default()),
         ContainError::LoopUnreadable(LoopKey::default()),

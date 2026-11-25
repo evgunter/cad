@@ -377,7 +377,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             BooleanError::PointInFaceRefused {
                 operand: Operand::B,
                 face,
-                refusal: topo::ContainError::RayExhausted,
+                refusal: topo::ContainError::RayExhausted(LoopKey::default()),
             },
         ),
         (

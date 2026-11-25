@@ -6079,7 +6079,7 @@ fn landing<T: Decide>(
             crate::contain::ContainError::EmptyLoop(_)
             | crate::contain::ContainError::LoopUnreadable(_)
             | crate::contain::ContainError::Curved(_)
-            | crate::contain::ContainError::RayExhausted
+            | crate::contain::ContainError::RayExhausted(_)
             | crate::contain::ContainError::Uncrossable(_)
             | crate::contain::ContainError::ArcEndClearOfCorners(_),
         ) => Ok(Landing::Unplaced),
@@ -6425,7 +6425,7 @@ pub(super) fn esc(e: ContainError, operand: Operand, face: FaceKey) -> BooleanEr
             BooleanError::ArcLoopContainmentUnsupported { operand, cause }
         }
         ContainError::StaleFace(face) => crate::contain::driver_face_stale(face),
-        refusal @ (ContainError::RayExhausted
+        refusal @ (ContainError::RayExhausted(_)
         | ContainError::EmptyLoop(_)
         | ContainError::LoopUnreadable(_)
         | ContainError::Curved(_)
@@ -9026,7 +9026,7 @@ mod esc_tests {
         for e in [
             ContainError::EmptyLoop(lk),
             ContainError::LoopUnreadable(lk),
-            ContainError::RayExhausted,
+            ContainError::RayExhausted(lk),
             ContainError::Curved(PointInSolidError::CorruptFace { face }),
         ] {
             let got = esc(e.clone(), Operand::B, face);

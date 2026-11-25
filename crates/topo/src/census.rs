@@ -3512,7 +3512,7 @@ fn read_containment<V>(
         }
         Err(
             e @ (ContainError::Uncrossable(_)
-            | ContainError::RayExhausted
+            | ContainError::RayExhausted(_)
             | ContainError::EmptyLoop(_)
             | ContainError::LoopUnreadable(_)
             | ContainError::Curved(_)

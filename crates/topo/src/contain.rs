@@ -236,9 +236,11 @@ pub enum ContainError {
         diag: Indeterminate,
     },
     /// No ray of the walk's schedule settled — each grazed or gave
-    /// nothing to read ([`crate::ray_walk::NoRaySettled`]) — a planar
-    /// loop's, or a sphere face's region ([`crate::sphere_region`]).
-    RayExhausted,
+    /// nothing to read ([`crate::ray_walk::NoRaySettled`]) — against this
+    /// loop: a planar loop's walk, or a curved face's region read
+    /// ([`crate::sphere_region`], [`crate::torus_region`]), which names
+    /// the face's outer loop.
+    RayExhausted(LoopKey),
     /// The face the caller passed does not resolve in this body.
     StaleFace(FaceKey),
     /// A loop of the face is a lone vertex: it bounds no region a
@@ -274,7 +276,7 @@ impl ContainError {
         use geom_brep::ladder::{Aborts, Refusal};
         match self {
             Self::Escalated { diag, .. } => Ok(Refusal::Margin(*diag)),
-            Self::RayExhausted => Ok(Refusal::InBand),
+            Self::RayExhausted(_) => Ok(Refusal::InBand),
             Self::EmptyLoop(_) => Ok(crate::live::LONE_LOOP_REFUSAL),
             Self::LoopUnreadable(_) | Self::Uncrossable(_) => Ok(Refusal::Limit),
             Self::Curved(e) => e.refusal(),
@@ -348,9 +350,10 @@ impl core::fmt::Display for ArcEndGaps {
     }
 }
 
-// Each arm names WHAT STOPPED, and the repair that moves it where one
-// does, because a consumer that carries this refusal renders it verbatim
-// and adds no sentence of its own. `RayExhausted` and `Uncrossable` want
+// Each arm names WHAT STOPPED, the loop or face it stopped at where it
+// carries one, and the repair that moves it where one does, because a
+// consumer that carries this refusal renders it verbatim and adds no
+// sentence of its own. `RayExhausted` and `Uncrossable` want
 // different repairs — move the geometry, re-model the loop — so
 // one shared tail would name the wrong one.
 //
@@ -377,7 +380,15 @@ impl ContainError {
                     at.map(|at| placement_ending(*decision, *escalation, diag, at)),
                 )
             ),
-            Self::RayExhausted => write!(f, "contfp: {}", crate::ray_walk::NoRaySettled),
+            Self::RayExhausted(lp) => write!(
+                f,
+                concat!(
+                    "contfp: ",
+                    geom_core::undecided!("whether the point lies in loop {:?} of the face", payload)
+                ),
+                lp,
+                crate::ray_walk::NoRaySettled
+            ),
             Self::StaleFace(face) => {
                 write!(f, "contfp: face {face:?} does not resolve in this body")
             }
@@ -393,7 +404,8 @@ impl ContainError {
             Self::Curved(e) => write!(f, "contfp: {}", geom_brep::recourse::read_at(e, at)),
             Self::Uncrossable(u) => write!(
                 f,
-                "contfp: {u}. Recourse: {}",
+                "contfp: loop {:?} of the face cannot be read: {u}. Recourse: {}",
+                u.r#loop,
                 crate::meeting::CONIC_OUTLINE_RECOURSE
             ),
             Self::ArcEndClearOfCorners(gaps) => write!(
@@ -1135,7 +1147,7 @@ fn region_placement(
             escalation: Escalation::Margin,
             diag,
         }),
-        Err(RegionRefusal::RayExhausted { .. }) => Err(ContainError::RayExhausted),
+        Err(RegionRefusal::RayExhausted { outer }) => Err(ContainError::RayExhausted(outer)),
         Err(e @ (RegionRefusal::WoundPastPeriod | RegionRefusal::Unreadable(_))) => {
             Err(solid_err(e.of_face(face)))
         }
