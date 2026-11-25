@@ -1,11 +1,11 @@
 ---
 id: a-crossing-parameters-check-bounds-across-the-face-and-its-readers-decide-along-the-edge
-kind: issue
+kind: unit
 title: A stored crossing parameter is admitted by a check that bounds distance across the face, and its readers decide on position along the edge
-status: open
+status: dispatched
 opened: 2026-11-24
-priority: P1
-cost: M
+priority: P0
+cost: H
 parent: from-computed-claims-a-zero-tangent-at-a-dual
 ---
 
@@ -65,3 +65,9 @@ The designers' reports: `~/.local/share/cad-work/scalar-forks/design-fitted-{A,B
 **Not reached**: `replace_face::carrier_foot`, `mint::computed_foot`, `tangent_piece`'s child stations, `sector_face.rs`, `tier3.rs`; the containment reading at `Interval`; `drive`'s comparison of a leaf with its witness.
 
 **Found beside it**: `composite::binomial` overflows `usize` on a degree-9 carrier against a torus (`work/splice/the-composite-arms-binomial-overflows-on-a-high-degree-carrier.md`).
+
+## Ruled and raised, 2026-11-25
+
+Ev on `[ev]` PR 7641 (merged): "ok, this can go ahead but we need to keep the fix to not be dependent on the proposal at P0 since it's a live inconsistent answer". DL5.2 now carries the paragraph this is measured against: nothing is decided from an admitted proposal beyond what its check bounded; the door returns the admitted value with that bound; a check that bounds less than its readers decide on is widened, or the reader re-posed. This row is a unit at P0 (cost raised to H: the door's return, the composite proposer's reach, the containment and split readers, and the leaf-against-witness agreement).
+
+Dispatched 2026-11-25 on branch `scalar/no-decision-turns-on-which-crossing-parameter-was-drawn`. Letter **H**; tier **DUAL**: readers that decide a boolean's topology are re-posed, and the door's return is the shape every later proposal door copies.
