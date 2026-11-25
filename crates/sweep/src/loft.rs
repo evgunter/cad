@@ -947,8 +947,7 @@ fn loft_walls<T: Decide + topo::AtRestPolicy>(
     let compat = compatible_strips(canonical, places).map_err(LoftError::Skin)?;
     let joints = strip_joints(&compat)?;
     let strips = compat.iter().map(|lp| strip_points(lp)).collect();
-    let pinned =
-        stacking::stacking_door(places, canonical, &strips, &joints, v_degree, band, tol)?;
+    let pinned = stacking::stacking_door(places, canonical, &strips, &joints, v_degree, band, tol)?;
     let (walls, section_params) = body_walls(
         compat,
         v_degree,
@@ -1326,12 +1325,17 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
     for lp in &segment_walls {
         let (mut w_l, mut o_l, mut c_l) = (Vec::new(), Vec::new(), Vec::new());
         for (j, slabs_of) in lp.iter().enumerate() {
-            let cut: Vec<(Vec<Arc<NurbsSurface<T>>>, Vec<f64>)> =
-                slabs_of.iter().map(sub_arc_walls).collect::<Result<_, _>>()?;
+            let cut: Vec<(Vec<Arc<NurbsSurface<T>>>, Vec<f64>)> = slabs_of
+                .iter()
+                .map(sub_arc_walls)
+                .collect::<Result<_, _>>()?;
             let Some((first, c)) = cut.first() else {
                 return Err(LoftError::SectionStructure);
             };
-            if cut.iter().any(|(subs, cs)| subs.len() != first.len() || cs != c) {
+            if cut
+                .iter()
+                .any(|(subs, cs)| subs.len() != first.len() || cs != c)
+            {
                 return Err(LoftError::SectionStructure);
             }
             for q in 0..first.len() {
