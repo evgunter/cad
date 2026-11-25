@@ -5530,7 +5530,7 @@ fn composite_count<T: Bounds + crate::props::AtRestPolicy>(
         });
     };
     Ok(match found {
-        Ok(ts) => Counted::Crossings(ts),
+        Ok(found) => Counted::Crossings(found.roots),
         Err(CompositeRefusal::Escalated(_) | CompositeRefusal::Unsettled(_))
             if super::carrier_touch::off_face(y, face, surface, carrier, params, band)? =>
         {

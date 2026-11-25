@@ -64,3 +64,18 @@ and is held to its truth:
   `B ∖ A`);
 - `crates/sweep/tests/germ_torus_rods.rs` (the fuzz reads `p` nowhere on
   such a body and holds it by its volume identities).
+
+## The region half (EMBEDWALK, `embedwalk/share-nothing-region`, 2026-11-25)
+
+`torus_region::torus_face_region(body, face, splines)` now reads a
+spline edge where it is handed the scalar's spline reader, through the
+mechanism PR 7755 built for the sphere (`Legs::splines`,
+`region::spline_landings`, `region::pieced_edge_hit`): its roster admits
+`Nurbs` with a reader, and its boundary pre-pass reads a spline edge
+piece by piece on `TORUS_REGION_SPLINE`. The embedding walk's cell door
+hands it the reader (`contain::curved_face_placement_reading`, from
+`cell_region::place`); `point_in_solid` does not yet:
+`solid_contain::face_geo_arms`'s torus arm passes `None`, beside the
+sphere arm's `splines`. Handing it over there is this row's remaining
+step, and it moves the `PartialTorusFace` pins listed above. Row:
+`torus_region::tests::a_patch_bounded_by_spline_edges_reads_its_side`.

@@ -3,9 +3,9 @@
 //! [`super::circle_torus`], [`super::ellipse_torus`]) computes the
 //! residual's harmonics from the geometry, names its rows, and answers
 //! [`CircleRoots`]; the first harmonic's root finding lives here, and a
-//! degree-two or higher residual's in [`crate::half_angle`], which
-//! [`door_half_angle_roots`] and [`door_refusal`] read in the door's
-//! vocabulary. Every door has one shape: `(carrier, t0, t1, surface,
+//! degree-two or higher residual's in [`crate::half_angle`], read past
+//! what it refuses, and the wrappers read a method's answer in the door's
+//! vocabulary ([`door_shape`]). Every door has one shape: `(carrier, t0, t1, surface,
 //! band)`. A torus door refuses in [`DoorRefusal`]: a wrong kind is
 //! [`DoorRefusal::Invariant`], and an in-band classifying sign is
 //! [`DoorRefusal::Escalated`]. The conic × quadric door refuses in its
@@ -70,10 +70,8 @@
 //! deciding on a discriminant rather than on the range, can certify a
 //! miss (`work/germ/the-half-angle-ladder-certifies-in-band-configurations.md`).
 
-use crate::half_angle::{
-    DegreeTwo, HalfAngleFrame, HalfAngleRows, MAX_DEGREE, RootSlack, half_angle_roots,
-};
-use crate::roots::{OnCarrier, RootRefusal, Roots, Unsettled};
+use crate::half_angle::MAX_DEGREE;
+use crate::roots::{OnCarrier, Roots, Unsettled};
 use geom_core::period::Period;
 use geom_core::{Band, Decide, Margin, Rounded, Sign};
 
@@ -133,42 +131,37 @@ impl<X> DoorRefusal<X> {
 /// with an [`Unsettled`] beside its [`DoorRefusal`].
 pub type CircleRoots<T> = Roots<T, { 2 * MAX_DEGREE }, OnCarrier>;
 
-/// [`half_angle_roots`] as a door answers it: its roots as
-/// [`CircleRoots`], its count it could not certify as the inner `Err`,
-/// and the ladder's in-band sign escalated.
+/// **A method's answer in the root doors' shape** (their wrappers): its
+/// roots where no window meets the span, else the first window that does
+/// ([`super::cross::Walked::on_span`]), refused as the door's escalation.
+/// A window off the arc refuses nothing.
 ///
 /// # Errors
 ///
-/// As above.
-pub fn door_half_angle_roots<T: Decide, X>(
-    f: &DegreeTwo<T>,
-    residual: impl Fn(T) -> T,
-    frame: HalfAngleFrame<T>,
-    rows: &HalfAngleRows,
-    slack: &RootSlack<'_, T>,
+/// [`DoorRefusal::Escalated`] for a sign in the band's gap, and
+/// [`DoorRefusal::Invariant`] for a fault or a count past the degree.
+pub(super) fn door_shape<T: Decide, X>(
+    span: &crate::curve_pair::Span<'_, T>,
+    walked: &super::cross::Walked<T>,
     band: Band,
 ) -> Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal<X>> {
-    Ok(door_refusal(half_angle_roots(f, residual, frame, rows, slack, band))?.map(Roots::widen))
-}
-
-/// A root finder's answer as a door gives it: a limit as the inner
-/// `Err`, a sign in the band's gap (a classifying sign, or a touch)
-/// escalated, and a fault a kernel defect.
-///
-/// # Errors
-///
-/// [`DoorRefusal::Escalated`], as above, and [`DoorRefusal::Invariant`]
-/// for a fault.
-pub fn door_refusal<V, X>(
-    found: Result<V, RootRefusal>,
-) -> Result<Result<V, Unsettled>, DoorRefusal<X>> {
-    match found {
-        Ok(roots) => Ok(Ok(roots)),
-        Err(RootRefusal::Unsettled(why)) => Ok(Err(why)),
-        Err(RootRefusal::Escalated(diag) | RootRefusal::Touch(diag)) => {
-            Err(DoorRefusal::Escalated(diag))
-        }
-        Err(RootRefusal::Fault(fault)) => Err(DoorRefusal::Invariant(fault.readings())),
+    use crate::curve_pair::MeetFault;
+    match walked.on_span(span, band).first() {
+        None => Roots::of(&walked.roots)
+            .map(Ok)
+            .ok_or(DoorRefusal::Invariant(
+                "a method read more roots than its degree allows",
+            )),
+        Some(&(_, fault)) => match fault {
+            MeetFault::Escalated(diag) | MeetFault::Touch(diag) => {
+                Err(DoorRefusal::Escalated(diag))
+            }
+            MeetFault::Unsettled(why) => Ok(Err(why)),
+            MeetFault::Contradiction { readings } => Err(DoorRefusal::Invariant(readings)),
+            MeetFault::Desync | MeetFault::Unwalked(_) | MeetFault::Unsupported { .. } => Err(
+                DoorRefusal::Invariant("a root door's method answered a window of no root door"),
+            ),
+        },
     }
 }
 
@@ -222,15 +215,15 @@ impl<T: Decide> FirstHarmonic<T> {
 ///
 /// # Errors
 ///
-/// [`Unsettled::Meter`] where the root slack is not definitely inside
-/// the band, or not readable.
+/// [`SlackRefused`] where the root slack is not definitely inside the
+/// band, or not readable: the two roots, and the slack each lies within.
 pub fn harmonic_roots_as<T: Decide>(
     h: &FirstHarmonic<T>,
     speed: T,
     (t0, t1): (T, T),
     root_slack: &'static str,
     band: Band,
-) -> Result<FirstHarmonicRoots<T>, RootRefusal> {
+) -> Result<FirstHarmonicRoots<T>, SlackRefused<T>> {
     let FirstHarmonic {
         lo,
         hi,
@@ -247,13 +240,11 @@ pub fn harmonic_roots_as<T: Decide>(
     let slope = ((T::zero() - lo_value) * hi_value).max(T::zero()).sqrt();
     let at_root = (hi_value * lo.error - lo_value * hi.error) / swing;
     let phase = phase_noise / (cos_part.powi(2) + sin_part.powi(2)).sqrt();
-    let slack = speed * (at_root / slope + phase + geom_core::rounding_charge(T::tau()));
-    match decide(root_slack, Margin::of(slack), band) {
-        Ok(Sign::Zero | Sign::Negative) => {}
-        Ok(Sign::Positive) | Err(_) => {
-            return Err(Unsettled::Meter { row: root_slack }.into());
-        }
-    }
+    let angle = at_root / slope + phase + geom_core::rounding_charge(T::tau());
+    let held = matches!(
+        decide(root_slack, Margin::of(speed * angle), band),
+        Ok(Sign::Zero | Sign::Negative)
+    );
     // The half-chord `acos(−c₀/A₁)`, measured from the extreme nearer
     // zero (module docs).
     let past = |near: T| crate::roots::arc_past(near.abs() / swing);
@@ -265,7 +256,29 @@ pub fn harmonic_roots_as<T: Decide>(
     let phi = geom::Azimuth::of(sin_part, cos_part).near(middle);
     let (a, b) = (phi - half_chord, phi + half_chord);
     let turn = Period::angle();
-    Ok(Roots::all([turn.near(a, middle), turn.near(b, middle)]))
+    let roots = [turn.near(a, middle), turn.near(b, middle)];
+    if held {
+        Ok(Roots::all(roots))
+    } else {
+        Err(SlackRefused {
+            row: root_slack,
+            roots,
+            slack: angle,
+        })
+    }
+}
+
+/// **A first harmonic's roots whose slack the meter refused**
+/// ([`harmonic_roots_as`]): each root, and the slack in the carrier's
+/// parameter that the true root lies within.
+#[derive(Clone, Copy, Debug)]
+pub struct SlackRefused<T> {
+    /// The meter's row.
+    pub row: &'static str,
+    /// The two roots, as placed.
+    pub roots: [T; 2],
+    /// The slack about each.
+    pub slack: T,
 }
 
 /// A root door's answer for a row: its roots, or its refusal, a limit

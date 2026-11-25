@@ -7,7 +7,10 @@
 //! its own rows. Where a leg meets an edge is read once for every door
 //! ([`landings`]), by the co-surface arm: the edge against the leg's
 //! plane, or the leg against the edge's, as the arm's direction table
-//! fixes, and the root then on both planes' section curves.
+//! fixes, and the root then on both planes' section curves. A spline
+//! edge, which the arm reads by its enclosures alone, is crossed with
+//! the leg's plane by the curve × face table's ring composite, through
+//! the door's spline reader ([`Legs::splines`]).
 //!
 //! # Co-surface carriers
 //!
@@ -35,7 +38,10 @@ use crate::entity::{EdgeKey, FaceKey, LoopKey};
 use crate::ray_walk::{self, Crossings, RayFault};
 use crate::solid_contain::PointInSolidError;
 use crate::splitting::Uncrossable;
+use crate::splitting::UncrossableCarrier;
 use crate::splitting::containment::{ConicArc, ConicArcError, ConicHit, ConicRows};
+use crate::splitting::pieced_arc::{ArcHit, ArcRefusal, ArcRows, PiecedArc};
+use crate::splitting::spline_arc::SplineArc;
 use crate::validate::decide;
 
 /// Where along each edge an aimed path's target lies, as shares of its
@@ -128,6 +134,57 @@ pub(crate) fn circle_edge_hit<T: Decide>(
         ConicHit::On(_) | ConicHit::End => Ok(true),
         ConicHit::Off | ConicHit::Carrier => Ok(false),
         ConicHit::Unsettled => Err(RegionRefusal::RayExhausted),
+    }
+}
+
+/// **Whether `p` is on `edge`, an arc its carrier reads piece by piece**
+/// (`arc`, [`PiecedArc::contact`]): on the arc or within the band of one
+/// of its ends is `true`; in the band of it refuses, and a reading that
+/// runs out of depth or budget names the edge as one it cannot cross,
+/// on `carrier`: a limit of that one edge's reading, the door's
+/// `EdgeCarrierUnsupported`. [`circle_edge_hit`] folds its own unplaced
+/// reading into the walk's exhaustion instead, where a circle's does not
+/// arise (`work/inside/region-ray-exhausted-folds-an-arcs-unsettled-reading.md`).
+///
+/// # Errors
+///
+/// [`RegionRefusal::Escalated`] in band; [`RegionRefusal::Unreadable`]
+/// where the pieces outlast the depth or the budget.
+pub(crate) fn pieced_edge_hit<T: Decide>(
+    arc: &impl PiecedArc<T>,
+    edge: &RegionEdge<T>,
+    (rows, carrier): (ArcRows, UncrossableCarrier),
+    p: Point3<T>,
+    band: Band,
+) -> Result<bool, RegionRefusal> {
+    match arc.contact(p, rows, band) {
+        Ok(ArcHit::On(_) | ArcHit::End) => Ok(true),
+        Ok(ArcHit::Off) => Ok(false),
+        Err(ArcRefusal::Escalated(diag)) => Err(RegionRefusal::Escalated(diag)),
+        Err(ArcRefusal::Unsettled) => Err(edge.uncrossable(carrier)),
+    }
+}
+
+/// **Whether `p` is on `edge`, a spline arc on `spline`**, read piece by
+/// piece on `rows` ([`pieced_edge_hit`]). A span with no piece cut (an
+/// end no single point at an enclosure scalar) is a span the reading
+/// cannot cross.
+///
+/// # Errors
+///
+/// As [`pieced_edge_hit`]; [`RegionRefusal::Unreadable`] for a span with
+/// no piece cut.
+pub(crate) fn spline_edge_hit<T: Decide>(
+    spline: &std::sync::Arc<geom::NurbsCurve3<T>>,
+    edge: &RegionEdge<T>,
+    rows: ArcRows,
+    p: Point3<T>,
+    band: Band,
+) -> Result<bool, RegionRefusal> {
+    let spline_arc = UncrossableCarrier::Spline;
+    match SplineArc::new(spline, (edge.t0, edge.t1)) {
+        Some(pieces) => pieced_edge_hit(&pieces, edge, (rows, spline_arc), p, band),
+        None => Err(edge.uncrossable(spline_arc)),
     }
 }
 
@@ -292,7 +349,7 @@ pub(crate) fn landings<T: Decide, D: Legs<T>>(
     leg: &Leg<T, D::Course>,
     band: Band,
 ) -> Result<Vec<Landing<T>>, Fault> {
-    use geom_brep::curve_face::{CrossWhy, OnSpan};
+    use geom_brep::curve_face::{CrossWhy, OnSpan, PoseRefusal};
     use geom_brep::curve_pair::MeetFault;
     let curve = leg.course.curve();
     let on_leg = |y: Point3<T>| -> Result<bool, Fault> {
@@ -312,6 +369,18 @@ pub(crate) fn landings<T: Decide, D: Legs<T>>(
         Ok(Met::InPlane) => return in_plane(),
         Ok(Met::Touch) => return Err(RayFault::Graze),
         Ok(Met::Meets(meetings)) => meetings,
+        // The arm reads a spline by its enclosures alone: the door's own
+        // spline reader crosses it.
+        Err(MeetRefusal::Windows {
+            read: Read::EdgeOverLeg,
+            windows,
+            ..
+        }) if windows
+            .iter()
+            .all(|w| matches!(w.why, CrossWhy::Pose(PoseRefusal::Enclosed))) =>
+        {
+            return spline_landings(door, edge, &curve, on_leg, band);
+        }
         Err(MeetRefusal::Windows {
             read,
             found,
@@ -356,6 +425,102 @@ pub(crate) fn landings<T: Decide, D: Legs<T>>(
         })
         .collect())
 }
+
+/// **Where a spline edge meets a leg**, which the co-surface arm reads
+/// by the spline's enclosures alone
+/// ([`PoseRefusal::Enclosed`](geom_brep::curve_face::PoseRefusal::Enclosed)):
+/// the ring composite's reading of the edge against the leg's plane, by
+/// the door's spline reader ([`Legs::splines`]). Its crossings strictly
+/// inside the span are landings that read a side. An end the composite
+/// reads near the plane
+/// ([`EndReading::Within`](geom_brep::curve_face::EndReading::Within))
+/// holds the end's meeting somewhere on its stretch to `until`, a
+/// decision the composite made once, on its own margin, and this reads
+/// no other. Where the stretch is the end itself (a crossing the
+/// composite decided at the end, within the band's zero of it in
+/// metres), the meeting is a landing at the end that reads no side, as
+/// the arm places a root within the band of an end. On any other
+/// stretch the meeting may lie anywhere up to `until`, so its place along
+/// the leg is not read, and the leg grazes. Each landing is kept where it lies on
+/// the leg's own section of its plane, as [`OnSurface::meet`] keeps a
+/// root.
+///
+/// Both ends past the band, the crossings' count has the parity of the
+/// ends' sides: an even count where they agree. A count that does not
+/// is a reading of this leg that came out wrong, and blocks it.
+///
+/// # Errors
+///
+/// A door with no spline reader, a reading that runs out of depth or
+/// budget or cannot form, or a parity that does not hold blocks the path
+/// on the edge ([`RayFault::Blocked`]); a tangency, a meeting at a crease
+/// or a near end's stretch past the end grazes; a reading in band sets
+/// the path aside on its margin.
+fn spline_landings<T: Decide, D: Legs<T>>(
+    door: &D,
+    edge: &RegionEdge<T>,
+    curve: &SurfaceCurve<T>,
+    on_leg: impl Fn(Point3<T>) -> Result<bool, Fault>,
+    band: Band,
+) -> Result<Vec<Landing<T>>, Fault> {
+    use geom_brep::curve_face::EndReading;
+    use geom_brep::curve_face::composite::CompositeRefusal;
+    use geom_brep::roots::Unsettled;
+    let blocked = || RayFault::Blocked(edge.uncrossable(UncrossableCarrier::Spline));
+    let (Some(crossings), geom::Curve3::Nurbs(net)) = (door.splines(), &edge.carrier) else {
+        return Err(blocked());
+    };
+    let found = match crossings(net, (edge.t0, edge.t1), &curve.plane_surface(), band) {
+        Ok(found) => found,
+        Err(CompositeRefusal::Escalated(diag)) => return Err(in_band(diag)),
+        Err(CompositeRefusal::Unsettled(Unsettled::Tangency | Unsettled::Crease)) => {
+            return Err(RayFault::Graze);
+        }
+        Err(
+            CompositeRefusal::Unsettled(_)
+            | CompositeRefusal::FaceDegenerate(_)
+            | CompositeRefusal::Unread(_),
+        ) => return Err(blocked()),
+    };
+    if let [EndReading::Past(start), EndReading::Past(stop)] = found.ends
+        && (found.roots.len() % 2 == 1) != (start != stop)
+    {
+        return Err(blocked());
+    }
+    // A near end's meeting, a landing at the end where its stretch is the
+    // end alone.
+    let at_end = |t: T, reading: EndReading| -> Result<Option<Point3<T>>, Fault> {
+        match reading {
+            EndReading::Past(_) => Ok(None),
+            EndReading::Within { until } if t.point_value() == Some(until) => Ok(Some(edge.at(t))),
+            EndReading::Within { .. } => Err(RayFault::Graze),
+        }
+    };
+    let mut met = Vec::with_capacity(found.roots.len() + 2);
+    met.extend(at_end(edge.t0, found.ends[0])?.map(|y| (edge.t0, y, true)));
+    met.extend(found.roots.into_iter().map(|t| (t, edge.at(t), false)));
+    met.extend(at_end(edge.t1, found.ends[1])?.map(|y| (edge.t1, y, true)));
+    let mut landings = Vec::with_capacity(met.len());
+    for (t, y, sideless) in met {
+        if on_leg(y)? {
+            landings.push((y, t, sideless));
+        }
+    }
+    Ok(landings)
+}
+
+/// **A spline edge's reading against an analytic face's carrier at the
+/// door's scalar**: the curve × face table's ring-composite arm, where the
+/// scalar reads it ([`crate::props::AtRestPolicy::spline_face_reader`]).
+pub(crate) type SplineCrossings<T> = fn(
+    &geom::NurbsCurve3<T>,
+    (T, T),
+    &geom::Surface<T>,
+    Band,
+) -> Result<
+    geom_brep::curve_face::SpanCrossings<T>,
+    geom_brep::curve_face::composite::CompositeRefusal,
+>;
 
 /// **A crossing reading's windows, as a path's fault**: a fault among
 /// them is a kernel fault and panics, whatever else stands; otherwise
@@ -424,13 +589,23 @@ pub(crate) struct RegionEdge<T: geom_core::Real> {
     pub(crate) t1: T,
     /// The certified turn of `[t0, t1]` on a periodic carrier
     /// ([`geom_brep::CertifiedTurn`]), the interval and extent a conic
-    /// reading reads; `None` on a line.
+    /// reading reads; `None` on a line or a spline.
     pub(crate) turn: Option<geom_brep::CertifiedTurn<T>>,
     /// Whether the loop runs `t0 → t1` (its `he_plus`).
     pub(crate) forward: bool,
 }
 
 impl<T: Decide> RegionEdge<T> {
+    /// The refusal of a reading that cannot cross this edge on its
+    /// `carrier`.
+    pub(crate) fn uncrossable(&self, carrier: UncrossableCarrier) -> RegionRefusal {
+        RegionRefusal::Unreadable(Uncrossable {
+            r#loop: self.r#loop,
+            edge: self.edge,
+            carrier,
+        })
+    }
+
     pub(crate) fn at(&self, t: T) -> Point3<T> {
         self.carrier.eval(t)
     }
@@ -751,6 +926,12 @@ pub(crate) trait Legs<T: Decide>: Region<T> {
 
     /// The face's unit outward normal at `y`.
     fn outward(&self, y: Point3<T>) -> Vec3<T>;
+
+    /// The spline reader the door reads a spline edge against a leg by
+    /// ([`spline_landings`]): `None` for a door that admits no spline.
+    fn splines(&self) -> Option<SplineCrossings<T>> {
+        None
+    }
 }
 
 /// A path to read: a leg from `p`, or two through a corner.
@@ -1130,6 +1311,47 @@ macro_rules! fixture_turns {
 }
 
 fixture_turns!(fixture_turn: f64, fixture_turn_interval: geom_core::Interval);
+
+/// `edge`, a circle arc, carried on the rational quadratic that is
+/// exactly that arc: one segment per quarter turn or less, run the
+/// arc's way over `[0, 1]`.
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_precision_loss
+)]
+pub(crate) fn fixture_spline_of_arc(edge: &RegionEdge<f64>) -> RegionEdge<f64> {
+    let Some(frame) = edge.carrier.frame() else {
+        unreachable!("a fixture arc is a circle")
+    };
+    let centre = frame.origin();
+    let sweep = edge.t1 - edge.t0;
+    let segments = (sweep / core::f64::consts::FRAC_PI_2).ceil().max(1.0);
+    let half = sweep / segments / 2.0;
+    let (mut control, mut weights) = (vec![edge.at(edge.t0)], vec![1.0]);
+    let mut knots = vec![0.0; 3];
+    for k in 0..segments as usize {
+        let k = k as f64;
+        let middle = edge.at(edge.t0 + (2.0 * k + 1.0) * half);
+        control.push(centre + (middle - centre) / half.cos());
+        weights.push(half.cos());
+        control.push(edge.at(edge.t0 + (2.0 * k + 2.0) * half));
+        weights.push(1.0);
+        knots.extend([(k + 1.0) / segments; 2]);
+    }
+    knots.push(1.0);
+    let knots = geom_core::spline::KnotVector::clamped(knots, 2).unwrap();
+    let spline = geom::NurbsCurve3::new(knots, control, weights).unwrap();
+    RegionEdge {
+        carrier: geom::Curve3::Nurbs(std::sync::Arc::new(spline)),
+        t0: 0.0,
+        t1: 1.0,
+        turn: None,
+        ..edge.clone()
+    }
+}
 
 /// **A door's answer as a frame pin compares it**: the answer itself,
 /// or its refusal's predicate (`Some("another refusal")` for a refusal

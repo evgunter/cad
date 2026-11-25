@@ -129,24 +129,25 @@ fn permitted(
     (r, span): (f64, (f64, f64)),
     eps: f64,
 ) -> bool {
-    let clear = truth.residual_depth >= 10.0 * eps;
-    // A graze past the span leaves the span itself apart (the pose's
-    // `kappa`): its residual over the span one-signed past `Kε`, read
-    // only for a `Miss`.
-    let span_clear = || {
-        let (lo, hi) = crate::curve_face::conic_oracle::extremes(
+    use crate::curve_face::conic_oracle::{arc_truth, holds_on_arc};
+    // Judged on the arc alone: a graze off it leaves the arc's own
+    // reading to be answered.
+    let on_arc = || {
+        arc_truth(
             |t| crate::implicit_residual(&wall(r), c.eval(t)),
-            span.0,
-            span.1,
-        );
-        lo >= 10.0 * eps || hi <= -10.0 * eps
+            span,
+            &truth.roots,
+            10.0 * eps,
+        )
     };
     match got {
         Ok(Err(Unsettled::AtApex)) => false,
         Ok(Err(_)) | Err(_) => true,
         Ok(Ok(CircleRoots::On(_))) => farthest(c, r) <= 10.0 * eps,
-        Ok(Ok(CircleRoots::Miss)) => (clear && truth.roots.is_empty()) || span_clear(),
-        Ok(Ok(CircleRoots::Certified(found))) => clear && found.count() == truth.roots.len(),
+        Ok(Ok(CircleRoots::Miss)) => holds_on_arc(&[], &on_arc(), span, 10.0 * eps).unwrap_or(true),
+        Ok(Ok(CircleRoots::Certified(found))) => {
+            holds_on_arc(found.roots(), &on_arc(), span, 10.0 * eps).unwrap_or(true)
+        }
     }
 }
 

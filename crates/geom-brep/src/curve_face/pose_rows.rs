@@ -301,8 +301,11 @@ fn a_higher_order_contact_escalates_on_kappa() {
                 assert!(
                     matches!(
                         got,
-                        Err(PoseRefusal::InBand {
-                            rung: PoseRung::Kappa,
+                        Err(super::Undecided {
+                            why: PoseRefusal::InBand {
+                                rung: PoseRung::Kappa,
+                                ..
+                            },
                             ..
                         })
                     ),
@@ -595,8 +598,11 @@ fn an_axis_parallel_line_reads_its_offset_with_its_drift() {
     assert!(
         matches!(
             got,
-            Err(PoseRefusal::InBand {
-                rung: PoseRung::AxisParallel,
+            Err(super::Undecided {
+                why: PoseRefusal::InBand {
+                    rung: PoseRung::AxisParallel,
+                    ..
+                },
                 ..
             })
         ),
@@ -621,8 +627,11 @@ fn a_circle_grazing_a_tubes_top_across_its_centre_circle_refuses() {
     assert!(
         matches!(
             got,
-            Err(PoseRefusal::InBand {
-                rung: PoseRung::Contour,
+            Err(super::Undecided {
+                why: PoseRefusal::InBand {
+                    rung: PoseRung::Contour,
+                    ..
+                },
                 ..
             })
         ),

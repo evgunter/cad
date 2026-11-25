@@ -2,12 +2,14 @@
 id: two-bands-of-a-revolved-arc-sharing-their-meridians-spend-the-pair-budget
 kind: issue
 title: Two π-band faces of one revolved arc, sharing both meridians that end on rim corners, spend the whole pair budget: on a spindle sheet and on a ring torus alike
-status: dispatched
+status: closed
 opened: 2026-11-25
 priority: P1
 cost: M
 refs: [a-spindle-sheet-or-an-approximated-face-has-no-window-in-the-injectivity-engine]
 branch: embedwalk/two-bands
+pr: 7786
+closed: 2026-11-25
 ---
 
 
@@ -49,3 +51,45 @@ budget on (at the rim corner, where a meridian meets a parallel and the
 third face, or along the shared meridian away from it), and so whether
 this is a presentation EMBED owns (`crates/topo/src/injective.rs`) or
 the walk's. Re-home it if the trace puts it on EMBED's ground.
+
+## Trace (lane `embedwalk-twobands`, 2026-11-25)
+
+Demonstrated with a probe asking `topo::clearance::embedded` on main
+(`436425120`) with every cell pair of the walk logged (instrumentation
+not committed). The spindle receipt reproduces the finding's exactly.
+
+- **Not at the rim corner, not along the shared meridian.** Of the
+  bool3 spindle's 96 995 visits of `(3v1, 5v1)`, 65 479 are splits on
+  the distance path with no shared feature near (`Near` empty), and
+  63 248 of those are of cells that do not overlap in the chart. The
+  touching arm splits 49 times and certifies 14. The splits sit at
+  `v ≈ ±1.84`, the sheet's apexes: both bands' windows were the whole
+  sheet, `u ∈ [0, 2π]`, `v ∈ [−v*, v*]`, while the faces span
+  `|v| ≤ 0.583` between the rims. A cell of one band holding an apex
+  and a cell of the other holding it are at distance zero at every
+  depth. They are off both faces, but the region never says so:
+  `outside: 0`, because every cell either fails
+  `cell_region`'s singular-set clearance (it holds the apex) or is
+  placed `None` (`contain::curved_interior_placement` has no spindle
+  arm, `work/inside/the-point-door-places-no-point-on-a-spindle-sheet-face.md`).
+- **The ring-torus twin is the same walk.** At `d = 2·escalate` the
+  torus band pair's 64 891 splits sit at `v ≈ π`, the inner equator,
+  `2e-8` from the axis and off both faces (`|v| ≤ 2`): the window was
+  the whole tube, and `cell_region` cannot clear the axis there before
+  the budget. At `d = 1e-3` the same pair already held (1653 pairs).
+- **So the cause is the walk's window** (`clearance::window_of`), not a
+  reading in `injective.rs`. The fix gives a torus band the chart
+  rectangle its boundary's pcurves span (`cover::bounded_torus_window`)
+  and a sheet band the latitude they span
+  (`cover::bounded_sheet_latitude`). Measured with it: the bool3 spindle
+  `Embedded` in 18 pairs (0.05 s); the near-horn ladder's torus, horn
+  and sheet rungs `Embedded` in about 600 pairs each.
+
+## Closed
+
+2026-11-25 by PR 7786: a torus face takes its pcurve chart rectangle and a
+spindle-sheet face its pcurve latitude, widened by the chord slack, where
+`cover::bounded_side_loops` decides the loop's bounded side is the face;
+any other face keeps the whole tube or sheet. The face cover's torus arm
+reads the same test. The bool3 sheet's band pair is `Embedded` in 18
+pairs, from a 65,536-pair refusal.

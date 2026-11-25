@@ -2,13 +2,14 @@
 id: share-nothing-face-pairs-are-halved-over-their-carriers-crossing-off-the-faces
 kind: issue
 title: Two faces of one solid that share no cell, centimetres apart, are halved to the depth floor over cells that hold their carriers' crossing and no point of a face, because the sphere and torus region readings read no face a spline edge bounds
-status: review
+status: closed
 opened: 2026-11-22
 priority: P0
 cost: M
 refs: [a-refusing-ask-runs-on-to-its-whole-budget-looking-for-a-verified-crossing, nested-tori-a-thin-gap-apart-spend-the-pair-budget-on-box-distance]
 branch: embedwalk/share-nothing-region
 pr: 7772
+closed: 2026-11-25
 ---
 
 
@@ -182,3 +183,17 @@ environment):
 - **The box trace:** `CAD_GATE_WALK=1 CAD_GATE_BOXTRACE=1` on
   `quadric_pair_sections` (about 9 minutes). The table is the `BOX`
   rows.
+
+## Closed
+
+2026-11-25 by PR 7772 (after INSIDE's PR 7755): the walk's region reading
+hands the certified spline reader (`props::certified_spline_face_crossings`,
+the one body every certifying `AtRestPolicy` answers with) to the face
+door, so a cell off a sphere or torus face a spline section edge bounds is
+dropped. Asked alone, the row's 102 share-nothing pairs are `Embedded`
+(the two donuts' `5v3 × 6v3` in 832 splits, from the depth floor). On
+today's main no whole-solid ask of the row's four tests reaches them:
+each stops at its first finding on a touching pair's departure arm,
+which is what `a-failed-local-certificate-answers-split-with-no-ground`
+is re-measured against. The cylinder and cone sibling is
+`the-walk-drops-no-cell-of-a-cylinder-or-cone-face-a-spline-edge-bounds`.
