@@ -46,3 +46,16 @@ topo's boolean territory, as its sibling. The march lists the loop's
 carrier (a periodic cubic), so a cut-in here inserts a ring of a spline
 edge on each face.
 
+
+## 2026-11-25: past the certificate, the ring homing refuses
+
+With PR 7575 on the stack (its cut-in for a section loop inside a
+one-band sphere face and a curved face), the class gets past the
+section certificate. One sibling now stops later:
+`sweep` `germ_sphere_torus_placements::a_ball_against_a_donut_carries_onto_the_torus_and_builds`,
+placement "a spline edge in a torus ring's run" (`donut0 ∪ moved`), refuses
+`Join(BooleanJoin(RingHomingAmbiguous { ring: LoopKey(6v1) }))` at ε 1e-9,
+1e-6 and 1e-12, on `lathe/full-revolve-one-band` at a8a9d3a9b6. The
+other three placements build. Base 84588ee6fa (two π-bands) builds all
+four. The row is pinned red at its stop (`pinned_red::row`,
+`EVERY_ROW`), citing this row.
