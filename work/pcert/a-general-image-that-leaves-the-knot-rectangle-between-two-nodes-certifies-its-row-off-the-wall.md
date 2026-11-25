@@ -4,6 +4,7 @@ kind: issue
 title: certify_general certifies a pcurve row whose image leaves the wall's knot rectangle between two nodes: the carrier up to 1e-5 m (1e4 eps) past the rim reads on the wall's polynomial extension
 status: closed
 closed: 2026-11-25
+pr: 7738
 opened: 2026-11-12
 priority: P0
 cost: M

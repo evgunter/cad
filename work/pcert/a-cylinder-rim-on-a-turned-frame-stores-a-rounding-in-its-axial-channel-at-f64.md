@@ -4,6 +4,7 @@ kind: issue
 title: A circle square to a cylinder's axis is stored with a rounding residue in its axial channel where the outline is built off the axes, at f64, so the injectivity check reads a fillet strip's end arc as a curve and its corner by the ruling run on past the vertex (traced on one test)
 status: closed
 closed: 2026-11-25
+pr: 7738
 opened: 2026-11-22
 priority: P0
 cost: E
