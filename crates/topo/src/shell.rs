@@ -6755,9 +6755,3 @@ mod tests {
         );
     }
 }
-
-/// PLANT (re-review probe): a production call of the minting pass.
-#[allow(dead_code)]
-fn planted_mint<T: crate::props::AtRestPolicy>(body: &mut Body<T>) {
-    let _ = crate::pcurves::mint_pcurves(body, geom_core::Tol::witness());
-}
