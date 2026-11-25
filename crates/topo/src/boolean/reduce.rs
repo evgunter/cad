@@ -2236,9 +2236,7 @@ fn junction_window<T: Decide + crate::props::AtRestPolicy>(
     let Some(window) = junction_end_window(&question, band).map_err(refused)? else {
         return Ok(None);
     };
-    if window.pivot > window.order
-        && !junction_end_boundary_clear(y, face, &question, window.spread, band)?
-    {
+    if !junction_end_boundary_clear(y, face, &question, window.spread, band)? {
         return Err(refused(JunctionEndUnsettled::Gap(
             super::JunctionEndGap::NearBoundary,
         )));
@@ -2308,10 +2306,10 @@ const NEAR_PIECE: f64 = 1.25;
 
 /// **Whether `face` is bounded within `spread` of the end by the rim
 /// alone, or by edges leaving the end on its own side**
-/// (`junction_end_boundary_clear`), asked of a window read past the
-/// order's own term, whose spread holds roots of the edge on `face`'s
-/// carrier: the side reading places them off `face` only where nothing
-/// but the rim bounds `face` on the edge's side within the spread.
+/// (`junction_end_boundary_clear`), asked of every window: the side
+/// reading places the roots of the edge on `face`'s carrier inside the
+/// spread off `face` only where nothing but the rim bounds `face` on the
+/// edge's side within the spread.
 ///
 /// - An edge of `face` on the rim's own circle
 ///   ([`geom_brep::curve_face::end_root::is_the_circle`]) is the rim's:

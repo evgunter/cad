@@ -5514,11 +5514,10 @@ impl BooleanError {
             } => write!(
                 f,
                 "an edge of the {} operand ends on a rim where its face and a face of the other \
-                 join smoothly, close to where the two faces curve alike across it, and another \
-                 edge of the other face lies too near that end for the Boolean to read which \
-                 face the edge meets there. Moving that edge farther from the end, or turning \
-                 the parts so the edge ends farther from where the faces curve alike, may let \
-                 it through",
+                 join smoothly, and another edge of the other face lies too near that end for \
+                 the Boolean to read which face the edge meets there. Moving that edge farther \
+                 from the end, or turning the parts so the edge ends farther from where the \
+                 faces curve alike, may let it through",
                 operand_word(*operand),
             ),
             Self::JunctionEndUnread {
@@ -8120,10 +8119,9 @@ pub enum JunctionEndGap {
     Window,
     /// The edge is closed, both its ends at the one point on the rim.
     Closed,
-    /// The window was read past the order's own term, so its spread holds
-    /// roots of the edge on the other face's carrier, and some boundary of
-    /// that face other than the rim is not decided farther from the end
-    /// than the spread: the face may reach such a root from there.
+    /// Some boundary of the other face, other than the rim, is not decided
+    /// farther from the end than the window's spread: the face may reach a
+    /// root of the edge on its carrier there.
     NearBoundary,
     /// The end lies where two stretches of the junction meet, ridden
     /// opposite ways: the rim names no side of it.
