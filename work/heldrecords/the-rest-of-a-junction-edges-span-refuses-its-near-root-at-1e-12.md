@@ -1,7 +1,7 @@
 ---
 id: the-rest-of-a-junction-edges-span-refuses-its-near-root-at-1e-12
 kind: issue
-title: Past a junction end's window, the Line × Torus root door refuses the near root a neutral point puts at √(12δ), at ε = 1e-12 from about 6√ε to 15√ε
+title: Past a junction end's window, the Line × Torus root door refuses the near root a neutral point puts at √(12δ), at ε = 1e-12 from about 5.3√ε to 15√ε
 status: open
 opened: 2026-11-24
 priority: P2
@@ -17,7 +17,7 @@ were taken on main, without the belt's change.
 The scan uses `editor-core` `a_pipe_unions_with_its_elbow`'s
 `neutral_off_the_seam(δ)` pose, the union at the run's ε, `K = 10`, in
 quarter-decade steps of `δ/√ε`:
-- at `ε = 1e-12`, `δ` from `6.3√ε` to `15√ε` (6.3e-6 … 1.5e-5) refuses
+- at `ε = 1e-12`, `δ` from `5.3√ε` to `15√ε` (5.3e-6 … 1.5e-5) refuses
   `CurvedPierceUnsupported`, at the pipe's seam ruling (operand A)
   against the bend's torus face;
 - at `ε = 1e-6` and `1e-9` the same band units build.

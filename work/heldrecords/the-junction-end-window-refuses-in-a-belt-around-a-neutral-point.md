@@ -163,9 +163,10 @@ at 0.0228 is 0.0225.
 
 The pivot grows the spread from about `√(2ε/|c_m|)` to about
 `(2ε/|c_p|)^{1/p}`, up to the near root's scale:
-- 0.05 m at `ε = 1e-9` (the neutral point's own order-4 spread, which
+- 0.063 m at `ε = 1e-9` (the neutral point's own order-4 spread, which
   main already reads, is 0.0195);
-- 0.28 m at `ε = 1e-6` (main reads 0.111).
+- 0.35 m at `ε = 1e-6` (main reads 0.111); 0.011 m at `ε = 1e-12`.
+  The widest is at about `5.1√ε`, measured in steps of `0.02√ε`.
 
 The side reading rests on two premises that `junction_end_side` takes
 silently today.
@@ -193,8 +194,7 @@ Both are built into this unit:
   or cone's nappe comes within `σ` of the end.
 - **chord**: the rim's term carries the factor above.
 
-The belt passes both: `σ·k ≤ 0.28` at `ε = 1e-6`, and the factor is at
-most 1.03 there. **Not enclosed, and filed rather than built**: the
+The belt passes both: `σ·k ≤ 0.35` at `ε = 1e-6`. **Not enclosed, and filed rather than built**: the
 target face's own other boundary inside the reach, meaning an edge of
 the target face (not the rim through the end) passing within `σ` of the
 end. Today's side reading assumes none at any spread. It is a premise of
@@ -205,18 +205,19 @@ the merged reading, not one the pivot adds, so it gets its own row.
 **Door**: the ruling at `θ = π/2 − δ`, span 2, at `ε` = 1e-6, 1e-9 and
 1e-12 (`K = 10`). Every `δ` whose order decides now reads a window,
 from about `18ε` up, where today it refuses `Spread`. Only `Order` in
-band remains, from about 2ε to 10ε. The spread is:
+band remains, from about 2ε to 15ε (the order decides once
+`2δ/3` clears `Kε`). The spread is:
 
 | ε | at δ = 30ε | at δ = 3√ε | where pivot `m` resumes |
 |---|---|---|---|
-| 1e-6 | 0.112 | 0.279 | `5.6√ε` |
-| 1e-9 | 0.0196 | 0.0496 | `5.6√ε` |
-| 1e-12 | 0.00347 | 0.00882 | `5.6√ε` |
+| 1e-6 | 0.112 | 0.279 (widest 0.353 at 5.1√ε) | `5.6√ε` |
+| 1e-9 | 0.0196 | 0.0496 (widest 0.0628) | `5.6√ε` |
+| 1e-12 | 0.00347 | 0.00882 (widest 0.0112) | `5.6√ε` |
 
 **Union** (`neutral_off_the_seam`, `δ` from `0.1ε` to `1e7ε`, half-decade
 steps, and quarter-steps over `2…60√ε`):
 - at every ε, `δ = 0` and `δ ≤ 0.1ε` build;
-- from `0.3ε` to `10ε` the union refuses `CurvedPierceEscalated
+- from `0.3ε` to about `15ε` the union refuses `CurvedPierceEscalated
   { JunctionEndOrder }`;
 - from `32ε` to `20√ε` and beyond it builds, at the closed form (relative
   volume error ≤ 4e-16), with tier 3 and tier 3′ clean.
@@ -225,7 +226,7 @@ The one exception is a strip at `ε = 1e-12` below.
 
 ### What it leaves refusing, and why
 
-- **`JunctionEndOrder` in band, `δ ≲ 10ε`.** `c₂`'s separation over the
+- **`JunctionEndOrder` in band, `δ ≲ 15ε`.** `c₂`'s separation over the
   span is in band. It refuses typed, as the brief requires. *Option F1,
   not taken*: since the pivot never reads `c_m`'s sign, an in-band
   coefficient could be charged at the escalate width and pivoted past,
@@ -233,7 +234,7 @@ The one exception is a strip at `ε = 1e-12` below.
   it changes what the walk decides (README's "one in band refused") and
   `EndWindow::order` would lose its meaning, so it is a fork for the
   orchestrator.
-- **At `ε = 1e-12` only: `CurvedPierceUnsupported` from `6.3√ε` to
+- **At `ε = 1e-12` only: `CurvedPierceUnsupported` from `5.3√ε` to
   `15√ε`, on main as well.** It lies above the belt: pivot `m` holds, the
   window stops before the near root at `√(12δ)`, and the rest of the
   span's Line × Torus root door refuses that simple root even though
@@ -302,3 +303,50 @@ The one exception is a strip at `ε = 1e-12` below.
 - `end_root`'s module docs: the window and spread bullets.
 - No signature changes; `JunctionEndUnread { Window }` gains the reach
   as one more cause in its doc.
+
+## 2026-11-25 — Fix pass on PR 7731 (its two reviews)
+
+- **Rows that catch an unsound charge.** `every_root_in_the_window_lies_within_the_spread`
+  is a door row at `ε` = 1e-6, 1e-9 and 1e-12, with `δ` from `3·escalate` to
+  `100√ε` (taking in `3√ε`, `5√ε` and `10√ε`). At every `δ` it asserts
+  that the near root `√(12·sin δ)` either lies inside the spread or past
+  the window. With the pivoted-past terms uncharged, the window is whole
+  with a spread of 0.0195 m while the near root sits at 0.0337 and
+  0.0436 m (`3√ε`, `5√ε` at 1e-9), so the row goes red.
+  - Mutants that leave out only the band's width, or halve it, move the
+    spread by a part in 10⁴ at most. No pose of this family puts the
+    near root within that of the spread's end, so containment cannot see
+    them. The closed-form charge row
+    (`the_spread_meets_the_charge_at_each_dropped_power`, now at pivot 4
+    on and off the neutral point) does.
+- **`EndWindow::pivot`** is exposed. The rows assert the pivot: 4
+  across the belt, 2 at `100√ε`.
+- **One charge rule.** Every dropped term is charged at its value plus
+  the zero band's width at its power, `c₀` and the stepped-past Zeros
+  included (they were `max(|c|, w)`). The charge no longer rests on
+  any verdict, and it is built once and sliced per pivot.
+- **The rim's offset is exact.** For a circular rim of radius `R`, the
+  offset at tangent coordinate `x` is at most `R − √(R² − x²)`,
+  rising in `x`. That replaces the derived chord factor: 1.072 against
+  1.174 times the bend's `σ²/(2R)` at `κσ = ½`. The rim premise becomes
+  `junction_end_rim_reach` (`σ < R`), which the square root needs, and
+  under which every rim point within `σ` lies on the near arc. Pinned two-sided to
+  a part in 2000 (`the_rims_offset_is_charged_exactly`).
+- **`one_sheet_radius`** now sits beside `min_radius_of_curvature` in
+  `geom-brep`'s `implicit.rs`.
+- **Neither premise has a pose where reading past it builds a wrong
+  body.** None of the junctions the door reads has one, so no row shows
+  either premise needed. Each premise row shows only that the premise
+  refuses.
+  - The elbow's rim is planar, and its two faces lie on either side of
+    the cap's plane all the way out. A root of the pipe's ruling below
+    the cap is off the bend's face at any reach, including the fat bend
+    `R − r = 0.1`, whose spread the reach refuses.
+  - At a cone–sphere rim the sphere's face lies below the cone's
+    apex, which the other nappe never reaches.
+  - A wrong reading needs a target face that comes back onto the edge's
+    side of the rim within the spread, by its carrier folding within
+    the reach or by its other boundary. The second is the open premise
+    filed as
+    `the-junction-side-reading-assumes-no-other-target-boundary-within-its-reach.md`,
+    now P1.
