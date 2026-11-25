@@ -1625,8 +1625,7 @@ pub trait Construct<T: geom_core::Real> {
     /// one is undecided the op refuses
     /// ([`EulerOpError::SplitJointUndecided`]) rather than write an
     /// element nothing decided. A half-edge with no row keeps none: the op carries
-    /// what is there, and minting what is missing is the producer's
-    /// closing mint.
+    /// what is there, and the finish completes what is missing.
     ///
     /// The carry is exact on every chart; two readers of the split body are
     /// narrower, both stated at `split_cache`. On a SPLINE chart the
@@ -1697,8 +1696,8 @@ pub trait Construct<T: geom_core::Real> {
     ///
     /// [`BooleanError::JoinUndecided`], the kill's own refusal
     /// ([`BooleanError::Euler`]), a carrier the joined edge cannot be
-    /// restated on ([`BooleanError::JoinCarrierUnsupported`]), the
-    /// description's, or the re-mint's ([`BooleanError::Pcurves`]).
+    /// restated on ([`BooleanError::JoinCarrierUnsupported`]), or the
+    /// description's.
     fn join_edges(&mut self, band: Band, tol: Tol) -> Result<Vec<EdgeJoin>, BooleanError>
     where
         T: Decide + crate::props::AtRestPolicy;
@@ -2130,8 +2129,7 @@ pub trait Construct<T: geom_core::Real> {
     /// bit changes.** A joint on a pole or an apex stores the turn there
     /// on the face's side ([`crate::joint`]), so a flipped face's rows
     /// are about its other side: they are dropped
-    /// ([`Body::sides_agree`]), and the face is minted again by its
-    /// producer's closing mint.
+    /// ([`Body::sides_agree`]), and the finish completes the face again.
     ///
     /// Not an Euler operator (no topology changes) and not a numeric
     /// decision (a `bool` is written, nothing compared); tier 1 is

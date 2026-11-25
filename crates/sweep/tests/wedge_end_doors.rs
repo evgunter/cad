@@ -600,7 +600,7 @@ fn an_offset_cap_re_asks_the_shoulder_pair_over_its_new_length() {
             topo::replace_faces_offset(&mut body, &[cap_at(&wall, height)], d, tol())
                 .unwrap_or_else(|e| panic!("{label}: the offset builds, got {e:?}"));
             assert_eq!(
-                topo::validate_geometric(&body, tol()),
+                topo::test_support::validate_completed(&body, tol()),
                 Ok(()),
                 "{label}: the body is valid at rest"
             );

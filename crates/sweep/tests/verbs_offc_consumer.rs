@@ -861,8 +861,8 @@ fn an_approx_face_moves_at_a_scalar_with_no_fit_lane() {
 }
 
 /// **What an `Approx`-capped part can and cannot do once placed,
-/// pinned so that a move either way is loud.** The fixture ends with its
-/// closing mint (rows are mandatory at rest), and every cap edge's row
+/// pinned so that a move either way is loud.** The fixture ends with a
+/// whole-body mint (rows are mandatory at rest), and every cap edge's row
 /// derives and certifies, so the two doors that want stored caches
 /// answer on the placed part:
 ///

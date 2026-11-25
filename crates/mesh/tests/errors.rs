@@ -381,11 +381,11 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
                     twin: false,
                 }),
             },
-            vec!["one whole turn", "far half 2 whole turns", "re-mint"],
+            vec!["one whole turn", "far half 2 whole turns", "finish it"],
         ),
         (
             TessellateError::LiftedColumnOff { face, edge },
-            vec!["quarter turn", "stored chart image", "re-mint"],
+            vec!["quarter turn", "stored chart image", "finish it"],
         ),
     ];
     assert_f6_every_variant(&cases, &TESSELLATE_ERROR, &[], TESSELLATE_ERROR_FIELDS);

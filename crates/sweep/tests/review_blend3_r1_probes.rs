@@ -340,11 +340,16 @@ fn r1_the_ring_gate_still_meters_on_the_concave_side() {
 
     // The ring now reaches 2.9, past the ceiling trimline at 2.75.
     let err = carve(0.9).expect_err("a ring past the trimline must refuse, not mint");
+    let certify = matches!(
+        &err.error,
+        BlendError::NotFinished { findings }
+            if findings
+                .as_slice()
+                .iter()
+                .any(|f| matches!(f, topo::ValidationError::Pcurve { .. }))
+    );
     assert!(
-        !matches!(
-            err.error,
-            BlendError::Op { .. } | BlendError::PcurveMint { .. }
-        ),
+        !matches!(err.error, BlendError::Op { .. }) && !certify,
         "the degradation must be caught at a door, not by a downstream Euler/certify \
          failure — got {:?}",
         err.error

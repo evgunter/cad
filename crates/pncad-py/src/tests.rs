@@ -4469,7 +4469,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "not_finished",
             "oblique_mixed_corner",
             "op",
-            "pcurve_mint",
             "radius_headroom",
             "repeated_edge",
             "ring_clearance",
@@ -4541,7 +4540,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "one_record_uncertified",
             "pairing_mismatch",
             "partner_along_face",
-            "pcurves",
             "pieces",
             "pierce_lever_unread",
             "pinch_rays_in_a_face",
@@ -4988,7 +4986,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "not_finished",
             "oblique_extrusion",
             "op",
-            "pcurve",
             "sliver_join",
             "sliver_rim",
             "smooth_join_refuted",
@@ -5136,7 +5133,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "far_stacking_escalated",
             "joint_escalated",
             "not_finished",
-            "pcurve",
             "pinned_corner",
             "placement_not_finite",
             "reversed_stacking",
@@ -5780,7 +5776,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "non_manifold_axis_contact",
             "not_finished",
             "op",
-            "pcurve",
             "pinned_run_station",
             "sliver_axis_clearance",
             "sliver_join",
@@ -5928,7 +5923,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "open_faces_disconnect",
             "open_faces_exhaust_shell",
             "partition",
-            "pcurve",
             "rim",
             "rim_seam_mixed",
             "roles",
@@ -6089,7 +6083,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "split_op_error_tag",
-        values: &["finish", "join", "pcurves", "pieces", "reduce"],
+        values: &["finish", "join", "pieces", "reduce"],
         delegates: &["join_refusal_tag"],
     },
     TagEntry {
@@ -6143,7 +6137,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "missing_uncertainty",
             "not_yet_supported",
             "nothing_to_import",
-            "pcurves",
             "placement",
             "recognition_ambiguous",
             "singularity_meet_unread",
@@ -6249,7 +6242,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "transform_error_tag",
-        values: &["corrupt", "null_scaffold", "pcurve"],
+        values: &["corrupt", "null_scaffold"],
         delegates: &[],
     },
     TagEntry {
@@ -6629,8 +6622,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // `the_edit_and_snapshot_maps_agree_on_the_var_read_words`;
     // these two rows say only that the sharing is deliberate.
     ("payload_var_kind", 2),
-    ("pcurve", 6),
-    ("pcurves", 3),
     // One fact at the edit and load doors and the product slot: a pick
     // whose path names no one piece of its copy
     // (`editor_core::edit::pick_fault`).

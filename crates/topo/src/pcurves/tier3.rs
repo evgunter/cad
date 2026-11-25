@@ -226,7 +226,7 @@ pub fn loop_windings<T: AtRestPolicy>(
 /// 1. **A face that stores none of its rows is re-derived** — the
 ///    minting pass over it, storing nothing ([`derive_face`]) — so the
 ///    finding says why the rows are missing: they derive and certify
-///    ([`PcurveMintError::Unminted`]: the body was not minted after it
+///    ([`PcurveMintError::Unminted`]: the body was not finished after it
 ///    was built or edited), or the derivation refuses (that refusal).
 ///    A face whose rows are not owed ([`not_owed`]: an uncovered class,
 ///    or a fitted face at a scalar with no fitted door) is excused here
