@@ -1122,7 +1122,9 @@ fn segment_pieces<T: geom_core::spline::SpanLocate>(
     let piece = |a: Point2<T>, b: Point2<T>, kind| SweptSeg { a, b, kind, ..seg };
     match seg.kind.get() {
         profile::SegmentKind::Line { .. } => {
-            let at = |u: f64| seg.a + (seg.b - seg.a) * T::from_computed(u);
+            // A crease value is structure: the strip's `u` knots are the
+            // sections' sub-arc breaks `k/m`, unioned, so a constant.
+            let at = |u: f64| seg.a + (seg.b - seg.a) * T::from_f64(u);
             let points: Vec<Point2<T>> = core::iter::once(seg.a)
                 .chain(cuts.iter().map(|&u| at(u)))
                 .chain(core::iter::once(seg.b))
@@ -1156,7 +1158,9 @@ fn segment_pieces<T: geom_core::spline::SpanLocate>(
                 if s == 0.0 {
                     return Ok(T::from_f64(geom_brep::sub_arc_joint(k, m)));
                 }
-                let from_middle = geom_brep::sub_arc_angle_at_fraction(T::from_computed(s), tan_q);
+                // `s` is `u·m − k` on structure (`u` a break of the strip's
+                // knots), a constant.
+                let from_middle = geom_brep::sub_arc_angle_at_fraction(T::from_f64(s), tan_q);
                 #[allow(clippy::cast_precision_loss)]
                 let into = T::from_f64(k as f64 + 0.5) + from_middle / delta;
                 Ok(into / steps)
@@ -1325,10 +1329,10 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
     for lp in &segment_walls {
         let (mut w_l, mut o_l, mut c_l) = (Vec::new(), Vec::new(), Vec::new());
         for (j, slabs_of) in lp.iter().enumerate() {
-            let cut: Vec<(Vec<Arc<NurbsSurface<T>>>, Vec<f64>)> = slabs_of
+            let cut = slabs_of
                 .iter()
                 .map(sub_arc_walls)
-                .collect::<Result<_, _>>()?;
+                .collect::<Result<Vec<_>, _>>()?;
             let Some((first, c)) = cut.first() else {
                 return Err(LoftError::SectionStructure);
             };

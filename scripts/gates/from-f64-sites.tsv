@@ -152,6 +152,8 @@ crates/sweep/src/blend/reach.rs	1	constant	2.0 * FaceBoxes::pad(band)	the band's
 crates/sweep/src/blend/reach.rs	1	constant	pts.len() as f64	a point count
 crates/sweep/src/blend/reach.rs	2	constant	band.escalate()	the band's escalation width, a tolerance
 crates/sweep/src/loft.rs	2	fixture	<fn>	f64_body_held_as_points: the fixture body whose carriers hold f64 values as points (walls and section parameters), behind test-support; no production caller
+crates/sweep/src/loft.rs	1	constant	s	a crease's place on its sub-arc, u·m − k: arithmetic on structure, the strip's u knots being the sections' sub-arc breaks k/m unioned
+crates/sweep/src/loft.rs	1	constant	u	a crease value of the compatible strip's u knots: the sections' sub-arc breaks k/m and a line's 0 and 1, unioned (degree elevation moves no value), structure
 crates/sweep/src/loft.rs	1	constant	geom_brep::sub_arc_joint(k, m)	a sub-arc breakpoint k/m, structure: an arc's own joint as a fraction of its sweep
 crates/sweep/src/loft.rs	1	constant	k as f64 + 0.5	a sub-arc's middle, a count plus a half
 crates/sweep/src/loft.rs	1	constant	m as f64	a sub-arc count
