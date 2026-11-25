@@ -2233,9 +2233,136 @@ fn junction_window<T: Decide + crate::props::AtRestPolicy>(
         normal,
         rides,
     };
-    Ok(junction_end_window(&question, band)
-        .map_err(refused)?
-        .map(|window| (end, window)))
+    let Some(window) = junction_end_window(&question, band).map_err(refused)? else {
+        return Ok(None);
+    };
+    if window.pivot > window.order
+        && !junction_end_boundary_clear(y, face, &question, window.spread, band)?
+    {
+        return Err(refused(JunctionEndUnsettled::Gap(
+            super::JunctionEndGap::NearBoundary,
+        )));
+    }
+    Ok(Some((end, window)))
+}
+
+/// How far along an edge leaving the end, in spreads, its own side is
+/// read before its carrier's distance floor takes over: far enough that
+/// the floor of the rest clears the spread on a gently bent edge, near
+/// enough that the side's premises hold at the belt's widest spread.
+const NEAR_PIECE: f64 = 1.25;
+
+/// **Whether `face` is bounded within `spread` of the end by the rim
+/// alone, or by edges leaving the end on its own side**
+/// (`junction_end_boundary_clear`), asked of a window read past the
+/// order's own term, whose spread holds roots of the edge on `face`'s
+/// carrier: the side reading places them off `face` only where nothing
+/// but the rim bounds `face` on the edge's side within the spread.
+///
+/// - An edge of `face` on the rim's own circle
+///   ([`geom_brep::curve_face::end_root::is_the_circle`]) is the rim's:
+///   the side margin already charges the rim's offset.
+/// - An edge leaving the end (one of its ends decided at it,
+///   `junction_end_boundary_at_end`) is read in two pieces, by its
+///   carrier's top speed and bend. Out to arc `NEAR_PIECE·σ` it holds `face`'s own side of the rim, the
+///   side margin read with its departure toward `face`
+///   (`junction_end_side`, under its premises), so `face`'s
+///   corner there lies away from the edge's side. Past that, its
+///   carrier's distance floor clears `σ`.
+/// - Any other edge is read by its carrier's distance floor
+///   ([`super::carrier_touch::arc_clear_of_ball`]), and a lone vertex by
+///   its distance.
+///
+/// Anything not decided clear is near.
+///
+/// # Errors
+///
+/// [`BooleanError::ClassificationInvariant`] for an edge with no
+/// certified carrier.
+fn junction_end_boundary_clear<T: Decide>(
+    y: &Body<T>,
+    face: FaceKey,
+    q: &JunctionEnd<'_, T>,
+    spread: T,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    use geom_core::ladder::{Answering, Climb, Rung, climb};
+    let Some(conormal) = junction_conormal(q) else {
+        return Ok(false);
+    };
+    let (rim, p) = (q.rim, q.p);
+    let past = |gap: T| {
+        geom_core::k_stats::decide(
+            "junction_end_boundary_clear",
+            Margin::of(gap - spread),
+            band,
+        ) == Ok(Sign::Positive)
+    };
+    let leaves_on_its_side = |carrier: &geom::Curve3<T>, (t0, t1): (T, T)| -> bool {
+        let at_end = |t: T| {
+            geom_core::k_stats::decide(
+                "junction_end_boundary_at_end",
+                Margin::of((carrier.eval(t) - p).norm()),
+                band,
+            ) == Ok(Sign::Zero)
+        };
+        let (t_end, t_far, forward) = if at_end(t0) {
+            (t0, t1, true)
+        } else if at_end(t1) {
+            (t1, t0, false)
+        } else {
+            return false;
+        };
+        let Some(speed) = geom::carrier_speed::speed_hi(carrier) else {
+            return false;
+        };
+        let bend = geom::carrier_speed::curvature_hi(carrier);
+        let toward = if forward { T::one() } else { -T::one() };
+        let near = spread * T::from_f64(NEAR_PIECE);
+        let reach = geom_brep::one_sheet_radius(q.surface, p, near);
+        let (_, d) = carrier.ders1(t_end);
+        let into = -(d * toward).normalize().dot(conormal);
+        let held = junction_side_premises(near, rim.radius, reach)
+            && junction_side(into, bend, rim.radius, near, band) == Ok(Sign::Positive);
+        let split = t_end + toward * near / speed;
+        let rest_left = geom_core::k_stats::prove(
+            "junction_end_boundary_split",
+            Margin::sign_of((t_far - split) * toward),
+        ) == Ok(Sign::Positive);
+        let rest = if forward {
+            (split, t_far)
+        } else {
+            (t_far, split)
+        };
+        held && (!rest_left
+            || super::carrier_touch::arc_clear_of_ball(carrier, rest, p, spread, band))
+    };
+    let rim_circle = (rim.center, rim.axis.get(), rim.radius);
+    // Every boundary member clear, an identity: any member not clear
+    // answers `false`, whatever an earlier member read ([`climb`],
+    // [`Answering::Any`]).
+    //
+    // any-climb-pins: proof decided-members — no reading answers past a
+    // kept rung here. Every member's reading is a decided `bool` (a
+    // reading in band is not clear, and answers), and the one error is a
+    // torn carrier record, which no later member supersedes.
+    let not_clear = climb(Answering::Any, y.proven_face(face).boundary(), |member| {
+        let clear = match member {
+            crate::live::BoundaryMember::Isolated { point, .. } => Ok(past((point - p).norm())),
+            crate::live::BoundaryMember::Edge { edge, .. } => certified(edge).map(|curve| {
+                let (carrier, span) = (curve.carrier(), curve.params());
+                geom_brep::curve_face::end_root::is_the_circle(carrier, rim_circle, band)
+                    || leaves_on_its_side(carrier, span)
+                    || super::carrier_touch::arc_clear_of_ball(carrier, span, p, spread, band)
+            }),
+        };
+        Rung::holds(clear.map(|c| !c), (), BooleanError::refusal)
+    });
+    match not_clear {
+        Climb::Answered { answer, .. } => answer.map(|()| false),
+        Climb::Undecided(e) => Err(e),
+        Climb::Passed => Ok(true),
+    }
 }
 
 /// **Whether an end on a junction's rim is read, and the side the
@@ -2524,15 +2651,11 @@ fn junction_end_window<T: Decide>(
     };
     let (_, d) = q.carrier.ders1(t_end);
     let along = (d * toward).normalize();
-    let rim_tangent = q.rim.axis.get().cross(q.p - q.rim.center);
-    let ridden = match q.rides {
-        Sign::Positive => rim_tangent.normalize(),
-        Sign::Negative => -rim_tangent.normalize(),
-        // A ride along no direction names no side.
-        Sign::Zero => return Err(no_window),
+    // A ride along no direction names no side.
+    let Some(conormal) = junction_conormal(q) else {
+        return Err(no_window);
     };
-    let conormal = q.normal.cross(ridden);
-    let departure = along.dot(conormal.normalize());
+    let departure = along.dot(conormal);
     let reach = geom_brep::one_sheet_radius(q.surface, q.p, window.spread);
     if !junction_side_premises(window.spread, q.rim.radius, reach) {
         return Err(no_window);
@@ -2542,6 +2665,19 @@ fn junction_end_window<T: Decide>(
         Ok(Sign::Zero | Sign::Negative) => Err(no_window),
         Err(diag) => Err(in_band(BooleanDecision::JunctionEndSide, diag)),
     }
+}
+
+/// The edge's own face's unit inward conormal at the end, `n_P × t_P`
+/// with `t_P` the rim's tangent as `P`'s riding half-edge runs it; none
+/// for a ride along no direction.
+fn junction_conormal<T: Decide>(q: &JunctionEnd<'_, T>) -> Option<Vec3<T>> {
+    let rim_tangent = q.rim.axis.get().cross(q.p - q.rim.center).normalize();
+    let ridden = match q.rides {
+        Sign::Positive => rim_tangent,
+        Sign::Negative => -rim_tangent,
+        Sign::Zero => return None,
+    };
+    Some(q.normal.cross(ridden).normalize())
 }
 
 /// [`junction_end_window`]'s side margin `g(σ)` (`junction_end_side`),

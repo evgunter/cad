@@ -499,6 +499,38 @@ impl<T: Decide> Pivot<'_, T> {
     }
 }
 
+/// The predicate [`is_the_circle`] reads.
+pub const END_ROOT_RIM_CARRIER: &str = "curve_face_end_root_rim_carrier";
+
+/// **Whether `carrier` is the circle of `radius` about `center` in the
+/// plane normal to the unit `axis`**: a circle whose points a third of a
+/// turn apart each lie on that circle, their distance from it decided
+/// Zero (`curve_face_end_root_rim_carrier`), three points fixing a
+/// circle. Any other carrier is not.
+#[must_use]
+pub fn is_the_circle<T: Decide>(
+    carrier: &Curve3<T>,
+    (center, axis, radius): (Point3<T>, Vec3<T>, T),
+    band: Band,
+) -> bool {
+    let (Curve3::Circle(_), Some(period)) = (carrier, carrier.period()) else {
+        return false;
+    };
+    let third = period.length() / T::from_f64(3.0);
+    [T::zero(), third, third * T::from_f64(2.0)]
+        .into_iter()
+        .all(|t| {
+            let w = carrier.eval(t) - center;
+            let height = w.dot(axis);
+            let radial = (w - axis * height).norm() - radius;
+            decide(
+                END_ROOT_RIM_CARRIER,
+                Margin::of((radial.powi(2) + height.powi(2)).sqrt()),
+                band,
+            ) == Ok(Sign::Zero)
+        })
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod rows {

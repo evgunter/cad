@@ -60,3 +60,22 @@ own:
   `scripts/gates/cover-kind-match` registers;
 - a body-level pose with a short edge of the target face inside the
   spread, to pin it.
+
+## 2026-11-25 — Guarded past the order's term; open at it
+
+PR 7731 now guards the exposure the pivot adds. A window read past the
+order's own term is read only where `reduce::junction_end_boundary_clear`
+decides every boundary of the target face clear of the spread; failing
+that, it refuses `JunctionEndUnread { NearBoundary }`. Three kinds of
+boundary are excepted:
+- the rim's own edges, decided on the rim at three points;
+- edges leaving the end on the target's own side, read by the side
+  margin toward the target out to `1.25σ` and by the distance floor
+  past it;
+- lone vertices, which are read by their distance.
+
+Pinned by `a_short_elbow_near_a_neutral_point_refuses_near_its_far_rim`.
+
+**Still open, at the order's own term**: the neutral point's order-4
+spread (0.111 m at `ε = 1e-6`, 0.0195 m at `1e-9`) and every order-2
+window past it, as on main. The row stays P1 for that.

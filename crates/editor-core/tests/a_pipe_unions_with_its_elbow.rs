@@ -579,6 +579,65 @@ fn an_edge_ending_near_a_neutral_point_stops_where_its_distance_says() {
     }
 }
 
+/// [`neutral_off_the_seam`], swept through `angle` rather than a quarter
+/// turn.
+fn short_off_the_seam(delta: f64, angle: f64) -> OffCap {
+    match neutral_off_the_seam(delta) {
+        OffCap::Elbow {
+            axis_x,
+            axis_y,
+            heading,
+            ..
+        } => OffCap::Elbow {
+            axis_x,
+            axis_y,
+            heading,
+            angle: -angle,
+        },
+        other => other,
+    }
+}
+
+/// **A short elbow near a neutral point refuses near its far rim.** At
+/// `3√ε` off the neutral point the window past the pipe's seam ruling's end
+/// is read past the order's own term, its spread `σ ≈ 8.8·ε^¼` holding
+/// roots on the bend's carrier, and those are read off the bend only where
+/// nothing but the rim bounds the bend within `σ` of the end. An elbow
+/// swept so short that its far cap's rim lies `0.4σ` or `0.8σ` along the
+/// bend from the end refuses `NearBoundary` (so do 5° and 2° at
+/// `ε = 1e-6`, measured); swept `3σ`, it builds at the closed form.
+#[test]
+fn a_short_elbow_near_a_neutral_point_refuses_near_its_far_rim() {
+    let eps = Tol::witness().eps();
+    let delta = 3.0 * eps.sqrt();
+    let spread = 8.8 * eps.powf(0.25);
+    for share in [0.4, 0.8] {
+        let what = format!("swept {share}σ");
+        let j = join(
+            true,
+            CapEnd::End,
+            short_off_the_seam(delta, share * spread / BEND),
+        );
+        let e = refusal(&j, &what);
+        assert!(
+            matches!(
+                e,
+                topo::BooleanError::JunctionEndUnread {
+                    gap: topo::JunctionEndGap::NearBoundary,
+                    ..
+                }
+            ),
+            "{what}: the far rim within the spread: {e:?}"
+        );
+    }
+    let off = short_off_the_seam(delta, 3.0 * spread / BEND);
+    builds_at(
+        &join(true, CapEnd::End, off),
+        closed_form(true, off),
+        "swept 3σ",
+    );
+}
+
 /// **A root of the rest of the span is found, not covered.** A pipe 4
 /// long: its seam ruling `x = 1` meets the bend's carrier again at
 /// `z = 4 − √12`, inside its span and off the bend's face. The window past

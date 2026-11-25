@@ -406,8 +406,14 @@ premises, each proven over the spread: the target's carrier is one graph
 over the junction's tangent plane there (`junction_end_reach`: the
 spread at most half its least radius of curvature, a cone's taken within
 the reach and short of its other nappe), and the spread is short of the
-rim's radius (`junction_end_rim_reach`). The target face's other edges
-are assumed to stand off the spread, and no reading checks it. A root nearer the end
+rim's radius (`junction_end_rim_reach`). A window read past the order's
+own term, whose spread holds roots of the quotient as well as the end's,
+is read only where the target face is bounded within the spread by the
+rim alone, or by edges leaving the end on the target's own side of it
+(`junction_end_boundary_clear`); otherwise it refuses
+`JunctionEndUnread` with `NearBoundary`. At the order's own term the
+target face's other edges are assumed to stand off the spread, and no
+reading checks it. A root nearer the end
 than where that margin clears the band lies within the band of the
 target face's boundary, not necessarily at the vertex, and is the touch
 the vertex's own placement records. No window, a premise not proven or a
