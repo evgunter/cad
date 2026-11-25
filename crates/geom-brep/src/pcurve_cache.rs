@@ -984,7 +984,7 @@ fn iso_arc_g<T: SpanLocate>(t: T, t0: T, angle: T, breaks: &KnotVector, ends: &[
 
 /// **A NURBS chart image's box over `[t0, t1]`**: the hull of its
 /// restriction's control points, one Bézier stretch per knot span the
-/// span crosses ([`projected::image_piece_controls`]), read over the span
+/// span crosses ([`projected::image_controls_over`]), read over the span
 /// from `t0`'s lower bracket to `t1`'s upper, clipped to the domain, so
 /// it holds every parameter either end may be. The convex-hull property
 /// puts each stretch's image in its controls' box. `None` where an end
@@ -995,12 +995,7 @@ fn net_span_box<T: SpanLocate>(image: &NurbsCurve2<T>, t0: T, t1: T) -> Option<C
     let (_, b) = t1.structure_bracket()?;
     let (lo, hi) = image.domain();
     let range = geom_core::spline::ParamRange::new(a.max(lo), b.min(hi))?;
-    let stretches = projected::span_stretches(image.knots_f64_interim(), range)?;
-    point_hull(
-        stretches
-            .into_iter()
-            .flat_map(|stretch| projected::image_piece_controls(image, stretch)),
-    )
+    point_hull(projected::image_controls_over(image, range)?)
 }
 
 /// The axis-aligned box of `points` in the chart, `None` for none: the

@@ -762,64 +762,61 @@ pub fn piece_controls<T: SpanLocate>(net: &NurbsCurve3<T>, piece: ParamRange) ->
         let (c, w) = (net.control()[i], net.weights()[i]);
         [c.x * w, c.y * w, c.z * w, w]
     };
-    restricted(
-        net.knots_f64_interim(),
-        net.knot_values(),
-        piece,
-        homogeneous,
-    )
-    .into_iter()
-    .map(|[x, y, z, w]| (Vec3::new(x, y, z) / w, w))
-    .collect()
+    net_controls_over(net.knot_values(), piece, homogeneous)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|[x, y, z, w]| (Vec3::new(x, y, z) / w, w))
+        .collect()
 }
 
-/// [`piece_controls`] for a chart image's net: the control points of
-/// `image`'s restriction to `piece`, by the same restriction of each
-/// homogeneous channel `(w·P, w)`.
-pub(crate) fn image_piece_controls<T: SpanLocate>(
+/// A chart image's restriction to `range`: the control points of each
+/// Bézier stretch of `image` over the knot spans `range` crosses, in
+/// order, by the same restriction as [`piece_controls`]. `None` where
+/// the range has no stretches ([`span_stretches`]).
+pub(crate) fn image_controls_over<T: SpanLocate>(
     image: &NurbsCurve2<T>,
-    piece: ParamRange,
-) -> Vec<Point2<T>> {
+    range: ParamRange,
+) -> Option<Vec<Point2<T>>> {
     let homogeneous = |i: usize| {
         let (c, w) = (image.control()[i], image.weights()[i]);
         [c.x * w, c.y * w, w]
     };
-    restricted(
-        image.knots_f64_interim(),
-        image.knot_values(),
-        piece,
-        homogeneous,
+    Some(
+        net_controls_over(image.knot_values(), range, homogeneous)?
+            .into_iter()
+            .map(|[x, y, w]| Point2::new(x / w, y / w))
+            .collect(),
     )
-    .into_iter()
-    .map(|[x, y, w]| Point2::new(x / w, y / w))
-    .collect()
 }
 
-/// The one body of [`piece_controls`] and [`image_piece_controls`]: each
-/// of a net's `N` homogeneous channels (`homogeneous(i)` at control `i`)
-/// restricted to `piece` over the net's held knots
-/// ([`SpanLocate::restrict_window`]), the restriction's controls in
-/// order. A piece end that is one of the net's breakpoints is that
-/// breakpoint's held value, any other end the caller's `f64` parameter.
-fn restricted<T: SpanLocate, const N: usize>(
-    kv: &KnotVector,
+/// The one body of [`piece_controls`] and [`image_controls_over`]: a
+/// net's `N` homogeneous channels (`homogeneous(i)` at control `i`)
+/// restricted to each stretch of `range` over one knot span
+/// ([`span_stretches`]), by the scalar's own restriction over the net's
+/// held knots ([`SpanLocate::restrict_window`]), the restrictions'
+/// controls in order. A stretch end that is one of the net's breakpoints
+/// is that breakpoint's held value, any other end the caller's `f64`
+/// parameter. The net's `f64` knots are read here once, for the spans.
+fn net_controls_over<T: SpanLocate, const N: usize>(
     knots: &geom_core::spline::Knots<T>,
-    piece: ParamRange,
+    range: ParamRange,
     homogeneous: impl Fn(usize) -> [T; N],
-) -> Vec<[T; N]> {
-    let ends = (piece.start(), piece.end());
-    let (span, _) = kv.span_range(piece);
+) -> Option<Vec<[T; N]>> {
+    let kv = knots.structure_f64_interim();
     let held = knots.values();
-    let held_ends = (held_param(knots, ends.0), held_param(knots, ends.1));
-    let window: Vec<[T; N]> = span.window().map(homogeneous).collect();
-    let channels: [Vec<T>; N] = core::array::from_fn(|k| {
-        let line: Vec<T> = window.iter().map(|c| c[k]).collect();
-        T::restrict_window(&line, span, held, ends, held_ends)
-    });
-    let len = channels[0].len();
-    (0..len)
-        .map(|j| core::array::from_fn(|k| channels[k][j]))
-        .collect()
+    let mut out = Vec::new();
+    for stretch in span_stretches(kv, range)? {
+        let ends = (stretch.start(), stretch.end());
+        let (span, _) = kv.span_range(stretch);
+        let held_ends = (held_param(knots, ends.0), held_param(knots, ends.1));
+        let window: Vec<[T; N]> = span.window().map(&homogeneous).collect();
+        let channels: [Vec<T>; N] = core::array::from_fn(|k| {
+            let line: Vec<T> = window.iter().map(|c| c[k]).collect();
+            T::restrict_window(&line, span, held, ends, held_ends)
+        });
+        out.extend((0..channels[0].len()).map(|j| core::array::from_fn(|k| channels[k][j])));
+    }
+    Some(out)
 }
 
 impl<T: SpanLocate> ProjectedImage<T> {

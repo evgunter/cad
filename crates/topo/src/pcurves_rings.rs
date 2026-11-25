@@ -440,7 +440,7 @@ pub(crate) fn face_lift_as<T: Decide>(
         let lengths = [periods.u(), periods.v()].map(|p| p.map(|p| p.length().value_channel()));
         let mut decks = Vec::with_capacity(rings.len());
         for (&ring, lift) in rings.iter().zip(&read) {
-            let at = reference_point(lift, &reader);
+            let at = reference_point(lift, &reader, band);
             let shift = place_ring(
                 lengths,
                 reader.reach,
@@ -507,12 +507,12 @@ const REFERENCE_SAMPLES: usize = 8;
 /// row among them. On a chart whose lever is one number everywhere (a
 /// cylinder's, a torus's, a plane's) every point ties, and any is as
 /// good: the window round each gates the same arms.
-fn reference_point<T: Decide>(lift: &Lift<T>, reader: &Outer<'_, T>) -> Point2<T> {
+fn reference_point<T: Decide>(lift: &Lift<T>, reader: &Outer<'_, T>, band: Band) -> Point2<T> {
     pick_reference(
         lift.rows()
             .iter()
             .map(|row| (&row.pcurve, row.entry_exit())),
-        |q| reader.lever(q),
+        |q| reader.lever(q, band),
     )
 }
 
@@ -742,7 +742,10 @@ impl<'a, T: Decide> Outer<'a, T> {
         Some(match self.v_period {
             None => q.y,
             Some(p) => {
-                let mid = |x: T| x.structure_bracket().map(|(lo, hi)| 0.5 * (lo + hi));
+                let mid = |x: T| {
+                    x.structure_bracket()
+                        .map(|(lo, hi)| geom_core::mid_param(lo, hi))
+                };
                 let (v, length) = (mid(q.y)?, mid(p.length())?);
                 q.y - p.times(whole((v / length + 0.5).floor())?)
             }
@@ -750,26 +753,16 @@ impl<'a, T: Decide> Outer<'a, T> {
     }
 
     /// The azimuth's lever at `q`, as a number to rank points by: the
-    /// arm [`Self::arms`] reads, at `q`'s copy ([`Self::sheet_v`]) and
-    /// that one latitude, by its certified lower end, which every scalar
-    /// has (an `f64`'s is itself, an interval's its lower bound). A
-    /// plane's chart has no azimuth and every point reads 1. Not a
-    /// decision: a point that ranks highest is read as any other is.
-    fn lever(&self, q: Point2<T>) -> f64 {
-        match *self.surface {
-            Surface::Plane { .. } => 1.0,
-            Surface::Nurbs(_) | Surface::Approx(_) => {
-                unreachable!("a spline chart's rings are placed by its trim")
-            }
-            _ => self
-                .sheet_v(q)
-                .and_then(|v| {
-                    geom_brep::azimuth_lever_inf(self.surface, v, v)
-                        .get()
-                        .structure_bracket()
-                })
-                .map_or(f64::NEG_INFINITY, |(lo, _)| lo),
-        }
+    /// arm [`Self::arms`] reads at `q`'s copy ([`Self::sheet_v`]) and that
+    /// one latitude, by its certified lower end, which every scalar has
+    /// (an `f64`'s is itself, an interval's its lower bound); a point
+    /// whose arm does not gate positive ranks lowest. Not a decision: a
+    /// point that ranks highest is read as any other is.
+    fn lever(&self, q: Point2<T>, band: Band) -> f64 {
+        self.sheet_v(q)
+            .and_then(|v| self.arms(v, v, band).ok())
+            .and_then(|(u, _)| u.get().structure_bracket())
+            .map_or(f64::NEG_INFINITY, |(lo, _)| lo)
     }
 
     /// The chart's inf-side arms over the `v` window `[v_lo, v_hi]`, each
@@ -1285,11 +1278,11 @@ mod tests {
         let at = pick_reference(
             rows.iter()
                 .map(|p| (p, (T::from_f64(span.0), T::from_f64(span.1)))),
-            |q| reader.lever(q),
+            |q| reader.lever(q, Band::linear(Tol::witness()).unwrap()),
         );
         let mid = |x: T| {
             x.structure_bracket()
-                .map_or(f64::NAN, |(lo, hi)| 0.5 * (lo + hi))
+                .map_or(f64::NAN, |(lo, hi)| geom_core::mid_param(lo, hi))
         };
         (mid(at.x), mid(at.y))
     }
@@ -1366,7 +1359,8 @@ mod tests {
         };
         let reader = Outer::from_pieces(Vec::new(), &torus, Some(Period::new(TAU)));
         let ring = chart_circle::<f64>(1.0, 0.3, 0.1);
-        let at = pick_reference([(&ring, (0.0, TAU))], |q| reader.lever(q));
+        let band = Band::linear(Tol::witness()).unwrap();
+        let at = pick_reference([(&ring, (0.0, TAU))], |q| reader.lever(q, band));
         #[allow(clippy::cast_precision_loss)] // a handful of samples
         let first = ring.eval(TAU / (2.0 * REFERENCE_SAMPLES as f64));
         assert_eq!(
