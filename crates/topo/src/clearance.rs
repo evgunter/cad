@@ -74,7 +74,8 @@
 //! straddling the boundary, within `K · ε` of it, or one whose station
 //! the point door does not place, is kept: the set the sweep covers
 //! still contains the face. A NURBS face's window is exact rather than
-//! a superset: it is admitted only where the face is the whole patch
+//! a superset (an approximated face's is its fit's, the fit being its
+//! geometry): such a window is admitted only where the face is the whole patch
 //! (`iso_bounded_domain`), so its cells read `Inside` and its stations
 //! are admitted with neither door asked (`Region::Whole`).
 //!
@@ -3778,7 +3779,8 @@ fn sheet_latitude(major_radius: Interval, minor_radius: Interval) -> (f64, f64) 
 ///   ([`iso_bounded_domain`]). A trimmed face, one with a boundary edge
 ///   that is not an iso, and one whose isos do not cover the domain's
 ///   boundary refuse [`EngineRefusal::Unsupported`] naming which.
-/// - **A fitted approximation** refuses, named.
+/// - **An approximated face** is its fit, a NURBS face, and takes the
+///   NURBS window.
 ///
 /// The carrier is read in its STORED chart, for every carrier kind, and
 /// lifted to the interval scalar ([`Interval::from_certified`]): a
@@ -3821,10 +3823,7 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
         let d = (extent - origin).dot(dir) / dir.norm_squared();
         (d.lo(), d.hi())
     };
-    if let Surface::Approx(_) = stored {
-        return unsupported(APPROXIMATED);
-    }
-    let Some(charted) = certified_lift(|lift| stored.map_scalar(|x| lift.of(x))) else {
+    let Some(charted) = carrier_lifted(stored) else {
         return unsupported("a face whose carrier does not certify");
     };
     let superset = |u, v| (u, v, Region::Trimmed);
@@ -3903,7 +3902,7 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
             Ok((u, v)) => (u, v, Region::Whole),
             Err(carrier) => return unsupported(carrier),
         },
-        Surface::Approx(_) => return unsupported(APPROXIMATED),
+        Surface::Approx(_) => unreachable!("an approximated face is read as its fit"),
     };
     if !(u.0.is_finite() && u.1.is_finite() && v.0.is_finite() && v.1.is_finite()) {
         return unsupported("a face whose carrier window is not a finite rectangle");
@@ -3916,7 +3915,7 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
         Some(motion) => {
             let placed = crate::transform::surface_at(motion, stored)
                 .ok()
-                .and_then(|placed| certified_lift(|lift| placed.map_scalar(|x| lift.of(x))));
+                .and_then(|placed| carrier_lifted(&placed));
             let Some(placed) = placed else {
                 return unsupported(
                     "a face whose carrier, read through its motion, does not certify",
@@ -4020,11 +4019,26 @@ mod lift {
     }
 }
 
+/// **A face's carrier as the engine reads it, lifted**: a spline chart
+/// as the NURBS surface it is, every other carrier as stored. An
+/// approximated face's chart is its fit ([`Surface::spline_chart`]),
+/// which is its geometry (OFFSET-DESIGN O2); the certified distance
+/// bounds the fit from the surface it stands in for, a claim tier 3
+/// re-derives, and says nothing about where the boundary is. That the
+/// boundary lies on the fit is the face's own: tier 3 certifies each
+/// edge against its chart image on the fit, and the window admits a
+/// free-form face only where [`iso_bounded_domain`] finds those images
+/// run once around the fit's knot domain. `None` where a crossing does
+/// not certify ([`certified_lift`]).
+fn carrier_lifted<T: CertifiedBounds>(stored: &Surface<T>) -> Option<Surface<Interval>> {
+    certified_lift(|lift| match stored.spline_chart() {
+        Some(net) => Surface::Nurbs(std::sync::Arc::new(net.map_scalar(|x| lift.of(x)))),
+        None => stored.map_scalar(|x| lift.of(x)),
+    })
+}
+
 /// A rectangle of carrier parameters, `(u, v)` ranges.
 type ParamRect = ((f64, f64), (f64, f64));
-
-/// The refusal of a fitted approximation's face.
-const APPROXIMATED: &str = "an approximated face";
 
 /// **The window of a NURBS face bounded by its chart's own isos**: the
 /// whole knot domain `[u0, u1] × [v0, v1]`, admitted only where the
