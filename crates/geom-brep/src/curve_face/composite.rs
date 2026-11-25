@@ -847,13 +847,11 @@ fn length_over(rails: &[Rail], (lo, hi): (f64, f64)) -> f64 {
         if !(a < b) {
             continue;
         }
-        let (s0, s1) = (
-            share_of((rail.a, rail.b), a),
-            share_of((rail.a, rail.b), b),
-        );
+        let (s0, s1) = (share_of((rail.a, rail.b), a), share_of((rail.a, rail.b), b));
         let over = |row: Vec<Interval>| split_row(&split_row(&row, s1).0, s0 / s1).1;
         let scale = hull(&over(product(&rail.weight, &rail.weight)));
-        let [x, y, z] = [0, 1, 2].map(|k| hull(&over(slope_row(&rail.coords[k], &rail.weight))) / scale);
+        let [x, y, z] =
+            [0, 1, 2].map(|k| hull(&over(slope_row(&rail.coords[k], &rail.weight))) / scale);
         total = total + Vec3::new(x, y, z).norm() * (s1 - s0);
     }
     total.hi()
@@ -915,7 +913,12 @@ fn settle<T: geom_core::Certifies>(
             continue;
         }
         if let Some(&(before, q)) = roots.last()
-            && gap_as("spline_composite_roots_apart", p, q, along + before.bound().along())? == Sign::Zero
+            && gap_as(
+                "spline_composite_roots_apart",
+                p,
+                q,
+                along + before.bound().along(),
+            )? == Sign::Zero
         {
             return Err(Unsettled::Tangency.into());
         }

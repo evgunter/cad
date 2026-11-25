@@ -13,10 +13,7 @@ fn band() -> Band {
 /// The residual of `t` against the root `root`, widened by `spread`
 /// on each side: the gap a family of carriers reads at one parameter
 /// (`f64` holds no hull, so its rows pass no spread).
-fn residual_about<T: crate::SpanLocate>(
-    root: f64,
-    spread: f64,
-) -> impl FnOnce(T) -> Checked<T, T> {
+fn residual_about<T: crate::SpanLocate>(root: f64, spread: f64) -> impl FnOnce(T) -> Checked<T, T> {
     reaching(root, spread, 0.0)
 }
 
@@ -87,9 +84,8 @@ fn a_candidate_whose_check_bounds_no_reach_is_refused_unbounded() {
 #[test]
 fn a_distance_is_decided_for_every_candidate_within_the_reach() {
     let (zero, escalate) = (band().zero(), band().escalate());
-    let read = |length: f64, reach: f64| {
-        decide_reaching("solved_row", Margin::of(length), reach, band())
-    };
+    let read =
+        |length: f64, reach: f64| decide_reaching("solved_row", Margin::of(length), reach, band());
     assert_eq!(read(3.0 * escalate, escalate).ok(), Some(Sign::Positive));
     assert_eq!(read(0.25 * zero, 0.5 * zero).ok(), Some(Sign::Zero));
     let straddle = read(0.25 * zero, 2.0 * escalate);
@@ -117,9 +113,15 @@ fn the_reach_moves_the_bands_thresholds_apart() {
             .1
     };
     let (clear, on) = reach(0.25 * zero).bands(band()).expect("finite");
-    assert_eq!((clear.zero(), clear.escalate()), (zero, escalate + 0.25 * zero));
+    assert_eq!(
+        (clear.zero(), clear.escalate()),
+        (zero, escalate + 0.25 * zero)
+    );
     let on = on.expect("a reach inside the zero keeps a zero reading");
-    assert_eq!((on.zero(), on.escalate()), (0.75 * zero, escalate + 0.25 * zero));
+    assert_eq!(
+        (on.zero(), on.escalate()),
+        (0.75 * zero, escalate + 0.25 * zero)
+    );
     let (clear, on) = reach(2.0 * zero).bands(band()).expect("finite");
     assert_eq!(clear.escalate(), escalate + 2.0 * zero);
     assert!(on.is_none(), "no zero reading is every candidate's: {on:?}");

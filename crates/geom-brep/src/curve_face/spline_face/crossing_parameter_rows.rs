@@ -136,7 +136,9 @@ fn settle_answers_one_way_or_refuses_on_the_boxes_that_hold_one_meeting() {
     }
     let got = settled((a, b), vec![holding_cell(T_STAR)]).unwrap();
     assert!(
-        got.len() == 1 && got[0].t.to_bits() == T_STAR.to_bits() && got[0].reach.along() >= 2.0 * ZERO,
+        got.len() == 1
+            && got[0].t.to_bits() == T_STAR.to_bits()
+            && got[0].reach.along() >= 2.0 * ZERO,
         "the narrow box about the true meeting is reported with its length: {got:?}"
     );
     for t in [early, at_end, in_gap] {
@@ -150,7 +152,10 @@ fn settle_answers_one_way_or_refuses_on_the_boxes_that_hold_one_meeting() {
     let x = shallow().eval(t).x;
     let beside_end = [(t - 0.1 * ZERO, t + 0.1 * ZERO), (x, x), (0.5, 0.5)];
     let got = settled((a, b), vec![beside_end]).unwrap();
-    assert!(got.is_empty(), "every point of the box is the end's: {got:?}");
+    assert!(
+        got.is_empty(),
+        "every point of the box is the end's: {got:?}"
+    );
 }
 
 /// **A box that holds an end of the span is never apart from it.** Both
@@ -299,7 +304,11 @@ fn at_interval_the_leaf_places_its_meeting_as_its_witness_does_or_refuses() {
     let near = middle + 15.0 * ZERO;
     assert!(hi < near, "the near end is outside the leaf's box");
     let of_witness = settle(&line, &chart, &ended(&witness, near), band()).unwrap();
-    assert_eq!(of_witness.len(), 1, "the witness's meeting is apart: {of_witness:?}");
+    assert_eq!(
+        of_witness.len(),
+        1,
+        "the witness's meeting is apart: {of_witness:?}"
+    );
     let of_leaf = settle(&fat_line, &fat, &ended(&leaf, near), band());
     assert!(
         matches!(of_leaf, Err(SplineFaceRefusal::Escalated(d)) if d.predicate == Some("spline_face_root_at_end")),

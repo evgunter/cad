@@ -55,14 +55,13 @@ fn placed(
     let p = arc(0.5 * x);
     let off = (p - plane.origin).dot(plane.normal);
     let reach: Option<Reach> = reach.map(|along| {
-        let (admitted, ()) = decide_admit::<f64, ()>("reach_rows_on_plane", 0.5 * x, band(), |_| {
-            Checked {
+        let (admitted, ()) =
+            decide_admit::<f64, ()>("spline_composite_root_on", 0.5 * x, band(), |_| Checked {
                 residual: Margin::of(off),
                 reach: along,
                 witness: (),
-            }
-        })
-        .unwrap_or_else(|why| panic!("x = {x}: the arc's point reads ON the plane: {why:?}"));
+            })
+            .unwrap_or_else(|why| panic!("x = {x}: the arc's point reads ON the plane: {why:?}"));
         admitted.into_parts().1
     });
     placed_within_reach(

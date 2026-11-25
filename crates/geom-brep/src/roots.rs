@@ -171,7 +171,8 @@ pub enum Unsettled {
     Degenerate,
     /// A meeting within the band of a crease of a spline carrier, where
     /// it has no tangent to read a crossing by.
-    Crease,    /// A crossing with no closed form whose place along its carrier is
+    Crease,
+    /// A crossing with no closed form whose place along its carrier is
     /// not bounded to the band: its check bounded no reach
     /// ([`geom_core::solved::Unadmitted::Unbounded`]), or a reading that
     /// would place it on a boundary does not hold at every candidate
