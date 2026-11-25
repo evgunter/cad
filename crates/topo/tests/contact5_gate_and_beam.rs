@@ -579,7 +579,7 @@ fn rest_patches(body: &Body<f64>) -> Vec<topo::Contact> {
     let planes: Vec<_> = body
         .faces()
         .filter_map(|(k, f)| match body.face_surface(k) {
-            Some(geom::Surface::Plane { frame, .. }) => {
+            Ok(geom::Surface::Plane { frame, .. }) => {
                 let (origin, normal) = (frame.origin(), frame.axis());
                 let s = if f.sense { 1.0 } else { -1.0 };
                 let n = [normal.x * s, normal.y * s, normal.z * s];

@@ -71,7 +71,7 @@ fn on_pair(
         spec,
         ends.0,
         ends.1,
-        move |k| arena.get(k).cloned(),
+        move |k| arena.get(k).cloned().ok_or(geom_brep::SurfaceMiss::Stale),
         geom_core::test_support::fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
@@ -343,7 +343,7 @@ fn arc_on_pair(
         spec,
         ends.0,
         ends.1,
-        move |k| arena.get(k).cloned(),
+        move |k| arena.get(k).cloned().ok_or(geom_brep::SurfaceMiss::Stale),
         geom_core::test_support::fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
@@ -613,7 +613,7 @@ fn a_split_child_recertifies_through_its_parents_stored_image() {
         surface: wall_key,
         pcurve: quarter_image(),
     };
-    let surfaces = |k| arena.get(k).cloned();
+    let surfaces = |k| arena.get(k).cloned().ok_or(geom_brep::SurfaceMiss::Stale);
     let lane = geom_brep::NurbsLane::<f64>::certified;
     let child = EdgeCurve::certify_stated(
         spec.clone(),

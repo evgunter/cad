@@ -22,7 +22,7 @@ fn tol() -> Tol {
 
 fn curved(body: &Body<f64>) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(fk, _)| !matches!(body.face_surface(*fk), Some(Surface::Plane { .. })))
+        .filter(|(fk, _)| !matches!(body.face_surface(*fk), Ok(Surface::Plane { .. })))
         .map(|(k, _)| k)
         .collect()
 }
@@ -265,7 +265,7 @@ fn closes_a_cut(out: &topo::BooleanBody<f64>, side: usize) -> bool {
         let on_sphere = out.body.get_face(kept).is_some_and(|f| {
             matches!(
                 out.body.get_surface(f.surface),
-                Some(geom::Surface::Sphere { .. })
+                Ok(geom::Surface::Sphere { .. })
             )
         });
         on_sphere && grafted.contains(&kept) == (side == 1)

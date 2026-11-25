@@ -286,7 +286,7 @@ fn f4_an_oblique_trihedron_builds_and_passes_tier_3() {
     // off nothing the flux arm reads.
     for &corner in &f.corner_faces {
         let face = f.body.get_face(corner).expect("the corner face resolves");
-        let Some(&geom::Surface::Sphere { frame, radius, .. }) = f.body.face_surface(corner) else {
+        let Ok(&geom::Surface::Sphere { frame, radius, .. }) = f.body.face_surface(corner) else {
             panic!("corner face {corner:?} is a sphere patch");
         };
         let center = frame.origin();

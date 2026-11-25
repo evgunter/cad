@@ -104,7 +104,7 @@ fn build_lone_edge(tol: Tol) -> LoneEdge {
     let p0 = body.add_point(Point3::new(0.0, 0.0, 0.0));
     let p1 = body.add_point(Point3::new(1.0, 0.0, 0.0));
     let curve = body.add_curve(crate::fixtures::test_curve(Point3::origin(), tol));
-    let surface = body.add_surface(crate::fixtures::test_surface(Point3::origin()));
+    let surface = body.add_pending_surface();
 
     let v0 = body.add_vertex(
         Vertex {
@@ -231,7 +231,7 @@ fn lone_edge_body_validates_with_expected_counts() {
     assert_eq!(c.body.vertices().count(), 2);
     assert_eq!(c.body.points().count(), 2);
     assert_eq!(c.body.curves().count(), 1);
-    assert_eq!(c.body.surfaces().count(), 1);
+    assert_eq!(c.body.surface_slots().count(), 1);
     assert_eq!(validate(&c.body), Ok(()));
 
     // Provenance present on every topology entity, recorded at birth.
@@ -474,9 +474,7 @@ fn orphan_geometry_reported_in_sweep_order() {
     let cv = c
         .body
         .add_curve(crate::fixtures::test_curve(Point3::origin(), tol));
-    let s = c
-        .body
-        .add_surface(crate::fixtures::test_surface(Point3::origin()));
+    let s = c.body.add_pending_surface();
     expect_errors(
         "orphan geometry (point, curve, surface)",
         &c.body,

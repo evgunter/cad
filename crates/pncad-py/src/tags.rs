@@ -378,6 +378,7 @@ pub fn mass_props_error_tag(err: &pncad::topo::MassPropsError) -> &'static str {
         M::RingOnCurvedFace { .. } => "ring_on_curved_face",
         M::Corrupt { .. } => "corrupt",
         M::NullScaffoldEdge { .. } => "null_scaffold_edge",
+        M::PendingFace { .. } => "pending_face",
         M::NoOutline(_) => "no_outline",
         M::ResolutionFinerThanEps { .. } => "resolution_finer_than_eps",
         M::EmptyContains => "empty_contains",
@@ -1718,7 +1719,6 @@ pub fn transform_error_tag(err: &TransformError) -> &'static str {
     match err {
         TransformError::Pcurve { .. } => "pcurve",
         TransformError::NullScaffold { .. } => "null_scaffold",
-        TransformError::NurbsPlaceholder => "nurbs_placeholder",
         TransformError::Corrupt { .. } => "corrupt",
     }
 }
@@ -2122,6 +2122,7 @@ pub fn reach_refusal_tag(refusal: &ReachRefusal) -> &'static str {
     match refusal {
         ReachRefusal::PartUnresolved { .. } => "part_unresolved",
         ReachRefusal::FaceUnbounded { .. } => "face_unbounded",
+        ReachRefusal::FacePending { .. } => "face_pending",
         ReachRefusal::MalformedBody { .. } => "malformed_body",
         ReachRefusal::NoExtent => "no_extent",
         ReachRefusal::NoFiniteBound => "no_finite_bound",
@@ -2789,6 +2790,7 @@ pub fn readback_error_tag(err: &ReadbackError) -> &'static str {
         ReadbackError::Dangling { .. } => "dangling_entity",
         ReadbackError::NoCanonicalFrame { .. } => "no_canonical_frame",
         ReadbackError::NoCarrier => "no_carrier",
+        ReadbackError::PendingSurface { .. } => "pending_surface",
     }
 }
 

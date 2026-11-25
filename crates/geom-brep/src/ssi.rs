@@ -4611,7 +4611,7 @@ mod ending_tests {
         );
         let folded = crate::folded_lever_arm(&sphere(0.1), &plane, o, reach(f64::NAN)).length();
         assert!(folded.is_nan(), "folded arm, E poison: {folded:e}");
-        let nurbs = Surface::nurbs_placeholder();
+        let nurbs = geom::test_support::unit_patch();
         let folded = crate::folded_lever_arm(&nurbs, &plane, o, reach(e)).length();
         assert!(folded.is_nan(), "folded arm on a NURBS carrier: {folded:e}");
     }

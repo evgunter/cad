@@ -276,6 +276,13 @@ pub enum MassPropsError {
         /// The scaffolding edge.
         edge: crate::entity::EdgeKey,
     },
+    /// A face has no surface yet ([`crate::SurfaceMiss::Pending`]): the
+    /// body is mid-construction, and mass properties are defined on
+    /// at-rest bodies only (tier 3 refuses a pending face).
+    PendingFace {
+        /// The pending face.
+        face: FaceKey,
+    },
     /// The caller's [`Settle::Resolution`] is finer than ε: the model
     /// defines its measures only to ε of boundary displacement, so no
     /// finer resolution is offered.
@@ -353,6 +360,11 @@ impl MassPropsError {
                 "an edge is a placeholder a construction leaves while it is under way, which a \
                  body at rest never carries. {}",
                 geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+            ),
+            Self::PendingFace { face } => write!(
+                f,
+                "face {face:?} has no surface yet, which a body at rest never carries. {}",
+                crate::pcurves::PLACEHOLDER_RECOURSE
             ),
             Self::ResolutionFinerThanEps { resolution, eps } => write!(
                 f,
@@ -1501,7 +1513,7 @@ fn rounding_bound<T: Decide>(body: &Body<T>, runs: &[FaceRun<T>]) -> Result<T, M
     for run in runs {
         let face = body.proven_face(run.face);
         let loops = face_loops(face)?;
-        let surface = face_anchored(face.surface(), &loops);
+        let surface = face_anchored(face.expect_described(), &loops);
         let c = run.about.point();
         let about = |p: Point3<T>| one_norm(p.x - c.x, p.y - c.y, p.z - c.z);
         let anchor = match surface {
@@ -1696,7 +1708,7 @@ fn rederive_faces<T: geom_core::Certifies>(
     let mut quadrature = false;
     for run in runs {
         let face = body.proven_face(run.face);
-        let surface = face.surface();
+        let surface = face.expect_described();
         #[cfg(any(test, feature = "test-support"))]
         read_points::note(
             body,
@@ -1798,7 +1810,7 @@ fn lifted_closed_form<T: geom_core::Certifies>(
         |surface, loops, points, same_sense, band, about, cap| {
             (lane.closed_form)(surface, loops, points, same_sense, band, about, cap)
         },
-        face.surface(),
+        face.expect_described(),
         &face_loops(face)?,
         &face_tips(face)?,
         face.sense(),
@@ -1848,7 +1860,7 @@ fn shell_polygons<T: geom_core::Certifies>(
     let mut polygons = Vec::with_capacity(runs.len());
     for run in runs {
         let face = body.proven_face(run.face);
-        let surface = face.surface();
+        let surface = face.expect_described();
         match (
             vertex_rings(body, surface, &flat_loops(face)?, lane)?,
             surface,
@@ -3739,7 +3751,7 @@ pub fn closed_form_reads<T: CertifiedPolicy + geom_core::CertifiedBounds>(
         |(flux, area): (Interval, Interval)| [(flux.lo(), flux.hi()), (area.lo(), area.hi())];
     let mut reads = Vec::new();
     for run in &walked.runs {
-        let surface = body.proven_face(run.face).surface();
+        let surface = body.proven_face(run.face).expect_described();
         if run.contribution.enclosure.is_some() || matches!(surface, Surface::Plane { .. }) {
             continue;
         }
@@ -4023,7 +4035,7 @@ pub fn quadrature_rounds(
             round = run.next_round();
         }
         if quadrature {
-            rounds.push((face, body.proven_face(face).surface().kind(), met));
+            rounds.push((face, body.proven_face(face).expect_described().kind(), met));
         }
     }
     Ok(rounds)
@@ -4341,7 +4353,7 @@ fn face_start<T: Decide>(body: &Body<T>, face: FaceKey) -> Point3<T> {
 /// the walk reads by quadrature: its own read refuses, typed, in its turn.
 fn quadrature_loops<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec<FlatLoop<T>>> {
     let face = body.proven_face(face);
-    let surface = face.surface();
+    let surface = face.surface().ok()?;
     let loops = flat_loops(face).ok()?;
     let carriers = loops
         .iter()
@@ -4719,7 +4731,7 @@ fn region_point<T: Decide>(body: &Body<T>, faces: &[FaceKey]) -> Point3<T> {
     let curved = faces
         .iter()
         .copied()
-        .find(|&f| !matches!(body.proven_face(f).surface(), Surface::Plane { .. }));
+        .find(|&f| !matches!(body.proven_face(f).surface(), Ok(Surface::Plane { .. })));
     face_start(body, curved.unwrap_or(faces[0]))
 }
 
@@ -4801,7 +4813,7 @@ fn region_edges<T: Decide>(
     let (mut boundary, mut every) = (Vec::new(), Vec::new());
     for &key in faces {
         let face = body.proven_face(key);
-        let surface = face.surface();
+        let surface = face.surface().ok()?;
         let plane = match *surface {
             Surface::Plane { frame, .. } => {
                 let normal = frame.axis();
@@ -4870,7 +4882,9 @@ pub(crate) fn read_seam_regions<T: Decide>(
 ) -> Vec<ReadRegion<T>> {
     let mut regions: Vec<ReadRegion<T>> = Vec::new();
     for key in faces {
-        let surface = body.proven_face(key).surface();
+        let Ok(surface) = body.proven_face(key).surface() else {
+            continue;
+        };
         if !matches!(surface, Surface::Sphere { .. })
             || regions.iter().any(|r| r.members.contains(&key))
         {
@@ -4970,7 +4984,7 @@ fn seam_refusals<T: Decide>(
     use geom_brep::props::{MaterialSign, SeamCover};
     let own = |member: FaceKey| {
         let rec = body.proven_face(member);
-        let surface = rec.surface();
+        let surface = rec.surface().ok()?;
         let held = face_tips(rec).ok()?;
         face_loops(rec).ok().and_then(|loops| {
             let loops: Vec<&[LoopEdge<T>]> = loops.iter().map(Vec::as_slice).collect();
@@ -5325,11 +5339,15 @@ fn face_flux_about<T: Decide>(
     resolution: Option<f64>,
 ) -> Result<FaceRun<T>, MassPropsError> {
     let face = body.proven_face(face_key);
-    let surface = face.surface();
     let wrap = |source| MassPropsError::Face {
         face: face_key,
         source,
     };
+    // Every run is minted here, so a run past this read is on a
+    // described face.
+    let surface = face
+        .surface()
+        .map_err(|_| MassPropsError::PendingFace { face: face_key })?;
     let mut flux_pad = 0.0f64;
     let mut area_pad = 0.0f64;
     let mut enclosure = None;
@@ -7232,7 +7250,7 @@ pub trait AtRestPolicy: Decide {
         spec: geom_brep::EdgeCurveSpec<Self>,
         start: Point3<Self>,
         end: Point3<Self>,
-        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
+        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Result<Surface<Self>, crate::SurfaceMiss>,
         reach: geom_core::Lever<Self>,
         band: Band,
         stated: Option<&geom_brep::StatedImage<Self>>,
@@ -7255,7 +7273,7 @@ pub trait AtRestPolicy: Decide {
         curve: &geom_brep::EdgeCurve<Self>,
         start: Point3<Self>,
         end: Point3<Self>,
-        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
+        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Result<Surface<Self>, crate::SurfaceMiss>,
         reach: geom_core::Lever<Self>,
         band: Band,
         stated: Option<&geom_brep::StatedImage<Self>>,
@@ -7570,7 +7588,7 @@ impl AtRestPolicy for f64 {
         spec: geom_brep::EdgeCurveSpec<Self>,
         start: Point3<Self>,
         end: Point3<Self>,
-        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
+        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Result<Surface<Self>, crate::SurfaceMiss>,
         reach: geom_core::Lever<Self>,
         band: Band,
         stated: Option<&geom_brep::StatedImage<Self>>,
@@ -7585,7 +7603,7 @@ impl AtRestPolicy for f64 {
         curve: &geom_brep::EdgeCurve<Self>,
         start: Point3<Self>,
         end: Point3<Self>,
-        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
+        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Result<Surface<Self>, crate::SurfaceMiss>,
         reach: geom_core::Lever<Self>,
         band: Band,
         stated: Option<&geom_brep::StatedImage<Self>>,
@@ -7748,7 +7766,7 @@ impl AtRestPolicy for geom_core::Probe {
         spec: geom_brep::EdgeCurveSpec<Self>,
         start: Point3<Self>,
         end: Point3<Self>,
-        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
+        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Result<Surface<Self>, crate::SurfaceMiss>,
         reach: geom_core::Lever<Self>,
         band: Band,
         stated: Option<&geom_brep::StatedImage<Self>>,
@@ -7763,7 +7781,7 @@ impl AtRestPolicy for geom_core::Probe {
         curve: &geom_brep::EdgeCurve<Self>,
         start: Point3<Self>,
         end: Point3<Self>,
-        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
+        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Result<Surface<Self>, crate::SurfaceMiss>,
         reach: geom_core::Lever<Self>,
         band: Band,
         stated: Option<&geom_brep::StatedImage<Self>>,
@@ -7924,7 +7942,7 @@ impl AtRestPolicy for geom_core::interval::Interval {
         spec: geom_brep::EdgeCurveSpec<Self>,
         start: Point3<Self>,
         end: Point3<Self>,
-        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
+        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Result<Surface<Self>, crate::SurfaceMiss>,
         reach: geom_core::Lever<Self>,
         band: Band,
         stated: Option<&geom_brep::StatedImage<Self>>,
@@ -7939,7 +7957,7 @@ impl AtRestPolicy for geom_core::interval::Interval {
         curve: &geom_brep::EdgeCurve<Self>,
         start: Point3<Self>,
         end: Point3<Self>,
-        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
+        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Result<Surface<Self>, crate::SurfaceMiss>,
         reach: geom_core::Lever<Self>,
         band: Band,
         stated: Option<&geom_brep::StatedImage<Self>>,
@@ -8096,7 +8114,7 @@ where
         spec: geom_brep::EdgeCurveSpec<Self>,
         start: Point3<Self>,
         end: Point3<Self>,
-        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
+        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Result<Surface<Self>, crate::SurfaceMiss>,
         reach: geom_core::Lever<Self>,
         band: Band,
         stated: Option<&geom_brep::StatedImage<Self>>,
@@ -8111,7 +8129,7 @@ where
         curve: &geom_brep::EdgeCurve<Self>,
         start: Point3<Self>,
         end: Point3<Self>,
-        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
+        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Result<Surface<Self>, crate::SurfaceMiss>,
         reach: geom_core::Lever<Self>,
         band: Band,
         stated: Option<&geom_brep::StatedImage<Self>>,
@@ -8282,7 +8300,7 @@ where
         spec: geom_brep::EdgeCurveSpec<Self>,
         _start: Point3<Self>,
         _end: Point3<Self>,
-        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
+        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Result<Surface<Self>, crate::SurfaceMiss>,
         _reach: geom_core::Lever<Self>,
         band: Band,
         _stated: Option<&geom_brep::StatedImage<Self>>,
@@ -8296,7 +8314,7 @@ where
         curve: &geom_brep::EdgeCurve<Self>,
         _start: Point3<Self>,
         _end: Point3<Self>,
-        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
+        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Result<Surface<Self>, crate::SurfaceMiss>,
         _reach: geom_core::Lever<Self>,
         band: Band,
         _stated: Option<&geom_brep::StatedImage<Self>>,
@@ -8624,8 +8642,8 @@ mod at_rest_policy_tests {
     use crate::test_support_fixtures::identity_map;
     use geom_core::{Decide, Point3, Tol};
 
-    /// The `mvfs` seed body: its face surface is the placeholder, which
-    /// a body at rest may not carry (`Body::mvfs` docs) — the cheapest
+    /// The `mvfs` seed body: its face surface is pending, which a body
+    /// at rest may not carry (`Body::mvfs` docs) — the cheapest
     /// scalar-generic refusing subject.
     fn refusing_body<T: Decide>() -> Body<T> {
         let mut b = Body::new();
@@ -8916,7 +8934,7 @@ mod face_list_door_tests {
                 let k = body.proven_face(f).record().surface;
                 let Some(Surface::Plane {
                     frame: carrier_frame,
-                }) = body.surfaces.get_mut(k)
+                }) = body.surface_mut(k)
                 else {
                     continue;
                 };
@@ -8931,7 +8949,7 @@ mod face_list_door_tests {
                     .faces()
                     .filter(|&(_, face)| {
                         matches!(
-                            body.surfaces.get(face.surface),
+                            body.get_surface(face.surface).ok(),
                             Some(Surface::Plane { .. } | Surface::Cylinder { .. })
                         )
                     })
@@ -8944,10 +8962,10 @@ mod face_list_door_tests {
             let before = read(&body);
             for (_, surface) in body.surfaces.iter_mut() {
                 match surface {
-                    Surface::Plane { frame, .. } => {
+                    crate::SurfaceSlot::Described(Surface::Plane { frame, .. }) => {
                         *frame = frame.translated(frame.u_ref() * slide)
                     }
-                    Surface::Cylinder { frame, .. } => {
+                    crate::SurfaceSlot::Described(Surface::Cylinder { frame, .. }) => {
                         *frame = frame.translated(frame.axis() * slide)
                     }
                     _ => {}
@@ -9452,7 +9470,7 @@ mod exact_enclosure_rows {
                             .iter()
                             .map(|run| {
                                 let face = body.proven_face(run.face);
-                                let surface = face.surface();
+                                let surface = face.surface().unwrap();
                                 vertex_rings(&body, surface, &flat_loops(face).unwrap(), lane)
                                     .unwrap()
                                     .expect("line-bounded")
@@ -9765,7 +9783,7 @@ mod shell_reference_rows {
         let mut carried = 0;
         for run in &runs {
             let face = body.proven_face(run.face);
-            let surface = face.surface();
+            let surface = face.surface().unwrap();
             let loops = face_loops(face).unwrap();
             let from = corner_of(lane, run);
             let (c, moved) = closed_form_or_carried(
