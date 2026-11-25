@@ -16,8 +16,9 @@ use crate::common;
 
 use std::collections::BTreeSet;
 
-use pncad::document::RecipeNodeId;
-use pncad::geom_core::Tol;
+use pncad::document::{Node, RecipeNodeId, StepId};
+use pncad::geom_core::{Point2, Tol};
+use pncad::profile::{Step, Target};
 use viewer::display::DisplayView;
 use viewer::marks;
 use viewer::pickindex::PickIndex;
@@ -503,5 +504,333 @@ fn clicking_a_die_face_reaches_the_feature_that_made_it() {
         marks::focus(&index, die.session.doc(), die.session.selection()),
         bands,
         "the fillet's extent is the blends it made"
+    );
+}
+
+// --- one profile step's walls (`marks::step_focus`) ------------------
+
+/// The fixtures' extrude depth, metres.
+const DEPTH: f64 = 0.01;
+
+/// **A session over one profile of `loops`, extruded by [`DEPTH`]** —
+/// the profile drawn by `SessionOp::AddProfile` and extruded by
+/// `SessionOp::AddExtrude`, as the chrome draws them. Answers the
+/// session, the profile and the extrude.
+fn extruded(
+    label: &str,
+    loops: &[&[Step<f64>]],
+    tol: Tol,
+) -> (DocSession, RecipeNodeId, RecipeNodeId) {
+    let doc = pncad::document::Doc::empty_derived(label, tol);
+    let mut session = common::inline_without_door(doc, tol);
+    let profile = common::session_insert(
+        &mut session,
+        SessionOp::AddProfile {
+            loops: loops.iter().map(|steps| common::shape(steps)).collect(),
+        },
+    );
+    let extrude = common::session_insert(
+        &mut session,
+        SessionOp::AddExtrude {
+            profile,
+            distance: common::len(DEPTH),
+        },
+    );
+    session.pump();
+    assert!(
+        !marks::focus(
+            &common::index_of(&session, delta()),
+            session.doc(),
+            &Selection::Node(profile)
+        )
+        .is_empty(),
+        "the fixture's extrude draws a body"
+    );
+    (session, profile, extrude)
+}
+
+/// The minted id of `profile`'s step `step` of loop `loop_`.
+fn step_id(session: &DocSession, profile: RecipeNodeId, loop_: usize, step: usize) -> StepId {
+    let Some(Node::Profile(program)) = session.committed_doc().node(profile) else {
+        panic!("{profile:?} is a profile")
+    };
+    program.ids[loop_][step]
+}
+
+/// The walls `profile`'s step `step` of loop `loop_` lights.
+fn lit(
+    index: &PickIndex,
+    session: &DocSession,
+    profile: RecipeNodeId,
+    (loop_, step): (usize, usize),
+) -> BTreeSet<u32> {
+    let step = step_id(session, profile, loop_, step);
+    marks::step_focus(index, session.doc(), marks::EditedStep { profile, step })
+        .expect("every face of the fixture is named")
+}
+
+/// Every drawn corner of the patch `id`, in world coordinates.
+fn corners_of(index: &PickIndex, id: u32) -> Vec<[f32; 3]> {
+    let scene = index
+        .scene_focused(&DisplayView::none(), &BTreeSet::new())
+        .expect("a scene builds");
+    scene
+        .positions()
+        .iter()
+        .zip(scene.ids())
+        .filter(|(_, of)| **of == id)
+        .map(|(at, _)| *at)
+        .collect()
+}
+
+/// Whether every corner of the patch `id` lies on the vertical plane
+/// through `from` and `to` (the profile's plane is the world's xy, the
+/// extrude along z).
+fn on_wall(index: &PickIndex, id: u32, from: [f64; 2], to: [f64; 2]) -> bool {
+    let corners = corners_of(index, id);
+    let [dx, dy] = [to[0] - from[0], to[1] - from[1]];
+    let length = dx.hypot(dy);
+    !corners.is_empty()
+        && corners.iter().all(|c| {
+            let off = (f64::from(c[0]) - from[0]) * dy - (f64::from(c[1]) - from[1]) * dx;
+            (off / length).abs() < 1e-6
+        })
+}
+
+fn at(x: f64, y: f64) -> Step<f64> {
+    Step::At(Point2::new(x, y))
+}
+
+fn line_to(x: f64, y: f64) -> Step<f64> {
+    Step::LineTo(Target::Point(Point2::new(x, y)))
+}
+
+/// **Each step of a drawn rectangle lights exactly the wall it swept**,
+/// and its entry lights nothing.
+///
+/// The rectangle is a chain, `at` and four `line_to`s, so step k ≥ 1 is
+/// the leg from corner k−1 to corner k and the wall over it is the one
+/// on that leg's line. The walls are told apart by where they stand,
+/// never by their names, so a step lighting its neighbour's wall, or
+/// the whole body, is red here.
+#[test]
+fn each_rectangle_step_lights_the_wall_it_swept() {
+    let tol = Tol::witness();
+    let (w, h) = (0.04, 0.03);
+    let corners = [[0.0, 0.0], [w, 0.0], [w, h], [0.0, h]];
+    let (session, profile, _) = extruded(
+        "focus-step-rectangle",
+        &[&[
+            at(0.0, 0.0),
+            line_to(w, 0.0),
+            line_to(w, h),
+            line_to(0.0, h),
+            Step::LineTo(Target::Start),
+        ]],
+        tol,
+    );
+    let index = index_of(&session);
+    assert!(
+        lit(&index, &session, profile, (0, 0)).is_empty(),
+        "the entry verb draws no piece, so it lights nothing"
+    );
+    let mut every = BTreeSet::new();
+    for k in 1..=4 {
+        let walls = lit(&index, &session, profile, (0, k));
+        let [wall] = walls.iter().copied().collect::<Vec<_>>()[..] else {
+            panic!("step {k} lights one wall: {walls:?}")
+        };
+        let (from, to) = (corners[k - 1], corners[k % 4]);
+        assert!(
+            on_wall(&index, wall, from, to),
+            "step {k} lights the wall over {from:?} -> {to:?}"
+        );
+        every.insert(wall);
+    }
+    assert_eq!(every.len(), 4, "four steps, four walls");
+    let body = marks::focus(&index, session.doc(), &Selection::Node(profile));
+    assert_eq!(body.len(), 6, "the box draws four walls and two caps");
+}
+
+/// **Each fillet step lights its own arc's wall**, and no other step
+/// lights a curved one; the steps together light every side wall and
+/// never a cap.
+///
+/// The loop is the profile crate's filleted square: four lines, each
+/// `at` a point and an `angle`, joined by a `fillet` at each corner and
+/// closed by a last `fillet` into the start. A fillet step's arc is
+/// told by where it stands — every corner `r` from its own corner's
+/// centre — so a fillet lighting its neighbour's arc is red here.
+#[test]
+fn each_fillet_step_lights_its_own_arc() {
+    let tol = Tol::witness();
+    let (half, r) = (0.01, 0.0025);
+    let (east, north) = (0.0, core::f64::consts::FRAC_PI_2);
+    let (west, south) = (core::f64::consts::PI, -north);
+    let fillet = Step::Fillet { radius: r };
+    let (session, profile, _) = extruded(
+        "focus-step-fillet",
+        &[&[
+            at(0.0, -half),
+            Step::Angle(east),
+            fillet,
+            at(half, 0.0),
+            Step::Angle(north),
+            fillet,
+            at(0.0, half),
+            Step::Angle(west),
+            fillet,
+            at(-half, 0.0),
+            Step::Angle(south),
+            fillet,
+            Step::CloseTo,
+        ]],
+        tol,
+    );
+    let index = index_of(&session);
+    let by_step: Vec<BTreeSet<u32>> = (0..13)
+        .map(|k| lit(&index, &session, profile, (0, k)))
+        .collect();
+    // The arc about the corner at `(sx, sy) * half`, by its centre.
+    let arc_at = |id: u32, (sx, sy): (f64, f64)| {
+        let centre = [sx * (half - r), sy * (half - r)];
+        corners_of(&index, id).iter().all(|c| {
+            let off = (f64::from(c[0]) - centre[0]).hypot(f64::from(c[1]) - centre[1]);
+            (off - r).abs() < 1e-4
+        })
+    };
+    let corners = [
+        (2, (1.0, -1.0)),
+        (5, (1.0, 1.0)),
+        (8, (-1.0, 1.0)),
+        (11, (-1.0, -1.0)),
+    ];
+    for (k, corner) in corners {
+        let own: Vec<u32> = by_step[k]
+            .iter()
+            .copied()
+            .filter(|&id| arc_at(id, corner))
+            .collect();
+        assert_eq!(
+            own.len(),
+            1,
+            "fillet step {k} lights its arc at {corner:?}: {by_step:?}"
+        );
+    }
+    for (k, walls) in by_step.iter().enumerate() {
+        if corners.iter().any(|(fillet, _)| *fillet == k) {
+            continue;
+        }
+        for &wall in walls {
+            assert!(
+                corners.iter().all(|(_, corner)| !arc_at(wall, *corner)),
+                "step {k} is no fillet, and lights an arc: {by_step:?}"
+            );
+        }
+    }
+    let union: BTreeSet<u32> = by_step.iter().flatten().copied().collect();
+    let body = marks::focus(&index, session.doc(), &Selection::Node(profile));
+    assert_eq!(
+        body.len(),
+        union.len() + 2,
+        "the steps light every side wall and neither cap: {by_step:?}"
+    );
+}
+
+/// **A `circle_split` is one step, and lights every wall of its
+/// carrier and nothing of the loop around it.**
+#[test]
+fn a_circle_split_step_lights_its_whole_carrier() {
+    let tol = Tol::witness();
+    let (w, centre, radius) = (0.04, [0.02, 0.02], 0.006);
+    let (session, profile, _) = extruded(
+        "focus-step-circle-split",
+        &[
+            &[
+                at(0.0, 0.0),
+                line_to(w, 0.0),
+                line_to(w, w),
+                line_to(0.0, w),
+                Step::LineTo(Target::Start),
+            ],
+            &[Step::CircleSplit {
+                centre: Point2::new(centre[0], centre[1]),
+                radius,
+                n: 3,
+                phase: 0.0,
+            }],
+        ],
+        tol,
+    );
+    let index = index_of(&session);
+    let bore = lit(&index, &session, profile, (1, 0));
+    assert_eq!(
+        bore.len(),
+        3,
+        "a three-way split draws three walls: {bore:?}"
+    );
+    for &wall in &bore {
+        for c in corners_of(&index, wall) {
+            let off = (f64::from(c[0]) - centre[0]).hypot(f64::from(c[1]) - centre[1]);
+            assert!(
+                (off - radius).abs() < 1e-4,
+                "wall {wall} stands on the carrier: a corner {off} from its centre"
+            );
+        }
+    }
+    for k in 0..5 {
+        assert!(
+            lit(&index, &session, profile, (0, k)).is_disjoint(&bore),
+            "outer step {k} lights none of the bore"
+        );
+    }
+}
+
+/// **A step no drawn face mentions lights nothing, and so does a step
+/// of another profile**: the answer is the empty set, not the profile's
+/// whole body.
+#[test]
+fn a_step_that_swept_nothing_drawn_lights_nothing() {
+    let tol = Tol::witness();
+    let (session, profile, extrude) = extruded(
+        "focus-step-empty",
+        &[&[
+            at(0.0, 0.0),
+            line_to(0.02, 0.0),
+            line_to(0.0, 0.02),
+            Step::LineTo(Target::Start),
+        ]],
+        tol,
+    );
+    let index = index_of(&session);
+    let entry = step_id(&session, profile, 0, 0);
+    let by_panel = marks::panel_focus(
+        &index,
+        session.doc(),
+        &Selection::Node(profile),
+        Some(marks::EditedStep {
+            profile,
+            step: entry,
+        }),
+    );
+    assert!(
+        by_panel.is_empty(),
+        "the entry step lights nothing: {by_panel:?}"
+    );
+    // Under another selection the step is not what the panel shows,
+    // and the selection's own extent is lit.
+    let elsewhere = marks::panel_focus(
+        &index,
+        session.doc(),
+        &Selection::Node(extrude),
+        Some(marks::EditedStep {
+            profile,
+            step: step_id(&session, profile, 0, 1),
+        }),
+    );
+    assert_eq!(
+        elsewhere,
+        marks::focus(&index, session.doc(), &Selection::Node(extrude)),
+        "a step of a node the panel is not showing narrows nothing"
     );
 }

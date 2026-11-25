@@ -125,3 +125,19 @@ From the read-only `wirehold-triage` against origin/main 8509df2510. INTENT clos
 - `anchor.rs:381` cites this row as `work/wire/…`; repoint it with the fix.
 
 Moved from WIREHOLD to DOCTAIL on 2026-11-20, by `git mv`, when WIREHOLD merged into DOCTAIL: WIREHOLD held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one DOCTAIL carries.
+
+## One consumer no longer waits (VGEOM, `vgeom/step-focus`, 2026-11-25)
+
+`vgeom/focus-marking-is-per-node-not-per-segment` lands without this
+door. Since EMIT's #3223 a drawn wall's name spells each profile piece
+by the minted `StepId` of the step that drew it
+(`ProfileEdgeRef::Piece { step, role }`), so `marks::step_focus`
+(`crates/viewer/src/marks.rs`) reads a step's walls off the names the
+pick index already holds, through `RoleSeg::pieces` (a public wrapper
+over `role.rs`'s private `referents`, added by that branch). It needs no
+`ProfileStructure`, and no step-to-segment correspondence. So the list
+above of consumers waiting on the carry is one shorter: only
+`lib/python-has-no-step-to-profile-edge-door` remains, and the same
+name-side route may serve it too if what it wants is the walls a step
+swept rather than canonical segment indices. Whether the door keeps a
+reason to exist is this row's question.

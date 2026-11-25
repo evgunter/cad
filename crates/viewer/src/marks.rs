@@ -24,7 +24,9 @@
 //!   patches the side panel's selection is RESPONSIBLE for, which for
 //!   a variable means walking `doc.ids()` for the nodes it drives.
 //!   It reaches for an index because that is where the ids live, not
-//!   because it is about a pick.
+//!   because it is about a pick. [`step_focus`] narrows it to the walls
+//!   ONE profile step swept, while the panel edits that step
+//!   ([`panel_focus`]).
 //!
 //! **They read the index through its public doors only** —
 //! `ids`, `name_of`, `ids_of_node`, `ids_of_target`, `edges_of_target`,
@@ -58,9 +60,9 @@
 
 use std::collections::BTreeSet;
 
-use pncad::document::{Doc, Node, ProfileProgram, RecipeNodeId, VarId};
+use pncad::document::{Doc, Node, ProfileProgram, RecipeNodeId, StepId, VarId};
 use pncad::geom_core::Point3;
-use pncad::prelude::{NameOrigin, StableName, attribute};
+use pncad::prelude::{NameOrigin, ProfileEdgeRef, RoleSeg, StableName, attribute};
 
 use crate::display::DisplayView;
 use crate::narrowing::Narrow;
@@ -871,17 +873,8 @@ impl LegLane {
 /// is the feature the tree and the property header name, a name the
 /// attribution walk cannot classify included.
 ///
-/// **What it does NOT do yet (issue 1182)**, stated so the gap is not
-/// mistaken for a decision: the marking is per NODE, so selecting a
-/// profile lights the whole body built from it rather than the walls of
-/// the one segment being edited. Per-segment marking is expressible in
-/// this type — the answer is a set of patch ids and nothing about the
-/// shape assumes a whole node's worth — and wants the profile-step ↔
-/// `RoleSeg::Lateral(ProfileEdgeRef)` correspondence established rather
-/// than guessed: a slot's `step` is an index in the AUTHORING chain and
-/// the name's `segment` an index in the LOWERED one, and one authored
-/// step can lower to several segments. A wrong guess there lights a
-/// confidently wrong face, silently.
+/// The marking is per NODE. While the panel edits one step of a
+/// profile, [`panel_focus`] answers [`step_focus`] in its place.
 ///
 /// A selection whose referent is not drawn — vanished, unevaluated,
 /// hidden, or a feature that produces no body at all — answers the
@@ -973,6 +966,142 @@ fn marked_for(
         .into_iter()
         .flat_map(|drawn| index.ids_of_node(drawn))
         .collect()
+}
+
+/// **The profile step the side panel is editing**: the profile node,
+/// and the minted id of the step whose field holds the keyboard or the
+/// drag.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EditedStep {
+    /// The profile node.
+    pub profile: RecipeNodeId,
+    /// The step's minted id.
+    pub step: StepId,
+}
+
+/// **Why [`step_focus`] lights nothing**: drawn faces built from the
+/// profile carry names the walk cannot read — the naming layer named
+/// no entity there, or the role path is one the attribution walk
+/// cannot classify — so whether any of them is the step's wall is not
+/// known.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StepFocusUnread {
+    /// How many faces built from the profile have such a name.
+    pub unread: usize,
+    /// How many faces built from the profile are drawn.
+    pub drawn: usize,
+}
+
+impl core::fmt::Display for StepFocusUnread {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self { unread, drawn } = *self;
+        write!(
+            f,
+            "{unread} of the {drawn} faces built from this profile have names the viewer \
+             cannot read, so the walls this step swept are not lit"
+        )
+    }
+}
+
+impl core::error::Error for StepFocusUnread {}
+
+/// **The walls one profile step swept**: the drawn faces built from
+/// `edited.profile` whose name, read down to the feature that made the
+/// face ([`pncad::select::role_leaf`]), is a wall over a piece of
+/// `edited.step` — an extrude's side wall, a revolve's band, a loft's
+/// wall — or a merged face one of whose retired faces is.
+///
+/// A name spells a profile piece by the minted id of the step that drew
+/// it, so the step's pieces are read off the names themselves and no
+/// step-to-segment correspondence is consulted. A wall built over a run
+/// of several steps' pieces is lit for each of them. Only faces are
+/// drawn, so a step's rim edges are shown by the walls beside them.
+///
+/// A step that draws no wall — an entry verb, a direction-binding verb,
+/// or a step a pending edit re-verbed or added, which the picture does
+/// not draw — lights nothing. So does a step whose walls a later
+/// feature consumed or hid: what is lit is what is drawn.
+///
+/// A blend or a corner face cut against the wall is not the wall, and
+/// is not lit.
+///
+/// # Errors
+///
+/// [`StepFocusUnread`] when any face built from the profile has a name
+/// the walk cannot read: whether it is this step's wall is unknown, so
+/// lighting the readable walls alone would present a partial set as the
+/// whole one.
+pub fn step_focus(
+    index: &PickIndex,
+    doc: &Doc<ProfileProgram>,
+    edited: EditedStep,
+) -> Result<BTreeSet<u32>, StepFocusUnread> {
+    let built: BTreeSet<u32> = crate::display::drawn_deriving_from(doc, edited.profile)
+        .into_iter()
+        .flat_map(|drawn| index.ids_of_node(drawn))
+        .collect();
+    let mut lit = BTreeSet::new();
+    let mut unread = 0;
+    for &id in &built {
+        match index
+            .name_of(id)
+            .ok()
+            .map(|name| swept_by(name, edited.step))
+        {
+            Some(Some(true)) => {
+                lit.insert(id);
+            }
+            Some(Some(false)) => {}
+            None | Some(None) => unread += 1,
+        }
+    }
+    if unread == 0 {
+        Ok(lit)
+    } else {
+        Err(StepFocusUnread {
+            unread,
+            drawn: built.len(),
+        })
+    }
+}
+
+/// Whether the face `name` denotes is a wall over a piece of `step`
+/// (see [`step_focus`]); `None` where the walk cannot classify the
+/// name, or a face a merged one retired.
+fn swept_by(name: &StableName, step: StepId) -> Option<bool> {
+    attribute(name).minted_by()?;
+    match pncad::select::role_leaf(name).path.first() {
+        Some(RoleSeg::Merged(retired)) => {
+            let mut any = false;
+            for face in retired {
+                any |= swept_by(face, step)?;
+            }
+            Some(any)
+        }
+        Some(own) => {
+            Some(own.pieces().iter().any(
+                |piece| matches!(piece, ProfileEdgeRef::Piece { step: of, .. } if *of == step),
+            ))
+        }
+        None => None,
+    }
+}
+
+/// **What the picture marks for the side panel** ([`focus`]), narrowed
+/// to [`step_focus`] while the panel edits a step of the selected
+/// profile. A step whose walls cannot be read lights nothing, never the
+/// whole profile's body: the pane says why under the editor
+/// ([`StepFocusUnread`]).
+pub fn panel_focus(
+    index: &PickIndex,
+    doc: &Doc<ProfileProgram>,
+    selection: &Selection,
+    edited: Option<EditedStep>,
+) -> BTreeSet<u32> {
+    match edited.filter(|edited| selection.node() == Some(edited.profile)) {
+        Some(edited) => step_focus(index, doc, edited).unwrap_or_default(),
+        None => focus(index, doc, selection),
+    }
 }
 
 /// Whether any of `node`'s slot expressions reads the variable `var`
@@ -1234,6 +1363,51 @@ mod tests {
         assert_eq!(
             marked, want,
             "the preview's outline is marked as the selection"
+        );
+    }
+
+    /// **A face whose name cannot be read refuses the step's walls**
+    /// rather than lighting the readable ones as if they were all of
+    /// them, and the panel's focus is then nothing, never the whole
+    /// body the profile built.
+    #[test]
+    fn an_unread_face_refuses_the_step_and_lights_nothing() {
+        let tol = Tol::witness();
+        let (_, mut index, _) = plate_indexed(tol);
+        let (doc, _) = crate::scene::plate_with_hole(tol).expect("the plate authors");
+        let Some((profile, program)) = doc.ids().iter().find_map(|&id| match doc.node(id) {
+            Some(pncad::document::Node::Profile(program)) => Some((id, program.clone())),
+            _ => None,
+        }) else {
+            panic!("the plate has a profile")
+        };
+        // The outline's first leg, past its entry.
+        let edited = super::EditedStep {
+            profile,
+            step: program.ids[0][1],
+        };
+        let walls = super::step_focus(&index, &doc, edited).expect("every plate face is named");
+        assert_eq!(walls.len(), 1, "the leg sweeps one wall: {walls:?}");
+        let body = super::focus(&index, &doc, &Selection::Node(profile));
+        let other = *body
+            .iter()
+            .find(|id| !walls.contains(id))
+            .expect("the plate draws more than one face");
+        index.unname_patch(other);
+        assert!(
+            index.name_of(other).is_err(),
+            "the planted refusal reads back"
+        );
+        assert_eq!(
+            super::step_focus(&index, &doc, edited),
+            Err(super::StepFocusUnread {
+                unread: 1,
+                drawn: body.len(),
+            }),
+        );
+        assert!(
+            super::panel_focus(&index, &doc, &Selection::Node(profile), Some(edited)).is_empty(),
+            "a refused step lights nothing"
         );
     }
 }

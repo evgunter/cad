@@ -479,6 +479,9 @@ pub struct ViewerApp {
     /// set by the Features pane while it draws: the viewport marks a
     /// clearance row's witness while it is ([`crate::marks::witness`]).
     row_hovered: Option<pncad::document::RecipeNodeId>,
+    /// The profile step the editor held on the last frame
+    /// ([`ViewerBehavior::step_edited`]).
+    step_edited: Option<marks::EditedStep>,
     /// Whether the advisory-check findings window is open.
     ///
     /// Application chrome state, not a draft: nothing is being
@@ -1041,6 +1044,7 @@ impl ViewerApp {
             part_chooser: None,
             profile_drawn: ProfileDoors::default(),
             row_hovered: None,
+            step_edited: None,
             checks_shown: false,
             controls_shown: false,
             camera,
@@ -1224,7 +1228,12 @@ impl ViewerApp {
         let Some(index) = self.picks.index() else {
             return;
         };
-        let focus = marks::focus(index, self.session.doc(), self.session.selection());
+        let focus = marks::panel_focus(
+            index,
+            self.session.doc(),
+            self.session.selection(),
+            self.step_edited,
+        );
         if !rebuilt
             && self.scene_display == Some(display_revision)
             && self.scene_focus == focus
@@ -2572,6 +2581,7 @@ impl eframe::App for ViewerApp {
         );
         let mut profile_drawn = ProfileDoors::<bool>::default();
         let mut row_hovered = None;
+        let mut step_edited = None;
         // **Zeroed here, every frame: after the toolbar has read last
         // frame's value and before the panes draw.** A frame the
         // viewport does not draw at all is a frame it found nothing in,
@@ -2629,6 +2639,7 @@ impl eframe::App for ViewerApp {
                     profile_was_drawn: self.profile_drawn,
                     row_hovered: &mut row_hovered,
                     row_was_hovered: self.row_hovered,
+                    step_edited: &mut step_edited,
                     pending_fit: &mut self.pending_fit,
                     projection_fault: &mut self.projection_fault,
                     viewport_reads: &mut self.viewport_reads,
@@ -2653,6 +2664,12 @@ impl eframe::App for ViewerApp {
         }
         self.profile_drawn = profile_drawn;
         self.row_hovered = row_hovered;
+        // The focus is built before the panes draw, so a step taken
+        // up or let go of this frame is lit by the next one.
+        if step_edited != self.step_edited {
+            ui.ctx().request_repaint();
+        }
+        self.step_edited = step_edited;
         // An edit made while the panes drew leaves the preview a
         // frame behind. Asking for a repaint is what makes that one
         // frame rather than "until the next input event".
@@ -2819,6 +2836,9 @@ pub(crate) struct ViewerBehavior<'a> {
     /// What [`Self::row_hovered`] said on the last frame: the row whose
     /// clearance witness the viewport marks as hovered.
     pub(crate) row_was_hovered: Option<pncad::document::RecipeNodeId>,
+    /// Set by the profile editor to the step being edited while it
+    /// draws; the focus reads it next frame ([`marks::panel_focus`]).
+    pub(crate) step_edited: &'a mut Option<marks::EditedStep>,
     pub(crate) pending_fit: &'a mut bool,
     /// Where the viewport leaves a view matrix it could not form, for
     /// [`frame::projection_badge`] to read: a read of the camera, so
@@ -11916,6 +11936,81 @@ mod properties_pane_tests {
             assert!(
                 driven.app.session.committed_doc().bit_eq(&committed),
                 "nor does it reach the document"
+            );
+        }
+
+        /// **A field held in the editor lights the wall its step swept,
+        /// and letting go lights the profile's whole body again.** A
+        /// click into the outline's step 2 field holds it; the scene the
+        /// app builds next is focused on that step's one wall
+        /// (`marks::step_focus`), never the plate.
+        #[test]
+        fn a_held_step_field_lights_its_wall() {
+            let mut driven = Driven::with(vec![SessionOp::Select(Selection::Node(profile()))]);
+            let painted = driven.quiet();
+            let whole = driven.app.scene_focus.clone();
+            assert!(whole.len() > 1, "the profile lights the plate: {whole:?}");
+            // Row 2's first field: the run after the first `x ` label
+            // that follows the row number `2`.
+            let row = painted
+                .iter()
+                .position(|(run, _)| run == "2")
+                .expect("the outline's row 2 is painted");
+            let label = row
+                + painted[row..]
+                    .iter()
+                    .position(|(run, _)| run.trim() == "x")
+                    .expect("row 2 has an x field");
+            let at = painted[label + 1].1.center();
+            let button = |pressed| egui::Event::PointerButton {
+                pos: at,
+                button: egui::PointerButton::Primary,
+                pressed,
+                modifiers: egui::Modifiers::default(),
+            };
+            // One frame: the press and release of a click, as a person's
+            // land well inside egui's click window.
+            driven.frame(vec![
+                egui::Event::PointerMoved(at),
+                button(true),
+                button(false),
+            ]);
+            driven.frame(Vec::new());
+            driven.frame(Vec::new());
+            let Some(pncad::document::Node::Profile(program)) =
+                driven.app.session.committed_doc().node(profile())
+            else {
+                panic!("the plate's profile")
+            };
+            let edited = crate::marks::EditedStep {
+                profile: profile(),
+                step: program.ids[0][2],
+            };
+            assert_eq!(
+                driven.app.step_edited,
+                Some(edited),
+                "the field holds step 2"
+            );
+            let index = driven.on_screen();
+            let wall = crate::marks::step_focus(index, driven.app.session.doc(), edited)
+                .expect("the plate's faces are named");
+            assert_eq!(wall.len(), 1, "step 2 sweeps one wall: {wall:?}");
+            assert_eq!(
+                driven.app.scene_focus, wall,
+                "the scene lights that wall alone"
+            );
+            driven.frame(vec![egui::Event::Key {
+                key: egui::Key::Escape,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::default(),
+            }]);
+            driven.quiet();
+            assert_eq!(driven.app.step_edited, None, "let go, no step is held");
+            assert_eq!(
+                driven.app.scene_focus, whole,
+                "and the whole plate is lit again"
             );
         }
 

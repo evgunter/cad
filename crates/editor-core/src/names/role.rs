@@ -2659,6 +2659,17 @@ impl SegRewrite for Locators<'_> {
 }
 
 impl RoleSeg {
+    /// **The profile pieces this segment's own locators rest on**: the
+    /// run a swept wall, rim, meridian or axis edge is built over, the
+    /// piece that starts at a corner it sits at, the pieces a loft
+    /// pairs; none for a segment that carries no locator. The cited
+    /// names a segment carries (a `From`'s, a `Merged` set's) are not
+    /// this segment's locators, and are not walked.
+    #[must_use]
+    pub fn pieces(&self) -> Vec<ProfileEdgeRef> {
+        self.referents().iter().flat_map(Referent::pieces).collect()
+    }
+
     /// **What this segment's own profile locators denote** ([`Referent`]):
     /// a run-carrying segment its run, a vertex an extrude or a revolve
     /// builds only at a corner that corner, a loft's pairings their
