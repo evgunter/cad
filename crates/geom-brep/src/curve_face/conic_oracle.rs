@@ -308,7 +308,6 @@ impl CrossReading {
     /// answer: a refusal is `Unsettled::Tangency` (the doors' limit, which
     /// every safety row permits), `Lies` is `On`, the roots `Miss` or a
     /// certified count (a count past the doors' room a `Meter` limit).
-    #[must_use]
     pub fn as_door(
         &self,
     ) -> Result<super::circle_roots::CircleRoots<f64>, crate::roots::Unsettled> {

@@ -3,6 +3,8 @@
 //! crossing reading, one row per reading, and a straddling span the
 //! answer says has no crossing fails loud.
 
+#![allow(clippy::panic, clippy::unwrap_used, clippy::expect_used)]
+
 use super::{CoveredPosture, CurvedEvent, SpanVerdict, covered_posture, straddle_event};
 use crate::boolean::BooleanError;
 use geom::Curve3;

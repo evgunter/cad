@@ -3,6 +3,8 @@
 //! face is no event, and every window the face may hold refuses, by the
 //! window's own why.
 
+#![allow(clippy::panic, clippy::unwrap_used, clippy::expect_used)]
+
 use super::{
     FaceCrossings, FaceMeeting, MedialDistance, ball_off_face, face_crossings, window_off_face,
 };

@@ -8,6 +8,8 @@
 //! answer none; a graze or a root at an end in the band may refuse,
 //! never answer wrong.
 
+#![allow(clippy::panic, clippy::unwrap_used, clippy::expect_used)]
+
 use geom::Curve3;
 use geom_core::{Band, Point3, Tol, Vec3};
 

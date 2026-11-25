@@ -5,6 +5,8 @@
 //! band; past it, the pose answers `Apart` where its closed rungs refuse;
 //! and a far-centred pair reads the gap its stored data holds.
 
+#![allow(clippy::panic, clippy::unwrap_used, clippy::expect_used)]
+
 use core::f64::consts::TAU;
 
 use geom::Curve3;
