@@ -8,6 +8,7 @@ priority: P1
 cost: M
 design: true
 branch: vgeom/ev-free-profile-frame
+pr: 7773
 ---
 
 **Ev reported this** (in chat, 2026-11-22): "it'd be cool to have 'free move' for profiles so that they can be visible even if something's on the origin".
