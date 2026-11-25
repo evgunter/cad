@@ -5,8 +5,8 @@
 //! A fitted chart image's between-samples obligation is C2's limb 2
 //! against its own chart — the hull bound on `|S(P(t)) − C(t)|`,
 //! reached through `geom_brep::ssi::certify` — with the image and its
-//! chart feet produced by the `edge_nurbs` foot schedule over
-//! certification arithmetic (C9); a spline carrier's projected image on
+//! chart feet produced by the one image function
+//! (`geom_brep::carrier_image`) over certification arithmetic (C9); a spline carrier's projected image on
 //! an analytic chart reads its hull terms (its sector hulls and the
 //! chart's implicit form composed along the carrier) the same way.
 //! Building any of them IS certification: `f64`,

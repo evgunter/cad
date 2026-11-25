@@ -1607,11 +1607,13 @@ impl SsiError {
             Self::Fit(FitError::TooFewPoints { .. }) => defect_ending(reading).to_owned(),
             // Interpolation takes no tolerance, runs no knot algebra and
             // reads no rows: these are the approximating fits' refusals,
-            // and the march asks no degree 0 (`Structure`).
+            // and the march asks no degree 0 (`Structure`) and names no
+            // knots for its fits (`ParamOffSupport`).
             Self::Fit(
                 FitError::InvalidTolerance { .. }
                 | FitError::Structure(_)
                 | FitError::KnotAlgebra(_)
+                | FitError::ParamOffSupport { .. }
                 | FitError::RaggedRows { .. }
                 | FitError::BudgetExhausted { .. },
             ) => defect_ending(reading).to_owned(),
@@ -1998,6 +2000,12 @@ impl<'a, T: geom_core::CertifiedBounds> ChartedNurbs<'a, T> {
     ///
     /// As [`ChartedNurbs::mint`], on the surface's own cells or on the
     /// grid's.
+    ///
+    /// Not counted as a mint (`count_mint`): the count's rows pin that a
+    /// door mints each wall once, and this is the certificate's second
+    /// reading of an operand already minted, taken only where limb 3
+    /// refuses on the chart's own cells. Its cost is its own: the grid's
+    /// enclosures are built again for each certificate that reaches it.
     fn charted_on(
         surface: &'a NurbsSurface<T>,
         grid: &'a enclose::CellGrid,
@@ -5240,7 +5248,7 @@ mod ending_tests {
     }
 
     /// How many arms [`SsiError`] has: [`arm`]'s numbering.
-    const ARMS: usize = 50;
+    const ARMS: usize = 51;
 
     /// Each arm's number. No wildcard: a new arm does not compile until
     /// it is numbered, and [`each_ssi_ending_is_its_decisions`] then

@@ -482,11 +482,13 @@ pub(super) fn arc_rim_tangent_under() -> bool {
     on("arc-rim-tangent-under")
 }
 
-/// The mint's `General` image keyed on its carrier's class rather than
-/// its measured miss: `Some(false)` for a carrier that is straight or a
-/// spline, which takes the degree-1 image unclimbed and whose refusal
-/// keeps its own term, and `Some(true)` for any other (its rows are
-/// `carrier_image_rows`).
+/// A minted `General` image's refusal keyed on its carrier's class:
+/// `Some(false)` for a carrier that is straight or a spline, whose
+/// refusal then keeps its own term where the lane's gap ends it "not
+/// yet" (`minted_refusal`), and `Some(true)` for any other. The site
+/// is the refusal's relabelling alone: the image is one function of
+/// the carrier whatever its class, with no class to key on (its rows
+/// are `carrier_image_rows`).
 pub(crate) fn general_image_class_gate<T: Real>(carrier: &geom::Curve3<T>) -> Option<bool> {
     on("general-image-class-gate")
         .then(|| carrier.is_curved() && !matches!(carrier, geom::Curve3::Nurbs(_)))

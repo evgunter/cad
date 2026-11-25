@@ -4,11 +4,11 @@
 //! (`geom_brep::carrier_net`) exactly as they read a spline, and a
 //! closed form refuses where, and by what, its spline twin does.
 //!
-//! The verdicts are the lanes' own: a line's degree-1 chart image
-//! certifies on a flat wall, and a circle's or an ellipse's refuses at
-//! the hull wherever its degree-1 image's chord error passes the band,
-//! with that error measured. Each row offers the same locus as a
-//! spline carrier and asks the same verdict of it.
+//! The verdicts are the lanes' own: a line's chart image certifies on a
+//! flat wall, and a circle's or an ellipse's takes the knots its bend
+//! asks for and certifies or refuses at a limb with its bound. Each row
+//! offers the same locus as a spline carrier and asks the same verdict
+//! of it.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -297,7 +297,7 @@ fn a_line_on_a_plane_by_spline_pair_certifies_with_its_twin() {
 
 /// **Plane × spline, a certifying circle.** A circle over a short arc
 /// ([`short`]) of the quarter-cylinder wall certifies, its enclosing
-/// net and its degree-1 image within ε, as its rational twin does.
+/// net and its chart image within ε, as its rational twin does.
 #[test]
 fn a_short_circle_on_a_plane_by_spline_pair_certifies_with_its_twin() {
     plane_rows_meet_their_twins(vec![(
@@ -913,7 +913,7 @@ fn itv(x: f64) -> geom_core::interval::Interval {
 /// circle on the quarter-cylinder wall, certify at `Interval` as at
 /// `f64`, each hull bound within ε, and so does the circle over 1.3 rad.
 /// The two bounds are not nested: each
-/// scalar derives its own chart image from its own foot schedule, and
+/// scalar derives its own chart image from its own feet, and
 /// each bound is certified for the image it read (the short circle's
 /// `Interval` bound comes out a few parts in 10⁶ BELOW the `f64` one at
 /// the default ε, and above it at 1e-6 and 1e-12).

@@ -10781,8 +10781,8 @@ fn chart_image<T: Decide>(
 /// - a conic's or a line's projected image ([`chart_pcurve_over`]), on
 ///   its sector, its metre conversion's lever or its envelope;
 /// - a `General` image on a spline chart (`topo`'s mint, at
-///   `general_image_lane`'s rung: the degree-1 image, or the
-///   finer one its measured miss climbed to), on any bound of its miss
+///   `general_image_lane`'s: the carrier's one image on the wall), on
+///   any bound of its miss
 ///   ([`LaneImage::General`]).
 ///
 /// Read by the doors that certify an image they just derived (the

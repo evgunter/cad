@@ -18,9 +18,9 @@
 //! - **The feet.** One at each Greville abscissa of the chain, so the
 //!   interpolant is on the chain's knots exactly. They are found by
 //!   **continuation**: the first is the wall's nearest point to the
-//!   carrier's start, and each next one is Newton's from the last, moved
-//!   as the wall's tangents predict for the carrier's step ([`follow`]),
-//!   never the wall's nearest point found afresh. So the path stays on
+//!   carrier's start, and each next one is the projection's from the
+//!   last ([`follow`], `NurbsSurface::project_from_seed`), never the
+//!   wall's nearest point found afresh. So the path stays on
 //!   the sheet of a folded wall it started on, and reaches a closed
 //!   wall's seam from the side it came by.
 //! - **The start on a seam.** A start whose nearest point lies on a side
@@ -38,12 +38,14 @@
 //!   where the path crosses a knot line of the wall there across which
 //!   the wall is less smooth than the image, a break at the crossing,
 //!   whose foot is put on the line so each span beside it lies in one
-//!   cell of the wall
-//!   ([`crossing`]); the feet are followed again, at most
-//!   [`IMAGE_ROUNDS`] times. Past that the miss is decided against the
-//!   band as limb 2 decides it: an image within the band stands, and
-//!   one in or past it is refused on that reading
-//!   ([`ImageRefusal::Miss`]).
+//!   cell of the wall ([`crossing`]). The break is the knot at the
+//!   image's degree (C⁰), whatever the wall's continuity across the
+//!   line: only a knot of full multiplicity has a control point at the
+//!   knot, which is what puts the image's point there on the line to
+//!   the bit. The feet are followed again, at most [`IMAGE_ROUNDS`]
+//!   times. Past that cap the function refuses, on the last round's
+//!   reading in limb 2's words ([`ImageRefusal::Miss`]): a sampled
+//!   reading, not a bound.
 //!
 //! Everything here is the `f64` structure lane (C6): the feet, the
 //! knots and the miss are read at the middles of the caller's scalar's
@@ -64,9 +66,8 @@ use crate::edge_nurbs::CarrierDomainRefusal;
 /// its own.
 pub(crate) const IMAGE_DEGREE: usize = 3;
 
-/// The spans of a carrier that has no knots (a line, a conic, a periodic
-/// spline over an interval of its loop): its chain before any miss asks
-/// for more (D9).
+/// The spans of a carrier that has no knots (a line, a conic, a spiric):
+/// its chain before any miss asks for more (D9).
 pub(crate) const CLOSED_FORM_SPANS: usize = 8;
 
 /// The share of `band.zero()` a chain's miss of the foot path, read
@@ -119,9 +120,12 @@ pub(crate) enum ImageRefusal {
     },
     /// The interpolation through the feet refused.
     Fit,
-    /// The image still missed the carrier's foot path past the cap, by
-    /// more than the band holds: limb 2's own verdict on that miss
-    /// ([`crate::ssi::certify::image_miss`]).
+    /// The image still missed the carrier's foot path at the cap. The
+    /// refusal is in limb 2's words
+    /// ([`crate::ssi::certify::image_miss`]) and carries the largest
+    /// miss the last round sampled midway between its feet: a sampled
+    /// reading, not a bound on the image's miss, and not a verdict of
+    /// the certificate's limb 2, which was never run.
     Miss(crate::ssi::SsiError),
 }
 
@@ -417,8 +421,10 @@ where
         }
         add.sort_by(f64::total_cmp);
         add.dedup();
-        // A crease's knot at the image's degree, a break (`KnotLine`),
-        // less what the chain holds of it.
+        // A crease's knot at the image's degree, a C⁰ break whatever the
+        // wall's continuity across the line (`KnotLine`): the knot's own
+        // control point is what stands on the line. Less what the chain
+        // holds of it.
         for (k, multiplicity, axis, line) in creases {
             // A break found again beside the knot it already has is that
             // knot's: two knots a rounding apart solve no collocation.

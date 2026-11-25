@@ -657,9 +657,9 @@ fn flat_wall() -> NurbsSurface<f64> {
 /// **The derived route for a closed-form carrier**: the mint's two
 /// doors in its order, `general_image` over the edge's interval and
 /// then `certify_general`. An off-iso line on a flat wall has a
-/// straight foot path, and its degree-1 image certifies. A circle's and
-/// an ellipse's foot path bends, and their image is the finer one the
-/// producer climbs to, which certifies on the quarter cylinder and on a
+/// straight foot path, and its chain's image certifies. A circle's and
+/// an ellipse's foot path bends, and their image takes the knots its
+/// miss asks for, which certifies on the quarter cylinder and on a
 /// ring wall in two sub-arcs, where the circle crosses the knot line
 /// between them and the image breaks there.
 fn the_derived_route_certifies_a_line_and_a_bending_carrier<

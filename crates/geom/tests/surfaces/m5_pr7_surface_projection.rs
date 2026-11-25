@@ -139,6 +139,37 @@ fn a_wrong_sheet_seed_is_visible_in_the_distance_not_the_orthogonality() {
     assert!(bad.distance > good.distance + 0.39, "{bad:?} vs {good:?}");
 }
 
+/// **A seed within the coincidence threshold of the point is not the
+/// foot as it stands.** A point of the bump, projected from a seed
+/// `5e-14` along the chart from its own parameters: the seed's point is
+/// within [`PROJECT_EPS_POINT`] of it, and still half a threshold along
+/// the surface from the foot. The projection takes its one Newton step
+/// and lands on the point's own parameters, to rounding.
+///
+/// Red against: a point within the coincidence threshold accepted as
+/// the foot with no step (the foot stays `5e-14` off in the chart, the
+/// offset a caller that follows feet by continuation then inherits).
+#[test]
+fn a_seed_within_the_threshold_of_its_point_still_steps_to_the_foot() {
+    let s = bump_patch();
+    let (u, v) = (0.37, 0.61);
+    let p = s.eval(u, v);
+    let off = 5e-14;
+    let seed = s.eval(u + off, v);
+    assert!(
+        (seed - p).norm() <= PROJECT_EPS_POINT && (seed - p).norm() >= 0.25 * off,
+        "the fixture: the seed is within the threshold of the point and off its foot"
+    );
+    let pr = s.project_from_seed(p, u + off, v).unwrap();
+    assert!(
+        (pr.u - u).abs() <= 1e-15 && (pr.v - v).abs() <= 1e-15,
+        "the foot is the point's own: off by ({:e}, {:e})",
+        pr.u - u,
+        pr.v - v
+    );
+    assert_eq!(pr.iterations, 1, "one step, from the coincident seed");
+}
+
 #[test]
 fn a_domain_edge_foot_clamps_to_the_edge_with_its_honest_distance() {
     let s = bump_patch();

@@ -308,19 +308,23 @@ extent and either surface's curvature radius there.
 
 **A spline wall's image of a carrier is one function** of the carrier,
 the wall and the band (`carrier_image::carrier_image`), and reads
-nothing of the edge's other surface: the same on either chart of a
-spline pair, beside any partner, and for an arc that ends at a node.
+nothing of the edge's other surface: the same beside any partner, and
+for an arc that ends at a node.
 It is the wall's foot path of the carrier, interpolated on the
 carrier's own knots at the carrier's degree and no lower than cubic,
-the knots graded toward a node included; a carrier with no knots (a
-line, a conic) takes a fixed uniform chain. **A carrier's knot vector is
+the knots graded toward a node included; a periodic spline is imaged on
+the knots of its clamped view over the span, the net its certificate
+reads; a closed form (a line, a conic, a spiric) has no knots and takes
+a fixed uniform chain. **A carrier's knot vector is
 the chain its certificate is built on.** The image takes a knot only where its
 measured miss of the foot path exceeds its share of the band (or of the
 carrier's own standoff from the wall, where that is the larger): at the
 middle of the span that misses, or, where the path crosses a knot line
 of the wall there across which the wall is less smooth than the image,
-a break at the crossing, its foot on the line. It is refused, with that miss, past a fixed number of rounds
-or knots. The foot path follows the carrier
+a break at the crossing (the knot at the image's degree, so its own
+control point stands on the line). Past a fixed number of rounds or
+knots it refuses, whatever the miss then reads, carrying the last
+round's sampled miss in limb 2's words: a reading, not a bound. The foot path follows the carrier
 continuously: its first foot is the wall's nearest point to the
 carrier's start, on the side of a closed wall's seam the path leaves
 into the rectangle from, and each next foot is Newton's from the last,
@@ -332,7 +336,16 @@ this function, on one chart operand: limb 3 reads the wall's chart on
 its own cells, and where that refuses, on the certificate's grid
 (`ChartedNurbs::certificate_grid`), the same two steps in a trace and at
 rest. So rest re-derives a trace's certificate bit for bit from the
-carrier alone, and a stored pcurve is the function's value remembered. An image is evidence: limb 2 bounds its distance from the
+carrier alone, at the scalar the trace ran at: the image is one per
+scalar, its feet and knots placed through that scalar's own reads, so
+the `f64` and `Interval` images of one carrier are one curve to the band
+and need not hold the same knots. On a spline pair the two charts'
+images are put on one list of knots, the union of what each asks
+(`carrier_image::carrier_images`), so a pair's image of a chart is the
+function's value refined onto that union: the same curve in the chart
+as the image taken on that chart alone, to rounding, and not the same
+control points. A stored pcurve is the function's value remembered: the
+value itself for one wall, the value on the union for a pair. An image is evidence: limb 2 bounds its distance from the
 carrier on the wall's knot rectangle, and holds the image to the
 rectangle, since past it the composite reads the boundary cell's
 polynomial extension (`ssi::certify::chart_domain_limb`: an escape in

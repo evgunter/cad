@@ -131,6 +131,15 @@ pub enum FitError {
         /// Points supplied.
         points: usize,
     },
+    /// A parameter handed to [`Collocation::on`] with a knot vector does
+    /// not fit it: it is not finite, does not ascend past the one before
+    /// it, or lies outside its own basis function's support, where the
+    /// collocation matrix has a zero on its diagonal and no interpolant
+    /// on those knots exists (Schoenberg–Whitney).
+    ParamOffSupport {
+        /// Index of the offending parameter.
+        index: usize,
+    },
     /// [`interpolate_columns`]'s rows are RAGGED: row `row` is
     /// `found` scalars wide where row 0 set the width at `width`.
     ///
@@ -198,6 +207,12 @@ impl geom_core::spline::Fact for FitError {
                  fitting stack needs one strictly-ascending finite parameter per point running \
                  exactly 0 to 1"
             ),
+            FitError::ParamOffSupport { index } => write!(
+                f,
+                "fit parameter {index} is not finite, does not ascend past the one before it, \
+                 or lies outside the support of its own basis function on the knot vector \
+                 named for the fit, so no interpolant on those knots exists"
+            ),
             FitError::Lsq(e) => write!(f, "the fit's linear system refused: {e}"),
             FitError::Structure(e) => write!(f, "the fit refused: {}", e.fact()),
             FitError::Assembly(e) => write!(
@@ -253,6 +268,11 @@ impl core::fmt::Display for FitError {
                 f,
                 "{fact}. Recourse: supply that, or ask through the door that takes no \
                  parameters and chord-parameterizes the data itself"
+            ),
+            FitError::ParamOffSupport { .. } => write!(
+                f,
+                "{fact}. Recourse: supply one ascending parameter inside each basis function's \
+                 support, such as the knot vector's Greville abscissae"
             ),
             FitError::RaggedRows { row, width, .. } => write!(
                 f,
@@ -802,14 +822,30 @@ impl Collocation {
     /// # Errors
     ///
     /// [`FitError::ParamCountMismatch`] where the parameters are not one
-    /// per control point, and [`FitError::Lsq`] for a degenerate
-    /// collocation system.
+    /// per control point; [`FitError::ParamOffSupport`], naming the
+    /// first parameter that is not finite, does not ascend strictly past
+    /// the one before it, or lies outside its basis function's support
+    /// (the domain's two ends are inside the first and last functions');
+    /// and [`FitError::Lsq`] for a degenerate collocation system.
     pub fn on(params: &[f64], knots: KnotVector) -> Result<Self, FitError> {
         if params.len() != knots.control_count() {
             return Err(FitError::ParamCountMismatch {
                 params: params.len(),
                 points: knots.control_count(),
             });
+        }
+        let (list, degree, last) = (knots.knots(), knots.degree(), params.len() - 1);
+        let (lo, hi) = (list[0], list[list.len() - 1]);
+        let fits = |j: usize, u: f64| {
+            // Basis function `j` lives on `(list[j], list[j + degree + 1])`,
+            // and a clamped vector's first and last reach their domain end.
+            (list[j] < u && u < list[j + degree + 1])
+                || (j == 0 && u == lo)
+                || (j == last && u == hi)
+        };
+        let ascends = |j: usize| j == 0 || params[j - 1] < params[j];
+        if let Some(index) = (0..params.len()).find(|&j| !(ascends(j) && fits(j, params[j]))) {
+            return Err(FitError::ParamOffSupport { index });
         }
         Self::on_knots(params, knots)
     }
@@ -1412,6 +1448,86 @@ mod tests {
             bits(&banded),
             bits(&dense),
             "n = {n}: the banded fit lost identity"
+        );
+    }
+
+    /// **`Collocation::on` fits on the knots it is handed, and checks
+    /// what it is handed.** On a cubic with an interior knot of full
+    /// multiplicity, the Greville abscissae are one per control point,
+    /// ascending, each inside its basis function's support: the fit
+    /// through a curve's points there has those knots, bit for bit, and
+    /// is that curve. A parameter moved out of its function's support,
+    /// two out of order, and a non-finite one are each refused by index,
+    /// where the bare solve would factor a singular or a meaningless
+    /// system.
+    #[test]
+    fn collocation_on_named_knots_checks_its_parameters() {
+        let knots = || {
+            KnotVector::clamped(
+                vec![0.0, 0.0, 0.0, 0.0, 0.3, 0.6, 0.6, 0.6, 1.0, 1.0, 1.0, 1.0],
+                3,
+            )
+            .unwrap()
+        };
+        let list = knots().knots().to_vec();
+        let greville: Vec<f64> = (0..8)
+            .map(|j| {
+                if list[j + 1] == list[j + 3] {
+                    list[j + 1]
+                } else {
+                    (list[j + 1] + list[j + 2] + list[j + 3]) / 3.0
+                }
+            })
+            .collect();
+        let shape = |t: f64| Point3::new(t, (3.0 * t).sin(), (t - 0.6).abs());
+        let points: Vec<Point3<f64>> = greville.iter().map(|t| shape(*t)).collect();
+        let collocation = Collocation::on(&greville, knots()).unwrap();
+        let fitted = NurbsCurve3::interpolate_on(&points, &collocation).unwrap();
+        assert_eq!(
+            fitted
+                .knot_values()
+                .runs()
+                .flat_map(|(k, m)| core::iter::repeat_n(k, m))
+                .collect::<Vec<f64>>(),
+            knots().knots(),
+            "the fit is on the knots it was handed"
+        );
+        for (t, q) in greville.iter().zip(&points) {
+            assert!(
+                (fitted.eval(*t) - *q).norm() <= 1e-14,
+                "the fit passes through its point at {t}"
+            );
+        }
+        // The break's parameter moved past the break: its basis function
+        // ends there.
+        let mut off = greville.clone();
+        off[3] = 0.61;
+        assert_eq!(
+            Collocation::on(&off, knots()).unwrap_err(),
+            FitError::ParamOffSupport { index: 3 },
+            "a parameter outside its basis function's support"
+        );
+        let mut swapped = greville.clone();
+        swapped.swap(1, 2);
+        assert_eq!(
+            Collocation::on(&swapped, knots()).unwrap_err(),
+            FitError::ParamOffSupport { index: 2 },
+            "parameters out of order"
+        );
+        let mut poisoned = greville.clone();
+        poisoned[5] = f64::NAN;
+        assert_eq!(
+            Collocation::on(&poisoned, knots()).unwrap_err(),
+            FitError::ParamOffSupport { index: 5 },
+            "a parameter that is not a number"
+        );
+        assert_eq!(
+            Collocation::on(&greville[..7], knots()).unwrap_err(),
+            FitError::ParamCountMismatch {
+                params: 7,
+                points: 8
+            },
+            "one parameter per control point"
         );
     }
 

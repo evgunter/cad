@@ -6,9 +6,9 @@
 //!
 //! The walls are rings of revolution about `z`: a cylinder and a flat
 //! annulus meeting at right angles along their shared unit circle, the
-//! `v = 0` row of each. Measured 2026-10-28 at ε 1e-9: the degree-1 image
-//! fitted through the whole rim's feet misses it by 5.3e-5 m at a break,
-//! where the exact image's certificate passes.
+//! `v = 0` row of each. The exact image's certificate passes at every ε;
+//! the rim's derived image (`carrier_image`) is the lane's other
+//! reading, taken where no exact image certifies.
 //!
 //! An exact image is a boundary row, and limb 3's tube refuses a rim on a
 //! chart's boundary row by name, [`OneArcRefusal::AlongSide`]

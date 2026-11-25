@@ -138,10 +138,15 @@ pub struct PlaneNurbsLimbs<T: Real> {
     strum_discriminants(name(PlaneNurbsRefusalKind), derive(strum::EnumIter), doc(hidden))
 )]
 pub enum PlaneNurbsRefusal {
-    /// The foot-point projection did not converge at a schedule
-    /// sample. Never a best-effort foot.
+    /// The foot-point projection did not converge at a foot. Never a
+    /// best-effort foot.
     FootPointInconclusive {
-        /// The schedule sample index.
+        /// Which foot, by its index among those its reader placed: a
+        /// foot of the carrier's image on the chain the image had when
+        /// it stopped ([`crate::carrier_image`]; the chain grows by
+        /// round, so the index is no fixed station of the carrier), the
+        /// count of the certificate's samples for its own re-projection,
+        /// and `0` for a single point's foot ([`chart_foot`]).
         sample: u32,
         /// `|S − P|` at the last iterate (NaN when poisoned).
         last_distance: f64,
@@ -158,9 +163,9 @@ pub enum PlaneNurbsRefusal {
         /// The verdict on the levered angle, with its reporting margin.
         verdict: Refused,
     },
-    /// The interpolation through the schedule's foot points refused
-    /// ([`PCURVE_FIT_REFUSAL`]). The parameters are the schedule's own,
-    /// fixed and strictly ascending, so nothing a caller sets reaches it.
+    /// The interpolation through the image's feet refused
+    /// ([`PCURVE_FIT_REFUSAL`]). The parameters are the chain's own
+    /// abscissae, strictly ascending, so nothing a caller sets reaches it.
     PcurveFit,
     /// The interpolated image could not be re-expressed on the
     /// carrier's own parameter domain: the domain door's refusal,
@@ -410,8 +415,8 @@ fn after_exact(
 /// What [`PlaneNurbsRefusal::PcurveFit`] states, and the pcurve mint's
 /// refusal for the same failure of the same producer
 /// ([`crate::FittedLane::general_image`]).
-pub(crate) const PCURVE_FIT_REFUSAL: &str = "the chart image could not be interpolated through the schedule's foot points: on the \
-     schedule's fixed, strictly ascending parameters the interpolation refuses only a foot it \
+pub(crate) const PCURVE_FIT_REFUSAL: &str = "the chart image could not be interpolated through its foot points: on the \
+     chain's strictly ascending parameters the interpolation refuses only a foot it \
      cannot take (a non-finite one) or a collocation system it cannot solve";
 
 pub use crate::recourse::{
@@ -717,7 +722,7 @@ impl core::fmt::Display for PlaneNurbsRefusal {
                 last_distance,
             } => write!(
                 f,
-                "the foot-point projection did not converge at schedule sample {sample} \
+                "the foot-point projection did not converge at foot {sample} of those it placed \
                  (last distance {last_distance:e} m)"
             ),
             // One decision, one sentence: certification's, which this
@@ -861,11 +866,11 @@ impl core::fmt::Display for PlaneNurbsRefusal {
 /// `certify_branch` reads the chart image of `b`, and the image this
 /// lane derives is the carrier's foot path on the wall.
 ///
-/// The image is re-derived here on a fixed schedule of foot points, not
-/// read from the pcurve the trace fitted, so on a carrier of many spans
-/// its limb-2 bound is this lane's own: it need not reproduce the SSI
-/// door's certificate bit for bit. The door that re-certifies the
-/// trace's own triple is [`crate::ssi::certify_rung3`].
+/// The image is re-derived here by the one image function
+/// ([`crate::carrier_image`]), which the trace's certificate reads too,
+/// so on a traced carrier this lane's certificate is the SSI door's bit
+/// for bit, at the scalar the trace ran at. The door that re-certifies a
+/// trace's stored triple is [`crate::ssi::certify_rung3`].
 ///
 /// # Errors
 ///
@@ -1134,8 +1139,9 @@ pub(crate) fn residual_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEncl
     // an axis, or with no finite speed bound along one, has no chart a
     // length in metres can cross into, and the image below would only
     // meet that as a foot point or a sine that cannot be stated. The
-    // certificate reads it on its own grid
-    // (`ChartedNurbs::certificate_grid`), as a trace's does.
+    // certificate's limb 3 reads the chart on its own cells and, where
+    // those refuse, on its grid (`ChartedNurbs::certificate_grid`), as a
+    // trace's does.
     let wall_op = SsiOperand::nurbs(wall).map_err(refusal)?;
 
     // ---- The wall's image of the carrier, and the normal angle. ----
@@ -1883,8 +1889,8 @@ pub fn nurbs_pair_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
 ) -> Result<PlaneNurbsLimbs<T>, PlaneNurbsRefusal> {
     described(a)?;
     described(b)?;
-    // Each chart is read on the certificate's grid, as the plane lane's
-    // wall.
+    // Each chart is read as the plane lane's wall is: its own cells,
+    // then the certificate's grid.
     let op_a = SsiOperand::nurbs(a).map_err(refusal)?;
     let op_b = SsiOperand::nurbs(b).map_err(refusal)?;
     // The two images on one list of spans, which the two-chart tube pairs.
@@ -3372,8 +3378,8 @@ fn refusal(e: SsiError) -> PlaneNurbsRefusal {
         }
         SsiError::FootPointInconclusive { t, last_distance } => {
             // The limb re-projects warm-started from the image; a
-            // divergence there is the same class as the schedule's own,
-            // reported at the sample the parameter names.
+            // divergence there is the same class as the image's own,
+            // reported under the count of the certificate's samples.
             let _ = t;
             PlaneNurbsRefusal::FootPointInconclusive {
                 sample: CERT_SAMPLES,

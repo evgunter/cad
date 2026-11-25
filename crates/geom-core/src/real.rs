@@ -2032,8 +2032,19 @@ pub mod bounds_allowlist {
     //! feet and its miss are structure read in `f64` (the carrier's held
     //! knots, a foot's chart point and the miss at the scalar's
     //! midpoint), which [`Real`](super::Real) offers no read for but
-    //! `Bounds::lo`/`hi`. Those reads place feet and knots and decide
-    //! nothing; `CertifiedEnclosure` is the projection's.
+    //! `Bounds::lo`/`hi`. Those reads place feet and knots, and three of
+    //! them are compared with the band's zero as raw `f64`: the miss
+    //! against the image's share of it (whether a span takes a knot),
+    //! and, at a start on a closed wall's seam, whether the two chart
+    //! points are one point of the wall (`closes`) and whether their
+    //! standoffs tie (`tied`). Each chooses structure, never a
+    //! certificate's verdict: the image is evidence its consumer bounds.
+    //! Past its cap the function refuses on the last round's sampled miss,
+    //! through the classifier, in limb 2's words
+    //! (`ssi::certify::image_miss`): a refusal, never a certificate. The
+    //! image is one per scalar, since the midpoints differ in the last
+    //! places between `f64` and `Interval`. `CertifiedEnclosure` is the
+    //! projection's.
     //!
     //! **2026-11-12 (under the M7-8 / C2 precedent; retroactive Ev review)
     //! — `geom_brep::edge_nurbs`'s `curved_nurbs_limbs`**, the lane's

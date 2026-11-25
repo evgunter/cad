@@ -469,8 +469,9 @@ const INTERIOR_COLUMN_SCALE: f64 = 1.0 / 1024.0;
 /// The same wall geometry on the widened chart, where both seams are
 /// INTERIOR columns. An interior column has no boundary-row closed form
 /// and never will, so U2's answer is the `General` curve in UV at the
-/// honest Fitted grade: the image the wall's own foot schedule
-/// measures, certified against the operand PAIR.
+/// honest Fitted grade: the wall's foot path of the carrier
+/// interpolated on the carrier's knots, certified against the operand
+/// PAIR.
 ///
 /// **What the row it replaces did wrong.** `posture()` accepted
 /// `Refused` OR `Escalated` — teeth of "does not mint", which a fixture
@@ -1398,8 +1399,8 @@ fn an_exact_image_certifies_no_worse_than_its_interpolant() {
 /// On `knots_u = [0.1, 0.1, 0.2, 0.3, 0.3]`, `0.2 + 0.2` is not
 /// `0.1 + 0.3` in ℝ, so a carrier on the row's own knots with its net
 /// reversed is not the row run back: no row candidate is offered for
-/// it, and the rim falls through to the `General` image the wall's
-/// foot schedule measures, which certifies against the cap plane.
+/// it, and the rim falls through to the `General` image, the wall's
+/// foot path of it, which certifies against the cap plane.
 /// (The shape a STEP file writes: decimal knots, a rim oriented
 /// against the row.)
 #[test]

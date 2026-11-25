@@ -1,8 +1,8 @@
 //! **A carrier whose foot path bends takes the general lane on a spline
 //! chart** (D3): a circle no boundary row holds, and an ellipse, which
 //! has no exact class there, mint the `General` image
-//! (`geom_brep::FittedLane::general_image`), climbed to the structure the
-//! bend asks for, and certify. Where its certificate still refuses on a
+//! (`geom_brep::FittedLane::general_image`), with the knots the bend
+//! asks for, and certify. Where its certificate still refuses on a
 //! rim the wall holds, the refusal is the lane's gap, "not yet", never a
 //! tolerance offer; a rim in band of the wall ends in its incidence read's
 //! lever. A stated row, and a stored row read at rest, keep their own

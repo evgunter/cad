@@ -937,10 +937,10 @@ impl RowSpace {
 ///   carrier — a SPLINE on an interior
 ///   column is the executed case (#498), an off-iso straight edge
 ///   another, and an ellipse — takes U2's `General`
-///   curve-in-UV arm at the honest Fitted grade, derived from the
-///   wall's own foot schedule: at degree 1 where that image's measured
-///   miss is within its share of the band, finer where the foot path
-///   bends past it. Where its certificate refuses the image, the
+///   curve-in-UV arm at the honest Fitted grade: the wall's foot path
+///   of the carrier interpolated on the carrier's own knots, with a
+///   knot more wherever its measured miss passes its share of the band
+///   (`geom_brep`'s one image function). Where its certificate refuses the image, the
 ///   refusal is the lane's gap, "not yet".
 /// - Everything else on a NURBS chart refuses typed with the class
 ///   named.
@@ -979,8 +979,8 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
     // alone), a DIAGONAL locus (an off-iso straight edge among them) has
     // none, and a circle no row holds, an ellipse or any other curved
     // carrier has none on a spline chart. Its image is the one
-    // `FittedLane::general_image` derives: the degree-1 image the edge
-    // certificate reads, climbed where its measured miss asks. It is a lane
+    // `FittedLane::general_image` derives: the carrier's one image on the
+    // wall, which the edge certificate derives again at rest. It is a lane
     // choice (D3), reached only behind the chart's incidence read: a
     // carrier shown off the wall ends as that read. A read not shown off,
     // in band included, goes on to the general image, whose certificate
@@ -1302,9 +1302,10 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
 /// spline chart over the edge's interval `params` — U2's `General`
 /// arm, at the honest Fitted grade.
 ///
-/// The producer is [`geom_brep::FittedLane::general_image`]: the degree-1
-/// image the plane × NURBS edge certificate reads at adopt time, climbed
-/// to a finer one where its measured miss asks. Nothing is certified here: this returns EVIDENCE,
+/// The producer is [`geom_brep::FittedLane::general_image`]: the
+/// carrier's one image on the wall, which the plane × NURBS edge
+/// certificate derives again at adopt time and at rest. Nothing is
+/// certified here: this returns EVIDENCE,
 /// and the mint's next move is `PcurveCache::certify_general`, which
 /// bounds `sup_t |S(P(t)) − C(t)|` over the whole span against the
 /// chart.

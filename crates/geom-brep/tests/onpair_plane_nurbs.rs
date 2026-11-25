@@ -371,11 +371,12 @@ fn an_arc_rim_certifies_on_its_pair_through_its_exact_image() {
 
 /// **Off the wall, both causes.** The rim at radius `1 + off` lies on
 /// the cap and `off` off the wall. No boundary-row image holds it at the
-/// pick's probe (`iso: None`); the on-wall rim's image stated for it
-/// refuses at its certificate's incidence read, and the refusal reads as
-/// that check (the map residual's limb, which the read bounds from below),
-/// not as the fitted path's bound, which an arc's bent foot path
-/// inflates whether the rim is on the wall or off it.
+/// pick's probe (`iso: None`), and the image derived for it refuses at a
+/// limb; the on-wall rim's image stated for it refuses at its
+/// certificate's incidence read, as the stated image's own refusal
+/// (`StatedImage`: no image is derived in a refused one's place), which
+/// reads as that check (the map residual's limb, which the read bounds
+/// from below).
 #[test]
 fn an_arc_rim_off_its_wall_refuses_with_both_causes() {
     let off = 1e3 * Tol::witness().get().eps;
@@ -391,10 +392,10 @@ fn an_arc_rim_off_its_wall_refuses_with_both_causes() {
     );
     let refused = arc_on_pair(carrier, Some(quarter_image()));
     let Err(
-        e @ CertifyError::PlaneNurbs(PlaneNurbsRefusal::ArcRim(ArcRimRefusal {
+        e @ CertifyError::PlaneNurbs(PlaneNurbsRefusal::StatedImage {
             iso: Some(geom_brep::PcurveCheck::ChartIncidence),
             ..
-        })),
+        }),
     ) = &refused
     else {
         panic!("the stated image's certificate reads the rim off the wall: {refused:?}");
