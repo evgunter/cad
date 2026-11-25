@@ -94,3 +94,18 @@ The witness-pad row went to P2 (M), not landed. I read the MAJOR's fix myself (o
 
 ## 2026-11-24: 7730 merged (endpoint census note)
 The main red was stale: PR 7452 had already moved the count to (9, 9). 7730 writes the roster note for all nine reads, and explains why the two sign tests stay off the funnel: they are certified exclusions of zero in a debug-only walk. Reviewed by the orchestrator's read. Merged once lint was green; the change touches only a test-note string and the tracker.
+## 2026-11-24: 7725 merged (the cone_search main red)
+The cause was topo's mapping of `ConeAtTheBand` to `Intractable`. It is now R-tan, and a fixed row reproduces the first seed. cone_search passed on three kernel runs, each with a fresh seed. Orchestrator's read. Merged main and resolved the conflict with 7457's `RadiusNotPositive` line in `of_pair_section`. Merged over CI: the kernel job was red only on `square_search` (germ row).
+
+## 2026-11-24: 7734 merged, the P0 foot-bend regression from 7408
+**Cause.** A plane × cylinder ruling is a `Curve3::Line`. At `Interval`, `1/curvature_hi` is `1/[0,0]`, which is no enclosure, so `section_site_foot_bend` read `Invalid`. This hit the notched rod's `Interval` twin and the ring lane.
+
+**Fix.** The curvature bound is floored at `f64::MIN_POSITIVE` before its reciprocal; that is still an upper bound, so it stays sound. The new fast row was shown red with the fix reverted.
+
+**Review.** The orchestrator's read, not the item's single FULL. The change is one line with a direct soundness argument. CI is fully green.
+
+**Tracker.**
+- The item's other two cases (stalled polish, clamped witness) have a different cause. The row stays open and is re-banded to P3, its filing band.
+- Filed `parting/a-straight-carrier-over-a-plane-reads-its-parting-radius-as-one-over-zero` (P3).
+
+7733, the P0 cone-face refusal, is open with CI green and all 12 witness runs built. The site was `join.rs` `choose_roles`, whose ring-lane chord arm had no cone. It also needed the spline-run read in `chord_join` and cone-face quadrature in `props`. A single FULL review is dispatched.
