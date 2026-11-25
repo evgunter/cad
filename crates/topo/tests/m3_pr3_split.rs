@@ -1113,7 +1113,6 @@ fn no_split_refusal_names_a_stage() {
         SplitError::Reduce(topo::splitting::SplitReduceError::Band(band)),
         SplitError::Join(JoinError::Band(band)),
         SplitError::Finish(SplitFinishError::Band(band)),
-        SplitError::Pcurves(topo::pcurves::PcurveMintError::Band(band)),
     ];
     for e in cases {
         let msg = e.render(geom_brep::recourse::Reading::Build);

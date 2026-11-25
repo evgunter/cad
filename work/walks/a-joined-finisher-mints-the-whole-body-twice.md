@@ -2,10 +2,14 @@
 id: a-joined-finisher-mints-the-whole-body-twice
 kind: issue
 title: The merge door and the boolean's graft and single-operand paths mint the whole body twice, and the merge door's join clones a staged clone
-status: open
+status: closed
 opened: 2026-10-08
 priority: P4
 cost: M
+parent: producer-closing-mint-is-a-convention-with-thirteen-copies
+branch: walks/finish-completes
+pr: 7497
+closed: 2026-11-25
 ---
 
 
@@ -34,3 +38,13 @@ only the faces its kills touched: the offset doors' scoped join
 (`Body::join_edges_within`) is that shape. The merge door and the
 boolean's paths could take it with the whole body as the scope, and
 the second whole mint would then be the caller's one closing mint.
+
+## Discharged (WALKS, `walks/finish-completes`)
+
+No producer mints to close any more, and the join drops its dead cells'
+rows rather than re-minting: its kills keep every other row as found
+(`kev_describing`'s posture), and the finish completes the body once.
+
+## Closed
+
+2026-11-25: PR 7497 merged — producers stop minting to close; the finish (and the mid-pipeline feeds, through one helper) COMPLETES the rows: keeps every stored row and element, derives the missing, so a stale row is refused rather than replaced (DESIGN `[one-way.places]`, Ev on PR 7420); `mint_pcurves` is test-support only; a source row refuses an `AtRestPolicy` impl overriding `finish`/`leaf`.
