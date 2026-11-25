@@ -50,5 +50,5 @@ Naming no section on the carried path refused
 through the section edge. So the carried path names the section's
 edges again, and the vertices alone stay unnamed. The edge's minted
 vertex-on-section-edge meeting that this reaches in
-`a_pierce_held_in_a_curved_face` is set aside beside the record's other
-landing (`the-boolean-door-decides-no-minted-vertex-on-edge-meeting`).
+`a_pierce_held_in_a_curved_face` refuses `JoinDesync` until the door
+decides it (`the-boolean-door-decides-no-minted-vertex-on-edge-meeting`).
