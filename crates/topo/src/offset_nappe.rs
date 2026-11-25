@@ -274,7 +274,7 @@ fn corner_stations<T: Decide>(
         origin: apex,
         dir: axis,
     } = axis;
-    let station = |p: Point3<T>| (p - apex).dot(axis);
+    let station = |p: Point3<T>| (p - apex).dot(axis.get());
     let stations: Vec<T> = data
         .boundary()
         .map(|member| {
@@ -305,7 +305,7 @@ mod torn_hop_rows {
     use super::*;
     use crate::live::OPERATORS_KEEP_LINKS;
     use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
-    use geom_core::{Tol, Vec3};
+    use geom_core::Tol;
 
     #[test]
     fn the_corner_stations_panic_on_a_torn_ring_link() {
@@ -313,7 +313,7 @@ mod torn_hop_rows {
         let face = body.faces().next().unwrap().0;
         let axis = geom::Line {
             origin: Point3::new(0.0, 0.0, -1.0),
-            dir: Vec3::unit_z(),
+            dir: geom_core::UnitVec3::exact_z(),
         };
         let (lo, hi) = corner_stations(&body, body.proven_face(face), axis);
         assert!(lo <= hi, "ordered stations");

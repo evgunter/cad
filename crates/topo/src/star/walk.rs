@@ -401,7 +401,7 @@ impl<T: Decide> Star<T> {
             (StarFace::Apex(apex), Datum::Plane(_) | Datum::Cone(_)) => {
                 let across = match datum {
                     Datum::Plane(n) => *n,
-                    Datum::Cone(other) => other.axis,
+                    Datum::Cone(other) => other.axis.get(),
                 };
                 let window = apex.azimuth_from(start, end);
                 Ok(
@@ -582,7 +582,7 @@ mod tests {
         let tilted = |x: f64, y: f64, z: f64| Vec3::new(x, y, z).normalize();
         let partner = |axis: Vec3<f64>| ConeApex {
             apex: Point3::origin(),
-            axis,
+            axis: geom_core::UnitVec3::checked(axis),
             half_angle: 0.3,
             u_ref: axis.cross(Vec3::unit_x()).normalize(),
             sense: true,
@@ -642,7 +642,7 @@ mod tests {
                 for datum in datums {
                     let across = match datum {
                         Datum::Plane(n) => *n,
-                        Datum::Cone(c) => c.axis,
+                        Datum::Cone(c) => c.axis.get(),
                     };
                     let side: Vec<f64> = along.iter().map(|d| d.dot(across)).collect();
                     let steps: Vec<f64> = side.windows(2).map(|w| w[1] - w[0]).collect();

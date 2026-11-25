@@ -487,7 +487,7 @@ fn the_lanterns_arms_fold_both_sense_bits() {
     let sheet_at = |p: Point3<f64>| Meridian {
         axis: geom::Line {
             origin,
-            dir: Vec3::new(0.0, 1.0, 0.0),
+            dir: geom_core::UnitVec3::exact_y(),
         },
         rim: p,
     };

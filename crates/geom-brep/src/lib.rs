@@ -249,18 +249,19 @@ pub use offset_fit::{
 pub use offset_fit_lane::{OFFSET_FIT_DOOR_HOLDERS, OffsetFitLane, OffsetFitLaneOf, ScalarList};
 pub use offset_meters::ChartArmRefusal;
 pub use pair_section::{
-    ArcPlace, AxisPose, CarriedComponent, CarriedSection, CarryError, CarryRefusal, CcDecision,
-    CcNode, CcStance, ChartReach, ClassCarrier, Coincident, ComponentEnds, ComponentShape,
-    Components, CsDecision, CsStance, CtStance, CylinderCylinderPose, CylinderSpherePose,
-    CylinderTorusPose, FittedCarrier, Gap, KnownPair, KnownRow, LoopTubeRefusal, NoCarrier,
-    NodeEnd, NodeEnds, NodeLine, NodeSet, PadBox, PairPose, PairSection, PairSide, PoseRefusal,
-    RaySense, Reached, RegionPlacement, Ring, SectionComponent, SectionDecision, SectionNode,
-    SectionPick, SectionRead, SiteFoot, SiteReading, SiteRefusal, SpanEnd, SphereTorusPose,
-    SplineImplicitPose, SplinePairPose, SquareWall, SsiLane, SsiLaneOf, StStance, TT_COINCIDENT,
-    TT_COINCIDENT_FLOOR, TorusCoincidence, TorusData, TorusDatum, TorusDisplacement, TorusGap,
-    TorusPoseRefusal, TorusQuestion, TorusTorusPose, TtStance, Turn, Winding, WindsRefusal,
-    ZeroKind, ZeroVerdict, axis_pose, coaxial_tangent_circle, line_tilt, pair_section,
-    spline_pair_section, square_part, tori_coincide,
+    ApexContact, ArcPlace, AxisPose, CarriedComponent, CarriedSection, CarryError, CarryRefusal,
+    CcDecision, CcNode, CcStance, ChartReach, ClassCarrier, Coincident, ComponentEnds,
+    ComponentShape, Components, ConeTorusPose, ConeTorusRefusal, CsDecision, CsStance, CtStance,
+    CylinderCylinderPose, CylinderSpherePose, CylinderTorusPose, FittedCarrier, Gap, KnownPair,
+    KnownRow, KtQuestion, KtStance, LoopTubeRefusal, NoCarrier, NodeEnd, NodeEnds, NodeLine,
+    NodeSet, PadBox, PairPose, PairSection, PairSide, PoseRefusal, RaySense, Reached,
+    RegionPlacement, Ring, SectionComponent, SectionDecision, SectionNode, SectionPick,
+    SectionRead, SiteFoot, SiteReading, SiteRefusal, SpanEnd, SphereTorusPose, SplineImplicitPose,
+    SplinePairPose, SquareWall, SsiLane, SsiLaneOf, StStance, TT_COINCIDENT, TT_COINCIDENT_FLOOR,
+    TorusCoincidence, TorusData, TorusDatum, TorusDisplacement, TorusGap, TorusPoseRefusal,
+    TorusQuestion, TorusTorusPose, TtStance, Turn, Winding, WindsRefusal, ZeroKind, ZeroVerdict,
+    axis_pose, coaxial_tangent_circle, line_tilt, pair_section, spline_pair_section, square_part,
+    tori_coincide,
 };
 /// [`CarryError`]'s and [`CarryRefusal`]'s compiler-derived kinds, for a
 /// roster that samples every arm.
@@ -297,9 +298,10 @@ pub use ssi::{
     SSI_FIT_DEGREE, SSI_FLOOR, SSI_MAX_STEPS, Section, SectionReading, SectionRoot,
     SettlingRefusal, SsiBoundaryContact, SsiBranch, SsiCertificate, SsiDecision, SsiDomain,
     SsiError, SsiLimb, SsiOperand, SsiOutcome, SsiTube, StepFault, StepperMode, TangentPair,
-    TorusPair, TraceDecision, TubeDegeneracy, boundary_section, certify_rung3, cylinder_sphere_ssi,
-    cylinder_torus_ssi, idealized_trace_r3, march_cylinder_torus, march_torus_torus,
-    plane_nurbs_ssi, sphere_torus_ssi, torus_torus_ssi, trace_plane_nurbs_uncertified,
+    TorusPair, TraceDecision, TubeDegeneracy, boundary_section, certify_rung3, cone_torus_ssi,
+    cylinder_sphere_ssi, cylinder_torus_ssi, idealized_trace_r3, march_cone_torus,
+    march_cylinder_torus, march_torus_torus, plane_nurbs_ssi, sphere_torus_ssi, torus_torus_ssi,
+    trace_plane_nurbs_uncertified,
 };
 #[cfg(any(test, feature = "test-support"))]
 #[doc(hidden)]

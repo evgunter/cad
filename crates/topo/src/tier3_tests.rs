@@ -954,20 +954,27 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
     let cases: Vec<Row> = vec![
         (
             "honest line",
-            Curve3::Line(geom::Line { origin: o, dir: x }),
+            Curve3::Line(geom::Line {
+                origin: o,
+                dir: geom::stated_direction(x),
+            }),
             None,
         ),
         (
-            "line, zero dir",
+            // A zero vector has no direction: squared, it is poison.
+            "line, zero dir squared",
             Curve3::Line(geom::Line {
                 origin: o,
-                dir: zero,
+                dir: geom_core::UnitVec3::squared(zero),
             }),
             Some(V::Poisoned(vec![D::Dir])),
         ),
         (
-            "line, NaN origin and infinite dir",
-            Curve3::line(Point3::new(nan, 0.0, 0.0), Vec3::new(inf, 0.0, 0.0)),
+            "line, NaN origin and infinite dir squared",
+            Curve3::line(
+                Point3::new(nan, 0.0, 0.0),
+                geom_core::UnitVec3::squared(Vec3::new(inf, 0.0, 0.0)),
+            ),
             Some(V::Poisoned(vec![D::Origin, D::Dir])),
         ),
         ("honest circle", circle(o, z, 1.0, x), None),
@@ -1078,11 +1085,15 @@ fn the_carrier_poison_read_reads_every_scalar() {
             .into_iter()
             .flat_map(|(datum, value)| value.scalars().map(move |x| (datum, x)))
             .collect();
-        // A frame is squared where it is stated, so its datums read the
-        // squared axes, not the builder's scalars; every other datum reads
-        // its scalars as given.
-        let frame =
-            |d: geom::CurveDatum| matches!(d, geom::CurveDatum::Axis | geom::CurveDatum::URef);
+        // A frame and a line's direction are squared where they are
+        // stated, so their datums read the squared axes, not the
+        // builder's scalars; every other datum reads its scalars as given.
+        let frame = |d: geom::CurveDatum| {
+            matches!(
+                d,
+                geom::CurveDatum::Axis | geom::CurveDatum::URef | geom::CurveDatum::Dir
+            )
+        };
         assert_eq!(
             walked.len(),
             kind.scalars,
@@ -1598,7 +1609,7 @@ fn a_drafted_chord_refused_its_span_is_typed() {
             pair: geom_brep::SurfacePair::new(own, theirs),
             selector: geom_brep::CurveSelector::Witness(Point3::new(0.5, 0.0, 0.0)),
         },
-        carrier: geom::Curve3::line(Point3::origin(), Vec3::unit_x()),
+        carrier: geom::Curve3::line(Point3::origin(), geom_core::UnitVec3::exact_x()),
         param_start: 1.0,
         param_end: 0.0,
     };
@@ -1871,7 +1882,11 @@ fn edge_spec(body: &Body<f64>, edge: crate::entity::EdgeKey, kind: Carrier) -> E
     let (carrier, t0, t1) = match kind {
         Carrier::Segment => {
             let len = p0.distance(p1);
-            (geom::Curve3::line(p0, (p1 - p0) / len), 0.0, len)
+            (
+                geom::Curve3::line(p0, geom::stated_direction((p1 - p0) / len)),
+                0.0,
+                len,
+            )
         }
         // θ = 0 is placed at the start point and the axis is chosen so
         // that `v_ref = axis × u_ref` points at +x: the half turn from
@@ -2279,7 +2294,7 @@ fn the_must_carry_rule_and_tier_3_answer_one_family_through_one_walk() {
         ),
         radius,
     };
-    let carrier = geom::Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::unit_y());
+    let carrier = geom::Curve3::line(Point3::new(0.0, 0.0, 0.0), geom_core::UnitVec3::exact_y());
     // The pillow's two faces are bounded by its two coincident seams, so
     // each reaches half a seam from the seam's middle: the wedge's
     // reach tier 3 reads (`crate::wedge_reach`).
@@ -2682,7 +2697,7 @@ fn material_reads_stop_with_their_decided_margin_and_end_as_their_decision() {
         let wall = leaning(degrees);
         // Both planes hold the y axis: the walk along it reads every
         // station tangent, and the pairing stops it.
-        let axis = geom::Curve3::line(origin, Vec3::unit_y());
+        let axis = geom::Curve3::line(origin, geom_core::UnitVec3::exact_y());
         let side = |surface| geom_brep::SideFace {
             surface,
             sense: true,
@@ -3546,7 +3561,7 @@ pub(crate) fn half_disc(
         let (v0, v1) = body.edge_vertices(edge).unwrap();
         let at = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
         let (p0, p1) = (at(v0), at(v1));
-        geom::Curve3::line(p0, (p1 - p0) / p0.distance(p1))
+        geom::Curve3::line(p0, geom::stated_direction((p1 - p0) / p0.distance(p1)))
     };
     for e in [p.et[0], p.eb[0], p.et[1], p.eb[1], p.ev[0], p.ev[1]] {
         let is_arc = e == p.et[0] || e == p.eb[0];

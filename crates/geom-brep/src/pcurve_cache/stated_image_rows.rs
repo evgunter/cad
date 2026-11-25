@@ -26,7 +26,7 @@ use std::sync::Arc;
 
 use geom::{Curve3, NurbsCurve2, NurbsCurve3, NurbsSurface, Surface};
 use geom_core::spline::KnotVector;
-use geom_core::{Decide, Interval, Point2, Point3, Vec2, Vec3};
+use geom_core::{Decide, Interval, Point2, Point3, Vec2};
 
 use super::Pcurve;
 use super::spline_door_rows::{band, in_band, ring};
@@ -339,7 +339,7 @@ fn on_the_wall<T: Decide>(edge: Edge<T>) {
         let (foot, _) = wall.column_at();
         let line = Curve3::line(
             Point3::new(T::from_f64(foot[0]), T::from_f64(foot[1]), T::zero()),
-            Vec3::new(T::zero(), T::zero(), T::one()),
+            geom_core::UnitVec3::exact_z(),
         );
         let flat = Bump {
             height: 0.0,

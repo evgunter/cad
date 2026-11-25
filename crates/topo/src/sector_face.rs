@@ -46,6 +46,7 @@
 
 use geom::SurfaceKind;
 use geom_brep::OutwardNormal;
+use geom_core::UnitVec3;
 use geom_core::{Band, Decide, Point3, Vec3};
 
 use crate::face_normal::ConePoint;
@@ -133,7 +134,7 @@ pub(crate) struct ConeApex<T: geom_core::Real> {
     /// The apex.
     pub apex: Point3<T>,
     /// The cone's unit axis.
-    pub axis: Vec3<T>,
+    pub axis: UnitVec3<T>,
     /// The half-angle between a ruling and the axis.
     pub half_angle: T,
     /// The cone's seam direction, which places azimuth zero.
@@ -146,7 +147,7 @@ impl<T: Decide> ConeApex<T> {
     /// The cone as a surface.
     pub(crate) fn surface(&self) -> geom::Surface<T> {
         geom::Surface::Cone {
-            frame: geom::Frame::new(self.apex, self.axis, self.u_ref),
+            frame: geom::Frame::new(self.apex, self.axis.get(), self.u_ref),
             half_angle: self.half_angle,
         }
     }
@@ -163,7 +164,8 @@ impl<T: Decide> ConeApex<T> {
 
     /// The cone's unit axis turned toward the nappe `like` (a ruling the
     /// face leaves the apex along) lies on.
-    pub(crate) fn nappe_axis(&self, like: Vec3<T>) -> Vec3<T> {
+    pub(crate) fn nappe_axis(&self, like: Vec3<T>) -> UnitVec3<T> {
+        // The unit axis, its sign chosen: exact.
         self.axis.turned_toward(like)
     }
 
@@ -176,7 +178,8 @@ impl<T: Decide> ConeApex<T> {
     /// other, and over an enclosure both hull where `a·like` holds a
     /// zero.
     pub(crate) fn onto_nappe_of(&self, d: Vec3<T>, like: Vec3<T>) -> Vec3<T> {
-        d.normalize().turned_toward(self.axis * like.dot(self.axis))
+        d.normalize()
+            .turned_toward(self.axis.get() * like.dot(self.axis.get()))
     }
 
     /// Which way round the axis the face's interior leaves the ruling
@@ -188,7 +191,7 @@ impl<T: Decide> ConeApex<T> {
         self.normal_along(d)
             .vec()
             .cross(d)
-            .dot(self.axis.cross(d))
+            .dot(self.axis.get().cross(d))
             .unit_sign()
     }
 
@@ -200,7 +203,7 @@ impl<T: Decide> ConeApex<T> {
         let (f, t) = (from.normalize(), to.normalize());
         (t - f)
             .norm()
-            .copysign(f.cross(t).dot(self.axis) * self.sweep(f))
+            .copysign(f.cross(t).dot(self.axis.get()) * self.sweep(f))
     }
 
     /// The azimuth the face's sweep turns through from the ruling along
@@ -220,7 +223,7 @@ impl<T: Decide> ConeApex<T> {
         let (e1, e2) = self.sweep_frame(from);
         // A cone's half-angle lies inside `(0, π/2)`, decided at rest, so
         // `cos α > 0` and scaling the nappe axis by it keeps the nappe.
-        let along = self.nappe_axis(from) * self.half_angle.cos();
+        let along = self.nappe_axis(from).get() * self.half_angle.cos();
         along + (e1 * azimuth.cos() + e2 * azimuth.sin()) * self.half_angle.sin()
     }
 
@@ -228,8 +231,8 @@ impl<T: Decide> ConeApex<T> {
     /// `e1` along its azimuth, `e2` the way the face's interior leaves it.
     fn sweep_frame(&self, from: Vec3<T>) -> (Vec3<T>, Vec3<T>) {
         let from = from.normalize();
-        let e1 = (from - self.axis * from.dot(self.axis)).normalize();
-        (e1, self.axis.cross(e1) * self.sweep(from))
+        let e1 = (from - self.axis.get() * from.dot(self.axis.get())).normalize();
+        (e1, self.axis.get().cross(e1) * self.sweep(from))
     }
 
     /// Whether the face's material lies inside its cone: the outward
@@ -377,7 +380,7 @@ pub(crate) fn resolve<T: Decide>(
     }
     match surface {
         geom::Surface::Cylinder { frame, .. } => {
-            let (origin, axis) = (frame.origin(), frame.axis());
+            let (origin, axis) = (frame.origin(), frame.axis_unit());
             charted(
                 geom::Line { origin, dir: axis }.offset(point()).normalize(),
                 SectorCarrier::Cylinder,
@@ -401,7 +404,7 @@ pub(crate) fn resolve<T: Decide>(
         // included, everywhere off its axis. On the axis it is `0/0`, and
         // the axis point of the surface is the apex, read as its rulings.
         s @ &geom::Surface::Cone { frame, half_angle } => {
-            let (apex, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            let (apex, axis, u_ref) = (frame.origin(), frame.axis_unit(), frame.u_ref());
             let p = point();
             match crate::face_normal::cone_point(
                 geom::Line {
@@ -427,7 +430,8 @@ pub(crate) fn resolve<T: Decide>(
                     face,
                     at_vertex: VertexFace::Apex(ConeApex {
                         apex,
-                        axis: axis.normalize(),
+                        // The frame's axis, re-squared as it was read.
+                        axis: UnitVec3::squared(axis.get()),
                         half_angle,
                         u_ref,
                         sense,

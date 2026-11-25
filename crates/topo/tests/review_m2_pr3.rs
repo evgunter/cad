@@ -69,7 +69,7 @@ fn triangle_prism<T: Decide + topo::AtRestPolicy>() -> (
                 place,
             },
         )),
-        carrier: Curve3::line(p0, (p1 - p0) / p0.distance(p1)),
+        carrier: Curve3::line(p0, geom_core::UnitVec3::chord(p1 - p0).0),
         param_start: T::zero(),
         param_end: p0.distance(p1),
     };
@@ -82,7 +82,7 @@ fn triangle_prism<T: Decide + topo::AtRestPolicy>() -> (
                 vec: w,
             },
         )),
-        carrier: Curve3::line(p0, w / w.norm()),
+        carrier: Curve3::line(p0, geom_core::UnitVec3::chord(w).0),
         param_start: T::zero(),
         param_end: w.norm(),
     };
@@ -371,7 +371,7 @@ fn survives_atomicity_deep_snapshots_on_every_failure_path() {
     let mut spec = EdgeCurveSpec::line_between(p0, p1);
     spec.carrier = Curve3::line(
         p0 + Vec3::new(0.0, 0.0, 100.0 * eps()),
-        (p1 - p0) / p0.distance(p1),
+        geom::stated_direction((p1 - p0) / p0.distance(p1)),
     );
     let err = body.set_edge_curve(ek, spec, Tol::witness()).unwrap_err();
     assert!(

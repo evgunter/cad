@@ -331,7 +331,7 @@ impl<'a> Writer<'a> {
         let curve = match *carrier {
             Curve3::Line(geom::Line { origin, dir }) => {
                 let cp = self.cartesian_point(origin, "line origin")?;
-                let d = self.direction(dir, "line direction")?;
+                let d = self.direction(dir.get(), "line direction")?;
                 // Magnitude 1.0: `dir` is unit by convention, so the
                 // STEP line parameter stays arc length in meters,
                 // matching the kernel parameterization.

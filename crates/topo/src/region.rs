@@ -1046,7 +1046,7 @@ impl<T: Decide> Course<T> for Line<T> {
     }
 
     fn heading(&self, _: Point3<T>) -> Vec3<T> {
-        self.line.dir
+        self.line.dir.get()
     }
 
     fn curve(&self) -> SurfaceCurve<T> {
@@ -1205,7 +1205,7 @@ mod tests {
 
     /// The segment `[x0, x1]` of the `x` axis.
     fn x_segment(x0: f64, x1: f64) -> RegionEdge<f64> {
-        let carrier = geom::Curve3::line(Point3::origin(), Vec3::new(1.0, 0.0, 0.0));
+        let carrier = geom::Curve3::line(Point3::origin(), geom_core::UnitVec3::exact_x());
         edge(carrier, (x0, x1))
     }
 

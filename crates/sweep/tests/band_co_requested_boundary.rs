@@ -271,7 +271,7 @@ fn carved_clearance(body: &Body<f64>, rod: Rod, r: f64) -> f64 {
         let (t0, t1) = g.params();
         match *g.carrier() {
             geom::Curve3::Line(geom::Line { origin, dir }) => {
-                let (p, q) = (origin + dir * t0, origin + dir * t1);
+                let (p, q) = (origin + dir.get() * t0, origin + dir.get() * t1);
                 let d = q - p;
                 let along = d.dot(t).abs() > (1.0 - 1e-12) * d.norm();
                 if p.y.abs() < 1e-12 && q.y.abs() < 1e-12 && along {

@@ -128,7 +128,13 @@ fn assert_frame(got: SectionLoop<f64>, centre: Point3<f64>, axis: Vec3<f64>, wha
         got.axis.origin
     );
     assert!(
-        got.axis.dir.normalize().cross(axis.normalize()).norm() <= eps,
+        got.axis
+            .dir
+            .get()
+            .normalize()
+            .cross(axis.normalize())
+            .norm()
+            <= eps,
         "{what}: axis {:?}, want {axis:?}",
         got.axis
     );
@@ -244,7 +250,7 @@ fn on_oval(d: f64, sigma: f64, v: f64) -> (Point3<f64>, Vec3<f64>) {
 
 /// The turn of `tangent` at `p` about `axis`.
 fn turn(axis: geom::Line<f64>, p: Point3<f64>, tangent: Vec3<f64>) -> f64 {
-    axis.dir.dot((p - axis.origin).cross(tangent))
+    axis.dir.get().dot((p - axis.origin).cross(tangent))
 }
 
 /// **The spiric ovals turn about where the core circle crosses the

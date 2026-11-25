@@ -882,6 +882,7 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
         &["placement", "constraints", "free"],
     );
     carries(&F::NotOnTheCopy { mate: m(1) }, &["mate"]);
+    carries(&F::NotTheDatumsOwn { mate: m(1) }, &["mate"]);
     carries(
         &F::KindsDiffer {
             mate: m(1),
@@ -2110,6 +2111,7 @@ fn node_error_tags_are_the_published_words() {
         MateOverconstrained => "mate_overconstrained",
         MateUnpinned => "mate_unpinned",
         MateNotOnTheCopy => "mate_not_on_the_copy",
+        MateNotTheDatumsOwn => "mate_not_the_datums_own",
         MateUnleverable => "mate_unleverable",
         MateKindsDiffer => "mate_kinds_differ",
         MateSideUnevaluated => "mate_side_unevaluated",
@@ -5288,6 +5290,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_kinds_differ",
             "mate_no_chart",
             "mate_not_on_the_copy",
+            "mate_not_the_datums_own",
             "mate_overconstrained",
             "mate_poses_of_another_document",
             "mate_side_unevaluated",
@@ -10441,6 +10444,7 @@ const NODE_KIND_ROSTER: &[&str] = &[
     "assemble",
     "assertion",
     "chamfer",
+    "datum",
     "extrude",
     "fillet",
     "hollow_tube",

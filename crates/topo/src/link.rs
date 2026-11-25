@@ -78,6 +78,7 @@
 //! other reading takes such a link ([`rest::judge`] and
 //! [`rest::by_round`] refuse it).
 
+use geom_core::UnitVec3;
 use geom_core::ladder::{
     Aborts, Answering, Climb, FreeOf, Refusal, Rung, Undecided, argmin_decided, climb,
 };
@@ -172,7 +173,7 @@ const LINK_NORMAL: &str = "link_normal";
 /// normal scaled by a length would be a lever spelled as a plane; the
 /// source row states that blind spot.
 pub(crate) mod metric {
-    use super::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
+    use super::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, UnitVec3, Vec3};
     use geom_core::Decided;
 
     /// A point's signed distance from a plane, in metres.
@@ -418,11 +419,11 @@ pub(crate) mod metric {
         name: &'static str,
         q: Point3<T>,
         from: Point3<T>,
-        dir: Vec3<T>,
+        dir: UnitVec3<T>,
         band: Band,
     ) -> Option<Sign> {
         geom::Ray::new(from, dir)
-            .ahead(dir.dot(q - from), name, band)
+            .ahead(dir.get().dot(q - from), name, band)
             .ok()
     }
 
@@ -1664,11 +1665,8 @@ fn within<T: Real>(p: Point3<T>, q: Point3<T>, r: T) -> Point3<T> {
 
 /// `p`'s distance from the segment `a`–`b` ([`geom::Line::distance_within`]).
 pub(crate) fn to_segment<T: Real>(p: Point3<T>, seg: Segment<T>) -> T {
-    geom::Line {
-        origin: seg.0,
-        dir: seg.1 - seg.0,
-    }
-    .distance_within(p, (T::zero(), T::one()))
+    let (line, length) = geom::Line::chord(seg.0, seg.1);
+    line.distance_within(p, (T::zero(), length))
 }
 
 /// **Where a parity arc's reference is read** ([`Cone::reads_given`],
@@ -3259,7 +3257,7 @@ impl<T: Decide> FaceSector<T> {
         let h = unit(off(m0.cross(along), along));
         // The parallel circle's tangent at `p`, turned as `h`: square to
         // the axis and the radius, so to the carrier's ruling through `p`.
-        let around = unit(off(off(h, axis), unit(radial)));
+        let around = unit(off(off(h, axis.get()), unit(radial)));
         for end in face.ends {
             let on_plane = metric::sign_as(LINK_PLANE, Distance::of(end, p, m0), band);
             let on_ruling = metric::sign_as(LINK_WEDGE, Distance::of(end, p, around), band);
@@ -3274,9 +3272,9 @@ impl<T: Decide> FaceSector<T> {
         // or past one of its ends.
         if let Some(apex) = apex {
             let [a, b] = face.ends;
-            let d = unit(b - a);
+            let d = UnitVec3::squared(b - a);
             // `Ray::ahead`'s decision, read through the touch door ([`ahead`]).
-            let past = |from: Point3<T>, dir: Vec3<T>| {
+            let past = |from: Point3<T>, dir: UnitVec3<T>| {
                 metric::ray_ahead(LINK_AHEAD, apex, from, dir, band)
             };
             match (past(b, d), past(a, -d)) {
@@ -3304,7 +3302,7 @@ impl<T: Decide> FaceSector<T> {
         let inward = [unit(off(off(bend, along), h)), unit(off(h, u))];
         let next = match apex {
             Some(apex) => unit(q - apex),
-            None => axis,
+            None => axis.get(),
         };
         let ball = off(q - p, next).norm();
         Ok(RuledChord {
@@ -3748,8 +3746,8 @@ impl<T: Decide> Link<T> {
                         })
                         .map(|(j, _)| j)
                         .collect();
-                    let u = (r - s.apex).normalize();
-                    let (wp, ep) = (w - u * u.dot(w), e - u * u.dot(e));
+                    let u = UnitVec3::squared(r - s.apex);
+                    let (wp, ep) = (w - u.get() * u.get().dot(w), e - u.get() * u.get().dot(e));
                     let f = [ep.norm_squared(), two * wp.dot(ep), wp.norm_squared()];
                     let ruling = geom::Line {
                         origin: s.apex,
@@ -3896,7 +3894,7 @@ impl<T: Decide> Link<T> {
         let ray = |r: Point3<T>| {
             let ray = geom::Line {
                 origin: c,
-                dir: r - c,
+                dir: UnitVec3::squared(r - c),
             };
             (q - ray.foot_from(q, T::zero())).norm()
         };
@@ -3972,7 +3970,7 @@ fn on_foot<T: Decide>(x: Point3<T>, f: Point3<T>, point: bool, band: Band) -> bo
 fn off_ray<T: Decide>(q: Point3<T>, apex: Point3<T>, r: Point3<T>, band: Band) -> Option<Sign> {
     let ray = geom::Line {
         origin: apex,
-        dir: r - apex,
+        dir: UnitVec3::squared(r - apex),
     };
     metric::sign_as(
         LINK_TIE,
@@ -4076,7 +4074,7 @@ impl<T: Decide> Round<T> {
                 Some(Self::sphere(center, radius, sense))
             }
             geom::Surface::Cylinder { frame, radius, .. } => {
-                let (origin, axis) = (frame.origin(), frame.axis());
+                let (origin, axis) = (frame.origin(), frame.axis_unit());
                 Some(Self::cylinder(
                     geom::Line { origin, dir: axis },
                     radius,
@@ -4100,7 +4098,7 @@ impl<T: Decide> Round<T> {
     /// normalised here, `convex` a pin's.
     pub fn cylinder(axis: geom::Line<T>, radius: T, convex: bool) -> Self {
         Self {
-            at: Axis::Line(axis.unit()),
+            at: Axis::Line(axis),
             radius,
             convex,
         }
@@ -4122,7 +4120,7 @@ impl<T: Decide> Round<T> {
     fn across(&self, v: Vec3<T>) -> Vec3<T> {
         match self.at {
             Axis::Centre(_) => v,
-            Axis::Line(geom::Line { dir: axis, .. }) => v - axis * axis.dot(v),
+            Axis::Line(geom::Line { dir: axis, .. }) => v - axis.get() * axis.get().dot(v),
         }
     }
 
@@ -5099,7 +5097,7 @@ pub(crate) mod rest {
                 .map(|(d, _)| {
                     metric::sign_as(
                         LINK_PLANE,
-                        Distance::of(p + d.normalize() * l, p, axis),
+                        Distance::of(p + d.normalize() * l, p, axis.get()),
                         rd.band,
                     )
                 })
@@ -5112,7 +5110,7 @@ pub(crate) mod rest {
             }
             nappes.push(WholeNappe {
                 cone: a.cone,
-                axis,
+                axis: axis.get(),
                 ruling,
             });
         }

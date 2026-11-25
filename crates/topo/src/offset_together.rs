@@ -399,7 +399,7 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
                 dir,
             }
             .param(p_start);
-            let origin = origin + ((p_start - old_start) - dir * slide);
+            let origin = origin + ((p_start - old_start) - dir.get() * slide);
             // The other endpoint is VERIFIED onto that line rather than
             // assumed onto it: it is a different corner solve, and two
             // solves agreeing is the claim being made.

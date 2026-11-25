@@ -209,7 +209,7 @@ fn the_lane_census_is_exhaustive_over_surface_kind() {
     let u_ref = Vec3::new(1.0, 0.0, 0.0);
     let line = Curve3::Line(geom::Line {
         origin: p,
-        dir: axis,
+        dir: geom::stated_direction(axis),
     });
     let circle = Curve3::circle(p, axis, 1.0, u_ref);
     let reps: Vec<Surface<f64>> = vec![
@@ -263,7 +263,7 @@ fn the_lane_census_is_exhaustive_over_surface_kind() {
     // carrier axis too.
     let arbitrary = Curve3::Line(geom::Line {
         origin: p,
-        dir: axis,
+        dir: geom::stated_direction(axis),
     });
     assert!(tangent_certificate_lane(&arbitrary, &reps[0], &reps[0]));
 }

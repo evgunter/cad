@@ -64,7 +64,8 @@ fn cone_interior_rim(scale: f64, vm_frac: f64) -> (Surface<Probe>, Vec<LoopEdge<
     let (va, vb) = (scale / cos_a, 2.0 * scale / cos_a);
     let vm = va + vm_frac * (vb - va);
     let (u1, u2) = (0.6_f64, 1.2_f64);
-    let gen_dir = |u: f64| v3(u.cos() * sin_a, u.sin() * sin_a, cos_a);
+    // A generator: unit over the reals.
+    let gen_dir = |u: f64| crate::shared::point::unit3(u.cos() * sin_a, u.sin() * sin_a, cos_a);
     let rim = |v: f64, t0: f64, t1: f64, forward: bool, tags: (u32, u32)| {
         LoopEdge::hand_built(
             Curve3::circle(
@@ -371,7 +372,8 @@ fn cone_trunc_loop(scale: f64, verts: &[(f64, f64)]) -> Vec<LoopEdge<Probe>> {
             LoopEdge::hand_built(
                 Curve3::line(
                     p(0.0, 0.0, 0.0),
-                    v3(ua.cos() * sin_a, ua.sin() * sin_a, cos_a),
+                    // A generator: unit over the reals.
+                    crate::shared::point::unit3(ua.cos() * sin_a, ua.sin() * sin_a, cos_a),
                 ),
                 Probe(t0),
                 Probe(t1),

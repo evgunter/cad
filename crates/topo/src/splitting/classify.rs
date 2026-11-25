@@ -635,7 +635,7 @@ mod tests {
             panic!("{edge:?} is a line edge of the cube")
         };
         assert!(
-            line.dir.z.abs() < 1e-12,
+            line.dir.get().z.abs() < 1e-12,
             "{edge:?} lies parallel to the plane"
         );
     }

@@ -133,9 +133,9 @@ fn the_steinmetz_seams_are_tangent_at_the_sections_pinch_points() {
     // a parabola in the span parameter and its vertex is the foot.
     let w = origin - o2;
     let perp = |v: Vec3<f64>| v - a2 * v.dot(a2);
-    let (wp, dp) = (perp(w), perp(dir));
+    let (wp, dp) = (perp(w), perp(dir.get()));
     let t = -wp.dot(dp) / dp.norm_squared();
-    let touch = origin + dir * t;
+    let touch = origin + dir.get() * t;
     let gap = perp(touch - o2).norm() - r;
     assert!(
         gap.abs() < 1e-15,

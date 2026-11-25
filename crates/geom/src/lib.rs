@@ -60,25 +60,31 @@
 //!   image of every parameter in the input enclosure — the containment
 //!   form of periodicity (evaluate over `θ + k·Real::tau()` at interval
 //!   type and the true periodic image is enclosed).
-//! - **A carrier's frame is a rigid motion; a line's direction is
-//!   conventional data.** The `axis`/`u_ref` frame of every analytic
-//!   kind but the line (a plane's `normal`/`u_ref` among them) is a
-//!   [`Frame`], which holds a [`geom_core::RigidMotion`]: unit and square
-//!   as a property of the type. A construction mints its frame, or
-//!   states one and squares it with no decision ([`Frame::new`]), where
-//!   a degenerate statement is poison. A line's `dir` is unit by
-//!   convention, unchecked: a line is also an affine chord whose
-//!   parameter is scaled by `|dir|`, and a non-unit `dir` yields a
-//!   non-arc-length parameterization, not poison and not a panic.
+//! - **A carrier's frame is a rigid motion; a line's direction is a unit
+//!   vector.** The `axis`/`u_ref` frame of every analytic kind but the
+//!   line (a plane's `normal`/`u_ref` among them) is a [`Frame`], which
+//!   holds a [`geom_core::RigidMotion`]: unit and square as a property of
+//!   the type. A construction mints its frame, or states one and squares
+//!   it with no decision ([`Frame::new`]), where a degenerate statement
+//!   is poison. A line's `dir` is a [`geom_core::UnitVec3`], so its
+//!   parameter is arc length: a construction hands it a frame's axis, a
+//!   chord over its length ([`Line::chord`], the segment its span
+//!   `(0, length)`), or an isometry's image of a unit direction or a
+//!   swing in one frame's plane, each through its own door, which
+//!   measures its rounding at a point scalar ([`geom_core::UnitVec3`]'s
+//!   module docs); a stated `f64` direction
+//!   keeps its bits where it is unit to rounding and fails loud where it
+//!   is not ([`geom_core::UnitVec3::stated`]'s `None`, which the import
+//!   refuses typed).
 //!   **At rest, `topo`'s tier-3 check 1 certifies what moves a
 //!   locus a datum can lever**: no direction may be the zero vector,
 //!   and the `axis`/`u_ref` frame of a cylinder, sphere, torus, circle,
 //!   ellipse or spiric must be unit and orthogonal to within the run's
 //!   ε of locus movement at the kind's radius
 //!   ([`Surface::representability_margins`],
-//!   [`Curve3::representability_margins`]). It does NOT certify a
-//!   line's unit `dir` or a plane's unit `normal`/`u_ref` — each spans
-//!   the same locus at any length — nor a plane's `u_ref ⊥ normal` or
+//!   [`Curve3::representability_margins`]). It does NOT margin a
+//!   line's `dir`, unit by its type, or a plane's unit `normal`/`u_ref`
+//!   — each spans the same locus at any length — nor a plane's `u_ref ⊥ normal` or
 //!   a cone's frame, whose locus movement grows with the face's extent
 //!   rather than with a stored datum. A spline's stored datum is its
 //!   control net, and the same check refuses a net — a face's or an
@@ -153,6 +159,8 @@ pub use chart_point::{
 };
 pub use convention::{ConventionEnd, ConventionMeasure, RepresentabilityMargin, SquareFrame};
 pub use curves::second_derivative::{SecondDerivativeUnbounded, nonrational_second_derivative_sup};
+#[cfg(any(test, feature = "test-support"))]
+pub use curves::stated_direction;
 pub use curves::{
     CarrierEscalation, CarrierRefusal, Circle, Clearance, Collocation, ComposeError, Conic, Curve3,
     CurveData, CurveDatum, CurveKind, CurveWindow2, CurveWindow3, Ellipse, EllipseInvalid,

@@ -303,7 +303,7 @@ pub fn box_with_spline_cap(chart: Surface<f64>) -> (Body<f64>, FaceKey) {
         // carrier `o + t·w` is `o/2 + t·(w/2)` — exact in binary
         // arithmetic, and CHECKED against the fit rather than assumed.
         let p0 = Point2::new(origin.x * 0.5, origin.y * 0.5);
-        let pl = geom_core::Vec2::new(dir.x * 0.5, dir.y * 0.5);
+        let pl = geom_core::Vec2::new(dir.get().x * 0.5, dir.get().y * 0.5);
         for t in [param_start, 0.5 * (param_start + param_end), param_end] {
             let uv = Point2::new(p0.x + pl.x * t, p0.y + pl.y * t);
             let gap = fit.eval(uv.x, uv.y).distance(curve.carrier().eval(t));

@@ -1600,10 +1600,13 @@ mod carry {
         vec![
             (
                 "line",
-                Curve3::Line(geom::Line { origin: o, dir: x }),
+                Curve3::Line(geom::Line {
+                    origin: o,
+                    dir: geom::stated_direction(x),
+                }),
                 Curve3::Line(geom::Line {
                     origin: Point3::new(o.x, up(o.y), o.z),
-                    dir: x,
+                    dir: geom::stated_direction(x),
                 }),
             ),
             (
@@ -2579,7 +2582,7 @@ mod class_zero_rows {
             description: geom_brep::EdgeDescriptionSpec::chart(surface),
             carrier: geom::Curve3::Line(geom::Line {
                 origin: from + Vec3::new(c(c0 * off), c(s0 * off), c(0.0)),
-                dir,
+                dir: geom_core::UnitVec3::checked(dir),
             }),
             param_start: c(0.0),
             param_end: length,
@@ -2650,7 +2653,7 @@ mod class_zero_rows {
             description: geom_brep::EdgeDescriptionSpec::chart(surface),
             carrier: geom::Curve3::Line(geom::Line {
                 origin,
-                dir: (toward - origin) / length,
+                dir: geom_core::UnitVec3::chord(toward - origin).0,
             }),
             param_start: c(0.0),
             param_end: length,

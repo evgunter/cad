@@ -593,6 +593,10 @@ BOUND_AS = {
     # coincidence's claim is `Quieting`, authored as one action by
     # `Doc.assert_quieting`.
     "OpposedPair": "InterferenceFinding.quieting",
+    # Which of the two a loud finding carries: `CheckEvidence.quieting`
+    # or `InterferenceFinding.quieting`, each `None` where it carries
+    # none.
+    "CarriedAssertion": ("CheckEvidence.quieting", "InterferenceFinding.quieting"),
     # The measure builder records one action and answers what it
     # recorded: Python's `Doc.measure` is the builder and takes the
     # outcome up in place, answering its `Measured`.
@@ -3651,10 +3655,6 @@ MEMBERS_BOUND_AS = {
     # --- an interference finding's overlap and quieting assertion ---
     "InterferenceFinding::overlap": ("InterferenceFinding.faces", "InterferenceFinding.unlocalized"),
     "InterferenceFinding::quiet": "InterferenceFinding.quiet_by",
-    # A reference that is a cell crosses flat: the body read beside the
-    # entity's name and the pose read off it, `name` being `None` on
-    # the other arm.
-    "QuietingRef::Entity": ("QuietingRef.name", "QuietingRef.pose"),
     # --- a one-of subject spelled as its arms' attributes ---------
     # A finding is about one placement output or one node; Python reads the
     # subject as three attributes, `None` for the arm it is not.
@@ -3891,6 +3891,7 @@ MEMBERS_BOUND_AS = {
     "MateFault::PosesOfAnotherDocument": "MateFault.variant",
     "MateFault::Overconstrained": "MateFault.variant",
     "MateFault::NotOnTheCopy": "MateFault.variant",
+    "MateFault::NotTheDatumsOwn": "MateFault.variant",
     "MateFault::KindsDiffer": "MateFault.variant",
     "MateFault::NoChart": "MateFault.variant",
     "MateFault::Backwards": "MateFault.variant",
@@ -4345,10 +4346,6 @@ ARMS_SPELLED_BY_A_PROPERTY = {
     # "read_failed"`, `"read_poisoned"`, `"unknown_node"`), with its
     # node as `node`.
     "ProductError::Read": "ProductError.read",
-    # The arm's PAYLOAD: the variable the measure reads as it is. The
-    # same getter answers the body read on the `Entity` arm, and `name`
-    # being `None` is what says which arm it is.
-    "QuietingRef::Read": "QuietingRef.read",
 }
 
 #: Members with no Python spelling at all, by family — `NOT_BOUND`'s three

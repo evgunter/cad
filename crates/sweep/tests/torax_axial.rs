@@ -779,7 +779,8 @@ fn torax_the_sphere_lune_rim_solves_in_closed_form() {
                     "the axis edge moved to the caps' meeting line at ρ = t√2, got {rho_l}"
                 );
                 assert!(
-                    (dir.x.abs() + dir.z.abs()) <= 1e-15 && (dir.y.abs() - 1.0).abs() <= 1e-15,
+                    (dir.get().x.abs() + dir.get().z.abs()) <= 1e-15
+                        && (dir.get().y.abs() - 1.0).abs() <= 1e-15,
                     "the meeting line stays parallel to the axis, got {dir:?}"
                 );
             }
@@ -1210,7 +1211,8 @@ fn torax_the_outward_lune_offsets_through_the_same_arms() {
                     "the axis edge moved to the caps' meeting line at ρ = |t|√2, got {rho_l}"
                 );
                 assert!(
-                    (dir.x.abs() + dir.z.abs()) <= 1e-15 && (dir.y.abs() - 1.0).abs() <= 1e-15,
+                    (dir.get().x.abs() + dir.get().z.abs()) <= 1e-15
+                        && (dir.get().y.abs() - 1.0).abs() <= 1e-15,
                     "the meeting line stays parallel to the axis, got {dir:?}"
                 );
             }
