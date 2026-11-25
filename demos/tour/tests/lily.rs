@@ -801,7 +801,9 @@ mod review_probes {
         // which is exactly what a loft stops being. What pins the
         // lofted blade instead is
         // `the_lofted_blade_tapers_and_rolls_in_the_stored_geometry`.
-        for (name, leaf) in [("lily_leaf_b", LEAF_B), ("lily_leaf_c", LEAF_C)] {
+        // `lily_leaf_c` is `lily_leaf_b` mirrored across the stem, so it
+        // is held to the same section, path and Pappus volume.
+        for (name, leaf) in [("lily_leaf_b", LEAF_B), ("lily_leaf_c", LEAF_B)] {
             let pappus = lance_area(leaf.section)
                 * leaf
                     .curl

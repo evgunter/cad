@@ -1,7 +1,7 @@
 ---
 id: curved-demo-joins-build
 kind: issue
-title: The curved demo joins build: klein walls 3 and 4, teapot walls 2 and 3, lily wall 8, each tracked at the stop it reaches today
+title: The curved demo joins build: klein walls 3 and 4, teapot wall 3, lily wall 8, each tracked at the stop it reaches today
 status: parked
 opened: 2026-11-03
 priority: P0
@@ -39,7 +39,6 @@ the same change.
 |---|---|---|---|
 | **klein wall 3**: the swept loop ∪ the revolved bulb | `demos/tour/src/klein.rs` `wall3_pinned` | `CurvedPierceEscalated { operand: B, face: 4v1 Cylinder, edge: 10v1, Crossing(OnEdge) }` at ε 1e-9 (measured 2026-11-22 on `lathe/skin-sub-arc-walls`): since the sweep cuts the loop's walls at their sub-arc joints, the boolean meets first the loop's seam at a profile vertex (in `y = 0`, a seam main already had), which ends exactly on the bulb's neck cylinder's edge and reads 3.2e-9 there, in band, `splice/a-loop-seam-meeting-the-neck-cylinder-at-its-edge-reads-in-band`. Its stop before, `GermFrameUnsupported { a_face: 6v1 Cone, b_face: 4v1 Nurbs }`, is no longer reached | the NURBS × cone section, `sectarms/a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm`, as far as is known |
 | **klein wall 4**: bulb ∖ loop, the self-intersection cut | `demos/tour/src/klein.rs` `wall4_pinned` | wall 3's stop, the same refusal and payload as wall 3's union (`wall4_pinned` compares them), `splice/a-loop-seam-meeting-the-neck-cylinder-at-its-edge-reads-in-band` | everything wall 3 meets, under ∖ |
-| **teapot wall 2**: handle (torus) ∪ vessel (sphere) | `demos/tour/src/teapot.rs` `wall_probes` | the union builds and validates: its chorded sphere face and the handle's chorded torus face measure through the rotational lane (SPIRICARM stages 2 and 3, 2026-11-10); the probe is retired to an assertion that the join composes | re-cut the handle's 11.2 mm overshoot, join it into the pot, re-state the caption, and hold the joined teapot to an independent volume (none reads it yet) |
 | **teapot wall 3**: lofted spout ∪ vessel | `demos/tour/src/teapot.rs` `wall3_pinned` | past the join at ε 1e-6 and 1e-9: the section of the belly's sphere and the spout's outer wall is read and its chords certify, and the union stops at the inside/outside test, which cannot cross a spline face: `Containment(KindUnsupported { kind: Nurbs })` on the spout's outer wall, `inside/point-containments-ray-test-has-no-spline-arm`. At 1e-12 it stops in the join instead: a chord of the belly's sphere on a spout wall escalates at rest (`Escalated { check: PlaneNurbsHullValue }`, a 1.01e-12 m miss), `sectarms/a-curved-partners-arc-is-imaged-at-rest-no-finer-than-the-mints-finest-rung`. Its stops before, the NURBS × sphere germ frame (`GermFrameUnsupported { a_face: 6v1 Sphere, b_face: 3v3 Nurbs }`, measured 2026-11-04), the seam split (PR 6441) and the held pierce (PR 6435), are taken. This row named the germ frame until 2026-11-25, after the probe had moved past it | not measured past containment |
 | **lily wall 8**: the lofted leaf grown out of the stem's tube | `demos/tour/src/lily.rs` `wall_probes` | `GermSectionUnbuilt { a_kind: Torus, b_kind: Nurbs, why: Refused(Unaccounted { … 200000-cell budget }) }`, the stem's tube against the leaf's ridge wall, measured at ε 1e-9 on 2026-11-24 (ORBIT's PR 7713, which retired `GermSectionSpiric`, the leaf's tilted cap's old stop; that pair is now the section value's carried section): the chart accounting runs out of cells against the thin torus, `ssiarith/the-chart-accounting-clears-a-thin-torus-only-in-sub-millimetre-cells` | the NURBS × torus section, `sectarms/a-nurbs-face-against-a-torus-has-no-section-arm`, and behind it `secttorus/c5-plane-torus-cone-cylinder-arms`, which that row is parked on |
 
@@ -102,3 +101,9 @@ frontier is.
   `walls::CURVED_JOIN_STOPS`.
 
 Moved from `work/issues/` to `work/splice/` on 2026-11-03, when the `work/issues/` bucket was retired (Ev's direction, in chat); id and body unchanged.
+
+Teapot wall 2 (handle ∪ vessel) retired from the table on 2026-11-25:
+the scene re-cut the handle so its roots are set into the belly wall,
+joined it into the pot, and ships the union, its volume held to the two
+operands' less their overlap integrated off the spine and the sphere
+(`demos/tour/src/teapot.rs`, `handle_overlap_volume`).

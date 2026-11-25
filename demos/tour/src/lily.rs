@@ -59,7 +59,8 @@
 //!   its axis in SKETCH coordinates, so a tilted axis is spelled by
 //!   tilting the sketch frame, and a `Partial` sweep of a meridian
 //!   whose ends sit on that axis closes fine.
-//! - the two short **leaves** are keeled blades: a thin LANCEOLATE
+//! - the two short **leaves** are one keeled blade and its mirror
+//!   image across the stem ([`across_the_stem`]): a thin LANCEOLATE
 //!   section — two circular arcs meeting at two sharp margins, an
 //!   unequal ridge and keel across the chord — carried along a gently
 //!   arching circular spine by the general-path SWEEP. The blade
@@ -882,7 +883,8 @@ impl SweptLeaf {
     }
 }
 
-/// `lily_leaf_b`, the longer swept leaf.
+/// `lily_leaf_b`, the short swept leaf; `lily_leaf_c` is its mirror
+/// image [`across_the_stem`].
 pub const LEAF_B: SweptLeaf = SweptLeaf {
     base: Point3::new(-0.03, -0.06, 0.06),
     dir: Vec3::new(-0.68, -0.55, 0.44),
@@ -895,18 +897,19 @@ pub const LEAF_B: SweptLeaf = SweptLeaf {
     curl: -0.40,
 };
 
-/// `lily_leaf_c`, the shorter swept leaf.
-pub const LEAF_C: SweptLeaf = SweptLeaf {
-    base: Point3::new(0.02, 0.01, 0.02),
-    dir: Vec3::new(0.62, 0.10, 0.78),
-    len: 0.95,
-    section: Lance {
-        width: 0.140,
-        ridge: 0.013,
-        keel: 0.006,
-    },
-    curl: -0.35,
-};
+/// **The plane the two short leaves are mirrored across**: upright,
+/// through the foot's axis, square to the plant's plane (the one the
+/// stem arches in), so `lily_leaf_c` stands opposite `lily_leaf_b`
+/// across the stem. The scene authors [`LEAF_B`] once and mirrors it
+/// (`topo::mirror_body`) rather than placing a second leaf by hand.
+///
+/// # Panics
+///
+/// Never: the normal is a unit axis.
+pub fn across_the_stem<S: Scalar>(tol: Tol) -> pncad::topo::Reflection<S> {
+    pncad::topo::Reflection::across(p3(0.0, 0.0, 0.0), v3(1.0, 0.0, 0.0), tol)
+        .expect("the plane across the stem has a normal")
+}
 
 /// The long basal leaf's blade direction at its base, and its spine,
 /// named rather than inlined because
@@ -1584,6 +1587,11 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
         tol,
     );
     let rootstock = rootstock::<S>(tol);
+    // The two short leaves: one authored, one its mirror image across
+    // the stem.
+    let leaf_b: Body<S> = LEAF_B.build(tol);
+    let leaf_c = pncad::topo::mirror_body(&leaf_b, &across_the_stem(tol), tol)
+        .expect("the short leaf mirrors across the stem");
 
     let mut pieces = vec![
         Piece {
@@ -1654,14 +1662,14 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
         Piece {
             name: "lily_leaf_b",
             color: GREEN_LEAF,
-            body: LEAF_B.build(tol),
+            body: leaf_b,
             caps: None,
             contacts: None,
         },
         Piece {
             name: "lily_leaf_c",
             color: GREEN_LEAF,
-            body: LEAF_C.build(tol),
+            body: leaf_c,
             caps: None,
             contacts: None,
         },
@@ -1806,14 +1814,15 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
                 arching stem, a closed globular lantern with three spreading sepals tangent to the \
                 globe, a bud of three nested pre-tepals on a tripod of axes, \
                 one long tapering twisted basal leaf and two shorter \
-                untapered ones; torus/sphere/cylinder/cone/plane exact to the stored \
+                untapered ones, a pair mirrored across the stem; torus/sphere/cylinder/cone/plane exact to the stored \
                 parameter, blades skinned out of plane",
         ops: "revolve(Full) bored corm + extrude three-arc foot -> union (the \
               rootstock); Turtle-walked G1 arc chain -> tube_along_arc(world centre/axis/ \
               u_ref/radii, windowed) tubes; revolve(Full) sphere-zone \
               lantern and revolve(Partial) x3 on a tilted tripod for the \
               bud; sweep_body(lanceolate arc section, arched NURBS \
-              spine) for the two short leaves; loft_body(tapering lanceolate \
+              spine) for one short leaf -> mirror_body across the stem for the \
+              other; loft_body(tapering lanceolate \
               sections on rolled placements) for the long leaf and the sepals",
         delta: 5e-3,
         note: Some(note),
@@ -2305,9 +2314,9 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
 
     // Wall 5 — RETIRED. A mirror is a construction now
     //    (`topo::mirror_body`): a leaf mirrored across the plant's plane
-    //    builds, and is a body at rest. The scene's three leaves are
-    //    still placed by hand; authoring one and mirroring it is the
-    //    scene's own change to make.
+    //    builds, and is a body at rest. The scene mirrors its short
+    //    swept leaf across the stem ([`across_the_stem`]); this keeps
+    //    the lofted leaf's mirror live beside it.
     let across = pncad::topo::Reflection::across(p3(0.0, 0.0, 0.0), v3(0.0, 1.0, 0.0), tol)
         .expect("the plant's plane has a normal");
     let mirrored = pncad::topo::mirror_body(leaf_a, &across, tol)
