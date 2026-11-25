@@ -1945,9 +1945,9 @@ fn a_ring_stored_a_period_away_meshes_where_the_door_moves_it() {
 }
 
 /// **Ringed curved faces that still refuse, by cause.** Each pose is a
-/// ring the lane reads and a face it cannot yet mesh; the ringed ops
+/// ring the lane reads and a face it could not mesh; the ringed ops
 /// (both unions and the difference that keeps the ring) answer by the
-/// variant the cause raises.
+/// variant the cause raises, or mesh where the cause is gone.
 ///
 /// - **A cone face whose ring is nearest its apex**: T1's box moved
 ///   toward the apex ([`t1_toward_the_apex`]) keeps the cone face's
@@ -1959,11 +1959,13 @@ fn a_ring_stored_a_period_away_meshes_where_the_door_moves_it() {
 ///   `Undecided { cause: None }`: no in-band decision stopped it, so the
 ///   reading of the outer loop ran past its work bounds or found no
 ///   window with lever arms round the ring's point.
-/// - **A torus outer loop the ring reader cannot read**
-///   (`work/tesslane/an-analytic-outer-loops-whole-span-boxes-never-tighten-under-the-ring-reader.md`):
-///   the donut less a slab has spirics on its torus faces' outer loops,
-///   and a stub turned 0.33 about `y` rings one of them; the spiric
-///   image's box never tightens, so the door answers `undecided`.
+/// - **A torus outer loop with spirics, which meshes**: the donut less a
+///   slab has spirics on its torus faces' outer loops, and a stub turned
+///   0.33 about `y` rings one of them. The spiric image's box is read
+///   over the span, so it tightens as the ring reader halves it, and the
+///   ring places and the face meshes at every δ; it answered
+///   `undecided` while the box was the whole period's
+///   (`work/lathe/an-analytic-outer-loops-whole-span-boxes-never-tighten-under-the-ring-reader.md`).
 /// - **A sphere ring passing near a pole**
 ///   (`work/tesslane/a-tilted-circle-near-a-sphere-pole-refuses-at-the-sphere-arm.md`):
 ///   a tube of radius 0.3 tilted 0.22 about `x` and turned 3 about `z`
@@ -2030,9 +2032,7 @@ fn ringed_curved_faces_that_still_refuse_answer_by_cause() {
         &holed,
         &stub,
         refused_at(&[(1e-6, "Escalated")]),
-        &ringed(core::array::from_fn(|_| {
-            Got::Unread(SurfaceKind::Torus, "undecided")
-        })),
+        &ringed(meshed()),
     );
     let tube = posed(
         "the tube",

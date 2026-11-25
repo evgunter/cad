@@ -60,7 +60,7 @@ pole in the first witness below is a witness of it, not its cause.
 
   Both are the same undecided ring the elimination accepted (TESSLANE's
   ring-reader row,
-  `work/tesslane/an-analytic-outer-loops-whole-span-boxes-never-tighten-under-the-ring-reader.md`,
+  `work/lathe/an-analytic-outer-loops-whole-span-boxes-never-tighten-under-the-ring-reader.md`,
   carries the reader's side).
 
 ## Against main
