@@ -1094,6 +1094,13 @@ fn overlap(a: [f64; 4], b: [f64; 4]) -> Option<[f64; 4]> {
 
 /// An unread region's stretch: its diagnostics where a decision fell in
 /// the gap, else the limit `why`.
+///
+/// The window is the region's whole reach along the line, not a band
+/// about an end, so a reader may not take it as one: `topo`'s region
+/// landing reader, which skips an `Escalated` window off a leg by its
+/// centre, crosses an edge with a plane alone and never reaches this
+/// arm, and point containment refuses the ray on any window
+/// (`topo::solid_contain`'s `spline_crossing_rows`).
 fn stretch<T: Decide>(
     walk: &Walk<T>,
     region: &Region<T>,

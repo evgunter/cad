@@ -6142,3 +6142,60 @@ mod cone_ray_rows {
         }
     }
 }
+
+/// **A spline face's unread stretch never reads as no crossing.** The
+/// line arm types a stretch by why it is unread (`Escalated` where a
+/// decision fell in the band's gap), and the region landing reader skips
+/// an `Escalated` window off a leg by its centre; but that reader crosses
+/// an edge with a plane only (`OnSurface::across`, `under`), never a
+/// spline face, so the arm's windows reach point containment alone, where
+/// any window refuses the ray ([`spline_crossings`]).
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod spline_crossing_rows {
+    use super::*;
+
+    /// The loft prism's flared wall, one cell: its crest at `x = 1.375`,
+    /// `z = 1`.
+    fn wall() -> Surface<f64> {
+        let kv = |p: usize| {
+            let k = [vec![0.0; p + 1], vec![1.0; p + 1]].concat();
+            geom_core::spline::Knots::from(geom_core::KnotVector::clamped(k, p).unwrap())
+        };
+        let mut control = Vec::new();
+        for y in [-1.0, 1.0] {
+            for (x, z) in [(1.0, 0.0), (1.75, 1.0), (1.0, 2.0)] {
+                control.push(Point3::new(x, y, z));
+            }
+        }
+        Surface::Nurbs(std::sync::Arc::new(
+            geom::NurbsSurface::new(kv(1), kv(2), control, vec![1.0; 6]).unwrap(),
+        ))
+    }
+
+    #[test]
+    fn a_ray_touching_a_spline_wall_refuses_rather_than_reading_no_crossing() {
+        let band = Band::new(1e-9, 1e-6).unwrap();
+        let ray = geom::Ray::new(
+            Point3::new(1.375, 0.3, -1.0),
+            geom_core::UnitVec3::exact_z(),
+        );
+        let got = spline_crossings(&ray, &wall(), 4.0, band, FaceKey::default());
+        assert!(
+            matches!(got, Err(RayFault::InBand(_) | RayFault::Graze)),
+            "a touch sets the ray aside: {:?}",
+            got.map(|c| c.len())
+        );
+        // Across it, off the crest, the same wall is crossed once.
+        let across = geom::Ray::new(
+            Point3::new(0.0, 0.3, 1.1),
+            geom_core::UnitVec3::new(Vec3::new(1.0, 0.0, 0.0), "row", band).unwrap(),
+        );
+        let got = spline_crossings(&across, &wall(), 5.0, band, FaceKey::default());
+        assert!(
+            matches!(&got, Ok(c) if c.len() == 1),
+            "{:?}",
+            got.map(|c| c.len())
+        );
+    }
+}
