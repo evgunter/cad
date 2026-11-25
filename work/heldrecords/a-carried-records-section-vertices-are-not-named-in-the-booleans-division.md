@@ -1,7 +1,7 @@
 ---
 id: a-carried-records-section-vertices-are-not-named-in-the-booleans-division
 kind: issue
-title: The boolean's division of a face names its section vertices only for a reduction row, not for a carried record
+title: The boolean's division of a face names its section only for a reduction row, not for a carried record
 status: open
 opened: 2026-11-25
 priority: P2
@@ -41,3 +41,17 @@ loudly, and no test reaches it today.
 Decide a meeting of two section vertices in terms the decision can
 name: the record's own two input cells, or the section's edge in the
 reduction's keys. Then name the section vertices on both paths.
+
+## 2026-11-25 — widened: the carried path names no section (`heldrecords/removed-members-red`)
+
+Naming the section edges alone on the carried path was not enough.
+`a_pierce_held_in_a_curved_face::a_plane_face_holding_the_pierce_over_a_cylinder_builds_in_every_op_and_order`
+(slow set) refused `JoinDesync`: "two cells the boolean minted on a
+carried record meet at a point that is no vertex pair". A section edge
+minted in one record cell met a vertex minted in the other, and
+`carried` decides only vertex–vertex minted meetings. So
+`operand_fate` now names no section (`clone_cells(.., false)`), and
+`place_found` names both its edges and its vertices. No test needs the
+section on the carried path: the 14 booleans the section fixed are all
+reduction rows. The way through is unchanged, widened to edges: a
+decision for a minted meeting of section cells in terms an input holds.
