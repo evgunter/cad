@@ -74,7 +74,11 @@ fn a_flipped_sphere_face_is_named_by_its_regions_side() {
     for (name, faces) in FILES {
         let body = import(name);
         let sphere = sphere_faces(&body);
-        assert_eq!(sphere.len(), faces, "{name}: the sphere's faces: {sphere:?}");
+        assert_eq!(
+            sphere.len(),
+            faces,
+            "{name}: the sphere's faces: {sphere:?}"
+        );
         for face in sphere {
             let flipped = body
                 .flipped_face_sense_for_tests(face, geom_core::Tol::witness())
@@ -101,7 +105,11 @@ fn the_side_cut_ball_flipped_whole_names_each_face_by_its_side_and_its_pole() {
     for (name, faces) in FILES {
         let body = import(name);
         let sphere = sphere_faces(&body);
-        assert_eq!(sphere.len(), faces, "{name}: the sphere's faces: {sphere:?}");
+        assert_eq!(
+            sphere.len(),
+            faces,
+            "{name}: the sphere's faces: {sphere:?}"
+        );
         let flipped = sphere.iter().fold(body.clone(), |b, &k| {
             b.flipped_face_sense_for_tests(k, geom_core::Tol::witness())
                 .unwrap()

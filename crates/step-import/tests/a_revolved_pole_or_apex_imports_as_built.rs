@@ -59,7 +59,11 @@ fn import(name: &str, text: &str, tol: Tol) -> AtRestBody<f64> {
 /// re-imports to the same census and volume and, where `text` is set,
 /// exports the same text again.
 fn settles(name: &str, back: &AtRestBody<f64>, text: bool, tol: Tol) {
-    assert_eq!(topo::validate_geometric(back, tol), Ok(()), "{name}: tier 3");
+    assert_eq!(
+        topo::validate_geometric(back, tol),
+        Ok(()),
+        "{name}: tier 3"
+    );
     assert!(
         mesh::tessellate(back, 1e-3, tol).is_ok(),
         "{name}: the imported body meshes"
@@ -77,7 +81,11 @@ fn settles(name: &str, back: &AtRestBody<f64>, text: bool, tol: Tol) {
         "{name}: the re-import's volume {v_again} ± {pad_again} against {v} ± {pad}"
     );
     if text {
-        assert_eq!(export(name, &again, tol), first, "{name}: the re-export's text");
+        assert_eq!(
+            export(name, &again, tol),
+            first,
+            "{name}: the re-export's text"
+        );
     }
 }
 
@@ -105,7 +113,13 @@ fn round_trips(
         .body
         .into_body();
     let built = finished(name, built, tol);
-    let counts = |b: &AtRestBody<f64>| (b.faces().count(), b.edges().count(), b.vertex_points().count());
+    let counts = |b: &AtRestBody<f64>| {
+        (
+            b.faces().count(),
+            b.edges().count(),
+            b.vertex_points().count(),
+        )
+    };
     assert_eq!(counts(&built), census, "{name}: the built census");
     let back = import(name, &export(name, &built, tol), tol);
     assert_eq!(
@@ -199,7 +213,11 @@ fn a_foreign_pole_or_apex_settles_as_a_wrap_tip() {
             other => panic!("{path}: {other:?}"),
         };
         assert_eq!(
-            (back.faces().count(), back.edges().count(), back.vertex_points().count()),
+            (
+                back.faces().count(),
+                back.edges().count(),
+                back.vertex_points().count()
+            ),
             census,
             "{path}: the census"
         );

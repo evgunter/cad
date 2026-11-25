@@ -167,10 +167,7 @@ fn outcome(name: &str, text: &str) -> Result<(f64, usize), String> {
                         );
                     }
                     [_, _] => {}
-                    _ => panic!(
-                        "{name}: singular point {s:?} ends {} edges",
-                        leaving.len()
-                    ),
+                    _ => panic!("{name}: singular point {s:?} ends {} edges", leaving.len()),
                 }
             }
         }
@@ -453,8 +450,8 @@ END-ISO-10303-21;
 fn an_obliquely_cut_open_cascade_cone_imports_as_stated() {
     for slope in [0.0, 0.2] {
         let (text, want) = oblique_cone(slope);
-        let (volume, records) = outcome("oblique cone", &text)
-            .unwrap_or_else(|e| panic!("slope {slope}: {e}"));
+        let (volume, records) =
+            outcome("oblique cone", &text).unwrap_or_else(|e| panic!("slope {slope}: {e}"));
         assert_eq!(records, 0, "slope {slope}: nothing re-minted");
         assert!(
             (volume - want).abs() <= 1e-9 * want,
