@@ -2691,6 +2691,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::PierceOnFace",
         1,
     ),
+    ("mod.rs", "decision_words", "BooleanDecision::ClosedDisc", 1),
     ("mod.rs", "decision_words", "BooleanDecision::LineWedges", 1),
     (
         "mod.rs",
@@ -2997,6 +2998,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("slit.rs", "conic_or_line_on", "Coincide::EdgeOnPlane", 3),
     ("slit.rs", "coplanar_wall_inside", "Coincide::Sectors", 1),
+    ("slit.rs", "disc_loop", "BooleanDecision::of_normal", 1),
+    ("slit.rs", "disc_loop", "BooleanDecision::ClosedDisc", 1),
     (
         "slit.rs",
         "parting_order",

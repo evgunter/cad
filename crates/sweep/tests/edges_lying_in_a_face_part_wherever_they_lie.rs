@@ -1,5 +1,5 @@
 //! **An edge lying in a face along any piece of its length is parted
-//! there on a plane face, and refuses typed on a curved one**
+//! there on a plane face, and on a curved one it divides**
 //! (`crates/topo/README.md`, tier 3: where more than two sheets meet on
 //! a line, the material decides the edges). A reflex edge of one operand
 //! whose two faces both leave its line into the material of a face of
@@ -24,7 +24,7 @@
 //! - **Along a ruling.** The tunnel's apex resting along the bottom
 //!   ruling of a rod's wall, the rod running through the block or
 //!   ending inside it, where the apex crosses the wall's arcs: `A ∖ B`
-//!   would leave a slit of the curved wall, which refuses `CurvedFace`.
+//!   divides the curved wall's face along it.
 //! - **An arc resting in a curved face**, a V revolved about `y` whose
 //!   tip arc lies in a bore's wall or a spherical floor: `A ∖ B`'s two
 //!   coincident arcs, a slit or ring of the curved face, refuse
@@ -117,15 +117,10 @@ const OPS: [(&str, usize); 6] = [
 /// **Every op of `scene` builds sound** (module docs); what does not,
 /// as a line each.
 fn every_op(scene: &Scene<'_>) -> Vec<String> {
-    every_op_but(scene, None)
-}
-
-/// [`every_op`], less the op `skip`.
-fn every_op_but(scene: &Scene<'_>, skip: Option<&str>) -> Vec<String> {
     let eps = tol().eps();
     let (a, b) = (&scene.a, &scene.b);
     let mut wrong = Vec::new();
-    for (op, k) in OPS.into_iter().filter(|&(op, _)| Some(op) != skip) {
+    for (op, k) in OPS {
         let what = format!("{}, {op}, ε = {eps:e}", scene.what);
         let r = match run(op, a, b) {
             Ok(BooleanResult::Body(r)) => r,
@@ -523,14 +518,13 @@ fn rod_along_x(x0: f64, len: f64) -> AtRestBody<f64> {
 }
 
 /// **The tunnel's apex resting along the bottom ruling of a rod's wall
-/// builds in every op but `A ∖ B`** (module docs), the rod through the
-/// block and ending inside it. `A ∖ B` leaves the apex lying in the
-/// rod's wall with both its faces leaving into the wall's material: two
-/// coincident edges, a slit of a curved face, which the parting refuses
-/// `EdgeInFace` (`CurvedFace`) rather than ship one edge
-/// (`work/splitdoor/the-boolean-builds-the-slit-on-a-curved-face-once-it-is-meshed-and-measured.md`).
+/// builds in every op** (module docs), the rod through the block and
+/// ending inside it. `A ∖ B` leaves the apex lying in the rod's wall
+/// with both its faces leaving into the wall's material, from one rim of
+/// the wall's face to the other: two coincident edges dividing the
+/// curved face in two.
 #[test]
-fn a_keel_along_a_cylinder_floors_ruling_refuses_only_its_slit() {
+fn a_keel_along_a_cylinder_floors_ruling_divides_its_face() {
     let the_block = ((-2.0, 2.0), (-2.0, 2.0), (0.0, 1.5));
     let a = less(
         "the tunnelled block",
@@ -579,21 +573,7 @@ fn a_keel_along_a_cylinder_floors_ruling_refuses_only_its_slit() {
             keel: (line.0, line.1, &[(-1.0, 1.0)]),
         },
     ];
-    let mut wrong: Vec<String> = Vec::new();
-    for scene in &scenes {
-        wrong.extend(every_op_but(scene, Some("A ∖ B")));
-        match run("A ∖ B", &scene.a, &scene.b) {
-            Err(BooleanError::EdgeInFace {
-                gap: topo::EdgeInFaceGap::CurvedFace,
-                ..
-            }) => {}
-            other => wrong.push(format!(
-                "{}, A ∖ B: {:?}, where it refuses CurvedFace",
-                scene.what,
-                other.map(|_| ()).map_err(|e: BooleanError| e.kind())
-            )),
-        }
-    }
+    let wrong: Vec<String> = scenes.iter().flat_map(every_op).collect();
     assert!(wrong.is_empty(), "{wrong:#?}");
 }
 

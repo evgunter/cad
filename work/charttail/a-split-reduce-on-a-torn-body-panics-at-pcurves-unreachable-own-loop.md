@@ -58,3 +58,5 @@ main at `fa4e9ba921`: the same failure (run).
 - 2026-11-22 — **another seed, from DOCTAIL's PR 7149** (its topo diff only adds a mark-site argument at the box-query calls; nothing under `pcurves/`, `splitting/` or `review_d18.rs`): the same job drew `0x13a0c4242c0d46e7` on head `6d6cf1916f` (run 44986982295) and panicked on `HalfEdgeKey(4v1)` at `crates/topo/src/pcurves/site.rs:395`. It reproduces on a clean `origin/main` worktree with the command above and that seed.
 
 - 2026-11-22 — **another seed, from TESSLANE's PR 7096** (its diff is `crates/mesh`, `.config/nextest.toml` and tracker files): the same job drew `0xa9c4d3c03b0ffeb2` on the work-in-progress head `4a546df0e1` on 2026-11-17 and panicked at `crates/topo/src/pcurves/site.rs:381`. Not replayed on main by that lane.
+
+- 2026-11-25 — **another seed, from HELDRECORDS' PR 7783** (its diff touches no file under `pcurves/`, `splitting/` or `review_d18.rs`; the head before it passed the same job): the job drew `0xd5aca4396ebbcbc1` and panicked on `HalfEdgeKey(3v1)` at `crates/topo/src/pcurves/site.rs:395`. Not replayed on main by this lane.

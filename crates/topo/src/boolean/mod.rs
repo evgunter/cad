@@ -368,6 +368,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         slit::PARTING_ORDER | slit::PARTING_ONE_POINT | slit::PARTING_STRADDLE => {
             BooleanDecision::PartingOrder.subject()
         }
+        slit::RIDER_CLOSED_DISC => BooleanDecision::ClosedDisc.subject(),
         // The line's wedges the result gate reads (`census::line_wedges`),
         // tier 3's pinch-corner reading under names of its own.
         crate::census::LINE_WEDGE_AFTER_LEAVING
