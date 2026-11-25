@@ -19,7 +19,8 @@
 //!   interpolant is on the chain's knots exactly. They are found by
 //!   **continuation**: the first is the wall's nearest point to the
 //!   carrier's start, and each next one is the projection's from the
-//!   last ([`follow`], `NurbsSurface::project_from_seed`), never the
+//!   last ([`follow`], `NurbsSurface::project_from_seed`), through
+//!   halfway parameters where a whole step does not settle, never the
 //!   wall's nearest point found afresh. So the path stays on
 //!   the sheet of a folded wall it started on, and reaches a closed
 //!   wall's seam from the side it came by.
@@ -90,6 +91,10 @@ pub(crate) const IMAGE_KNOTS: usize = 4096;
 /// How many of the seed grid's nearest points [`nearest`] settles a foot
 /// from (D9).
 const START_SEEDS: usize = 8;
+
+/// How deep a step of the foot path is halved where the projection does
+/// not settle from the last foot ([`follow`], D9).
+const FOLLOW_HALVINGS: u32 = 16;
 
 /// How many halvings place a path's crossing of a wall's knot line
 /// ([`crossing`]): to `f64`'s resolution of the unit interval (D9).
@@ -508,7 +513,7 @@ where
         if !(near.at < at && at < far.at) {
             break;
         }
-        let foot = follow(read, wall, near, at).ok()?;
+        let foot = follow(read, wall, near, at, FOLLOW_HALVINGS).ok()?;
         if (along(&foot, axis) > k) == start {
             near = foot;
         } else {
@@ -655,7 +660,7 @@ where
     for (i, &at) in rest.iter().enumerate() {
         #[allow(clippy::cast_possible_truncation)]
         let node = i as u32 + 1;
-        last = follow(read, wall, last, at).map_err(|last_distance| {
+        last = follow(read, wall, last, at, FOLLOW_HALVINGS).map_err(|last_distance| {
             let (t0, t1) = read.domain;
             ImageRefusal::Foot {
                 t: t0 + (t1 - t0) * at,
@@ -819,16 +824,35 @@ where
     Some(((d * fu - b * fv) / det, (a * fv - b * fu) / det))
 }
 
-/// **The next foot of the path**, at the unit fraction `at`: Newton's
-/// from the last foot's chart point, so it is the last one's own
-/// sheet's and side's, not the wall's nearest point found afresh.
+/// **The next foot of the path**, at the unit fraction `at`: the
+/// projection's from the last foot's chart point, so it is the last
+/// one's own sheet's and side's, not the wall's nearest point found
+/// afresh. Where that does not settle (a carrier point near a focal
+/// line of the wall, where the projection's step has no size), the path
+/// is followed through the halfway parameter instead, `halvings` deep.
 ///
 /// # Errors
 ///
-/// The last distance the projection read, where it does not settle.
-fn follow<T>(read: &Read<'_, T>, wall: &NurbsSurface<T>, last: Foot, at: f64) -> Result<Foot, f64>
+/// The last distance the projection read, where no halving reaches a
+/// foot.
+fn follow<T>(
+    read: &Read<'_, T>,
+    wall: &NurbsSurface<T>,
+    last: Foot,
+    at: f64,
+    halvings: u32,
+) -> Result<Foot, f64>
 where
     T: Decide + Bounds + geom_core::CertifiedEnclosure,
 {
-    settle(wall, read.point(at), (last.uv.x, last.uv.y)).map(|foot| settled(at, foot))
+    let last_distance = match settle(wall, read.point(at), (last.uv.x, last.uv.y)) {
+        Ok(foot) => return Ok(settled(at, foot)),
+        Err(last_distance) => last_distance,
+    };
+    let half = 0.5 * (last.at + at);
+    if halvings == 0 || !(last.at < half && half < at) {
+        return Err(last_distance);
+    }
+    let through = follow(read, wall, last, half, halvings - 1)?;
+    follow(read, wall, through, at, halvings - 1)
 }
