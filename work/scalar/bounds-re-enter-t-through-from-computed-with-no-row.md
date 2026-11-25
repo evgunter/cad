@@ -19,3 +19,10 @@ A bound (DL5.2's first row) decides at `f64` or is an `f64` allowance of the mar
 - `topo::link` `crossing`: the band's zero as a `T` operand (`rd.band.zero()`).
 
 Cost: E for the last two; `Allowance::apply` is a design question first.
+
+## Two that enter through `from_f64`, 2026-11-24
+
+Found by `from-f64-is-split-by-where-the-number-comes-from`; each is listed `owed` to this row in `scripts/gates/from-f64-sites.tsv`.
+
+- `geom_brep::pcurve_cache::closed_bound::centre` (`h`): a span's half-width, rounded outward at `f64` and entered as a `T`.
+- `geom_brep::chart_singularity::sum_walk`: `2·(m + 8)·u`, a sum's rounding factor, entered as a `T` and multiplied by the magnitude to pad the winding's margin.

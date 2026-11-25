@@ -3987,7 +3987,7 @@ fn probe_env<'e, T: EvalScalar>(
                 Some(&crate::doc::FreeVar::Continuous { dim, value, .. }) => {
                     crate::expr::ParamValue::Continuous {
                         dim,
-                        value: T::from_f64(value),
+                        value: crate::expr::authored(value),
                     }
                 }
                 Some(&crate::doc::FreeVar::Count { value }) => {

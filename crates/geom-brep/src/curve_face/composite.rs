@@ -658,7 +658,7 @@ fn cut(
     // it refuses on the kept share, ranked ([`crate::ladder::Evidence`]),
     // and is a tangency where every share read zero.
     let cut_at = climb(Answering::First, SPLITS, |k| {
-        let c = piece.a + (piece.b - piece.a) * k;
+        let c = piece.a + (piece.b - piece.a) * k.get();
         let s = share(&piece, c);
         if !(piece.a < c && c < piece.b) {
             return Rung::Passes;

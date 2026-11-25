@@ -775,7 +775,7 @@ pub(crate) fn chord_dip_charge<T: Real>(f2: T, step: T) -> T {
 /// extreme sits in the final cell. Pinned by
 /// `the_sample_schedule_reaches_both_ends_of_the_arc`.
 fn arc_sample<T: Real>(t0: T, t1: T, k: usize) -> T {
-    let f = T::from_f64(k as f64) / T::from_f64(ARC_RESIDUAL_SAMPLES as f64);
+    let f = T::count(k) / T::from_f64(ARC_RESIDUAL_SAMPLES as f64);
     t0 * (T::one() - f) + t1 * f
 }
 

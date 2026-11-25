@@ -93,7 +93,7 @@ impl Turns {
             } else {
                 (s, false)
             };
-            let angle = T::tau() * T::from_f64(at as f64) / T::from_f64((4 * den) as f64);
+            let angle = T::tau() * T::count(at) / T::count(4 * den);
             let (sin, cos) = if 3 * at == den {
                 // A twelfth of a turn: the sine is one half exactly.
                 (T::sin_of_a_twelfth(), angle.cos())
@@ -195,10 +195,10 @@ impl Turns {
 fn integer<T: Real>(n: i128) -> T {
     const EXACT: i128 = 1 << 53;
     if n.abs() <= EXACT {
-        return T::from_f64(n as f64);
+        return T::count(n);
     }
     let (hi, lo) = (n >> 32, n & 0xffff_ffff);
-    T::from_f64(hi as f64) * T::from_f64(4_294_967_296.0) + T::from_f64(lo as f64)
+    T::count(hi) * T::from_f64(4_294_967_296.0) + T::count(lo)
 }
 
 fn gcd(mut a: u64, mut b: u64) -> u64 {

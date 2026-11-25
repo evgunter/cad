@@ -274,8 +274,8 @@ impl<T: Decide> Window<'_, T> {
             (height_recedes && (level_recedes || level_negligible)) || level_dominates
         };
         let z = match away {
-            Some(_) => T::from_f64(band.zero()),
-            None => T::from_f64(band.escalate()),
+            Some(_) => band.zero_width().at::<T>(),
+            None => band.escalate_width().at::<T>(),
         };
         if self.off_by((l, r), h.least, z) {
             return Some(Read::Off);
@@ -383,7 +383,7 @@ impl<T: Decide> Window<'_, T> {
                 if positive(row, p.gap - p.reach - reach - z) {
                     return PieceStep::Settled;
                 }
-                if !positive(row, p.reach - T::from_f64(band.zero())) {
+                if !positive(row, p.reach - band.zero_width().at::<T>()) {
                     let near = !positive(row, p.gap - p.reach - z);
                     return PieceStep::Stop(if near {
                         SpanRead::Near
@@ -450,7 +450,7 @@ impl<T: Decide> Window<'_, T> {
         let Some(first) = outward.iter().position(|r| r.1 == Read::OffSpan) else {
             return true;
         };
-        let z = T::from_f64(band.zero());
+        let z = band.zero_width().at::<T>();
         let mut from_off = false;
         for &&((l, r), read) in &outward[first..] {
             from_off = match read {
@@ -509,7 +509,7 @@ impl<T: Decide> Window<'_, T> {
             }
             if !positive(
                 "curve_pair_window_width",
-                speed * (pr - pl) - T::from_f64(band.zero()),
+                speed * (pr - pl) - band.zero_width().at::<T>(),
             ) {
                 return Step::Stop(());
             }
@@ -526,7 +526,7 @@ impl<T: Decide> Window<'_, T> {
     /// no such arc.
     fn ring(&self, j: &Joint<T>, ta: T, band: Band) -> Option<T> {
         let gap = (self.a.point_at(ta) - j.point).norm();
-        let e = T::from_f64(band.escalate());
+        let e = band.escalate_width().at::<T>();
         let radius = (e - gap) / (T::from_f64(2.0) * self.a.speed_hi());
         positive("curve_pair_window_ring", radius).then_some(radius)
     }

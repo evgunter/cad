@@ -202,10 +202,10 @@ use super::{
 };
 
 /// `σ = ±1` of a cone's nappe (module docs).
-pub(super) fn nappe_sign(nappe: Nappe) -> f64 {
+pub(super) fn nappe_sign(nappe: Nappe) -> i32 {
     match nappe {
-        Nappe::Opening => 1.0,
-        Nappe::Mirror => -1.0,
+        Nappe::Opening => 1,
+        Nappe::Mirror => -1,
     }
 }
 
@@ -249,7 +249,7 @@ impl<T: Real> ProjectedChart<T> {
 
     fn sigma(&self) -> T {
         match self {
-            Self::Cone { nappe, .. } => T::from_f64(nappe_sign(*nappe)),
+            Self::Cone { nappe, .. } => T::count(nappe_sign(*nappe)),
             _ => T::one(),
         }
     }
@@ -3043,7 +3043,7 @@ fn line_off_cone_sup<T: Decide>(
         .unwrap_or(true)
     };
     let cuts = u32::try_from(INCIDENCE_CUTS).unwrap_or(u32::MAX);
-    let cut = |k: u32| T::from_f64(f64::from(k) / f64::from(cuts));
+    let cut = |k: u32| T::count_ratio(k, cuts);
     let at = |s: T| q0 + (q1 - q0) * s;
     let parts = (0..cuts).map(|k| (cut(k), cut(k + 1), 0u32));
     let mut sup = T::zero();

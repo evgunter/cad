@@ -697,9 +697,9 @@ impl<T: Decide> FaceOnLocus<T> {
         band: Band,
     ) -> Result<Cover, RimUnread> {
         let tau = geom::conic_period::<T>().length();
-        let wraps: &[f64] = match locus {
-            Locus::Rim(_) => &[-1.0, 0.0, 1.0],
-            Locus::Line(_) => &[0.0],
+        let wraps: &[i32] = match locus {
+            Locus::Rim(_) => &[-1, 0, 1],
+            Locus::Line(_) => &[0],
         };
         // A ride covers the point where it is inside both ends of its
         // span. Two covering rides of opposite sign answer
@@ -715,8 +715,8 @@ impl<T: Decide> FaceOnLocus<T> {
         // s − lo`), the end could read decided outside, and the ride would
         // then not cover the point. The ride is kept instead, so it can
         // refuse where its end alone would have passed it.
-        let ride = |&(lo, hi, sign): &(T, T, geom_core::Sign), k: f64| {
-            let s = s + tau * T::from_f64(k);
+        let ride = |&(lo, hi, sign): &(T, T, geom_core::Sign), k: i32| {
+            let s = s + tau * T::count(k);
             let covers = inside(s - lo).and_then(|lo_in| Ok(lo_in && inside(hi - s)?));
             Rung::of_reading(covers.map(|covers| covers.then_some(sign)))
         };
@@ -1055,11 +1055,10 @@ fn crossings<T: Decide>(
                         let disc = qb.powi(2) - qa * qc * T::from_f64(4.0);
                         if maybe_not_positive(-disc) {
                             let root = disc.max(T::zero()).sqrt();
-                            for sgn in [-1.0, 1.0] {
+                            for sgn in [-1_i32, 1] {
                                 candidates.push(
                                     p0 + w
-                                        * ((-qb + root * T::from_f64(sgn))
-                                            / (qa * T::from_f64(2.0))),
+                                        * ((-qb + root * T::count(sgn)) / (qa * T::from_f64(2.0))),
                                 );
                             }
                         }

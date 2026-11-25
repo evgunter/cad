@@ -23,3 +23,7 @@ Each of these is an arm read as an `f64` bound and lifted into a `Lever<T>`, bec
 ## What would move them
 
 A lever door generic over where its arm comes from (an arm in `T`, or one read as an `f64` bound that the margin carries as `Margin::levered_at`'s allowance), so `least_turn` and the sector charges take either. `least_turn`'s conditioning then needs a margin of two terms, which is a second shape of allowance (`reach · chord − 2·arm` with the arm in `T`).
+
+## The gate's entry, 2026-11-24
+
+`editor-core/src/coincide/replay.rs` `swept_along`: `Lever::unsourced(<Lane as Real>::from_f64(hi(arm.length()).log2().ceil().exp2()))`, a pair's reach read as an `f64` bound, rounded up to a power of two and entered as a `T` arm. `from-f64-is-split-by-where-the-number-comes-from` lists it `owed` to this row in `scripts/gates/from-f64-sites.tsv` (the old list filed it as a constant).

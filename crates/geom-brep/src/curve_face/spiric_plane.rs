@@ -100,7 +100,7 @@ pub(super) fn spiric_plane_method<T: Decide>(
     band: Band,
 ) -> Result<Vec<T>, MeetFault> {
     let found = on_the_oval(span, line, band)?;
-    let shift = T::from_f64(band.escalate()) / sine;
+    let shift = band.escalate_width().at::<T>() / sine;
     for shift in [shift, T::zero() - shift] {
         let moved = geom::Line {
             origin: line.origin + across * shift,

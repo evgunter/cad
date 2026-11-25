@@ -1127,7 +1127,7 @@ fn branch<T: Real>(leg_in: &Leg<T>, leg_out: &Leg<T>, o: Point2<T>) -> T {
 /// tolerance; the float of the exact boundary itself can land on the
 /// overrun side, which the window's fitting side keeps it off.
 pub(crate) fn exact_fit_reach<T: Real>(band: Band) -> T {
-    T::from_f64(0.5 * band.zero())
+    band.zero_width().times(geom_core::lit!(0.5)).at::<T>()
 }
 
 impl<T: Real> Leg<T> {
@@ -1596,7 +1596,7 @@ impl<T: Real> ArcCarrier<T> {
         // law is linear in 1/|ρ₂|, so scale² is wanted as it stands.
         let scale_squared = dist_squared + rho1.powi(2) + rho2.powi(2);
         let least_lever = T::from_f64(LEVER_ULPS * f64::EPSILON) * other.radius * scale_squared
-            / (dist * T::from_f64(band.zero()));
+            / (dist * band.zero_width().at::<T>());
         // `other` is the OUTGOING leg at the one call site that reaches
         // here (`(Some(a), Some(b)) => a.offset_circles(b, ..)`, a being
         // the incoming leg's carrier), and the docs above say why the

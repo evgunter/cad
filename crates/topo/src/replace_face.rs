@@ -4324,7 +4324,7 @@ fn gap_within_eps_margin<T: Decide>(gap: T, tol: Tol) -> Margin<T> {
 
 /// The run's ε at `T`, the file's one read of it on the chain.
 fn eps_of<T: Decide>(tol: Tol) -> T {
-    T::from_f64(tol.eps())
+    geom_core::BandWidth::of_eps(tol).at::<T>()
 }
 
 /// The parameter of `point`'s foot on the spline `carrier`, nearest

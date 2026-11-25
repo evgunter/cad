@@ -18,4 +18,4 @@ A constant of the model enters by where it comes from (DL5.2's fourth row), thro
 - `geom_brep::props::curved` `sphere_region_cover`'s `c`: a census threshold (a count and a half).
 - `geom::azimuth` `Azimuth::about_middle`'s `theta`: a reference angle chosen at `f64` at the concrete `Interval` (the angle of the components' middles), about which the enclosed angle is read; any choice reads an enclosure of the same angle, so it is a choice, not a computed value (landed on main beside this unit).
 
-Cost: E. Each becomes `from_f64` with a `from-f64-sites.tsv` row (`constant`), or a literal.
+Cost: E. Each enters by its door (`Real::lit`, `Real::count`), or at a concrete `Interval` stays a point with a `from-f64-sites.tsv` row (`concrete`); the list's `constant` class went with `from-f64-is-split-by-where-the-number-comes-from`.

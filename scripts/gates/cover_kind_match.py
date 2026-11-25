@@ -118,6 +118,8 @@ NOT_DOORS = {
     # The band's own tolerance a box is padded by: its reader reads the
     # box it pads, and that box's reader is the site.
     'sweep_pad',
+    # The same pad as the width a scalar enters it by.
+    'sweep_pad_width',
     # A direction's three brackets, the narrow phase's key for telling
     # two axes apart: no region.
     'axis_key',

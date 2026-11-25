@@ -1297,9 +1297,8 @@ macro_rules! nurbs_curve {
                 let per = pieces.len() / spans.len();
                 let held = self.knots.values();
                 let (lo, hi) = (a.min(b), a.max(b));
-                #[allow(clippy::cast_precision_loss)]
                 let at = |start: T, width: T, j: usize| {
-                    start + width * T::from_f64(j as f64 / per as f64)
+                    start + width * T::count_ratio(j, per)
                 };
                 spans
                     .iter()

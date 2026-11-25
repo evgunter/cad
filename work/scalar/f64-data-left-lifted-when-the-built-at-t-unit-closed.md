@@ -20,3 +20,13 @@ Data built whole at `f64` is built at `T` (DL5.2's third row). `f64-built-data-i
 - The tour demos: `lily.rs` (14), `klein.rs` (2), `projectbox.rs` (2), `f64` frames and points a demo lifts into its scalar.
 
 Cost: M. The demos are a consumer's spelling: build them at `T` through the public doors.
+
+## Data lifted through `from_f64`, 2026-11-24
+
+Found by `from-f64-is-split-by-where-the-number-comes-from`, which read every `from_f64` site against DL5.2's four sources; each is listed `owed` to this row in `scripts/gates/from-f64-sites.tsv`, where the old list filed it as a constant.
+
+- `sweep::skin` `minted` (two) and `stated_knots`: a path sweep's path (control net, knots, weights) and each station's roll reference, `f64` data mapped into the lane, and the averaged knots of its shares.
+- `geom_core::linalg::rigid_motion` `squared_as_stated`: a frame minted at `f64` from stated points and mapped into the scalar.
+- `geom_core::spline::basis` `Lifted::at` and `spline::knots::knot_difference`: a knot of a bare `KnotVector`, which holds no value in a scalar.
+- `geom_brep::pcurve_cache::own_interval` (`a`, `b`): a net's knot-domain ends read off its bare `KnotVector`.
+- `geom_brep::edge_nurbs::on_carrier_domain` (`*w`): the weights of an `f64` image lifted beside knots that enter through `from_computed`.

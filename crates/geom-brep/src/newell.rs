@@ -159,7 +159,7 @@ pub fn newell_plane<T: Decide>(
         return Err(NewellError::TooFewVertices { got: points.len() });
     }
     // Centroid (translate-to-origin's translation).
-    let n = T::from_f64(points.len() as f64);
+    let n = T::count(points.len());
     let mut sum = Vec3::zero();
     for p in points {
         sum = sum + (*p - Point3::origin());

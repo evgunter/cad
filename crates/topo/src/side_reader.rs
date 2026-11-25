@@ -738,7 +738,6 @@ fn aimed_ray<T: Decide>(
     normal: Vec3<T>,
     band: Band,
 ) -> Result<Aimed, PointInSolidError> {
-    let (along, across) = AIM_INCIDENCE;
     let at = crate::census::witness(aim);
     let shell = body
         .get_face(face)
@@ -749,7 +748,8 @@ fn aimed_ray<T: Decide>(
     let (b1, b2) = normal.orthonormal_basis();
     let (turn_sin, turn_cos) = aim_turn();
     let tangent = b1 * T::from_f64(turn_cos) + b2 * T::from_f64(turn_sin);
-    let out = normal * T::from_f64(along) + tangent * T::from_f64(across);
+    let out = normal * T::lit(geom_core::lit!(AIM_INCIDENCE.0))
+        + tangent * T::lit(geom_core::lit!(AIM_INCIDENCE.1));
     let reach = selection_reach(body, faces, aim, band)?;
     let start = reach.length() * T::from_f64(-2.0);
     let crossings = match ray_crossings(

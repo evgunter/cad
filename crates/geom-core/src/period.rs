@@ -276,7 +276,7 @@ impl<T: Real> Period<T> {
     /// `k` whole periods, as a length: a deck element's shift, or the
     /// advance of a winding of `k`.
     pub fn times(self, k: i32) -> T {
-        T::from_f64(f64::from(k)) * self.length()
+        T::count(k) * self.length()
     }
 
     /// `k` windings of this channel as a rate per unit of a carrier's
@@ -380,9 +380,9 @@ impl<T: Decide> Period<T> {
         // are that walk's.
         let mark = |i: i32, up: bool| {
             let at = if up {
-                T::from_f64(f64::from(i)) + half
+                T::count(i) + half
             } else {
-                T::from_f64(f64::from(-i)) + (T::zero() - half)
+                T::count(-i) + (T::zero() - half)
             };
             let sign = decide(name, meter(gap - at * self.length()), band);
             let cleared = matches!(

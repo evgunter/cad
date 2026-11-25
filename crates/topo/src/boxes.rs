@@ -289,7 +289,12 @@ use crate::entity::{EdgeKey, FaceKey};
 /// (`clearance`'s `parted_in_depth`, so the embedding certificate):
 /// there a smaller pad parts faces a larger one would not.
 pub(crate) fn sweep_pad(band: Band) -> f64 {
-    band.escalate() + 2.0 * band.zero()
+    sweep_pad_width(band).get()
+}
+
+/// [`sweep_pad`] as the width a scalar enters it by.
+pub(crate) fn sweep_pad_width(band: Band) -> geom_core::BandWidth {
+    band.escalate_width() + band.zero_width().times(geom_core::lit!(2.0))
 }
 
 /// The face's padded box: its cover's bracketed world box

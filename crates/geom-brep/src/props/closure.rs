@@ -49,7 +49,9 @@ pub(super) const VERTEX_SLACK: f64 = 3.0;
 
 /// A closed form's junction and loop slack, [`VERTEX_SLACK`]`·ε` (m).
 fn vertex_slack<T: Decide>(band: Band) -> T {
-    T::from_f64(VERTEX_SLACK * band.zero())
+    band.zero_width()
+        .times(geom_core::lit!(VERTEX_SLACK))
+        .at::<T>()
 }
 
 /// How far `gap` exceeds what `slack` allows: `0` within it, so a

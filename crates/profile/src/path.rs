@@ -5623,12 +5623,12 @@ fn circle_split_kernel<T: Decide>(
         Err(source) => return Err(PathError::escalated(source)),
     }
     order::circle_split_count(n)?;
-    let n_t = T::from_f64(n as f64);
+    let n_t = T::count(n);
     let four = T::from_f64(4.0);
     let sweep = four * (T::pi() / (T::from_f64(2.0) * n_t)).tan().atan();
     let radials: Vec<Vec2<T>> = (0..n)
         .map(|k| {
-            let theta = phase + T::from_f64(2.0) * T::pi() * T::from_f64(k as f64) / n_t;
+            let theta = phase + T::from_f64(2.0) * T::pi() * T::count(k) / n_t;
             let (s, c) = theta.sin_cos();
             Vec2::new(c, s)
         })

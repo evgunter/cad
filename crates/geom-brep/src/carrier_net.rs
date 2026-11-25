@@ -199,7 +199,7 @@ fn zero_series(terms: usize) -> Series {
 }
 
 fn factorial(k: usize) -> Interval {
-    (1..=k).fold(Interval::one(), |f, j| f * Interval::from_f64(j as f64))
+    (1..=k).fold(Interval::one(), |f, j| f * Interval::count(j))
 }
 
 /// `(sin, cos)` expanded at `x`: `f⁽ᵏ⁾(x)/k!`, `terms` coefficients.

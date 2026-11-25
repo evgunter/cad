@@ -36,7 +36,7 @@
 //! distance from that line or point ([`face_nearest`]), which on a
 //! plane face reads its boundary where the least point lies `Out`.
 //!
-//! The margin is the gap less both faces' [`sweep_pad`], the pad the
+//! The margin is the gap less both faces' [`sweep_pad_width`], the pad the
 //! reach boxes' gap takes, a tolerance: a placement misread within the
 //! band, and the boundary's vertices certified within ε of the face.
 //! Only a definite Positive clears; a Zero, a Negative, a bound that is
@@ -54,7 +54,7 @@ use geom::cover::{Around, Cover, Site};
 use geom_core::{Band, Decide, Point3, Vec3, is_finite_length};
 
 use crate::body::Body;
-use crate::boxes::sweep_pad;
+use crate::boxes::sweep_pad_width;
 use crate::cover::{edge_end_point, face_cover, face_nearest};
 use crate::entity::FaceKey;
 use crate::live::BoundaryMember;
@@ -209,7 +209,7 @@ pub(super) fn greatest<T: Decide>(bounds: impl Iterator<Item = Option<T>>) -> Op
 
 /// `lo − hi`, less both faces' pads.
 fn gap<T: Decide>(hi: T, lo: T, band: Band) -> T {
-    lo - hi - T::from_f64(2.0 * sweep_pad(band))
+    lo - hi - sweep_pad_width(band).times(geom_core::lit!(2.0)).at::<T>()
 }
 
 /// Whether a gap is definitely positive.
@@ -471,7 +471,7 @@ mod tests {
     #[test]
     fn a_gap_clears_only_past_the_pad() {
         let band = band();
-        let pad = 2.0 * sweep_pad(band);
+        let pad = 2.0 * sweep_pad_width(band).get();
         assert!(clears(gap(0.85, 0.95, band), band), "0.1 clears");
         assert!(
             !clears(gap(0.95 - band.zero(), 0.95, band), band),

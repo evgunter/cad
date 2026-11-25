@@ -7,9 +7,14 @@
 //! turbofished constructor.
 //!
 //! This module is that seam and nothing more. Every function here
-//! takes plain `f64` literals and embeds them with [`Real::from_f64`]
-//! — an *exact* embedding for every implementor, so nothing here can
-//! change a number. Five of the seven are one kernel constructor
+//! takes plain `f64` literals and embeds them through [`real`], the
+//! door a programmatic author's number enters by — an *exact*
+//! embedding for every implementor, so nothing here can change a
+//! number. What enters is a number the author wrote: a literal at
+//! the symbolic scalar and a zero tangent at a dual. [`real`] takes an
+//! `f64` and checks nothing: that its argument is the author's number
+//! is the caller's, and the callers inside this workspace are a pinned
+//! list (`scripts/gates/from-f64-allowlist.sh`). Five of the seven are one kernel constructor
 //! call; the other two are the seam's fallible pair — [`validated`]
 //! is `ConstructedProfile::new` + its `validate`, and [`polygon`] is the
 //! lattice chain a coordinate table lowers to. There is no
@@ -71,7 +76,7 @@ pub fn real<T: Real>(x: f64) -> T {
 /// ```
 #[inline]
 pub fn p2<T: Real>(x: f64, y: f64) -> Point2<T> {
-    Point2::new(T::from_f64(x), T::from_f64(y))
+    Point2::new(real(x), real(y))
 }
 
 /// A 3-D point from plain coordinates.
@@ -84,7 +89,7 @@ pub fn p2<T: Real>(x: f64, y: f64) -> Point2<T> {
 /// ```
 #[inline]
 pub fn p3<T: Real>(x: f64, y: f64, z: f64) -> Point3<T> {
-    Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z))
+    Point3::new(real(x), real(y), real(z))
 }
 
 /// A 2-D vector from plain components.
@@ -100,7 +105,7 @@ pub fn p3<T: Real>(x: f64, y: f64, z: f64) -> Point3<T> {
 /// ```
 #[inline]
 pub fn v2<T: Real>(x: f64, y: f64) -> Vec2<T> {
-    Vec2::new(T::from_f64(x), T::from_f64(y))
+    Vec2::new(real(x), real(y))
 }
 
 /// A 3-D vector from plain components.
@@ -113,7 +118,7 @@ pub fn v2<T: Real>(x: f64, y: f64) -> Vec2<T> {
 /// ```
 #[inline]
 pub fn v3<T: Real>(x: f64, y: f64, z: f64) -> Vec3<T> {
-    Vec3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z))
+    Vec3::new(real(x), real(y), real(z))
 }
 
 /// A closed polygon from a coordinate table, authored through the
@@ -175,7 +180,7 @@ pub fn polygon<T: Decide>(
     let [first, second, third, rest @ ..] = points else {
         return Err(too_few());
     };
-    let at = |&(x, y): &(f64, f64)| Point2::new(T::from_f64(x), T::from_f64(y));
+    let at = |&(x, y): &(f64, f64)| Point2::new(real(x), real(y));
     let mut tip = Open
         .at(at(first))
         .line_to(at(second), tol)?

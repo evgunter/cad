@@ -687,9 +687,7 @@ pub fn segment_curve<T: SpanLocate>(
                 let at = m as f64 * MAX_SUB_ARC;
                 return Err(undecided(ArcSweepDecision::SubArcCount, lo - at, hi - at));
             }
-            #[allow(clippy::cast_precision_loss)]
-            let steps = m as f64;
-            let delta = theta / T::from_f64(steps);
+            let delta = theta / T::count(m);
             let half = T::from_f64(0.5);
             // The weight `cos(Δ/2)` is held in `T`; where it is no point
             // (at an enclosure scalar, by rounding alone), the carrier's
@@ -770,14 +768,11 @@ pub fn segment_curve<T: SpanLocate>(
             for k in 0..m {
                 // The sub-arc's breakpoints `k/m` are structure: the
                 // constants the knot vector below holds, and the ones
-                // knot merging enters for the same breakpoint. One
-                // spelling, [`geom_brep::sub_arc_joint`], which the
-                // mesher's chord schedule shares to land on the joint.
-                #[allow(clippy::cast_precision_loss)]
-                let (base, next) = (
-                    delta * T::from_f64(k as f64),
-                    T::from_f64(geom_brep::sub_arc_joint(k + 1, m)),
-                );
+                // knot merging enters for the same breakpoint: the
+                // count ratio [`geom_brep::sub_arc_joint`] spells at
+                // `f64`, which the mesher's chord schedule shares to
+                // land on the joint.
+                let (base, next) = (delta * T::count(k), T::count_ratio(k + 1, m));
                 control.push(tangent_point(base + delta * half));
                 weights.push(half_w);
                 control.push(world(arc.point_from(a, next)));
@@ -785,7 +780,7 @@ pub fn segment_curve<T: SpanLocate>(
             }
             let mut runs = vec![(T::zero(), three)];
             for k in 1..m {
-                runs.push((T::from_f64(geom_brep::sub_arc_joint(k, m)), two));
+                runs.push((T::count_ratio(k, m), two));
             }
             runs.push((T::one(), three));
             NurbsCurve3::new(Knots::new(runs, 2).map_err(built)?, control, weights).map_err(built)
@@ -961,8 +956,7 @@ fn chord_length_parameters<T: SpanLocate>(
     if counted == 0 {
         return Err(SkinError::NoParameterStep { section: 1 });
     }
-    #[allow(clippy::cast_precision_loss)]
-    let denom = T::from_f64(counted as f64);
+    let denom = T::count(counted);
     // Each section's mean is taken as `min + Σ (sᵢ − min) / m` over its
     // shares sorted on the value channel: a function of the multiset,
     // and EXACT when the rows agree (evenly stacked identical sections

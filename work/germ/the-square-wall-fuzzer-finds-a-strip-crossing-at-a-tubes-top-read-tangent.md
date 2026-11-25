@@ -107,3 +107,15 @@ which this arm never raises.
 Its next run (CI run 45501517090) drew `CAD_FUZZ_SEED=0x13c5b6684404a940`:
 three more, `R` from `21.5` to `96.6`, `top` between `6.8·10⁻¹⁰` and
 `2.1·10⁻⁹`, the same row.
+
+## Another seed (2026-11-24)
+
+The slow-set step of `test (kernel)` on PR 7721's head 4b6cfc0f (the `from_f64` split; it does not touch `section_cert`), run 45460205943, at the default ε:
+
+```text
+2 mismatches (reproduce with CAD_FUZZ_SEED=0xd027c20af504f7e6 CAD_FUZZ_EFFORT=1):
+a strip crossing at a tube circle's top: R 9.41951976376279, r 4.38808298174347, (e, z0, rc) (-16.64717054535688, 4.921991505656265, 11.786281126728884), tilt 0: R-tan at Degeneracy { tangent: 1.3462250036522407, top: 7.074500985027043e-10 }: Tangent("section_torus_square_wall_fold_half")
+a strip crossing at a tube circle's top: R 62.79382200103899, r 44.55596502513693, (e, z0, rc) (165.1146266545549, -40.492230777656104, 102.40146972380528), tilt 0: R-tan at Degeneracy { tangent: 36.9157707380144, top: 3.018982397406944e-9 }: Tangent("section_torus_square_wall_fold_half")
+```
+
+The next two runs of PR 7721 drew `CAD_FUZZ_SEED=0x7524c41ade058619` (run 45485049297) and `CAD_FUZZ_SEED=0x03acbac5e63306b2` (run 45491038880, three mismatches): three consecutive draws failing on a PR whose diff does not touch `section_cert`.

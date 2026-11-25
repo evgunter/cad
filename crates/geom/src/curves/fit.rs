@@ -619,8 +619,7 @@ fn averaged_knots_in<T: SpanLocate>(params: &[T], degree: usize) -> Result<Knots
     let n = params.len();
     let end = NonZeroUsize::new(degree + 1).unwrap_or(NonZeroUsize::MIN);
     let mut runs = vec![(T::zero(), end)];
-    #[allow(clippy::cast_precision_loss)]
-    let p = T::from_f64(degree as f64);
+    let p = T::count(degree);
     for j in 1..(n - degree) {
         let mut s = T::zero();
         for u in &params[j..j + degree] {

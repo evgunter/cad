@@ -938,7 +938,7 @@ fn tip_wraps<T: Decide>(
     } else {
         T::zero() - turn.length()
     };
-    let shares = T::from_f64(f64::from(halves)) * turn.half() * T::from_f64(0.5);
+    let shares = T::count(halves) * turn.half() * T::from_f64(0.5);
     let count = Period::new(turn.half())
         .decide(
             "bool_fate_corner",

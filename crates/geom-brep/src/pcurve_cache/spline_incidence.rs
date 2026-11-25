@@ -189,7 +189,7 @@ fn span_incidence_as<T: Decide<Value = T>>(
     fractions.sort_by(|a, b| a.0.total_cmp(&b.0));
     fractions.dedup_by(|a, b| a.0 == b.0);
     let samples = fractions.into_iter().map(|(_, at)| match at {
-        Ok(i) => carrier.eval(t0 + (t1 - t0) * T::from_f64(f64::from(i) / n)),
+        Ok(i) => carrier.eval(t0 + (t1 - t0) * T::count_ratio(i, INCIDENCE_SAMPLES)),
         Err(t) => carrier.eval_at(t),
     });
     read_samples_as(name, chart, samples, band)
@@ -740,7 +740,7 @@ impl<'a, T: Decide<Value = T>> Net<'a, T> {
 /// ([`decide`] at `band`) refused, and the band would refuse it again.
 fn past_zero<T: Decide>(gap: T, band: Band) -> bool {
     matches!(
-        geom_core::k_stats::prove(HULL, Margin::of(gap - T::from_f64(band.zero()))),
+        geom_core::k_stats::prove(HULL, Margin::of(gap - band.zero_width().at::<T>())),
         Ok(Sign::Positive)
     )
 }

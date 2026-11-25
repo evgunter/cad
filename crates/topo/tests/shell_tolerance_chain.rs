@@ -269,7 +269,9 @@ fn the_chain_reads_epsilon_at_one_site() {
     for stretch in &CHAIN {
         let (region, _) = stretch.region();
         let code = test_utils::source::code_only(region);
-        let found = code.matches(".eps()").count();
+        // `BandWidth::of_eps(tol)` is the same read, as the width a
+        // scalar enters it by.
+        let found = code.matches(".eps()").count() + code.matches("of_eps(").count();
         assert_eq!(
             found, stretch.eps_reads,
             "{} holds {found} `.eps()` read(s) on the chain, not the {} it declares. What the \

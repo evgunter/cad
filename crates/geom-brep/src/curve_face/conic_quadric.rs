@@ -628,7 +628,7 @@ pub(super) fn through_the_apex<T: Decide>(
     // band (`conic_quadric_cone_root_slack`, the arms' quantity with a
     // whole-bracket slope bound in place of their window's). A shallow
     // crossing reads neither, and refuses as the tangency it is near.
-    let width = T::from_f64(64.0) * T::from_f64(band.escalate()) / conic.speed_lo();
+    let width = T::from_f64(64.0) * band.escalate_width().at::<T>() / conic.speed_lo();
     let residual = |theta: T| {
         crate::conic_cone_residual(
             conic,

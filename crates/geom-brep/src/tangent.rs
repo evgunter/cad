@@ -225,7 +225,7 @@ pub fn tangent_span_bounds<T: Real>(
     t0: T,
     t1: T,
 ) -> Option<TangentSpanBounds<T>> {
-    let step = (t1 - t0) / T::from_f64(f64::from(crate::certify::CERT_SAMPLES - 1));
+    let step = (t1 - t0) / T::count(crate::certify::CERT_SAMPLES - 1);
     tangent_step_bounds(s1, s2, carrier, step)
 }
 

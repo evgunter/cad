@@ -687,7 +687,7 @@ impl<T: KinkJacobian> Real for Dual<T> {
             } else {
                 self.value.powi(n - 1)
             };
-            T::from_f64(f64::from(n)) * power * self.deriv
+            T::count(n) * power * self.deriv
         };
         Self { value, deriv }
     }

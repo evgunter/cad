@@ -480,7 +480,7 @@ fn reaches<T: Decide>(
     band: Band,
 ) -> Result<Result<Reaching<T>, Pose<T>>, PoseRefusal> {
     let in_band = PoseRefusal::in_band(PoseRung::Kappa);
-    let r = arc(&g, T::from_f64(band.escalate()));
+    let r = arc(&g, band.escalate_width().at::<T>());
     let reach = (g.at - r, g.at + r);
     if span.place_param(g.at, band).map_err(&in_band)? == crate::curve_pair::Place::Past {
         let (t0, t1) = span.params();
@@ -541,7 +541,7 @@ fn curvature<T: Decide>(
             band,
         ));
     }
-    let half = arc(&g, T::from_f64(band.zero()));
+    let half = arc(&g, band.zero_width().at::<T>());
     Ok(Pose::Tangent(Touch {
         at: g.at,
         point: span.carrier().eval(g.at),
@@ -1680,8 +1680,8 @@ fn not_lies_over<T: Decide>(
     band: Band,
 ) -> Result<(), PoseRefusal> {
     let (mut gap, mut zero) = (None, None);
-    for k in [2.0, 0.0, 4.0, 1.0, 3.0] {
-        let t = t0 + (t1 - t0) * T::from_f64(k / 4.0);
+    for k in [2_u32, 0, 4, 1, 3] {
+        let t = t0 + (t1 - t0) * T::count_ratio(k, 4_u32);
         match geom_core::k_stats::decide_reported(
             "curve_face_pose_not_lies",
             Margin::of(residual(t)),

@@ -2283,7 +2283,7 @@ fn off_conic_slack<T: geom_core::Real>(from: Turn<T>, band: Band) -> T {
     let axis = from.frame();
     let cot = from.tangent().dot(from.site() - axis.origin).abs() * axis.dir.get().norm()
         / turn_of(from.frame(), from.site(), from.tangent()).abs();
-    (cot + cot) * T::from_f64(band.zero())
+    (cot + cot) * band.zero_width().at::<T>()
 }
 
 /// **[`turned_past`] decided under `name` across the sites' slack**

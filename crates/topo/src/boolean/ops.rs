@@ -2157,7 +2157,11 @@ fn overlap_reach<T: Real>(
     b: &crate::cover::FaceCovered<T>,
     band: Band,
 ) -> geom_brep::Reach<T> {
-    geom_brep::Reach::Ball(crate::cover::meet_within(a, b, boxes::sweep_pad(band)))
+    geom_brep::Reach::Ball(crate::cover::meet_within(
+        a,
+        b,
+        boxes::sweep_pad_width(band),
+    ))
 }
 
 /// **The section certificate's per-pair rule** for A's face `fa` (the

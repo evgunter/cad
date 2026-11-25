@@ -1395,7 +1395,7 @@ pub(crate) fn sphere_sweep_ball<T: Decide>(
     radius: T,
     band: Band,
 ) -> ExtentBall<T> {
-    let pad = radius.max(T::from_f64(64.0 * band.escalate()));
+    let pad = radius.max(band.escalate_width().times(geom_core::lit!(64.0)).at::<T>());
     sphere.cover().map_or_else(
         |_| ExtentBall::of_covered(None),
         |cover| ExtentBall::of_cover_within(&cover, pad),
@@ -3646,7 +3646,7 @@ impl<T: Decide> CarriedComponent<T> {
         let (at, d1) = self.carrier.ders1(t);
         let off = p - at;
         let along = d1.dot(off) / d1.norm();
-        let arc = T::from_f64(band.escalate());
+        let arc = band.escalate_width().at::<T>();
         // The parameter run the arc spans at most: over the speed's inf,
         // which over-states it, the side a curvature bound over it needs.
         let w = arc / speed_range(&self.carrier).0.get();

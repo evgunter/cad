@@ -192,7 +192,7 @@ impl<T: Real> ExtentBall<T> {
     #[must_use]
     pub fn enclosing(parts: &[Self]) -> Option<Self> {
         let first = parts.first()?;
-        let n = T::from_f64(parts.len() as f64);
+        let n = T::count(parts.len());
         let sum = parts
             .iter()
             .fold(Vec3::new(T::zero(), T::zero(), T::zero()), |acc, b| {
@@ -482,12 +482,12 @@ pub(crate) fn farthest_pair<T: Real>(points: &[Point3<T>]) -> T {
 /// The carrier's points at `t₀ + k·(t₁ − t₀)/n`, `k = 0..=n`, the ends
 /// exact.
 fn schedule<T: SpanLocate>(carrier: &Curve3<T>, (t0, t1): (T, T), n: u32) -> Vec<Point3<T>> {
-    let step = (t1 - t0) / T::from_f64(f64::from(n));
+    let step = (t1 - t0) / T::count(n);
     (0..=n)
         .map(|k| match k {
             0 => carrier.eval(t0),
             k if k == n => carrier.eval(t1),
-            k => carrier.eval(t0 + step * T::from_f64(f64::from(k))),
+            k => carrier.eval(t0 + step * T::count(k)),
         })
         .collect()
 }
@@ -736,7 +736,7 @@ fn extent_sup<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
     let fold = (span.min(T::pi()) * T::from_f64(0.5)).sin();
     let lipschitz = || {
         farthest_pair(&schedule(carrier, (t0, t1), EXTENT_PIECES))
-            + speed_sup(carrier) * span / T::from_f64(f64::from(EXTENT_PIECES))
+            + speed_sup(carrier) * span / T::count(EXTENT_PIECES)
     };
     match carrier {
         Curve3::Line(_) => chord,
@@ -745,9 +745,9 @@ fn extent_sup<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
             chord.max(two * radius * fold)
         }
         Curve3::Ellipse(e) => {
-            let step = (t1 - t0) / T::from_f64(f64::from(ELLIPSE_PIECES));
+            let step = (t1 - t0) / T::count(ELLIPSE_PIECES);
             let pieces = (0..ELLIPSE_PIECES).fold(T::zero(), |far, k| {
-                let s0 = t0 + step * T::from_f64(f64::from(k));
+                let s0 = t0 + step * T::count(k);
                 let x = carrier.eval(s0 + step * T::from_f64(0.5));
                 far.max(cover_far(carrier, (t0, t1), x) + cover_far(carrier, (s0, s0 + step), x))
             });

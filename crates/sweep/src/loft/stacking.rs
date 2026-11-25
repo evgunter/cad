@@ -558,8 +558,7 @@ fn facing_both<T: Decide>(
     count: usize,
     band: Band,
 ) -> Result<(), LoftError> {
-    #[allow(clippy::cast_precision_loss)]
-    let count = T::from_f64(count.max(1) as f64);
+    let count = T::count(count.max(1));
     let facing = |place: &SketchPlane<T>| {
         decide(
             "loft_stacking",

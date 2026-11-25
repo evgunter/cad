@@ -460,6 +460,87 @@ pub struct Band {
     escalate: f64,
 }
 
+/// **A width the run's tolerance fixes**: a band's zero or its
+/// escalation ([`Band::zero_width`], [`Band::escalate_width`]), the
+/// run's ε ([`BandWidth::of_eps`]), or a combination of those with
+/// numbers the source wrote. The door a band enters a scalar by
+/// (the crate README, DL5.2). By type it is made only of a [`Band`]
+/// or a [`Tol`], and its one scale is a [`crate::Lit`]. That is all the
+/// type holds: a `Band` built or padded from a computed `f64`
+/// ([`Band::new`], [`Band::padded`]) has that number as its width, and
+/// nothing checks where a band's thresholds came from.
+///
+/// Its arithmetic is `f64`'s, in the order written, so a combination
+/// has the bits the same expression over `f64` thresholds has.
+///
+/// What [`BandWidth::at`] is at each scalar: the width at `f64`, its
+/// point at an enclosure scalar, a literal at [`crate::Sym`] (the
+/// tolerance is the run's, the same at every valuation of the
+/// document's unknowns), and a zero tangent at a dual (no parameter of
+/// the model moves the tolerance).
+///
+/// ```compile_fail,E0423
+/// let _ = geom_core::BandWidth(1e-9);
+/// ```
+///
+/// ```compile_fail,E0308
+/// use geom_core::{Band, Tol};
+/// let band = Band::linear(Tol::witness()).unwrap();
+/// let computed: f64 = band.zero() * 3.0;
+/// let _ = band.zero_width().times(computed);
+/// ```
+///
+/// ```
+/// use geom_core::{Band, Tol, lit};
+/// let band = Band::linear(Tol::witness()).unwrap();
+/// let pad = band.escalate_width() + band.zero_width().times(lit!(2.0));
+/// assert_eq!(pad.get(), band.escalate() + 2.0 * band.zero());
+/// assert_eq!(pad.at::<f64>(), pad.get());
+/// ```
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
+pub struct BandWidth(f64);
+
+impl BandWidth {
+    /// The run's ε as a width.
+    #[must_use]
+    pub fn of_eps(tol: Tol) -> Self {
+        Self(tol.eps())
+    }
+
+    /// The width in metres, for what decides at `f64` (a box pad, a
+    /// floor).
+    #[must_use]
+    pub fn get(self) -> f64 {
+        self.0
+    }
+
+    /// `k` widths.
+    #[must_use]
+    pub fn times(self, k: crate::Lit) -> Self {
+        Self(k.get() * self.0)
+    }
+
+    /// The width at the scalar `T`.
+    #[must_use]
+    pub fn at<T: crate::Real>(self) -> T {
+        T::from_f64(self.0)
+    }
+}
+
+impl core::ops::Add for BandWidth {
+    type Output = Self;
+    fn add(self, other: Self) -> Self {
+        Self(self.0 + other.0)
+    }
+}
+
+impl core::ops::Sub for BandWidth {
+    type Output = Self;
+    fn sub(self, other: Self) -> Self {
+        Self(self.0 - other.0)
+    }
+}
+
 impl Band {
     /// **The least band**: its zero and its escalation the two least
     /// positive `f64`s, so a margin reads its sign alone (any nonzero
@@ -740,6 +821,20 @@ impl Band {
     /// [`Band::zero`] by construction.
     pub fn escalate(self) -> f64 {
         self.escalate
+    }
+
+    /// [`Band::zero`] as the width a scalar enters it by
+    /// ([`BandWidth`]).
+    #[must_use]
+    pub fn zero_width(self) -> BandWidth {
+        BandWidth(self.zero)
+    }
+
+    /// [`Band::escalate`] as the width a scalar enters it by
+    /// ([`BandWidth`]).
+    #[must_use]
+    pub fn escalate_width(self) -> BandWidth {
+        BandWidth(self.escalate)
     }
 
     /// **The band read about a point known only within `pad` metres** of
@@ -3733,6 +3828,35 @@ mod tests {
     use crate::interval::certification::Certification;
     use crate::tolerance::{EPS_MIN, Tol};
     use proptest::prelude::*;
+
+    /// The band door at each scalar: the width at `f64`, its point at an
+    /// interval, one literal at `Sym` and no tangent at a dual; and a
+    /// combination has the bits the `f64` expression has.
+    #[test]
+    fn a_band_width_is_a_point_a_literal_and_no_tangent() {
+        use crate::{Bounds, Dual64, Interval, Real, Sym, lit};
+        let band = Band::linear(Tol::witness()).unwrap();
+        let pad = band.escalate_width() + band.zero_width().times(lit!(2.0));
+        let want = band.escalate() + 2.0 * band.zero();
+        assert_eq!(pad.get().to_bits(), want.to_bits());
+        assert_eq!(pad.at::<f64>().to_bits(), want.to_bits());
+        let room = band.escalate_width() - band.zero_width();
+        assert_eq!(
+            room.get().to_bits(),
+            (band.escalate() - band.zero()).to_bits()
+        );
+        assert_eq!(
+            BandWidth::of_eps(Tol::witness()).get(),
+            Tol::witness().eps()
+        );
+        let i = pad.at::<Interval>();
+        assert_eq!((Bounds::lo(i), Bounds::hi(i)), (want, want));
+        let d = pad.at::<Dual64>();
+        assert_eq!((d.value, d.deriv), (want, 0.0));
+        let s = pad.at::<Sym<f64>>();
+        assert_eq!(s.node(), <Sym<f64> as Real>::from_f64(want).node());
+        assert_ne!(s.node(), <Sym<f64> as Real>::from_computed(want).node());
+    }
 
     /// **The larger of two misses reads the larger quantity**: each end
     /// the larger of the two readings' ends at that end, so `[2, 10]` and

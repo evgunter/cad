@@ -1605,7 +1605,7 @@ impl<T: Real> Arc<T> {
         let shift = bulge_factor(quarter);
         let point = |t: T| self.point(t);
         let pieces = (0..4).fold(site.distance(point(lo)), |far, k| {
-            let s0 = lo + quarter * T::from_f64(f64::from(k));
+            let s0 = lo + quarter * T::count(k);
             let s1 = s0 + quarter;
             let bulge = (point(s0 + quarter * T::from_f64(0.5)) - self.frame.origin()) * shift;
             let (x0, x1) = (point(s0), point(s1));
