@@ -265,6 +265,10 @@ fn a_circle_far_from_its_spheres_centre_reads_its_stored_gap() {
     }
 }
 
+/// A drawn circle and its wall: centre `x` and `z`, axis, `u_ref`,
+/// radius, the wall's radius.
+type Draw = (f64, f64, [f64; 3], [f64; 3], f64, f64);
+
 /// **A large circle grazing a small wall within the band's escalation is
 /// never culled** (`Apart` asked past `Kε`, [`super::pose::culled`]). Five
 /// circles of radius 68 to 1323 m in planes all but square to a wall's
@@ -280,8 +284,7 @@ fn a_circle_far_from_its_spheres_centre_reads_its_stored_gap() {
 #[test]
 fn a_large_circle_grazing_a_wall_within_the_escalation_is_not_culled() {
     let b = Band::new(1e-12, 1e-11).unwrap_or_else(|e| panic!("the 1e-12 band: {e:?}"));
-    // (centre x, centre z, axis (x, y, z), u_ref (x, y, z), radius, wall r)
-    let draws: [(f64, f64, [f64; 3], [f64; 3], f64, f64); 5] = [
+    let draws: [Draw; 5] = [
         (
             363.136_956_988_935_94,
             -8.871_150_746_191_029e-8,
