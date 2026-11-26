@@ -6036,7 +6036,7 @@ mod holding_rows {
         );
         assert!(
             matches!(&held, Ok(Err(why @ HoldingUnread::Spline))
-                if why.refusal() == Ok(geom_brep::ladder::Refusal::Limit)),
+                if why.refusal() == Ok(geom_core::ladder::Refusal::Limit)),
             "a spline holding face, a limit: {held:?}"
         );
         let block = crate::test_support_fixtures::prism_z::<f64>(
