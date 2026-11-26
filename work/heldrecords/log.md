@@ -347,3 +347,4 @@
   - The reviewer showed the three loft/NURBS containment reds are main's, from INSIDE's PR 7798 (`33191a617a`). Filed P1 `work/inside/main-red-three-loft-rows-expect-point-containment-to-refuse-a-spline-face`.
   - Dispatched lane `heldrecords/minted-door` (session_018u3gVFsPxLJDhJLgrGLPTt), single FULL review.
   - one-list told to merge main and re-diff.
+- 2026-11-26 — (LATHE orchestrator) `crates/topo/src/boolean/mod.rs`'s doc on the `touches` field cited `[`ReductionContacts::ff`]`, which PR 7782 removed, so main's doc-gate was red. LATHE's PR 7414 re-points it to `OperandRecords::face_face`, the face–face rows' reader. Say so if a different target was meant.
