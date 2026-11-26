@@ -790,6 +790,35 @@ fn a_brick_into_the_chorded_cap_combines_with_every_result() {
         (m.enclosure.volume, m.enclosure.volume_pad)
     };
     let (vk, pk) = volume(&brick);
+    // The part of the ball of radius `r` about `c` the brick holds: the
+    // brick's slab in `z` clipped to the ball's chord over each column
+    // `(x, y)`, by the midpoint rule on a 4000 × 200 grid, far finer than
+    // the slack it is held to.
+    let ball_part = |c: [f64; 3], r: f64| -> f64 {
+        let (n, m) = (4000, 200);
+        let (dx, dy) = (0.2 / f64::from(n), 0.04 / f64::from(m));
+        let mut v = 0.0;
+        for i in 0..n {
+            let x = 0.7 + (f64::from(i) + 0.5) * dx;
+            let s2 = r * r - (x - c[0]).powi(2);
+            if s2 <= 0.0 {
+                continue;
+            }
+            for j in 0..m {
+                let y = -0.02 + (f64::from(j) + 0.5) * dy;
+                let h2 = s2 - (y - c[1]).powi(2);
+                if h2 <= 0.0 {
+                    continue;
+                }
+                let h = h2.sqrt();
+                let (lo, hi) = ((c[2] - h).max(-0.03), (c[2] + h).min(0.03));
+                if hi > lo {
+                    v += (hi - lo) * dy * dx;
+                }
+            }
+        }
+        v
+    };
     let mut off = Vec::new();
     let mut built = 0;
     for index in [0, 5] {
@@ -830,6 +859,18 @@ fn a_brick_into_the_chorded_cap_combines_with_every_result() {
                 }
                 if (vd + vi - vx).abs() > 2.0 * claim + pd + pi + px {
                     off.push(format!("{label}: ∖ {vd} + ∩ {vi} ≠ {vx}"));
+                }
+                // The common part in closed form: the ball's part in the
+                // brick where the result holds the cap (the ball's own
+                // run, the union, or the ball less the drum), else none.
+                let holds_cap = matches!(op_label, "A ∪ B" | "B ∪ A" | "B ∖ A");
+                let want = if holds_cap {
+                    ball_part(pose.c, pose.big)
+                } else {
+                    0.0
+                };
+                if (vi - want).abs() > 2.0 * claim + pi + 1e-6 {
+                    off.push(format!("{label}: ∩ {vi} ≠ the ball's part {want}"));
                 }
             }
         }
