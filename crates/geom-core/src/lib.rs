@@ -34,6 +34,7 @@ pub mod readable;
 pub mod real;
 pub mod rows;
 pub mod running;
+pub mod size;
 pub mod solved;
 pub mod spline;
 pub mod structure;
@@ -95,6 +96,7 @@ pub use real::{
     radius_gap, width,
 };
 pub use running::{Rounded, SHORT_CHAIN_ULPS, UNIT_ROUNDOFF, rounding_charge};
+pub use size::{Size, SizeRefusal};
 pub use spline::{KnotVector, SpanLocate, SpanSet, SplineError};
 pub use structure::{structure_ascends, structure_nonzero};
 pub use sym::{ParamSymbol, Sym, SymBudget, SymCounts, SymId, SymRetry, SymRules};
