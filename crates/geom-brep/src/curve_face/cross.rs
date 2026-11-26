@@ -267,6 +267,7 @@ impl<T: Decide> Walked<T> {
     /// **The windows that meet the span**, widened, each piece of each
     /// where it meets the span ([`super::on_span`]: W3, at every turn), in
     /// the method's order.
+    #[cfg(test)]
     pub(super) fn on_span(&self, span: &Span<'_, T>, band: Band) -> Vec<((T, T), MeetFault)> {
         self.widened(span, band)
             .flat_map(|(window, fault)| {

@@ -221,11 +221,10 @@ fn die_pip_intersect_is_the_cap_and_additive() {
 #[test]
 fn two_pips_cut_under_the_group_arm() {
     // Placements: disjoint balls, both far enough from every slab
-    // CORNER that the idealized lane's conservative line-vs-sphere
-    // clearance bound (endpoint residual minus the span-length dip,
-    // `bool_line_cylinder_clearance`) stays definite on the 4-long
-    // edges -- the pre-existing PR 9 frontier's honest envelope, not
-    // this unit's.
+    // CORNER that the idealized lane's line-vs-sphere reading (the
+    // crossing reading's discriminant on the 4-long edges) is definite
+    // -- the pre-existing PR 9 frontier's honest envelope, not this
+    // unit's.
     let b1 = pip_ball(2.0, 1.2);
     let b2 = pip_ball(2.0, 2.8);
     // The two-ball operand assembles in the REALIZED lane (the

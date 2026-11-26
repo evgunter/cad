@@ -180,7 +180,9 @@ use super::cross::Walked;
 use crate::curve_pair::MeetFault;
 use crate::half_angle::half_angle_roots_past;
 use crate::half_angle::{DegreeTwo, HalfAngleFrame, HalfAngleRows, RootSlack, SubdivisionFrame};
-use crate::roots::{OnCarrier, Roots, Unsettled};
+#[cfg(test)]
+use crate::roots::OnCarrier;
+use crate::roots::{Roots, Unsettled};
 use geom_core::k_stats::decide;
 use geom_core::{Indeterminate, rounding_charge};
 
@@ -211,7 +213,7 @@ const LADDER_ROWS: HalfAngleRows = crate::rows::CONIC_QUADRIC_LADDER;
 pub(super) const DESYNC: &str = "the conic × quadric door was handed a carrier that is not a \
      circle or an ellipse or a surface that is not a sphere, a cylinder or a cone";
 
-/// **Why [`conic_quadric_roots`] refused**: the surface's arm and the
+/// **Why `conic_quadric_roots` (the door rows' reader) refused**: the surface's arm and the
 /// classifying sign it read in the band's escalation gap, or a kernel
 /// defect. The caller names the decision an arm's escalation is.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -243,9 +245,9 @@ impl ConicQuadricRefusal {
 
 /// **The certified crossings of the `carrier` circle or ellipse with
 /// `surface`**, a sphere, a cylinder wall or a cone, reported within `π`
-/// of the midpoint of `[t0, t1]`, in the root doors' shape: the sweep's
-/// and the census clearance's reading until they read [`super::cross()`].
-/// A wrapper: the pose ([`super::pose()`]), then the method
+/// of the midpoint of `[t0, t1]`, in the root doors' shape: the door
+/// rows' reading, a test reader since the sweep reads [`super::cross()`]:
+/// the pose ([`super::pose()`]), then the method
 /// ([`conic_quadric_method`]), mapped back. `Lies` is
 /// [`CircleRoots::On`], `Apart` [`CircleRoots::Miss`], a graze (its
 /// curvature in band too) [`Unsettled::Tangency`], a carrier through a
@@ -258,6 +260,7 @@ impl ConicQuadricRefusal {
 /// [`ConicQuadricRefusal::Invariant`] for a carrier or a surface of
 /// another kind; the surface's arm for an escalation of the pose or of
 /// the method.
+#[cfg(test)]
 pub fn conic_quadric_roots<T: Decide>(
     carrier: &geom::Curve3<T>,
     t0: T,

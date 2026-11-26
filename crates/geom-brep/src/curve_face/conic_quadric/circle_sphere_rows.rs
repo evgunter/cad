@@ -182,18 +182,37 @@ fn a_tangent_sphere_is_uncertain() {
 /// **The noise meter, isolated.** On a crossing the slack reads at
 /// least the noise (`|R′| ≤ ρ` there, so `ρ·noise/|R′| ≥ noise`), so a
 /// crossing pose cannot tell the two meters apart. A MISS can: it
-/// returns before the slack is read. A unit circle against a unit
-/// sphere far away is a definite miss whose far extreme is evaluated
-/// as a product of lengths of order `|e|` over `2r`: at 2·10⁵ m its
-/// rounding is definitely past the band (`Positive`), at 2000 m it
-/// lies in the band's escalation gap (`Err`). Either reading refuses; without its arm, each pose
-/// answers `Miss`.
+/// returns before the slack is read. A circle of radius `far` about the
+/// origin passing 2 m outside a unit sphere centred `far − 3` along `x`
+/// is a definite miss the ball cull hands on (the conic's ball, radius
+/// `far`, holds the sphere), and whose far extreme is evaluated as a
+/// product of lengths of order `far` over `2r`: at 2·10⁵ m its rounding
+/// is definitely past the band (`Positive`), at 2000 m it lies in the
+/// band's escalation gap (`Err`). Either reading refuses; without its
+/// arm, each pose answers `Miss`.
+///
+/// **The cull ahead of it** (`curve_face_pose_clearance`): a unit circle
+/// against a unit sphere that far off, whose closed form is as noisy, is
+/// culled `Apart` first, from lengths read off the circle's own points:
+/// a `Miss`, not the meter's refusal.
 #[test]
 fn the_noise_meter_refuses_a_definite_and_an_unreadable_reading() {
     if !default_band() {
         return;
     }
     for far in [2e5, 2000.0] {
+        let got = conic_quadric_roots(
+            &circle(far),
+            -1.0,
+            1.0,
+            &sphere([far - 3.0, 0.0, 0.0], 1.0),
+            band(),
+        )
+        .unwrap();
+        assert!(
+            got.is_err(),
+            "a sphere the cull hands on, {far} m off: the noise meter refuses, got {got:?}"
+        );
         let got = conic_quadric_roots(
             &circle(1.0),
             -1.0,
@@ -203,8 +222,8 @@ fn the_noise_meter_refuses_a_definite_and_an_unreadable_reading() {
         )
         .unwrap();
         assert!(
-            got.is_err(),
-            "a sphere {far} m off: the noise meter refuses, got {got:?}"
+            matches!(got, Ok(CircleRoots::Miss)),
+            "a unit sphere {far} m off: the cull's miss, got {got:?}"
         );
     }
 }

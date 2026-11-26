@@ -53,16 +53,13 @@
 //! A carrier with no closed-form distance and foot (a cone, a spline)
 //! localizes nothing, and the door stays.
 
-use geom_core::UnitVec3;
-use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, SupSpeed, Vec3};
+use geom_core::{Band, Bounds, Decide, Margin, Point3, Sign, SupSpeed};
 
 use super::BooleanError;
-use super::{BooleanDecision, reduce};
+use super::face_reading::{MedialDistance, ball_off_face, distance, reach};
 use crate::body::Body;
 use crate::boxes;
-use crate::contain::{ContainError, CurvedPlacement, FaceContainment};
 use crate::entity::{EdgeKey, FaceKey};
-use crate::live::BoundaryMember;
 use crate::validate::decide;
 use geom_core::bisect::Step;
 use geom_core::ladder::{Answering, Climb, Rung, climb};
@@ -121,95 +118,6 @@ pub(super) fn off_face<T: Decide + Bounds>(
         Climb::Answered { answer, .. } => answer.map(|()| false),
         Climb::Passed => Ok(true),
         Climb::Undecided(e) => Err(e),
-    }
-}
-
-/// A carrier's reach, ρ in the module docs.
-#[derive(Clone, Copy, Debug)]
-pub(super) enum MedialDistance<T> {
-    /// The distance to the medial axis.
-    Bounded(T),
-    /// A plane's: it has no medial axis, and its level sets do not bend.
-    Unbounded,
-}
-
-/// The carrier's reach; `None` for a kind with no distance here.
-pub(super) fn reach<T: Real>(surface: &geom::Surface<T>) -> Option<MedialDistance<T>> {
-    match *surface {
-        geom::Surface::Sphere { radius, .. } | geom::Surface::Cylinder { radius, .. } => {
-            Some(MedialDistance::Bounded(radius))
-        }
-        geom::Surface::Torus {
-            major_radius,
-            minor_radius,
-            ..
-        } => Some(MedialDistance::Bounded(
-            minor_radius.min(major_radius - minor_radius),
-        )),
-        geom::Surface::Plane { .. } => Some(MedialDistance::Unbounded),
-        // A sheet's medial axis reaches its apexes, and no distance to
-        // it is written yet.
-        geom::Surface::Cone { .. }
-        | geom::Surface::Spindle { .. }
-        | geom::Surface::Nurbs(_)
-        | geom::Surface::Approx(_) => None,
-    }
-}
-
-/// A point's signed distance from the carrier, its foot on it, and the
-/// distance's gradient there (the unit normal at the foot). Not
-/// `carrier_eq::distance_to`, which answers the unsigned distance alone
-/// from a `CarrierDesc`: the localization needs the sign (which side a
-/// piece lies on), the foot (the ball's centre) and the normal (the
-/// second-order bound's slope).
-fn distance<T: Real>(surface: &geom::Surface<T>, q: Point3<T>) -> Option<(T, Point3<T>, Vec3<T>)> {
-    // The point's height along `axis` from `origin`, and its offset
-    // across it.
-    let split = |origin: Point3<T>, axis: Vec3<T>| {
-        let a = UnitVec3::squared(axis);
-        let (h, off) = geom::Line { origin, dir: a }.param_and_offset(q);
-        (a.get() * h, off)
-    };
-    match *surface {
-        geom::Surface::Sphere { frame, radius, .. } => {
-            let center = frame.origin();
-            let w = q - center;
-            let (w_hat, n) = w.direction_and_length();
-            Some((n - radius, center + w * (radius / n), w_hat))
-        }
-        geom::Surface::Cylinder { frame, radius, .. } => {
-            let (origin, axis) = (frame.origin(), frame.axis());
-            let (along, across) = split(origin, axis);
-            let (across_hat, rho) = across.direction_and_length();
-            Some((
-                rho - radius,
-                origin + along + across * (radius / rho),
-                across_hat,
-            ))
-        }
-        geom::Surface::Torus {
-            frame,
-            major_radius,
-            minor_radius,
-            ..
-        } => {
-            let (center, axis) = (frame.origin(), frame.axis());
-            let (_, across) = split(center, axis);
-            let core = center + across * (major_radius / across.norm());
-            let v = q - core;
-            let (v_hat, d) = v.direction_and_length();
-            Some((d - minor_radius, core + v * (minor_radius / d), v_hat))
-        }
-        geom::Surface::Plane { frame, .. } => {
-            let (origin, normal) = (frame.origin(), frame.axis());
-            let n = normal.normalize();
-            let d = (q - origin).dot(n);
-            Some((d, q - n * d, n))
-        }
-        geom::Surface::Cone { .. }
-        | geom::Surface::Spindle { .. }
-        | geom::Surface::Nurbs(_)
-        | geom::Surface::Approx(_) => None,
     }
 }
 
@@ -298,89 +206,9 @@ fn clusters<T: Decide + Bounds>(
     }
 }
 
-/// Whether the ball of `radius` about `foot`, on the carrier, holds no
-/// point of `face` (module docs).
-///
-/// The face's boundary is read against the ball before the foot is
-/// placed, by the plane's door on a plane and the curved one elsewhere. The ball's radius is at least `escalate`, so a vertex or
-/// edge the placement could not tell from the foot lies inside it and
-/// answers `false`; the placement is asked only of a foot every member
-/// stands clear of.
-fn ball_off_face<T: Decide + Bounds>(
-    y: &Body<T>,
-    face: FaceKey,
-    foot: Point3<T>,
-    radius: T,
-    rho: MedialDistance<T>,
-    band: Band,
-) -> Result<bool, BooleanError> {
-    if let MedialDistance::Bounded(rho) = rho
-        && !matches!(
-            decide("bool_touch_ball_in_reach", Margin::of(rho - radius), band),
-            Ok(Sign::Positive)
-        )
-    {
-        return Ok(false);
-    }
-    let f = y.proven_face(face);
-    // Every boundary member clear of the ball, an identity: any member not
-    // clear answers `false`, whatever an earlier member read ([`climb`],
-    // [`Answering::Any`]); a member in band is kept by its standing.
-    let not_clear = climb(Answering::Any, f.boundary(), |member| {
-        let clear_of_ball = match member {
-            BoundaryMember::Isolated { point, .. } => {
-                Ok(clear((point - foot).norm(), radius, band))
-            }
-            BoundaryMember::Edge { edge, .. } => {
-                edge_clear_of_ball(y, edge.key(), foot, radius, band)
-            }
-        };
-        Rung::holds(clear_of_ball.map(|c| !c), (), BooleanError::refusal)
-    });
-    match not_clear {
-        Climb::Answered { answer, .. } => return answer.map(|()| false),
-        Climb::Undecided(e) => return Err(e),
-        Climb::Passed => {}
-    }
-    // OffCarrier → not clear (the foot is on the carrier by construction).
-    let foot = crate::held::Held::constructed(foot, "the foot of the ball on the face's carrier");
-    match crate::contain::placement_on_carrier(y, face, foot, band).map(|(at, _, _)| at) {
-        Ok(CurvedPlacement::Trim(Some(FaceContainment::Out))) => Ok(true),
-        Ok(_)
-        | Err(
-            ContainError::EmptyLoop(_)
-            | ContainError::LoopUnreadable(_)
-            | ContainError::Curved(_)
-            | ContainError::RayExhausted(_)
-            | ContainError::Uncrossable(_),
-        ) => Ok(false),
-        // The foot is placed only where every boundary edge's whole
-        // carrier (a segment, a circle, an ellipse's annulus) stands
-        // clear of a ball of at least `escalate` about it, so the
-        // boundary pass reads it definitely off every carrier, and an
-        // arc's end is read only at a point on its carrier.
-        Err(ContainError::ArcEndClearOfCorners(gaps)) => unreachable!(
-            "face {face:?} placed a foot at an arc's end ({gaps:?}), though every boundary \
-             carrier stands clear of the ball of radius {radius:?} about it"
-        ),
-        Err(ContainError::Escalated {
-            decision,
-            escalation,
-            diag,
-        }) => Err(BooleanError::Escalated {
-            decision: BooleanDecision::Containment {
-                decision,
-                escalation,
-            },
-            diag,
-        }),
-        Err(ContainError::StaleFace(face)) => crate::contain::driver_face_stale(face),
-    }
-}
-
 /// Whether a lower bound `gap` on a distance from a ball's centre
 /// definitely exceeds its `radius`.
-fn clear<T: Decide>(gap: T, radius: T, band: Band) -> bool {
+pub(super) fn gap_clears<T: Decide>(gap: T, radius: T, band: Band) -> bool {
     matches!(
         decide("bool_touch_edge_clear", Margin::of(gap - radius), band),
         Ok(Sign::Positive)
@@ -400,7 +228,7 @@ fn clear<T: Decide>(gap: T, radius: T, band: Band) -> bool {
 ///
 /// [`BooleanError::ClassificationInvariant`] for an edge with no
 /// certified carrier.
-fn edge_clear_of_ball<T: Decide + Bounds>(
+pub(super) fn edge_clear_of_ball<T: Decide + Bounds>(
     y: &Body<T>,
     edge: EdgeKey,
     at: Point3<T>,
@@ -411,7 +239,7 @@ fn edge_clear_of_ball<T: Decide + Bounds>(
     if !boxes::edge_box(y, edge, pad).overlaps(&boxes::centred_box(at, radius, pad)) {
         return Ok(true);
     }
-    let curve = reduce::certified(y.proven_edge(edge))?;
+    let curve = super::reduce::certified(y.proven_edge(edge))?;
     Ok(arc_clear_of_ball(
         curve.carrier(),
         curve.params(),
@@ -433,7 +261,7 @@ pub(super) fn arc_clear_of_ball<T: Decide>(
     band: Band,
 ) -> bool {
     crate::splitting::containment::arc_distance_floor(carrier, span, at)
-        .is_some_and(|floor| floor.clears(|gap| clear(gap, radius, band)))
+        .is_some_and(|floor| floor.clears(|gap| gap_clears(gap, radius, band)))
 }
 
 #[cfg(test)]
