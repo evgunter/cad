@@ -475,9 +475,10 @@ const MEASURED_PAD: [f64; 9] = [
 /// **Every run of pose `index` is a body at its volume**
 /// ([`at_its_volume`]), a legal operand, its enclosure no wider than the
 /// pinned resolution admits on the operands' area and guarded at four
-/// times the pose's [`MEASURED_PAD`]. Each passes tier 3′ but the
-/// two-loop poses' `A ∖ B`, which cuts the drum in two
-/// ([`Ends::PartsUndecided`]).
+/// times the pose's [`MEASURED_PAD`]. Each passes tier 3′, the two-loop
+/// poses' `A ∖ B` too, which cuts the drum in two: the census tells the
+/// two parts' curved faces apart now that the face door reads their
+/// spline chords (it read [`Ends::PartsUndecided`] before).
 fn builds_at_its_volume_or_refuses_at_its_door(index: usize) {
     let pose = &poses()[index];
     let (a, b) = pose.operands();
@@ -485,15 +486,10 @@ fn builds_at_its_volume_or_refuses_at_its_door(index: usize) {
     let drum_area = 2.0 * PI * R * (pose.drum.z1 - pose.drum.z0) + 2.0 * PI * R * R / TILT.cos();
     let area = drum_area + 4.0 * PI * pose.big.powi(2);
     let ceiling = pad_ceiling(area);
-    let two_loops = pose.label.starts_with("two loops");
     let mut off = Vec::new();
     for (op_label, op, swapped, want) in runs(va, vb, vi) {
         let label = format!("{}, {op_label}", pose.label);
-        let ends = if two_loops && op_label == "A ∖ B" {
-            Ends::PartsUndecided
-        } else {
-            Ends::Sound
-        };
+        let ends = Ends::Sound;
         let (x, y) = if swapped { (&b, &a) } else { (&a, &b) };
         off.extend(at_its_volume(
             &label,
