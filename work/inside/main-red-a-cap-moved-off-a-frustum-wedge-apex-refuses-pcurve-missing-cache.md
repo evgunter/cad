@@ -2,10 +2,13 @@
 id: main-red-a-cap-moved-off-a-frustum-wedge-apex-refuses-pcurve-missing-cache
 kind: issue
 title: main red: sweep a_plane_moved_to_a_cone_apex::a_cap_moved_off_a_frustum_wedge_apex_plans_its_wall_edge refuses Pcurve MissingCache ×3 at every ε, and its row is closed
-status: open
+status: closed
 opened: 2026-11-25
 priority: P1
 cost: E
+closed: 2026-11-26
+pr: 7804
+branch: inside/frustum-apex-main-red
 ---
 
 
