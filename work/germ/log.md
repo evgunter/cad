@@ -2120,3 +2120,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - Narrowing it would lose 7 rows main reads as `Zero` and the dodge plate, all gap readings of `conic_quadric_sub_side`.
   - The argument: the cover certifies the residual one-signed, so the zero posture gives what a miss would, with the endpoints read and the interior deferred.
   - It needs a code doc, and a row with a gap-near-miss twin equal to a clear miss at three ε, plus a mutant.
+- 2026-11-26 11:05 — **U4b item 5 claim corrected.** A gap reading under cover never records an incidence that a miss would not, so it never builds a different body; unsettled, it refuses typed. A reduction-level row is accepted, and a P3 row is to be filed for the covered near-miss that refuses where a miss would build.
