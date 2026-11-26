@@ -2145,7 +2145,7 @@ pub(crate) struct VerifiedGlue<T: Real> {
         std::collections::BTreeMap<(FaceKey, FaceKey), JunctionCert<T>>,
     /// The verified tangencies whose line locus runs through both faces'
     /// interiors: the reduction's face–face rows
-    /// ([`ReductionContacts::ff`]).
+    /// ([`ReductionContacts`]).
     pub(crate) touches: Vec<GluedTouch>,
     /// The line each tangency verified along a line was decided along
     /// ([`GlueVerdict`]).

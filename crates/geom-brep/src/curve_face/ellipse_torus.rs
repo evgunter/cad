@@ -20,7 +20,7 @@
 //! circle × torus door's metering: `F`'s rounding charged against its
 //! term bound, read in residual metres through the floor
 //! `2r(R² − r²)` on `|F|` per metre of residual. Its answers are
-//! `Certified` or `Miss`, or an [`Unsettled`] refusal, never an
+//! `Certified` or `Miss`, or an [`Unsettled`](crate::roots::Unsettled) refusal, never an
 //! escalation.
 //!
 //! **Every root's slack is charged from the computation's own running
@@ -32,7 +32,7 @@
 //! metre of residual — at the carrier's top speed, must be definitely
 //! inside the band ([`crate::half_angle::RootSlack`]). A shallow
 //! crossing whose root the representation cannot place refuses
-//! [`Unsettled::Meter`] there.
+//! [`Unsettled::Meter`](crate::roots::Unsettled::Meter) there.
 //!
 //! A piece is read CLEAR in residual metres through the surface's
 //! ceiling `2r((2R + 2r)² + 3r²)`, capped at `r/2` — the bound

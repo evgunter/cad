@@ -5178,11 +5178,11 @@ pub(super) enum SpanVerdict<T: geom_core::Real> {
     /// crossing of THIS face; unlike it, an endpoint the band puts ON the
     /// carrier is no contradiction.
     OffFace,
-    /// The root door reached a limit ([`Unsettled`]), or has no lane for
+    /// The root door reached a limit ([`Unsettled`](geom_brep::roots::Unsettled)), or has no lane for
     /// the pair, and the caller keeps its own typed frontier door.
     Unsettled,
     /// A root within the band of a cone's apex
-    /// ([`Unsettled::AtApex`]): the caller refuses
+    /// ([`Unsettled::AtApex`](geom_brep::roots::Unsettled::AtApex)): the caller refuses
     /// [`BooleanError::CrossingAtConeApex`].
     AtApex,
 }
@@ -6024,8 +6024,8 @@ pub(super) fn crossing_mapped<T: Decide>(
 
 /// **The decision a crossing of the curved lane escalates as**: the
 /// pair's root decision (a line's or an arc's, by the surface's kind), a
-/// line × wall's by its rung ([`WallRung::AxisParallel`] for the
-/// axis-parallel rung, [`WallRung::Discriminant`] for every other).
+/// line × wall's by its rung ([`WallRung::AxisParallel`](geom_brep::curve_face::line_quadric::WallRung::AxisParallel) for the
+/// axis-parallel rung, [`WallRung::Discriminant`](geom_brep::curve_face::line_quadric::WallRung::Discriminant) for every other).
 fn crossing_decision<T: geom_core::Real>(
     line: bool,
     surface: &geom::Surface<T>,

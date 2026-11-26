@@ -7,7 +7,7 @@
 //! ([`line_torus_roots`]).
 //!
 //! Its older entries read the pose and then the method, deciding
-//! nothing of their own: the sweep's [`line_quadric_roots`], in the root
+//! nothing of their own: the sweep's `line_quadric_roots` (the door rows' reader), in the root
 //! doors' shape ([`super::circle_roots::CircleRoots`]), refusing in its
 //! own words ([`LineQuadricRefusal`], the arm that refused, which the
 //! caller names a decision of its own), and the point-in-solid ray's
@@ -21,7 +21,7 @@ use crate::roots::{RootRefusal, Roots, Unsettled};
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
-/// **Why [`line_quadric_roots`] refused**: the arm, and what its finder
+/// **Why `line_quadric_roots` (the door rows' reader) refused**: the arm, and what its finder
 /// refused with. The wall, sphere and cone arms only escalate; the torus
 /// arm reads [`RootRefusal`], whose fault is a kernel defect
 /// ([`DoorRefusal::Invariant`]).

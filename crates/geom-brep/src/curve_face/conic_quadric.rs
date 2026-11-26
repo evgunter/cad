@@ -213,7 +213,7 @@ const LADDER_ROWS: HalfAngleRows = crate::rows::CONIC_QUADRIC_LADDER;
 pub(super) const DESYNC: &str = "the conic × quadric door was handed a carrier that is not a \
      circle or an ellipse or a surface that is not a sphere, a cylinder or a cone";
 
-/// **Why [`conic_quadric_roots`] refused**: the surface's arm and the
+/// **Why `conic_quadric_roots` (the door rows' reader) refused**: the surface's arm and the
 /// classifying sign it read in the band's escalation gap, or a kernel
 /// defect. The caller names the decision an arm's escalation is.
 #[derive(Clone, Copy, Debug, PartialEq)]

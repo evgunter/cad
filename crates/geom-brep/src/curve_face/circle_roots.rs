@@ -130,7 +130,7 @@ impl<X> DoorRefusal<X> {
 /// residual's degree) of carrier parameters `θ`, each within `π` of the
 /// arc's midpoint ([`Period::near`]), so it
 /// compares with the arc `[t₀, t₁]` the caller passed without wrapping. A door that certifies none of these refuses
-/// with an [`Unsettled`] beside its [`DoorRefusal`].
+/// with an [`Unsettled`](crate::roots::Unsettled) beside its [`DoorRefusal`].
 pub type CircleRoots<T> = Roots<T, { 2 * MAX_DEGREE }, OnCarrier>;
 
 /// **A method's answer in the root doors' shape** (their wrappers): its
