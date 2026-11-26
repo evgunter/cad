@@ -47,3 +47,24 @@ here once it lands is to pin the built union and its volume
 (`sweep` `a_ball_across_a_lofted_wall_is_joined_and_its_chord_certifies_at_rest`),
 and the 1e-12 row, which stops at the chord's image
 (`a-curved-partners-arc-is-imaged-at-rest-no-finer-than-the-mints-finest-rung`).
+
+## The ray test crosses the wall; the next stop is the result's edge-in-face check (2026-11-25, INSIDE `inside/ray-spline-face-arm`)
+
+Point containment's ray test now reads a spline face (the line × spline
+patch arm of `curve_face::cross`), so no run here stops at
+`Containment(KindUnsupported { kind: Nurbs })`. Measured at the witness
+ε (1e-9), `sweep` `a_partner_across_a_lofted_wall_is_joined_on_its_section_value`:
+
+- a ball (r 0.25) across the flat wall, all five operations:
+  `BooleanError::EdgeInFace { gap: CarrierUnread }`;
+- the same ball across the flared wall: `EdgeInFace { gap: SplineFace }`;
+- a brick across the flat wall: every operation builds, validates, and
+  its volumes agree (∪ 9.09375, ∩ 0.03125, ∖ 8.96875 and 0.09375 against
+  9 and 0.125);
+- a brick inside the flat wall's face: `ResultInvalid { VolumeUncomputable
+  { source: RingOnCurvedFace } }` (filed on QUAD,
+  `a-ringed-spline-face-has-no-volume-lane`).
+
+The row's rows now assert each run builds a valid body or stops past the
+join and past containment; the edge-in-face stop is this unit's next
+measured layer, not containment's.

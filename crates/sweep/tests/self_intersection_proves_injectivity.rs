@@ -916,11 +916,67 @@ fn bodies_on_a_spindle_sheet_hold_by_kind_at_both_scalars() {
     }
 }
 
+/// **The point door places a sheet face's interior**, at both scalars:
+/// on the lemon and the apple, whose two sheet faces are each half a turn
+/// from apex to apex on one carrier, a station short of the seams and of
+/// the apexes is `In` on one face and `Out` on the other, and the face
+/// that holds it is the one whose half-turn holds its azimuth. Red if a
+/// sheet's interior is unplaced, placed on both faces or on neither, or
+/// split across a half-turn.
+#[test]
+fn the_point_door_places_a_sheet_faces_interior_at_both_scalars() {
+    fn placed<T: Scalar>(what: &str, big: f64) {
+        let body = football::<T>(big, 0.0);
+        let sheets: Vec<FaceKey> = body
+            .faces()
+            .map(|(k, _)| k)
+            .filter(|&k| matches!(surface(&body, k), Surface::Spindle { .. }))
+            .collect();
+        let [a, b] = sheets[..] else {
+            panic!("{what}: two sheet faces, not {}", sheets.len());
+        };
+        let point = |k, uv: (f64, f64)| surface(&body, k).eval_at(uv.0, uv.1);
+        let one = |p: Point3<T>, q: Point3<T>| (p - q).norm().hi() < 1e-12;
+        let apex = geom::sheet_apex(big, 1.0).v;
+        let mut holder = [None, None];
+        for u in [0.4, 1.5, 2.7, 3.6, 4.7, 5.9] {
+            for v in [-0.95, -0.5, 0.0, 0.5, 0.95].map(|f| f * apex) {
+                assert!(
+                    one(point(a, (u, v)), point(b, (u, v))),
+                    "{what}: both sheet faces chart ({u}, {v}) as one point"
+                );
+                let at = |k| topo::cell_region::station_region(&body, k, (u, v), band());
+                let got = (at(a), at(b));
+                let holds = match got {
+                    (Some(topo::FaceContainment::In), Some(topo::FaceContainment::Out)) => a,
+                    (Some(topo::FaceContainment::Out), Some(topo::FaceContainment::In)) => b,
+                    _ => panic!("{what}: ({u}, {v}) is in exactly one sheet face: {got:?}"),
+                };
+                let half = &mut holder[usize::from(u > core::f64::consts::PI)];
+                assert_eq!(
+                    *half.get_or_insert(holds),
+                    holds,
+                    "{what}: ({u}, {v}) is in the face holding its half-turn"
+                );
+            }
+        }
+        assert_ne!(
+            holder[0], holder[1],
+            "{what}: each half-turn is its own face"
+        );
+    }
+    for (what, big) in [("the lemon", -0.5), ("the apple", 0.4)] {
+        placed::<f64>(&format!("{what} at f64"), big);
+        placed::<Interval>(&format!("{what} at Interval"), big);
+    }
+}
+
 /// `body`'s verdict door within a small budget, at `T`: a crossing
 /// read `Crosses` where `crosses`, and never `Embedded` in any case.
-/// Where the walk reaches no station pair on both faces it refuses on
-/// its budget: the point door places a sheet station on its boundary
-/// alone (`work/inside/the-point-door-places-no-point-on-a-spindle-sheet-face.md`).
+/// Where the walk offers no pair whose stations coincide it refuses on
+/// its budget: it probes a straddling pair only at a candidate's root
+/// and at the depth floor
+/// (`work/embedwalk/the-verdict-door-probes-a-crossing-only-at-a-candidates-root-and-the-depth-floor.md`).
 fn crosses_at_both(what: &str, crosses: bool, float: &Body<f64>, interval: &Body<Interval>) {
     let budgets = Budgets {
         max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
@@ -2691,30 +2747,12 @@ fn a_filleted_drum_certifies_across_its_fillet() {
     let body: &Body<f64> = &filleted::<f64>();
     let report = injective(body, None, BUDGET);
     assert_holds("the filleted drum", &report, body);
-    // At `Interval` the band's line on the circle it shares with the top
-    // plane is an enclosure, and a cell past the band's end reaches into
-    // it: the strip is presented and read, and where the two faces meet
-    // tangentially its rate straddles zero at every depth
-    // (`work/embed/the-filleted-drum-at-interval-refuses-on-a-straddling-rate-at-its-tangent-seam.md`).
-    // Pinned at that refusal: red the day the drum holds at `Interval`,
-    // when this half joins the `f64` one above.
+    // At `Interval` too: the band's window is its own chart rectangle,
+    // so no cell past the band's end reaches the circle it shares with the
+    // top plane.
     let interval_body = filleted::<Interval>();
     let twin = injective(&interval_body, None, BUDGET);
-    let BoundVerdict::Refused(EngineRefusal::Uncertified {
-        a,
-        b,
-        shared: SharedCell::Edge(_),
-        arm: CertificateArm::Departure,
-    }) = twin.verdict
-    else {
-        panic!(
-            "the drum at Interval refuses at its tangent seam: {:?} {:?}",
-            twin.verdict, twin.receipt
-        )
-    };
-    let mut kinds = [kind(&interval_body, a), kind(&interval_body, b)];
-    kinds.sort_unstable();
-    assert_eq!(kinds, ["plane", "torus"], "the top plane against the band");
+    assert_holds("the filleted drum at Interval", &twin, &interval_body);
     let torus = body
         .faces()
         .map(|(k, _)| k)
@@ -2867,16 +2905,13 @@ fn envelope_at_the_tightest_eps(refusal: &str) -> bool {
 /// are one line only where their values agree (the mirrored pose).
 ///
 /// **At `Interval` the body refuses off the joints, and is pinned
-/// there**: the top plane against the torus band across the circle they
-/// share, `Uncertified` on the departure arm, the tangent seam of
-/// `work/embed/the-filleted-drum-at-interval-refuses-on-a-straddling-rate-at-its-tangent-seam.md`,
-/// which the band's sliver closed until the sliver retired. It is asked
-/// of the body as built; the other poses' twins are built and not asked,
-/// as each spends its budget refusing at the same seam (95 s for the
-/// three). Measured once on this tree: turned and a hundred units off
-/// read the same `Uncertified` at the plane against the band, and the
-/// mirrored twin exhausts the pair budget on that pair. The pin flips to
-/// holding the day a tangent seam is read at `Interval`. At ε = 1e-12
+/// there**: two of the wall's cylinders against each other across the
+/// edge they share, `Uncertified` on the departure arm (untraced). The
+/// top plane against the band holds there: the band's window is its own
+/// chart rectangle, so no cell past its end reaches their tangent circle
+/// (`work/embed/the-filleted-drum-at-interval-refuses-on-a-straddling-rate-at-its-tangent-seam.md`).
+/// It is asked of the body as built; the other poses' twins are built
+/// and not asked. At ε = 1e-12
 /// the twin's pcurve envelope escalates
 /// ([`envelope_at_the_tightest_eps`]) and that half is skipped, said.
 #[test]
@@ -2902,9 +2937,12 @@ fn a_three_arc_discs_filleted_rim_holds_across_its_joints() {
                         report.verdict, report.receipt
                     )
                 };
-                let mut kinds = [kind(&twin, a), kind(&twin, b)];
-                kinds.sort_unstable();
-                assert_eq!(kinds, ["plane", "torus"], "the top plane against the band");
+                let kinds = [kind(&twin, a), kind(&twin, b)];
+                assert_eq!(
+                    kinds,
+                    ["cylinder", "cylinder"],
+                    "two of the wall's cylinders"
+                );
             }
             Ok(_) => {}
             Err(refusal) if envelope_at_the_tightest_eps(&refusal) => {
@@ -4770,42 +4808,29 @@ fn edges_of<T: Real>(body: &Body<T>, f: FaceKey) -> BTreeSet<topo::EdgeKey> {
 
 /// **The same bodies at `Interval`**, the scalar the shell gate and the
 /// document door ask at, as built: every support plane asked alone
-/// against a corner patch it shares an arc with.
+/// against a corner patch it shares an arc with is `Embedded`, the
+/// inset corner's patches across their arcs and the rounded plate's,
+/// tangent along theirs. Each patch's window is its own chart
+/// rectangle, so no cell past the patch's end reaches the plane at the
+/// tangent arc. Red if a patch's window is the whole tube again: the
+/// rounded plate's pairs then refuse `Uncertified` on the departure arm
+/// at the arc
+/// (`work/embed/the-filleted-drum-at-interval-refuses-on-a-straddling-rate-at-its-tangent-seam.md`).
 ///
-/// **The inset corner**: each such pair is `Embedded`.
-///
-/// **The rounded plate: each such pair is refused, and this half holds
-/// the refusal's exit only.** A cap and a patch are tangent along their
-/// arc, and since the sliver was retired nothing reads a pair tangent
-/// along a shared curve at `Interval`: the departure's sine straddles
-/// zero at the arc's mid cells down to the depth floor
-/// (`work/embed/the-filleted-drum-at-interval-refuses-on-a-straddling-rate-at-its-tangent-seam.md`,
-/// P0, this pair its third sighting; the joint's cells decide, traced
-/// there). Pinned exactly: no such pair is `Embedded`; each is refused
-/// `Uncertified`, arm `Departure`, across an edge, its two faces a
-/// plane and a torus, or by the depth budget on those two faces (which
-/// of the two a pair reads moves with ε); and at least one reads the
-/// first. **The pin flips to holding the day a tangent seam is read at
-/// `Interval`**: it then goes red and moves to `Embedded`. It does not
-/// go red if the run through the vertex is withdrawn (the pair then
-/// refuses at the same exit, earlier, at the joint): the `f64` row
-/// above and `injective`'s unit rows are what hold the run.
-///
-/// The whole bodies do not hold either, on pairs this reading does not
-/// touch
+/// The whole bodies do not hold, on pairs this reading does not touch
 /// (`work/embed/three-fillet-bodies-embedded-at-f64-refuse-at-interval-on-pairs-untraced.md`):
 /// pinned as refused, and printed.
 #[test]
 fn a_support_face_c1_through_a_vertex_at_interval() {
-    use topo::clearance::{CellBudget, CertificateArm, Embedding, embedded};
-    for (what, body, holds) in [
-        ("the inset corner", inset_filleted::<Interval>(), true),
-        ("the rounded plate", rounded_plate::<Interval>(), false),
+    use topo::clearance::{Embedding, embedded};
+    for (what, body) in [
+        ("the inset corner", inset_filleted::<Interval>()),
+        ("the rounded plate", rounded_plate::<Interval>()),
     ] {
         let Some(body) = body else {
             continue;
         };
-        let (mut asked, mut at_the_exit) = (0, 0);
+        let mut asked = 0;
         for (a, b) in touching_pairs(&body) {
             let mut kinds = [kind(&body, a), kind(&body, b)];
             kinds.sort_unstable();
@@ -4825,50 +4850,17 @@ fn a_support_face_c1_through_a_vertex_at_interval() {
                 },
             )
             .verdict;
-            let these = |x: FaceKey, y: FaceKey| (x, y) == (a, b) || (x, y) == (b, a);
-            if holds {
-                assert!(
-                    matches!(verdict, Embedding::Embedded),
-                    "{what} at Interval: a plane against a patch across their arc: {verdict:?}"
-                );
-                continue;
-            }
-            let exit = matches!(
-                &verdict,
-                Embedding::Refused(EngineRefusal::Uncertified {
-                    a: x,
-                    b: y,
-                    shared: SharedCell::Edge(_),
-                    arm: CertificateArm::Departure,
-                }) if these(*x, *y)
-            );
-            let depth = matches!(
-                &verdict,
-                Embedding::Refused(EngineRefusal::Budget {
-                    stop: CellBudget::Depth { .. },
-                    a: x,
-                    b: y,
-                }) if these(*x, *y)
-            );
             assert!(
-                exit || depth,
-                "{what} at Interval: a plane against a patch tangent along their arc is refused \
-                 at the tangent seam's exit: {verdict:?}"
+                matches!(verdict, Embedding::Embedded),
+                "{what} at Interval: a plane against a patch across their arc: {verdict:?}"
             );
-            at_the_exit += usize::from(exit);
         }
         assert!(
             asked > 0,
             "{what} at Interval: no plane shares an arc with a patch"
         );
-        assert!(
-            holds || at_the_exit > 0,
-            "{what} at Interval: no pair reads `Uncertified Departure` across its arc"
-        );
         let whole = door_class::<Interval>(&body);
-        println!(
-            "[tangent] {what} at Interval: {asked} pairs, {at_the_exit} at the exit; whole: {whole}"
-        );
+        println!("[tangent] {what} at Interval: {asked} pairs; whole: {whole}");
         assert!(
             whole.starts_with("Uncertified") || whole.starts_with("Refused"),
             "{what} at Interval, whole: refused on another pair, not {whole}"

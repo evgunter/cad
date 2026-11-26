@@ -2,7 +2,8 @@
 id: main-red-removed-members-refuses-three-slow-carry-rows
 kind: issue
 title: Main red since PR 7745: three slow-set carry rows refuse (two union_flush rows Stale{record:3}, face_face_touch Unread{record:18}) that pass on its parent
-status: open
+status: closed
+closed: 2026-11-25
 opened: 2026-11-25
 priority: P0
 cost: E
@@ -21,3 +22,40 @@ All three are in the slow set, which PR 7745's evidence did not cover: that was 
 ## Done when
 
 All three build as they did on the parent, with no record dropped, or a move is argued against the ratified carry clause. Also, the full default profile of topo and sweep (the slow set included) on main is compared per test against the parent of `0ac627ec92`, and any further moved row is fixed or listed here.
+
+## 2026-11-25 — fixed, one row left red (`heldrecords/removed-members-red`, PR 7799)
+
+- **`union_flush` ×2.** The record is edge–edge. A piece of one edge's
+  division is the other edge's own image, because the glue made one
+  edge of two that overlapped. Glued structure is now an image of one
+  record cell that is itself an image of the other (`OneCell`), piece or
+  minted; incidence still counts for nothing.
+- **`face_face_touch`.** The removed fragment is read in the clones'
+  joint body, which holds two whole overlapping solids, and there the
+  census contradicted the record's tangent class after finding its
+  line in both faces. A removed member is now read for the touch's
+  presence (`census::RecordConfirm::touches`):
+  - a patch is found by its region overlap on one carrier, whichever
+    way the senses point;
+  - a tangent pair is found by its line inside both faces;
+  - a ruling made before the touch is read (two carriers the tangent
+    table calls not tangent) is unread, never found.
+
+  A kept pair is still confirmed as before.
+- **Left red:**
+  `a_pierce_held_in_a_curved_face::a_plane_face_holding_the_pierce_over_a_cylinder_builds_in_every_op_and_order`
+  refuses `JoinDesync`. It is loud, not a wrong body, and it has been red
+  on main since PR 7745. On `cc90e26a` it passed.
+  - The per-test comparison found it: a minted meeting at a point, of a
+    split vertex and a section edge, is not two vertices, and no door
+    decides it.
+  - Setting it aside beside another landing ((C)) changes the ratified
+    clause ("decides every such meeting at its door"), so it is not
+    built. The door decides the meeting instead. That is decided and
+    lands after PR 7799 as
+    `the-boolean-door-decides-no-minted-vertex-on-edge-meeting` (P1),
+    the row that turns this one green.
+- **The comparison** was the full default profile of topo and sweep,
+  release profile with debug assertions, between `cc90e26a` and the fix.
+  Outside the pierce row it moves no row from PASS to FAIL. The default
+  profile skips the `#[ignore]` rows, so those are not compared.
