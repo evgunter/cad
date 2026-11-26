@@ -349,3 +349,12 @@
   - one-list told to merge main and re-diff.
 
 - 2026-11-26 PR 7782 (one-list) merged main (head e60352af27). The per-test verdict diff against ffc8c37d4c, slow set included, is empty. Main has 10 reds, the same on both sides: the pierce row (minted-door), three loft/NURBS rows (INSIDE), and six that were already red before PR 7745 (recourse_roster on ORBIT, square_search fuzzer on GERM, review_cleave_nurbs ×2, shell_general_door, an_aimed_ray). Single FULL review dispatched (session_018u3gVFebXNVvDBVxhHuhAN).
+
+- 2026-11-26 minted-door finished as PR 7808 (head 46186823d1, `gate ok` green).
+  - The boolean's door decides vertex-on-edge meetings by the confirm pass's own reading. The row is a `Meet` on (E, F).
+  - Section vertices are named on the carried path. `uncopied` and `copies` are deleted.
+  - The pierce row builds at three ε.
+  - The stress row (the wall grazes F): the margin is amplified about 1000× down to 0.14° and stays Zero. It refuses typed at 0.03° and 0.007°.
+  - Diff is per test, slow set included. Built → refused is empty.
+  - One departure, accepted pending review: in band at the door is `JoinDesync`, because `landings` has already confirmed the pair with the same reading.
+  - Single FULL review dispatched (session_018u3gVJNJL47PChxC7YURth).
