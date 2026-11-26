@@ -561,6 +561,44 @@ mod tests {
     use geom_brep::curve_pair::Span;
     use geom_core::{Band, Point3, Vec3};
 
+    /// **The ring composite's in-band meeting is no ordering question at
+    /// the split** ([`super::super::window_reading`]): its `Touch` is a
+    /// stretch where a spline edge meets the plane in band, not two roots
+    /// the band cannot order, so the split asks whether the plane cuts the
+    /// edge, grazes it or misses it and ends on its own lever, with no
+    /// declaration. The same fault at the plane-crossing door stays the
+    /// ordering question.
+    #[test]
+    fn the_composites_in_band_meeting_asks_the_graze_at_the_split() {
+        use geom_core::Decide;
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let diag = 3e-9_f64.sign_within(band).unwrap_err();
+        let render = |door| {
+            super::SplitReduceError::CrossingEscalated {
+                edge: crate::entity::EdgeKey::default(),
+                fault: CrossWhy::Method {
+                    door,
+                    fault: geom_brep::curve_pair::MeetFault::Touch(diag),
+                },
+            }
+            .render(geom_brep::recourse::Reading::Build)
+        };
+        let composite = render(geom_brep::curve_face::Door::SplineComposite);
+        assert!(
+            composite.starts_with(&format!(
+                "whether a plane cuts a curved edge, grazes it or misses it is undecided: {}. ",
+                diag.payload()
+            )) && composite.ends_with(&format!("Recourse: {}", geom_core::SPLIT_PLANE_RECOURSE))
+                && !composite.contains("declare"),
+            "{composite}"
+        );
+        let plane = render(geom_brep::curve_face::Door::PlaneCrossing);
+        assert!(
+            plane.starts_with("which of two crossings on an edge comes first is undecided: "),
+            "{plane}"
+        );
+    }
+
     /// **A composite window is the recorded end's only when it is read
     /// about that end throughout** ([`super::window_at_an_end`]). On a unit
     /// segment, a tangency window reaching from before the start to

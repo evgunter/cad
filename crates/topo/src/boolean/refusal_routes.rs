@@ -2849,46 +2849,6 @@ pub(in crate::boolean) mod tests {
         }
     }
 
-    /// **The ring composite's in-band meeting is no ordering question at
-    /// the split**: its `Touch` is a stretch where a spline edge meets
-    /// the plane in band, not two roots the band cannot order, so the
-    /// split asks whether the plane cuts the edge, grazes it or misses it
-    /// and ends on its own coincidence lever, with no declaration. The
-    /// same fault at the plane-crossing door stays the ordering question.
-    #[test]
-    fn the_composites_in_band_meeting_asks_the_graze_at_the_split() {
-        let b = band();
-        let diag = diag_of(MarginDiag::value((b.zero() + b.escalate()) / 2.0));
-        let render = |door| {
-            SplitReduceError::CrossingEscalated {
-                edge: EdgeKey::default(),
-                fault: CrossWhy::Method {
-                    door,
-                    fault: MeetFault::Touch(diag),
-                },
-            }
-            .render(geom_brep::recourse::Reading::Build)
-        };
-        let composite = render(geom_brep::curve_face::Door::SplineComposite);
-        assert!(
-            composite.starts_with(&format!(
-                "whether a plane cuts a curved edge, grazes it or misses it is undecided: {}. ",
-                diag.payload()
-            )) && composite.ends_with(&format!("Recourse: {}", geom_core::SPLIT_PLANE_RECOURSE))
-                && !composite.contains("declare"),
-            "{composite}"
-        );
-        assert!(
-            short_of_the_guard(&composite, &[]).is_empty(),
-            "{composite}"
-        );
-        let plane = render(geom_brep::curve_face::Door::PlaneCrossing);
-        assert!(
-            plane.starts_with("which of two crossings on an edge comes first is undecided: "),
-            "{plane}"
-        );
-    }
-
     /// **The conic root lane ends alike at the split and the Boolean**,
     /// rung by rung, through the one routing ([`ConicRootFault::decision`]):
     /// a crossing rung renders the same sentence at both doors, its

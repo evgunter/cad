@@ -180,12 +180,16 @@ pub(crate) fn spline_edge_hit<T: Decide>(
     p: Point3<T>,
     band: Band,
 ) -> Result<bool, RegionRefusal> {
-    let spline_arc = UncrossableCarrier::Spline;
     match SplineArc::new(spline, (edge.t0, edge.t1)) {
-        Some(pieces) => pieced_edge_hit(&pieces, edge, (rows, spline_arc), p, band),
-        None => Err(edge.uncrossable(spline_arc)),
+        Some(pieces) => pieced_edge_hit(&pieces, edge, (rows, SPLINE_ARC), p, band),
+        None => Err(edge.uncrossable(SPLINE_ARC)),
     }
 }
+
+/// The carrier a spline edge's refusal names: a spline arc, at the pieced
+/// reader ([`spline_edge_hit`]) and the ring composite's limits
+/// ([`landings`]) alike.
+const SPLINE_ARC: UncrossableCarrier = UncrossableCarrier::Spline;
 
 /// A path's reason to be set aside.
 pub(crate) type Fault = RayFault<RegionRefusal>;
@@ -418,9 +422,7 @@ pub(crate) fn landings<T: Decide, D: Legs<T>>(
                     MeetFault::Unsettled(Unsettled::Tangency | Unsettled::Crease)
                 ) =>
                 {
-                    Err(RayFault::Blocked(
-                        edge.uncrossable(UncrossableCarrier::Spline),
-                    ))
+                    Err(RayFault::Blocked(edge.uncrossable(SPLINE_ARC)))
                 }
                 _ => Ok(false),
             })?;
