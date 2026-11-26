@@ -165,3 +165,6 @@ mod rows;
 
 #[cfg(test)]
 mod crossing_parameter_rows;
+
+#[cfg(test)]
+mod fuzz_rows;
