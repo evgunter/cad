@@ -321,6 +321,7 @@ fn point_in_solid_errors() -> Vec<crate::solid_contain::PointInSolidError> {
         S::PartialSphereFace { face },
         S::PartialConeFace { face },
         S::PartialTorusFace { face },
+        S::PartialSplineFace { face },
         S::EdgeCarrierUnsupported {
             face,
             cause: uncrossable(),

@@ -135,3 +135,10 @@ Dispatch, with each unit's review tier:
   - **Also fixed.** The box exit takes `PartialSplineFace`. `trace` refuses a spline carrier `Unsupported`. The sweep rows assert their closed forms.
   - **Pushback.** The claims-overlap rule is kept, unreached by fuzz and unproven unreachable.
   - **Filed by the lane.** A new main red on SSIEDGE: `m5_pr7_ssi::a_rational_walls_plane_three_eps_off_its_edge_certifies_as_mid_wall`, red on a clean main. (INSIDE orchestrator)
+- 2026-11-25 — PR 7798 (`inside/ray-spline-face-arm`) merges, and `point-containments-ray-test-has-no-spline-arm` (P0) is CLOSED.
+  - **What it adds.** Point containment's ray test crosses spline faces through a new (line, spline patch) arm of `curve_face::cross`: Bernstein-coefficient signs at `T`, a normal-cone injectivity test, a boundary parity decided past the band, regions grown across knot lines, and the trim placed on the crossing cell's rectangle.
+  - **Measured.** 0 disagreements against Krawczyk on the loft prism and the spout walls at 1e-9 and 1e-6, and two independent winding oracles agree. Teapot wall 3 is past containment; it now stops at QUAD's rational trimmed-quadrature lane (P0 under SPLICE's umbrella).
+  - **Reviews.** DUAL (two Opus): no MAJOR. Fix pass, then reviewer 2 as verifier; it confirmed the cone's re-posed injectivity argument (bilinear det of chord integrals) as a proof, and knot-corner rays went 0/480 → 480/480.
+  - **Not done, accepted.** The arm still types a wide in-band stretch `Escalated`. Its windows never reach `region::landings`' `set_aside_unless`, which reads edges against leg planes only. `the-region-landing-reader-skips-a-whole-span-escalated-window-off-its-centre` holds the class. The fuzz oracle row is `#[ignore]` with its run command.
+  - **Filed.** QUAD `a-ringed-spline-face-has-no-volume-lane` (P2); SSIEDGE `a-rational-walls-plane-three-eps-off-its-edge-is-red-on-main`; evidence on SPLICE's cell-walk row.
+  - GERM's `cross-answers-a-spline-arm-with-a-whole-span-window` keeps its conic- and spline-span-against-a-patch halves. It rides PR 7801. (INSIDE orchestrator)

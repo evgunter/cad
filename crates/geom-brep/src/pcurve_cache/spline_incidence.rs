@@ -327,15 +327,15 @@ struct Net<'a, T: Real> {
 /// with a first-order bound on each channel's accumulated rounding at
 /// `f64` (module docs, *Rounding*); zero at an enclosure scalar, whose
 /// arithmetic holds the exact value already.
-type Control<T> = ([T; 4], [f64; 4]);
+pub(crate) type Control<T> = ([T; 4], [f64; 4]);
 
 /// One Bézier cell: its parameter rectangle `[u0, u1] × [v0, v1]`, its
 /// control net row-major in `u`, and how many times it was halved.
 #[derive(Clone)]
-struct Cell<T> {
-    rect: [f64; 4],
-    net: Vec<Control<T>>,
-    depth: usize,
+pub(crate) struct Cell<T> {
+    pub(crate) rect: [f64; 4],
+    pub(crate) net: Vec<Control<T>>,
+    pub(crate) depth: usize,
 }
 
 /// A cell in the walk's queue, the nearest box (read on the brackets'
@@ -416,72 +416,17 @@ fn blend<T: Decide>(x: Control<T>, y: Control<T>, t: T, ratio: bool, track: bool
 
 impl<'a, T: Decide<Value = T>> Net<'a, T> {
     fn of(chart: &'a NurbsSurface<T>, band: Band) -> Option<Self> {
-        let (ku, kv) = (chart.knot_values_u(), chart.knot_values_v());
-        let (pu, pv) = (ku.degree(), kv.degree());
-        let (nu, nv) = chart.control_counts();
-        if pu == 0 || pv == 0 || nu == 0 || nv == 0 {
-            return None;
-        }
         let track = T::WITNESS == geom_core::Witness::Inexact;
-        let (control, weights) = (chart.control(), chart.weights());
-        let (lo, hi) = shadow_box(control);
+        let (lo, hi) = shadow_box(chart.control());
         let centre = Vec3::new(
             T::from_computed(geom_core::bracket_mid((lo[0], hi[0]))),
             T::from_computed(geom_core::bracket_mid((lo[1], hi[1]))),
             T::from_computed(geom_core::bracket_mid((lo[2], hi[2]))),
         );
-        // Moved about the centre and out to homogeneous form: the
-        // difference and the product round each coordinate by `u` of it.
-        let homogeneous = |k: usize| -> Control<T> {
-            let (p, w) = (control[k] - centre, weights[k]);
-            let h = [p.x * w, p.y * w, p.z * w, w];
-            let e = if track {
-                core::array::from_fn(|c| {
-                    if c == 3 {
-                        0.0
-                    } else {
-                        2.0 * UNIT_ROUNDOFF * middle(h[c]).abs()
-                    }
-                })
-            } else {
-                [0.0; 4]
-            };
-            (h, e)
-        };
-        // Along `v` first, one row per `u` index; then along `u`, one
-        // row per refined `v` index.
-        let rows: Vec<Vec<Control<T>>> = (0..nu)
-            .map(|i| {
-                let row = (0..nv).map(|j| homogeneous(i * nv + j)).collect();
-                refined(kv, row, track)
-            })
-            .collect::<Option<_>>()?;
-        let nv = rows.first()?.len();
-        let columns: Vec<Vec<Control<T>>> = (0..nv)
-            .map(|j| refined(ku, rows.iter().map(|r| r[j]).collect(), track))
-            .collect::<Option<_>>()?;
-        let nu = columns.first()?.len();
+        let Cut { cells, pu, pv } = Cut::of(chart, centre, track)?;
+        let (ku, kv) = (chart.knot_values_u(), chart.knot_values_v());
         let (bu, bv) = (ku.breakpoint_values()?, kv.breakpoint_values()?);
         let (cu, cv) = (bu.len() - 1, bv.len() - 1);
-        if nu != cu * pu + 1 || nv != cv * pv + 1 {
-            return None;
-        }
-        let mut cells = Vec::with_capacity(cu * cv);
-        for i in 0..cu {
-            for j in 0..cv {
-                let mut net = Vec::with_capacity((pu + 1) * (pv + 1));
-                for a in 0..=pu {
-                    for b in 0..=pv {
-                        net.push(columns[j * pv + b][i * pu + a]);
-                    }
-                }
-                cells.push(Cell {
-                    rect: [bu[i], bu[i + 1], bv[j], bv[j + 1]],
-                    net,
-                    depth: 0,
-                });
-            }
-        }
         Some(Self {
             chart,
             centre,
@@ -791,6 +736,94 @@ fn point_rounding<T: SpanLocate>((h, e): &Control<T>) -> [f64; 3] {
     })
 }
 
+/// Where [`Cell::split_at`] cuts a cell's range: a literal fraction.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum Fraction {
+    /// At its middle.
+    Half,
+    /// Three eighths along it: off every dyadic cut a halving makes.
+    ThreeEighths,
+    /// At this fraction of it, strictly between 0 and 1.
+    At(f64),
+}
+
+/// **A chart's Bézier cut** ([`Cut::of`]): its cells, ascending in `u`
+/// then `v`, and its degrees.
+pub(crate) struct Cut<T> {
+    pub(crate) cells: Vec<Cell<T>>,
+    pub(crate) pu: usize,
+    pub(crate) pv: usize,
+}
+
+impl<T: Decide> Cut<T> {
+    /// **The chart's net cut to its Bézier cells**, each held about
+    /// `centre` in homogeneous form and refined to full multiplicity at
+    /// every break ([`refined`]: along `v`, one row per `u` index, then
+    /// along `u`, one row per refined `v` index), with the `f64` rounding
+    /// bound carried where `track`. `None` where the decomposition does
+    /// not run.
+    pub(crate) fn of(chart: &NurbsSurface<T>, centre: Vec3<T>, track: bool) -> Option<Self> {
+        let (ku, kv) = (chart.knot_values_u(), chart.knot_values_v());
+        let (pu, pv) = (ku.degree(), kv.degree());
+        let (nu, nv) = chart.control_counts();
+        if pu == 0 || pv == 0 || nu == 0 || nv == 0 {
+            return None;
+        }
+        let (control, weights) = (chart.control(), chart.weights());
+        // Moved about the centre and out to homogeneous form: the
+        // difference and the product round each coordinate by `u` of it.
+        let homogeneous = |k: usize| -> Control<T> {
+            let (p, w) = (control[k] - centre, weights[k]);
+            let h = [p.x * w, p.y * w, p.z * w, w];
+            let e = if track {
+                core::array::from_fn(|c| {
+                    if c == 3 {
+                        0.0
+                    } else {
+                        2.0 * UNIT_ROUNDOFF * middle(h[c]).abs()
+                    }
+                })
+            } else {
+                [0.0; 4]
+            };
+            (h, e)
+        };
+        let rows: Vec<Vec<Control<T>>> = (0..nu)
+            .map(|i| {
+                let row = (0..nv).map(|j| homogeneous(i * nv + j)).collect();
+                refined(kv, row, track)
+            })
+            .collect::<Option<_>>()?;
+        let nv = rows.first()?.len();
+        let columns: Vec<Vec<Control<T>>> = (0..nv)
+            .map(|j| refined(ku, rows.iter().map(|r| r[j]).collect(), track))
+            .collect::<Option<_>>()?;
+        let nu = columns.first()?.len();
+        let (bu, bv) = (ku.breakpoint_values()?, kv.breakpoint_values()?);
+        let (cu, cv) = (bu.len() - 1, bv.len() - 1);
+        if nu != cu * pu + 1 || nv != cv * pv + 1 {
+            return None;
+        }
+        let mut cells = Vec::with_capacity(cu * cv);
+        for i in 0..cu {
+            for j in 0..cv {
+                let mut net = Vec::with_capacity((pu + 1) * (pv + 1));
+                for a in 0..=pu {
+                    for b in 0..=pv {
+                        net.push(columns[j * pv + b][i * pu + a]);
+                    }
+                }
+                cells.push(Cell {
+                    rect: [bu[i], bu[i + 1], bv[j], bv[j + 1]],
+                    net,
+                    depth: 0,
+                });
+            }
+        }
+        Some(Self { cells, pu, pv })
+    }
+}
+
 impl<T: Decide> Cell<T> {
     /// Whether the cell is longer along `u` than along `v`: each way, the
     /// longest polyline of control points or chord between corners (points
@@ -798,7 +831,7 @@ impl<T: Decide> Cell<T> {
     /// weights moves), on the brackets' middles. A cell is halved across
     /// its longer way, so a way along which it does not move (a degree-one
     /// span between equal rows of equal weights) is never cut.
-    fn longer_along_u(&self, pu: usize, pv: usize) -> bool {
+    pub(crate) fn longer_along_u(&self, pu: usize, pv: usize) -> bool {
         let at = |i: usize, j: usize| {
             let h = self.net[i * (pv + 1) + j].0;
             let w = middle(h[3]);
@@ -819,9 +852,21 @@ impl<T: Decide> Cell<T> {
 
     /// The cell split at the middle of its `u` range (`along_u`) or its
     /// `v` range, by de Casteljau on each row.
-    fn split(&self, pu: usize, pv: usize, along_u: bool) -> (Self, Self) {
+    pub(crate) fn split(&self, pu: usize, pv: usize, along_u: bool) -> (Self, Self) {
+        self.split_at(pu, pv, along_u, Fraction::Half)
+    }
+
+    /// The cell split at `at` of its `u` range (`along_u`) or its `v`
+    /// range, by de Casteljau on each row.
+    pub(crate) fn split_at(
+        &self,
+        pu: usize,
+        pv: usize,
+        along_u: bool,
+        fraction: Fraction,
+    ) -> (Self, Self) {
         let (n, m) = if along_u { (pu, pv) } else { (pv, pu) };
-        let at = |i: usize, k: usize| {
+        let at_index = |i: usize, k: usize| {
             if along_u {
                 i * (pv + 1) + k
             } else {
@@ -829,25 +874,35 @@ impl<T: Decide> Cell<T> {
             }
         };
         let track = T::WITNESS == geom_core::Witness::Inexact;
-        let half = T::from_f64(0.5);
+        let (s, t, ratio) = match fraction {
+            Fraction::Half => (0.5, T::from_f64(0.5), false),
+            Fraction::ThreeEighths => (0.375, T::from_f64(0.375), true),
+            // The cut point is a place: the step to the scalar is this
+            // evaluator's own.
+            Fraction::At(s) => (s, T::from_computed(s), true),
+        };
         let mut left = self.net.clone();
         let mut right = self.net.clone();
         for k in 0..=m {
-            let mut row: Vec<Control<T>> = (0..=n).map(|i| self.net[at(i, k)]).collect();
+            let mut row: Vec<Control<T>> = (0..=n).map(|i| self.net[at_index(i, k)]).collect();
             for level in 0..=n {
-                left[at(level, k)] = row[0];
-                right[at(n - level, k)] = row[n - level];
+                left[at_index(level, k)] = row[0];
+                right[at_index(n - level, k)] = row[n - level];
                 for i in 0..n - level {
-                    row[i] = blend(row[i], row[i + 1], half, false, track);
+                    row[i] = blend(row[i], row[i + 1], t, ratio, track);
                 }
             }
         }
         let [u0, u1, v0, v1] = self.rect;
+        let cut = |(a, b): (f64, f64)| match fraction {
+            Fraction::Half => geom::bracket_mid((a, b)),
+            Fraction::ThreeEighths | Fraction::At(_) => a + (b - a) * s,
+        };
         let (rect_left, rect_right) = if along_u {
-            let mid = geom::bracket_mid((u0, u1));
+            let mid = cut((u0, u1));
             ([u0, mid, v0, v1], [mid, u1, v0, v1])
         } else {
-            let mid = geom::bracket_mid((v0, v1));
+            let mid = cut((v0, v1));
             ([u0, u1, v0, mid], [u0, u1, mid, v1])
         };
         let depth = self.depth + 1;
@@ -863,6 +918,38 @@ impl<T: Decide> Cell<T> {
                 depth,
             },
         )
+    }
+}
+
+impl<T: Decide> Cell<T> {
+    /// **The cell restricted to `rect`**, a rectangle inside its own:
+    /// each side cut where it falls short of the cell's.
+    ///
+    /// Not `geom_core::spline::blossom::split_restrict`, which restricts
+    /// one row of `Interval` coefficients and is that crate's own: this
+    /// restricts a homogeneous tensor net at the scalar `T`, by the same
+    /// de Casteljau splits the walk halves with ([`Self::split_at`]).
+    pub(crate) fn restricted(&self, pu: usize, pv: usize, rect: [f64; 4]) -> Self {
+        let mut cell = self.clone();
+        for along_u in [true, false] {
+            let at = if along_u { 0 } else { 2 };
+            let (r0, r1) = (cell.rect[at], cell.rect[at + 1]);
+            let (w0, w1) = (rect[at], rect[at + 1]);
+            if w0 > r0 {
+                cell = cell
+                    .split_at(pu, pv, along_u, Fraction::At((w0 - r0) / (r1 - r0)))
+                    .1;
+            }
+            let (r0, r1) = (cell.rect[at], cell.rect[at + 1]);
+            if w1 < r1 {
+                cell = cell
+                    .split_at(pu, pv, along_u, Fraction::At((w1 - r0) / (r1 - r0)))
+                    .0;
+            }
+        }
+        cell.rect = rect;
+        cell.depth = self.depth;
+        cell
     }
 }
 
