@@ -358,3 +358,10 @@
   - Diff is per test, slow set included. Built → refused is empty.
   - One departure, accepted pending review: in band at the door is `JoinDesync`, because `landings` has already confirmed the pair with the same reading.
   - Single FULL review dispatched (session_018u3gVJNJL47PChxC7YURth).
+
+- 2026-11-26 PR 7782 (one-list) merged as d23272dea5, on local evidence after a single FULL review (MERGEABLE, no MAJOR) and its fix pass.
+  - The fix pass made `ReductionContacts` construction crate-private, gave `OperandRecords::face_face()` and `lower()` to five hand-written filters, and added the encoder round-trip rows.
+  - Two kind-order tables stay; the lane's reason is that neither derives from the other without reordering output.
+  - Per-test diff: none at either ε.
+  - The reviewer did not run sweep's whole slow set (about 10 hours on its box); it ran the touched sweep files with the slow set included instead.
+  - Row closed. PR 7808 (minted-door) will need main merged after its review: the carry moved under it.
