@@ -550,17 +550,11 @@ type RunningFrame<T> = ([Rounded<T>; 3], [Rounded<T>; 3], [Rounded<T>; 3]);
 /// as itself, so a row deciding the size decides it, and a poisoned
 /// read escalates that row.
 pub fn conic_size_read<T: Real>(x: T) -> T {
-    if bounded_size(x) {
+    if x.is_bounded() {
         x
     } else {
         T::from_f64(f64::NAN)
     }
-}
-
-/// The constructors' finiteness predicate ([`stored_size`]'s first
-/// clause, [`conic_size_read`]'s question).
-fn bounded_size<T: Real>(x: T) -> bool {
-    x.is_bounded()
 }
 
 /// **A conic's size as it may be stored**: `x` itself, where it is a
@@ -583,7 +577,7 @@ fn stored_size<T: Real>(x: T, door: &str, name: &str) -> T {
     let negative = minus.select_le_zero(T::zero(), poison).is_poison()
         && !minus.select_le_zero(poison, T::zero()).is_poison();
     assert!(
-        bounded_size(x) && !negative,
+        x.is_bounded() && !negative,
         "{door}: {name} {x:?} is not a finite non-negative length \
          (the other placement is the frame's)"
     );
