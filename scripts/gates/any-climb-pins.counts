@@ -12,7 +12,6 @@ crates/geom-brep/src/edge_nurbs.rs measured_ends 1 row t4-ports-unpinned-for-a-k
 crates/geom-brep/src/props/curved.rs pole_side 1 pin an_arc_holding_the_pole_answers_past_an_arc_in_band
 crates/geom-brep/src/props/curved.rs sphere_region_material_sign 1 pin a_member_arc_holding_the_pole_answers_past_one_in_band
 crates/profile/src/seg.rs arc_arc 1 pin an_end_inside_answers_past_an_end_in_band
-crates/topo/src/boolean/carrier_touch.rs ball_off_face 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 crates/topo/src/boolean/carrier_touch.rs off_face 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 crates/topo/src/contain.rs loop_circle 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 crates/topo/src/boolean/insert.rs blocked 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
@@ -93,3 +92,6 @@ crates/topo/src/stands.rs ladder_agreeing 1 row t4-ports-unpinned-for-a-kept-rea
 # it with a reading of its own, still unpinned past a kept rung
 # (t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer).
 crates/topo/src/loop_side.rs side_of_a_loop_the_division_does_not_cross 1 pin a_planar_ring_vertex_escalating_hands_re_homing_to_the_next
+crates/topo/src/boolean/face_reading.rs ball_off_face 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
+crates/topo/src/boolean/face_reading.rs face_crossings 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
+crates/topo/src/boolean/face_reading.rs window_off_face 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer

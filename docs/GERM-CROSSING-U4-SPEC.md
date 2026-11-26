@@ -157,24 +157,39 @@ C5: "the face's interior is `cross`'s answer read through the trim, every time �
 on the surface the face's own placement certifies wholly outside the face, with no boundary of the face
 reaching it, holds no point of the face; any other window refuses the face reading, naming the window
 and its why." U4b builds this once in topo, as `face_crossings(y, face, span, answer, band)`. It lives
-in `boolean/carrier_touch.rs`, renamed for what it now reads, and moves to `topo`'s root if a reader
-outside the boolean takes it.
+in `boolean/face_reading.rs`, and moves to `topo`'s root if a reader outside the boolean takes it.
 - **A found meeting** is placed by `contain::placement_on_carrier` (`contain.rs:844`), the one door
   for every face kind (on a plane its arm is `contfp_decided`). On a cone it is told off the far nappe
   first (`place_crossing`, `reduce.rs:5047`).
-- **A window** is read as `off_face` reads a cluster today. Let `m` be the window's middle, `ℓ` its
-  reach along the carrier at the carrier's speed bound (`bisect::reach`), and `(dist, foot)` the
-  surface's distance and foot at `C(m)` (`carrier_touch::distance`). The window's meetings lie within
-  `ℓ + |dist|` of the foot. That radius, widened by `escalate`, must decide below the carrier's reach ρ;
-  `ball_off_face` then needs the foot placed `Out` and every boundary vertex and edge decided clear of
-  the ball. Then the window holds no point of the face. Otherwise the reading refuses with the window's
-  why mapped to its decision: a pose rung to its coincidence lever, a method's fault by
-  `MeetFault::kind`, as the trace and census map them. A kind with no distance and foot (a cone, a
-  spline face) refuses every window, as `off_face` does today.
+- **A window** holds no point of the face only when every meeting it can hold is off the face. Its
+  meetings are localized into clusters by bisection, as `off_face`'s clusters localized a span. Let
+  `m` be a piece's middle, `ℓ` its reach along the carrier at the carrier's speed bound
+  (`bisect::reach`), and `(dist, foot, n)` the surface's distance, foot and unit normal at `C(m)`
+  (`face_reading::distance`). A piece holds no meeting within `escalate` where the larger of two
+  lower bounds on its distance, less `escalate`, decides positive (`curve_face_window_piece_clear`,
+  in metres):
+  - `|dist| − ℓ`, the distance being 1-Lipschitz;
+  - where the piece keeps clear of the carrier's medial axis (`curve_face_window_piece_off_axis`),
+    the second-order `|dist| − ℓ·|g| − ℓ²·H/2`, `g` the distance's derivative along the curve and `H`
+    `1/(ρ − |dist| − ℓ)` plus the curve's own curvature.
+
+  A piece neither clears is halved down to the tangency floor of the carrier's reach
+  (`bisect::tangency_floor`); the pieces left there run together into clusters, at most eight (the
+  most meetings a line or a conic has with these carriers), within the walk's piece budget. A
+  cluster's meetings lie within `ℓ + |dist|` of its foot; that radius, widened by `escalate`, must
+  decide below the carrier's reach ρ, and `ball_off_face` then needs the foot placed `Out` and every
+  boundary vertex and edge decided clear of the ball. A window with a cluster whose ball does not
+  clear, or that does not localize, refuses the reading. The clusters are what read a window the
+  arm's method answers whole, a circle × torus contour rung's whole-span refusal among them
+  (`mate7a_torus_rest`'s G1 chain). A refused window's why is read once for the lane
+  (`reduce::read_why`): a fault fails loud, an apex reading is the apex's before any zero-band
+  reading, a pose rung to its coincidence lever, a method's fault by `MeetFault::kind`. A kind with
+  no distance and foot (a cone, a spline face) refuses every window, as `off_face` does today.
 - **A window whose why is a fault** fails loud (`BooleanError::ClassificationInvariant`) and is never
   set aside.
 - **A touch** (`MeetingKind::Touch { arc }`) is one meeting, the in-band arc, so the trim reads the
-  arc's ball, as for a window, not the point alone. If the ball is off the face there is no event.
+  arc as a window, not the point alone. A touch at an end of the span is the end vertex's at its
+  point, but its arc's stretch inside the span is the span's, read the same way. If the ball is off the face there is no event.
   Otherwise the lane's touch treatment applies: on a plane the graze net splits at the touch point, as
   today; on a curved face the typed frontier (`CurvedPierceUnsupported`) stands, as today. U4 widens
   neither.
@@ -241,20 +256,38 @@ window. Dual: it fixes the answer shape U4b–U4d and U5 build on, which is hard
 - `face_crossings` (§2.3) is built from `off_face`'s ball rule, and `clusters` goes.
 - `wall_crossing` reads `cross` on the edge's span and `face_crossings`. `SpanVerdict` becomes a
   reading of that answer: `Pierce`, `NoInterior`, `Elsewhere`, `LiesOn` (`Lies`), `Miss` (`Apart`),
-  `AtApex` (`Through`, or an apex window), and `OffFace` (every window read off the face).
-- The covered arms keep their posture. A covered span whose windows the face reading refuses is
-  `Deferred` where today an unsettled root set is.
+  `AtApex` (an apex window: a spread or an apex the band cannot call), and `OffFace` (every window
+  read off the face). A `Through` pose's apex is a meeting like any other: `face_crossings` places it
+  in span order among the others, so a span through a cone's apex pierces the face there or crosses
+  off it, and is not refused.
+- The covered arm reads its posture off `cross`'s whole answer (`reduce::covered_posture`), every
+  window and every found meeting by the lane's one reading: a crossing found inside the span, or a
+  limit, an apex or a non-ring torus in any window, is the frontier or the face's refusal; a pose
+  rung in its gap the coincidence refusal; and only windows that are grazes, method signs in band or
+  tangencies the method could not settle the zero posture, whose covered rung reads the ends and
+  defers the interior (`settle_deferred`).
 - The cull moves into the pose as `Apart`'s first stage on the conic arms
   (`curve_face_pose_clearance`), re-posed as standing claim 1 requires. In band it hands on and never
-  refuses alone, and `conic_clearance` goes.
+  refuses alone, and `conic_clearance` goes. The re-posed cull is a ball's: the whole conic lies in
+  the ball about its centre `m` (the midpoint of two antipodal running points) of its larger
+  semi-axis `ℓ`, and each kind has a signed function `g`, `L`-Lipschitz with the residual's sign
+  (`|p − S| − R`, `ρ − R`, `ρ cos α − |h| sin α`, `√((ρ − R)² + h²) − r`), so `|g(m)| − L·ℓ −
+  escalate` decided past the band is `Apart`. It reads no harmonic extremes and charges nothing:
+  `g(m)` is read from `m − origin` (an axis's offset as `|e × n|`). The question is past `Kε`, not
+  past zero, because `Apart` claims the conic stands past `Kε` (W2), as the face reading's piece rule
+  asks (§2.3). Asked past zero, a 363-m circle's rounding read a graze at 0.999·Kε past Kε. Asked past
+  `Kε`, the session box bounds the bound's rounding to about 7.3e-12 m (sixteen ulps of its 3.46-km
+  diagonal), against `Kε` = 1e-11 at
+  ε = 1e-12. The torus arm asks the ring convention before it.
 - `bool_line_cylinder_clearance` goes: the pose's discriminant decides that line's class exactly.
 - The straddle arm's `NoInterior` with no window becomes `Contradiction` (§2.3).
-- Whether the walk drops a piece wholly off the arc at its split, unwalked (§2.2), is decided here. U4a
-  walks such a piece until it settles or refuses, because the wrappers' `CircleRoots` report the roots
-  round the whole turn; once the wrappers retire, nothing reads the count off the arc.
+- The walk does not drop a piece wholly off the arc at its split (§2.2): it walks such a piece until
+  it settles or refuses, as U4a does. `cross` reads only the meetings and windows on the span
+  (`on_span`), so a piece off the arc costs its walk and never its answer; dropping it unwalked would
+  move the walk's refusals with no reader to gain.
 
 **Retires**: `line_quadric_roots`, `conic_quadric_roots`, `circle_torus_roots`, `ellipse_torus_roots`
-and their only-a-wrapper doc lines; `carrier_touch::off_face` and `clusters`; `composite_count`'s and
+from the API (each stays the door rows' test reader, `cfg(test)`); `carrier_touch::off_face` and `clusters`; `composite_count`'s and
 `wall_crossing`'s `off_face` hooks; `conic_clearance`; `bool_conic_curved_clearance`;
 `bool_line_cylinder_clearance`; `of_line_quadric_refusal`, `of_conic_quadric_refusal` and
 `of_torus_door_refusal`, replaced by one map from `CrossWhy`; the test rows' direct wrapper calls,
@@ -294,6 +327,7 @@ change to C5's fixed method per arm, and goes to Ev as an `[ev]` question on U4b
 | the rescue list (gate above), each `OffFace` | `face_crossings` reads every window as refusing |
 | a definite clearance answers `Apart` where the closed rungs escalate | the cull skipped |
 | a circle 1e6 m from its sphere's centre, 10 `Kε` clear, against a double-double oracle | the cull reads `c₀ − swing` at the far centre |
+| large circles grazing a small wall inside `Kε`, against a double-double oracle, never culled | the question asked past zero |
 | the line-clearance fuzz: line × wall and line × sphere, both endpoint residuals positive, the answer against the closed-form quadratic in double-double | the pose's discriminant read on the endpoint chord |
 | a straddle with no interior crossing fails loud | the contradiction read as the frontier |
 

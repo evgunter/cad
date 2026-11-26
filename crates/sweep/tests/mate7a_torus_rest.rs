@@ -330,8 +330,9 @@ fn the_g1_tube_chain_is_one_bent_tube() {
     let tube = core::f64::consts::PI * TUBE * TUBE;
     let want = tube * RING * TURN.to_radians() + tube * 1.1 * 170.0_f64.to_radians();
     for (order, x, y) in [("A, B", &a, &b), ("B, A", &b, &a)] {
-        let Ok(BooleanResult::Body(bb)) = topo::union(x, y, Tol::witness()) else {
-            panic!("{order}: the chain unions to one body");
+        let got = topo::union(x, y, Tol::witness());
+        let Ok(BooleanResult::Body(bb)) = got else {
+            panic!("{order}: the chain unions to one body: {got:?}");
         };
         assert_eq!(bb.body.solids().count(), 1, "{order}: one solid");
         assert_eq!(
@@ -427,22 +428,13 @@ fn subtract_and_intersect_on_the_torus_rest_fixtures() {
     for (name, (a, b)) in [("kissing pair", kissing_pair())] {
         for (op, r) in subtract_both_orders_and_intersect(&a, &b) {
             let err = r.expect_err(op);
-            // The escalation is the circle rung's sampled clearance
-            // landing in the band's window (the `1e-6` row); at the
-            // finer rows the same edge's touch, read in the band's gap,
-            // escalates on the circle × torus roots, at the edge and the
-            // torus.
+            // The edge's touch, read in the band's gap, escalates on the
+            // circle × torus roots, at the edge and the torus; or the
+            // touch keeps the frontier.
             assert!(
                 matches!(
                     err,
                     BooleanError::CurvedPierceUnsupported { .. }
-                        | BooleanError::Escalated {
-                            diag: geom_core::Indeterminate {
-                                predicate: Some("bool_conic_curved_clearance"),
-                                ..
-                            },
-                            ..
-                        }
                         | BooleanError::CurvedPierceEscalated {
                             decision: topo::BooleanDecision::ArcTorusRoots,
                             ..

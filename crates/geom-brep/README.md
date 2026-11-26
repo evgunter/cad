@@ -1516,13 +1516,14 @@ budget or first cut) are one window over the whole span. A window that
 misses the span is dropped with the meetings it could hold; windows
 that overlap or touch within the band are one, a fault's why ahead of
 any other; a found meeting lies in no window. The doors' older
-entries (`plane_crossing_lane`, `line_quadric_roots`,
-`conic_quadric_roots`, `circle_torus_roots`, `ellipse_torus_roots`, and
-the ray lane's `line_wall_roots`, `line_sphere_roots`,
-`line_cone_roots`) read the pose and then the method, and decide
-nothing of their own, for the readers that do not yet read `cross`: each
-answers the first window that meets the span as its old refusal, so a
-refusal off the arc refuses nothing. A
+entries (`plane_crossing_lane`, and the ray lane's `line_wall_roots`,
+`line_sphere_roots`, `line_cone_roots`) read the pose and then the
+method, and decide nothing of their own, for the readers that do not yet
+read `cross`: each answers the first window that meets the span as its
+old refusal, so a refusal off the arc refuses nothing. The curved lane
+reads `cross`, and `line_quadric_roots`, `conic_quadric_roots`,
+`circle_torus_roots` and `ellipse_torus_roots` read the same way for the
+door rows alone, as test readers. A
 meeting inside a spline
 face's chart is placed by the trim at the chart point it was found at,
 on its own sheet (`topo::spline_region::spline_chart_placement`);
