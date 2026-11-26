@@ -2173,3 +2173,5 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - 8 node rows change refusal kind to `NodeUnbuilt`, with no build lost (C5).
   - The `sliver_shell_role` refusal moves to the crossing.
   - All agreed.
+- 2026-11-26 21:30 — **[ev] PR 7818 (U4c, draft):** asks whether a conic lying in a bisector plane should answer `Lies` (recommended by both designers) or refuse as C5 says. The decision document is at the top of the body. The orchestrator is subscribed to the PR.
+  - The fork was weighed by two Opus designers under the user's outage ruling; there is no design-fork-protocol row (arms are not drawable without Fable).
