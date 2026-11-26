@@ -6,7 +6,8 @@
 //! its Bézier pieces by Boehm's insertion at the scalar
 //! ([`crate::pcurve_cache::spline_incidence::refined`]), each held as
 //! its parameter's ends and the composite's numerator and denominator
-//! rows ([`CanonicalSurface::piece_rows`], `geom_core::spline::canonical_rows`). At `f64` the rows are real
+//! rows ([`geom_core::spline::compose::CanonicalSurface::piece_rows`],
+//! `geom_core::spline::canonical_rows`). At `f64` the rows are real
 //! numbers, with no rounding charged or padded (DESIGN
 //! `[simple.conditioned]`); at an interval scalar they are enclosures.
 //! Every cut is at a constant share of a piece (a halving, or one of
@@ -58,10 +59,10 @@
 //! sides of the span's ends read past the band (the parity guard), and
 //! a count that disagrees reads nothing.
 
+use crate::pcurve_cache::projected::Meters;
 use geom::{NurbsCurve3, Surface};
 use geom_core::bisect::{Budget, PIECE_BUDGET, Step, bisect_within};
 use geom_core::k_stats::{decide, prove};
-use geom_core::spline::compose::CanonicalSurface;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use super::CompositeRefusal;
@@ -212,7 +213,11 @@ fn read<T: Decide>(
             if clear(&piece, &read) {
                 return Ok(Step::Settled);
             }
-            if one_signed(&slope_row(&piece.num, &piece.den)).is_none() {
+            if slope_row(&piece.num, &piece.den)
+                .as_deref()
+                .and_then(one_signed)
+                .is_none()
+            {
                 return cut(piece, floor, &read).map(Step::Halve);
             }
             let (ra, rb) = (
@@ -295,20 +300,15 @@ fn pieces<T: Decide>(
     surface: &Surface<T>,
 ) -> Result<(Vec<Piece<T>>, T), CompositeRefusal> {
     let unread = CompositeRefusal::Unread;
-    let degenerate = CompositeRefusal::FaceDegenerate;
-    let (origin, [u_ref, _, axis]) = crate::pcurve_cache::projected::chart_frame(surface)
-        .ok_or(unread("a spline face has no canonical form"))?;
-    let e2 = axis.normalize();
-    let e0 = (u_ref - e2 * u_ref.dot(e2)).normalize();
-    let e = [e0, e2.cross(e0), e2];
-    if e.iter()
-        .any(|v| v.x.is_poison() || v.y.is_poison() || v.z.is_poison())
-    {
-        return Err(degenerate("the face's chart frame does not read"));
-    }
-    let (form, divisor) = form_and_divisor(surface, net.control(), origin, e)?;
+    let super::Chart {
+        origin,
+        axes: e,
+        form,
+        meters,
+    } = super::chart(surface, |v| v, |v: T| !v.is_poison())?;
+    let divisor = divisor(meters, net.control(), origin, e);
     if !matches!(prove(DIVISOR, Margin::sign_of(divisor)), Ok(Sign::Positive)) {
-        return Err(degenerate(
+        return Err(CompositeRefusal::FaceDegenerate(
             "the form's distance divisor is not shown positive",
         ));
     }
@@ -353,7 +353,18 @@ fn pieces<T: Decide>(
         if !positive(&rows[3]) {
             return Err(unread("a weight of the carrier is not shown positive"));
         }
-        let (num, den) = form.piece_rows([&rows[0], &rows[1], &rows[2]], &rows[3]);
+        // The slope row `N′D − ND′` is the widest product the walk
+        // forms, of degree `2d − 1` on a composite of degree `d`: past the
+        // exact binomials no product weight is a constant.
+        let (num, den) = form
+            .piece_rows([&rows[0], &rows[1], &rows[2]], &rows[3])
+            .filter(|(num, _)| {
+                2 * num.len().saturating_sub(1)
+                    <= geom_core::spline::derivative::QUOTIENT_MAX_DEGREE + 1
+            })
+            .ok_or(unread(
+                "the composite's degree passes the exact binomials' degree",
+            ))?;
         out.push(Piece {
             a,
             b,
@@ -369,18 +380,18 @@ fn pieces<T: Decide>(
     Ok((out, divisor))
 }
 
-/// The surface's canonical form at the scalar, and an upper bound on its
-/// distance divisor (`projected::Meters::divisor`) over the box of the
-/// net's points in the chart frame: each coordinate's greatest magnitude
-/// `M`, read into the divisor's terms where each only grows with it. On
-/// the torus both tube distances are at most `F = (ρ_M + R)² + z_M²`, so
-/// the divisor is at most `(√F + r)·(F + r²)`.
-fn form_and_divisor<T: Decide>(
-    surface: &Surface<T>,
+/// An upper bound on the form's distance divisor
+/// (`projected::Meters::divisor`) over the box of the net's points in
+/// the chart frame: each coordinate's greatest magnitude `M`, read into
+/// the divisor's terms where each only grows with it. On the torus both
+/// tube distances are at most `F = (ρ_M + R)² + z_M²`, so the divisor is
+/// at most `(√F + r)·(F + r²)`. One on the plane.
+fn divisor<T: Decide>(
+    meters: Meters<T>,
     control: &[Point3<T>],
     origin: Point3<T>,
     e: [Vec3<T>; 3],
-) -> Result<(CanonicalSurface<T>, T), CompositeRefusal> {
+) -> T {
     let mut m = [T::zero(); 3];
     for &p in control {
         let g = p - origin;
@@ -390,45 +401,16 @@ fn form_and_divisor<T: Decide>(
     }
     let rho = (m[0].powi(2) + m[1].powi(2)).sqrt();
     let norm = (rho.powi(2) + m[2].powi(2)).sqrt();
-    Ok(match *surface {
-        Surface::Plane { .. } => (CanonicalSurface::Plane, T::one()),
-        Surface::Cylinder { radius, .. } => (CanonicalSurface::Cylinder { radius }, rho + radius),
-        Surface::Sphere { radius, .. } => (CanonicalSurface::Sphere { radius }, norm + radius),
-        Surface::Cone { half_angle, .. } => {
-            let (sin, cos) = half_angle.sin_cos();
-            (
-                CanonicalSurface::Cone {
-                    cos2: cos.powi(2),
-                    sin2: sin.powi(2),
-                },
-                rho * cos + m[2] * sin,
-            )
+    match meters {
+        Meters::Plane => T::one(),
+        Meters::Cylinder { radius } => rho + radius,
+        Meters::Sphere { radius } => norm + radius,
+        Meters::Cone { sin, cos, .. } => rho * cos + m[2] * sin,
+        Meters::Torus { major, minor } | Meters::Spindle { major, minor } => {
+            let outer = (rho + major.abs()).powi(2) + m[2].powi(2);
+            (outer.sqrt() + minor.abs()) * (outer + minor.powi(2))
         }
-        Surface::Torus {
-            major_radius,
-            minor_radius,
-            ..
-        } => {
-            let outer = (rho + major_radius.abs()).powi(2) + m[2].powi(2);
-            (
-                CanonicalSurface::Torus {
-                    major: major_radius,
-                    minor: minor_radius,
-                },
-                (outer.sqrt() + minor_radius.abs()) * (outer + minor_radius.powi(2)),
-            )
-        }
-        Surface::Nurbs(_) | Surface::Approx(_) => {
-            return Err(CompositeRefusal::Unread(
-                "a spline face has no canonical form",
-            ));
-        }
-        Surface::Spindle { .. } => {
-            return Err(CompositeRefusal::Unread(
-                "a spindle sheet's face has no composite lane yet",
-            ));
-        }
-    })
+    }
 }
 
 /// Whether every coefficient ratio of the piece is decided past the band
@@ -487,17 +469,14 @@ fn derivative<T: Decide>(row: &[T]) -> Vec<T> {
     row.windows(2).map(|w| n * (w[1] - w[0])).collect()
 }
 
-/// `N′D − ND′`, whose sign is `f′`'s (`D > 0`), as one Bernstein row.
-fn slope_row<T: Decide>(num: &[T], den: &[T]) -> Vec<T> {
-    use geom_core::spline::canonical_rows::bernstein_product as product;
-    let left = product(&derivative(num), den);
-    let right = product(num, &derivative(den));
-    match (left.is_empty(), right.is_empty()) {
-        (false, false) => left.iter().zip(&right).map(|(l, r)| *l - *r).collect(),
-        (false, true) => left,
-        (true, false) => right.iter().map(|r| -*r).collect(),
-        (true, true) => Vec::new(),
-    }
+/// `N′D − ND′`, whose sign is `f′`'s (`D > 0`), as one Bernstein row:
+/// `None` past the exact binomials' degree, which [`pieces`] refuses
+/// before any piece is read.
+fn slope_row<T: Decide>(num: &[T], den: &[T]) -> Option<Vec<T>> {
+    use geom_core::spline::derivative::row_product as product;
+    let left = product(&derivative(num), den)?;
+    let right = product(num, &derivative(den))?;
+    Some(left.iter().zip(&right).map(|(l, r)| *l - *r).collect())
 }
 
 /// De Casteljau's split of `row` at the share `s` of its piece: the rows
@@ -633,6 +612,37 @@ fn bisect_row<T: Decide>(
     off: &impl Fn(T) -> (Point3<T>, Margin<T>),
     band: Band,
 ) -> Result<T, CompositeRefusal> {
+    let closed = halved::<T, CompositeRefusal>(piece, |p| {
+        Ok(match side_at_half(p, off, band)? {
+            None => Keep::Neither,
+            Some(side) if side == left => Keep::Right,
+            Some(_) => Keep::Left,
+        })
+    })?;
+    Ok(at_share(&closed, T::from_f64(0.5)))
+}
+
+/// Which half of a piece a halving keeps, or neither (the halving ends
+/// there) ([`halved`]).
+enum Keep {
+    Left,
+    Right,
+    Neither,
+}
+
+/// **The one halving loop**: `piece` cut at its middle, and the half
+/// `keep` names kept, until `keep` names neither or the shadow closes on
+/// adjacent `f64`s, at most [`BISECTIONS`] times. A crossing's bracket
+/// ([`bisect_row`], [`bracket_root`]) and a near end's stretch
+/// ([`stretch`]) each say what a halving keeps; the loop is theirs alike.
+/// A `keep` that refuses ends the loop on its refusal: [`bisect_row`]'s
+/// halving reads its midpoint's side as the premise of the half it
+/// keeps, and a midpoint in the band's gap at the residual refuses the
+/// crossing. A bisection's iterate, not a search's kept reading.
+fn halved<T: Decide, E>(
+    piece: &Piece<T>,
+    keep: impl Fn(&Piece<T>) -> Result<Keep, E>,
+) -> Result<Piece<T>, E> {
     let mut piece = piece.clone();
     for _ in 0..BISECTIONS {
         let (a, b) = piece.shadow;
@@ -640,13 +650,15 @@ fn bisect_row<T: Decide>(
         if !(a < m && m < b) {
             break;
         }
-        let Some(side) = side_at_half(&piece, off, band)? else {
-            return Ok(split(&piece, 0.5)[0].b);
-        };
+        let kept = keep(&piece)?;
         let [l, r] = split(&piece, 0.5);
-        piece = if side == left { r } else { l };
+        piece = match kept {
+            Keep::Left => l,
+            Keep::Right => r,
+            Keep::Neither => break,
+        };
     }
-    Ok(split(&piece, 0.5)[0].b)
+    Ok(piece)
 }
 
 /// The crossing of a knot's stretch: `before` ends at the knot within
@@ -756,7 +768,10 @@ fn past_the_end<T: Decide>(
     for k in CONTINUATIONS {
         let beyond = continued(piece, at_start, k);
         if !positive(&beyond.carrier[3])
-            || one_signed(&slope_row(&beyond.num, &beyond.den)).is_none()
+            || slope_row(&beyond.num, &beyond.den)
+                .as_deref()
+                .and_then(one_signed)
+                .is_none()
         {
             continue;
         }
@@ -828,21 +843,14 @@ fn continued<T: Decide>(piece: &Piece<T>, at_start: bool, k: f64) -> Piece<T> {
 /// nothing but the piece's own rows, so it serves a continuation, which
 /// holds no point of the carrier.
 fn bracket_root<T: Decide>(piece: &Piece<T>, left: Sign) -> Piece<T> {
-    let mut piece = piece.clone();
-    for _ in 0..BISECTIONS {
-        let (a, b) = piece.shadow;
-        let m = geom::bracket_mid((a, b));
-        if !(a < m && m < b) {
-            break;
-        }
-        let side = match prove(SIDE, Margin::sign_of(value_at(&piece, 0.5))) {
-            Ok(s @ (Sign::Positive | Sign::Negative)) => s,
-            _ => break,
-        };
-        let [l, r] = split(&piece, 0.5);
-        piece = if side == left { r } else { l };
-    }
-    piece
+    let Ok(bracket) = halved::<T, core::convert::Infallible>(piece, |p| {
+        Ok(match prove(SIDE, Margin::sign_of(value_at(p, 0.5))) {
+            Ok(s @ (Sign::Positive | Sign::Negative)) if s == left => Keep::Right,
+            Ok(Sign::Positive | Sign::Negative) => Keep::Left,
+            _ => Keep::Neither,
+        })
+    });
+    bracket
 }
 
 /// **An upper bound on the carrier's speed over the piece**, per unit of
@@ -853,7 +861,7 @@ fn bracket_root<T: Decide>(piece: &Piece<T>, left: Sign) -> Piece<T> {
 /// unit share, divided by the piece's width. `None` where a weight
 /// coefficient is not proved positive.
 fn sup_speed<T: Decide>(piece: &Piece<T>) -> Option<T> {
-    use geom_core::spline::canonical_rows::bernstein_product as product;
+    use geom_core::spline::derivative::row_product as product;
     let w = &piece.carrier[3];
     if !positive(w) {
         return None;
@@ -861,8 +869,8 @@ fn sup_speed<T: Decide>(piece: &Piece<T>) -> Option<T> {
     let dw = derivative(w);
     let mut sum = T::zero();
     for coordinate in &piece.carrier[..3] {
-        let left = product(&derivative(coordinate), w);
-        let right = product(coordinate, &dw);
+        let left = product(&derivative(coordinate), w)?;
+        let right = product(coordinate, &dw)?;
         let most = left
             .iter()
             .zip(&right)
@@ -888,18 +896,14 @@ fn positive<T: Decide>(row: &[T]) -> bool {
 /// halving, past which `f` is proved on its far side (`proved`). `f` is
 /// monotone over the piece, so every meeting of it lies on the stretch.
 fn stretch<T: Decide>(piece: &Piece<T>, at_start: bool, proved: impl Fn(T) -> bool) -> T {
-    let mut piece = piece.clone();
-    for _ in 0..BISECTIONS {
-        let (a, b) = piece.shadow;
-        let m = geom::bracket_mid((a, b));
-        if !(a < m && m < b) {
-            break;
-        }
-        let past = proved(value_at(&piece, 0.5));
-        let [l, r] = split(&piece, 0.5);
-        piece = if past == at_start { l } else { r };
-    }
-    if at_start { piece.b } else { piece.a }
+    let Ok(run) = halved::<T, core::convert::Infallible>(piece, |p| {
+        Ok(if proved(value_at(p, 0.5)) == at_start {
+            Keep::Left
+        } else {
+            Keep::Right
+        })
+    });
+    if at_start { run.b } else { run.a }
 }
 
 /// **The meetings found, each read**: against the creases (where the

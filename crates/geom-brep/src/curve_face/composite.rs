@@ -37,7 +37,7 @@
 
 use geom::Surface;
 use geom_core::spline::compose::CanonicalSurface;
-use geom_core::{Indeterminate, Interval, Point3, Real, Vec3};
+use geom_core::{Indeterminate, Interval, Point3, Vec3};
 
 use crate::pcurve_cache::projected::Meters;
 use crate::roots::Unsettled;
@@ -114,47 +114,29 @@ pub(crate) type FramedForm = ([Vec<Interval>; 3], CanonicalSurface, Meters<Inter
 
 /// A surface's canonical form and its metres conversion, with `points`
 /// written in its chart frame in certification arithmetic, coordinate by
-/// coordinate: the operands a composite against the surface reads, for
-/// a carrier's net or a patch's ([`crate::patch_carrier`]) alike.
+/// coordinate ([`chart`] at [`Interval`]): the operands a composite
+/// against the surface reads, for a patch's net
+/// ([`crate::patch_carrier`]).
 ///
 /// # Errors
 ///
-/// [`CompositeRefusal::Unread`] off an analytic chart or for a point that
-/// does not certify; [`CompositeRefusal::FaceDegenerate`] where the chart
-/// frame does not.
+/// As [`chart`], every axis coordinate certified; and
+/// [`CompositeRefusal::Unread`] for a point that does not certify.
 pub(crate) fn framed_form<T: geom_core::Certifies>(
     surface: &Surface<T>,
     points: &[Point3<T>],
     cross: &impl Fn(T) -> Interval,
 ) -> Result<FramedForm, CompositeRefusal> {
-    let unread = CompositeRefusal::Unread;
-    let (origin, frame) = crate::pcurve_cache::projected::chart_frame(surface)
-        .ok_or(unread("a spline face has no canonical form"))?;
-    let point = |p: Point3<T>| Vec3::new(cross(p.x), cross(p.y), cross(p.z));
-    let vector = |v: Vec3<T>| Vec3::new(cross(v.x), cross(v.y), cross(v.z));
-    let o = point(origin);
-    // The frame formed in certification arithmetic: the axis normalized,
-    // and the reference direction made orthogonal to it and normalized.
-    // Its enclosures hold an exactly orthonormal frame about the stored
-    // axis, which the radial terms read; the stored twin is orthonormal
-    // only to its rounding.
-    let [u_ref, _, axis] = frame.map(vector);
-    let e2 = axis.normalize();
-    let radial = u_ref - e2 * u_ref.dot(e2);
-    let e0 = radial.normalize();
-    let e = [e0, e2.cross(e0), e2];
-    if !e
-        .iter()
-        .all(|v| v.x.is_certified() && v.y.is_certified() && v.z.is_certified())
-    {
-        return Err(CompositeRefusal::FaceDegenerate(
-            "the face's chart frame does not certify",
-        ));
-    }
+    let Chart {
+        origin,
+        axes: e,
+        form,
+        meters,
+    } = chart(surface, cross, Interval::is_certified)?;
     let framed: Vec<Vec3<Interval>> = points
         .iter()
         .map(|&p| {
-            let g = point(p) - o;
+            let g = Point3::new(cross(p.x), cross(p.y), cross(p.z)) - origin;
             Vec3::new(g.dot(e[0]), g.dot(e[1]), g.dot(e[2]))
         })
         .collect();
@@ -162,63 +144,18 @@ pub(crate) fn framed_form<T: geom_core::Certifies>(
         .iter()
         .all(|g| g.x.is_certified() && g.y.is_certified() && g.z.is_certified())
     {
-        return Err(unread("a control point does not certify"));
+        return Err(CompositeRefusal::Unread("a control point does not certify"));
     }
     let coords = [
         framed.iter().map(|g| g.x).collect::<Vec<_>>(),
         framed.iter().map(|g| g.y).collect(),
         framed.iter().map(|g| g.z).collect(),
     ];
-    let (form, meters) = match *surface {
-        Surface::Plane { .. } => (CanonicalSurface::Plane, Meters::Plane),
-        Surface::Cylinder { radius, .. } => {
-            let radius = cross(radius);
-            (
-                CanonicalSurface::Cylinder { radius },
-                Meters::Cylinder { radius },
-            )
-        }
-        Surface::Sphere { radius, .. } => {
-            let radius = cross(radius);
-            (
-                CanonicalSurface::Sphere { radius },
-                Meters::Sphere { radius },
-            )
-        }
-        Surface::Cone { half_angle, .. } => {
-            let (sin, cos) = crate::implicit::cone_sin_cos(half_angle, cross);
-            (
-                CanonicalSurface::Cone {
-                    cos2: cos.powi(2),
-                    sin2: sin.powi(2),
-                },
-                Meters::Cone {
-                    sin,
-                    cos,
-                    locus: crate::pcurve_cache::projected::Locus::Carrier,
-                },
-            )
-        }
-        Surface::Torus {
-            major_radius,
-            minor_radius,
-            ..
-        } => {
-            let (major, minor) = (cross(major_radius), cross(minor_radius));
-            (
-                CanonicalSurface::Torus { major, minor },
-                Meters::Torus { major, minor },
-            )
-        }
-        Surface::Nurbs(_) | Surface::Approx(_) => {
-            return Err(unread("a spline face has no canonical form"));
-        }
-        Surface::Spindle { .. } => {
-            return Err(unread("a spindle sheet's face has no composite lane yet"));
-        }
-    };
     Ok((coords, form, meters))
 }
+
+mod chart;
+pub(crate) use chart::{Chart, chart};
 
 mod walk;
 pub(in crate::curve_face) use walk::method;
