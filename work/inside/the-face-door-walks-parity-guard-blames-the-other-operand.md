@@ -2,11 +2,14 @@
 id: the-face-door-walks-parity-guard-blames-the-other-operand
 kind: issue
 title: The ring composite walk's parity guard refuses Unread, which reduce::composite_count reports as the other operand's InvalidInput, so a walk self-contradiction blames the user's input
-status: open
+status: closed
 opened: 2026-11-26
 priority: P3
 cost: E
 refs: [7801]
+closed: 2026-11-26
+pr: 7813
+branch: inside/face-door-spline-arm
 ---
 
 Found by PR 7801's verifier (2026-11-26). It was not fixed in that PR, because the PR's slow set costs about 3 h a run.

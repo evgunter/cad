@@ -2,7 +2,7 @@
 id: inside
 kind: program
 title: INSIDE — containment and point-in-solid: the decision an escalation carries, the walls and charts the door refuses, and the P1/P2 touch reads
-status: active
+status: ready
 opened: 2026-10-09
 group: kernel/boolean/contact
 prefix: inside/
