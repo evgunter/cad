@@ -347,3 +347,5 @@
   - The reviewer showed the three loft/NURBS containment reds are main's, from INSIDE's PR 7798 (`33191a617a`). Filed P1 `work/inside/main-red-three-loft-rows-expect-point-containment-to-refuse-a-spline-face`.
   - Dispatched lane `heldrecords/minted-door` (session_018u3gVFsPxLJDhJLgrGLPTt), single FULL review.
   - one-list told to merge main and re-diff.
+
+- 2026-11-26 PR 7782 (one-list) merged main (head e60352af27). The per-test verdict diff against ffc8c37d4c, slow set included, is empty. Main has 10 reds, the same on both sides: the pierce row (minted-door), three loft/NURBS rows (INSIDE), and six that were already red before PR 7745 (recourse_roster on ORBIT, square_search fuzzer on GERM, review_cleave_nurbs ×2, shell_general_door, an_aimed_ray). Single FULL review dispatched (session_018u3gVFebXNVvDBVxhHuhAN).
