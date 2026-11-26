@@ -9,7 +9,7 @@ use super::{
     FaceCrossings, FaceMeeting, MedialDistance, ball_off_face, face_crossings, window_off_face,
 };
 use crate::body::Body;
-use crate::boolean::BooleanError;
+use crate::boolean::{BooleanError, Operand};
 use crate::contain::{CurvedPlacement, FaceContainment};
 use crate::entity::FaceKey;
 use crate::test_support_fixtures::{CylFrame, cone_cap, cyl_wall_sheet, set_sheet_sense};
@@ -127,8 +127,15 @@ fn a_window_off_the_face_with_its_ball_clear_of_the_boundary_is_no_event() {
             .unwrap_or_else(|e| panic!("{e:?}")),
         "the window's ball is off the face"
     );
-    let got = face_crossings(&y, face, &unit_wall(), &span, one_window(window), band())
-        .unwrap_or_else(|e| panic!("{e:?}"));
+    let got = face_crossings(
+        (&y, Operand::B),
+        face,
+        &unit_wall(),
+        &span,
+        one_window(window),
+        band(),
+    )
+    .unwrap_or_else(|e| panic!("{e:?}"));
     assert!(
         matches!(got, FaceCrossings::Met { ref meetings, windowed: true } if meetings.is_empty()),
         "no event, windowed"
@@ -164,8 +171,15 @@ fn a_window_whose_ball_meets_a_boundary_edge_refuses_with_its_why() {
             .unwrap_or_else(|e| panic!("{e:?}")),
         "the ball holds the edge at azimuth ½"
     );
-    let got = face_crossings(&y, face, &unit_wall(), &span, one_window(window), band())
-        .unwrap_or_else(|e| panic!("{e:?}"));
+    let got = face_crossings(
+        (&y, Operand::B),
+        face,
+        &unit_wall(),
+        &span,
+        one_window(window),
+        band(),
+    )
+    .unwrap_or_else(|e| panic!("{e:?}"));
     let FaceCrossings::Refused(w) = got else {
         panic!("the window refuses");
     };
@@ -207,7 +221,14 @@ fn a_window_on_a_cone_face_refuses() {
         "a cone window is held"
     );
     assert!(matches!(
-        face_crossings(&y, face, &cone, &span, one_window(window), band()),
+        face_crossings(
+            (&y, Operand::B),
+            face,
+            &cone,
+            &span,
+            one_window(window),
+            band()
+        ),
         Ok(FaceCrossings::Refused(_))
     ));
 }
@@ -269,10 +290,10 @@ fn a_touch_whose_arc_reaches_the_boundary_is_held() {
         found: vec![touch],
         windows: Vec::new(),
     });
-    let got = face_crossings(&y, face, &unit_wall(), &span, answer, band())
+    let got = face_crossings((&y, Operand::B), face, &unit_wall(), &span, answer, band())
         .unwrap_or_else(|e| panic!("{e:?}"));
     assert!(
-        matches!(got, FaceCrossings::Met { ref meetings, .. } if matches!(meetings.as_slice(), [FaceMeeting::TouchOnFace])),
+        matches!(got, FaceCrossings::Met { ref meetings, .. } if matches!(meetings.as_slice(), [FaceMeeting::TouchOnFace(_)])),
         "the touch is held on the face"
     );
 }
@@ -292,7 +313,7 @@ fn a_fault_window_fails_loud() {
         }],
     });
     assert!(matches!(
-        face_crossings(&y, face, &unit_wall(), &span, answer, band()),
+        face_crossings((&y, Operand::B), face, &unit_wall(), &span, answer, band()),
         Err(BooleanError::ClassificationInvariant {
             what: "a row's fault"
         })
@@ -518,12 +539,12 @@ fn an_end_touchs_arc_inside_the_span_is_read_against_the_face() {
     for span in [(-0.5, 0.5), (-0.5, 0.0)] {
         let span = Span::new(&line, span);
         let answer = geom_brep::curve_face::cross(&span, &unit_wall(), band());
-        let got = face_crossings(&y, face, &unit_wall(), &span, answer, band())
+        let got = face_crossings((&y, Operand::B), face, &unit_wall(), &span, answer, band())
             .unwrap_or_else(|e| panic!("{:?}: {e:?}", span.params()));
         let held = match got {
             FaceCrossings::Met { meetings, .. } => meetings
                 .iter()
-                .any(|m| matches!(m, FaceMeeting::TouchOnFace)),
+                .any(|m| matches!(m, FaceMeeting::TouchOnFace(_))),
             FaceCrossings::Refused(_) => true,
             FaceCrossings::Lies | FaceCrossings::Apart => false,
         };

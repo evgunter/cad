@@ -91,8 +91,10 @@ pub(super) enum FaceMeeting<T: Real> {
         /// Where it stands against the face.
         placed: super::reduce::Placed,
     },
-    /// A touch whose in-band arc's ball the face may hold.
-    TouchOnFace,
+    /// A touch whose in-band arc's ball the face may hold: at its
+    /// parameter and point where it is strictly inside the span, `None`
+    /// at an end of it.
+    TouchOnFace(Option<(T, Point3<T>)>),
 }
 
 /// **The face reading of `cross`'s answer for `span` against `face`**
@@ -103,7 +105,7 @@ pub(super) enum FaceMeeting<T: Real> {
 /// [`BooleanError::ClassificationInvariant`] for a window whose why is a
 /// fault; a placement's or a ball's escalation; a stale face.
 pub(super) fn face_crossings<T: Decide + Bounds>(
-    y: &Body<T>,
+    (y, face_is): (&Body<T>, super::Operand),
     face: FaceKey,
     surface: &geom::Surface<T>,
     span: &Span<'_, T>,
@@ -211,19 +213,19 @@ pub(super) fn face_crossings<T: Decide + Bounds>(
                 if inside.0.hi() < inside.1.hi()
                     && !window_off_face(y, face, surface, carrier, inside, band)?
                 {
-                    out.push(FaceMeeting::TouchOnFace);
+                    out.push(FaceMeeting::TouchOnFace(None));
                     break;
                 }
                 out.push(FaceMeeting::End);
             }
-            (OnSpan::Inside { .. }, MeetingKind::Touch { arc }) => {
+            (OnSpan::Inside { t }, MeetingKind::Touch { arc }) => {
                 if !window_off_face(y, face, surface, carrier, arc, band)? {
-                    out.push(FaceMeeting::TouchOnFace);
+                    out.push(FaceMeeting::TouchOnFace(Some((t, m.point))));
                     break;
                 }
             }
             (OnSpan::Inside { t }, MeetingKind::Cross) => {
-                let placed = super::reduce::place_crossing(y, face, m.point, nappe, band)?;
+                let placed = place_meeting(y, face_is, face, surface, m.point, nappe, band)?;
                 let decisive = matches!(
                     placed,
                     super::reduce::Placed::At(..)
@@ -244,6 +246,34 @@ pub(super) fn face_crossings<T: Decide + Bounds>(
     Ok(FaceCrossings::Met {
         meetings: out,
         windowed: !windows.is_empty(),
+    })
+}
+
+/// **Where a meeting at `p` stands against `face`**, a face of
+/// `face_is`: on a plane by the planar door ([`crate::contain::contfp_decided`],
+/// its refusals carried typed with the face, [`super::reduce::esc`]), on
+/// any other carrier by [`super::reduce::place_crossing`].
+///
+/// # Errors
+///
+/// The planar door's refusal, or [`super::reduce::place_crossing`]'s.
+pub(super) fn place_meeting<T: Decide>(
+    y: &Body<T>,
+    face_is: super::Operand,
+    face: FaceKey,
+    surface: &geom::Surface<T>,
+    p: Point3<T>,
+    nappe: Option<super::reduce::ConeNappe<T>>,
+    band: Band,
+) -> Result<super::reduce::Placed, BooleanError> {
+    let &geom::Surface::Plane { frame, .. } = surface else {
+        return super::reduce::place_crossing(y, face, p, nappe, band);
+    };
+    let (at, on) = crate::contain::contfp_decided(y, face, frame.axis(), p, band)
+        .map_err(|e| super::reduce::esc(e, face_is, face))?;
+    Ok(match at {
+        FaceContainment::Out => super::reduce::Placed::Out,
+        at => super::reduce::Placed::At(at, on),
     })
 }
 

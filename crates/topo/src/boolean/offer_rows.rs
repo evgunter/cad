@@ -1365,28 +1365,32 @@ fn ellipse_roots(beyond: bool) -> Result<(), BooleanError> {
     conic_roots(&ellipse, (mid - 0.5, mid + 0.5), x)
 }
 
-/// `carrier` over `span` against the plane `x = x0`, as the conic root
-/// lane reads it.
+/// `carrier` over `span` against the plane `x = x0`, as the planar lane
+/// reads it: `cross`'s answer, its leading window read by the lane's map
+/// ([`super::super::reduce::plane_refused`]).
 fn conic_roots(carrier: &geom::Curve3<f64>, span: (f64, f64), x0: f64) -> Result<(), BooleanError> {
-    use geom_brep::curve_face::plane_crossing::{ConicPlaneMeet, PlaneCrossingLane};
-    match geom_brep::curve_face::plane_crossing::plane_crossing_lane(
-        carrier,
-        span.0,
-        span.1,
-        Point3::new(x0, 0.0, 0.0),
-        Vec3::new(1.0, 0.0, 0.0),
-        band(),
-    ) {
-        PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(Err(fault))) => {
-            Err(BooleanError::Escalated {
-                decision: BooleanDecision::of_conic_root(fault, DeclarationRead::Moot),
-                diag: fault.diag(),
-            })
-        }
-        PlaneCrossingLane::Conic(_) => Ok(()),
-        lane @ (PlaneCrossingLane::Line | PlaneCrossingLane::Unlaned) => {
-            panic!("a conic takes the root lane, not {lane:?}")
-        }
+    let plane = geom::Surface::Plane {
+        frame: geom::Frame::new(
+            Point3::new(x0, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+        ),
+    };
+    let span = geom_brep::curve_pair::Span::new(carrier, span);
+    match geom_brep::curve_face::cross(&span, &plane, band()) {
+        Ok(_) => Ok(()),
+        Err(refused) => super::super::reduce::plane_refused::<f64>(
+            refused.leading().why,
+            |diag| BooleanError::Escalated {
+                decision: BooleanDecision::Coincidence(
+                    Coincide::EdgeOnPlane,
+                    DeclarationRead::Moot,
+                ),
+                diag,
+            },
+            || panic!("a conic's plane window with no margin: {carrier:?}"),
+        )
+        .map(|_| ()),
     }
 }
 
@@ -2546,7 +2550,13 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     (
         "factored_crossing.rs",
         "factored_crossing",
-        "BooleanDecision::of_conic_root",
+        "BooleanDecision::Coincidence",
+        1,
+    ),
+    (
+        "factored_crossing.rs",
+        "factored_crossing",
+        "Coincide::EdgeOnPlane",
         1,
     ),
     (
@@ -2845,6 +2855,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("reduce.rs", "lying_on", "BooleanDecision::CurveMeeting", 1),
+    ("reduce.rs", "plane_refused", "BooleanDecision::Crossing", 2),
     (
         "reduce.rs",
         "twin_edge",
@@ -2860,10 +2871,10 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     (
         "reduce.rs",
         "sweep_direction",
-        "BooleanDecision::of_conic_root",
+        "BooleanDecision::Coincidence",
         1,
     ),
-    ("reduce.rs", "sweep_direction", "Coincide::EdgeOnPlane", 1),
+    ("reduce.rs", "sweep_direction", "Coincide::EdgeOnPlane", 2),
     (
         "reduce.rs",
         "vertex_on_curved_face_at",
@@ -2888,16 +2899,11 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     (
         "reduce.rs",
-        "wall_crossing",
+        "span_verdict",
         "BooleanDecision::ArcConeRoots",
         1,
     ),
-    (
-        "reduce.rs",
-        "wall_crossing",
-        "BooleanDecision::ConeRoots",
-        1,
-    ),
+    ("reduce.rs", "span_verdict", "BooleanDecision::ConeRoots", 1),
     (
         "reduce.rs",
         "spline_plane_crossings",
@@ -2997,9 +3003,9 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "slit.rs",
         "conic_or_line_on",
         "Coincide::EdgeOnCurvedFace",
-        2,
+        1,
     ),
-    ("slit.rs", "conic_or_line_on", "Coincide::EdgeOnPlane", 3),
+    ("slit.rs", "conic_or_line_on", "Coincide::EdgeOnPlane", 2),
     ("slit.rs", "coplanar_wall_inside", "Coincide::Sectors", 1),
     (
         "slit.rs",

@@ -27,7 +27,6 @@ use crate::body::Body;
 use crate::boolean::{BooleanDecision, BooleanError, Coincide, Operand, node};
 use crate::entity::{Edge, FaceKey, VertexKey};
 use crate::validate::decide;
-use geom_brep::curve_face::plane_crossing::{ConicPlaneMeet, ConicRootFault, PlaneCrossingLane};
 
 /// The predicate an end's distance from a bisector plane is decided on:
 /// whether the end lies on the partner wall, read through the planes.
@@ -103,47 +102,103 @@ pub(super) fn factored_crossing<T: Decide + crate::props::AtRestPolicy>(
         [dist(pu, planes[0])?, dist(pu, planes[1])?],
         [dist(pv, planes[0])?, dist(pv, planes[1])?],
     ];
-    // Each plane's crossings strictly inside the span.
+    // A carrier with no root lane against a plane (a spiric, a spline):
+    // the factored read has no crossing to read, so no such pair here, and
+    // the quadric's route reads the edge.
+    if !matches!(carrier, geom::Curve3::Line(_)) && carrier.conic().is_none() {
+        return Ok(None);
+    }
+    let span = geom_brep::curve_pair::Span::new(carrier, (t0, t1));
+    // A window of a plane's answer, as the planar lane reads one
+    // ([`super::plane_refused`]): a rung in band is the edge's coincidence
+    // with the plane, and a root the placement cannot place or order its
+    // crossing decision.
+    let refused = |why| {
+        super::plane_refused::<T>(
+            why,
+            |diag| BooleanError::Escalated {
+                decision: BooleanDecision::Coincidence(
+                    Coincide::EdgeOnPlane,
+                    read(Coincide::EdgeOnCurvedFace),
+                ),
+                diag,
+            },
+            &frontier,
+        )
+    };
+    // Each plane's crossings strictly inside the span, read off the
+    // carrier by `cross` against the plane (C5: the one reading of a
+    // crossing): a conic's roots, and a line's one root, posed from the
+    // span's own data rather than from a far line origin.
     let mut roots: [Vec<T>; 2] = [Vec::new(), Vec::new()];
     for (i, (centre, normal)) in planes.into_iter().enumerate() {
-        match geom_brep::curve_face::plane_crossing::plane_crossing_lane(
-            carrier, t0, t1, centre, normal, band,
-        ) {
-            // Affine along a line: one root, strictly inside exactly
-            // where the ends straddle the plane.
-            PlaneCrossingLane::Line => {
-                if matches!(
-                    (ends[0][i].sign, ends[1][i].sign),
-                    (Sign::Positive, Sign::Negative) | (Sign::Negative, Sign::Positive)
-                ) {
-                    // Read off the carrier, not interpolated between the
-                    // ends: the ends' two distances share their rounding,
-                    // which an enclosure would count twice.
-                    let Some(geom::Line { origin, dir }) = carrier.as_line() else {
-                        return Ok(None);
+        use geom_brep::curve_face::{Crossings, OnSpan, Pose};
+        let plane = geom::Surface::Plane {
+            frame: geom::Frame::new(centre, normal, normal.orthonormal_basis().0),
+        };
+        let inside = match geom_brep::curve_face::cross(&span, &plane, band) {
+            Ok(Crossings {
+                pose: Pose::Apart, ..
+            }) => Vec::new(),
+            // A line in the plane lies on both walls along it: its ends
+            // read `Zero` on the plane, and the endpoint posture below
+            // reads them. A conic in the plane is one of the section's
+            // ellipses, on both walls: the factored read crosses nothing
+            // along the section, and refuses it typed, naming the plane.
+            Ok(Crossings {
+                pose: Pose::Lies, ..
+            }) => {
+                if carrier.conic().is_some() {
+                    let (a_face, b_face) = match x_is {
+                        Operand::A => (wall, face),
+                        Operand::B => (face, wall),
                     };
-                    roots[i]
-                        .push(geom::plane_offset(origin, normal, centre) / dir.get().dot(normal));
+                    return Err(BooleanError::NodeUnbuilt {
+                        a_face,
+                        b_face,
+                        why: crate::boolean::NodeWhy::OnBisector {
+                            operand: x_is,
+                            plane: i,
+                        },
+                    });
                 }
+                Vec::new()
             }
-            PlaneCrossingLane::Conic(ConicPlaneMeet::Miss) => {}
-            // In the plane, or parallel to it at an offset the pose cannot
-            // call: no factored crossing.
-            PlaneCrossingLane::Conic(
-                ConicPlaneMeet::InPlane
-                | ConicPlaneMeet::Roots(Err(ConicRootFault::PlaneParallel(_))),
-            ) => return Ok(None),
-            PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(Ok(ts))) => roots[i] = ts,
-            PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(Err(fault))) => {
-                return Err(BooleanError::Escalated {
-                    decision: BooleanDecision::of_conic_root(
-                        fault,
-                        read(Coincide::EdgeOnCurvedFace),
-                    ),
-                    diag: fault.diag(),
-                });
+            Ok(Crossings { meetings, .. }) => meetings
+                .into_iter()
+                .filter_map(|m| match m.on_span {
+                    OnSpan::Inside { t } => Some(t),
+                    OnSpan::End(_) => None,
+                })
+                .collect(),
+            Err(refusal) => {
+                // Every window refuses: the plane is no face whose trim
+                // could set one aside.
+                refused(refusal.leading().why)?;
+                Vec::new()
             }
-            PlaneCrossingLane::Unlaned => return Ok(None),
+        };
+        if let geom::Curve3::Line(_) = carrier {
+            // **A line's ends decide its posture against the plane**, as on
+            // the planar lane: a crossing strictly inside the span exactly
+            // where they straddle it. An end the record puts on the plane
+            // owns the meeting there, so a root just inside that end is the
+            // end's, never a split beside it.
+            let straddle = matches!(
+                (ends[0][i].sign, ends[1][i].sign),
+                (Sign::Positive, Sign::Negative) | (Sign::Negative, Sign::Positive)
+            );
+            if straddle {
+                if inside.is_empty() {
+                    return Err(BooleanError::ClassificationInvariant {
+                        what: "a line whose ends straddle a bisector plane was answered with no \
+                               crossing strictly inside it",
+                    });
+                }
+                roots[i] = inside;
+            }
+        } else {
+            roots[i] = inside;
         }
     }
     // A crossing of one plane within the band of a crossing of the
@@ -156,7 +211,17 @@ pub(super) fn factored_crossing<T: Decide + crate::props::AtRestPolicy>(
                 band,
             ) {
                 Ok(Sign::Positive) => {}
-                Ok(Sign::Zero | Sign::Negative) => return Ok(None),
+                Ok(Sign::Zero | Sign::Negative) => {
+                    let (a_face, b_face) = match x_is {
+                        Operand::A => (wall, face),
+                        Operand::B => (face, wall),
+                    };
+                    return Err(BooleanError::NodeUnbuilt {
+                        a_face,
+                        b_face,
+                        why: crate::boolean::NodeWhy::GermOnNode,
+                    });
+                }
                 Err(diag) => {
                     return Err(BooleanError::Escalated {
                         decision: BooleanDecision::VertexOnVertex,

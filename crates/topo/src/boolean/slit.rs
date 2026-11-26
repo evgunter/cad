@@ -1724,27 +1724,6 @@ const RIDER_RING_TORUS: geom::RingSites = geom::RingReader::BooleanRider.sites()
 /// plane under.
 const RIDER_HULL_OFF: &str = "bool_rider_hull_off_plane";
 
-/// How many points of an edge's carrier [`carrier_on_surface`] reads on a
-/// face's surface: more than the carrier and the surface can share
-/// without the one lying on the other.
-#[derive(Clone, Copy)]
-enum Samples {
-    /// A line and a plane: its ends.
-    Ends,
-    /// This many points equispaced over a conic carrier's whole turn
-    /// ([`even_points`]): five on a quadric, which meets the conic's
-    /// plane in a conic, and two conics of one plane meet at four points
-    /// unless they are one; nine on a torus, which meets it in a
-    /// quartic, and a quartic meets a conic at eight unless it holds it.
-    Even(u32),
-}
-
-/// The Lebesgue constant of trigonometric interpolation at nine
-/// equispaced points over a turn (degree 4), rounded up from
-/// `2.36186`: no degree-4 trigonometric polynomial exceeds this times
-/// its largest value at the nine points anywhere on the turn.
-const LEBESGUE_NINE: f64 = 2.37;
-
 /// **Where an edge's carrier lies against a face's surface**
 /// ([`carrier_on_surface`]).
 #[derive(Clone, Debug, PartialEq)]
@@ -1759,67 +1738,41 @@ pub(super) enum Placed {
 
 /// **Where edge carrier `carrier`, over `(t0, t1)`, lies against face
 /// `f`'s surface** ([`Placed`]): on it, off it along every piece, or
-/// unread. A line on a plane is read at both its ends, and on a cylinder
-/// or cone by [`crate::census::line_on_quadric_carrier`]
-/// (`bool_line_face_carrier_offset`); no line lies along a piece of a
+/// unread. A line, a circle or an ellipse against a plane, a sphere, a
+/// cylinder, a cone or a torus is read by the curve × face pose
+/// ([`geom_brep::curve_face::pose()`], the one reading of whether a span
+/// lies on a surface): `Lies` is on; `Apart`, `Tangent`, `Through` and
+/// `Isolated` are off; a rung read in band escalates as the coincidence;
+/// a torus outside the ring convention is unread where it is decided
+/// outside and escalates where the band leaves it undecided; a pose
+/// with no closed form (a refused meter, an arm not built) is unread
+/// ([`EdgeInFaceGap::CarrierUnread`]). No line lies along a piece of a
 /// sphere or of any torus, a quartic, which meets a line in four points
-/// at most. A conic in a plane is read by its own plane's
-/// offset from it (the curve × face pose, `curve_face_pose_plane_offset`), and on a sphere,
-/// cylinder, cone or torus at points equispaced over its carrier's whole
-/// turn from `t0`, five and nine ([`Samples`], [`even_points`]). A line
-/// or a conic lies on such a surface along a piece exactly where its
-/// whole carrier does (the identity certificate, [`geom_brep::variety`]),
-/// so the edge's own span does not matter: each point's
-/// offset is decided on the band ([`RIDER_ON_PLANE`], [`RIDER_ON_CURVED`]),
-/// every point before the answer, and one definitely off reads it off.
+/// at most: off, by degree, before any pose.
 ///
 /// A spiric lies in its own plane, so against a plane it reads by the
-/// spiric × plane arm's pose ([`geom_brep::curve_face::pose()`]): on where
-/// it lies, off otherwise. A spline can lie on a surface along
-/// part of its length only, so no point of it read off says it lies there
-/// along no piece: it reads off only where it is certified off over its
-/// whole length, against a plane by its net's hull ([`clears_plane`]),
-/// and against a curved analytic surface where the curve × face table's
-/// composite door crosses it at isolated points only
-/// ([`spline_crosses`]). A spiric lies along no
-/// piece of a sphere, a cylinder or a cone by degree, and on a ring torus
-/// lies along a piece only where along all of it; either way it reads off
-/// where a point of its span reads off ([`spiric_on_curved`]). A spline
-/// neither certified off nor crossed at isolated points (on its own
-/// surface, or touching it), and any carrier against a torus not decided
-/// a ring,
-/// is unread ([`EdgeInFaceGap::CarrierUnread`]); nothing reads a spiric
-/// on. Every point read off is read through the one certificate
-/// ([`geom_brep::variety`]), which holds the carrier kinds it is sound for;
-/// the sample schedules are this reader's. A spline face
-/// is unread for every carrier ([`EdgeInFaceGap::SplineFace`]): its chart
-/// is not read here.
-///
-/// **Between the samples.** On a sphere or a cylinder the offset along a
-/// conic is itself a trigonometric polynomial of degree 2, which at five
-/// equispaced points is at most twice its largest sample anywhere on the
-/// turn: within the band's `escalate / zero` ratio, so a conic whose
-/// samples read zero is nowhere definitely off. On a torus `R, r` the
-/// offset `((ρ − R)² + h² − r²) / 2r` is not a polynomial: the torus's
-/// equation, `2r · offset · G` with `G = (ρ + R)² + h² − r²`, is one of
-/// degree 4, and `G ≥ R² − r²` everywhere, so the offset
-/// anywhere on the turn is at most `Λ · max(|offset| · G) / (R² − r²)`
-/// over the nine samples ([`LEBESGUE_NINE`]). That bound is decided after
-/// the samples read zero: zero reads the conic on the torus, beyond the
-/// band leaves it unread (the samples cannot certify a fat torus's conic),
-/// in band escalates. The bound is a ring's (`R > r`), so a torus decided
-/// not a ring is unread before the samples are read, and one whose ring
-/// is in band escalates ([`geom_brep::variety::Variety::of`]). On a cone
-/// the offset is not a polynomial along a conic and the samples are not
-/// bounded between
-/// (`work/parting/a-conic-on-a-cone-face-is-read-at-five-samples-unbounded-between.md`).
-/// The rider reading and the germ's closed-edge reading
-/// (`sectors::closed_reach`) both ask here.
+/// spiric × plane arm's pose, as a conic does. A spline can lie on a
+/// surface along part of its length only, so no point of it read off
+/// says it lies there along no piece: it reads off only where it is
+/// certified off over its whole length, against a plane by its net's hull
+/// ([`clears_plane`]), and against a curved analytic surface where the
+/// curve × face table's composite door crosses it at isolated points only
+/// ([`spline_crosses`]). A spiric lies along no piece of a sphere, a
+/// cylinder or a cone by degree, and on a ring torus lies along a piece
+/// only where along all of it; either way it reads off where a point of
+/// its span reads off ([`spiric_on_curved`]). A spline neither certified
+/// off nor crossed at isolated points (on its own surface, or touching
+/// it) is unread ([`EdgeInFaceGap::CarrierUnread`]); nothing reads a
+/// spiric on a curved surface. A spline face is unread for every carrier
+/// ([`EdgeInFaceGap::SplineFace`]): its chart is not read here. The rider
+/// reading and the germ's closed-edge reading (`sectors::closed_reach`)
+/// both ask here.
 ///
 /// # Errors
 ///
-/// [`BooleanError::Escalated`] where no point is definitely off and an
-/// offset, or the torus's bound between them, is in band.
+/// [`BooleanError::Escalated`] where the pose reads a rung in band, or a
+/// torus's ring convention is undecided; [`BooleanError::ClassificationInvariant`]
+/// for the pose's fault.
 pub(super) fn carrier_on_surface<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     carrier: &geom::Curve3<T>,
@@ -1838,109 +1791,43 @@ fn conic_or_line_on<T: crate::props::AtRestPolicy>(
     surface: &geom::Surface<T>,
     band: Band,
 ) -> Result<Placed, BooleanError> {
-    let (samples, site, coincide) = match (carrier, surface) {
-        (geom::Curve3::Line(_), geom::Surface::Plane { .. }) => {
-            (Samples::Ends, RIDER_ON_PLANE, Coincide::EdgeOnPlane)
+    match (carrier, surface) {
+        // No line lies along any piece of a sphere or of any torus (a
+        // quartic meets a line in four points at most): a degree argument,
+        // as for a spiric on a quadric below, so no pose is asked.
+        (geom::Curve3::Line(_), geom::Surface::Sphere { .. } | geom::Surface::Torus { .. }) => {
+            Ok(Placed::Off)
         }
         (
-            geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..),
-            &geom::Surface::Plane {
-                frame: plane_frame, ..
-            },
-        ) => {
-            let (origin, normal) = (plane_frame.origin(), plane_frame.axis());
-            use geom_brep::curve_face::plane_crossing::{
-                ConicPlaneMeet, ConicRootFault, PlaneCrossingLane, plane_crossing_lane,
-            };
-            return match plane_crossing_lane(carrier, t0, t1, origin, normal, band) {
-                PlaneCrossingLane::Conic(ConicPlaneMeet::InPlane) => Ok(Placed::On),
-                PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(Err(
-                    ConicRootFault::PlaneParallel(diag),
-                ))) => Err(BooleanError::coincidence(
-                    Coincide::EdgeOnPlane,
-                    DeclarationRead::Moot,
-                    diag,
-                )),
-                // A conic out of the plane meets it at two points at most.
-                _ => Ok(Placed::Off),
-            };
-        }
-        // A line on a cylinder or a cone: the one reading of it
-        // ([`crate::census::line_on_quadric_carrier`]).
-        (geom::Curve3::Line(_), geom::Surface::Cylinder { .. } | geom::Surface::Cone { .. }) => {
-            return match crate::census::line_on_quadric_carrier(
-                surface,
-                carrier.eval(t0),
-                carrier.eval(t1),
-                "bool_line_face_carrier_offset",
-                band,
-            ) {
-                Some(Ok(true)) => Ok(Placed::On),
-                Some(Ok(false)) | None => Ok(Placed::Off),
-                Some(Err(diag)) => Err(BooleanError::coincidence(
-                    Coincide::EdgeOnCurvedFace,
-                    DeclarationRead::Moot,
-                    diag,
-                )),
-            };
-        }
+            geom::Curve3::Line(_) | geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..),
+            geom::Surface::Plane { .. },
+        ) => carrier_pose(carrier, (t0, t1), surface, Coincide::EdgeOnPlane, band),
         (
-            geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..),
+            geom::Curve3::Line(_) | geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..),
             geom::Surface::Sphere { .. }
             | geom::Surface::Cylinder { .. }
             | geom::Surface::Cone { .. }
             | geom::Surface::Torus { .. },
-        ) => (
-            Samples::Even(if matches!(surface, geom::Surface::Torus { .. }) {
-                9
-            } else {
-                5
-            }),
-            RIDER_ON_CURVED,
-            Coincide::EdgeOnCurvedFace,
-        ),
-        // No line lies along any piece of a sphere or of any torus (a
-        // quartic meets a line in four points at most): a degree argument,
-        // as for a spiric on a quadric below, so no ring is asked.
-        (geom::Curve3::Line(_), geom::Surface::Sphere { .. } | geom::Surface::Torus { .. }) => {
-            return Ok(Placed::Off);
-        }
+        ) => carrier_pose(carrier, (t0, t1), surface, Coincide::EdgeOnCurvedFace, band),
         (
             &geom::Curve3::Spiric { offset, .. },
             geom::Surface::Sphere { .. }
             | geom::Surface::Cylinder { .. }
             | geom::Surface::Cone { .. }
             | geom::Surface::Torus { .. },
-        ) => {
-            return spiric_on_curved(carrier, (t0, t1), offset, surface, band);
-        }
+        ) => spiric_on_curved(carrier, (t0, t1), offset, surface, band),
         // A carrier the table reads by the spiric × plane door: its pose,
         // in the plane where it lies and otherwise meeting it at four
         // points at most.
         _ if geom_brep::curve_face::route(carrier.kind(), surface.kind()).door
             == geom_brep::curve_face::Door::SpiricPlane =>
         {
-            use geom_brep::curve_face::{Pose, PoseRefusal};
-            let span = geom_brep::curve_pair::Span::new(carrier, (t0, t1));
-            return match geom_brep::curve_face::pose(&span, surface, band).map_err(|u| u.why) {
-                Ok(Pose::Lies) => Ok(Placed::On),
-                Ok(Pose::Apart | Pose::Tangent(_) | Pose::Isolated(_) | Pose::Through(_)) => {
-                    Ok(Placed::Off)
-                }
-                Err(PoseRefusal::InBand { diag, .. }) => Err(BooleanError::coincidence(
-                    Coincide::EdgeOnPlane,
-                    DeclarationRead::Moot,
-                    diag,
-                )),
-                Err(refusal) => unreachable!(
-                    "the spiric × plane arm refuses a minted spiric only in band: {refusal:?}"
-                ),
-            };
+            carrier_pose(carrier, (t0, t1), surface, Coincide::EdgeOnPlane, band)
         }
         (geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_), _)
             if surface.spline_chart().is_none() =>
         {
-            return Ok(
+            Ok(
                 if clears_plane(carrier, surface, band)
                     || spline_crosses(carrier, (t0, t1), surface, band)
                 {
@@ -1948,44 +1835,49 @@ fn conic_or_line_on<T: crate::props::AtRestPolicy>(
                 } else {
                     Placed::Unread(EdgeInFaceGap::CarrierUnread)
                 },
-            );
-        }
-        _ => return Ok(Placed::Unread(EdgeInFaceGap::SplineFace)),
-    };
-    // The certificate holds only on a carrier whose residual is its whole
-    // variety: a torus decided not a ring is unread, its between-sample
-    // bound being a ring's, and one whose ring is in band escalates.
-    let refused = |diag| BooleanError::coincidence(coincide, DeclarationRead::Moot, diag);
-    let Some(variety) = Variety::of(surface, RIDER_RING_TORUS, band).map_err(refused)? else {
-        return Ok(Placed::Unread(EdgeInFaceGap::CarrierUnread));
-    };
-    let points = match samples {
-        Samples::Ends => vec![carrier.eval(t0), carrier.eval(t1)],
-        Samples::Even(n) => even_points(carrier, t0, n),
-    };
-    if variety.read_piece(&points, site, band).map_err(refused)? == Piece::Off {
-        return Ok(Placed::Off);
-    }
-    match *surface {
-        geom::Surface::Torus {
-            frame,
-            major_radius,
-            minor_radius,
-            ..
-        } => {
-            let (center, axis) = (frame.origin(), frame.axis_unit());
-            torus_between(
-                &points,
-                geom::Line {
-                    origin: center,
-                    dir: axis,
-                },
-                (major_radius, minor_radius),
-                band,
             )
-            .map_err(refused)
         }
-        _ => Ok(Placed::On),
+        _ => Ok(Placed::Unread(EdgeInFaceGap::SplineFace)),
+    }
+}
+
+/// **Whether `carrier` over `(t0, t1)` lies on `surface`, by the curve ×
+/// face pose** ([`carrier_on_surface`]'s reading of a built analytic
+/// pair): `Lies` is on, every other class off; a rung in band is the
+/// `coincide` question, escalated; a torus outside the ring convention
+/// escalates where the band leaves it undecided and is unread where it is
+/// decided outside; a pose with no closed form is unread.
+///
+/// # Errors
+///
+/// [`BooleanError::Escalated`] for a rung or a ring convention in band;
+/// [`BooleanError::ClassificationInvariant`] for the pose's fault.
+fn carrier_pose<T: Decide>(
+    carrier: &geom::Curve3<T>,
+    (t0, t1): (T, T),
+    surface: &geom::Surface<T>,
+    coincide: Coincide,
+    band: Band,
+) -> Result<Placed, BooleanError> {
+    use geom_brep::curve_face::{Pose, PoseRefusal};
+    let span = geom_brep::curve_pair::Span::new(carrier, (t0, t1));
+    let escalated = |diag| BooleanError::coincidence(coincide, DeclarationRead::Moot, diag);
+    match geom_brep::curve_face::pose(&span, surface, band).map_err(|u| u.why) {
+        Ok(Pose::Lies) => Ok(Placed::On),
+        Ok(Pose::Apart | Pose::Tangent(_) | Pose::Isolated(_) | Pose::Through(_)) => {
+            Ok(Placed::Off)
+        }
+        Err(PoseRefusal::InBand { diag, .. }) => Err(escalated(diag)),
+        Err(PoseRefusal::Torus(torus)) => match torus.standing() {
+            geom_brep::TorusStanding::Ranked(diag) => Err(escalated(diag)),
+            geom_brep::TorusStanding::InvalidInput(_) => {
+                Ok(Placed::Unread(EdgeInFaceGap::CarrierUnread))
+            }
+        },
+        Err(PoseRefusal::Meter { .. } | PoseRefusal::Enclosed | PoseRefusal::Unbuilt(_)) => {
+            Ok(Placed::Unread(EdgeInFaceGap::CarrierUnread))
+        }
+        Err(PoseRefusal::Fault(what)) => Err(BooleanError::ClassificationInvariant { what }),
     }
 }
 
@@ -2147,42 +2039,6 @@ fn spiric_on_curved<T: Decide>(
     )
 }
 
-/// `n` points of conic `carrier` equispaced over its whole turn from
-/// parameter `t0`, distinct: the `k`th at `t0 + k · 2π / n`. The turn is
-/// a conic's period ([`geom::conic_period`]): [`Samples::Even`] is read on
-/// a circle or an ellipse only.
-fn even_points<T: Decide>(carrier: &geom::Curve3<T>, t0: T, n: u32) -> Vec<Point3<T>> {
-    let count = |m: u32| (0..m).fold(T::zero(), |c, _| c + T::one());
-    let step = geom::conic_period::<T>().length() / count(n);
-    (0..n).map(|k| carrier.eval(t0 + step * count(k))).collect()
-}
-
-/// [`carrier_on_surface`]'s bound between a conic's nine samples on the
-/// torus about the unit `axis` line, radii `(R, r)`, decided
-/// where every sample read on it.
-fn torus_between<T: Decide>(
-    points: &[Point3<T>],
-    axis: geom::Line<T>,
-    (big, small): (T, T),
-    band: Band,
-) -> Result<Placed, geom_core::Indeterminate> {
-    let mut worst = T::zero();
-    for &p in points {
-        let (h, rho) = axis.height_and_distance(p);
-        // The torus's equation over `2r`, the offset times `G`.
-        let product = ((rho - big).powi(2) + h.powi(2) - small.powi(2))
-            * ((rho + big).powi(2) + h.powi(2) - small.powi(2));
-        worst = worst.max(product.abs() / (small + small));
-    }
-    let bound = worst * T::from_f64(LEBESGUE_NINE) / (big.powi(2) - small.powi(2));
-    Ok(
-        match crate::validate::decide(RIDER_ON_CURVED, Margin::of(bound), band)? {
-            Sign::Zero => Placed::On,
-            Sign::Positive | Sign::Negative => Placed::Unread(EdgeInFaceGap::CarrierUnread),
-        },
-    )
-}
-
 /// **A conic of a torus's own reads on the torus face through
 /// [`carrier_on_surface`], and a conic a thousandth (a Villarceau
 /// circle, a millionth) off it reads off; the samples along a closed
@@ -2295,26 +2151,6 @@ mod torus_rows {
                 super::Placed::Off
             };
             assert_eq!(read, want, "{what}");
-        }
-    }
-
-    #[test]
-    fn the_samples_along_a_closed_span_are_distinct() {
-        let parallel = circle(
-            Point3::new(0.0, 0.0, 1.0),
-            Vec3::unit_z(),
-            3.0,
-            Vec3::unit_x(),
-        );
-        let points = super::even_points(&parallel, 0.0, 9);
-        assert_eq!(points.len(), 9, "nine samples");
-        for (i, p) in points.iter().enumerate() {
-            for q in &points[..i] {
-                assert!(
-                    (*p - *q).norm() > 0.1,
-                    "nine distinct points along a closed span"
-                );
-            }
         }
     }
 

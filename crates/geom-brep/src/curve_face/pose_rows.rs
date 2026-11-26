@@ -320,8 +320,8 @@ fn a_higher_order_contact_escalates_on_kappa() {
 /// (`Kappa` only where it decides): a unit hoop tangent to a plane at
 /// `θ = π/2`, read over `±1e-5` about `θ = 0, 1, 2`, stands clear of the
 /// touch's reach: `Apart`, never `Kappa` in band over the span's short
-/// length; the plane door's old entry answers no root. A line tangent to a
-/// wall, read over a metre 4 m from the touch, is apart too.
+/// length. A line tangent to a wall, read over a metre 4 m from the touch,
+/// is apart too.
 #[test]
 fn a_short_span_far_from_a_touch_is_apart() {
     let hoop = Curve3::circle(
@@ -348,21 +348,6 @@ fn a_short_span_far_from_a_touch_is_apart() {
             ),
             "about θ = {mid}: {got:?}"
         );
-        let old = super::plane_crossing::plane_crossing_lane(
-            &hoop,
-            mid - 1e-5,
-            mid + 1e-5,
-            Point3::new(0.0, touch.y, 0.0),
-            Vec3::unit_y(),
-            band(),
-        );
-        use super::plane_crossing::{ConicPlaneMeet, PlaneCrossingLane};
-        let no_root = match &old {
-            PlaneCrossingLane::Conic(ConicPlaneMeet::Miss) => true,
-            PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(Ok(roots))) => roots.is_empty(),
-            _ => false,
-        };
-        assert!(no_root, "the old entry about θ = {mid}: {old:?}");
     }
     let l = line([1.0, -5.0, 0.0], [0.0, 1.0, 0.0]);
     let got = cross(&Span::new(&l, (8.5, 9.5)), &wall(1.0), band());
