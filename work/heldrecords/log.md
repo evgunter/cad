@@ -330,3 +330,15 @@
     - The final state is the per-op door decision: vertex-on-edge via the census's interior reading, with rows on the record's input cells (E, F), and the vertex–vertex row moved the same way so section vertices can be named.
     - Unless one measurable fact holds: a single-maker meeting reads in the sliver band when the record's gap is Zero (a near-tangent X amplifies it). In that case makers kept in the boolean's `Mints` win, and that goes to Ev as a narrower cutter field.
   - Probe lane dispatched (session_018u3gVJFgDMfc8FxoUJr3H6). If the fact does not hold, the door form is within the ruling and needs no `[ev]`.
+
+- 2026-11-26 **Minted-meeting fork decided: the door form, within Ev's ruling, so no `[ev]`.**
+  - The probe (session_018u3gVJFgDMfc8FxoUJr3H6, branch `heldrecords/probe-minted-margin`): all 12 pierce meetings read Zero, at a margin of 4.6e-16 with a 1e-9 threshold.
+  - The prism was nudged at ±0.25/0.5/0.9 ε, three cylinder heights and three ε. The v–s margin equals the posed gap to within 1.0004×: no amplification, never sliver.
+  - Vertex–vertex meetings: 109 door calls, all at gap 0.
+  - My reading of the remaining premise: X near-tangent to E is not reached by this fixture. Geometrically, the v–s distance scales as the gap over sin(X, F), so it is amplified only where X grazes F, which is the reduction's own sliver section.
+  - Final state, to build after PR 7799:
+    - the boolean door decides vertex-on-edge meetings with the census interior reading, writing rows on the record's input cells;
+    - vertex–vertex rows move the same way;
+    - section vertices are named on both paths;
+    - a stress row with X grazing F at the section.
+  - Re-band `the-boolean-door-decides-no-minted-vertex-on-edge-meeting` to P1 and retarget it once it reaches main. The interim is no (C): the pierce row stays a loud refusal until the door lands.
