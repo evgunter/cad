@@ -84,3 +84,9 @@ residue moved.
   1° and on the part above the plane at 3°; the 3° part below the plane
   now passes tier 3′. `a_needle_cone_cut_off_its_apex_lands_its_closed_forms`
   pins exactly that. The witness is not gone.
+- 2026-11-26 (LATHE one-band lane, PR 7414, after main `5e04ac6561`
+  merged in): the 3° part below the plane refuses tier 3′ again, with
+  the same `CensusUnsupported` (`Meeting`, `Unsettled::Meter`,
+  `curve_pair_pose_basin`) on two edges. So the residue covers both
+  parts at both angles at `spin = 0`, `tilt = 1.5`, as on main, and
+  `a_needle_cone_cut_off_its_apex_lands_its_closed_forms` pins that.
