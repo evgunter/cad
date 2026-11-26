@@ -192,3 +192,15 @@ void door does flip them.
 The gate's territory (`crates/topo/src/validate.rs`) is RESTGATE's
 among its siblings (`work.py territory`), so the flip condition lands
 there.
+
+## Residual 3's reproducer is refused (2026-11-25, INSIDE `inside/ray-spline-face-arm`)
+
+With point containment's ray test reading spline faces (the line ×
+spline patch arm of `curve_face::cross`), the side-at-infinity reader
+casts aimed rays at the cavity's NURBS walls and reads their sense, so
+the flipped cavity's shell reads as a second outer shell and
+`topo::finish` refuses it `SolidOuterShells { outer: 2 }`. The pinned
+row is now `a_cavity_with_its_spline_walls_unreversed_is_refused_at_the_gate`.
+Measured on this one reproducer only; residual 3's `spline_chart()`
+skip in the gate itself (`validate.rs`) is not changed by this, so
+whether another wrong-sense spline body still passes is open.

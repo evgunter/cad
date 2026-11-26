@@ -400,9 +400,9 @@ fn revolved_continuation_builds_one_wall_per_run_and_unions_as_built() {
 /// **Loft: one key per segment, so nothing merges.** Two copies of the
 /// subdivided square stacked 2 apart: every wall is its own NURBS
 /// surface, and the structural rung finds no run. The boolean reads the
-/// cube's planes against the walls on their section values and stops
-/// at the inside/outside test, which cannot cross a spline face, before
-/// its maximal-faces gate is reached.
+/// cube's planes against the walls on their section values and builds:
+/// the union validates, its volume the operands' less their
+/// intersection's.
 #[test]
 fn lofted_continuation_walls_carry_one_key_per_segment() {
     let t = Tol::witness();
@@ -425,16 +425,36 @@ fn lofted_continuation_walls_carry_one_key_per_segment() {
     let mut m = l.body.clone().into_body();
     assert!(m.merge_coplanar_faces(t).unwrap().groups.is_empty());
     let loft = finished("the subdivided loft", l.body.clone(), t);
-    let err = union(&loft, &cube_at(0.5, -0.5, 0.5, 1.0), t).unwrap_err();
+    let cube = cube_at(0.5, -0.5, 0.5, 1.0);
+    let volume = |b: &topo::AtRestBody<f64>| {
+        topo::mass_properties(b, t, topo::test_support::pinned_resolution(t))
+            .expect("the body measures")
+            .met()
+            .expect("the measure settles")
+            .volume
+    };
+    let built = |r: Result<topo::BooleanResult<f64>, BooleanError>, what: &str| {
+        let r = r.unwrap_or_else(|e| panic!("{what} builds: {e:?}"));
+        let b = r
+            .body()
+            .unwrap_or_else(|| panic!("{what} is not empty"))
+            .body
+            .clone();
+        assert_eq!(topo::validate_geometric(&b, t), Ok(()), "{what}: tier 3");
+        volume(&b)
+    };
+    let joined = built(union(&loft, &cube, t), "loft ∪ cube");
+    let common = built(topo::intersect(&loft, &cube, t), "loft ∩ cube");
+    let want = volume(&loft) + volume(&cube) - common;
     assert!(
-        matches!(
-            err,
-            BooleanError::Containment(topo::PointInSolidError::KindUnsupported {
-                kind: geom::SurfaceKind::Nurbs,
-                ..
-            })
-        ),
-        "refused at the containment test, before the gate: {err:?}"
+        (joined - want).abs() < 1e-9 && common > 0.0,
+        "the union's volume is the operands' less their common part: {joined} against {want}"
+    );
+    // In closed form: the loft is the box `[0, 2]² × [0, 2]`, 8; the cube
+    // `[0.5, 1.5] × [−0.5, 0.5] × [0.5, 1.5]` holds half of itself in it.
+    assert!(
+        (common - 0.5).abs() < 1e-9 && (joined - 8.5).abs() < 1e-9,
+        "∩ {common} against 0.5, ∪ {joined} against 8.5"
     );
 }
 

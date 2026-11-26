@@ -2,12 +2,15 @@
 id: the-ring-composites-refusals-and-end-readings-are-translated-per-caller
 kind: issue
 title: The ring composite's refusals and end readings are translated at each of its callers, with divergent mappings, and two callers decide its deferred ends again on their own margins
-status: open
+status: closed
 opened: 2026-11-25
 priority: P1
 cost: M
 refs: [point-in-solid-refuses-a-sphere-face-bounded-by-a-spline-chord]
 rides_with: the-face-door-reads-no-spline-arc-of-a-sphere-face
+closed: 2026-11-26
+pr: 7801
+branch: inside/face-door-spline-arm
 ---
 
 

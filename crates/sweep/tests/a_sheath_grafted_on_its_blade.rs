@@ -171,7 +171,6 @@ fn a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim() {
         // The cap read on the way: every spline edge of A, against every
         // plane face of B, through the arm the planar lane reads, crosses
         // nothing inside itself.
-        let lane = geom_brep::NurbsLane::<f64>::certified();
         let band = Band::linear(tol).expect("the run's tolerance forms a band");
         let mut read = 0;
         for (_, edge) in a.edges() {
@@ -181,17 +180,27 @@ fn a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim() {
             else {
                 continue;
             };
-            let geom::Curve3::Nurbs(net) = curve.carrier() else {
+            if !matches!(curve.carrier(), geom::Curve3::Nurbs(_)) {
                 continue;
-            };
+            }
             for (fk, _) in b.faces() {
                 let Ok(plane @ geom::Surface::Plane { .. }) = b.face_surface(fk) else {
                     continue;
                 };
-                let roots = lane.surface_crossings(net, curve.params(), plane, band);
+                let span = geom_brep::curve_pair::Span::new(curve.carrier(), curve.params());
+                let found = geom_brep::curve_face::cross(&span, plane, band);
+                let inside = found.as_ref().map(|found| {
+                    found
+                        .meetings
+                        .iter()
+                        .filter(|m| {
+                            matches!(m.on_span, geom_brep::curve_face::OnSpan::Inside { .. })
+                        })
+                        .count()
+                });
                 assert!(
-                    matches!(roots.as_ref().map(|found| found.roots.len()), Ok(0)),
-                    "{what}: a seam of A crosses a cap of B: {roots:?}"
+                    matches!(inside, Ok(0)),
+                    "{what}: a seam of A crosses a cap of B: {found:?}"
                 );
                 read += 1;
             }

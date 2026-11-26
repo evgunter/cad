@@ -1113,34 +1113,34 @@ pub fn linear_composite(
 /// takes exact `f64` structure). The curve composed with it is the
 /// carrier's net already written in that frame.
 #[derive(Clone, Copy, Debug)]
-pub enum CanonicalSurface {
+pub enum CanonicalSurface<S = Interval> {
     /// `f = z` (metres): the plane `z = 0`.
     Plane,
     /// `f = x² + y² − R²` (metres²).
     Cylinder {
         /// The radius `R`.
-        radius: Interval,
+        radius: S,
     },
     /// `f = x² + y² + z² − r²` (metres²).
     Sphere {
         /// The radius `r`.
-        radius: Interval,
+        radius: S,
     },
     /// `f = cos²α·(x² + y²) − sin²α·z²` (metres²): the double cone of
     /// half-angle `α` about the third axis, apex at the origin.
     Cone {
         /// `cos²α`.
-        cos2: Interval,
+        cos2: S,
         /// `sin²α`.
-        sin2: Interval,
+        sin2: S,
     },
     /// `f = (x² + y² + z² + R² − r²)² − 4R²·(x² + y²)` (metres⁴), which
     /// factors as `((ρ − R)² + z² − r²)·((ρ + R)² + z² − r²)`.
     Torus {
         /// The major radius `R`.
-        major: Interval,
+        major: S,
         /// The minor radius `r`.
-        minor: Interval,
+        minor: S,
     },
 }
 

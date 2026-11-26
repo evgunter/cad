@@ -14262,7 +14262,7 @@ mod closed_bound;
 pub(crate) mod patch;
 pub mod projected;
 mod speed;
-mod spline_incidence;
+pub(crate) mod spline_incidence;
 mod stated;
 mod trig;
 pub use projected::{

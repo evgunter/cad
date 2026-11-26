@@ -40,10 +40,13 @@ crates/geom-brep/src/pcurve_cache/projected.rs	1	owed(projected-hull-bounds-are-
 crates/geom-brep/src/pcurve_cache/projected.rs	1	owed(projected-hull-bounds-are-operands-of-t-arithmetic)	sheet_apex_reach	z.0	sheet_apex_reach: a hull bound as a T operand
 crates/geom-brep/src/pcurve_cache/projected.rs	1	owed(projected-hull-bounds-are-operands-of-t-arithmetic)	axial_floor	z.1	axial_floor: a hull bound as a T operand
 crates/geom-brep/src/pcurve_cache/projected.rs	1	owed(projected-hull-bounds-are-operands-of-t-arithmetic)	sheet_apex_reach	z.1	sheet_apex_reach: a hull bound as a T operand
+crates/geom-brep/src/curve_face/line_patch.rs	1	owed(f64-data-left-lifted-when-the-built-at-t-unit-closed)	gradient_boxes	1.0 / (u1 - u0)	Walk::gradient_boxes: a part's width scales its numerator boxes into chart parameters, a place lifted into T
+crates/geom-brep/src/curve_face/line_patch.rs	1	owed(f64-data-left-lifted-when-the-built-at-t-unit-closed)	gradient_boxes	1.0 / (v1 - v0)	Walk::gradient_boxes: as u
 crates/geom-brep/src/pcurve_cache/spline_incidence.rs	1	owed(projected-hull-bounds-are-operands-of-t-arithmetic)	floor	cut_rounding(cell)	Net::floor: a cut's rounding charged as a T operand
 crates/geom-brep/src/pcurve_cache/spline_incidence.rs	1	owed(f64-data-left-lifted-when-the-built-at-t-unit-closed)	of	geom_core::bracket_mid((lo[0], hi[0]))	Net::of: the cell walk's translation origin, data (its row closed without it)
 crates/geom-brep/src/pcurve_cache/spline_incidence.rs	1	owed(f64-data-left-lifted-when-the-built-at-t-unit-closed)	of	geom_core::bracket_mid((lo[1], hi[1]))	Net::of: as lo[0]
 crates/geom-brep/src/pcurve_cache/spline_incidence.rs	1	owed(f64-data-left-lifted-when-the-built-at-t-unit-closed)	of	geom_core::bracket_mid((lo[2], hi[2]))	Net::of: as lo[0]
+crates/geom-brep/src/pcurve_cache/spline_incidence.rs	1	place-step	split_at	s	Cell::split_at's cut point, a place stepped inside the module's own evaluator
 crates/geom-brep/src/props/curved.rs	1	owed(constants-spelled-through-from-computed)	sphere_region_cover	c	sphere_region_cover: a census threshold (a count and a half), a constant spelled as computed
 crates/geom-brep/src/ssi/certify.rs	1	owed(certificate-bound-fields-hold-limb-bounds-as-t)	certificate	<fn>	certificate: rung.tube lifted into T
 crates/geom-brep/src/ssi/certify.rs	1	owed(certificate-bound-fields-hold-limb-bounds-as-t)	tube_transversality	clearance	tube_transversality: a clearance bound held as T

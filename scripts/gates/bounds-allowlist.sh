@@ -725,14 +725,11 @@ BOUNDS_ALLOWLIST=(
   # The lane constructors and the doors that were `Decide +
   # CertifiedBounds` now write `Certifies` or `CertifiedPolicy` in
   # `Decide`'s place, at the same count.
-  # props.rs 16 -> 17 (EMBEDWALK, PR 7772): `certified_spline_face_crossings`
-  # (`Certifies + CertifiedBounds`), the one body of the four certifying
-  # `AtRestPolicy::spline_face_crossings` impls, named so the cell door
-  # (`cell_region`, bound on certification rights, not on the policy)
-  # hands its regions the same reader rather than a copy. It forms
-  # `NurbsLane::certified()`, whose constructor carries the bound, as the
-  # lane constructors above do, and reads no bracket of `T`.
-  'crates/topo/src/props.rs 17 M5 PR 11, the certified-quadrature plumbing'
+  # props.rs 16 -> 17 -> 16: PR 7772's `certified_spline_face_crossings`
+  # retires with the policy's spline reader: the curve × face table reads
+  # a spline span against an analytic face at every deciding scalar, so
+  # no door hands a reader in (INSIDE, the face door's spline arm).
+  'crates/topo/src/props.rs 16 M5 PR 11, the certified-quadrature plumbing'
   # quad_lane.rs 14 -> 15: `closed_form` re-derives a closed-form
   # face's flux at the interval scalar, lifting the face's geometry
   # through `Interval::from_certified` (`Decide + CertifiedBounds`), and

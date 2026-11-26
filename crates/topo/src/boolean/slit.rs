@@ -2029,15 +2029,12 @@ fn clears_plane<T: Decide>(
 /// clear of the surface or monotone across it, so no piece lies on it. A
 /// touch, or a piece within the band of the surface, refuses there, and
 /// is no reading that the carrier is on.
-fn spline_crosses<T: crate::props::AtRestPolicy>(
+fn spline_crosses<T: Decide>(
     carrier: &geom::Curve3<T>,
     (t0, t1): (T, T),
     surface: &geom::Surface<T>,
     band: Band,
 ) -> bool {
-    let geom::Curve3::Nurbs(net) = carrier else {
-        return false;
-    };
     // A plane is read on the hull alone ([`clears_plane`]).
     if matches!(surface, geom::Surface::Plane { .. }) {
         return false;
@@ -2045,10 +2042,12 @@ fn spline_crosses<T: crate::props::AtRestPolicy>(
     let composite = geom_brep::curve_face::route(carrier.kind(), surface.kind()).door
         == geom_brep::curve_face::Door::SplineComposite;
     composite
-        && matches!(
-            T::spline_face_crossings(net, (t0.min(t1), t0.max(t1)), surface, band),
-            Some(Ok(_))
+        && geom_brep::curve_face::cross(
+            &Span::new(carrier, (t0.min(t1), t0.max(t1))),
+            surface,
+            band,
         )
+        .is_ok()
 }
 
 /// The rows [`spiric_on_curved`] reads a spiric's regime under
