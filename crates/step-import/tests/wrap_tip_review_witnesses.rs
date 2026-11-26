@@ -85,12 +85,50 @@ fn a_cone_with_two_struts_to_its_apex_refuses_typed() {
     );
 }
 
+/// How far the hole passes from the north pole (m): the file's cap is
+/// `1e-4` of angular radius short of it on a 10 mm sphere.
+const GRAZE: f64 = 1e-6;
+
+/// Whether the run's band cannot tell the graze from nothing: the wrap
+/// edge to the pole is `GRAZE` long, and where that is inside the band's
+/// escalation its pcurve's map residual is too.
+fn graze_in_band(tol: Tol) -> bool {
+    GRAZE < geom_core::Band::linear(tol).unwrap().escalate()
+}
+
+/// Where [`graze_in_band`], the import refuses typed at its at-rest
+/// gate: the 1 µm wrap edge's pcurve map residual escalates in the band.
+fn refuses_at_the_band(tol: Tol) {
+    match import_step(
+        &fixture("hole_grazing_the_pole.step"),
+        &ImportOptions::default(),
+        tol,
+    ) {
+        Err(e @ step_import::StepImportError::TierInvalid { .. }) => {
+            let read = format!("{e:?}");
+            assert!(
+                read.contains("Escalated") && read.contains("MapResidual"),
+                "the wrap edge's map residual escalates at ε = {:e}: {read}",
+                tol.eps()
+            );
+        }
+        Err(e) => panic!("a different refusal at ε = {:e}: {}", tol.eps(), e.render()),
+        Ok(_) => panic!("imports at ε = {:e}, where the graze is in band", tol.eps()),
+    }
+}
+
 /// **A sphere face whose hole passes a micrometre from its pole**: the
 /// pole is reached by a 1 µm wrap edge, and the body passes tier 3 at
-/// its closed form.
+/// its closed form. At an ε whose band holds the graze, the import
+/// refuses it typed instead ([`refuses_at_the_band`]).
 #[test]
 fn a_sphere_face_whose_hole_grazes_its_pole_imports_at_its_closed_form() {
-    let (_, volume) = imported("hole_grazing_the_pole.step", Tol::witness());
+    let tol = Tol::witness();
+    if graze_in_band(tol) {
+        refuses_at_the_band(tol);
+        return;
+    }
+    let (_, volume) = imported("hole_grazing_the_pole.step", tol);
     let want = 4.182_624_669_233_374e-6;
     assert!(
         (volume - want).abs() <= 1e-9 * want,
@@ -98,12 +136,18 @@ fn a_sphere_face_whose_hole_grazes_its_pole_imports_at_its_closed_form() {
     );
 }
 
-/// **That body meshes.** Pinned red at every ε: the curved lane folds a
-/// triangle on the sphere face
+/// **That body meshes.** Pinned red where it imports: the curved lane
+/// folds a triangle on the sphere face
 /// (`work/tesslane/a-sphere-face-whose-hole-grazes-its-pole-folds-at-the-mesher.md`).
+/// At an ε whose band holds the graze there is no body to mesh: the
+/// import's typed refusal is the outcome ([`refuses_at_the_band`]).
 #[test]
 fn a_sphere_face_whose_hole_grazes_its_pole_meshes() {
     let tol = Tol::witness();
+    if graze_in_band(tol) {
+        refuses_at_the_band(tol);
+        return;
+    }
     test_utils::pinned_red::row(
         tol.eps(),
         &test_utils::pinned_red::EVERY_ROW,

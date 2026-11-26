@@ -1208,8 +1208,8 @@ fn door_built() -> Vec<Named> {
 /// and the lift closes in the chart.** Over the reach probes' bodies
 /// (the spline section's two are
 /// [`the_spline_section_bodies_read_lifts_that_close`]), `common/`'s
-/// swept fixtures and the operands: `loop_lift` answers on all 177 loops
-/// of the 153 curved faces, the 24 rings among them. Each winds nothing
+/// swept fixtures and the operands: `loop_lift` answers on all 157 loops
+/// of the 133 curved faces, the 24 rings among them. Each winds nothing
 /// and returns to its start, through the face's turn along the pole or
 /// apex row where it passes one (12 loops), and its sampled polygon is
 /// simple and wound with the face ([`not_closing`]). The 30 faces a
@@ -1227,7 +1227,7 @@ fn every_loop_of_a_door_built_curved_face_has_a_lift_that_closes() {
             ("Cone", 19, 15, 3, 6),
             ("Cylinder", 68, 2, 12, 0),
             ("Nurbs", 14, 0, 0, 0),
-            ("Sphere", 14, 0, 3, 11),
+            ("Sphere", 9, 5, 3, 6),
             ("Torus", 23, 8, 6, 0),
         ]),
         "(chart, faces, seamed faces, rings, loops through a singular row)\n{}",
