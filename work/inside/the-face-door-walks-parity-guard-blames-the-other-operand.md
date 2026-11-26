@@ -1,0 +1,18 @@
+---
+id: the-face-door-walks-parity-guard-blames-the-other-operand
+kind: issue
+title: The ring composite walk's parity guard refuses Unread, which reduce::composite_count reports as the other operand's InvalidInput, so a walk self-contradiction blames the user's input
+status: open
+opened: 2026-11-26
+priority: P3
+cost: E
+refs: [7801]
+---
+
+Found by PR 7801's verifier (2026-11-26). It was not fixed in that PR, because the PR's slow set costs about 3 h a run.
+
+`crates/geom-brep/src/curve_face/composite/walk.rs` `read` (~:276) has a parity guard. When both span ends are past the band, the number of crossings must have the parity of the ends' sides. If it does not, the walk refuses `CompositeRefusal::Unread`, which becomes `MeetFault::Unsupported`. `boolean::reduce::composite_count` maps `Unsupported` to `BooleanError::InvalidInput { operand: x_is.other() }`. So a walk that contradicts itself (a kernel invariant) is reported as the other operand's invalid input. The region door blocks on the refusal, which is fine.
+
+No row reaches the guard. It is defensive, and a fuzz-oracle mutation showed that it masks paired losses as a refusal.
+
+Done when the guard's refusal carries a kernel-invariant class (for example a `ClassificationInvariant` ending) that no door attributes to an operand, and a row pins it, if a fault seam already exists.

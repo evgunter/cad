@@ -139,7 +139,7 @@ use crate::body::Body;
 use crate::entity::FaceKey;
 use crate::region::{
     self, End, Fault, Legs, Paths, QueryFoot, Region, RegionEdge, RegionRefusal, Round,
-    SplineCrossings, circle_edge_hit, pieced_edge_hit, spline_edge_hit,
+    circle_edge_hit, pieced_edge_hit, spline_edge_hit,
 };
 use crate::solid_contain::PointInSolidError;
 use crate::splitting::UncrossableCarrier;
@@ -181,9 +181,6 @@ pub(crate) struct TorusFaceRegion<T: geom_core::Real> {
     /// tube.
     sense: bool,
     edges: Vec<Edge<T>>,
-    /// A spline edge's crossings of a leg's plane at the region's scalar,
-    /// where its builder reads spline edges ([`torus_face_region`]).
-    splines: Option<SplineCrossings<T>>,
 }
 
 /// One boundary edge: a circle, an oval of a spiric, or a spline.
@@ -193,15 +190,14 @@ type Edge<T> = RegionEdge<T>;
 type Leg<T> = region::Leg<T, Round<T>>;
 
 /// `face`'s region on its torus, or `None` when an edge of it is neither
-/// a circle nor a spiric, nor a spline read through `splines`. A circle
+/// a circle, a spiric nor a spline. A circle
 /// or a spiric is taken as a plane section of this torus, and a spline as
 /// a curve on it, unchecked: every such edge of a torus face is one at
 /// rest (tier 3 places each edge on both its faces' carriers (at a dual,
 /// [`crate::Replay`]'s "A tier-3 premise at a dual")). A spline is read on
-/// its certified carrier, and only through `splines`, the scalar's spline
-/// reader, where the caller holds one
-/// ([`crate::props::certified_spline_face_crossings`]): without it a face
-/// with a spline edge answers `None`.
+/// its certified carrier, and crossed with a leg's plane by the curve ×
+/// face table's ring composite at the region's scalar
+/// ([`region::landings`]).
 ///
 /// Null scaffolding, a zero-length copy of a vertex (its two ends on one
 /// point), bounds nothing and is left out; an uncertified edge between
@@ -222,7 +218,6 @@ type Leg<T> = region::Leg<T, Round<T>>;
 pub(crate) fn torus_face_region<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
-    splines: Option<SplineCrossings<T>>,
 ) -> Result<Option<TorusFaceRegion<T>>, PointInSolidError> {
     let corrupt = || PointInSolidError::CorruptFace { face };
     let f = body.proven_face(face);
@@ -232,14 +227,11 @@ pub(crate) fn torus_face_region<T: Decide>(
     let (geom::Surface::Torus { .. } | geom::Surface::Spindle { .. }) = surface else {
         return Err(corrupt());
     };
-    let admits: &[geom::CurveKind] = match splines {
-        Some(_) => &[
-            geom::CurveKind::Circle,
-            geom::CurveKind::Spiric,
-            geom::CurveKind::Nurbs,
-        ],
-        None => &[geom::CurveKind::Circle, geom::CurveKind::Spiric],
-    };
+    let admits = &[
+        geom::CurveKind::Circle,
+        geom::CurveKind::Spiric,
+        geom::CurveKind::Nurbs,
+    ];
     let Some(edges) = region::boundary(body, face, admits)? else {
         return Ok(None);
     };
@@ -247,7 +239,6 @@ pub(crate) fn torus_face_region<T: Decide>(
         Charted::record(f.record().surface, surface),
         f.sense(),
         edges,
-        splines,
     )))
 }
 
@@ -258,12 +249,7 @@ impl<T: Decide> TorusFaceRegion<T> {
     ///
     /// Where `charted` is not a torus or a spindle sheet: the caller reads
     /// the record first.
-    fn on(
-        charted: Charted<T>,
-        sense: bool,
-        edges: Vec<Edge<T>>,
-        splines: Option<SplineCrossings<T>>,
-    ) -> Self {
+    fn on(charted: Charted<T>, sense: bool, edges: Vec<Edge<T>>) -> Self {
         let (frame, major, minor, apex) = match *charted.surface() {
             geom::Surface::Torus {
                 frame,
@@ -290,7 +276,6 @@ impl<T: Decide> TorusFaceRegion<T> {
             apex,
             sense,
             edges,
-            splines,
         }
     }
 
@@ -523,10 +508,6 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
     fn outward(&self, y: Point3<T>) -> Vec3<T> {
         geom_brep::OutwardNormal::from_chart(self.chart_normal(y), self.sense).vec()
     }
-
-    fn splines(&self) -> Option<SplineCrossings<T>> {
-        self.splines
-    }
 }
 
 #[cfg(test)]
@@ -572,12 +553,7 @@ mod tests {
             major_radius: major,
             minor_radius: minor,
         };
-        TorusFaceRegion::on(
-            Charted::record(Default::default(), &torus),
-            true,
-            edges,
-            None,
-        )
+        TorusFaceRegion::on(Charted::record(Default::default(), &torus), true, edges)
     }
 
     /// The band of the torus between the minor angles `v0 < v1`, every
@@ -680,12 +656,7 @@ mod tests {
                 major_radius: self.big,
                 minor_radius: 1.0,
             };
-            TorusFaceRegion::on(
-                Charted::record(Default::default(), &sheet),
-                true,
-                edges,
-                None,
-            )
+            TorusFaceRegion::on(Charted::record(Default::default(), &sheet), true, edges)
         }
     }
 
@@ -1444,11 +1415,9 @@ mod tests {
         let (body, face) = wall();
         let (mut nulled, nulled_face) = wall();
         crate::region::with_null_edge(&mut nulled, nulled_face);
-        let plain = torus_face_region(&body, face, None).unwrap().unwrap();
+        let plain = torus_face_region(&body, face).unwrap().unwrap();
         // The null edge stepped over, not refused.
-        let held = torus_face_region(&nulled, nulled_face, None)
-            .unwrap()
-            .unwrap();
+        let held = torus_face_region(&nulled, nulled_face).unwrap().unwrap();
         assert_eq!(held.edges.len(), plain.edges.len(), "the same boundary");
         let b = Band::new(1e-9, 1e-8).unwrap();
         for (u, v) in [(1.0, 0.0), (1.0, 1.5), (2.5, 0.0)] {
@@ -1461,7 +1430,7 @@ mod tests {
         }
         crate::region::part_null_edge(&mut nulled, at(1.0, 0.0));
         assert!(
-            matches!(torus_face_region(&nulled, nulled_face, None), Ok(None)),
+            matches!(torus_face_region(&nulled, nulled_face), Ok(None)),
             "a parted null edge is a gap in the boundary"
         );
     }
@@ -1573,7 +1542,6 @@ mod tests {
                         parallel_arc(vs.1, us, false, 3),
                         meridian(us.0, false, 4),
                     ],
-                    None,
                 )
             })
             .collect()
@@ -1627,12 +1595,7 @@ mod tests {
             .map(crate::region::fixture_spline_of_arc)
             .collect();
         let torus = circles.charted.surface().clone();
-        let splines = TorusFaceRegion::on(
-            Charted::record(Default::default(), &torus),
-            true,
-            edges,
-            Some(crate::props::certified_spline_face_crossings::<f64>),
-        );
+        let splines = TorusFaceRegion::on(Charted::record(Default::default(), &torus), true, edges);
         let clear = |x: f64, ends: (f64, f64)| {
             let gap = |e: f64| (x - e).rem_euclid(TAU).min((e - x).rem_euclid(TAU));
             gap(ends.0) > 0.05 && gap(ends.1) > 0.05
@@ -1701,7 +1664,6 @@ mod tests {
                 .iter()
                 .map(crate::region::fixture_spline_of_arc)
                 .collect(),
-            Some(crate::props::certified_spline_face_crossings::<f64>),
         )
     }
 
@@ -1796,10 +1758,6 @@ mod tests {
         let edges = vec![circle(0.0, 1.0, true, 1), circle(phi1, 2.0, false, 2)];
         let joints: Vec<Point3<f64>> = edges.iter().map(|e| e.at(e.t0)).collect();
         let strip = region(R, MINOR, edges);
-        let strip = TorusFaceRegion {
-            splines: Some(crate::props::certified_spline_face_crossings::<f64>),
-            ..strip
-        };
         let (mut definite, mut asked) = (0, 0);
         for joint in joints {
             let u = joint.y.atan2(joint.x);
@@ -1841,10 +1799,7 @@ mod tests {
     #[test]
     fn a_crossing_beside_a_spline_end_is_never_lost() {
         let b = Band::new(1e-9, 1e-8).unwrap();
-        let reading = |edge: Edge<f64>| TorusFaceRegion {
-            splines: Some(crate::props::certified_spline_face_crossings::<f64>),
-            ..holding(edge)
-        };
+        let reading = holding;
         let ds: Vec<f64> = (-10..-3)
             .flat_map(|k| [1.0, 2.0, 5.0].map(|m| m * 10f64.powi(k)))
             .chain([0.6, 0.8, 0.9, 1.1, 1.2, 1.5].map(|m| m * 1e-8))

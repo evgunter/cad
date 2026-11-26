@@ -49,7 +49,6 @@ fn circle() -> SphereFaceRegion<f64> {
             turn: crate::region::fixture_turn(0.0, TAU),
             forward: true,
         }],
-        None,
     )
 }
 
@@ -100,12 +99,7 @@ fn halves() -> SphereFaceRegion<f64> {
             forward: true,
         })
         .collect();
-    SphereFaceRegion::on(
-        sphere(),
-        true,
-        edges,
-        <f64 as crate::props::AtRestPolicy>::spline_face_reader(),
-    )
+    SphereFaceRegion::on(sphere(), true, edges)
 }
 
 /// The normal of a plane through the centre holding `w` that passes the

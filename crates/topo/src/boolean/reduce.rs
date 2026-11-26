@@ -5437,9 +5437,7 @@ pub(super) enum SpanVerdict<T: geom_core::Real> {
 
 /// **A spline span against a plane face**: the crossings strictly inside
 /// the span, ascending, by the curve × face table's ring-composite arm
-/// ([`crate::props::AtRestPolicy::spline_face_crossings`]), read through the
-/// scalar's certified lane. A spiric span, or a scalar with no certified
-/// lane, has no arm.
+/// ([`composite_count`]). A spiric span has no arm.
 ///
 /// # Errors
 ///
@@ -5493,21 +5491,26 @@ enum Counted<T> {
 
 /// **The ring composite's count of a spline span against an analytic
 /// face**, for both lanes ([`spline_plane_crossings`],
-/// [`spline_wall_event`]). A touch the arm cannot settle (`Unsettled`), or
-/// reads in the band's gap (`Escalated`), is localized and read against
-/// the face ([`super::carrier_touch::off_face`]); off it, it is no
-/// crossing here, and otherwise it is the lane's refusal:
-/// [`BooleanError::SplineCrossingUnsettled`], or `escalated`'s. A face
-/// whose frame or meter does not certify is the operand's invalid input,
-/// and a composite that does not form on a built route is the kernel's.
+/// [`spline_wall_event`]): the curve × face table's arm
+/// ([`geom_brep::curve_face::cross()`]), its meetings strictly inside the
+/// span. A meeting at an end is the end's, which the lane reads by its
+/// vertex. A stretch the arm cannot settle (`Unsettled`), or reads in
+/// the band's gap (`Escalated`), is localized and read against the face
+/// ([`super::carrier_touch::off_face`]); off it, it is no crossing here,
+/// and otherwise it is the lane's refusal:
+/// [`BooleanError::SplineCrossingUnsettled`], or `escalated`'s. A
+/// composite the arm cannot form from the face
+/// ([`geom_brep::curve_pair::MeetFault::Unsupported`]: a frame or a meter
+/// that does not read) is the operand's invalid input, and a window that
+/// is a fault the kernel's.
 ///
 /// # Errors
 ///
 /// [`BooleanError::EdgeCarrierUnsupported`] at `site` where there is no
-/// arm (`net` is `None`, or the scalar has no certified lane),
-/// [`BooleanError::InvalidInput`] for a degenerate face,
-/// [`BooleanError::ClassificationInvariant`] for a composite that did not
-/// form, and `off_face`'s.
+/// arm (`net` is `None`) or no certification lane to admit a stored
+/// crossing by (a dual), [`BooleanError::InvalidInput`] for a degenerate
+/// face, [`BooleanError::ClassificationInvariant`] for a fault, and
+/// `off_face`'s.
 fn composite_count<T: Bounds + crate::props::AtRestPolicy>(
     (x, x_is, edge_key): (&Body<T>, Operand, EdgeKey),
     (y, face, surface): (&Body<T>, FaceKey, &geom::Surface<T>),
@@ -5516,9 +5519,11 @@ fn composite_count<T: Bounds + crate::props::AtRestPolicy>(
     band: Band,
     escalated: impl FnOnce(geom_core::Indeterminate) -> BooleanError,
 ) -> Result<Counted<T>, BooleanError> {
-    use geom_brep::curve_face::composite::CompositeRefusal;
-    let found = net.and_then(|net| T::spline_face_crossings(net, params, surface, band));
-    let Some(found) = found else {
+    use geom_brep::NurbsLaneOf;
+    use geom_brep::curve_face::{CrossWhy, OnSpan, cross};
+    use geom_brep::curve_pair::MeetFault;
+    let lane = net.and_then(|_| T::nurbs_lane());
+    let Some(lane) = lane else {
         return Err(BooleanError::EdgeCarrierUnsupported {
             operand: x_is,
             edge: x
@@ -5529,29 +5534,69 @@ fn composite_count<T: Bounds + crate::props::AtRestPolicy>(
             site,
         });
     };
-    Ok(match found {
-        Ok(found) => Counted::Crossings(found.roots),
-        Err(CompositeRefusal::Escalated(_) | CompositeRefusal::Unsettled(_))
-            if super::carrier_touch::off_face(y, face, surface, carrier, params, band)? =>
-        {
-            Counted::OffFace
+    let refusal = match cross(
+        &geom_brep::curve_pair::Span::new(carrier, params),
+        surface,
+        band,
+    ) {
+        Ok(found) => {
+            // Each crossing the lane stores is a proposal, admitted here
+            // by its check (DUAL-DESIGN DL5.2).
+            let mut ts = Vec::with_capacity(found.meetings.len());
+            for m in &found.meetings {
+                let OnSpan::Inside { t } = m.on_span else {
+                    continue;
+                };
+                match lane.admit_crossing(carrier, t, surface, band) {
+                    Ok(t) => ts.push(t),
+                    Err(geom_core::solved::Unadmitted::Undecided(diag)) => {
+                        return Ok(Counted::Refused(escalated(diag)));
+                    }
+                    Err(geom_core::solved::Unadmitted::Off { row, .. }) => {
+                        return Ok(Counted::Refused(spline_unsettled(
+                            (x, x_is, edge_key),
+                            face,
+                            geom_brep::roots::Unsettled::Meter { row },
+                        )?));
+                    }
+                }
+            }
+            return Ok(Counted::Crossings(ts));
         }
-        Err(CompositeRefusal::Escalated(diag)) => Counted::Refused(escalated(diag)),
-        Err(CompositeRefusal::Unsettled(why)) => {
-            Counted::Refused(spline_unsettled((x, x_is, edge_key), face, why)?)
-        }
-        Err(CompositeRefusal::FaceDegenerate(what)) => {
-            return Err(BooleanError::InvalidInput {
-                operand: x_is.other(),
-                what,
-            });
-        }
-        Err(CompositeRefusal::Unread(_)) => {
-            return Err(BooleanError::ClassificationInvariant {
-                what: "a built spline carrier's composite against an analytic face did not form",
-            });
-        }
-    })
+        Err(refusal) => refusal,
+    };
+    let why = refusal.leading().why;
+    if let Some(what) = why.fault() {
+        return Err(BooleanError::ClassificationInvariant { what });
+    }
+    if let CrossWhy::Method {
+        fault: MeetFault::Unsupported { pose },
+        ..
+    } = why
+    {
+        return Err(BooleanError::InvalidInput {
+            operand: x_is.other(),
+            what: pose,
+        });
+    }
+    if super::carrier_touch::off_face(y, face, surface, carrier, params, band)? {
+        return Ok(Counted::OffFace);
+    }
+    Ok(Counted::Refused(match (why.diag(), why) {
+        (Some(diag), _) => escalated(diag),
+        (
+            None,
+            CrossWhy::Method {
+                fault: MeetFault::Unsettled(u),
+                ..
+            },
+        ) => spline_unsettled((x, x_is, edge_key), face, u)?,
+        (None, _) => spline_unsettled(
+            (x, x_is, edge_key),
+            face,
+            geom_brep::roots::Unsettled::Tangency,
+        )?,
+    }))
 }
 
 /// [`BooleanError::SplineCrossingUnsettled`] for `x`'s edge against

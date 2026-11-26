@@ -1026,7 +1026,7 @@ fn box_key<T: SpanLocate>(cell: &Cell<T>, q: [f64; 3], pu: usize, pv: usize) -> 
 /// `Interval` channel ([`geom_core::spline::CurvePlan::apply_certified`]),
 /// and this cut runs at every scalar, carrying the `f64` bound beside each
 /// point. `None` where a knot has no value or a plan refuses.
-fn refined<T: Decide>(
+pub(crate) fn refined<T: Decide>(
     knots: &Knots<T>,
     row: Vec<Control<T>>,
     track: bool,
