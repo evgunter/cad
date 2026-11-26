@@ -239,14 +239,14 @@ fn a_pose_rung_in_its_zero_band_is_the_zero_posture() {
     use geom_brep::curve_face::{CrossWhy, PoseRefusal, PoseRung};
     let b = band();
     let zero = geom_core::k_stats::decide_nonzero(
-        "curve_posture_rows_zero",
+        "test_curve_posture_zero",
         geom_core::Margin::of(0.0_f64),
         b,
     )
     .err()
     .unwrap_or_else(|| panic!("a zero reading is rejected"));
     let gap = geom_core::k_stats::decide_nonzero(
-        "curve_posture_rows_gap",
+        "test_curve_posture_gap",
         geom_core::Margin::of((b.zero() + b.escalate()) / 2.0),
         b,
     )
