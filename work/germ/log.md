@@ -2186,3 +2186,6 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - The mesh budget job was still running at merge. Low risk: the PR does not touch meshing.
   - **The `[sizes]` build: spec dispatched** to the same Opus session (`session_01BJC3B4DK1iXA3zGx2hMMvj`) as `docs/GERM-SIZES-BUILD-SPEC.md` on `germ/sizes-spec`. Plan only; open questions come to the orchestrator.
 - 2026-11-26 22:10 — **`[sizes]` spec re-routed.** The 7658 session may push only to its own branch, so the spec goes to a fresh Opus session (`session_01BJC3B57uMbcqJ131e5CbcV`, `germ/sizes-spec`), carrying the 7658 lane's notes: the retirement list, `moved_radius`'s sign half staying, and the blend door-size question.
+- 2026-11-26 22:20 — **`[sizes]` spec delivered:** PR 7819, with stages S1–S7 (S1 M, S2 L, S3a L, S3b H, S3c M, S4 M, S5 H, S6 H, S7 M) and six questions.
+  - A single FULL Opus spec review is dispatched.
+  - Q1–Q6 are to be ruled after the review; any that are genuinely tricky wait for the Fable reset (11-29) to get more designers.
