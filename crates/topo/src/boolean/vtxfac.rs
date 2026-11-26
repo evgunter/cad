@@ -134,11 +134,8 @@ pub(super) fn pierced_and_paired<T: Decide>(
     for (operand, pierced) in Operand::BOTH.map(|o| (o, contacts.on(o).collect::<Vec<_>>())) {
         let theirs = operand.other().index();
         let declared = |x: FaceKey, y: FaceKey| {
-            records[theirs].rows().iter().any(|r| {
-                let cells = r.contact.cells();
-                (cells == [super::Cell::Face(x), super::Cell::Face(y)]
-                    || cells == [super::Cell::Face(y), super::Cell::Face(x)])
-                    && crate::contact::area_record(bodies[theirs], x, y)
+            records[theirs].face_face().any(|(_, a, b)| {
+                (a, b) == (x.min(y), x.max(y)) && crate::contact::area_record(bodies[theirs], x, y)
             })
         };
         let mut pierces = BTreeMap::new();
@@ -3203,7 +3200,7 @@ mod tests {
         let rows = [
             (
                 "pierced twice by A",
-                ReductionContacts::from_iter([
+                ReductionContacts::of_rows([
                     crate::Cited::new(
                         vf(v, f).cells(crate::boolean::Operand::A),
                         crate::Cites::decided(0),
@@ -3225,7 +3222,7 @@ mod tests {
             ),
             (
                 "pierced and paired, B",
-                ReductionContacts::from_iter([
+                ReductionContacts::of_rows([
                     crate::Cited::new(
                         vf(w, f).cells(crate::boolean::Operand::B),
                         crate::Cites::decided(0),
@@ -3238,7 +3235,7 @@ mod tests {
             ),
             (
                 "paired twice",
-                ReductionContacts::from_iter([
+                ReductionContacts::of_rows([
                     crate::Cited::new(vv(v, w).cells(), crate::Cites::decided(0)),
                     crate::Cited::new(vv(v, x).cells(), crate::Cites::decided(0)),
                     crate::Cited::new(vv(x, w).cells(), crate::Cites::decided(0)),
@@ -3247,7 +3244,7 @@ mod tests {
             ),
             (
                 "one key on each operand, pierced by A's and paired by B's",
-                ReductionContacts::from_iter([
+                ReductionContacts::of_rows([
                     crate::Cited::new(
                         vf(v, f).cells(crate::boolean::Operand::A),
                         crate::Cites::decided(0),

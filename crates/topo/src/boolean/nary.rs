@@ -1265,13 +1265,7 @@ fn tool_parts<T: Decide + AtRestPolicy>(
     tol: Tol,
 ) -> Result<Option<ToolParts<T>>, BooleanError> {
     use super::Cell::Face;
-    let ff = records
-        .rows()
-        .iter()
-        .filter_map(|c| match c.contact.kind() {
-            super::ContactKind::FaceFace(a, b) => Some((c, a, b)),
-            _ => None,
-        });
+    let ff = records.face_face();
     let solids: Vec<crate::SolidKey> = tool.solids().map(|(s, _)| s).collect();
     let place = |cell: super::Cell| {
         crate::census_cell_solid(tool, cell).and_then(|s| solids.iter().position(|&k| k == s))
@@ -1360,23 +1354,21 @@ fn tool_parts<T: Decide + AtRestPolicy>(
         (Some(i), Some(j)) if fused(i) && roots[i] == roots[j] => Err(unread(record, cells)),
         _ => Ok(Ride::Material),
     };
-    for carried in records.rows() {
-        let cells = carried.contact.cells();
-        if let [Face(_), Face(_)] = cells {
-            if let (Some(i), Some(j)) = (place(cells[0]), place(cells[1]))
-                && i == j
-            {
-                match at[i] {
-                    Some((g, m)) => own[g][m].push(*carried),
-                    None => standing_records.push(*carried),
-                }
-            }
-            continue;
-        }
-        match split(cells, carried.record)? {
+    for carried in records.lower() {
+        match split(carried.contact.cells(), carried.record)? {
             Ride::Member(g, m) => own[g][m].push(*carried),
             Ride::Standing => standing_records.push(*carried),
             Ride::Material => riding.push(*carried),
+        }
+    }
+    for (carried, x, y) in records.face_face() {
+        if let (Some(i), Some(j)) = (place(Face(x)), place(Face(y)))
+            && i == j
+        {
+            match at[i] {
+                Some((g, m)) => own[g][m].push(*carried),
+                None => standing_records.push(*carried),
+            }
         }
     }
     let carved = |keep: crate::SolidKey| {

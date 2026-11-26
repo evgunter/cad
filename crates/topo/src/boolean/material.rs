@@ -553,11 +553,7 @@ impl Through {
             Cell::Edge(e) => edge(e).map(Cell::Edge),
             Cell::Face(f) => face(f).map(Cell::Face),
         };
-        let (faces, rows): (Vec<&super::CarriedRecord>, Vec<_>) = riding
-            .rows()
-            .iter()
-            .partition(|c| matches!(c.contact.kind(), super::ContactKind::FaceFace(..)));
-        for c in rows {
+        for c in riding.lower() {
             let [x, y] = c.contact.cells();
             let Some(contact) = cell(x)
                 .zip(cell(y))
@@ -570,7 +566,7 @@ impl Through {
                 record: place(c.record),
             });
         }
-        if let Some(c) = faces.first() {
+        if let Some((c, ..)) = riding.face_face().next() {
             unreachable!(
                 "face–face record {} rides between two solids the fold keeps apart, though a \
                  face–face record between two solids is a verdict or refuses",

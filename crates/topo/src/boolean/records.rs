@@ -232,9 +232,8 @@ impl Contact {
         }
     }
 
-    /// Where the carry takes this record's kind among the others:
-    /// vertex pairs, then vertex–face, vertex–edge, edge pairs,
-    /// edge–face and face pairs ([`file_by_kind`]).
+    /// Where this record's kind stands in the order [`OperandRecords`]
+    /// states ([`file_by_kind`]).
     pub(in crate::boolean) fn carry_order(self) -> u8 {
         match self.kind() {
             ContactKind::VertexVertex(..) => 0,

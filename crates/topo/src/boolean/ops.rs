@@ -128,8 +128,8 @@ use super::voids;
 use super::zip::{Fusions, Seam, SeamCorrespondence, zip_seam, zip_split};
 use super::{BooleanDecision, LineWedgeFault};
 use super::{
-    BooleanError, BooleanInputs, BooleanOp, BooleanReduction, Cell, Contact, ContactKind,
-    ContactRecords, Glue, GlueVerdict, Operand, OperandRecords, ReductionContacts, SweepStrategy,
+    BooleanError, BooleanInputs, BooleanOp, BooleanReduction, Cell, Contact, ContactRecords, Glue,
+    GlueVerdict, Operand, OperandRecords, ReductionContacts, SweepStrategy,
 };
 use crate::body::Body;
 use crate::boxes;
@@ -6163,13 +6163,9 @@ impl<'a> Held<'a> {
                     );
                 };
                 let Some(faces) = self.records[operand.index()]
-                    .rows()
-                    .iter()
-                    .find(|c| c.record == record)
-                    .and_then(|c| match c.contact.kind() {
-                        ContactKind::FaceFace(a, b) => Some([a, b]),
-                        _ => None,
-                    })
+                    .face_face()
+                    .find(|(c, ..)| c.record == record)
+                    .map(|(_, a, b)| [a, b])
                 else {
                     continue;
                 };
@@ -8872,7 +8868,7 @@ mod tests {
         body.faces.remove(dead_face);
         assert!(body.get_face(dead_face).is_none(), "key is dead");
 
-        let contacts = ReductionContacts::from_iter([crate::Cited::new(
+        let contacts = ReductionContacts::of_rows([crate::Cited::new(
             VfContact {
                 vertex: live_vertex,
                 face: dead_face,
@@ -8907,7 +8903,7 @@ mod tests {
         let dead_vertex = body.vertices().map(|(k, _)| k).nth(3).unwrap();
         assert_ne!(dead_vertex, live_vertex);
         body.vertices.remove(dead_vertex);
-        let contacts = ReductionContacts::from_iter([crate::Cited::new(
+        let contacts = ReductionContacts::of_rows([crate::Cited::new(
             VvContact {
                 a: dead_vertex,
                 b: live_vertex,
@@ -8940,10 +8936,8 @@ mod tests {
         body.vertices.remove(a);
         body.vertices.remove(c);
         let pair = VvContact { a: c, b: partner };
-        let contacts = ReductionContacts::from_iter([crate::Cited::new(
-            pair.cells(),
-            crate::Cites::decided(0),
-        )]);
+        let contacts =
+            ReductionContacts::of_rows([crate::Cited::new(pair.cells(), crate::Cites::decided(0))]);
         let decls = Glue {
             records_a: OperandRecords::from_iter([CarriedRecord {
                 contact: crate::boolean::Contact::of(
@@ -9000,7 +8994,7 @@ mod tests {
         let (d0, d1) = (keys[4], keys[5]);
         body.faces.remove(d0);
         body.faces.remove(d1);
-        let contacts = ReductionContacts::from_iter([crate::Cited::new(
+        let contacts = ReductionContacts::of_rows([crate::Cited::new(
             VfContact { vertex, face: d0 }.cells(crate::boolean::Operand::A),
             crate::Cites::decided(0),
         )]);
@@ -9231,7 +9225,7 @@ mod tests {
         );
 
         let records = |v: VertexKey| {
-            ReductionContacts::from_iter([
+            ReductionContacts::of_rows([
                 crate::Cited::new(
                     VvContact { a: v, b: survivor }.cells(),
                     crate::Cites::decided(0),

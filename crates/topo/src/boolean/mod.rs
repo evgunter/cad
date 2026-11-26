@@ -193,6 +193,8 @@ mod torus_frame_rows;
 pub mod trace;
 pub mod voids;
 pub(crate) mod vtxfac;
+#[cfg(test)]
+mod working_set_rows;
 pub(crate) mod zip;
 
 use geom_core::UnitVec3;
@@ -979,8 +981,8 @@ pub enum Cell {
 /// the reduction's own decisions: one list of operand-tagged cell
 /// pairs, every key in its operand clone's arena. It is the reduction's
 /// vocabulary, read by kind and operand by the classification and the
-/// insertion ([`Self::vv`], [`Self::on`], [`Self::ee`], [`Self::ff`],
-/// [`Self::lying_in`]), and it is not a body's record: the result's
+/// insertion ([`Self::vv`], [`Self::on`], [`Self::lying_in`]), and it
+/// is not a body's record: the result's
 /// carry maps it onto the result's cells and drops the tags
 /// ([`ContactRecords`]). Deterministic discovery order, deduplicated by
 /// its writers.
@@ -1028,22 +1030,21 @@ impl<R> core::ops::Deref for KindRow<'_, R> {
 enum RowKind {
     Vv(VvContact),
     On(Operand, VfContact),
-    Ee(EeContact),
-    Ff(TangentFaces),
+    Ee,
+    Ff,
     In(Operand, EfContact),
 }
 
 impl RowKind {
-    /// Where [`ReductionContacts::rows`] takes this kind among the
-    /// others: vertex pairs, A's vertices on B's faces, B's on A's, edge
-    /// pairs, face pairs, A's edges in B's faces, B's in A's.
+    /// Where this kind stands in the order [`ReductionContacts::rows`]
+    /// states.
     fn order(self) -> u8 {
         match self {
             Self::Vv(_) => 0,
             Self::On(Operand::A, _) => 1,
             Self::On(Operand::B, _) => 2,
-            Self::Ee(_) => 3,
-            Self::Ff(_) => 4,
+            Self::Ee => 3,
+            Self::Ff => 4,
             Self::In(Operand::A, _) => 5,
             Self::In(Operand::B, _) => 6,
         }
@@ -1060,8 +1061,8 @@ fn row_kind(pair: [(Operand, Cell); 2]) -> RowKind {
         [(x, Cell::Vertex(vertex)), (y, Cell::Face(face))] if y == x.other() => {
             RowKind::On(x, VfContact { vertex, face })
         }
-        [(A, Cell::Edge(a)), (B, Cell::Edge(b))] => RowKind::Ee(EeContact { a, b }),
-        [(A, Cell::Face(a)), (B, Cell::Face(b))] => RowKind::Ff(TangentFaces { a, b }),
+        [(A, Cell::Edge(_)), (B, Cell::Edge(_))] => RowKind::Ee,
+        [(A, Cell::Face(_)), (B, Cell::Face(_))] => RowKind::Ff,
         [(x, Cell::Edge(edge)), (y, Cell::Face(face))] if y == x.other() => {
             RowKind::In(x, EfContact { edge, face })
         }
@@ -1154,10 +1155,19 @@ impl ReductionContacts {
         self.rows.iter().map(|c| (row_kind(c.record), &c.cites))
     }
 
+    /// The rows `pick` reads as its kind, in discovery order.
+    fn read<'s, R>(
+        &'s self,
+        pick: impl Fn(RowKind) -> Option<R> + 's,
+    ) -> impl Iterator<Item = KindRow<'s, R>> + 's {
+        self.touches()
+            .filter_map(move |(t, cites)| pick(t).map(|record| KindRow { record, cites }))
+    }
+
     /// The coincident vertex pairs (`sonvv`), in discovery order.
     pub fn vv(&self) -> impl Iterator<Item = KindRow<'_, VvContact>> + '_ {
-        self.touches().filter_map(|(t, cites)| match t {
-            RowKind::Vv(record) => Some(KindRow { record, cites }),
+        self.read(|t| match t {
+            RowKind::Vv(record) => Some(record),
             _ => None,
         })
     }
@@ -1165,24 +1175,8 @@ impl ReductionContacts {
     /// The vertices of `piercing` on faces of the other operand (`sonva`
     /// for A, `sonvb` for B), in discovery order.
     pub fn on(&self, piercing: Operand) -> impl Iterator<Item = KindRow<'_, VfContact>> + '_ {
-        self.touches().filter_map(move |(t, cites)| match t {
-            RowKind::On(x, record) if x == piercing => Some(KindRow { record, cites }),
-            _ => None,
-        })
-    }
-
-    /// The coincident line edges of A and B, in discovery order.
-    pub fn ee(&self) -> impl Iterator<Item = KindRow<'_, EeContact>> + '_ {
-        self.touches().filter_map(|(t, cites)| match t {
-            RowKind::Ee(record) => Some(KindRow { record, cites }),
-            _ => None,
-        })
-    }
-
-    /// The faces of A and B tangent along a line, in discovery order.
-    pub fn ff(&self) -> impl Iterator<Item = KindRow<'_, TangentFaces>> + '_ {
-        self.touches().filter_map(|(t, cites)| match t {
-            RowKind::Ff(record) => Some(KindRow { record, cites }),
+        self.read(move |t| match t {
+            RowKind::On(x, record) if x == piercing => Some(record),
             _ => None,
         })
     }
@@ -1190,8 +1184,8 @@ impl ReductionContacts {
     /// The pieces of line edges of `x_is` lying in planar faces of the
     /// other operand, in discovery order.
     pub fn lying_in(&self, x_is: Operand) -> impl Iterator<Item = KindRow<'_, EfContact>> + '_ {
-        self.touches().filter_map(move |(t, cites)| match t {
-            RowKind::In(x, record) if x == x_is => Some(KindRow { record, cites }),
+        self.read(move |t| match t {
+            RowKind::In(x, record) if x == x_is => Some(record),
             _ => None,
         })
     }
@@ -1245,10 +1239,14 @@ impl PartialEq for ReductionContacts {
 
 impl Eq for ReductionContacts {}
 
-impl FromIterator<Cited<[(Operand, Cell); 2]>> for ReductionContacts {
-    fn from_iter<I: IntoIterator<Item = Cited<[(Operand, Cell); 2]>>>(iter: I) -> Self {
+#[cfg(test)]
+impl ReductionContacts {
+    /// A working set of `rows`, each of a shape the reduction writes.
+    pub(in crate::boolean) fn of_rows(
+        rows: impl IntoIterator<Item = Cited<[(Operand, Cell); 2]>>,
+    ) -> Self {
         let mut out = Self::default();
-        iter.into_iter().for_each(|row| out.push(row));
+        rows.into_iter().for_each(|row| out.push(row));
         out
     }
 }
@@ -1289,6 +1287,29 @@ impl OperandRecords {
     #[must_use]
     pub fn rows(&self) -> &[CarriedRecord] {
         &self.rows
+    }
+
+    /// Every record below the face–face kind, the kind that comes last.
+    #[must_use]
+    pub fn lower(&self) -> &[CarriedRecord] {
+        &self.rows[..self.first_face_face()]
+    }
+
+    /// The face–face records, each with its two faces in canonical
+    /// order.
+    pub fn face_face(&self) -> impl Iterator<Item = (&CarriedRecord, FaceKey, FaceKey)> + '_ {
+        self.rows[self.first_face_face()..]
+            .iter()
+            .map(|c| match c.contact.cells() {
+                [Cell::Face(a), Cell::Face(b)] => (c, a, b),
+                cells => unreachable!("a record past the lower kinds is face–face, not {cells:?}"),
+            })
+    }
+
+    /// The index of the first face–face record, or the list's length.
+    fn first_face_face(&self) -> usize {
+        self.rows
+            .partition_point(|r| !matches!(r.contact.cells(), [Cell::Face(_), Cell::Face(_)]))
     }
 
     /// Files `row` after the records of its kind.

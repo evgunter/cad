@@ -1363,10 +1363,5 @@ fn contacthold_m2_a_restated_tangency_carries_the_first_of_two_verdicts_margins(
 
 /// `records`' face–face records alone.
 fn face_face(records: topo::OperandRecords) -> topo::OperandRecords {
-    records
-        .rows()
-        .iter()
-        .filter(|c| matches!(c.contact.kind(), topo::ContactKind::FaceFace(..)))
-        .copied()
-        .collect()
+    records.face_face().map(|(c, ..)| *c).collect()
 }
