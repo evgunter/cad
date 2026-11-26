@@ -361,7 +361,8 @@ mod tests {
 
     /// The die, by the numbers its own scene already knows.
     ///
-    /// `diefillet::stops` asserts the composed BODY is 26 + 21·3 faces
+    /// `diefillet::stops` asserts the composed BODY is 26 + 21·2 faces
+    /// (each pip's cavity one band and its fillet)
     /// and tier-3 valid. This asserts the same thing one level up, of
     /// the document's PRODUCT — which is the thing the viewer draws
     /// and the thing that was wrong. The volume is the composed die's,
@@ -381,7 +382,7 @@ mod tests {
             pncad::document::product(&doc, &evaluation, tol).expect("the die document gathers");
         assert_eq!(
             product.faces().count(),
-            26 + 21 * 3,
+            26 + 21 * 2,
             "the product is the composed die's own face count, not it plus a blank"
         );
         let volume = mass_properties(
