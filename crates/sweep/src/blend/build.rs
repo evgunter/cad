@@ -170,7 +170,8 @@ impl<T: topo::AtRestPolicy> Blended<T> {
 /// verb-neutral — around: [`BlendError::Band`] when the committed
 /// tolerance admits no ambiguity band;
 /// [`BlendError::NonpositiveSize`] when `radius` is not definitely
-/// positive; any refusal the battery produces;
+/// positive; [`BlendError::SizeBeyondRange`] when it has no finite
+/// upper end; any refusal the battery produces;
 /// [`BlendError::RepeatedEdge`] when the request names one edge
 /// twice; [`BlendError::UnsupportedChain`], [`BlendError::UnbuiltEnd`],
 /// [`BlendError::ObliqueMixedCorner`] or
@@ -263,9 +264,14 @@ fn repeated_edge_gate(edges: &[EdgeKey]) -> Result<(), BlendError> {
 /// INCOMPARABLE case is an arm and not an accident: a poisoned size is
 /// not definitely positive either, and it refuses here with the other
 /// two.
+///
+/// A positive size with no finite upper end refuses
+/// [`BlendError::SizeBeyondRange`]: no ball has an infinite radius, and
+/// the arms would read it as one.
 fn nonpositive_size_gate<T: Bounds>(size: T) -> Result<(), BlendError> {
     match size.lo().partial_cmp(&0.0) {
-        Some(core::cmp::Ordering::Greater) => Ok(()),
+        Some(core::cmp::Ordering::Greater) if size.hi().is_finite() => Ok(()),
+        Some(core::cmp::Ordering::Greater) => Err(BlendError::SizeBeyondRange { size: size.hi() }),
         _ => Err(BlendError::NonpositiveSize { size: size.lo() }),
     }
 }
@@ -446,7 +452,8 @@ pub type Chamfered<T> = Blended<T>;
 /// verb-neutral — around: [`BlendError::Band`] when the committed
 /// tolerance admits no ambiguity band;
 /// [`BlendError::NonpositiveSize`] when `distance` is not definitely
-/// positive; [`BlendError::RepeatedEdge`] when the request names one
+/// positive; [`BlendError::SizeBeyondRange`] when it has no finite
+/// upper end; [`BlendError::RepeatedEdge`] when the request names one
 /// edge twice; [`BlendError::ChamferArmUnsupported`] when a requested
 /// edge's supports are neither both planes nor a cylinder meeting a
 /// plane in a circle about its axis, or the latter's arc lies in a

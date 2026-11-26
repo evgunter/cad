@@ -61,3 +61,16 @@ lane's plane: `geom_brep::CylinderCylinderPose::rulings_plane` and
 carried rulings (`chord_join::carried_chord_spec`'s closed-form arm).
 The note above that names the rulings plane no longer points at live
 code. The rest of the row stands as filed.
+
+## 2026-11-23: the plane × cylinder guard landed; one arm panicked (GERM)
+
+GERM's `germ/conic-constructions-audit` adds `pc_cylinder_radius` to
+`geom_brep::intersect::plane_cylinder_classified`, the
+`coc_cylinder_radius` shape. It was owed sooner than the others: with a
+plane square to the axis and a cylinder of radius `−1`,
+`pc_rim_alignment` reads `‖axis×normal‖·r = −0` as `Zero` and the rim
+was stated at the stored radius, which `geom::Circle::new` panics on.
+`plane_sphere_section` and `sphere_sphere_section` do not panic on a
+radius of the wrong sign (their gap rows decide factors that imply it),
+so they still wait as filed. What an infinite radius does at every arm
+is `work/germ/no-sign-decision-gives-a-conic-a-finite-size.md`.

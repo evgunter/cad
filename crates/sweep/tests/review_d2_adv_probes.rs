@@ -399,6 +399,7 @@ fn class(e: &BlendError) -> &'static str {
         BlendError::Escalated { .. } => "Escalated",
         BlendError::RepeatedEdge { .. } => "RepeatedEdge(row 1)",
         BlendError::NonpositiveSize { .. } => "NonpositiveSize(row 1)",
+        BlendError::SizeBeyondRange { .. } => "SizeBeyondRange(row 1(b))",
         BlendError::UnsupportedChain { .. } => "UnsupportedChain(row 2)",
         BlendError::UnsupportedGeometry { .. } => "UnsupportedGeometry(row 2)",
         BlendError::BodyNotIntact { .. } => "BodyNotIntact(row 1)",

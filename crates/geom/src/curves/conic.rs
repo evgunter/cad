@@ -538,6 +538,31 @@ fn exact_point<T: Real>(p: Point3<T>) -> [Rounded<T>; 3] {
 /// A frame in running arithmetic: origin, `u_ref`, `v_ref`.
 type RunningFrame<T> = ([Rounded<T>; 3], [Rounded<T>; 3], [Rounded<T>; 3]);
 
+/// **A computed conic size as the row that decides it reads it**: `x`
+/// where [`Circle::new`] and [`Ellipse::new`] would store it bounded, and
+/// poison where they would panic on it as unbounded. The predicate is
+/// theirs, [`Real::is_bounded`], asked once here for every site that
+/// decides a computed size before it constructs: a site that read
+/// [`geom_core::is_finite_length`] instead would pass an enclosure
+/// with an infinite upper end at `Interval` (`[MAX, ∞]`), whose own
+/// width is not poison, into a constructor that refuses it. Its sign
+/// is the deciding row's question, not this one's: a bounded `x` reads
+/// as itself, so a row deciding the size decides it, and a poisoned
+/// read escalates that row.
+pub fn conic_size_read<T: Real>(x: T) -> T {
+    if bounded_size(x) {
+        x
+    } else {
+        T::from_f64(f64::NAN)
+    }
+}
+
+/// The constructors' finiteness predicate ([`stored_size`]'s first
+/// clause, [`conic_size_read`]'s question).
+fn bounded_size<T: Real>(x: T) -> bool {
+    x.is_bounded()
+}
+
 /// **A conic's size as it may be stored**: `x` itself, where it is a
 /// finite length that is not definitely negative.
 ///
@@ -558,7 +583,7 @@ fn stored_size<T: Real>(x: T, door: &str, name: &str) -> T {
     let negative = minus.select_le_zero(T::zero(), poison).is_poison()
         && !minus.select_le_zero(poison, T::zero()).is_poison();
     assert!(
-        x.is_bounded() && !negative,
+        bounded_size(x) && !negative,
         "{door}: {name} {x:?} is not a finite non-negative length \
          (the other placement is the frame's)"
     );
