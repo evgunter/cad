@@ -197,6 +197,14 @@ pub(super) fn face_crossings<T: Decide + Bounds>(
             // The arc's stretch inside the span is the span's: the end's
             // point is the vertex's only once that stretch is off the face.
             (OnSpan::End(_), MeetingKind::Touch { arc }) => {
+                // `arc` is ascending: the pose builds it as
+                // `(at − half, at + half)`, `half` a nonnegative reach
+                // (`geom_brep::curve_face::pose`'s `Touch`), so the clamp
+                // below is the arc's part inside the span.
+                debug_assert!(
+                    arc.0.hi() <= arc.1.hi(),
+                    "a touch's arc is ascending: {arc:?}"
+                );
                 let (a, b) = span.params();
                 let inside = (arc.0.max(a.min(b)), arc.1.min(a.max(b)));
                 if inside.0.hi() < inside.1.hi()

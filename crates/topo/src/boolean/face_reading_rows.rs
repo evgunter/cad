@@ -613,3 +613,169 @@ fn a_clusters_ball_carries_its_middles_distance_from_the_carrier() {
         "the cluster's ball, `ℓ + |dist|` wide, holds the top's edge"
     );
 }
+
+/// The least distance from a point to the sphere cap of
+/// [`crate::test_support_fixtures::sphere_cap`] at rim height `zr` (the
+/// unit sphere below `z = zr`): the radial foot where it lies in the cap,
+/// else the rim circle's nearest point, the nearer of the two.
+fn to_cap(q: Point3<f64>, zr: f64) -> f64 {
+    let r = (1.0 - zr * zr).sqrt();
+    let xy = (q.x * q.x + q.y * q.y).sqrt();
+    let rim = if xy > 0.0 {
+        Point3::new(r * q.x / xy, r * q.y / xy, zr)
+    } else {
+        Point3::new(r, 0.0, zr)
+    };
+    let mut least = (q - rim).norm();
+    let n = (q - Point3::origin()).norm();
+    if n > 0.0 && q.z / n <= zr {
+        least = least.min((n - 1.0).abs());
+    }
+    least
+}
+
+/// The least of `to_face` over the carrier's window `(lo, hi)`, sampled
+/// and refined about each sampled minimum by golden section.
+fn least_over(
+    carrier: &Curve3<f64>,
+    (lo, hi): (f64, f64),
+    to_face: impl Fn(Point3<f64>) -> f64,
+) -> f64 {
+    let at = |t: f64| to_face(carrier.eval(t));
+    let n = 6000;
+    let t = |k: usize| lo + (hi - lo) * k as f64 / n as f64;
+    let mut least = f64::INFINITY;
+    for k in 0..=n {
+        let here = at(t(k));
+        let left = at(t(k.saturating_sub(1)));
+        let right = at(t((k + 1).min(n)));
+        if here <= left && here <= right || here < least {
+            let (mut a, mut b) = (t(k.saturating_sub(1)), t((k + 1).min(n)));
+            for _ in 0..90 {
+                let (x1, x2) = (b - 0.618 * (b - a), a + 0.618 * (b - a));
+                if at(x1) < at(x2) {
+                    b = x2;
+                } else {
+                    a = x1;
+                }
+            }
+            least = least.min(here).min(at(geom::mid_param(a, b)));
+        }
+    }
+    least
+}
+
+/// **The face reading never sets aside a window a face point stands
+/// within the escalation of, on a sphere cap or a wall's corners and
+/// seams.** A sphere cap (the unit sphere below `z = 0.3`), drawn about
+/// its rim, about its pole and over its high cap; the unit wall face over
+/// azimuth `[−½, ½]` and height `[0, 1]`, drawn about its corners and its
+/// two seams. At each drawn point `p` of the carrier, a line or a circle
+/// grazes it at a depth up to `±3000·ε` along the normal: a line along a
+/// random tangent, tilted; a circle in the plane of that tangent and the
+/// normal, of radius from 0.05 to 3, curving away from the carrier or
+/// towards it. Each is read over a window about the graze up to a full
+/// turn of a circle. Wherever the reading answers off the face, no point
+/// of the face, sampled and golden-refined (`to_cap` exact on the cap; on
+/// the wall, the nearest wall point with its azimuth and height clamped
+/// into the face), stands within the band's escalation of the window. At
+/// the band rows the run reads (`CAD_TOLERANCE_EPS`).
+///
+/// Mutants, each red: the second-order bound without the level sets'
+/// curvature `1/(ρ − |dist| − ℓ)`; without its `ℓ²·H/2` term.
+#[test]
+fn the_face_reading_never_sets_aside_a_window_a_face_point_stands_in_on_a_cap_or_a_wall() {
+    let b = band();
+    let zr = 0.3;
+    let (cap_body, cap) = crate::test_support_fixtures::sphere_cap(zr, tol());
+    let sphere = cap_body.proven_face(cap).expect_described().clone();
+    let (wall_body, wall) = wall_face();
+    let mut rng = test_utils::fuzz::start("face-reading-cap-and-wall");
+    let (mut off, mut held) = ([0_usize; 2], [0_usize; 2]);
+    for case in 0..test_utils::fuzz::scaled(600) {
+        let on_cap = case % 2 == 0;
+        // A point of the carrier near the face's boundary or on it, and
+        // the carrier's unit normal there.
+        let (p, n) = if on_cap {
+            let polar = match case % 6 {
+                0 => zr.acos() + rng.range(-0.15, 0.15),
+                2 => core::f64::consts::PI - rng.range(0.0, 0.3),
+                _ => rng.range(zr.acos() - 0.4, zr.acos()),
+            };
+            let az = rng.range(0.0, core::f64::consts::TAU);
+            let n = Vec3::new(polar.sin() * az.cos(), polar.sin() * az.sin(), polar.cos());
+            (Point3::origin() + n, n)
+        } else {
+            let u = [-0.5, 0.5][case % 4 / 2] + rng.range(-0.15, 0.15);
+            let z = if case % 3 == 0 {
+                rng.range(-0.2, 1.2)
+            } else {
+                [0.0, 1.0][case % 4 / 2] + rng.range(-0.1, 0.1)
+            };
+            let n = Vec3::new(u.cos(), u.sin(), 0.0);
+            (Point3::origin() + n + Vec3::unit_z() * z, n)
+        };
+        let (t1, t2) = n.orthonormal_basis();
+        let ang = rng.range(0.0, core::f64::consts::TAU);
+        let along = t1 * ang.cos() + t2 * ang.sin();
+        let depth = rng.range(-3000.0, 3000.0) * b.zero() * rng.log_uniform(1e-3, 1.0);
+        let graze = p + n * depth;
+        let (carrier, window) = if rng.unit() < 0.5 {
+            let tilt = rng.range(-0.3, 0.3);
+            let dir = (along + n * tilt).normalize();
+            let half = rng.log_uniform(1e-3, 1.5);
+            let centre = rng.range(-half, half);
+            (
+                Curve3::Line(geom::Line {
+                    origin: graze,
+                    dir: geom::stated_direction(dir),
+                }),
+                (centre - half, centre + half),
+            )
+        } else {
+            let radius = rng.log_uniform(0.05, 3.0);
+            // Curving away from the carrier (centre outward) or towards it.
+            let out = if rng.unit() < 0.5 { 1.0 } else { -1.0 };
+            let centre = graze + n * (out * radius);
+            let axis = n.cross(along).normalize();
+            let circle = Curve3::circle(centre, axis, radius, (graze - centre) * (1.0 / radius));
+            let half = rng.range(0.01, core::f64::consts::PI);
+            let mid = rng.range(-half, half) * 0.2;
+            (circle, (mid - half, mid + half))
+        };
+        let (body, face, surface) = if on_cap {
+            (&cap_body, cap, sphere.clone())
+        } else {
+            (&wall_body, wall, unit_wall())
+        };
+        let Ok(read) = window_off_face(body, face, &surface, &carrier, window, b) else {
+            held[usize::from(on_cap)] += 1;
+            continue;
+        };
+        if !read {
+            held[usize::from(on_cap)] += 1;
+            continue;
+        }
+        off[usize::from(on_cap)] += 1;
+        let least = if on_cap {
+            least_over(&carrier, window, |q| to_cap(q, zr))
+        } else {
+            least_over(&carrier, window, |q| {
+                let az = q.y.atan2(q.x).clamp(-0.5, 0.5);
+                let h = q.z.clamp(0.0, 1.0);
+                (q - Point3::new(az.cos(), az.sin(), h)).norm()
+            })
+        };
+        assert!(
+            least > b.escalate(),
+            "case {case} ({}): the window {window:?} of {carrier:?} read off the face, a face \
+             point {least:e} from it ({})",
+            if on_cap { "cap" } else { "wall" },
+            test_utils::fuzz::replay()
+        );
+    }
+    assert!(
+        off.iter().all(|&o| o > 30) && held.iter().all(|&h| h > 30),
+        "{off:?} read off, {held:?} held (wall, cap)"
+    );
+}
