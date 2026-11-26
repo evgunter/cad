@@ -578,3 +578,38 @@ fn a_piece_within_the_escalation_of_the_carrier_is_not_cleared() {
         "the window stands within the escalation of the face"
     );
 }
+
+/// **A cluster's ball carries the distance of its middle from the
+/// carrier**: a line leaving the plane of a slab's top at 45°, from
+/// `(1.3, 0, 0)`, 0.3 past the top's edge at `x = 1`, read over the unit
+/// window from that point. A line against a plane has no tangency floor
+/// (its level sets and the line are both straight), so the window is one
+/// cluster: its middle stands `0.354` above the plane, its reach `ℓ` is
+/// 0.5, and its ball of radius `ℓ + |dist| + escalate`, about the foot
+/// `0.654` from the edge, holds that edge, so the window is held. Read
+/// without `|dist|`, the ball (radius 0.5) stands clear of the edge.
+///
+/// Mutant: the cluster's ball read without its `|dist|` term, red.
+#[test]
+fn a_clusters_ball_carries_its_middles_distance_from_the_carrier() {
+    let tol = tol();
+    let prism = crate::test_support_fixtures::prism_z::<f64>(
+        &[(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)],
+        -1.0,
+        0.0,
+        tol,
+    );
+    let (y, face) = (prism.body, prism.top_face);
+    let plane = y.proven_face(face).expect_described().clone();
+    assert!(matches!(plane, geom::Surface::Plane { .. }), "{plane:?}");
+    let s = core::f64::consts::FRAC_1_SQRT_2;
+    let line = Curve3::Line(geom::Line {
+        origin: Point3::new(1.3, 0.0, 0.0),
+        dir: geom::stated_direction(Vec3::new(s, 0.0, s)),
+    });
+    assert!(
+        !window_off_face(&y, face, &plane, &line, (0.0, 1.0), band())
+            .unwrap_or_else(|e| panic!("{e:?}")),
+        "the cluster's ball, `ℓ + |dist|` wide, holds the top's edge"
+    );
+}
