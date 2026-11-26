@@ -70,3 +70,14 @@ are read, and the PR body carries one line per site.
   CPAIR `on-surface-curve-doors-state-a-raw-surfaces-radius-undecided`,
   TRACE `circle-crossings-take-a-callers-radius-undecided`, and a note
   on SECT's `section-arms-off-the-value-read-radii-unguarded`.
+
+2026-11-26, the review's fix pass on the same branch. Finiteness is
+read through one predicate, the constructors' own
+(`geom::conic_size_read`); `is_finite_length` passed an `Interval`
+with an infinite upper end. A collapsing moved circle refuses
+`MovedCircleCollapses` and an infinite blend size `SizeBeyondRange`,
+both limits on their own lever. Row 17's open sign moved to SECTTORUS
+(`a-torus-parallel-through-a-crossing-states-a-radius-no-row-decides`);
+SHELL's `a-moved-rims-radius-is-positive-by-agreement-not-by-a-decision`
+is closed by this PR; the finiteness row is ruled by `[sizes]` and
+lists the guards its build retires.

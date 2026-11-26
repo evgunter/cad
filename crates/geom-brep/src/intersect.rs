@@ -1171,6 +1171,27 @@ pub fn plane_cylinder_section_read<T: Decide>(
 /// A row that decided a section's class, and the margin it decided on.
 pub(crate) type DecidingRow = (&'static str, MarginDiag);
 
+/// **A cylinder radius an arm states a circle at, decided first**
+/// (`row`, the radius itself in metres): positive passes; decided not
+/// positive is the operand's degeneracy, `what` saying which circle
+/// the arm would have stated; in band or on poison it is the radius
+/// guard's escalation. One body for `pc_cylinder_radius` and
+/// `coc_cylinder_radius`, each its own K name.
+fn cylinder_radius_decided<T: Decide>(
+    row: &'static str,
+    r: T,
+    what: &'static str,
+    band: Band,
+) -> Result<(), SectionError> {
+    match decide(row, Margin::of(r), band).map_err(|diag| SectionError::RadiusEscalated {
+        radius: SectionRadius::Cylinder,
+        diag,
+    })? {
+        Sign::Positive => Ok(()),
+        Sign::Zero | Sign::Negative => Err(SectionError::DegenerateOperand { what }),
+    }
+}
+
 /// [`plane_cylinder_section_read`], with the row `pc_parallel_gap` and
 /// the margin it decided `Zero` on, where the section is the tangent
 /// ruling.
@@ -1181,20 +1202,13 @@ pub(crate) fn plane_cylinder_classified<T: Decide>(
     band: Band,
 ) -> Result<(PlaneCylinderSection<T>, Decided, Option<DecidingRow>), SectionError> {
     let (pc, cyl_u) = plane_cylinder_data(plane, cylinder)?;
-    match decide("pc_cylinder_radius", Margin::of(pc.r), band).map_err(|diag| {
-        SectionError::RadiusEscalated {
-            radius: SectionRadius::Cylinder,
-            diag,
-        }
-    })? {
-        Sign::Positive => {}
-        Sign::Zero | Sign::Negative => {
-            return Err(SectionError::DegenerateOperand {
-                what: "the cylinder's radius is not definitely positive, and this arm \
-                       states its rim circle at exactly that radius",
-            });
-        }
-    }
+    cylinder_radius_decided(
+        "pc_cylinder_radius",
+        pc.r,
+        "the cylinder's radius is not definitely positive, and this arm states its rim \
+         circle at exactly that radius",
+        band,
+    )?;
     let (parallel, ruled) =
         plane_cylinder_ruled_read(&pc, reach, band).map_err(SectionError::Escalated)?;
     if let Some(ruled) = ruled {
@@ -3760,20 +3774,13 @@ pub fn cone_cylinder_section<T: Decide>(
     let (o, b) = (frame.origin(), frame.axis_unit());
 
     let (sin_a, cos_a) = half_angle.sin_cos();
-    match decide("coc_cylinder_radius", Margin::of(big_r), band).map_err(|diag| {
-        SectionError::RadiusEscalated {
-            radius: SectionRadius::Cylinder,
-            diag,
-        }
-    })? {
-        Sign::Positive => {}
-        Sign::Zero | Sign::Negative => {
-            return Err(SectionError::DegenerateOperand {
-                what: "the cylinder's radius is not definitely positive, and this arm \
-                       states both circles at exactly that radius",
-            });
-        }
-    }
+    cylinder_radius_decided(
+        "coc_cylinder_radius",
+        big_r,
+        "the cylinder's radius is not definitely positive, and this arm states both \
+         circles at exactly that radius",
+        band,
+    )?;
     // **These three are NOT the admission criterion**; `coc_station_reach`
     // below is. `coc_aperture_sin` exists because the station DIVIDES by
     // `sin α` and a division needs its divisor decided; `coc_aperture_cos`
