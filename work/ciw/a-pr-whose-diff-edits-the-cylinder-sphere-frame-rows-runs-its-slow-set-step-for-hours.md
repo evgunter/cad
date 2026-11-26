@@ -52,3 +52,7 @@ Likely levers, unmeasured:
 - the side reader casting fewer aims once one reads;
 - a cheaper first pass in the composite walk;
 - the rows trimmed to fewer poses.
+
+## 2026-11-26 — the mesh-budget hour, a first lead
+
+PR 7814's lane (its diff touched only sweep and editor tests) ran `mesh --features budget` locally. Several rows took more than 240 s each, among them `lift_probes` and `quadric_pair_sections`. On PRs 7813 and 7814 the hosted job was still running past an hour when their merges cancelled the run. None of this is profiled. It may predate this sitting's spline arms, so it needs a main baseline before blame.
