@@ -2639,9 +2639,11 @@ class TestTeapot(unittest.TestCase):
     SPOUT_ROOT: ClassVar[tuple] = (-1.0 / 32.0, 3.0 / 64.0, 0.0)
     SPOUT_DIR: ClassVar[tuple] = (-0.8, 0.6, 0.0)
     HANDLE_R: ClassVar[float] = 6.0 / 256.0
-    HANDLE_TUBE: ClassVar[float] = 1.0 / 128.0
+    #: Half the wall, so the roots end inside it (the Rust scene's
+    #: `HANDLE_OVER` says why).
+    HANDLE_TUBE: ClassVar[float] = 1.0 / 256.0
     HANDLE_C: ClassVar[tuple] = (5.0 / 64.0, 4.0 / 64.0, 0.0)
-    HANDLE_OVER: ClassVar[float] = 0.5
+    HANDLE_OVER: ClassVar[float] = 0.24
 
     # ---- the closed forms, from the constants above ----
 
@@ -3285,8 +3287,7 @@ class TestTeapot(unittest.TestCase):
         joined_body.validate()
         # Held to what a union must satisfy, from the operands' own
         # readings: no smaller than either, and short of their sum by
-        # a real overlap (the handle's roots stand 11.2 mm into the
-        # wall).
+        # a real overlap (the handle's roots are set into the wall).
         v_join = pinned(joined_body).volume
         v_cup = pinned(ev.value(cup).body()).volume
         v_handle = pinned(ev.value(handle).body()).volume

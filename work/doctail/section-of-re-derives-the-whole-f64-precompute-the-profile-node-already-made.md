@@ -119,9 +119,16 @@ From the read-only `wirehold-triage` against origin/main 8509df2510. INTENT clos
 - `wire::section_of` and its re-derivation went in PR 4741.
 - `ProfilePre.structure` (`eval/anchor.rs:432`) is not carried on `ProfileValue` (`anchor.rs:349`). `ProgramProfile::profile_edges_of` (`program.rs:2102`) has only test callers (`tests/edit_step_segments.rs:204, 1438, …`).
 - D made the profile 2-D (validated on its own xy plane, `anchor.rs:422`). That reshapes the record, but the carry question survives.
-- Two consumers wait on it, both open: `lib/python-has-no-step-to-profile-edge-door` and `vgeom/focus-marking-is-per-node-not-per-segment`.
+- Two consumers wait on it, both open: `pydoor/python-has-no-step-to-profile-edge-door` and `vgeom/focus-marking-is-per-node-not-per-segment`.
 - It still reaches the ratified PP1/PP2 (`crates/editor-core/README.md:177, 194`), so carrying the structure record is a design choice: designer pair, then `[ev]`.
 - Repriced from P1/H to P2/M, with design: the per-section re-derivation that made it expensive is gone, and what is left is a blocked door and a fork.
 - `anchor.rs:381` cites this row as `work/wire/…`; repoint it with the fix.
 
 Moved from WIREHOLD to DOCTAIL on 2026-11-20, by `git mv`, when WIREHOLD merged into DOCTAIL: WIREHOLD held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one DOCTAIL carries.
+
+## One consumer no longer waits (VGEOM, `vgeom/step-focus`, 2026-11-25)
+
+`vgeom/focus-marking-is-per-node-not-per-segment` lands without this
+carry: it reads a step's walls off the drawn names by minted step id.
+Whether `profile_edges_of` keeps a reason to exist is
+`work/doctail/does-profile-edges-of-keep-a-consumer.md`.

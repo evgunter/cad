@@ -70,6 +70,7 @@
 //! boundaries). It names no driver type and no `app`-only crate.
 
 use pncad::document::say;
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 
 use editor_core::resolve::RimNameFault;
@@ -1121,8 +1122,9 @@ impl Rims {
 }
 
 /// **One outline the picture draws**: its node, whether it is a datum's
-/// square, and its loops in world coordinates.
-type DrawnOutline<'a> = (RecipeNodeId, bool, &'a [Vec<Point3<f64>>]);
+/// square, and its loops in world coordinates, where the display view
+/// draws them.
+type DrawnOutline<'a> = (RecipeNodeId, bool, Cow<'a, [Vec<Point3<f64>>]>);
 
 /// **A committed profile's drawn outline**: the loops
 /// [`crate::sketch::committed`] draws for one profile node, each as
@@ -1140,6 +1142,12 @@ struct Outline {
     /// Whether the outline is a datum's square ([`PickedKind::Datum`])
     /// rather than a profile's.
     datum: bool,
+    /// The space whose picture it is drawn in
+    /// ([`crate::sketch::CommittedProfile::space`]).
+    space: Option<VarId>,
+    /// The copy carrying it there
+    /// ([`crate::sketch::CommittedProfile::copy`]).
+    copy: Option<RecipeNodeId>,
 }
 
 impl Outline {
@@ -1153,6 +1161,8 @@ impl Outline {
             node: profile.node,
             loops,
             datum: profile.datum,
+            space: profile.space,
+            copy: profile.copy,
         }
     }
 }
@@ -1785,14 +1795,14 @@ impl PickIndex {
         // frame is the kernel's door's to read ([`pick_face`] reads the
         // ray into each target's frame), so copies in one space are one
         // batch the kernel orders.
-        let mut mapped: Vec<(Affine3<f64>, &NodePick)> = Vec::new();
+        let mut mapped: Vec<&NodePick> = Vec::new();
         for part in self.parts.iter().filter(visible) {
             match display_mapped(display, part) {
                 None => {
                     let space = self.spaces.get(&part.node()).copied();
                     unmoved.entry(space).or_default().push(part.target());
                 }
-                Some(map) => mapped.push((map, part)),
+                Some(_) => mapped.push(part),
             }
         }
         // Every group's whole answer, in group order: the unmoved
@@ -1803,13 +1813,9 @@ impl PickIndex {
         for targets in unmoved.values() {
             candidates.extend(group_answer(pick_face(eval, targets, ray))?);
         }
-        for (map, part) in mapped {
+        for part in mapped {
             let targets = [part.target()];
-            let inverse = map.inverse();
-            let local = Ray {
-                origin: inverse.transform_point(ray.origin),
-                dir: inverse.transform_vec(ray.dir),
-            };
+            let local = drawn_ray(display, part, ray);
             for hit in group_answer(pick_face(eval, &targets, &local))? {
                 candidates.push(PickHit {
                     point: ray.origin + ray.dir * hit.t,
@@ -1994,6 +2000,23 @@ impl PickIndex {
         let error = crate::test_support::unnamed_edge(id.node, id.body);
         self.edges.unname(id.node, id.body, id.boundary, error);
         error
+    }
+
+    /// **A naming-emission bug, planted**: the drawn patch `id` refuses
+    /// its name with the naming layer's own refusal, as
+    /// [`PickIndex::unname_edge`] plants one on an edge.
+    #[cfg(test)]
+    #[allow(clippy::expect_used)] // A fixture's failure mechanism (workspace lint note).
+    pub(crate) fn unname_patch(&mut self, id: u32) {
+        let PatchId { node, body, patch } = self.ids.key_of(id).expect("a drawn patch");
+        let error = UnnamedEntity {
+            node,
+            entity: editor_core::EntityRef {
+                body,
+                key: editor_core::EntityKey::Face(pncad::topo::FaceKey::default()),
+            },
+        };
+        self.patches.unname(node, body, patch, error);
     }
 
     /// The drawn edges an edge selection denotes: the edges of its own
@@ -2502,7 +2525,8 @@ impl PickIndex {
         let mut candidates: Vec<(Line, Candidate)> = Vec::new();
         let outlines = self.drawn_outlines(display);
         if lines.outlines || lines.datums {
-            for (rank, &(node, datum, loops)) in outlines.iter().enumerate() {
+            for (rank, (node, datum, loops)) in outlines.iter().enumerate() {
+                let (node, datum) = (*node, *datum);
                 if !(if datum { lines.datums } else { lines.outlines }) {
                     continue;
                 }
@@ -2627,9 +2651,9 @@ impl PickIndex {
                 continue;
             }
             return Ok(Some(match line {
-                Line::Outline(rank) => match outlines[rank] {
-                    (node, true, _) => Near::Datum(node),
-                    (node, false, _) => Near::Profile(node),
+                Line::Outline(rank) => match &outlines[rank] {
+                    (node, true, _) => Near::Datum(*node),
+                    (node, false, _) => Near::Profile(*node),
                 },
                 Line::Edge(rank) => {
                     let part = bodies[rank];
@@ -2658,30 +2682,38 @@ impl PickIndex {
         Ok(None)
     }
 
-    /// **A committed profile's drawn outline**: one world polyline per
-    /// loop ([`crate::sketch::PreviewLoop::drawn_on`]); empty for a
-    /// node this index draws no outline of.
-    pub fn profile_outline(&self, node: RecipeNodeId) -> &[Vec<Point3<f64>>] {
-        self.outlines
-            .iter()
-            .find(|outline| outline.node == node)
-            .map_or(&[], |outline| outline.loops.as_slice())
-    }
-
     /// **The outline the picture draws of profile `node`**: the edit
     /// preview's where `display` says the node is drawn by one
     /// ([`DisplayView::previewed_profile`]), else its committed
-    /// outline ([`PickIndex::profile_outline`]). What the pick measures
-    /// a cursor against and what the profile marks light.
+    /// outline as `display` shows it ([`DisplayView::outline`]: none
+    /// where it is hidden, under its space's frame where that is
+    /// moved). What the pick measures a cursor against and what the
+    /// profile marks light.
     pub fn drawn_outline<'a>(
         &'a self,
         node: RecipeNodeId,
         display: &'a DisplayView,
-    ) -> &'a [Vec<Point3<f64>>] {
-        match &display.previewed_profile {
-            Some(previewed) if previewed.node == node => &previewed.outline,
-            _ => self.profile_outline(node),
-        }
+    ) -> Cow<'a, [Vec<Point3<f64>>]> {
+        self.drawings_of(node, display)
+            .into_iter()
+            .next()
+            .unwrap_or(Cow::Borrowed(&[][..]))
+    }
+
+    /// **Every drawing of `node`'s outline the pick measures**, one per
+    /// place the picture draws it (a profile shown through two copies is
+    /// drawn at both), as `display` shows each; [`PickIndex::drawn_outline`]
+    /// is the first.
+    pub fn drawings_of<'a>(
+        &'a self,
+        node: RecipeNodeId,
+        display: &'a DisplayView,
+    ) -> Vec<Cow<'a, [Vec<Point3<f64>>]>> {
+        self.drawn_outlines(display)
+            .into_iter()
+            .filter(|(drawn, _, _)| *drawn == node)
+            .map(|(_, _, loops)| loops)
+            .collect()
     }
 
     /// **Every profile outline the picture draws**, by node
@@ -2691,21 +2723,33 @@ impl PickIndex {
     fn drawn_outlines<'a>(&'a self, display: &'a DisplayView) -> Vec<DrawnOutline<'a>> {
         // Each committed outline is its own drawing: a profile or datum
         // shown through two copies is drawn, and picked, at both.
+        // The edit preview is drawn by the preview lane, as it stands.
         let mut drawn: Vec<DrawnOutline<'a>> = self
             .outlines
             .iter()
-            .map(|outline| {
+            .filter_map(|outline| {
                 let loops = match &display.previewed_profile {
-                    Some(previewed) if previewed.node == outline.node => &previewed.outline,
-                    _ => &outline.loops,
+                    Some(previewed) if previewed.node == outline.node => {
+                        Cow::Borrowed(previewed.outline.as_slice())
+                    }
+                    _ => display.outline(
+                        outline.node,
+                        outline.space,
+                        outline.copy,
+                        &outline.loops,
+                    )?,
                 };
-                (outline.node, outline.datum, loops.as_slice())
+                Some((outline.node, outline.datum, loops))
             })
             .collect();
         if let Some(previewed) = &display.previewed_profile
             && !drawn.iter().any(|(node, _, _)| *node == previewed.node)
         {
-            drawn.push((previewed.node, false, previewed.outline.as_slice()));
+            drawn.push((
+                previewed.node,
+                false,
+                Cow::Borrowed(previewed.outline.as_slice()),
+            ));
         }
         drawn
     }
@@ -2865,8 +2909,17 @@ fn group_answer(
 /// the span of the chord point `a + (b − a)·s`
 /// ([`ray_segment_point`]) and the certified spans of every crossing
 /// `ray` makes with the triangles that point may lie on
-/// ([`ray_triangle`]), placed through the same [`placement`] the
-/// chord's points were.
+/// ([`ray_triangle`]).
+///
+/// **Read in the part's own frame** (`[placement.frame]`): on the ray
+/// the part's faces in front were certified on ([`faces_ray`]), against
+/// the mesh's own corners. A face in
+/// front that IS one of the chord's triangles is then the same
+/// crossing, bit for bit, so an edge is never hidden by its own face;
+/// read in the world instead, a crossing placed through the maps and
+/// one carried back through them differ by the carry's rounding, which
+/// a posed or moved copy's certificate does not hold. The parameter is
+/// the caller's: an affine map carries it.
 ///
 /// **Which triangles.** A point inside the chord lies on the chord's
 /// own triangles
@@ -2893,9 +2946,8 @@ fn own_crossing(
     s: f64,
     display: &DisplayView,
 ) -> Option<TSpan> {
-    let own = ray_segment_point(ray, candidate.ends, s)?;
     let mesh = part.mesh();
-    let Some(&[from, to]) = mesh
+    let ends = mesh
         .boundaries
         .get(candidate.boundary)
         .and_then(|boundary| {
@@ -2903,9 +2955,19 @@ fn own_crossing(
                 .points
                 .get(candidate.segment..candidate.segment + 2)
         })
-    else {
-        return Some(own);
+        .and_then(|pair| {
+            let at = |index: u32| mesh.positions.get(index as usize).copied();
+            Some((pair[0], pair[1], [at(pair[0])?, at(pair[1])?]))
+        });
+    let Some((from, to, ends)) = ends else {
+        // [`best_segment`] offers only a segment whose two chord points
+        // both projected, and the walk projects a point only off its
+        // own boundary's index into the mesh's positions.
+        unreachable!("a candidate's chord is two points of its own boundary");
     };
+    let ray = &faces_ray(display, part, ray);
+    let own = ray_segment_point(ray, ends, s)?;
+    let corner = |index: u32| mesh.positions.get(index as usize).copied();
     let at_start = candidate.along == 0.0 || s == 0.0;
     let at_end = candidate.along == 1.0 || s == 1.0;
     let chords = part.chords();
@@ -2918,8 +2980,6 @@ fn own_crossing(
     } else {
         vec![chords.on_chord([from, to])]
     };
-    let place = placement(display, part);
-    let corner = |index: u32| mesh.positions.get(index as usize).copied().map(&place);
     Some(
         triangles
             .into_iter()
@@ -3054,6 +3114,29 @@ pub(crate) fn witness_leg(
             .display_map(node)
             .map_or(in_space, |map| map.transform_point(in_space))
     })
+}
+
+/// **The ray `part` is picked by**: `ray` carried back through the
+/// display map its node is drawn under ([`display_mapped`]), or `ray`
+/// itself. An affine map carries a ray's parameter with it, so a
+/// crossing at `t` on this ray is at `t` on `ray`.
+fn drawn_ray(display: &DisplayView, part: &NodePick, ray: &Ray) -> Ray {
+    display_mapped(display, part).map_or(*ray, |map| {
+        let inverse = map.inverse();
+        Ray {
+            origin: inverse.transform_point(ray.origin),
+            dir: inverse.transform_vec(ray.dir),
+        }
+    })
+}
+
+/// **The ray `part`'s faces are certified on**: the ray it is picked by
+/// ([`drawn_ray`], what [`PickIndex::pick_for`] hands the kernel) read
+/// into its body's frame as the kernel reads it
+/// ([`PickTarget::ray_in_frame`]) — so a crossing of its mesh read here
+/// is the kernel's own, bit for bit.
+fn faces_ray(display: &DisplayView, part: &NodePick, ray: &Ray) -> Ray {
+    part.target().ray_in_frame(&drawn_ray(display, part, ray))
 }
 
 /// **The display map a part's node is drawn under**, if the display

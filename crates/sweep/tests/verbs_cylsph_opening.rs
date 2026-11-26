@@ -186,10 +186,8 @@ fn coaxial_poses_build_every_op_at_their_volumes() {
 /// certifies, the matcher pairs the cylinder × sphere germs by foot on
 /// the section's one loop (`R < r + d`), and the join cuts both sides'
 /// chords from that loop; the cylinder and sphere faces they bound
-/// measure through the rotational lane, in both poses. The union is no
-/// legal operand only because a later boolean's point-in-solid walk
-/// cannot read its chorded sphere face
-/// (`crate::cylinder_sphere_frame::far_union`).
+/// measure through the rotational lane, in both poses, and the union is
+/// a legal operand (`crate::cylinder_sphere_frame::far_union`).
 #[test]
 fn a_transversal_pose_builds_in_both_poses() {
     use core::f64::consts::PI;
@@ -212,7 +210,7 @@ fn a_transversal_pose_builds_in_both_poses() {
             label,
             got,
             transversal_union_volume(),
-            crate::cylinder_sphere_frame::Ends::Builds,
+            crate::cylinder_sphere_frame::Ends::Sound,
             crate::cylinder_sphere_frame::pad_ceiling(area),
             &TRANSVERSAL_PAD_GUARDS,
         ) {

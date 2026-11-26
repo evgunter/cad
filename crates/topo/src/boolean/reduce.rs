@@ -2213,9 +2213,7 @@ fn junction_window<T: Decide + crate::props::AtRestPolicy>(
     let Some(window) = junction_end_window(&question, band).map_err(refused)? else {
         return Ok(None);
     };
-    if window.pivot > window.order
-        && !junction_end_boundary_clear(y, face, &question, window.spread, band)?
-    {
+    if !junction_end_boundary_clear(y, face, &question, window.spread, band)? {
         return Err(refused(JunctionEndUnsettled::Gap(
             super::JunctionEndGap::NearBoundary,
         )));
@@ -2285,10 +2283,10 @@ const NEAR_PIECE: f64 = 1.25;
 
 /// **Whether `face` is bounded within `spread` of the end by the rim
 /// alone, or by edges leaving the end on its own side**
-/// (`junction_end_boundary_clear`), asked of a window read past the
-/// order's own term, whose spread holds roots of the edge on `face`'s
-/// carrier: the side reading places them off `face` only where nothing
-/// but the rim bounds `face` on the edge's side within the spread.
+/// (`junction_end_boundary_clear`), asked of every window: the side
+/// reading places the roots of the edge on `face`'s carrier inside the
+/// spread off `face` only where nothing but the rim bounds `face` on the
+/// edge's side within the spread.
 ///
 /// - An edge of `face` on the rim's own circle
 ///   ([`geom_brep::curve_face::end_root::is_the_circle`]) is the rim's:
@@ -2309,7 +2307,7 @@ const NEAR_PIECE: f64 = 1.25;
 /// # Errors
 ///
 /// [`BooleanError::ClassificationInvariant`] for an edge with no
-/// certified carrier.
+/// certified carrier, or a ride along no direction.
 fn junction_end_boundary_clear<T: Decide>(
     y: &Body<T>,
     face: FaceKey,
@@ -2318,9 +2316,10 @@ fn junction_end_boundary_clear<T: Decide>(
     band: Band,
 ) -> Result<bool, BooleanError> {
     use geom_core::ladder::{Answering, Climb, Rung, climb};
-    let Some(conormal) = junction_conormal(q) else {
-        return Ok(false);
-    };
+    // `junction_end_window` read a window only under a ride with a side.
+    let conormal = junction_conormal(q).ok_or(BooleanError::ClassificationInvariant {
+        what: "a junction end's window was read under a ride along no direction",
+    })?;
     let (rim, p) = (q.rim, q.p);
     let past = |gap: T| {
         geom_core::k_stats::decide(
@@ -5502,7 +5501,7 @@ fn composite_count<T: Bounds + crate::props::AtRestPolicy>(
         });
     };
     Ok(match found {
-        Ok(ts) => Counted::Crossings(ts),
+        Ok(found) => Counted::Crossings(found.roots),
         Err(CompositeRefusal::Escalated(_) | CompositeRefusal::Unsettled(_))
             if super::carrier_touch::off_face(y, face, surface, carrier, params, band)? =>
         {

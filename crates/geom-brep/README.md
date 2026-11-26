@@ -1416,7 +1416,28 @@ otherwise cut where it is definitely past the band. A piece within the
 band that no cut parts, a meeting within the band of a crease and two
 crossings within the band of each other refuse. The composite is formed
 in a chart frame built in certification arithmetic, so the frame's
-rounding enters its enclosures. The span ×
+rounding enters its enclosures. A line against a spline face is read
+by its own method (`curve_face::line_patch`, through `curve_face::cross`):
+the line is the meet of two planes through it, and each plane's residual
+composed with the chart, with the offset along the line, is a rational
+Bernstein form on each of the chart's cells whose coefficients are linear
+in the net, computed at the scalar. A cell is clear where one residual's
+coefficients are all past the band on one side; holds at most one
+crossing where the residuals' gradient boxes (the quotient-rule
+numerators, on a rational chart) have corner determinants of one proved
+sign, which is also the crossing's incidence on `S_u × S_v`; and holds
+exactly one where, so, the image of its boundary winds round the line,
+read by the parity of a ray in the residuals' plane on the boundary
+rows' coefficient signs. A cell whose boundary is within the band of
+the line is grown about its crossing, inside the chart's domain and
+across its knot lines (a region of up to four cells' parts, read by the
+same tests over every part), and a grown region that holds a crossing
+claims its rectangle. A crossing is narrowed until its offset along the
+line spans no more than the band's escalation, and reported with its
+region's chart rectangle, which the face's trim places; one within the
+band of the span's ends is a stretch, as is a cell within the band of
+the line that no test reads: the line is not read over a stretch, and
+nothing there is counted. The span ×
 spline face arm is built for an analytic or a NURBS span
 (`curve_face::spline_face`, the boolean's spline-face door reading it
 past the boundary pass): it settles boxes of the state `(t, u, v)` on
@@ -1469,14 +1490,29 @@ reach (`curve_face_pose_graze_reach`). On a cone, whose form `F` bounds
 the residual only through its floor, no class is decided on `F` in its
 zero band alone (`curve_face_pose_cone_on_surface`,
 `curve_face_pose_cone_graze`). `cross` answers a spline arm, and an unbuilt arm,
-with one window over the whole span; a closed form's unsettled count
-is one window over the whole span too, and a root in band of an end or
-two roots in band of each other a window about them. The doors' older
+with one window over the whole span. Every other window is the arm's own
+data, never a second reading: a graze rung in band (the belly, a line's
+discriminant on a wall or a sphere, a first harmonic's extreme, `Kappa`)
+is the graze's reach at `Kε` clipped to the span, a reach that
+definitely misses it `Apart`; a line's apex rungs in band are its roots'
+spread about the apex, widened by `Kε`; a root whose slack the meter
+refuses is the root ± its slack, widened by `Kε`; a walk's refused piece
+is the piece, widened by `Kε`, the walk reading on past it (its parity and
+degree checks read only a walk with no window); a root in band of an
+end, or two roots in band of each other, a window about them. A rung
+that decides the class over the whole span, a conic's apex, and a
+method with nothing local (the line × torus quartic ladder, the walk's
+budget or first cut) are one window over the whole span. A window that
+misses the span is dropped with the meetings it could hold; windows
+that overlap or touch within the band are one, a fault's why ahead of
+any other; a found meeting lies in no window. The doors' older
 entries (`plane_crossing_lane`, `line_quadric_roots`,
 `conic_quadric_roots`, `circle_torus_roots`, `ellipse_torus_roots`, and
 the ray lane's `line_wall_roots`, `line_sphere_roots`,
 `line_cone_roots`) read the pose and then the method, and decide
-nothing of their own, for the readers that do not yet read `cross`. A
+nothing of their own, for the readers that do not yet read `cross`: each
+answers the first window that meets the span as its old refusal, so a
+refusal off the arc refuses nothing. A
 meeting inside a spline
 face's chart is placed by the trim at the chart point it was found at,
 on its own sheet (`topo::spline_region::spline_chart_placement`);

@@ -4,7 +4,7 @@ kind: issue
 title: a torus face bounded by a spline section's projected image refuses in the chord pass, so a rod or a ball through a donut builds and does not mesh
 status: open
 opened: 2026-11-17
-priority: P2
+priority: P0
 cost: M
 ---
 
@@ -36,3 +36,15 @@ A speed bound for a spline's `Pcurve::Projected` image on a torus
 chart that the chord pass can read, as the sphere row needs on a sphere
 chart (`a-projected-spline-images-speed-bound-on-a-sphere-is-eleven-orders-loose`
 measures how loose today's is there).
+
+## Re-banded P0 (2026-11-25)
+
+The teapot's handle union builds, and the joined pot does not mesh: the
+section edge between the vessel's sphere and the handle's torus refuses
+`UnsupportedCurve` from `mesh::chords::chart_image` ("trimmed analytic
+face bounded by the projected image of a spline or line carrier — the
+trimmed lane bounds the UV speed of a conic's image only"), measured on
+the tour's `tess-budget` sweep at δ 2e-4 (`teapot/teapotvessel`). Teapot
+wall 2 (`demos/tour/src/teapot.rs`, `wall_probes`) pins it, so this row
+is a stop of the P0 umbrella `splice/curved-demo-joins-build` and
+carries its band. The joined pot needs both this row and its sphere half, `cone-and-sphere-faces-with-conic-or-spline-trims-have-no-trimmed-arm`.

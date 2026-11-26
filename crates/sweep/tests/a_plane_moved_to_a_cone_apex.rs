@@ -473,7 +473,7 @@ fn a_cap_moved_off_a_frustum_wedge_apex_plans_its_wall_edge() {
                 .unwrap_or_else(|e| panic!("{label}: the offset refused {e:?}"));
             solid_truth::assert_body_is(
                 &label,
-                &offset,
+                &finished(&label, offset, tol),
                 (v + d * cap_area, 1e-12 * v + 0.25 * eps * cap_area),
                 &|q| truth.depth(q),
                 &named,

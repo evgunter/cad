@@ -127,24 +127,35 @@ pub const CURVED_JOIN_STOPS: &[JoinStop] = &[
         wall: 4,
         rows: &["a-loop-seam-meeting-the-neck-cylinder-at-its-edge-reads-in-band"],
     },
-    // At ε 1e-6 and 1e-9 the union stops at containment; at 1e-12, in
-    // the join (`teapot::wall3_pinned`).
+    // The handle's union builds; the joined pot does not mesh, on the
+    // section edge between the vessel's sphere and the handle's torus.
+    JoinStop {
+        scene: "teapot",
+        wall: 2,
+        rows: &[
+            "cone-and-sphere-faces-with-conic-or-spline-trims-have-no-trimmed-arm",
+            "a-torus-face-bounded-by-a-projected-spline-image-has-no-chord-bound",
+        ],
+    },
+    // At ε 1e-6 and 1e-9 the union stops at the result's volume, a
+    // rational spline face in the trimmed lane; at 1e-12, in the join
+    // (`teapot::wall3_pinned`).
     JoinStop {
         scene: "teapot",
         wall: 3,
         rows: &[
-            "point-containments-ray-test-has-no-spline-arm",
+            "a-rational-spline-face-with-a-general-row-has-no-volume-lane",
             "a-curved-partners-arc-is-imaged-at-rest-no-finer-than-the-mints-finest-rung",
         ],
     },
-    // At the tour's scalar the torus × spline section runs to its cell
-    // budget. The K sweep's scalar, which has no march lane, reads it
-    // one refusal short, and that is the probe's pin, not the scene's
-    // stop.
+    // At the tour's scalar the union gets past its torus × spline
+    // sections and stops at the pierce pass. The K sweep's scalar, which
+    // has no march lane, reads the section one refusal short, and that
+    // is the probe's pin, not the scene's stop.
     JoinStop {
         scene: "lily",
         wall: 8,
-        rows: &["the-chart-accounting-clears-a-thin-torus-only-in-sub-millimetre-cells"],
+        rows: &["lily-wall-8s-leaf-wall-lifts-no-closed-trim-at-the-pierce-pass"],
     },
 ];
 

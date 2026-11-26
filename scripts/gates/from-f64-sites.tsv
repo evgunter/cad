@@ -30,9 +30,12 @@ crates/geom-brep/src/chart_singularity.rs	1	constant	c	a half-turn threshold's m
 crates/geom-brep/src/chart_singularity.rs	1	constant	f64::from(SAMPLED_SPANS)	a sampled carrier's starting span count
 crates/geom-brep/src/chart_singularity.rs	1	constant	f64::from(WALK_SAMPLES)	a walk's station count per edge
 crates/geom-brep/src/chart_singularity.rs	2	constant	f64::from(i)	a sample schedule's index (the sampled carrier's starting spans and a walk's stations)
+crates/geom-brep/src/curve_face.rs	1	constant	band.escalate()	the band's escalation width, a tolerance: a window's one widening, Kε at the span's least speed (escalation_reach)
 crates/geom-brep/src/curve_face/conic_quadric.rs	1	constant	band.escalate()	the band's escalation width, a tolerance (a root bracket's width through the apex)
-crates/geom-brep/src/curve_face/cross.rs	1	constant	band.escalate()	the band's escalation width, a tolerance: a window's reach about a root in band of an end
 crates/geom-brep/src/curve_face/end_root.rs	1	constant	band.zero()	the band's zero width, a tolerance: the most a coefficient decided Zero admits, charged at its power
+crates/geom-brep/src/curve_face/line_patch.rs	1	constant	degree as f64	a Bernstein form's degree, a count
+crates/geom-brep/src/curve_face/line_patch.rs	1	constant	over	a product of two binomial coefficients, an exact small integer
+crates/geom-brep/src/curve_face/line_patch.rs	1	constant	w	a product of four binomial coefficients, an exact small integer
 crates/geom-brep/src/curve_face/pose.rs	1	constant	band.escalate()	the band's escalation width, a tolerance: a touch's reach past which a span is apart
 crates/geom-brep/src/curve_face/pose.rs	1	constant	band.zero()	the band's zero width, a tolerance: a touch's in-band depth
 crates/geom-brep/src/curve_face/pose.rs	1	constant	k / 4.0	a quarter of the span, from a literal schedule: the not-Lies rung's sample shares

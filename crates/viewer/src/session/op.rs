@@ -416,9 +416,10 @@ pub enum SessionOp {
     /// is then backed by the path and its resolver follows the folder,
     /// and its layout is written beside the path under the new id.
     SaveAsNewDocument(PathBuf),
-    /// Turn the toggle of the body `node` builds on or off (G3): a
-    /// DISPLAY operation over what the toggle reads now — off drops
-    /// what draws the body, on draws a body the picture leaves out; the
+    /// Turn the toggle of the body `node` builds, or of the outline it
+    /// draws, on or off (G3): a DISPLAY operation over what the toggle
+    /// reads now — off drops what draws it, on draws a body the picture
+    /// leaves out; the
     /// document and the feature tree keep it either way, and nothing is
     /// persisted ([`crate::display::DisplayState::set_body_on`]).
     SetBodyOn {
@@ -436,13 +437,13 @@ pub enum SessionOp {
         /// Hidden, or shown again.
         hidden: bool,
     },
-    /// Open a free-move probe gesture on the space `node`'s body is in
-    /// (G3's fit probe, DI5). Refused typed for a body in the world, and
-    /// while no evaluation that answers the document has landed — a
-    /// body with no value has no picture to move
-    /// ([`crate::display::free_move_check`]).
+    /// Open a free-move probe gesture on the space `node`'s body or
+    /// outline is in (G3's fit probe, DI5). Refused typed for a node in
+    /// the world or in no space, and while no evaluation that answers
+    /// the document has landed — a node with no value has no picture to
+    /// move ([`crate::display::free_move_check`]).
     BeginFreeMove {
-        /// The node whose drawn body the probe is opened on.
+        /// The node whose drawing the probe is opened on.
         node: RecipeNodeId,
     },
     /// Stream the probe's display frame. Each preview REPLACES the
