@@ -2,7 +2,7 @@
 id: the-boolean-door-decides-no-minted-vertex-on-edge-meeting
 kind: issue
 title: The boolean's carry door decides no minted vertex-on-edge meeting, so a carried record reaching one refuses JoinDesync
-status: open
+status: dispatched
 opened: 2026-11-25
 priority: P1
 cost: M
