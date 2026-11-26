@@ -2088,3 +2088,7 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - The fix has a pinned row and the mutant `cull-noslack`. The rounding at 1 km is to be bounded in the doc.
   - Also fixed: the offer-row census cases moved to `slit`'s line-on-wall reading; synthetic roster names prefixed `test_`.
   - Main's `recourse_roster` red (`edge_join_far_a_turn_on`) persists.
+- 2026-11-26 06:40 — **U4b final suites are green**, apart from main's prism-corner row.
+  - **Finding:** `spheres_crossing_off_every_edge` is green on main and red on U4b. The section circle's ring vertex moves beside the unit ball's chart pole.
+  - Topology is identical in all 36 ops, and the volumes hold, but the mesher loses one mesh: trimmed δ1e-3 a∖b goes from Draws to RingUnread.
+  - **Ruling:** one bisection pass of about 2 h to find the moving commit. Then either restore main's placement, if the move is incidental and that is cheap, or accept it under What moved and file a LATHE-side issue.
