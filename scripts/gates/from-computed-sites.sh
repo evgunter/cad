@@ -154,6 +154,7 @@ FROM_COMPUTED_DOOR_RE='^crates/geom-core/src/solved([.]rs$|/)'
 FROM_COMPUTED_PLACE_STEPS=(
   crates/geom/src/places.rs:at_place
   crates/geom-brep/src/edge_nurbs.rs:station
+  crates/geom-brep/src/pcurve_cache/spline_incidence.rs:split_at
   crates/topo/src/spline_trim.rs:split
   crates/topo/src/spline_trim.rs:refined
 )

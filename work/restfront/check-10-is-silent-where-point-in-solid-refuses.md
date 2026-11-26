@@ -86,3 +86,16 @@ reads since PR 5730. What closes both is a sphere region read over
 those arcs; until then such a body's side is the volume's.
 
 - 2026-11-02 — moved from RESTSHELL to RESTFRONT by `git mv` when RESTSHELL merged into RESTFRONT, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and RESTSHELL had fallen far under it).
+
+## The spline kinds have a ray arm (2026-11-25, INSIDE `inside/ray-spline-face-arm`)
+
+`solid_contain.rs` `ray_crosses` now lists `Nurbs` and `Approx` (an
+`Approx` face read on its fitted chart, as every spline door reads one):
+the walk crosses a spline face by the line × spline patch arm of
+`curve_face::cross`, its crossings placed against the face's trim. So
+check 10's `KindUnsupported` silence on NURBS and `Approx` faces closes
+where the trim reads; a spline face whose trim the chart cannot read
+refuses `PartialSplineFace` instead, a silence of the same kind as the
+partial curved faces above. Not measured on a check-10 fixture: the
+row's other silences stand, and the "other direction" applies to the new
+arm as to every other (a wrong crossing count is a false `ShellWinding`).

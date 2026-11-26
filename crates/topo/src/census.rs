@@ -7798,6 +7798,7 @@ impl Undecided {
             | E::PartialSphereFace { .. }
             | E::PartialConeFace { .. }
             | E::PartialTorusFace { .. }
+            | E::PartialSplineFace { .. }
             | E::EdgeCarrierUnsupported { .. }
             | E::WallOutlineUnsupported { .. }
             | E::Loop(L::Uncrossable(_)) => Self::FaceKindUnsupported,

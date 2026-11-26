@@ -1,11 +1,6 @@
 //! **A point past every face of a spline-walled solid reads its side
-//! at infinity**; any other point keeps the probe's refusal. The ray
-//! test has no arm for a NURBS face, so `point_in_solid` decides a point
-//! of such a selection only where it stands definitely outside the hull
-//! of every face's certified reach (a NURBS face's is its control net's
-//! hull) along a direction that turns with the solid — a cap's normal, or
-//! the axis from the faces' anchor to the point — whence a straight path
-//! to infinity meets no face.
+//! at infinity**, and one within the faces' reach is read by its rays,
+//! which cross the NURBS walls (`geom_brep::curve_face::line_patch`).
 //!
 //! The loft prism (`sweep::test_support::loft_prism`): four NURBS walls
 //! between the planar caps `z = 0` and `z = 2`, anchored at `(0, 0, 1)`.
@@ -15,10 +10,10 @@
 
 use geom_core::{Band, Point3, Tol};
 use sweep::test_support::{finished, loft_prism};
-use topo::{PointInSolidError, SolidContainment};
+use topo::SolidContainment;
 
 #[test]
-fn a_point_past_the_prisms_reach_is_outside_and_none_within_it_is_read() {
+fn a_point_past_the_prisms_reach_is_outside_and_one_within_it_is_read_by_its_rays() {
     let tol = Tol::witness();
     let band = Band::linear(tol).unwrap();
     let prism = finished("the loft prism", loft_prism(tol), tol);
@@ -36,26 +31,36 @@ fn a_point_past_the_prisms_reach_is_outside_and_none_within_it_is_read() {
             "{q:?} stands past every face"
         );
     }
-    // The centre stands outside every face's own reach (each wall's box
-    // lies at |x| ≥ 1 or |y| = 1, each cap's at z = 0 or 2) and inside the
-    // solid; the point beside the flare stands outside the solid (the
-    // wall is at x ≈ 1.356 there) and inside the wall's net along every
-    // candidate (the net's support along the anchor axis is ≈ 2.01, the
-    // point's ≈ 1.75). Neither is past the whole hull, so neither is read.
-    for (what, q) in [
-        ("the centre", Point3::new(0.0, 0.0, 1.0)),
-        ("beside the flare", Point3::new(1.5, -0.9, 1.0)),
+    // Inside the hull of the faces' reaches the rays read the walls: the
+    // centre is inside, the point beside the flare (the wall is at
+    // x ≈ 1.356 there) outside, and one just short of the flare inside.
+    for (what, q, want) in [
+        (
+            "the centre",
+            Point3::new(0.0, 0.0, 1.0),
+            SolidContainment::In,
+        ),
+        (
+            "beside the flare",
+            Point3::new(1.5, -0.9, 1.0),
+            SolidContainment::Out,
+        ),
+        (
+            "short of the flare",
+            Point3::new(1.3, -0.9, 1.0),
+            SolidContainment::In,
+        ),
+        (
+            "under the top cap",
+            Point3::new(0.4, 0.3, 1.9),
+            SolidContainment::In,
+        ),
     ] {
         let got = topo::point_in_solid(&prism, q, band, tol);
-        assert!(
-            matches!(
-                got,
-                Err(PointInSolidError::KindUnsupported {
-                    kind: geom::SurfaceKind::Nurbs,
-                    ..
-                })
-            ),
-            "{what}: the probe reads no NURBS face within the hull, got {got:?}"
+        assert_eq!(
+            got.as_ref().ok(),
+            Some(&want),
+            "{what}: the rays cross the NURBS walls, got {got:?}"
         );
     }
 }

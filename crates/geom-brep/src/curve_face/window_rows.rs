@@ -808,6 +808,7 @@ fn a_meeting_inside_a_window_is_taken_into_it() {
                 point: c.eval(t),
                 on_span: super::OnSpan::Inside { t },
                 kind: super::MeetingKind::Cross,
+                chart: None,
             },
             t,
         )
