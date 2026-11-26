@@ -2142,3 +2142,13 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - **Rows owed after the Fable reset:** U4b's model-compare row and its dual-review coding. Both reviewers were Opus during the outage.
   - **Next:** U4c (the planar lane, `slit`, `factored_crossing`; M, single FULL review).
 - 2026-11-26 20:10 — **U4c dispatched** to the same session, on `germ/u4c-planar-lane` (M, single FULL review). No draw (outage).
+- 2026-11-26 20:15 — **U4c: seven open points ruled.**
+  - The sides decide the posture. An Inside root within the end's escalation of a recorded-`Zero` end belongs to the vertex row, not a split.
+  - One event map for both lanes.
+  - `Together` refuses unless its window reads off the face (gated).
+  - The bisector plane gets a new `NodeWhy` arm.
+  - An unlaned carrier counts as "no such pair" (gated).
+  - `slit` reads the pose, and a lost Villarceau rescue stops the work.
+  - GAUGE's `classify.rs` test module moves to `CrossWhy`.
+  - The line requeues at `j+1`.
+  - The rescue gate R1–R4 is running.
