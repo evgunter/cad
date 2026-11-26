@@ -2204,3 +2204,7 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - Merge follows once the rulings are recorded.
 - 2026-11-26 23:05 — **PR 7819 (`[sizes]` build spec) merged** as `22e2bc87d`. Docs only, spec review APPROVE-WITH-FIXES with the fixes taken; §3 holds rulings only.
   - **S1 (M, single FULL) dispatched** to a fresh Opus session, `session_01BJC3B1U9uYfQ2rVn7VW6j5`, on `germ/sizes-s1`. No draw (outage).
+- 2026-11-26 23:15 — **U4c:** the bisector `Lies` is built, and all 4 builds are restored.
+  - The lever defect was caught: the plane's pose `Lies` was not enough (0.9ζ off the plane is 1.27ζ off the partner). It is now decided on the partner via `bool_factored_in_bisector`.
+  - The C5 edit and the `[ev]` question in PR 7818 are updated to match.
+  - 7 node rows are re-pointed. `slit` (A) is in.
