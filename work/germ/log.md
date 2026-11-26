@@ -2092,3 +2092,7 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - **Finding:** `spheres_crossing_off_every_edge` is green on main and red on U4b. The section circle's ring vertex moves beside the unit ball's chart pole.
   - Topology is identical in all 36 ops, and the volumes hold, but the mesher loses one mesh: trimmed δ1e-3 a∖b goes from Draws to RingUnread.
   - **Ruling:** one bisection pass of about 2 h to find the moving commit. Then either restore main's placement, if the move is incidental and that is cheap, or accept it under What moved and file a LATHE-side issue.
+- 2026-11-26 07:00 — **U4b ring vertex resolved as (a).** `wall_crossing` now returns the face's first crossing in span order. Main returned the root door's emission order, which was arbitrary.
+  - Topology is identical in all 36 ops, and the volumes hold.
+  - Filed `work/lathe/a-section-circles-ring-vertex-beside-a-chart-pole-is-unread-and-one-sphere-op-loses-its-mesh.md` (P2).
+  - Every slow-set red is now main's own, or fixed in U4b. The PR is being opened.
