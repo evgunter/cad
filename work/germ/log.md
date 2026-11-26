@@ -2127,3 +2127,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - `read_why` is the one `CrossWhy` reading.
   - P3 filed: `a-covered-near-miss-no-vertex-splits-refuses-where-a-miss-builds`.
   - The confirmation pair has been resumed on the new head.
+- 2026-11-26 — U4b R2 confirmation: APPROVE on `582f5e1983`. It has one new MINOR, held until R1 confirms.
