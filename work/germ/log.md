@@ -2185,3 +2185,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - CI reds were all main's: the prism corner, geom-brep's roster (filed on INSIDE), the foot-seed scan, and pncad-py's `prose_census` (`contain.rs`, INSIDE's recent change).
   - The mesh budget job was still running at merge. Low risk: the PR does not touch meshing.
   - **The `[sizes]` build: spec dispatched** to the same Opus session (`session_01BJC3B4DK1iXA3zGx2hMMvj`) as `docs/GERM-SIZES-BUILD-SPEC.md` on `germ/sizes-spec`. Plan only; open questions come to the orchestrator.
+- 2026-11-26 22:10 — **`[sizes]` spec re-routed.** The 7658 session may push only to its own branch, so the spec goes to a fresh Opus session (`session_01BJC3B57uMbcqJ131e5CbcV`, `germ/sizes-spec`), carrying the 7658 lane's notes: the retirement list, `moved_radius`'s sign half staying, and the blend door-size question.
