@@ -14,7 +14,10 @@
 //!   round, and every member order of the fold, carried.
 //! - **A plane face holds it over a curved pierced face**: two prisms,
 //!   one's edge lying in the other's side face, joined, and a lying
-//!   cylinder whose top that edge pierces.
+//!   cylinder whose top that edge pierces. Turned toward the face
+//!   holding the edge, the wall grazes it: the cut's meeting of the
+//!   edge's split vertex and the section edge is decided at the carry's
+//!   door, or the op refuses typed nearer tangent.
 //! - **A ringed wall holds it**: the joined rod and square pocketed
 //!   beside the point, so the wall carries the pocket's ring, which the
 //!   wall's region reads with its outer loop
@@ -811,5 +814,203 @@ fn a_wall_the_ruling_pierces_twice_builds_in_every_op_and_order() {
             slab_volume + rod_volume + sq_volume - common,
             99,
         );
+    }
+}
+
+/// **A cylinder of radius [`RC`] through `v = (C, 1)` whose wall meets
+/// `F` there at an angle that falls as it turns**: its axis along the
+/// bearing `β` (degrees; the lying cylinder's is `0`), and its wall's
+/// normal at `v` turned `φ` (degrees) off `ẑ` toward the sector, so it
+/// meets `F`, whose run is at bearing 80°, at the angle whose cosine is
+/// `sin φ · cos(β − 80°)`. `(0, 0)` is the lying cylinder's pose. It
+/// spans `1.5` either way of `v` along its axis.
+struct Grazing {
+    axis: [f64; 3],
+    at: [f64; 3],
+}
+
+impl Grazing {
+    fn new(beta: f64, phi: f64) -> Self {
+        let (sb, cb) = beta.to_radians().sin_cos();
+        let (sp, cp) = phi.to_radians().sin_cos();
+        let normal = [-sb * sp, cb * sp, cp];
+        Self {
+            axis: [cb, sb, 0.0],
+            at: [
+                C.0 - RC * normal[0],
+                C.1 - RC * normal[1],
+                1.0 - RC * normal[2],
+            ],
+        }
+    }
+
+    fn body(&self) -> AtRestBody<f64> {
+        let [ax, ay, _] = self.axis;
+        let origin = Point3::new(self.at[0] - 1.5 * ax, self.at[1] - 1.5 * ay, self.at[2]);
+        let frame = geom_core::RigidMotion::squared(
+            origin,
+            geom_core::Vec3::new(ax, ay, 0.0),
+            geom_core::Vec3::new(0.0, 0.0, 1.0),
+        );
+        let lp = profile::circle(Point2::new(0.0, 0.0), RC, tol()).unwrap();
+        extruded(profile::SketchPlane::from_frame(frame), lp.into(), 3.0)
+    }
+
+    fn holds(&self, q: [f64; 3]) -> bool {
+        let d = [q[0] - self.at[0], q[1] - self.at[1], q[2] - self.at[2]];
+        let along = d[0] * self.axis[0] + d[1] * self.axis[1];
+        let off = d[0] * d[0] + d[1] * d[1] + d[2] * d[2] - along * along;
+        along.abs() < 1.5 && off < RC * RC
+    }
+}
+
+/// What an op of the joined prisms and a [`Grazing`] cylinder does.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Grazed {
+    /// Builds sound, and the result carries the carry door's row on
+    /// the record's own cells `(E, F)`.
+    Decided,
+    /// Builds sound, with no minted meeting at the door.
+    Built,
+    /// Refuses where the carry's placement reads the record in band.
+    Unread,
+    /// Refuses where the edge's pierce of the wall is in band.
+    PierceEscalated,
+}
+
+/// **A tool face grazing the face that holds the record**: the joined
+/// prisms, whose edge-in-face record `(E, F)` holds the sector's edge
+/// in the triangle's face, against [`Grazing`] cylinders whose wall
+/// meets `F` at `v` ever closer to tangent. The cut splits `E` at `v`,
+/// which lies inside the section edge the wall mints in `F`, and the
+/// carry door decides that meeting by the census's reading of a vertex
+/// inside an edge. The falling angle amplifies the distance that
+/// reading measures, from `2e-16` where the wall meets `F` at 28° to `2e-13`
+/// at 0.14°. Each op, either operand first, does what its pose pins:
+///
+/// - builds sound (tier 3, and every probe read and right) with the
+///   door's row on `(E, F)` where the meeting reaches the door, the
+///   intersection and the subtraction from the held pair;
+/// - refuses typed nearer tangent, where the placement reads the record
+///   in band (`Unread`), or the pierce of the wall is in band;
+///
+/// never a wrong body. Tier 3′ finds only what the census cannot yet
+/// decide of two lumps' curved faces and the line contact an
+/// intersection or a subtraction leaves unrecorded
+/// (`a-carried-line-contact-an-op-cuts-is-dropped`).
+#[test]
+fn a_tool_face_grazing_the_holding_face_decides_or_refuses_and_never_ships_a_wrong_body() {
+    use Grazed::{Built, Decided, PierceEscalated, Unread};
+    let prisms = line_prisms();
+    let bodies: Vec<_> = prisms.iter().map(|(foot, z)| prism(foot, *z)).collect();
+    let in_prisms = |q: [f64; 3]| prisms.iter().any(|(foot, z)| in_prism(foot, *z, q));
+    let (pair, records) = joined_carried("sector ∪ triangle", &bodies[0], &bodies[1]);
+    let [ef] = records.ef[..] else {
+        panic!("the joined prisms carry one edge-in-face record: {records:?}");
+    };
+    // Per pose, per op in `OPS` order: held first, then held second.
+    let decided = [[Built, Built], [Decided, Decided], [Decided, Built]];
+    let poses = [
+        ((60.0, 70.0), decided),
+        ((79.9, 89.9), decided),
+        (
+            (79.98, 89.98),
+            [[Unread, Unread], [Decided, Decided], [Decided, Unread]],
+        ),
+        ((79.995, 89.995), [[PierceEscalated; 2]; 3]),
+    ];
+    for ((beta, phi), outcomes) in poses {
+        let g = Grazing::new(beta, phi);
+        let tool = g.body();
+        for ((name, op, material), outcomes) in OPS.into_iter().zip(outcomes) {
+            for (held_first, want) in [true, false].into_iter().zip(outcomes) {
+                let what = format!("β = {beta}°, φ = {phi}°: {name}, held first: {held_first}");
+                let (x, y, held) = if held_first {
+                    (&pair, &tool, topo::Operand::A)
+                } else {
+                    (&tool, &pair, topo::Operand::B)
+                };
+                let carried = |h| {
+                    if h == held {
+                        records.clone()
+                    } else {
+                        topo::OperandRecords::default()
+                    }
+                };
+                let inputs = topo::BooleanInputs {
+                    records_a: carried(topo::Operand::A),
+                    records_b: carried(topo::Operand::B),
+                };
+                let r = match (
+                    want,
+                    topo::boolean_op_with(op, x, y, &inputs, topo::SweepStrategy::Realized, tol()),
+                ) {
+                    (
+                        Unread,
+                        Err(topo::BooleanError::CarryRefused {
+                            refusal: topo::CarryRefusal::Unread { .. },
+                            ..
+                        }),
+                    )
+                    | (PierceEscalated, Err(topo::BooleanError::CurvedPierceEscalated { .. })) => {
+                        continue;
+                    }
+                    (Decided | Built, Ok(BooleanResult::Body(r))) => r,
+                    (_, other) => panic!("{what}: want {want:?}, got {other:?}"),
+                };
+                assert_eq!(
+                    topo::validate_geometric(&r.body, tol()),
+                    Ok(()),
+                    "{what}: tier 3"
+                );
+                let findings = topo::validate_pseudomanifold(&r.body, &r.contacts, tol())
+                    .err()
+                    .unwrap_or_default();
+                assert!(
+                    findings.iter().all(|e| matches!(
+                        e,
+                        topo::ValidationError::CensusUndecidable { .. }
+                            | topo::ValidationError::UnrecordedContact {
+                                contact: topo::CensusContact::EdgeFaceOverlap { .. },
+                                ..
+                            }
+                    )),
+                    "{what}: tier 3′: {findings:?}"
+                );
+                for q in probes() {
+                    let (a, b) = (in_prisms(q), g.holds(q));
+                    let holds = if held_first {
+                        material(a, b)
+                    } else {
+                        material(b, a)
+                    };
+                    assert_eq!(
+                        inside_of(&r.body, q),
+                        Some(holds),
+                        "{what}: material at {q:?}"
+                    );
+                }
+                let own = [
+                    topo::RowCell::Input {
+                        input: held,
+                        cell: topo::Cell::Edge(ef.contact.edge),
+                    },
+                    topo::RowCell::Input {
+                        input: held,
+                        cell: topo::Cell::Face(ef.contact.face),
+                    },
+                ];
+                let door = r
+                    .coincidences
+                    .iter()
+                    .any(|c| c.cells == own && c.relation == topo::Relation::OnCarrier);
+                assert_eq!(
+                    door,
+                    want == Decided,
+                    "{what}: the door's row on the record's cells: {:?}",
+                    r.coincidences
+                );
+            }
+        }
     }
 }
