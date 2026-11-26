@@ -2203,4 +2203,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - **Q8 ruled:** the corner torus is `Size(2r)`, then `RingTorus::of`.
   - Merge follows once the rulings are recorded.
 - 2026-11-26 23:05 — **PR 7819 (`[sizes]` build spec) merged** as `22e2bc87d`. Docs only, spec review APPROVE-WITH-FIXES with the fixes taken; §3 holds rulings only.
-  - **S1 (M, single FULL) dispatched** to a fresh Opus session, `session_01BJC3B5…`, on `germ/sizes-s1`. No draw (outage).
+  - **S1 (M, single FULL) dispatched** to a fresh Opus session, `session_01BJC3B1U9uYfQ2rVn7VW6j5`, on `germ/sizes-s1`. No draw (outage).
