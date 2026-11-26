@@ -2181,3 +2181,7 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - The confirmation is dispatched to the original reviewer.
   - **New main red reported:** geom-brep slow `recourse_roster::every_decided_name_is_read` at `curve_face` `walk.rs` / `line_patch.rs`. Its owner is to be checked.
   - **Interval blind spot:** shell's `is_finite_length(thickness)` has the same one; it is listed on the `[sizes]` build row.
+- 2026-11-26 22:00 — **PR 7658 merged** as `cbd68a064`, after the reviewer confirmed APPROVE.
+  - CI reds were all main's: the prism corner, geom-brep's roster (filed on INSIDE), the foot-seed scan, and pncad-py's `prose_census` (`contain.rs`, INSIDE's recent change).
+  - The mesh budget job was still running at merge. Low risk: the PR does not touch meshing.
+  - **The `[sizes]` build: spec dispatched** to the same Opus session (`session_01BJC3B4DK1iXA3zGx2hMMvj`) as `docs/GERM-SIZES-BUILD-SPEC.md` on `germ/sizes-spec`. Plan only; open questions come to the orchestrator.
