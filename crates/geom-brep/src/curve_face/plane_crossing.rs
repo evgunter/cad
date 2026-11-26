@@ -177,7 +177,10 @@ fn conic_plane_meet<T: Decide>(
         return ConicPlaneMeet::Roots(match why {
             super::cross::PlaceWhy::End(diag) => Err(ConicRootFault::CrossingInterior(diag)),
             super::cross::PlaceWhy::Apart(diag) => Err(ConicRootFault::RootOrder(diag)),
-            super::cross::PlaceWhy::Together(t) => Ok(vec![t]),
+            super::cross::PlaceWhy::Together(t) => {
+                crate::rescue_log("R1", &format!("together t={:?}", t));
+                Ok(vec![t])
+            }
             // A kernel fault this wrapper's shape has no arm for: it fails
             // loud.
             super::cross::PlaceWhy::Contradiction(what) => {

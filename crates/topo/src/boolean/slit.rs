@@ -1831,8 +1831,51 @@ pub(super) fn carrier_on_surface<T: crate::props::AtRestPolicy>(
     conic_or_line_on(carrier, (t0, t1), surface, band)
 }
 
-/// [`carrier_on_surface`] on `surface` itself.
 fn conic_or_line_on<T: crate::props::AtRestPolicy>(
+    carrier: &geom::Curve3<T>,
+    (t0, t1): (T, T),
+    surface: &geom::Surface<T>,
+    band: Band,
+) -> Result<Placed, BooleanError> {
+    let old = conic_or_line_on_old(carrier, (t0, t1), surface, band);
+    let analytic = matches!(
+        carrier,
+        geom::Curve3::Line(_) | geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..)
+    ) && matches!(
+        surface,
+        geom::Surface::Plane { .. }
+            | geom::Surface::Sphere { .. }
+            | geom::Surface::Cylinder { .. }
+            | geom::Surface::Cone { .. }
+            | geom::Surface::Torus { .. }
+    );
+    if analytic {
+        use geom_brep::curve_face::{Pose, PoseRefusal};
+        let span = geom_brep::curve_pair::Span::new(carrier, (t0, t1));
+        let new = match geom_brep::curve_face::pose(&span, surface, band).map_err(|u| u.why) {
+            Ok(Pose::Lies) => "on",
+            Ok(_) => "off",
+            Err(PoseRefusal::InBand { .. }) => "esc",
+            Err(_) => "unread",
+        };
+        let was = match &old {
+            Ok(Placed::On) => "on",
+            Ok(Placed::Off) => "off",
+            Ok(Placed::Unread(_)) => "unread",
+            Err(_) => "esc",
+        };
+        if was != new {
+            geom_brep::rescue_log(
+                "R3",
+                &format!("{:?}x{:?} was={was} pose={new}", carrier.kind(), surface.kind()),
+            );
+        }
+    }
+    old
+}
+
+/// [`carrier_on_surface`] on `surface` itself.
+fn conic_or_line_on_old<T: crate::props::AtRestPolicy>(
     carrier: &geom::Curve3<T>,
     (t0, t1): (T, T),
     surface: &geom::Surface<T>,

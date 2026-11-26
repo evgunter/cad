@@ -314,3 +314,18 @@ pub use tangent::{
     TangentJet, TangentSpanBounds, tangent_certificate_lane, tangent_jet, tangent_span_bounds,
 };
 pub use torus_convention::{TorusConvention, TorusRefusal, TorusStanding};
+
+#[doc(hidden)]
+#[allow(clippy::all, clippy::pedantic, missing_docs)]
+pub fn rescue_log(tag: &str, detail: &str) {
+    use std::io::Write;
+    if let Ok(p) = std::env::var("CAD_RESCUE_LOG") {
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(p) {
+            let th = std::thread::current();
+            let name = th.name().unwrap_or("?").to_string();
+            let eps = std::env::var("CAD_TOLERANCE_EPS").unwrap_or_default();
+            let exe = std::env::args().next().unwrap_or_default();
+            let _ = writeln!(f, "{tag}\t{eps}\t{exe}\t{name}\t{detail}");
+        }
+    }
+}

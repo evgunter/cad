@@ -120,6 +120,7 @@ pub(super) fn factored_crossing<T: Decide + crate::props::AtRestPolicy>(
                     // ends: the ends' two distances share their rounding,
                     // which an enclosure would count twice.
                     let Some(geom::Line { origin, dir }) = carrier.as_line() else {
+                        geom_brep::rescue_log("R2", "no-as-line");
                         return Ok(None);
                     };
                     roots[i]
@@ -132,7 +133,10 @@ pub(super) fn factored_crossing<T: Decide + crate::props::AtRestPolicy>(
             PlaneCrossingLane::Conic(
                 ConicPlaneMeet::InPlane
                 | ConicPlaneMeet::Roots(Err(ConicRootFault::PlaneParallel(_))),
-            ) => return Ok(None),
+            ) => {
+                geom_brep::rescue_log("R2", &format!("in-or-parallel plane={i}"));
+                return Ok(None);
+            }
             PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(Ok(ts))) => roots[i] = ts,
             PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(Err(fault))) => {
                 return Err(BooleanError::Escalated {
@@ -143,7 +147,10 @@ pub(super) fn factored_crossing<T: Decide + crate::props::AtRestPolicy>(
                     diag: fault.diag(),
                 });
             }
-            PlaneCrossingLane::Unlaned => return Ok(None),
+            PlaneCrossingLane::Unlaned => {
+                geom_brep::rescue_log("R2", "unlaned");
+                return Ok(None);
+            }
         }
     }
     // A crossing of one plane within the band of a crossing of the
@@ -156,7 +163,10 @@ pub(super) fn factored_crossing<T: Decide + crate::props::AtRestPolicy>(
                 band,
             ) {
                 Ok(Sign::Positive) => {}
-                Ok(Sign::Zero | Sign::Negative) => return Ok(None),
+                Ok(Sign::Zero | Sign::Negative) => {
+                    geom_brep::rescue_log("R2", "node");
+                    return Ok(None);
+                }
                 Err(diag) => {
                     return Err(BooleanError::Escalated {
                         decision: BooleanDecision::VertexOnVertex,

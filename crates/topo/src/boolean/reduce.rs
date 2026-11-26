@@ -1421,6 +1421,63 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
             let on_face = |w| move |refusal| vertex_refusal(refusal, (x_is, w), &read, band);
             let d1 = side(u, pu).map_err(on_face(u))?;
             let d2 = side(v, pv).map_err(on_face(v))?;
+            {
+                let curve = certified(x.proven_edge(edge_key))?.clone();
+                let surface = y.proven_face(face).expect_described().clone();
+                let span = geom_brep::curve_pair::Span::new(curve.carrier(), curve.params());
+                let answer = geom_brep::curve_face::cross(&span, &surface, band);
+                let (inside, ends, windows, cls) = match &answer {
+                    Ok(c) => (
+                        c.meetings
+                            .iter()
+                            .filter(|m| matches!(m.on_span, geom_brep::curve_face::OnSpan::Inside { .. }))
+                            .count(),
+                        c.meetings
+                            .iter()
+                            .filter(|m| matches!(m.on_span, geom_brep::curve_face::OnSpan::End(_)))
+                            .count(),
+                        0,
+                        match c.pose {
+                            geom_brep::curve_face::Pose::Lies => "lies",
+                            geom_brep::curve_face::Pose::Apart => "apart",
+                            _ => "met",
+                        },
+                    ),
+                    Err(r) => (
+                        r.found
+                            .iter()
+                            .filter(|m| matches!(m.on_span, geom_brep::curve_face::OnSpan::Inside { .. }))
+                            .count(),
+                        r.found
+                            .iter()
+                            .filter(|m| matches!(m.on_span, geom_brep::curve_face::OnSpan::End(_)))
+                            .count(),
+                        r.windows.len(),
+                        "refused",
+                    ),
+                };
+                let summary = format!(
+                    "sides=({:?},{:?}) cls={cls} inside={inside} ends={ends} windows={windows}",
+                    d1.sign, d2.sign
+                );
+                match (d1.sign, d2.sign) {
+                    (Sign::Positive, Sign::Negative) | (Sign::Negative, Sign::Positive) => {
+                        if inside != 1 || windows > 0 {
+                            geom_brep::rescue_log("R4a", &summary);
+                        }
+                    }
+                    (Sign::Zero, _) | (_, Sign::Zero) => {
+                        if inside > 0 || windows > 0 {
+                            geom_brep::rescue_log("R4b", &summary);
+                        }
+                    }
+                    _ => {
+                        if inside > 0 || windows > 0 || cls == "lies" {
+                            geom_brep::rescue_log("R4c", &summary);
+                        }
+                    }
+                }
+            }
             match (d1.sign, d2.sign) {
                 (Sign::Positive, Sign::Negative) | (Sign::Negative, Sign::Positive) => {
                     // Proper plane crossing: locate p on the carrier and
