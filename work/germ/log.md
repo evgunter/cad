@@ -2082,3 +2082,9 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - A pi_seam escalation is now located.
   - The snowman pole and the two-arc-hole rim: an end-touch now goes to the vertex rows (§2.3), and the refusal moves to a later typed door.
   - The dodge plate: a main refusal now builds, verified by tiers 3/3′, inclusion–exclusion and a grid-volume oracle. It is a separate claim for the reviewers.
+- 2026-11-26 03:20 — **U4b: the ball cull decided `Apart` inside `Kε`.**
+  - Found by the slow set at seed `0x4a8aeeab9d2aa671`: large circles of radius 68–1323 m grazing small walls at the band's edge.
+  - Fixed: the cull decides `|g| − L·ℓ − escalate`, which is W2's question (`Apart` means past `Kε`).
+  - The fix has a pinned row and the mutant `cull-noslack`. The rounding at 1 km is to be bounded in the doc.
+  - Also fixed: the offer-row census cases moved to `slit`'s line-on-wall reading; synthetic roster names prefixed `test_`.
+  - Main's `recourse_roster` red (`edge_join_far_a_turn_on`) persists.
