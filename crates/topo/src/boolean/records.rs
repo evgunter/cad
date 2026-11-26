@@ -15,6 +15,7 @@ use std::collections::BTreeMap;
 thread_local! { pub(crate) static GAPPED: core::cell::RefCell<std::collections::BTreeSet<Cell>> = Default::default(); }
 fn probe_consume(path: &str, cells: [Cell; 2]) { if GAPPED.with(|g| cells.iter().any(|c| g.borrow().contains(c))) { eprintln!("SILENT_DROP path={path} cells={cells:?}"); if std::env::var("PROBE_PANIC").is_ok() { panic!("SILENT_DROP path={path}"); } } }
 fn pv(n: &str) -> bool { std::env::var(n).is_ok() }
+thread_local! { pub(crate) static MAKER: core::cell::RefCell<BTreeMap<Cell, String>> = Default::default(); }
 
 use geom_core::Real;
 
@@ -980,6 +981,27 @@ pub(in crate::boolean) fn landings<'b, T: crate::props::AtRestPolicy>(
         // is nothing recorded and nothing consumed. Where it is the
         // record's only landing it stays, and refuses.
         if pv("PROBE_LOGSET") { for l in &out[first..] { if l.minted && !matches!(l.at, [Cell::Vertex(_), Cell::Vertex(_)]) { let b = sides[l.side]; let pt = |v: crate::VertexKey| b.vertex_points().find(|(k, _)| *k == v).map(|(_, p)| format!("{p:?}")); let desc = |c: Cell| match c { Cell::Vertex(v) => format!("V{:?}", pt(v)), Cell::Edge(e) => format!("E{:?}", b.edge_vertices(e).map(|(u, w)| (u, w, pt(u), pt(w)))), c => format!("{c:?}") }; eprintln!("SETASIDE_CAND record={record} at={:?} {} {} beside={} all={:?}", l.at, desc(l.at[0]), desc(l.at[1]), out[first..].iter().any(|l: &Landing| !l.minted), out[first..].iter().map(|l| (l.at, l.minted)).collect::<Vec<_>>()); } } }
+        if pv("PROBE_MARGIN") {
+            let mk = |c: Cell| MAKER.with(|m| m.borrow().get(&c).cloned()).unwrap_or_else(|| "-".into());
+            for l in &out[first..] {
+                if !l.minted { continue; }
+                let b = sides[l.side];
+                let beside = out[first..].iter().any(|l: &Landing| !l.minted);
+                match l.at {
+                    [Cell::Vertex(v), Cell::Edge(e)] | [Cell::Edge(e), Cell::Vertex(v)] => {
+                        eprintln!("PM_VE record={record} cells={cells:?} v={v:?} s={e:?} beside={beside} READ: {} || MAKER v: {} || MAKER s: {}",
+                            crate::census::probe_vertex_on_edge(b, v, e, band), mk(Cell::Vertex(v)), mk(Cell::Edge(e)));
+                    }
+                    [Cell::Vertex(u), Cell::Vertex(w)] => {
+                        let p = |v: crate::VertexKey| b.get_vertex(v).and_then(|d| b.get_point(d.point)).copied();
+                        let gap = match (p(u), p(w)) { (Some(a), Some(c)) => format!("{:?}", (a - c).norm()), _ => "nopoint".into() };
+                        eprintln!("PM_VV record={record} cells={cells:?} u={u:?} w={w:?} beside={beside} gap={gap} band.zero={:e} band.escalate={:e} || MAKER u: {} || MAKER w: {}",
+                            band.zero(), band.escalate(), mk(Cell::Vertex(u)), mk(Cell::Vertex(w)));
+                    }
+                    at => eprintln!("PM_OTHER record={record} at={at:?}"),
+                }
+            }
+        }
         if lineage.meeting() == crate::lineage::MintedBacking::Refused
             && (pv("PROBE_SETASIDEALONE") || out[first..].iter().any(|l: &Landing| !l.minted))
         {

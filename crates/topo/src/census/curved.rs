@@ -1252,3 +1252,38 @@ mod tests {
         assert_eq!(pass(&across), (Some(Some(false)), vec![]), "a crossing");
     }
 }
+
+/// PROBE (minted margin): `q`'s distance to `e`'s curve over its span, by
+/// dense sampling then golden refinement, with the parameter, in `f64`
+/// (NaN at any other scalar); `None` where the edge is not read.
+pub(crate) fn probe_raw_distance<T: Decide + 'static>(
+    body: &Body<T>,
+    e: EdgeKey,
+    q: Point3<T>,
+    band: Band,
+) -> Option<(f64, f64, (f64, f64))> {
+    let f = |x: T| (&x as &dyn core::any::Any).downcast_ref::<f64>().copied().unwrap_or(f64::NAN);
+    let mut errs = Vec::new();
+    let r = read(body, e, band, &mut errs)?;
+    let (t0, t1) = (f(r.span.0), f(r.span.1));
+    let d = |t: f64| f((r.curve.eval(T::from_f64(t)) - q).norm());
+    let n = 4000;
+    let step = (t1 - t0) / n as f64;
+    let mut best = (d(t0), t0);
+    for i in 1..=n {
+        let t = t0 + step * i as f64;
+        let x = d(t);
+        if x < best.0 {
+            best = (x, t);
+        }
+    }
+    let (mut a, mut b) = ((best.1 - step).max(t0.min(t1)), (best.1 + step).min(t1.max(t0)));
+    let g = 0.618_033_988_749_894_9;
+    for _ in 0..200 {
+        let c = b - (b - a) * g;
+        let dd = a + (b - a) * g;
+        if d(c) < d(dd) { b = dd; } else { a = c; }
+    }
+    let t = (a + b) / 2.0;
+    Some((d(t), t, (t0, t1)))
+}

@@ -131,6 +131,7 @@ mod a_mirrored_loft_placement_is_no_sketch_plane;
 mod a_move_through_a_neighbour_inverts_the_body;
 #[path = "a_pierce_held_in_a_curved_face.rs"]
 mod a_pierce_held_in_a_curved_face;
+mod probe_minted_margin;
 #[path = "a_plane_across_a_one_face_wall.rs"]
 mod a_plane_across_a_one_face_wall;
 #[path = "a_plane_along_an_elliptic_cut.rs"]

@@ -4582,6 +4582,38 @@ fn carried<T: Decide + AtRestPolicy>(
                 .with(x, fate)
                 .unwrap_or_else(|e| unreachable!("each cell is stated once: {e:?}"));
         }
+        if std::env::var("PROBE_MARGIN").is_ok() {
+            super::records::MAKER.with(|m| m.borrow_mut().clear());
+            let other = match side { Operand::A => Operand::B, Operand::B => Operand::A };
+            let kind = |b: &Body<T>, c: Cell| match c {
+                Cell::Face(f) => format!("{f:?}:{:?}", crate::query::face_surface_kind(b, f)),
+                c => format!("{c:?}"),
+            };
+            for bk in &back {
+                let mut line = String::new();
+                if let Cell::Vertex(cv) = bk.clone {
+                    if let Some(by) = ledger.mints.minted_by(side, cv) {
+                        let by_result = desc.live(body, other, views[other.index()], by).ok().flatten();
+                        line = format!("v<-split of clone edge {:?} by other's clone {} = result {:?}{}",
+                            ledger.mints.minted_on(side, cv), kind(clones[other.index()], by), by_result,
+                            by_result.map_or(String::new(), |c| format!(" [{}]", kind(body, c))));
+                    } else if let Some(f) = ledger.mints.minted_in(side, cv) {
+                        line = format!("v<-minted in clone face {f:?}");
+                    }
+                }
+                if let Cell::Edge(ce) = bk.clone {
+                    if ledger.incidence[s].section.contains(&bk.clone) {
+                        let Cell::Edge(re) = bk.result else { continue };
+                        let fs = crate::wedge_reach::edge_faces(body, re);
+                        line = format!("s=section (clone {ce:?} faces {:?}); result faces [{}, {}]",
+                            ledger.incidence[s].edge.get(&ce), kind(body, Cell::Face(fs[0])), kind(body, Cell::Face(fs[1])));
+                    }
+                }
+                if !line.is_empty() {
+                    super::records::MAKER.with(|m| m.borrow_mut().insert(bk.result, format!("[{side:?} input {:?}] {line}", bk.input)));
+                }
+            }
+        }
         let pairs: Vec<[Cell; 2]> = rows.iter().map(|&(c, _)| c).collect();
         let landed = super::records::landings(
             &pairs,
@@ -4635,7 +4667,8 @@ fn carried<T: Decide + AtRestPolicy>(
                     ));
                 };
                 let (meet, margin) =
-                    vertices_meet(body, [ru, rw], "bool_carried_minted_meeting", band)?;
+                    vertices_meet(body, [ru, rw], "bool_carried_minted_meeting", band).inspect_err(|e| if std::env::var("PROBE_MARGIN").is_ok() { eprintln!("PM_VVDOOR ru={ru:?} rw={rw:?} ERR {e:?} makers u={:?} w={:?}", ledger.mints.minted_by(side, u), ledger.mints.minted_by(side, w)); })?;
+                if std::env::var("PROBE_MARGIN").is_ok() { eprintln!("PM_VVDOOR ru={ru:?} rw={rw:?} meet={meet} margin={:?} makers u={:?} w={:?}", margin.diagnostic_f64_for_error_text(), ledger.mints.minted_by(side, u), ledger.mints.minted_by(side, w)); }
                 if !meet {
                     return Err(desync(
                         "the census confirms two minted vertices meeting that the door reads apart",

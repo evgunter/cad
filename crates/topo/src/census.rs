@@ -23457,3 +23457,61 @@ mod edge_view_review_probes {
         }
     }
 }
+
+/// PROBE (minted margin): vertex `v` against edge `e`'s interior in
+/// `body`, read as the census's point-inside-edge door reads it
+/// ([`on_edge_interior_reading`] for a line edge,
+/// [`curved::on_curved_interior_reading`] for a curved one), with the raw
+/// distance and the band's thresholds: one line of text.
+pub(crate) fn probe_vertex_on_edge<T: Decide + 'static>(
+    body: &Body<T>,
+    v: VertexKey,
+    e: EdgeKey,
+    band: Band,
+) -> String {
+    let Some(q) = body
+        .get_vertex(v)
+        .and_then(|d| body.get_point(d.point))
+        .copied()
+    else {
+        return "no point".into();
+    };
+    let geo = snapshot(body);
+    let mut errors = Vec::new();
+    let (kind, reading, raw) = match line_edge(&geo, e) {
+        Some(eg) => {
+            let w = q - eg.p0;
+            let along = w.dot(eg.dir.get());
+            let off = (w - eg.dir.get() * along).norm();
+            let r = on_edge_interior_reading(q, eg, band, &mut errors)
+                .map(|o| o.map(|(_, m)| m));
+            ("line", r, format!("dist={off:?} along={along:?} len={:?}", eg.len))
+        }
+        None => {
+            let r = curved::on_curved_interior_reading(body, e, q, band, &mut errors);
+            let raw = curved::probe_raw_distance(body, e, q, band)
+                .map_or("unread".into(), |(d, t, sp)| format!("dist={d:?} t={t:?} span={sp:?}"));
+            ("curved", r, raw)
+        }
+    };
+    let verdict = match &reading {
+        Some(Some(m)) => format!("ZERO margin={:?}", m.diagnostic_f64_for_error_text()),
+        Some(None) => "OFF(clear or at an end)".to_string(),
+        None => format!(
+            "ESCALATED {:?}",
+            errors
+                .iter()
+                .map(|e| match e {
+                    ValidationError::CensusEscalated { cause } =>
+                        format!("{:?}:{:?}", cause.predicate, cause.margin.diagnostic_f64_for_error_text()),
+                    other => format!("{other:?}"),
+                })
+                .collect::<Vec<_>>()
+        ),
+    };
+    format!(
+        "{kind} {verdict} {raw} band.zero={:e} band.escalate={:e}",
+        band.zero(),
+        band.escalate()
+    )
+}
