@@ -1576,6 +1576,7 @@ pub fn blend_error_tag(err: &BlendError) -> &'static str {
         BlendError::Escalated { .. } => "escalated",
         BlendError::RepeatedEdge { .. } => "repeated_edge",
         BlendError::NonpositiveSize { .. } => "nonpositive_size",
+        BlendError::SizeBeyondRange { .. } => "size_beyond_range",
         BlendError::UnsupportedChain { .. } => "unsupported_chain",
         BlendError::UnsupportedGeometry { .. } => "unsupported_geometry",
         BlendError::BodyNotIntact { .. } => "body_not_intact",

@@ -1588,9 +1588,9 @@ pub fn plane_sphere_section_read<T: Decide>(
             // product past the float range has no finite root: either
             // is a poisoned read of the same row.
             let radius = ((r - s.abs()) * (r + s.abs())).sqrt();
-            if !geom_core::is_finite_length(radius) {
-                decide(ROW, Margin::of(geom_core::width(radius)), band)
-                    .map_err(SectionError::Escalated)?;
+            let read = geom::conic_size_read(radius);
+            if read.is_poison() {
+                decide(ROW, Margin::of(read), band).map_err(SectionError::Escalated)?;
             }
             PlaneSphereSection::Circle(Curve3::circle(foot, n, radius, u_ref))
         }

@@ -873,7 +873,7 @@ mod kernel {
             FaceClearance, KnifeEdge, BallDoesNotFit, SpineIrregular, ChainNotG1,
             ConvexitySignFlip, UnbuiltEnd, ObliqueMixedCorner, SpineUnsupported,
             ChamferArmUnsupported, WedgeUnsettled, Escalated, RepeatedEdge, NonpositiveSize,
-            UnsupportedChain, UnsupportedGeometry, BodyNotIntact,
+            SizeBeyondRange, UnsupportedChain, UnsupportedGeometry, BodyNotIntact,
             NotFinished, SurgeryInvariant,
             RingClearance, WhollyInside, Op, Join,
         ];
@@ -3970,6 +3970,12 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
         ),
         ("RepeatedEdge", E::RepeatedEdge { edge }),
         ("NonpositiveSize", E::NonpositiveSize { size: 0.0 }),
+        (
+            "SizeBeyondRange",
+            E::SizeBeyondRange {
+                size: f64::INFINITY,
+            },
+        ),
         (
             "UnsupportedChain",
             E::UnsupportedChain {

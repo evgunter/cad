@@ -97,3 +97,34 @@ fn a_plane_sphere_circle_with_no_finite_radius_escalates() {
     };
     assert_eq!(circle.radius().to_bits(), 0.75_f64.sqrt().to_bits());
 }
+
+/// **At `Interval` a root past the float range has an infinite upper
+/// end** (`[1.3e154, ∞]`), whose own width is not poison: the arm reads it through the constructors'
+/// predicate (`geom::conic_size_read`) and escalates.
+///
+/// Mutant: `conic_size_read` asking `is_finite_length` panics in
+/// `Circle::new` at every radius.
+#[test]
+fn a_plane_sphere_circle_past_the_float_range_escalates_at_interval() {
+    let iv = <geom_core::Interval as geom_core::Real>::from_f64;
+    let cut = plane(Vec3::unit_z(), Vec3::unit_x()).map_scalar(iv);
+    let sphere = |radius: f64| {
+        Surface::Sphere {
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 6.5), Vec3::unit_y(), Vec3::unit_x()),
+            radius,
+        }
+        .map_scalar(iv)
+    };
+    for radius in [1e200, 1e160, f64::MAX] {
+        let got = plane_sphere_section(&cut, &sphere(radius), band());
+        assert!(
+            matches!(got, Err(SectionError::Escalated(_))),
+            "radius {radius:e}: a root past the float range is a poisoned read: {got:?}"
+        );
+    }
+    let got = plane_sphere_section(&cut, &sphere(1.0), band());
+    assert!(
+        matches!(got, Ok(PlaneSphereSection::Circle(geom::Curve3::Circle(_)))),
+        "the control: {got:?}"
+    );
+}

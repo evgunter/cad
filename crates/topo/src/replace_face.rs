@@ -467,6 +467,20 @@ pub enum ReplaceFaceError<T: Real> {
         /// What the door could not do, in its own words.
         what: &'static str,
     },
+    /// **A circle beside the face collapses under the move**: the
+    /// edge's moved radius (`offset_moved_radius`, the sum its image
+    /// would store) is decided not positive at this distance, so the
+    /// moved edge has no circle to be. The lane exists; the distance
+    /// takes the edge past where it shrinks to a point.
+    ///
+    /// Standing ([`Self::refusal`]): a limit, row 1(b), ending on its
+    /// own lever, the distance.
+    MovedCircleCollapses {
+        /// The edge whose circle collapses.
+        edge: EdgeKey,
+        /// The distance the face was moved by, in meters.
+        distance: T,
+    },
     /// The fitted chart's boundary-row extraction refused: an interior
     /// iso parameter, an escalated coincidence, or a row the spline
     /// layer would not build.
@@ -880,6 +894,7 @@ impl<T: Real> ReplaceFaceError<T> {
             | Self::NeighborPoseUnroutable { .. }
             | Self::FittedBoundaryUnsupported { .. }
             | Self::CarrierLaneUnsupported { .. }
+            | Self::MovedCircleCollapses { .. }
             | Self::NurbsLaneUnsupported { .. }
             | Self::TogetherAxialUnsupported { .. } => Ok(geom_brep::ladder::Refusal::Limit),
             Self::Band { .. }
@@ -1045,6 +1060,12 @@ impl<T: Real> ReplaceFaceError<T> {
                 f,
                 "an edge of the fitted face is {what}, which the face cannot carry through the \
                  move. {NOT_YET_ENDING}"
+            ),
+            Self::MovedCircleCollapses { distance, .. } => write!(
+                f,
+                "a circular edge beside the face shrinks to a point or past it when the face \
+                 moves {distance:?} m, so the moved edge has no circle to be. Recourse: use a \
+                 smaller offset"
             ),
             Self::CarrierLaneUnsupported { what, .. } => write!(
                 f,
@@ -1229,26 +1250,48 @@ pub(crate) fn error_count(n: usize) -> String {
 type Transported<T> = Option<(Curve3<T>, Option<Vec3<T>>)>;
 
 /// **A moved circle's radius, decided before it is stored**
-/// (`offset_moved_radius`, the size itself in metres): `Some` where it
-/// is a definitely positive finite length, `None` where it is decided
-/// not positive, and the escalation in band or on poison. A size with
-/// no finite end is poison here, read through its own width: it decides
-/// positive and is no length.
+/// (`offset_moved_radius`, the size itself in metres): the size where it
+/// is a definitely positive length the constructors store,
+/// [`Unmoved::Collapses`] where it is decided not positive, and the
+/// escalation in band or on poison. A size the constructors would not
+/// store bounded is poison here ([`geom::conic_size_read`]): it can
+/// decide positive and is no length.
 ///
 /// The surface's floor (`offset_radius_floor`) decides the moved
 /// surface's radius. A circle's is the stored circle's own radius
 /// moved, a different sum, so it is decided as the sum it is.
-pub(crate) fn moved_radius<T: Decide>(size: T, band: Band) -> Result<Option<T>, Indeterminate> {
-    let read = if geom_core::is_finite_length(size) {
-        size
-    } else {
-        geom_core::width(size)
-    };
-    Ok(matches!(
-        decide(MOVED_RADIUS, Margin::of(read), band)?,
-        Sign::Positive
-    )
-    .then_some(size))
+pub(crate) fn moved_radius<T: Decide>(size: T, band: Band) -> Result<T, Unmoved> {
+    match decide(MOVED_RADIUS, Margin::of(geom::conic_size_read(size)), band)? {
+        Sign::Positive => Ok(size),
+        Sign::Zero | Sign::Negative => Err(Unmoved::Collapses),
+    }
+}
+
+/// **Why a curve on the moved face has no image here**, where the lane
+/// that carries it exists: its moved circle collapses (decided not
+/// positive at this distance), or a row it reads escalated.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum Unmoved {
+    /// A row escalated, in band or on poison.
+    Escalated(Indeterminate),
+    /// The moved circle's radius is decided not positive.
+    Collapses,
+}
+
+impl From<Indeterminate> for Unmoved {
+    fn from(source: Indeterminate) -> Self {
+        Self::Escalated(source)
+    }
+}
+
+impl Unmoved {
+    /// The door's refusal for an `edge` moved by `distance`.
+    pub(crate) fn refused<T: Decide>(self, edge: EdgeKey, distance: T) -> ReplaceFaceError<T> {
+        match self {
+            Self::Escalated(source) => ReplaceFaceError::Escalated { source },
+            Self::Collapses => ReplaceFaceError::MovedCircleCollapses { edge, distance },
+        }
+    }
 }
 
 /// K name: a moved circle's radius, as a length ([`moved_radius`]).
@@ -1265,7 +1308,7 @@ fn transport_curve<T: Decide>(
     curve: &Curve3<T>,
     mid: Point3<T>,
     band: Band,
-) -> Result<Transported<T>, Indeterminate> {
+) -> Result<Transported<T>, Unmoved> {
     Ok(match old {
         Surface::Plane { frame, .. } => {
             let normal = frame.axis();
@@ -1285,12 +1328,11 @@ fn transport_curve<T: Decide>(
                 }
                 Curve3::Circle(conic_k) => {
                     let carrier_frame_40 = &conic_k.frame();
-                    moved_radius(conic_k.radius() + d, band)?.map(|radius| {
-                        (
-                            Curve3::Circle(geom::Circle::new(*carrier_frame_40, radius)),
-                            None,
-                        )
-                    })
+                    let radius = moved_radius(conic_k.radius() + d, band)?;
+                    Some((
+                        Curve3::Circle(geom::Circle::new(*carrier_frame_40, radius)),
+                        None,
+                    ))
                 }
                 // Neither an ellipse nor a spiric lies on a cylinder.
                 Curve3::Ellipse(..) | Curve3::Spiric { .. } => None,
@@ -1331,12 +1373,10 @@ fn transport_curve<T: Decide>(
                     let frame = &circle_k.frame();
                     let v = (frame.origin() - apex).dot(axis.get()) / cos_a;
                     let v_new = v + action.shift();
-                    // A magnitude, so only its being a finite length is
-                    // open: a parallel at the apex is the point circle.
-                    let radius = (v_new * sin_a).abs();
-                    if !geom_core::is_finite_length(radius) {
-                        decide(MOVED_RADIUS, Margin::of(geom_core::width(radius)), band)?;
-                    }
+                    // A magnitude, decided positive as every arm's is:
+                    // a parallel moved onto the apex collapses as one
+                    // moved onto a cylinder's axis does.
+                    let radius = moved_radius((v_new * sin_a).abs(), band)?;
                     Some((
                         Curve3::Circle(geom::Circle::new(
                             frame.with_origin(action.apex() + axis.get() * (v_new * cos_a)),
@@ -1356,7 +1396,7 @@ fn transport_curve<T: Decide>(
             let center = frame.origin();
             let k = (*radius + d) / *radius;
             let moved = match curve {
-                Curve3::Circle(circle) => moved_radius(circle.radius() * k, band)?,
+                Curve3::Circle(circle) => Some(moved_radius(circle.radius() * k, band)?),
                 _ => None,
             };
             homothety(curve, center, k, moved).map(|c| (c, None))
@@ -1389,31 +1429,32 @@ fn transport_curve<T: Decide>(
                     );
                     if parallel {
                         // A parallel: recover `v` from the stored circle
-                        // (`radius = R + r·cos v`, axial offset `r·sin v`)
-                        // and re-mint it at `r + d`.
+                        // (`radius = R + r·cos v`, axial offset
+                        // `h = r·sin v`) and move it by the tube's
+                        // normal `d·(cos v, sin v)`: the stored radius
+                        // and height plus their displacements, not
+                        // `R + (r + d)·cos v`, which re-adds `R` to its
+                        // own rounding (`moved_radius_rows`'s near-axis
+                        // parallel reads the difference).
+                        let h = (c - center).dot(axis);
                         let cos_v = (radius - *major_radius) / *minor_radius;
-                        let sin_v = (c - center).dot(axis) / *minor_radius;
-                        let r_new = *minor_radius + d;
-                        // The stored parallel's own radius, moved along
-                        // its `cos v`: the size the image stores.
-                        moved_radius(radius + d * cos_v, band)?.map(|moved| {
-                            (
-                                Curve3::Circle(geom::Circle::new(
-                                    carrier_frame_39.with_origin(center + axis * (r_new * sin_v)),
-                                    moved,
-                                )),
-                                None,
-                            )
-                        })
+                        let sin_v = h / *minor_radius;
+                        let moved = moved_radius(radius + d * cos_v, band)?;
+                        Some((
+                            Curve3::Circle(geom::Circle::new(
+                                carrier_frame_39.with_origin(center + axis * (h + d * sin_v)),
+                                moved,
+                            )),
+                            None,
+                        ))
                     } else {
                         // A meridian (tube) circle: the tube centre is
                         // fixed and the radius moves with the minor.
-                        moved_radius(*minor_radius + d, band)?.map(|moved| {
-                            (
-                                Curve3::Circle(geom::Circle::new(*carrier_frame_39, moved)),
-                                None,
-                            )
-                        })
+                        let moved = moved_radius(*minor_radius + d, band)?;
+                        Some((
+                            Curve3::Circle(geom::Circle::new(*carrier_frame_39, moved)),
+                            None,
+                        ))
                     }
                 }
                 _ => None,
@@ -2943,7 +2984,7 @@ fn plan_edge<'s, T: Decide>(
     }
 
     let (carrier, delta) = transport_curve(old_surface, nappe, d, &old_carrier, mid, band)
-        .map_err(|source| ReplaceFaceError::Escalated { source })?
+        .map_err(|unmoved| unmoved.refused(edge, d))?
         .ok_or(ReplaceFaceError::CarrierLaneUnsupported {
             edge,
             what: "its kind of curve has no exact offset on this kind of surface",
@@ -3420,8 +3461,13 @@ fn carried_alike<T: Decide>(
     }
     let mid = old.mid_point(t0, t1);
     let transport = |c: &MovedChart<'_, T>| {
-        transport_curve(&c.old_surface, c.nappe, c.d, old, mid, band)
-            .map_err(|source| ReplaceFaceError::Escalated { source })
+        // A side whose circle collapses has no image, as a side with
+        // no lane has none.
+        match transport_curve(&c.old_surface, c.nappe, c.d, old, mid, band) {
+            Ok(image) => Ok(image),
+            Err(Unmoved::Collapses) => Ok(None),
+            Err(Unmoved::Escalated(source)) => Err(ReplaceFaceError::Escalated { source }),
+        }
     };
     // A side with no image is no witness, whatever the other side read
     // ([`climb`], [`Answering::Any`]): an escalation on one side is kept,
@@ -6356,9 +6402,9 @@ mod corner_rows {
 mod moved_radius_rows {
     use geom::{Curve3, Surface};
     use geom_brep::Nappe;
-    use geom_core::{Band, Point3, Tol, Vec3};
+    use geom_core::{Band, Bounds, Decide, Interval, Point3, Real, Tol, Vec3};
 
-    use super::transport_curve;
+    use super::{Unmoved, transport_curve};
 
     fn band() -> Band {
         Band::linear(Tol::witness()).unwrap()
@@ -6368,14 +6414,23 @@ mod moved_radius_rows {
         geom::Frame::new(Point3::new(0.0, 0.0, z), Vec3::unit_z(), Vec3::unit_x())
     }
 
-    fn moved(old: &Surface<f64>, d: f64, radius: f64, z: f64) -> Result<Option<f64>, ()> {
+    /// The moved radius of the circle of `radius` at height `z` about
+    /// the z axis: `Ok(Some(_))` its image's, `Err(Collapses)` decided
+    /// not positive, `Err(())` escalated.
+    fn moved_at<T: Decide>(
+        old: &Surface<T>,
+        d: T,
+        radius: T,
+        z: T,
+    ) -> Result<Option<T>, Option<Unmoved>> {
+        let (zero, one) = (T::zero(), T::one());
         let circle = Curve3::circle(
-            Point3::new(0.0, 0.0, z),
-            Vec3::unit_z(),
+            Point3::new(zero, zero, z),
+            Vec3::new(zero, zero, one),
             radius,
-            Vec3::unit_x(),
+            Vec3::new(one, zero, zero),
         );
-        let mid = Point3::new(-radius, 0.0, z);
+        let mid = Point3::new(zero - radius, zero, z);
         transport_curve(old, Nappe::Opening, d, &circle, mid, band())
             .map(|image| {
                 image.map(|(c, _)| match c {
@@ -6383,7 +6438,32 @@ mod moved_radius_rows {
                     other => panic!("a circle's image is a circle: {other:?}"),
                 })
             })
-            .map_err(|_| ())
+            .map_err(|e| match e {
+                Unmoved::Collapses => Some(Unmoved::Collapses),
+                Unmoved::Escalated(_) => None,
+            })
+    }
+
+    const COLLAPSES: Result<Option<f64>, Option<Unmoved>> = Err(Some(Unmoved::Collapses));
+    const ESCALATES: Result<Option<f64>, Option<Unmoved>> = Err(None);
+
+    fn moved(
+        old: &Surface<f64>,
+        d: f64,
+        radius: f64,
+        z: f64,
+    ) -> Result<Option<f64>, Option<Unmoved>> {
+        moved_at(old, d, radius, z)
+    }
+
+    /// [`moved_at`] at `Interval`, every operand a point: whether the
+    /// image escalates.
+    fn escalates_at_interval(old: &Surface<f64>, d: f64, radius: f64, z: f64) -> bool {
+        let iv = Interval::from_f64;
+        matches!(
+            moved_at(&old.map_scalar(iv), iv(d), iv(radius), iv(z)),
+            Err(None)
+        )
     }
 
     /// A stored circle whose radius is not its cylinder's: the surface's
@@ -6396,7 +6476,7 @@ mod moved_radius_rows {
         };
         assert_eq!(
             moved(&cylinder, -0.75, 0.5, 0.0),
-            Ok(None),
+            COLLAPSES,
             "decided not positive"
         );
         assert_eq!(
@@ -6406,7 +6486,7 @@ mod moved_radius_rows {
         );
         assert_eq!(
             moved(&cylinder, f64::INFINITY, 1.0, 0.0),
-            Err(()),
+            ESCALATES,
             "no finite radius"
         );
     }
@@ -6421,12 +6501,12 @@ mod moved_radius_rows {
         };
         assert_eq!(
             moved(&sphere, 1e306, 1e-3, 0.0),
-            Err(()),
+            ESCALATES,
             "the ratio overflows"
         );
         assert_eq!(
             moved(&sphere, f64::INFINITY, 1e-3, 0.0),
-            Err(()),
+            ESCALATES,
             "an infinite move"
         );
         assert_eq!(
@@ -6461,8 +6541,79 @@ mod moved_radius_rows {
         // `cos v = (0.25 − 1)/0.25 = −3`: off the torus, and `0.25 − 3·0.125 < 0`.
         assert_eq!(
             moved(&torus, 0.125, 0.25, 0.0),
-            Ok(None),
+            COLLAPSES,
             "decided not positive"
+        );
+    }
+
+    /// A parallel near the axis moves from its own radius, not from
+    /// `R + (r + d)·cos v`, whose `R` cancels against the `R` inside
+    /// `cos v = (ρ − R)/r` and leaves its rounding in a size thirty
+    /// times smaller. The expected value is the exact
+    /// `ρ + d·(ρ − 1)/0.99` correctly rounded.
+    ///
+    /// Mutant: the arm re-posed as `R + (r + d)·cos v` reads 39 ulps
+    /// off.
+    #[test]
+    fn a_parallel_near_the_axis_keeps_its_own_radius() {
+        let torus = Surface::Torus {
+            frame: frame_at(0.0),
+            major_radius: 1.0,
+            minor_radius: 0.99,
+        };
+        let (radius, d) = (0.063, 0.038);
+        let cos_v: f64 = (radius - 1.0) / 0.99;
+        let z = 0.99 * (1.0 - cos_v * cos_v).sqrt();
+        let expected = 0.027_034_343_434_343_435_f64;
+        let got = moved(&torus, d, radius, z).unwrap().unwrap();
+        assert!(
+            (got - expected).abs() <= 2.0 * f64::EPSILON * expected,
+            "{got:e} against {expected:e}"
+        );
+    }
+
+    /// **At `Interval` a size past the float range has an infinite
+    /// upper end** (`[MAX, ∞]` from the sum), whose own width is not
+    /// poison: each arm reads it through the
+    /// constructors' predicate (`geom::conic_size_read`) and escalates,
+    /// where a read of `is_finite_length` decided it positive and the
+    /// constructor panicked.
+    ///
+    /// Mutant: `conic_size_read` asking `is_finite_length` instead
+    /// panics in `Circle::new` at each arm.
+    #[test]
+    fn a_size_past_the_float_range_escalates_at_interval() {
+        let max = f64::MAX;
+        let cylinder = Surface::Cylinder {
+            frame: frame_at(0.0),
+            radius: 1.0,
+        };
+        assert!(escalates_at_interval(&cylinder, max, 1.0, 0.0), "cylinder");
+        let sphere = Surface::Sphere {
+            frame: frame_at(0.0),
+            radius: 1e-3,
+        };
+        assert!(escalates_at_interval(&sphere, 1e306, 1e-3, 0.0), "sphere");
+        let torus = Surface::Torus {
+            frame: frame_at(0.0),
+            major_radius: 1.0,
+            minor_radius: 0.25,
+        };
+        assert!(
+            escalates_at_interval(&torus, max, 1.25, 0.0),
+            "torus parallel"
+        );
+        // A parallel of the 45° cone at height 1: radius 1.
+        let cone = Surface::Cone {
+            frame: frame_at(0.0),
+            half_angle: core::f64::consts::FRAC_PI_4,
+        };
+        assert!(escalates_at_interval(&cone, max, 1.0, 1.0), "cone parallel");
+        let iv = Interval::from_f64;
+        let control = moved_at(&cylinder.map_scalar(iv), iv(0.25), iv(1.0), iv(0.0));
+        assert!(
+            matches!(control, Ok(Some(r)) if r.lo() <= 1.25 && 1.25 <= r.hi()),
+            "the control: {control:?}"
         );
     }
 }
