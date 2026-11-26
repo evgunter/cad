@@ -328,3 +328,35 @@ fn offsetting_the_mitred_wall_refuses_typed() {
         "{got:?}"
     );
 }
+
+/// **The mitred rim lies on the crossing rod's wall, read through the
+/// bisector plane** (C5): `A`'s rim is the ellipse `z = x`, which lies in
+/// a bisector plane of the two walls, so on `B`'s wall. The factored read
+/// answers it as lying on that wall, as the curved lane answers an arc
+/// lying on a face's carrier, and `A ∪ B` at spins `(0, 0)` builds. Both
+/// routes build here, so the row reads the decisions the op took: the
+/// bisector plane's offset (`curve_face_pose_plane_offset`), and none of
+/// the conic × cylinder pose's rungs (`curve_face_pose_coaxial`), which
+/// only the quadric door reads.
+///
+/// Red where the read hands a conic lying in a bisector plane back to the
+/// quadric door: `curve_face_pose_coaxial` is decided.
+#[test]
+fn the_mitred_rim_lies_on_the_crossing_wall_through_its_bisector_plane() {
+    let tol = Tol::witness();
+    let (a, b) = (mitred(0.0), crossing(0.0, 0.5));
+    let (r, rec) = geom_core::k_stats::detached(|| topo::union(&a, &b, tol));
+    assert!(
+        matches!(r, Ok(BooleanResult::Body(_))),
+        "A ∪ B builds: {r:?}"
+    );
+    let decided = |name: &str| rec.recorded().verdicts.iter().any(|v| v.predicate == name);
+    assert!(
+        decided("curve_face_pose_plane_offset"),
+        "the bisector plane's offset is decided"
+    );
+    assert!(
+        !decided("curve_face_pose_coaxial"),
+        "no conic × cylinder pose is read: the rim is not handed to the quadric door"
+    );
+}
