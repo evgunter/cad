@@ -1,10 +1,12 @@
 //! **The face reading** (C5's curve × face clause; GERM U4 §2.3): the
 //! crossing reading `curve_face::cross` answers for a span against a
-//! face's carrier, read through the face's trim, once, for every lane that
-//! reads a curved face.
+//! face's carrier, read through the face's trim, once, for both of the
+//! sweep's lanes, a plane face's and a curved face's ([`place_meeting`]).
 //!
-//! - **A found meeting** strictly inside the span is placed in the trim
-//!   (`reduce::place_crossing`: a cone's far nappe told off first, then
+//! - **A found meeting** strictly inside the span is placed in the trim:
+//!   on a plane by the planar door (`contain::contfp_decided`, its
+//!   refusals carried typed with the face), and on a curved face by
+//!   `reduce::place_crossing` (a cone's far nappe told off first, then
 //!   `contain::placement_on_carrier`). One at an end of the span is that
 //!   end's: the vertex rows own it.
 //! - **A window** holds no point of the face when none of its meetings
@@ -28,10 +30,13 @@
 //!   ([`BooleanError::ClassificationInvariant`]) and is never set aside.
 //! - **A touch** is one meeting, its in-band arc: read as a window, and
 //!   off the face it is no meeting here. On the face it is the lane's
-//!   touch treatment (a curved face's typed frontier). A touch at an end
+//!   touch treatment. A touch at an end
 //!   of the span is the end vertex's at its point, but its arc's stretch
 //!   inside the span is the span's: that stretch is read as an inside
-//!   touch's arc is, and only then is the meeting the vertex's.
+//!   touch's arc is, and only then is the meeting the vertex's. A touch the
+//!   face may hold carries its point to the lane's touch treatment: on a
+//!   plane it is split there (the graze net), on a curved face it is the
+//!   typed frontier.
 //!
 //! ρ is the carrier's reach, the distance from it to its medial axis: a
 //! sphere's or a cylinder's radius, a ring torus's `min(r, R − r)`, and no

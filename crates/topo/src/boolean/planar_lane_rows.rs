@@ -348,3 +348,36 @@ fn two_roots_within_the_band_of_each_other_on_the_face_refuse() {
         "two roots the band cannot part, on the face, refuse at the frontier: {got:?}"
     );
 }
+
+/// **A span in a bisector plane lies on the partner wall only because it
+/// lies on its own** (the factored read's premise, `factored_crossing`): a
+/// unit circle about the origin in the bisector plane `z = x` of the unit
+/// cylinders about `z` and about `x` reads `Lies` against the plane, and
+/// not against the cylinder about `x`. The partner's residual is the
+/// product of the two planes' distances only at a point of the edge's own
+/// wall; a span in the plane off its wall (a circle there, where the
+/// wall's section is an ellipse) is no edge of that wall in a valid body.
+#[test]
+fn a_circle_in_a_bisector_plane_does_not_lie_on_the_partner_wall() {
+    use geom_brep::curve_face::{Pose, pose};
+    let n = Vec3::new(-1.0, 0.0, 1.0).normalize();
+    let u = Vec3::new(1.0, 0.0, 1.0).normalize();
+    let circle = geom::Curve3::circle(Point3::origin(), n, 1.0, u);
+    let span = geom_brep::curve_pair::Span::new(&circle, (0.0, core::f64::consts::TAU));
+    let plane = geom::Surface::Plane {
+        frame: geom::Frame::new(Point3::origin(), n, u),
+    };
+    assert!(
+        matches!(pose(&span, &plane, band()), Ok(Pose::Lies)),
+        "the circle lies in the bisector plane"
+    );
+    let partner = geom::Surface::Cylinder {
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_x(), Vec3::unit_y()),
+        radius: 1.0,
+    };
+    let read = pose(&span, &partner, band());
+    assert!(
+        !matches!(read, Ok(Pose::Lies)),
+        "the circle does not lie on the partner wall: {read:?}"
+    );
+}

@@ -9,16 +9,21 @@
 //!
 //! An edge lying on one wall therefore meets the partner wall exactly
 //! where it crosses one of the two bisector planes, each crossing a
-//! first-order root of a line or a conic against a plane, the planar
-//! lanes' own (`geom_brep::curve_face::plane_crossing`), landing on the ellipse
-//! that plane carries. Near a node, where the walls are tangent, the
-//! quadric reads a seam `δ` off it through a discriminant of order `δ²`;
-//! here its two crossings stand `2δ/sin θ` apart, linear in the offset,
-//! so what refuses closes to one band about the node.
+//! first-order root of a line or a conic against a plane, read by
+//! `geom_brep::curve_face::cross` against the plane, landing on the
+//! ellipse that plane carries; and it lies on the partner wall where it
+//! lies in a plane. Near a node, where the walls are tangent, the quadric
+//! reads a seam `δ` off it through a discriminant of order `δ²`; here its
+//! two crossings stand `2δ/sin θ` apart, linear in the offset, so what
+//! refuses closes to one band about the node.
 //!
-//! Where an edge has two crossings, one on each plane, standing within
-//! the band of each other, it passes through a node, and this read
-//! declines: the edge keeps the quadric's route. In band, it escalates.
+//! Where the read cannot decide it refuses typed and never hands the span
+//! back to the quadric door (C5): two crossings, one on each plane, within
+//! the zero band of each other are the edge passing through a node
+//! (`NodeUnbuilt`), and in the band's gap they escalate; a conic whose
+//! plane is within the band of a bisector plane's, but not decided on the
+//! partner wall, escalates; a carrier with no plane lane is the
+//! frontier.
 
 use geom_core::{Band, Decide, Margin, Point3, Sign};
 
@@ -39,13 +44,16 @@ pub(in crate::boolean) const FACTORED_PLANE_SIDE: &str = "bool_factored_plane_si
 
 /// **The crossing of `face`, a wall of an equal cylinder pair with
 /// meeting axes, by an edge of `x` lying on the pair's other wall**,
-/// read through the two bisector planes (module docs). `Ok(None)` leaves
-/// the pair to the quadric's route: no such pair, a conic lying in or in
-/// band of a bisector plane (on a branch of the section), a carrier no
-/// planar lane takes, or two crossings that coincide, the edge passing
-/// through a node.
+/// read through the two bisector planes (module docs). `Ok(None)` is no
+/// such pair: the face and the edge's walls are not an equal cylinder
+/// pair with meeting axes.
 ///
-/// Otherwise the answer takes the quadric route's arms. Of the crossings
+/// A conic lying in a bisector plane, decided on the partner wall in
+/// metres (`bool_factored_in_bisector`: its farthest point from the plane
+/// times the plane's lever, `2|â₁·n̂|`), lies on the partner wall, and is
+/// answered as the curved lane answers an arc lying on a face's carrier
+/// ([`lying_in_bisector`]). Otherwise the answer takes the quadric route's
+/// arms. Of the crossings
 /// strictly inside the span, taken in plane order (the `â₁ − â₂` plane's
 /// first, then the other's), the first the trim places in the face (on
 /// its boundary included) is a pierce, which the sweep splits and
@@ -58,13 +66,15 @@ pub(in crate::boolean) const FACTORED_PLANE_SIDE: &str = "bool_factored_plane_si
 ///
 /// # Errors
 ///
-/// [`BooleanError::NodeUnbuilt`] (`OnBoundary`) for an end at a node the
-/// face does not place outside it; [`BooleanError::Escalated`]: two
-/// crossings whose distance is in band
-/// (`VertexOnVertex`), or a planar lane's root in band; an end's plane
-/// distance in band (`VertexOnCurvedFace`); a landing the containment
-/// door escalates; the typed frontier where a landing or an end has no
-/// verdict.
+/// [`BooleanError::NodeUnbuilt`]: an end at a node the face does not
+/// place outside it (`OnBoundary`), or two crossings within the zero band
+/// of each other (`GermOnNode`); [`BooleanError::Escalated`]: two
+/// crossings whose distance is in the gap (`VertexOnVertex`), a plane's
+/// pose or root in band, or a conic in band of lying on the partner wall
+/// (`EdgeOnCurvedFace`); an end's plane distance in band
+/// (`VertexOnCurvedFace`); a landing the containment door escalates; the
+/// typed frontier where a landing or an end has no verdict, or the carrier
+/// has no plane lane.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn factored_crossing<T: Decide + crate::props::AtRestPolicy>(
     (x, x_is): (&Body<T>, Operand),
