@@ -1268,6 +1268,14 @@ impl BooleanDecision {
         }
     }
 
+    /// The decision the planar lane escalates a curved edge's coincidence
+    /// with a face's plane on (a pose rung read in band against the plane:
+    /// its plane parallel to the face's at an offset in band, its belly
+    /// grazing it), with what the door read of the declaration ahead of it.
+    pub(crate) const fn of_plane_coincidence(read: DeclarationRead) -> Self {
+        Self::Coincidence(Coincide::EdgeOnPlane, read)
+    }
+
     /// The decision a lever-armed reading escalated on at `gate`: its arm
     /// rung is the gate's own length, and its reading is the decision the
     /// gate meters ([`LeverArm::reading`]), with what its door read of the
@@ -2888,10 +2896,7 @@ pub(in crate::boolean) mod tests {
             let boolean = crate::boolean::reduce::plane_refused::<f64>(
                 why,
                 |diag| BooleanError::Escalated {
-                    decision: BooleanDecision::Coincidence(
-                        Coincide::EdgeOnPlane,
-                        DeclarationRead::Moot,
-                    ),
+                    decision: BooleanDecision::of_plane_coincidence(DeclarationRead::Moot),
                     diag,
                 },
                 || panic!("{why:?}: a plane window with a margin reads as the frontier"),

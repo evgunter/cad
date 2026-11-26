@@ -1382,10 +1382,7 @@ fn conic_roots(carrier: &geom::Curve3<f64>, span: (f64, f64), x0: f64) -> Result
         Err(refused) => super::super::reduce::plane_refused::<f64>(
             refused.leading().why,
             |diag| BooleanError::Escalated {
-                decision: BooleanDecision::Coincidence(
-                    Coincide::EdgeOnPlane,
-                    DeclarationRead::Moot,
-                ),
+                decision: BooleanDecision::of_plane_coincidence(DeclarationRead::Moot),
                 diag,
             },
             || panic!("a conic's plane window with no margin: {carrier:?}"),
@@ -2551,23 +2548,23 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "factored_crossing.rs",
         "factored_crossing",
         "BooleanDecision::Coincidence",
-        1,
-    ),
-    (
-        "factored_crossing.rs",
-        "factored_crossing",
-        "Coincide::EdgeOnPlane",
-        1,
+        2,
     ),
     (
         "factored_crossing.rs",
         "factored_crossing",
         "Coincide::EdgeOnCurvedFace",
-        1,
+        4,
     ),
     (
         "factored_crossing.rs",
         "factored_crossing",
+        "Coincide::VertexOnCurvedFace",
+        1,
+    ),
+    (
+        "factored_crossing.rs",
+        "lying_in_bisector",
         "Coincide::VertexOnCurvedFace",
         1,
     ),
@@ -2661,7 +2658,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::LineSpanPrecision",
         1,
     ),
-    ("mod.rs", "decision_words", "Coincide::EdgeOnCurvedFace", 1),
+    ("mod.rs", "decision_words", "Coincide::EdgeOnCurvedFace", 2),
     ("mod.rs", "decision_words", "Coincide::EdgeOnPlane", 2),
     (
         "mod.rs",
@@ -2737,6 +2734,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("ops.rs", "piece_reads", "BooleanDecision::Containment", 1),
+    (
+        "planar_lane_rows.rs",
+        "two_roots_within_the_band_of_each_other_on_the_face_refuse",
+        "BooleanDecision::of_plane_coincidence",
+        1,
+    ),
     ("recl.rs", "recl_edges", "Coincide::EdgeOnEdge", 2),
     ("recl.rs", "recl_sectors", "Coincide::TangentSide", 1),
     (
@@ -2858,6 +2861,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("reduce.rs", "plane_refused", "BooleanDecision::Crossing", 2),
     (
         "reduce.rs",
+        "sweep_direction",
+        "BooleanDecision::of_plane_coincidence",
+        1,
+    ),
+    (
+        "reduce.rs",
         "twin_edge",
         "BooleanDecision::VertexOnVertex",
         1,
@@ -2868,13 +2877,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::SplitPointOnCircle",
         1,
     ),
-    (
-        "reduce.rs",
-        "sweep_direction",
-        "BooleanDecision::Coincidence",
-        1,
-    ),
-    ("reduce.rs", "sweep_direction", "Coincide::EdgeOnPlane", 2),
+    ("reduce.rs", "sweep_direction", "Coincide::EdgeOnPlane", 1),
     (
         "reduce.rs",
         "vertex_on_curved_face_at",
@@ -3003,7 +3006,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "slit.rs",
         "conic_or_line_on",
         "Coincide::EdgeOnCurvedFace",
-        1,
+        2,
     ),
     ("slit.rs", "conic_or_line_on", "Coincide::EdgeOnPlane", 2),
     ("slit.rs", "coplanar_wall_inside", "Coincide::Sectors", 1),
@@ -3023,6 +3026,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("slit.rs", "spline_floor", "BooleanDecision::Containment", 1),
     ("slit.rs", "spline_floor", "BooleanDecision::of_normal", 1),
+    (
+        "slit.rs",
+        "villarceau_certificate",
+        "Coincide::EdgeOnCurvedFace",
+        1,
+    ),
     ("slit.rs", "walls_inside", "BooleanDecision::of_normal", 1),
     ("slit.rs", "walls_inside", "Coincide::Sectors", 1),
     (

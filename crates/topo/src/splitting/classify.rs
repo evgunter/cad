@@ -891,10 +891,7 @@ mod tests {
                     "{label}: the split's lever: {split}"
                 );
                 let boolean = crate::BooleanError::Escalated {
-                    decision: BooleanDecision::Coincidence(
-                        crate::boolean::Coincide::EdgeOnPlane,
-                        DeclarationRead::Moot,
-                    ),
+                    decision: BooleanDecision::of_plane_coincidence(DeclarationRead::Moot),
                     diag,
                 }
                 .render(geom_brep::recourse::Reading::Build);

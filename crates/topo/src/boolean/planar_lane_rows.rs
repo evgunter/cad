@@ -277,9 +277,9 @@ fn an_end_read_on_the_face_owns_a_root_of_its_carrier_just_inside_the_span() {
         .expect("the brick's face x = 1");
     let mut got = on_face(sweep_a(&prism.body, &b), face);
     got.sort_by(|a, b| a.z.total_cmp(&b.z));
-    got.dedup_by(|a, b| (*a - *b).norm() == 0.0);
+    got.dedup_by(|a, b| a.equals_exactly(*b));
     assert!(
-        got.len() == 2 && got.iter().zip(&ends).all(|(g, e)| (*g - *e).norm() == 0.0),
+        got.len() == 2 && got.iter().zip(&ends).all(|(g, e)| g.equals_exactly(*e)),
         "the face holds V and its twin, and no vertex cut beside them: {got:?}, V at {ends:?}"
     );
 }
@@ -333,8 +333,7 @@ fn two_roots_within_the_band_of_each_other_on_the_face_refuse() {
             super::plane_refused(
                 why,
                 |diag| BooleanError::Escalated {
-                    decision: super::super::BooleanDecision::Coincidence(
-                        super::super::Coincide::EdgeOnPlane,
+                    decision: super::super::BooleanDecision::of_plane_coincidence(
                         super::super::DeclarationRead::Moot,
                     ),
                     diag,

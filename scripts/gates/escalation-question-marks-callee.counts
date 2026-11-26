@@ -49,8 +49,10 @@ crates/topo/src/contain.rs 1
 # two reads, a fixpoint where each join is read on the body the last one
 # left: NOT A SEARCH.
 crates/topo/src/boolean/edge_join.rs 3
-# factored_crossing: both parameters' landings are needed: NOT A SEARCH.
-crates/topo/src/boolean/factored_crossing.rs 1
+# factored_crossing: both parameters' landings are needed, and a lying
+# span's ends are each read at the other plane for a node
+# (lying_in_bisector): NOT A SEARCH.
+crates/topo/src/boolean/factored_crossing.rs 2
 # fate: places' corner and place's reading, the side a corner holds: WHICH.
 crates/topo/src/boolean/fate.rs 2
 # insert: walk_order's comparison (a sort): NOT A SEARCH. Not counted
@@ -74,11 +76,13 @@ crates/topo/src/boolean/mod.rs 1
 crates/topo/src/boolean/overlap.rs 1
 # recl: recl_edges classifies every mention pair: NOT A SEARCH.
 crates/topo/src/boolean/recl.rs 3
-# reduce: arc_chain_reaches' walk (1): NOT A SEARCH; spline_interior (2)
-# and spline_wall_event (1), which crossing is the event: WHICH.
-# (first_unsupported_pair's two box reads left with main's operand gate,
-# e4516384d5; wall_crossing's went to face_reading with its meetings.)
-crates/topo/src/boolean/reduce.rs 4
+# reduce: arc_chain_reaches' walk (1): NOT A SEARCH; spline_interior (2),
+# spline_wall_event (1) and the planar lane's spline roots (1, each placed
+# by face_reading::place_meeting until the first the face holds), which
+# crossing is the event: WHICH. (first_unsupported_pair's two box reads
+# left with main's operand gate, e4516384d5; wall_crossing's went to
+# face_reading with its meetings.)
+crates/topo/src/boolean/reduce.rs 5
 # rim_wedge: departures's two cover reads: WHICH, the first piece whose
 # covers settle the kind (EdgeKindUnread, Mixed, NoEdge) answers, and
 # pieces can answer different kinds (QML T4; the site says so); reach's

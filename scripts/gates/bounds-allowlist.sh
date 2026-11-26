@@ -568,13 +568,15 @@ BOUNDS_ALLOWLIST=(
   # `sweep_and_settle`, is the one driver every boolean sweeps through,
   # and rides the same seam: it forwards to `sweep_direction` twice and
   # reads no bracket of its own (`Decide` alone does not compile there).
-  # Six more ride to the touch reading the same way: `curved_face_arm`,
-  # `wall_crossing` and `settle_deferred` to `face_reading::face_crossings`,
-  # and the spline span's `composite_count` and its two lanes,
-  # `spline_plane_crossings` and `spline_wall_event`, to
-  # `carrier_touch::off_face`; none reads a bracket of its own (without
-  # `Bounds` those calls do not compile). 5 + 6 = 11.
-  'crates/topo/src/boolean/reduce.rs 11 2026-07-29 (M5 PR 8), the driver amendment'
+  # Seven more ride to the touch reading the same way: `curved_face_arm`,
+  # `wall_crossing`, `span_verdict` (the one event reading both lanes take,
+  # `wall_crossing`'s body until GERM U4c) and `settle_deferred` to
+  # `face_reading::face_crossings`, and the spline span's
+  # `composite_count` and its two lanes, `spline_plane_crossings` and
+  # `spline_wall_event`, to `carrier_touch::off_face`; none reads a
+  # bracket of its own (without `Bounds` those calls do not compile).
+  # 5 + 7 = 12.
+  'crates/topo/src/boolean/reduce.rs 12 2026-07-29 (M5 PR 8), the driver amendment'
   # nary.rs's two are `nary_boolean`, the n-ary union and intersect,
   # and `run_members`, its body: it reads each member's box through
   # `Separation::of` and runs every judgement and fold step through the

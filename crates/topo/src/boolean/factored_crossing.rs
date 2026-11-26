@@ -137,15 +137,15 @@ pub(super) fn factored_crossing<T: Decide + crate::props::AtRestPolicy>(
     let line_ends = if line { Some(ends_of()?) } else { None };
     let span = geom_brep::curve_pair::Span::new(carrier, (t0, t1));
     // The edge's own wall's axis, the lever's datum.
-    let &geom::Surface::Cylinder {
-        frame: wall_frame, ..
-    } = x.proven_face(wall).expect_described()
-    else {
-        return Err(BooleanError::ClassificationInvariant {
-            what: "the factored read's wall is a cylinder",
-        });
-    };
-    let axis = wall_frame.axis_unit().get();
+    let axis = x
+        .proven_face(wall)
+        .expect_described()
+        .axis_line()
+        .ok_or(BooleanError::ClassificationInvariant {
+            what: "the factored read's wall has an axis",
+        })?
+        .dir
+        .get();
     // A window of a plane's answer, as the planar lane reads one
     // ([`super::plane_refused`]): a rung in band is the edge's coincidence
     // with the plane, and a root the placement cannot place or order its
@@ -172,7 +172,10 @@ pub(super) fn factored_crossing<T: Decide + crate::props::AtRestPolicy>(
     for (i, (centre, normal)) in planes.into_iter().enumerate() {
         use geom_brep::curve_face::{Crossings, OnSpan, Pose};
         let plane = geom::Surface::Plane {
-            frame: geom::Frame::new(centre, normal, normal.orthonormal_basis().0),
+            // Its reference direction the wall's axis less its part along
+            // the normal: no bisector plane holds the axis's normal, so the
+            // two are never parallel (`|â₁·n̂| = |â₁ ∓ â₂|/2 < 1`).
+            frame: geom::Frame::new(centre, normal, axis - normal * axis.dot(normal)),
         };
         let inside = match geom_brep::curve_face::cross(&span, &plane, band) {
             Ok(Crossings {

@@ -1166,10 +1166,9 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 plane_refused(
                     why,
                     |diag| BooleanError::Escalated {
-                        decision: BooleanDecision::Coincidence(
+                        decision: BooleanDecision::of_plane_coincidence(read(
                             Coincide::EdgeOnPlane,
-                            read(Coincide::EdgeOnPlane),
-                        ),
+                        )),
                         diag,
                     },
                     || BooleanError::CurvedPierceUnsupported {
