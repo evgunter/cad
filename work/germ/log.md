@@ -2155,3 +2155,6 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
 - 2026-11-26 20:20 — **PR 7658's fix pass had stalled.** The audit session (`session_01BJC3B2yq7zFHzsrXXqX6CK`) was Fable, and it hit the limit before acting on the 11-25 fix list; the branch is unchanged at `ab8dd4aca`. Lesson: check a session's model before routing work to it during the outage.
   - **Re-dispatched** as an Opus cloud session, `session_01BJC3B4DK1iXA3zGx2hMMvj`, with the full fix list (M1 Interval guards, m1–m7, N3, style).
   - Under rule 12, nothing is dispatched in a Fable agent's place without the user's answer. The user answered on 11-25: carry on with Opus.
+- 2026-11-26 20:30 — **U4c stop on `slit` → pose.** The pose refuses `NotLies` in band for a Villarceau circle, which `slit`'s nine samples read On.
+  - **Ruling (A):** pose first; the sampled certificate is kept only on a conic × torus `NotLies` zero-band refusal, as a named D3 residue.
+  - (B), the certificate becoming the pose's `Lies` rung, is filed as a GERM P2 follow-up unit.
