@@ -2473,14 +2473,19 @@ fn walls_inside<T: Decide>(
             },
         }),
     };
-    // A face the point door reads no normal on (a spline or an
-    // approximating face, `Ok(None)`) is an input this reading does not
-    // read; a key that no longer resolves is the parting's own desync.
+    // A face the point door reads no normal on, by its kind
+    // (`NoNormalAt::UnreadKind`: a spline, approximating or spindle
+    // sheet), is an input this reading does not read; a key that no
+    // longer resolves, or a face with no surface, is the parting's own
+    // desync.
     let normal_at =
-        |face: FaceKey| match crate::face_normal::face_outward_normal_at(body, face, mid, band) {
-            Ok(None) if body.get_face(face).is_some() => Err(refused(EdgeInFaceGap::NoNormal)),
-            Ok(None) => Err(desync()),
-            read => normal(read),
+        |face: FaceKey| match crate::face_normal::face_outward_normal_or_why(body, face, mid, band)
+        {
+            Ok(Err(crate::face_normal::NoNormalAt::UnreadKind)) => {
+                Err(refused(EdgeInFaceGap::NoNormal))
+            }
+            Ok(Err(crate::face_normal::NoNormalAt::Unresolved)) => Err(desync()),
+            read => normal(read.map(Result::ok)),
         };
     // The edge is read as lying on the floor's surface, or within the
     // band of it where `holding` asks whether that reading matters: the
