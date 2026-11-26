@@ -377,3 +377,5 @@
   - Fix pass sent. The full comparison now includes editor-core.
 
 - 2026-11-26 Checked whether PR 7782 (one-list, mine) caused the 10–20× slow sweep rows the minted-door lane filed. `cylinder_sphere_frame::a_ball_across_a_cylinder_wall_wider_than_the_wall`, same build on both sides, is >2100 s and killed both on 7782's merge d23272dea5 and on its first parent 7ce370250a. So 7782 is not the cause; the slowdown is earlier. The row `main-slow-sweep-rows-run-ten-to-twenty-times-longer-since-ffc8c37d4` stays open; candidates are INSIDE's 7801/7813/7814.
+
+- 2026-11-26 Bisected main's slowdown to INSIDE's PR 7801 (`1bb20a9fce1`, the face door's spline arm). The ball-across-cylinder row takes 374 s on its first parent and > 900 s on the merge; ffc8c37d4c gives 378 s and 7807 gives 383 s. Filed P0 `work/inside/main-slow-since-7801-…`: it holds every PR's `gate ok`, because the mesh-budget job hangs. Told the minted-door lane to point its heldrecords copy there rather than land a duplicate.
