@@ -4,7 +4,7 @@ kind: issue
 title: Several slow-set sweep rows run 10-20x longer on main 1ec3a6a6c0 than on ffc8c37d4 (82 s to over 1800 s), cause not bisected
 status: open
 opened: 2026-11-26
-priority: P2
+priority: P0
 cost: M
 ---
 
@@ -41,3 +41,13 @@ The first-parent merges between the two bases:
 
 The merge that slowed them is named, and either it is made cheap again
 or the rows' slow-set cost is re-measured and accepted.
+
+## 2026-11-26 — the PR gate's mesh-budget job hangs on every PR
+
+The PR gate's `mesh budget meter + certificate falsifier` job (`ci.yml`,
+the step `mesh --features budget`) ran in about 8 minutes on PR 7808's
+first-round head. Since that PR merged main past `1ec3a6a6c0`, it runs
+for hours: three runs over 40 minutes, one cancelled at 2 h. PR 7658's run
+stalls in the same step. The job sets no `timeout-minutes`, so it waits
+out GitHub's 6-hour default before `gate ok` can conclude. Every PR's
+gate is held until it is fixed.
