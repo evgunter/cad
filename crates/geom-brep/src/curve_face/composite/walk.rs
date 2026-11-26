@@ -57,7 +57,9 @@
 //! ends by the table's own placement ([`super::super::cross::place`]),
 //! so no end is decided twice; the crossings' count is held against the
 //! sides of the span's ends read past the band (the parity guard), and
-//! a count that disagrees reads nothing.
+//! a count that disagrees is a kernel fault
+//! ([`CompositeRefusal::Contradiction`]), which no reader lays on an
+//! operand.
 
 use crate::pcurve_cache::projected::Meters;
 use geom::{NurbsCurve3, Surface};
@@ -275,14 +277,22 @@ fn read<T: Decide>(
     }
     // Both ends past the band: the crossings' count has the parity of
     // the ends' sides, an even count where they agree. A count that does
-    // not is a reading of this span that came out wrong.
+    // not is a reading of this span that came out wrong, a kernel fault.
+    // No input reaches it while the walk holds its own invariants: every
+    // piece end it reads past the band is decided past it, so adjacent
+    // pieces agree on the side at a shared end; a clear piece is one-sided
+    // past the band and holds no crossing; a monotone piece holds a
+    // crossing exactly where its ends are proved opposite; and every
+    // other piece end within the band either locates its crossing or
+    // refuses the span before this line. The guard is the backstop for a
+    // walk that breaks one of them, with no seam to inject one.
     if let [Reading::Past(start), Reading::Past(stop)] = ends.map(read) {
         let crossings = meetings
             .iter()
             .filter(|m| matches!(m, Meeting::Crossing(_)))
             .count();
         if (crossings % 2 == 1) != (start != stop) {
-            return Err(CompositeRefusal::Unread(
+            return Err(CompositeRefusal::Contradiction(
                 "the crossings' count disagrees with the sides of the span's ends",
             ));
         }

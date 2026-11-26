@@ -69,6 +69,11 @@ pub enum CompositeRefusal {
     /// (a spline face), a weight of the carrier is not shown positive, or
     /// the carrier does not cut to its Bézier pieces.
     Unread(&'static str),
+    /// The walk's readings contradict each other: with both span ends read
+    /// past the band, the crossings it located do not have the parity of
+    /// the ends' sides (the parity guard). A kernel fault, never the
+    /// input's: no door may blame an operand for it.
+    Contradiction(&'static str),
 }
 
 impl CompositeRefusal {
@@ -90,7 +95,11 @@ impl CompositeRefusal {
     ///   read, a weight not shown positive, a carrier that does not cut to
     ///   Bézier pieces): [`MeetFault::Unsupported`](crate::curve_pair::MeetFault::Unsupported), a limit. Neither is a
     ///   kernel fault: the table routes only analytic faces here, and a
-    ///   poisoned or degenerate input is the input's, not the reading's.
+    ///   poisoned or degenerate input is the input's, not the reading's;
+    /// - [`Self::Contradiction`] is the walk contradicting itself:
+    ///   [`MeetFault::Contradiction`](crate::curve_pair::MeetFault::Contradiction),
+    ///   a kernel fault every reader fails loud on (a classification
+    ///   invariant at the Boolean, a fault at the split).
     #[must_use]
     pub fn fault(self) -> crate::curve_pair::MeetFault {
         use crate::curve_pair::MeetFault;
@@ -98,6 +107,7 @@ impl CompositeRefusal {
             Self::Escalated(diag) => MeetFault::Touch(diag),
             Self::Unsettled(why) => MeetFault::Unsettled(why),
             Self::FaceDegenerate(pose) | Self::Unread(pose) => MeetFault::Unsupported { pose },
+            Self::Contradiction(readings) => MeetFault::Contradiction { readings },
         }
     }
 }
