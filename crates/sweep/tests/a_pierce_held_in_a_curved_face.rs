@@ -1000,10 +1000,9 @@ fn a_tool_face_grazing_the_holding_face_decides_or_refuses_and_never_ships_a_wro
                         cell: topo::Cell::Face(ef.contact.face),
                     },
                 ];
-                let door = r
-                    .coincidences
-                    .iter()
-                    .any(|c| c.cells == own && c.relation == topo::Relation::OnCarrier);
+                let door = r.coincidences.iter().any(|c| {
+                    c.cells == own && c.relation == topo::Relation::Meet && c.more == [None; 3]
+                });
                 assert_eq!(
                     door,
                     want == Decided,

@@ -4512,8 +4512,9 @@ pub(super) fn carry<T: Decide + AtRestPolicy>(
 /// minted on a record's two cells that meet at a point are decided at
 /// this door ([`minted_meeting`]): the tool has many faces, so a
 /// meeting one face did not make is a value coincidence (D10), and the
-/// landing cites the decision beside the record, a row on the record's
-/// own two input cells.
+/// landing cites the decision beside the record: the meeting of the
+/// record's own two input cells, one row however many such points they
+/// meet at.
 ///
 /// # Errors
 ///
@@ -4606,7 +4607,14 @@ fn carried<T: Decide + AtRestPolicy>(
             let mut cites = cites.clone();
             if l.minted {
                 let margin = minted_meeting(body, l.at, band)?;
-                let fresh = decide_one(pending, (side, cells[0]), (side, cells[1]), margin);
+                let fresh = super::reduce::index(super::reduce::pend(
+                    pending,
+                    PendingRow {
+                        cells: [(side, cells[0]), (side, cells[1])],
+                        relation: crate::Relation::Meet,
+                        margin: Some(margin),
+                    },
+                ));
                 cites = cites.union(&Cites::decided(fresh));
             }
             out[s].push(x, y, cites);
