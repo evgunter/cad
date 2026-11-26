@@ -464,3 +464,29 @@ fn a_rim_in_the_band_of_the_bisector_plane_but_off_the_partner_escalates() {
         "A ∪ B: the rim off the partner wall escalates on the lever, got {r:?}"
     );
 }
+
+/// **A rim lying on the partner wall that ends at a node refuses at the
+/// node** (C5): `A` spun a quarter turn, so its seams, and the rim's
+/// vertices, stand at `(0, ±1, 0)`, the section's nodes, where the walls are
+/// tangent; `B` reaching back to `x = −½` holds them. The read answers the
+/// rim lying on the partner wall, but an end on both bisector planes is a
+/// node, which the node pass reads: `NodeUnbuilt`, on the boundary.
+///
+/// Red where a lying span's ends are taken on the plane with no reading
+/// of the other plane: the rim is recorded through the node.
+#[test]
+fn a_rim_lying_on_the_partner_that_ends_at_a_node_refuses_at_the_node() {
+    let tol = Tol::witness();
+    let (a, b) = (mitred(FRAC_PI_2), crossing(0.0, -0.5));
+    let r = topo::union(&a, &b, tol);
+    assert!(
+        matches!(
+            r,
+            Err(BooleanError::NodeUnbuilt {
+                why: topo::NodeWhy::OnBoundary(_),
+                ..
+            })
+        ),
+        "the rim's end at the node refuses there, got {r:?}"
+    );
+}
