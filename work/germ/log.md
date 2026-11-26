@@ -2121,3 +2121,9 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - The argument: the cover certifies the residual one-signed, so the zero posture gives what a miss would, with the endpoints read and the interior deferred.
   - It needs a code doc, and a row with a gap-near-miss twin equal to a clear miss at three ε, plus a mutant.
 - 2026-11-26 11:05 — **U4b item 5 claim corrected.** A gap reading under cover never records an incidence that a miss would not, so it never builds a different body; unsettled, it refuses typed. A reduction-level row is accepted, and a P3 row is to be filed for the covered near-miss that refuses where a miss would build.
+- 2026-11-26 14:40 — **U4b fix pass is in**, head `582f5e1983`.
+  - Every item is taken; 36 of 36 mutants are red.
+  - The localiser is main's clusters on the re-posed distance.
+  - `read_why` is the one `CrossWhy` reading.
+  - P3 filed: `a-covered-near-miss-no-vertex-splits-refuses-where-a-miss-builds`.
+  - The confirmation pair has been resumed on the new head.
