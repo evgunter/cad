@@ -4250,7 +4250,9 @@ impl Incidence {
     /// them and null faces (the section's).
     fn chords<'a>(&'a self, fragments: &'a [FaceKey]) -> impl Iterator<Item = Cell> + 'a {
         let inside = move |c: Cell, fs: &[FaceKey]| {
-            let section = self.section.contains(&c);
+            let section = std::env::var("PROBE_NOSECT").is_err()
+                && self.section.contains(&c)
+                && (matches!(c, Cell::Edge(_)) || !(std::env::var("PROBE_NOSECTV").is_ok() && PROBE_CARRIED.with(|f| f.get())));
             !fs.is_empty()
                 && fs.iter().all(|f| fragments.contains(f))
                 && (fs.iter().any(|f| f != &fs[0]) || section)
@@ -4606,7 +4608,12 @@ fn carried<T: Decide + AtRestPolicy>(
             let (x, y) = (clone(0)?, clone(1)?);
             let mut cites = cites.clone();
             if l.minted {
-                let margin = minted_meeting(body, l.at, band)?;
+                let door = minted_meeting(body, l.at, band);
+                if std::env::var("PROBE_DOORLOG").is_ok() {
+                    let prior = pending.iter().find(|p| p.relation == crate::Relation::Meet && (p.cells == [(side, cells[0]), (side, cells[1])] || p.cells == [(side, cells[1]), (side, cells[0])])).map(|p| p.margin);
+                    eprintln!("DOORLOG side={side:?} cells={cells:?} at={:?} door={:?} prior={prior:?}", l.at, door.as_ref().map(|m| format!("{m:?}")).map_err(|e| format!("{e:?}")));
+                }
+                let margin = door?;
                 let fresh = super::reduce::index(super::reduce::pend(
                     pending,
                     PendingRow {
@@ -4652,9 +4659,11 @@ impl<'b, T: Decide> Clones<'b, T> {
 }
 
 /// `side`'s clone cell `c` in the joint body ([`Clones::joint`]).
+thread_local! { static PROBE_CARRIED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) }; }
 fn in_joint(map: &GraftMap, side: Operand, c: Cell) -> Option<Cell> {
     let view = match side {
         Operand::A => KeyView::Direct,
+        Operand::B if std::env::var("PROBE_JOINTBAD").is_ok() => KeyView::Direct,
         Operand::B => KeyView::Graft(map),
     };
     match c {
@@ -4713,8 +4722,23 @@ fn operand_fate<T: Real>(
         pieces,
         minted,
         divided,
-    } = clone_cells(desc, incidence, &ledger.mints, (side, Keys::Input), x);
+    } = {
+        PROBE_CARRIED.with(|f| f.set(true));
+        let c = clone_cells(desc, incidence, &ledger.mints, (side, Keys::Input), x);
+        PROBE_CARRIED.with(|f| f.set(false));
+        c
+    };
     let removed = |c: Cell| stated_removed(incidence, discarded, c);
+    let mut pieces = pieces;
+    let gapkind = std::env::var("PROBE_GAP").unwrap_or_default();
+    let is_kind = match x { Cell::Face(_) => gapkind == "face" || gapkind == "any", Cell::Edge(_) => gapkind == "edge" || gapkind == "any", _ => false };
+    if is_kind && pieces.len() >= 2 {
+        if let Some(ix) = pieces.iter().position(|&c| !removed(c)) {
+            let c = pieces.remove(ix);
+            eprintln!("PROBE_GAP dropped {c:?} of {x:?}");
+            super::records::GAPPED.with(|g| g.borrow_mut().insert(x));
+        }
+    }
     let all: Vec<Cell> = pieces.iter().chain(&minted).copied().collect();
     let mut gone = Vec::new();
     let pieces = imaged(
@@ -5825,6 +5849,14 @@ fn place_found<'b, T: Decide + AtRestPolicy>(
                 });
             }
             let removed = |c: Cell| stated_removed(&incidence[at(side)], discarded[at(side)], c);
+            let mut pieces = pieces;
+            if std::env::var("PROBE_GAP").is_ok_and(|g| g == "recut" || g == "any") && pieces.len() >= 2 {
+                if let Some(ix) = pieces.iter().position(|&c| !removed(c)) {
+                    let c = pieces.remove(ix);
+                    eprintln!("PROBE_GAP recut dropped {c:?} of {cell:?}");
+                    super::records::GAPPED.with(|g| g.borrow_mut().insert(cell));
+                }
+            }
             let (view, mut gone, mut back) = (views[at(side)], Vec::new(), Vec::new());
             let all: Vec<Cell> = pieces.iter().chain(&chords).copied().collect();
             let pieces = imaged(

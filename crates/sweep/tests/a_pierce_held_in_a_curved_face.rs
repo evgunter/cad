@@ -943,9 +943,13 @@ fn a_tool_face_grazing_the_holding_face_decides_or_refuses_and_never_ships_a_wro
                     records_a: carried(topo::Operand::A),
                     records_b: carried(topo::Operand::B),
                 };
+                let got = topo::boolean_op_with(op, x, y, &inputs, topo::SweepStrategy::Realized, tol());
+                if std::env::var("PROBE_PRINT").is_ok() {
+                    eprintln!("GRAZE {what}: want {want:?} got {:?}", got.as_ref().map(|r| match r { BooleanResult::Body(b) => format!("Body door={:?}", b.coincidences.iter().filter(|c| c.relation == topo::Relation::Meet).map(|c| (c.cells, c.more, c.margin)).collect::<Vec<_>>()), _ => "other".into() }));
+                }
                 let r = match (
                     want,
-                    topo::boolean_op_with(op, x, y, &inputs, topo::SweepStrategy::Realized, tol()),
+                    got,
                 ) {
                     (
                         Unread,
