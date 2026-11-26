@@ -1120,13 +1120,15 @@ fn z0_face(body: &Body<f64>, x_mid: f64, up: bool) -> Cell {
 
 /// A face–face record of P's bottom (−z, x∈[0,1]) and Q's top (+z,
 /// x∈[3,4]) on z = 0, apart, carried through a hand lineage that keeps
-/// P's bottom as its one piece and names `removed` the z = 0 face of a
-/// third brick R spanning `r_x`, above z = 0 (`r_up` false) or below it.
-/// Read through `region`.
+/// P's bottom as its one piece (or, `edge_piece`, P's top-front edge,
+/// whose pair with Q's top reads with no region door) and names removed
+/// the z = 0 face of a third brick R spanning `r_x`, above z = 0
+/// (`r_up` false) or below it. Read through `region`.
 fn removed_member_read(
     r_x: (f64, f64),
     r_up: bool,
     region: Option<topo::RegionLane<f64>>,
+    edge_piece: bool,
 ) -> Result<usize, topo::CarryRefusal> {
     let tol = Tol::witness();
     let mut body: Body<f64> = common::brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
@@ -1149,7 +1151,11 @@ fn removed_member_read(
         .with(
             x,
             topo::Fate::Divided(topo::Division {
-                pieces: vec![x],
+                pieces: vec![if edge_piece {
+                    Cell::Edge(edge_between(&body, [0.0, 0.0, 1.0], [1.0, 0.0, 1.0]))
+                } else {
+                    x
+                }],
                 minted: vec![],
                 removed: vec![rf],
             }),
@@ -1173,7 +1179,8 @@ fn removed_member_read(
 /// census's sense door does not stand in for the overlap). A removed
 /// member over Q's top, facing up as it does, holds the touch, though
 /// the census would rule its sense out as a rest: the record is
-/// consumed. Read through no region door, the overlap is unread and the
+/// consumed. Read through no region door, with a kept piece whose pair
+/// reads without one, the removed member's overlap is unread and the
 /// record refuses `Unread`. Red where a sense ruling counts as found
 /// (the first), where it counts as not found (the second), and where an
 /// unread reading counts as found (the third).
@@ -1182,19 +1189,19 @@ fn a_removed_member_consumes_only_where_the_touch_is_found_on_it() {
     let certified = Some(topo::RegionLane::certified());
     for r_up in [true, false] {
         assert_eq!(
-            removed_member_read((6.0, 7.0), r_up, certified),
+            removed_member_read((6.0, 7.0), r_up, certified, false),
             Err(topo::CarryRefusal::Stale { record: 0 }),
             "a removed member touching nothing, facing up: {r_up}"
         );
     }
     assert_eq!(
-        removed_member_read((3.2, 3.8), true, certified),
+        removed_member_read((3.2, 3.8), true, certified, false),
         Ok(0),
         "a removed member over the touch, senses aligned, holds it"
     );
     assert!(
         matches!(
-            removed_member_read((3.2, 3.8), true, None),
+            removed_member_read((3.2, 3.8), true, None, true),
             Err(topo::CarryRefusal::Unread { record: 0, .. })
         ),
         "an unread removed member refuses"
