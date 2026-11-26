@@ -1,4 +1,4 @@
-//! **The ring composite's chart at any scalar** ([`chart`]): the one
+//! **The ring composite's chart at any scalar** ([`chart()`]): the one
 //! home of the chart frame and canonical form that the walk at the
 //! scalar (`super::walk`) and the certification readers
 //! (`super::framed_form`) build on. Generic over every real scalar, the
@@ -11,7 +11,7 @@ use geom_core::{Point3, Real, Vec3};
 use super::CompositeRefusal;
 use crate::pcurve_cache::projected::Meters;
 
-/// **A surface's chart at the scalar `S`** ([`chart`]): the chart frame's
+/// **A surface's chart at the scalar `S`** ([`chart()`]): the chart frame's
 /// origin and orthonormal axes, the canonical form, and its metres
 /// conversion, the stored surface's scalars crossed into `S`.
 pub(crate) struct Chart<S: Real> {

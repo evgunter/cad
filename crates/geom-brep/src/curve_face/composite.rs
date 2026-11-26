@@ -114,13 +114,13 @@ pub(crate) type FramedForm = ([Vec<Interval>; 3], CanonicalSurface, Meters<Inter
 
 /// A surface's canonical form and its metres conversion, with `points`
 /// written in its chart frame in certification arithmetic, coordinate by
-/// coordinate ([`chart`] at [`Interval`]): the operands a composite
+/// coordinate ([`chart()`] at [`Interval`]): the operands a composite
 /// against the surface reads, for a patch's net
 /// ([`crate::patch_carrier`]).
 ///
 /// # Errors
 ///
-/// As [`chart`], every axis coordinate certified; and
+/// As [`chart()`], every axis coordinate certified; and
 /// [`CompositeRefusal::Unread`] for a point that does not certify.
 pub(crate) fn framed_form<T: geom_core::Certifies>(
     surface: &Surface<T>,
