@@ -2,11 +2,13 @@
 id: split-refuses-a-plane-clear-of-a-one-band-sphere-cap
 kind: issue
 title: Split refuses a plane clear of a one-band sphere cap as one that may meet the sphere face, which the two π-bands' caps split under
-status: open
+status: closed
 opened: 2026-11-23
 priority: P1
 cost: M
 refs: [a-full-revolves-curved-wall-carries-two-seam-meridians-nobody-wrote]
+closed: 2026-11-26
+pr: 7484
 ---
 
 

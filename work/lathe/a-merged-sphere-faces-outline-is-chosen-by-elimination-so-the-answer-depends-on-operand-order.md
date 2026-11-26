@@ -2,11 +2,13 @@
 id: a-merged-sphere-faces-outline-is-chosen-by-elimination-so-the-answer-depends-on-operand-order
 kind: issue
 title: The output merge chooses a glued sphere face's outline by elimination, so a ∪ b builds where b ∪ a refuses
-status: open
+status: closed
 opened: 2026-11-23
 priority: P1
 refs: [a-full-revolves-curved-wall-carries-two-seam-meridians-nobody-wrote, a-section-loop-inside-a-one-band-curved-face-refuses-the-interior-loop-guard]
 cost: M
+closed: 2026-11-26
+pr: 7581
 ---
 
 

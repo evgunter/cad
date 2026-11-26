@@ -2,11 +2,13 @@
 id: a-sphere-cut-in-refuses-a-seam-lying-in-its-meridian-plane
 kind: issue
 title: The sphere cut-in refuses a one-band face whose seam lies in the cut's meridian plane on the far half-plane
-status: open
+status: closed
 opened: 2026-11-23
 priority: P1
 cost: M
 refs: [a-full-revolves-curved-wall-carries-two-seam-meridians-nobody-wrote]
+closed: 2026-11-26
+pr: 7440
 ---
 
 
@@ -39,3 +41,5 @@ one-band consumer gap it is. The sibling row
 `a-section-loop-inside-a-one-band-curved-face-refuses-the-interior-loop-guard`
 works the same "circle missing the seam" class in the same file, and may
 retire this cut-in's need for the pair.
+
+- 2026-11-26 — Closed by PR 7440 (commit 5a77b64ac2, in the one-band stack), landed with PR 7414: `apply_cut_ins` reads a one-band seam lying in the cut's plane as no hit. Witness `sweep snowman::a_slab_tilted_across_the_lens_seams_builds` fails at 7440's first parent (`FallbackExtentUnsupported`, this row's text) and passes after it, at ε 1e-9, 1e-6 and 1e-12. The port onto ORBIT's closed cut keeps the no-hit.

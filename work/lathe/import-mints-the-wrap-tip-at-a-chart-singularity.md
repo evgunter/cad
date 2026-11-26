@@ -2,10 +2,12 @@
 id: import-mints-the-wrap-tip-at-a-chart-singularity
 kind: issue
 title: import's pole form flips to the wrap tip: geom::pole_form mints one wrap edge to each singularity, DegenerateApexCone's two-half form retires, OCC's seamed cap and cone import as written
-status: dispatched
+status: closed
 opened: 2026-10-29
 priority: P0
 cost: E
+closed: 2026-11-26
+pr: 7774
 ---
 
 

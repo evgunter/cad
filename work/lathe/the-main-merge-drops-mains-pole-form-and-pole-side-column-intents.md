@@ -2,11 +2,13 @@
 id: the-main-merge-drops-mains-pole-form-and-pole-side-column-intents
 kind: issue
 title: The main merge drops main's pole-form, pole-side-column and seam-twice intents where the stack's wrap tip and reach_graded stand
-status: open
+status: closed
 opened: 2026-11-25
 priority: P0
 cost: M
 refs: [a-full-revolves-curved-wall-carries-two-seam-meridians-nobody-wrote]
+closed: 2026-11-26
+pr: 7414
 ---
 
 ## What
@@ -94,3 +96,9 @@ reach pole sides (`mesh7r1_probes`, `mesh8r1_probes`, `mesh8r2_probes`,
 `meridian_free_face`, `reach_probes`' poled balls) are unchanged from the
 merge base on main and pass on the stack under `--features budget`.
 
+
+- 2026-11-26 — Closed with PR 7414 (LATHE orchestrator). Every dropped intent is settled:
+  - items 1 and 4 are superseded by the wrap tip (Ev, `[ev]` PR 6014);
+  - item 2, the centroid azimuth, is not carried: PR 7774's dual review rejected it as edge-splitting-dependent;
+  - item 3 is subsumed by `repeat_columns`, measured against main's rule (PR 7803);
+  - main's API moves are carried.

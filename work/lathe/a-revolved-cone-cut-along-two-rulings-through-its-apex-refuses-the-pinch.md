@@ -2,11 +2,13 @@
 id: a-revolved-cone-cut-along-two-rulings-through-its-apex-refuses-the-pinch
 kind: issue
 title: A revolved cone cut along two rulings through its apex refuses ResultPinchedAtConeApex where main built it
-status: open
+status: closed
 opened: 2026-11-23
 priority: P1
 cost: M
 refs: [a-full-revolves-curved-wall-carries-two-seam-meridians-nobody-wrote]
+closed: 2026-11-26
+pr: 7585
 ---
 
 Found by the LATHE one-band lane (2026-11-23, PR 7414's review fix pass,

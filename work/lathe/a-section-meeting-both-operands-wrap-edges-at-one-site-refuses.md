@@ -2,11 +2,13 @@
 id: a-section-meeting-both-operands-wrap-edges-at-one-site-refuses
 kind: issue
 title: A section loop that meets both operands' wrap edges at one site refuses SingleSiteSectionLoop, so the snowman union and coaxial sphere booleans refuse once a full revolve is one band
-status: open
+status: closed
 opened: 2026-11-22
 priority: P1
 refs: [a-full-revolves-curved-wall-carries-two-seam-meridians-nobody-wrote]
 cost: H
+closed: 2026-11-26
+pr: 7476
 ---
 
 Found by the LATHE one-band lane (2026-11-22, PR 7414), measured on its

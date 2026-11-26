@@ -2,11 +2,13 @@
 id: a-boolean-ships-a-body-its-own-census-escalates-on-beside-a-one-band-seam
 kind: issue
 title: A tube 1e-9 off a one-band ball's seam meridian builds every op, and tier 3 prime escalates on the body it ships
-status: open
+status: closed
 opened: 2026-11-23
 priority: P1
 cost: M
 refs: [a-full-revolves-curved-wall-carries-two-seam-meridians-nobody-wrote]
+closed: 2026-11-26
+pr: 7744
 ---
 
 Found by the LATHE one-band lane (2026-11-23, PR 7414's review fix pass,

@@ -2,11 +2,13 @@
 id: shell-opens-a-wrapped-face-only-as-two-branches-meeting-at-a-pole
 kind: issue
 title: Shell opens a face whose chart wraps its period only as two branches whose seams meet at a pole, so a one-band cap refuses
-status: open
+status: closed
 opened: 2026-11-22
 priority: P1
 refs: [a-full-revolves-curved-wall-carries-two-seam-meridians-nobody-wrote]
 cost: M
+closed: 2026-11-26
+pr: 7435
 ---
 
 Found by the LATHE one-band lane (2026-11-22, PR 7414), measured on its

@@ -2,11 +2,13 @@
 id: a-flipped-one-band-sphere-face-met-only-transversally-finishes
 kind: issue
 title: A one-band sphere face whose sense bit is flipped finishes when every neighbour meets it transversally: no check sees the flip
-status: open
+status: closed
 opened: 2026-11-23
 priority: P1
 cost: M
 refs: [a-full-revolves-curved-wall-carries-two-seam-meridians-nobody-wrote]
+closed: 2026-11-26
+pr: 7736
 ---
 
 Found by the LATHE one-band lane (2026-11-23, PR 7414's review fix pass,

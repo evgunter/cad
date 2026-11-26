@@ -2,11 +2,13 @@
 id: a-section-loop-inside-a-one-band-curved-face-refuses-the-interior-loop-guard
 kind: issue
 title: A section loop wholly inside a one-band curved face and the partner face refuses at the interior-loop guard, where the π meridian used to cross it
-status: open
+status: closed
 opened: 2026-11-22
 priority: P1
 refs: [a-full-revolves-curved-wall-carries-two-seam-meridians-nobody-wrote]
 cost: H
+closed: 2026-11-26
+pr: 7440
 ---
 
 Found by the LATHE one-band lane (2026-11-22, PR 7414), measured on its

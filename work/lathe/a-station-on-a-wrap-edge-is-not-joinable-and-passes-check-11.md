@@ -2,11 +2,13 @@
 id: a-station-on-a-wrap-edge-is-not-joinable-and-passes-check-11
 kind: issue
 title: A station on a wrap edge is not joinable, so check 11 passes a hand-split one-band seam at rest
-status: open
+status: closed
 opened: 2026-11-23
 priority: P1
 refs: [a-full-revolves-curved-wall-carries-two-seam-meridians-nobody-wrote]
 cost: M
+closed: 2026-11-26
+pr: 7532
 ---
 
 Found by the LATHE one-band lane (2026-11-23, PR 7414), measured on its

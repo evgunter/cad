@@ -2,11 +2,13 @@
 id: a-cut-in-faces-merge-escalation-leaves-as-the-surviving-cut-refusal
 kind: issue
 title: A cut-in face's output-merge escalation is recorded as a skip, and the op then answers surviving_cut's refusal instead of the escalation
-status: open
+status: closed
 opened: 2026-11-25
 priority: P2
 cost: M
 refs: [a-section-loop-inside-two-one-band-curved-faces-refuses-at-the-section-certificate]
+closed: 2026-11-26
+pr: 7414
 ---
 
 
@@ -61,3 +63,5 @@ escalation answered as the surviving-cut refusal, has no path left. The
 crossings path decides that reading's premise before it cuts in
 (`interior_cuts::closing_holds`, which escalates the same question in
 band). What remains for the orchestrator is to close the row.
+
+- 2026-11-26 — Closed as moot (LATHE orchestrator), landed with PR 7414. The port onto ORBIT's closed cut deleted `reenter_recut` and `surviving_cut`. A cut-in now closes through `slit::close_cuts`, and a cut its chase misses refuses typed `JoinDesync` in every profile. On both paths, the merge's minting escalation propagates through `cut_in_made` as an escalation. There is no surviving-cut refusal left to mask it.

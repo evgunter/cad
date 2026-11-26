@@ -2,11 +2,13 @@
 id: mesh-budgets-slow-rows-read-two-band-revolves
 kind: issue
 title: mesh's slow rows (the mesh-budget job's cargo test) still read two-band revolves, and three of them changed outcome
-status: open
+status: closed
 opened: 2026-11-23
 priority: P1
 refs: [a-full-revolves-curved-wall-carries-two-seam-meridians-nobody-wrote]
 cost: M
+closed: 2026-11-26
+pr: 7556
 ---
 
 

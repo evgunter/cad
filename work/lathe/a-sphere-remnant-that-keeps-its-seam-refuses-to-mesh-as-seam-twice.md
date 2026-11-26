@@ -2,11 +2,13 @@
 id: a-sphere-remnant-that-keeps-its-seam-refuses-to-mesh-as-seam-twice
 kind: issue
 title: A boolean's sphere remnant that keeps its one seam refuses to mesh, SphereTrimShape SeamTwice
-status: open
+status: closed
 opened: 2026-11-22
 priority: P1
 refs: [a-full-revolves-curved-wall-carries-two-seam-meridians-nobody-wrote]
 cost: M
+closed: 2026-11-26
+pr: 7473
 ---
 
 Found by the LATHE one-band lane (2026-11-22, PR 7414), measured on its

@@ -59,3 +59,5 @@ placement "a spline edge in a torus ring's run" (`donut0 ∪ moved`), refuses
 other three placements build. Base 84588ee6fa (two π-bands) builds all
 four. The row is pinned red at its stop (`pinned_red::row`,
 `EVERY_ROW`), citing this row.
+
+- 2026-11-26 — PR 7575 (in the one-band stack, landed with PR 7414) builds the item's own poses through the no-crossings cut-in. The row stays open: `sweep germ_sphere_torus_placements::a_ball_against_a_donut_carries_onto_the_torus_and_builds` is pinned red at every ε on it (`RingHomingAmbiguous`, a spline edge in a torus ring's run, once the cut-in is built). That is this row's residue.

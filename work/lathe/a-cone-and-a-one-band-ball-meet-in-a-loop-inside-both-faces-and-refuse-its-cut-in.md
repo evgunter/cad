@@ -4,7 +4,7 @@ kind: issue
 title: A cone and a one-band ball off its axis meet in a loop inside both faces, and the cone's cut-in is not built (FallbackExtentUnsupported) where main's two lunes build
 status: open
 opened: 2026-11-26
-priority: P2
+priority: P1
 cost: M
 refs: [a-ball-against-a-donut-turned-a-quarter-refuses-its-cut-in-at-1e-6, close-cuts-is-not-total-on-crossings-path-cut-ins]
 ---
@@ -44,3 +44,5 @@ so its wrap edge crosses the loop restores main's outcome.
 The row pins each run's outcome. For this pose it pins the refusal
 above in all six runs (`BALL_PINNED`, citing this row); the two-cone
 row stays `built`.
+
+- 2026-11-26 — Re-banded P2 → P1 (LATHE orchestrator). Main builds this pose; the one band refuses it typed. That makes it a capability regression the one-band landing introduces, which takes P1 as `a-revolved-cone-cut-along-two-rulings-through-its-apex-refuses-the-pinch` did. The refusal is loud and owned, so it did not block the landing.

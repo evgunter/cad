@@ -78,3 +78,9 @@ without it.
 This is ORBIT's closing (`slit.rs`), read here by LATHE's crossings-path
 cut-in (7440). A change to either side's premise moves this row. ORBIT
 carries a seam note.
+
+- 2026-11-26 — Evidence from the port's re-review (LATHE orchestrator).
+  - Lost capability: the y-poled unit ball against (box `z ≥ 0.6`) ∪ box `x∈[0.3,0.5]`, `y∈[0.5,2]`, `z∈[−0.1,0]`. Its `z = 0` face's plane holds both poles, but its section lies far from the cut and the poles. Premise 2 refuses it, yet pre-fix `3a0f5b84aa` built it SOUND and maximal in all six ops at the default ε and 1e-6, so `close_cuts` was total there.
+  - Premise 2 reads every partner circle on the cut face, not only those bounding the part `pole_beyond` reads.
+  - Premise 1 refuses every partner kind other than a plane or a sphere (a cylinder, cone or torus on the cut face).
+  - An annulus bounded only by authored rims (ball ∩ slab `z∈(0.5,0.8)` against a small ball plus a pin box) is cut in and closes soundly in all six ops at three ε. That is a premise set held, with `close_cuts` total.
