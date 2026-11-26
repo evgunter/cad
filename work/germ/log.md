@@ -2136,3 +2136,8 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - **Merged over a running job:** the mesh budget meter, still in progress after 75 min. Low risk, since the mesh suites passed locally at three ε. Watch main's next mesh-budget run.
   - **Rows owed after the Fable reset:** U4b's model-compare row and its dual-review coding. Both reviewers were Opus during the outage.
   - **Next:** U4c (the planar lane, `slit`, `factored_crossing`; M, single FULL review).
+- 2026-11-26 20:05 — **PR 7809 (U4b) merged** as `633dbf914`, head `84395fc1a`.
+  - Hosted CI: lint, app and corrupt input green. Kernel red only on main's three: the prism corner, the ellipse_torus ring seed (added to SPLICE's row), and the roster's `edge_join_far_a_turn_on`.
+  - **Merged over a running job:** the mesh budget meter, still in progress after 75 min. Low risk, since the mesh suites passed locally at three ε. Watch main's next mesh-budget run.
+  - **Rows owed after the Fable reset:** U4b's model-compare row and its dual-review coding. Both reviewers were Opus during the outage.
+  - **Next:** U4c (the planar lane, `slit`, `factored_crossing`; M, single FULL review).
