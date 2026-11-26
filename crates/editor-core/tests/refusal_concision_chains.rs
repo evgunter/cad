@@ -1006,7 +1006,7 @@ mod kernel {
             EmptyGroup, GroupChartsDiffer, PlaceholderSurface, ApexWindow,
             NappeStraddles, ApexWindowUnknown, NeighborPairUnroutable,
             NeighborPoseUnroutable, EdgeUncovered, FittedBoundaryUnsupported,
-            CarrierLaneUnsupported,
+            CarrierLaneUnsupported, MovedCircleCollapses,
             IsoRow, VertexDisagreement, EdgeSection, CornerSection,
             DeclaredEdgeTilted, MixedEdge, ReanchorPastCarrierEnd, ReanchorCollapse,
             ReanchorInconclusive, NurbsLaneUnsupported, TogetherNonPlanar,
@@ -6182,6 +6182,13 @@ fn replace_face() -> Vec<(String, topo::ReplaceFaceError<f64>)> {
                     edge,
                     what: "it is drawn on a fitted or cone surface, where the offset has no exact \
                            shift for it",
+                },
+            ),
+            (
+                "MovedCircleCollapses",
+                R::MovedCircleCollapses {
+                    edge,
+                    distance: -2.0,
                 },
             ),
             (

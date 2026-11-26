@@ -307,6 +307,13 @@ fn fold_replace_face_error<T: Real>(
             what,
         },
         R::ApexWindowUnknown { face } => R::ApexWindowUnknown { face },
+        // The moved radius was decided not positive over the whole
+        // bracket, so the circle collapses at either end: the supremum,
+        // as the apex window's shift reads.
+        R::MovedCircleCollapses { edge, distance } => R::MovedCircleCollapses {
+            edge,
+            distance: end(distance, Supremum),
+        },
         R::NeighborPairUnroutable {
             edge,
             kind,
