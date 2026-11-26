@@ -375,3 +375,5 @@
     - the stress row's other-ε arm accepts any `Err`;
     - the `place_found` sibling has no witness search.
   - Fix pass sent. The full comparison now includes editor-core.
+
+- 2026-11-26 Checked whether PR 7782 (one-list, mine) caused the 10–20× slow sweep rows the minted-door lane filed. `cylinder_sphere_frame::a_ball_across_a_cylinder_wall_wider_than_the_wall`, same build on both sides, is >2100 s and killed both on 7782's merge d23272dea5 and on its first parent 7ce370250a. So 7782 is not the cause; the slowdown is earlier. The row `main-slow-sweep-rows-run-ten-to-twenty-times-longer-since-ffc8c37d4` stays open; candidates are INSIDE's 7801/7813/7814.
