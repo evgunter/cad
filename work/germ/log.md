@@ -2175,3 +2175,9 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - All agreed.
 - 2026-11-26 21:30 — **[ev] PR 7818 (U4c, draft):** asks whether a conic lying in a bisector plane should answer `Lies` (recommended by both designers) or refuse as C5 says. The decision document is at the top of the body. The orchestrator is subscribed to the PR.
   - The fork was weighed by two Opus designers under the user's outage ruling; there is no design-fork-protocol row (arms are not drawable without Fable).
+- 2026-11-26 21:40 — **PR 7658 fix pass delivered** (Opus session), head `b13c371d49`.
+  - Every item is taken, none argued. M1 is fixed via one `conic_size_read` asking `is_bounded`, with an Interval row per site. The new refusals are `SizeBeyondRange` and `MovedCircleCollapses`.
+  - The re-pose is kept, with a row (2 vs 39 ulps).
+  - The confirmation is dispatched to the original reviewer.
+  - **New main red reported:** geom-brep slow `recourse_roster::every_decided_name_is_read` at `curve_face` `walk.rs` / `line_patch.rs`. Its owner is to be checked.
+  - **Interval blind spot:** shell's `is_finite_length(thickness)` has the same one; it is listed on the `[sizes]` build row.
