@@ -1230,9 +1230,8 @@ pub(crate) fn describe_wrap_edge_fresh<T: Decide + topo::AtRestPolicy>(
 ) -> Result<(), EulerOpError> {
     describe_wrap_edge(body, edge, wall, tol)?;
     let stored = body
-        .get_edge(edge)
-        .and_then(|e| body.get_curve_geom(e.curve))
-        .and_then(topo::CurveGeom::certified)
+        .edge(edge)
+        .and_then(topo::EdgeView::certified)
         .unwrap_or_else(|| unreachable!("the edge was restated certified just above"))
         .restated_spec()
         .description;
