@@ -367,8 +367,7 @@ pub enum PointInSolidError {
     VolumeUncertified,
     /// A `Sphere` face that is not closed on its own surface and has a
     /// boundary edge the region reading cannot read: one that is neither a
-    /// circle nor a spline arc, or a spline arc at a scalar with no spline
-    /// reader (a dual, [`crate::props::AtRestPolicy::spline_face_reader`]).
+    /// circle nor a spline arc.
     ///
     /// A trimmed sphere face is read from its boundary arcs
     /// ([`crate::sphere_region`]), a circle's or a spline's, the curves a
@@ -1008,9 +1007,7 @@ pub(super) fn closed_sphere_group<T: Decide>(
 /// Resolves [`FaceGeo`]; a spindle sheet's face refuses as
 /// [`PointInSolidError::KindUnsupported`] (per-arm, C12.1: it has no
 /// ray-crossing arm), a TRIMMED sphere face with a boundary edge that is
-/// not a circle arc, nor a spline arc read by `splines` (the scalar's
-/// spline reader, where the caller holds one:
-/// [`crate::props::AtRestPolicy::spline_face_reader`]), as
+/// neither a circle arc nor a spline arc, as
 /// [`PointInSolidError::PartialSphereFace`], and a spline face whose trim
 /// is not read as [`PointInSolidError::PartialSplineFace`]. A face of the
 /// selection that
@@ -1020,7 +1017,6 @@ pub(crate) fn face_geo<T: Decide>(
     face: FaceKey,
     charts: &ChartGroups,
     band: Band,
-    splines: Option<crate::region::SplineCrossings<T>>,
 ) -> Result<FaceGeo<T>, PointInSolidError> {
     // The kinds this dispatch has an arm for are [`ray_crosses`]'s, and
     // it refuses the others through it, as the reader's pre-filter does
@@ -1029,7 +1025,7 @@ pub(crate) fn face_geo<T: Decide>(
     if let Some(e) = uncrossable(body, face) {
         return Err(e);
     }
-    face_geo_arms(body, face, charts, band, splines)
+    face_geo_arms(body, face, charts, band)
 }
 
 /// [`face_geo`]'s dispatch, past the predicate: an arm for each kind
@@ -1040,7 +1036,6 @@ fn face_geo_arms<T: Decide>(
     face: FaceKey,
     charts: &ChartGroups,
     band: Band,
-    splines: Option<crate::region::SplineCrossings<T>>,
 ) -> Result<FaceGeo<T>, PointInSolidError> {
     let f = body.proven_face(face);
     let Ok(surface) = f.surface() else {
@@ -1104,7 +1099,7 @@ fn face_geo_arms<T: Decide>(
                     representative,
                     sense: proven(&body.faces, representative, EntityId::Face).sense,
                 }),
-                None => match sphere_face_region(body, face, splines)? {
+                None => match sphere_face_region(body, face)? {
                     Some(region) => Ok(FaceGeo::SpherePatch {
                         center,
                         radius,
@@ -1134,7 +1129,7 @@ fn face_geo_arms<T: Decide>(
                     sense: proven(&body.faces, representative, EntityId::Face).sense,
                 });
             }
-            match torus_face_region(body, face, None)? {
+            match torus_face_region(body, face)? {
                 Some(region) => Ok(FaceGeo::TorusPatch {
                     axis: geom::Line {
                         origin: center,
@@ -2157,7 +2152,7 @@ fn point_in_faces<T: Decide + crate::props::AtRestPolicy>(
     // face answers before a later face is resolved.
     let mut geos: FaceGeos<T> = Vec::with_capacity(faces.len());
     let climbed = climb(Answering::Any, faces, |&face| {
-        let geo = match face_geo(body, face, &sel.charts, band, T::spline_face_reader()) {
+        let geo = match face_geo(body, face, &sel.charts, band) {
             Ok(geo) => geo,
             // **A point past the whole selection's reach**, read only
             // where the ray test cannot cross a face of it (its kind, or
@@ -5306,12 +5301,7 @@ mod per_solid_entry_tests {
             let geos: Vec<_> = sel
                 .faces()
                 .iter()
-                .map(|&face| {
-                    (
-                        face,
-                        face_geo(&body, face, &sel.charts, band, None).unwrap(),
-                    )
-                })
+                .map(|&face| (face, face_geo(&body, face, &sel.charts, band).unwrap()))
                 .collect();
             let d = Vec3::new(0.5, 0.3, -1.0).normalize();
             let q = Point3::new(1.0 + 0.5 * g, 0.5, 1.0) - d * 2.0;
@@ -5366,12 +5356,7 @@ mod per_solid_entry_tests {
                 let geos: Vec<_> = sel
                     .faces()
                     .iter()
-                    .map(|&face| {
-                        (
-                            face,
-                            face_geo(&body, face, &sel.charts, band, None).unwrap(),
-                        )
-                    })
+                    .map(|&face| (face, face_geo(&body, face, &sel.charts, band).unwrap()))
                     .collect();
                 let d = Vec3::new(1.0, 0.05, -slope).normalize();
                 let q = Point3::new(1.0, 0.5, 1.0 + 3.0 * tol.eps() * slope) - d * 0.3;
@@ -5405,12 +5390,7 @@ mod per_solid_entry_tests {
         let geos: Vec<_> = sel
             .faces()
             .iter()
-            .map(|&face| {
-                (
-                    face,
-                    face_geo(&body, face, &sel.charts, band, None).unwrap(),
-                )
-            })
+            .map(|&face| (face, face_geo(&body, face, &sel.charts, band).unwrap()))
             .collect();
         let cast = |q: Point3<f64>, d: Vec3<f64>| {
             let reach = selection_reach(&body, sel.faces(), q, band).unwrap();
@@ -5598,7 +5578,7 @@ mod torn_hop_rows {
             (-0.7, 0.8),
         );
         assert!(
-            torus_face_region(&body, face, None).unwrap().is_some(),
+            torus_face_region(&body, face).unwrap().is_some(),
             "the sound wall's region"
         );
         let named = drop_first_curve(&mut body, face);
@@ -5606,7 +5586,7 @@ mod torn_hop_rows {
             "torus_face_region",
             &mut body,
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
-            |b| torus_face_region(b, face, None).map(|r| r.is_some()),
+            |b| torus_face_region(b, face).map(|r| r.is_some()),
         );
     }
 
@@ -5726,7 +5706,7 @@ mod stated_periods_rows {
                 us,
                 vs,
             );
-            let region = torus_face_region(&body, face, None).unwrap().unwrap();
+            let region = torus_face_region(&body, face).unwrap().unwrap();
             for i in 0..9 {
                 for j in 0..9 {
                     let (u, v) = (-0.4 + 0.33 * f64::from(i), -1.3 + 0.31 * f64::from(j));
@@ -5748,7 +5728,7 @@ mod stated_periods_rows {
             us,
             vs,
         );
-        let region = torus_face_region(&body, face, None).unwrap().unwrap();
+        let region = torus_face_region(&body, face).unwrap().unwrap();
         for (u, v) in [(1.1, 0.05), (-0.2, 0.05), (1.1, 1.5), (2.5, -1.0)] {
             let inside = us.0 < u && u < us.1 && vs.0 < v && v < vs.1;
             assert_eq!(
@@ -5776,8 +5756,8 @@ mod stated_periods_rows {
             frame.0, frame.1, frame.2, frame.3, frame.4, us, vs,
         );
         let (wall, twin) = (
-            torus_face_region(&wall, wf, None).unwrap().unwrap(),
-            torus_face_region(&twin, tf, None).unwrap().unwrap(),
+            torus_face_region(&wall, wf).unwrap().unwrap(),
+            torus_face_region(&twin, tf).unwrap().unwrap(),
         );
         let mut rng = test_utils::fuzz::start("torus_wall_clockwise_twin");
         let tau = core::f64::consts::TAU;
@@ -5877,7 +5857,7 @@ mod kind_arm_tests {
             let key = body.get_face(face).unwrap().surface;
             *body.surfaces.get_mut(key).unwrap() = surface.into();
             let sel = SolidFaces::select(&body, faces).unwrap();
-            let read = face_geo_arms(&body, face, &sel.charts, Band::linear(tol).unwrap(), None);
+            let read = face_geo_arms(&body, face, &sel.charts, Band::linear(tol).unwrap());
             let refused = matches!(read, Err(PointInSolidError::KindUnsupported { .. }));
             assert_eq!(
                 refused,
@@ -6113,7 +6093,7 @@ mod cone_ray_rows {
         let charts = SolidFaces::of_body(&body).expect("its faces").charts;
         let geos = [(
             face,
-            face_geo(&body, face, &charts, band, None).expect("the face's geometry"),
+            face_geo(&body, face, &charts, band).expect("the face's geometry"),
         )];
         assert!(
             matches!(

@@ -885,7 +885,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             "Containment(KindUnsupported)",
             PointInSolidError::KindUnsupported {
                 face,
-                kind: SurfaceKind::Nurbs,
+                kind: SurfaceKind::Spindle,
             },
         ),
         (

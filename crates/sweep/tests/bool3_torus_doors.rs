@@ -654,8 +654,9 @@ fn a_disjoint_union_with_a_donut_now_assembles() {
 }
 
 /// **The refusal that stays.** The torus arm retires `KindUnsupported`
-/// for `Torus` and for nothing else; `Nurbs` and `Approx` keep the
-/// variant, and keep it as a capability claim about a HEALTHY body. The
+/// for `Torus` and for nothing else; a spindle sheet's kind keeps the
+/// variant (`Nurbs` and `Approx` kept it until PR 7798's spline arm), and
+/// keeps it as a capability claim about a HEALTHY body. The
 /// message must stop offering "express it without a torus face" as the
 /// recourse for a kind that now has an arm.
 #[test]
@@ -674,7 +675,7 @@ fn the_kind_refusal_no_longer_names_the_torus() {
     }
     let msg = PointInSolidError::KindUnsupported {
         face: body.faces().next().unwrap().0,
-        kind: geom::SurfaceKind::Nurbs,
+        kind: geom::SurfaceKind::Spindle,
     }
     .render(geom_brep::recourse::Reading::Build);
     assert!(msg.contains("The solid itself is fine"), "{msg}");
@@ -683,7 +684,7 @@ fn the_kind_refusal_no_longer_names_the_torus() {
         !msg.contains("torus"),
         "the recourse must not tell a caller to avoid a kind that has an arm: {msg}"
     );
-    assert!(msg.contains("spline"), "{msg}");
+    assert!(msg.contains("spindle"), "{msg}");
 
     // The arm's OWN refusal, for a torus face with a boundary edge in no
     // plane. No public door mints one today — it wants a spline edge on

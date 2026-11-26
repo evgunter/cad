@@ -35,6 +35,14 @@ failure-output = "immediate-final"
 # first reading from clearing and its rounds decide
 # (work/shell/closed-form-limb-2-costs-milliseconds-per-curved-edge.md):
 #    1.43 s  editor-core::all m10_4_stackup_interval::a_foreign_verdict_or_box_refuses_typed
+# Eight collinear sites through every op, and every order of the flush
+# partner's fold onto the edge contact (PR 7782's hosted run):
+#    0.29 s  topo::all review_m3_pr55::e_eight_collinear_sites
+#    0.25 s  topo::all union_flush_onto_edge_contact::every_order_folds_a_flush_partner_onto_the_edge_contact
+#    0.27 s  topo::all union_flush_onto_edge_contact::two_dangling_null_edges_meeting_on_the_pinch_line_build_in_every_op
+#    0.27 s  topo::all union_flush_onto_edge_contact::a_dangling_null_edge_holding_another_pairs_cut_builds_in_every_op
+#    0.26 s  topo::all union_flush_onto_edge_contact::three_crossings_at_one_corner_build_in_every_op
+#    0.25 s  topo::all union_flush_onto_edge_contact::three_pieces_two_of_whose_cuts_tie_build_in_every_op
 # The cone ring's two volume rows at the certified scalar, each a pair of
 # booleans and their volume enclosures at `Interval` (PR 6717, the hosted
 # runner):
@@ -520,6 +528,7 @@ failure-output = "immediate-final"
 #    0.31 s  topo solid_contain::volume_read_key_rows::a_second_band_racing_the_first_is_read_afresh
 default-filter = """
 not (
+  (binary_id(topo::all) & (test(=review_m3_pr55::e_eight_collinear_sites) | test(=union_flush_onto_edge_contact::every_order_folds_a_flush_partner_onto_the_edge_contact) | test(=union_flush_onto_edge_contact::two_dangling_null_edges_meeting_on_the_pinch_line_build_in_every_op) | test(=union_flush_onto_edge_contact::a_dangling_null_edge_holding_another_pairs_cut_builds_in_every_op) | test(=union_flush_onto_edge_contact::three_crossings_at_one_corner_build_in_every_op) | test(=union_flush_onto_edge_contact::three_pieces_two_of_whose_cuts_tie_build_in_every_op))) |
   (binary_id(sweep::all) & test(=review_approx_through_a_motion::an_approximated_cap_read_through_its_motion_sweeps_as_the_moved_cap)) |
   (binary_id(topo) & test(=solid_contain::volume_read_key_rows::a_second_band_racing_the_first_is_read_afresh)) |
   (binary_id(topo) & (test(=pcurves::staleness_posture::no_production_code_in_any_crate_calls_the_minting_pass) | test(=finish::tests::no_at_rest_policy_impl_writes_its_own_finish_or_leaf))) |
@@ -654,6 +663,7 @@ not (
   (binary_id(geom-brep) & (test(=pair_section::wiring::a_count_the_march_disagrees_with_refuses) | test(=pair_section::wiring::a_doubled_ring_is_caught) | test(=pair_section::wiring::a_doubled_loop_among_witnessless_components_is_a_desync) | test(=pair_section::wiring::the_witnessless_matching_is_not_first_fit) | test(=pair_section::wiring::a_marched_loops_pad_holds_its_tube_and_its_limb_two_bound) | test(=pair_section::wiring::close_rings_carry_counted))) |
   (binary_id(sweep::all) & test(=germ_sphere_torus_placements::a_ball_against_a_donut_carries_onto_the_torus_and_builds)) |
   (binary_id(sweep::all) & test(=cylinder_sphere_frame::a_rod_through_a_ball_pairs_both_loops_alike)) |
+  (binary_id(sweep::all) & test(=cylinder_sphere_frame::a_brick_into_the_chorded_cap_combines_with_a_result_holding_it)) |
   (binary_id(sweep::all) & (test(=a_plane_through_a_pole_cuts_a_cap::a_plane_through_the_pole_cuts_each_hemisphere_at_its_cap) | test(=a_plane_through_a_pole_cuts_a_cap::a_cap_cut_again_through_its_pole_halves))) |
   (binary_id(sweep::all) & (test(=torus_doors_join::a_rod_inside_the_tubes_shadow_builds_at_its_volume) | test(=torus_doors_join::a_rod_off_the_axis_line_builds_at_its_volume) | test(=torus_doors_join::a_rod_across_the_tube_builds_at_its_volume) | test(=torus_doors_join::a_rod_across_the_inner_bound_builds_at_its_volume) | test(=torus_doors_join::a_rod_across_the_outer_equator_builds_at_its_volume))) |
   (binary_id(sweep::all) & (test(=cell_region_bodies::an_oblique_cylinder_section_decides_beside_its_ellipse) | test(=cell_region_bodies::a_cell_off_a_face_a_spline_section_bounds_is_dropped) | test(=cell_region_bodies::a_ball_is_sound_and_its_sphere_decides_its_cells) | test(=a_ray_meets_a_curved_edge_once_for_both_faces::every_crossing_of_a_ray_about_the_corpuss_edges_counts_right) | test(=a_ray_meets_a_curved_edge_once_for_both_faces::a_ray_shallow_to_a_face_past_its_curved_edge_reads_right) | test(=a_ray_meets_a_curved_edge_once_for_both_faces::every_crossing_of_a_ray_about_a_curved_edge_counts_right) | test(=a_ray_meets_a_curved_edge_once_for_both_faces::a_root_two_half_walls_share_is_counted_once) | test(=a_ray_meets_a_curved_edge_once_for_both_faces::rays_grazing_a_torus_rim_count_no_crossing_of_the_tube_elsewhere) | test(=cell_region_bodies::a_bumped_block_is_sound_on_every_face) | test(=cell_region_bodies::a_disc_is_sound) | test(=cell_region_bodies::a_cone_wall_decides_its_cells) | test(=cell_region_bodies::a_notched_block_is_sound_on_every_face) | test(=cell_region_bodies::a_slab_with_two_holes_is_sound_on_every_face) | test(=cell_region_bodies::a_plate_with_a_round_hole_drops_the_cells_in_the_hole) | test(=cell_region_bodies::a_sphere_octant_touching_the_pole_is_sound) | test(=cell_region_bodies::a_quarter_annulus_revolved_either_way_is_sound) | test(=cell_region_bodies::a_spool_is_sound_and_its_torus_decides_its_cells) | test(=an_arc_loft_seams_its_rational_wall_at_every_spacing::every_spacing_lofts_at_degree_two_and_three) | test(=an_arc_loft_seams_its_rational_wall_at_every_spacing::the_carve_spacings_validate_at_tier_three))) |

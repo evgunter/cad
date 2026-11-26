@@ -65,4 +65,14 @@ main at `fa4e9ba921`: the same failure (run).
 
 **Another seed (2026-11-23, `oneround/lever-sites-topo`, PR 7228's CI run 45095926336, corrupt-input job).** `review_d18::torn_bodies_fail_reads_only_on_a_row_four_premise` at `CAD_FUZZ_SEED=0xc5a70b56d9b20bfb CAD_FUZZ_EFFORT=1` panics at `pcurves/site.rs:395` ("HalfEdgeKey(4v1) is a member of its own loop"). The replay used `cargo test --release -p topo --lib` with `CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS=false`, as the job runs it. It panics identically on `origin/main` at `2130aa45f5` and on the lane's head.
 
+## 2026-11-25 — another seed (INSIDE, PR 7801)
+
+`CAD_FUZZ_SEED=0xb7a195234bb7e042` reds
+`review_d18::torn_bodies_fail_reads_only_on_a_row_four_premise` in the
+release-profile corrupt-input job the same way
+(`pcurves/site.rs`: "HalfEdgeKey(4v1) is a member of its own loop"), on
+a branch that does not touch the pcurve sites.
+A second seed on the next head: `CAD_FUZZ_SEED=0xccd85e4535544fc8`, the same panic.
+A third, 2026-11-26 (PR 7801 at `d98cd3bf6`): `CAD_FUZZ_SEED=0xc8c4a2645bb07846`, the same panic (`HalfEdgeKey(4v1)`).
+
 - 2026-11-26 — **another seed, from HELDRECORDS' PR 7808** (its diff touches no file under `pcurves/`, `splitting/` or `review_d18.rs`): the same job drew `0xa39f3a69499ffbda` and panicked on `HalfEdgeKey(4v1)` at `crates/topo/src/pcurves/site.rs:395`. Not replayed on main by this lane.

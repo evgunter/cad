@@ -195,7 +195,12 @@ impl CrossingReading {
 /// rung in band asks whether the plane coincides with the carrier. A
 /// placement in the band's gap is a crossing decision: a root against an
 /// end of the span ([`MeetFault::Escalated`], `OnEdge`) or two roots the
-/// band cannot order ([`MeetFault::Touch`], `Order`).
+/// band cannot order ([`MeetFault::Touch`], `Order`). The ring
+/// composite's `Touch` is no pair of roots: it is a stretch where the
+/// spline meets the surface in band, which the composite cannot split
+/// into a crossing, a graze or a miss, so it asks what a pose rung in
+/// band asks (whether the plane cuts the edge, grazes it or misses it)
+/// and takes the coincidence lever.
 ///
 /// [`MeetFault::Escalated`]: geom_brep::curve_pair::MeetFault::Escalated
 /// [`MeetFault::Touch`]: geom_brep::curve_pair::MeetFault::Touch
@@ -215,6 +220,13 @@ fn window_reading(why: CrossWhy) -> CrossingReading {
             | PoseRefusal::Unbuilt(_)
             | PoseRefusal::Torus(_),
         ) => CrossingReading::Unread,
+        CrossWhy::Method {
+            door: geom_brep::curve_face::Door::SplineComposite,
+            fault: MeetFault::Touch(_),
+        } => CrossingReading::Decision {
+            crossing: None,
+            parallel: false,
+        },
         CrossWhy::Method { fault, .. } => match fault {
             MeetFault::Escalated(_) => CrossingReading::Decision {
                 crossing: Some(CrossingDecision::OnEdge),
