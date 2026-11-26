@@ -134,10 +134,12 @@ fn r2_the_steinmetz_fold_numbers_rederive_exactly() {
 /// about its own axis: A's two seams now definitely cross B's wall (the
 /// -0.25 bound above), so the A-side sweep no longer raises — but B's
 /// own seam rulings (x = +-1, z = 0 lines along y) are still TANGENT to
-/// A's wall at the section's singular points, so the pair still refuses
-/// at the pierce door, now naming an operand-B edge. Before this PR the
-/// refusal named operand A; the operand flip is the measurement that
-/// the A-side crossings were actually found and split.
+/// A's wall at the section's singular points, so the pair still refuses.
+/// Those seams cross the two bisector planes at one point, the node, and
+/// the factored read refuses there (`NodeUnbuilt`, `NodeWhy::GermOnNode`;
+/// C5), a refusal that names the two walls, not the raising edge; the
+/// operand flip this row once measured (from A's seam to B's, the A-side
+/// crossings found and split) is read through the printed payload only.
 #[test]
 fn r2_a_spun_steinmetz_moves_the_raiser_to_the_partner_seam() {
     let spun = topo::transform_rigid(
@@ -187,8 +189,16 @@ fn r2_a_spun_steinmetz_moves_the_raiser_to_the_partner_seam() {
         eprintln!("  endpoints: {ends:?}");
     }
     eprintln!("spun steinmetz full error: {err:?}");
+    // The spun pair's seams still meet the partner wall at the section's
+    // nodes, where the factored read refuses (C5).
     assert!(
-        matches!(err, BooleanError::CurvedPierceUnsupported { .. }),
+        matches!(
+            err,
+            BooleanError::NodeUnbuilt {
+                why: topo::NodeWhy::GermOnNode,
+                ..
+            }
+        ),
         "{err:?}"
     );
 }

@@ -89,34 +89,32 @@ fn wall(b: &Body<f64>) -> (Point3<f64>, Vec3<f64>, f64) {
     found.expect("the fixture has a wall")
 }
 
-/// **The Steinmetz pair dies at its seams, and the seams die ON the
-/// pinch points.** The row asserts three things together, because
-/// separately none of them says what happened: the refusal is the
-/// crossing layer's, the edge it names is a straight seam ruling, and
-/// that ruling touches the partner wall exactly at `p − r·n̂`,
-/// `n̂ = unit(â₁ × â₂)` —
-/// one of the two points where the section crosses itself.
+/// **The Steinmetz pair refuses at its nodes, and its seams are tangent
+/// there.** Two facts together: the refusal is the factored read's at a
+/// node of the pair's section (`NodeUnbuilt`, `NodeWhy::GermOnNode`; C5:
+/// an edge whose crossings of the two bisector planes are one point
+/// refuses typed and is never handed back to the quadric door), and a
+/// straight seam ruling of `A` touches the partner wall exactly at
+/// `p − r·n̂` or `p + r·n̂`, `n̂ = unit(â₁ × â₂)`, one of the two points
+/// where the section crosses itself.
 ///
 /// So the classic fixture is not a join question at all at this head.
-/// It is a tangency, and a tangency ties every first-order datum the
-/// pierce machinery reads.
+/// It is a tangency at a node, and a tangency ties every first-order
+/// datum the pierce machinery reads.
 #[test]
 fn the_steinmetz_seams_are_tangent_at_the_sections_pinch_points() {
     let (a, b) = steinmetz(2.0);
     let err = union_err(&a, &b);
-    let BooleanError::CurvedPierceUnsupported { operand, edge, .. } = &err else {
-        panic!("expected the crossing layer's door, got {err:?}");
-    };
-    assert_eq!(*operand, topo::Operand::A, "A's seam is the raiser");
-
-    let Some(topo::CurveGeom::Certified(c)) =
-        a.get_edge(*edge).and_then(|e| a.get_curve_geom(e.curve))
-    else {
-        panic!("the named edge has no certified curve");
-    };
-    let topo::Curve3::Line(geom::Line { origin, dir }) = *c.carrier() else {
-        panic!("a seam ruling is a Line carrier; got {:?}", c.carrier());
-    };
+    assert!(
+        matches!(
+            err,
+            BooleanError::NodeUnbuilt {
+                why: topo::NodeWhy::GermOnNode,
+                ..
+            }
+        ),
+        "expected the factored read's node, got {err:?}"
+    );
 
     // The two pinch points, from the axes alone.
     let (_, a1, r) = wall(&a);
@@ -128,26 +126,37 @@ fn the_steinmetz_seams_are_tangent_at_the_sections_pinch_points() {
     let p = Point3::new(0.0, 0.0, 0.0);
     let pinches = [p + n * r, p - n * r];
 
-    // The seam's closest approach to B's axis, in closed form: the
-    // ruling is axis-parallel to A, so its residual against B's wall is
-    // a parabola in the span parameter and its vertex is the foot.
-    let w = origin - o2;
+    // Each seam ruling's closest approach to B's axis, in closed form: the
+    // ruling is axis-parallel to A, so its residual against B's wall is a
+    // parabola in the span parameter and its vertex is the foot. Some seam
+    // of A touches the partner wall there, at a pinch point.
     let perp = |v: Vec3<f64>| v - a2 * v.dot(a2);
-    let (wp, dp) = (perp(w), perp(dir.get()));
-    let t = -wp.dot(dp) / dp.norm_squared();
-    let touch = origin + dir.get() * t;
-    let gap = perp(touch - o2).norm() - r;
+    let touches: Vec<(f64, f64)> = a
+        .edges()
+        .filter_map(|(_, e)| match a.get_curve_geom(e.curve) {
+            Some(topo::CurveGeom::Certified(c)) => match *c.carrier() {
+                topo::Curve3::Line(geom::Line { origin, dir }) => {
+                    let (wp, dp) = (perp(origin - o2), perp(dir.get()));
+                    let t = -wp.dot(dp) / dp.norm_squared();
+                    let touch = origin + dir.get() * t;
+                    let gap = perp(touch - o2).norm() - r;
+                    let d = pinches
+                        .iter()
+                        .map(|q| (touch - *q).norm())
+                        .fold(f64::MAX, f64::min);
+                    Some((gap, d))
+                }
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect();
     assert!(
-        gap.abs() < 1e-15,
-        "the seam is tangent to the partner wall, not crossing it: gap {gap}"
-    );
-    let d = pinches
-        .iter()
-        .map(|q| (touch - *q).norm())
-        .fold(f64::MAX, f64::min);
-    assert!(
-        d < 1e-15,
-        "the tangency sits at a pinch point p ± r·n̂, n̂ = unit(â₁ × â₂); it is {d} away"
+        touches
+            .iter()
+            .any(|&(gap, d)| gap.abs() < 1e-15 && d < 1e-15),
+        "a seam is tangent to the partner wall at a pinch point p ± r·n̂, n̂ = unit(â₁ × â₂): \
+         (gap, distance) per ruling {touches:?}"
     );
 }
 

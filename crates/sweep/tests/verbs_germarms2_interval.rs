@@ -365,16 +365,23 @@ fn a_skew_pair_stays_off_the_nodes_at_the_certified_scalar() {
     );
 }
 
-/// The Steinmetz pose itself keeps the crossing layer's tangency door
-/// at the certified scalar: its seams are ON the pinch points, and a
-/// tangency is not a crossing at any order this lane reads.
+/// The Steinmetz pose itself refuses at its nodes at the certified
+/// scalar: its seams are ON the pinch points, where their crossings of
+/// the two bisector planes are one point, and the factored read refuses
+/// the node (C5).
 #[test]
 fn the_steinmetz_pose_keeps_the_tangency_door_at_the_certified_scalar() {
     let a = cyl(1.0, 2.0);
     let b = spin(&cyl(1.0, 2.0), x_axis(), PI / 2.0);
     let err = union_err(&a, &b);
     assert!(
-        matches!(err, BooleanError::CurvedPierceUnsupported { .. }),
+        matches!(
+            err,
+            BooleanError::NodeUnbuilt {
+                why: topo::NodeWhy::GermOnNode,
+                ..
+            }
+        ),
         "{err:?}"
     );
     same_door_or_escalated(

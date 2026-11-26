@@ -367,8 +367,11 @@ const BELOW_K: [f64; 3] = [3.0, 6.0, 9.9];
 const ABOVE_K: [f64; 6] = [10.5, 11.0, 11.5, 12.0, 15.0, 19.0];
 
 /// `refusal` is the near-coincidence of a pair of cells `t` apart: a
-/// vertex and a face, or a vertex and a loop's boundary, whichever
-/// question the op asks of the wall first.
+/// vertex and a face, a vertex and a loop's boundary, or an edge's
+/// crossing of the wall's far face and the edge's end (whether the
+/// crossing lands strictly inside the edge, the planar lane's reading of
+/// a root within the band of its end), whichever question the op asks of
+/// the wall first.
 fn assert_refuses_on_a_pair(what: &str, t: f64, refusal: Result<(), BooleanError>) -> f64 {
     let Err(BooleanError::Escalated { decision, diag }) = &refusal else {
         panic!("{what}: refuses Escalated, got {refusal:?}");
@@ -381,6 +384,7 @@ fn assert_refuses_on_a_pair(what: &str, t: f64, refusal: Result<(), BooleanError
                     decision: Some(ContainDecision::Loop(LoopDecision::Boundary)),
                     ..
                 }
+                | BooleanDecision::Crossing(topo::CrossingDecision::OnEdge)
         ),
         "{what}: the refusal's subject is a pair of cells: {decision:?}"
     );
