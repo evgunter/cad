@@ -27,3 +27,25 @@ edit). The census's other diffs in the same run (`ssi/certify.rs`
 Fix: disposition the two new reads in the census roster and its prose
 (both are on lifted f64 ends of a certified enclosure, compared against
 ±π to filter to the whole sheet), and move clearance.rs's row to 59.
+
+## 2026-11-26: the two reads, read off the census
+
+The guess above was half right. A per-function count of
+`clearance.rs`'s production `.lo()`/`.hi()` sites at the roster's
+commit (`8fc1fdf768`, 57) against main (59) moves one function alone:
+both new reads are `lifted_ends`'s (`Interval::from_certified(lo).lo()`
+and `Interval::from_certified(hi).hi()`), which PR 7786 added. `window_of`'s
+own count did not move, and the sheet arm is one of `lifted_ends`' TWO
+callers: the torus arm's `within_turn` is the other, where the ends are
+compared against a turn's width, not against `±π`.
+
+Neither read is sound as written, so the fix is not the disposition
+this row proposed. `from_certified` keeps a refused bracket's ordinary
+endpoints under `Trv`, and the reads took them without asking: nothing
+upstream refuses an uncertified end (`cover::widened` asks only
+`is_bounded`), so a window end that does not certify narrowed the
+torus or sheet channel, the certifying direction of a superset claim.
+`lifted_ends` now reads both ends through `certified_bracket`, the
+refusal door, and an end that does not certify leaves the channel its
+canonical range. The census reads `clearance.rs` at (57, 16) again,
+and its roster row stands.
