@@ -477,10 +477,18 @@ fn every_op(
                     )
                 })
                 .count();
+            // Every other unrecorded kind is red: a vertex–edge touch
+            // the op set aside unrecorded among them.
             assert!(
                 findings.iter().all(|e| {
                     matches!(e, topo::ValidationError::CensusUndecidable { .. })
-                        || matches!(e, topo::ValidationError::UnrecordedContact { .. })
+                        || matches!(
+                            e,
+                            topo::ValidationError::UnrecordedContact {
+                                contact: topo::CensusContact::EdgeFaceOverlap { .. },
+                                ..
+                            }
+                        )
                 }) && unrecorded == usize::from(drops_line(name, held_first)),
                 "{what}: tier 3′: {findings:?}"
             );
