@@ -472,10 +472,15 @@ fn a_higher_degree_loft_keeps_one_wall_per_segment() {
 /// (`work/coincide/the-carrier-ladder-cannot-read-a-spline-carrier-so-coincident-spline-faces-never-merge.md`).
 /// That is a missing reading, not a property of the loft. When the
 /// ladder reads them, these assertions fail and are rewritten to expect
-/// the merge. The boolean's maximal-faces gate reads an operand the
-/// same way, so it passes too; what refuses the union is the boolean's
-/// spline-edge frontier, as on a two-section loft
-/// (`band_subdivided_side_walls`).
+/// the merge.
+///
+/// The boolean's maximal-faces gate reads an operand the same way, so
+/// it passes too, and since point containment's ray crosses spline faces
+/// (`geom_brep::curve_face::line_patch`, PR 7798) every operation with a
+/// cube across two of the slabs' sections builds. Each is tier-3 valid
+/// and measures its closed form: the loft is the box `[−1, 1]² × [0, 2]`,
+/// 8; the cube `[0.5, 1.5] × [−0.5, 0.5] × [0.3, 1.7]`, 1.4; their common
+/// part `[0.5, 1] × [−0.5, 0.5] × [0.3, 1.7]`, 0.7.
 #[test]
 fn the_output_stage_merge_keeps_every_slab_wall() {
     let zs = heights(4, "uniform");
@@ -490,18 +495,71 @@ fn the_output_stage_merge_keeps_every_slab_wall() {
         outcome.groups
     );
     assert_eq!(merged.faces().count(), lofted.body.faces().count());
-    let loft = finished("the loft", lofted.body, tol());
+    let t = tol();
+    let loft = finished("the loft", lofted.body, t);
     let cube = finished(
         "a cube",
-        brick::<f64>((0.5, 1.5), (-0.5, 0.5), (0.3, 1.7), tol()),
-        tol(),
+        brick::<f64>((0.5, 1.5), (-0.5, 0.5), (0.3, 1.7), t),
+        t,
     );
-    let err = topo::union(&loft, &cube, tol()).map(|_| ()).unwrap_err();
-    assert!(
-        !matches!(err, topo::BooleanError::NonMaximalFaces { .. }),
-        "the union refuses past the maximal-faces gate: {err:?}"
-    );
-    println!("degree-1 loft ∪ cube across two sections: {err:?}");
+    let volume = |body: &topo::AtRestBody<f64>| {
+        topo::mass_properties(body, t, topo::test_support::pinned_resolution(t))
+            .expect("the body measures")
+            .met()
+            .expect("the measure settles")
+            .volume
+    };
+    let built = |run: Result<topo::BooleanResult<f64>, topo::BooleanError>, op: &str| {
+        let run = run.unwrap_or_else(|e| panic!("{op} builds: {e:?}"));
+        let body = run
+            .body()
+            .unwrap_or_else(|| panic!("{op} is not empty"))
+            .body
+            .clone();
+        assert_eq!(topo::validate_geometric(&body, t), Ok(()), "{op}: tier 3");
+        volume(&body)
+    };
+    let near = |x: f64, y: f64| (x - y).abs() < 1e-9;
+    let (common, joined) = (0.5 * 1.0 * 1.4, 8.0 + 1.4 - 0.5 * 1.0 * 1.4);
+    for (got, want, op) in [
+        (volume(&loft), 8.0, "the loft"),
+        (volume(&cube), 1.4, "the cube"),
+        (
+            built(topo::union(&loft, &cube, t), "loft ∪ cube"),
+            joined,
+            "loft ∪ cube",
+        ),
+        (
+            built(topo::union(&cube, &loft, t), "cube ∪ loft"),
+            joined,
+            "cube ∪ loft",
+        ),
+        (
+            built(topo::intersect(&loft, &cube, t), "loft ∩ cube"),
+            common,
+            "loft ∩ cube",
+        ),
+        (
+            built(topo::intersect(&cube, &loft, t), "cube ∩ loft"),
+            common,
+            "cube ∩ loft",
+        ),
+        (
+            built(topo::subtract(&loft, &cube, t), "loft ∖ cube"),
+            8.0 - common,
+            "loft ∖ cube",
+        ),
+        (
+            built(topo::subtract(&cube, &loft, t), "cube ∖ loft"),
+            1.4 - common,
+            "cube ∖ loft",
+        ),
+    ] {
+        assert!(
+            near(got, want),
+            "{op}: {got} against the closed form {want}"
+        );
+    }
 }
 
 /// A path sweep shares the assembly: at v-degree 1 through five
