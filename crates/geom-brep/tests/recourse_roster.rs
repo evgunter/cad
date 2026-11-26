@@ -115,6 +115,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("coincident_over_extent_as"),
     NameCarrier::Call("cone_cylinder_section"),
     NameCarrier::Call("constant_as"),
+    NameCarrier::Call("cylinder_radius_decided"),
     NameCarrier::Call("definitely_as"),
     NameCarrier::Call("first_within"),
     NameCarrier::Call("gate"),

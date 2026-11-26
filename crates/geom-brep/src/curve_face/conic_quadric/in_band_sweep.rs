@@ -182,17 +182,30 @@ fn no_pose_inside_the_band_is_answered() {
             if truth.residual_depth >= 10.0 * eps {
                 continue;
             }
-            let got = conic_quadric_roots(&c, m - h, m + h, &wall(r), band);
-            if permitted(&got, &truth, &c, (r, (m - h, m + h)), eps) {
-                continue;
+            // The door's test reader, and beside it the production reading
+            // (`cross`), each judged the same way.
+            let production = Ok(crate::curve_face::conic_oracle::cross_reading(
+                &c,
+                (m - h, m + h),
+                &wall(r),
+                band,
+            )
+            .as_door());
+            for got in [
+                conic_quadric_roots(&c, m - h, m + h, &wall(r), band),
+                production,
+            ] {
+                if permitted(&got, &truth, &c, (r, (m - h, m + h)), eps) {
+                    continue;
+                }
+                wrong.push(format!(
+                    "ε {eps:e}, depth {depth:e} (true {:.3e}, residual {:.3e}, {} true roots): \
+                     {got:?}\n  {c:?} wall r {r}",
+                    truth.depth,
+                    truth.residual_depth,
+                    truth.roots.len()
+                ));
             }
-            wrong.push(format!(
-                "ε {eps:e}, depth {depth:e} (true {:.3e}, residual {:.3e}, {} true roots): \
-                 {got:?}\n  {c:?} wall r {r}",
-                truth.depth,
-                truth.residual_depth,
-                truth.roots.len()
-            ));
         }
     }
     assert!(

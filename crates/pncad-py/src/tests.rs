@@ -4472,6 +4472,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "radius_headroom",
             "repeated_edge",
             "ring_clearance",
+            "size_beyond_range",
             "spine_irregular",
             "spine_unsupported",
             "surgery_invariant",

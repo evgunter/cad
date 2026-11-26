@@ -63,6 +63,10 @@ crates/topo/src/boolean/fate.rs 2
 crates/topo/src/boolean/insert.rs 1
 # join: bool_connect's partners, every segment's: NOT A SEARCH.
 crates/topo/src/boolean/join.rs 1
+# face_reading: face_crossings' meetings, a touch's arc inside the span
+# (1), an end-touch's arc's stretch inside it (1) and a crossing's
+# placement (1), which meeting the face holds first is the event: WHICH.
+crates/topo/src/boolean/face_reading.rs 3
 # boolean mod: vertex_at, which vertex is at the point: WHICH.
 crates/topo/src/boolean/mod.rs 1
 # overlap: overlap_as's edge_witness `?` carries only refusals of the
@@ -70,11 +74,11 @@ crates/topo/src/boolean/mod.rs 1
 crates/topo/src/boolean/overlap.rs 1
 # recl: recl_edges classifies every mention pair: NOT A SEARCH.
 crates/topo/src/boolean/recl.rs 3
-# reduce: arc_chain_reaches' walk (1): NOT A SEARCH; spline_interior (2),
-# spline_wall_event (1) and wall_crossing (1), which crossing is the
-# event: WHICH. (first_unsupported_pair's two box reads left with main's
-# operand gate, e4516384d5.)
-crates/topo/src/boolean/reduce.rs 5
+# reduce: arc_chain_reaches' walk (1): NOT A SEARCH; spline_interior (2)
+# and spline_wall_event (1), which crossing is the event: WHICH.
+# (first_unsupported_pair's two box reads left with main's operand gate,
+# e4516384d5; wall_crossing's went to face_reading with its meetings.)
+crates/topo/src/boolean/reduce.rs 4
 # rim_wedge: departures's two cover reads: WHICH, the first piece whose
 # covers settle the kind (EdgeKindUnread, Mixed, NoEdge) answers, and
 # pieces can answer different kinds (QML T4; the site says so); reach's

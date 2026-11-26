@@ -31,7 +31,7 @@
 # which err the safe way.
 
 
-boolean-names-splitting     2  boolean/carrier_touch.rs
+boolean-names-splitting     1  boolean/carrier_touch.rs
 boolean-names-splitting     1  boolean/carrier_touch_rows.rs
 boolean-names-splitting    17  boolean/fate.rs
 boolean-names-splitting    19  boolean/insert.rs

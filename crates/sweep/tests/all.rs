@@ -608,6 +608,8 @@ mod cert8_r1_probes;
 mod closed_chain_junctions;
 #[path = "conic_edge_curved_face.rs"]
 mod conic_edge_curved_face;
+#[path = "conic_sizes_are_decided.rs"]
+mod conic_sizes_are_decided;
 #[path = "contact11_torus_chart_l.rs"]
 mod contact11_torus_chart_l;
 #[path = "contact_edge_must_carry.rs"]

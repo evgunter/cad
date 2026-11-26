@@ -26,8 +26,8 @@
 //! `curve_face_pose_meridian`, below), then the ladder's:
 //! `circle_torus_pole`, `_pole_conditioning`, `_noise` and the
 //! quartic's `circle_torus_*`. An in-band classifying sign
-//! is [`DoorRefusal::Escalated`]; an in-band coaxial
-//! tilt or offset only routes the pose ([`circle_torus_roots`],
+//! is [`DoorRefusal::Escalated`](super::circle_roots::DoorRefusal::Escalated); an in-band coaxial
+//! tilt or offset only routes the pose (`circle_torus_roots`, the door rows' reader,
 //! "Errors"). The ladder's answer is the certified subdivision's
 //! (`circle_torus_sub_*`), each root metered for its slack
 //! (`circle_torus_sub_root_slack`, "The root slack" below).
@@ -39,7 +39,7 @@
 //! where the carrier passes the tube. `F = 2r·res·Q` with `Q ≥ R² − r²`
 //! on a ring torus, so the floor on `|F|` per metre of residual is
 //! `2r(R² − r²)`. The door asks the convention for the ring before any
-//! pose, and refuses a torus outside it ([`DoorRefusal::Torus`]). The harmonics' rounding is a residual
+//! pose, and refuses a torus outside it ([`DoorRefusal::Torus`](super::circle_roots::DoorRefusal::Torus)). The harmonics' rounding is a residual
 //! error past the band once `ρ⁴ ≳ 10ε·r·R²/(u·SHORT_CHAIN_ULPS)`: from
 //! `ρ ≈ 50` at the default band against a torus `R = 1, r = 0.25`.
 //!
@@ -110,7 +110,7 @@
 //!   constant residual then decides it, its spread from the in-band
 //!   offset and tilt charged (`curve_face_pose_torus_constant`,
 //!   [`super::circle_roots`], "A constant residual"): zero is
-//!   [`Roots::On`] (a rim circle of the torus), and
+//!   [`Roots::On`](crate::roots::Roots::On) (a rim circle of the torus), and
 //!   definite a [`CircleRoots::Miss`].
 //! - **Parallel axes** (the circle's plane perpendicular to `â`, off
 //!   the axis — the lily's pose): `h` is constant, the plane meets the
@@ -129,7 +129,7 @@
 //!   cannot answer. It is decided before the ladder, on one margin
 //!   bounding every carrier point's distance from the torus
 //!   (`curve_face_pose_meridian`, [`meridian_deviation`]): Zero is
-//!   [`Roots::On`], in band an escalation, and a definite
+//!   [`Roots::On`](crate::roots::Roots::On), in band an escalation, and a definite
 //!   deviation takes the ladder. The reduction records an
 //!   `On` arc only under `reduce::lying_on`'s certificates.
 //! - **A Villarceau circle** also has `F ≡ 0` and no rung: the ladder
@@ -147,11 +147,15 @@ use geom::Conic;
 use geom_core::UnitVec3;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
-use super::circle_roots::{CircleRoots, DoorRefusal};
+use super::circle_roots::CircleRoots;
+#[cfg(test)]
+use super::circle_roots::DoorRefusal;
 use crate::half_angle::{
     DegreeTwo, HalfAngleFrame, HalfAngleRows, Local, RootSlack, SubdivisionFrame,
 };
-use crate::roots::{OnCarrier, RootRefusal, Roots, Unsettled};
+#[cfg(test)]
+use crate::roots::{OnCarrier, Roots};
+use crate::roots::{RootRefusal, Unsettled};
 use geom_core::k_stats::decide;
 use geom_core::rounding_charge;
 
@@ -168,8 +172,8 @@ const DESYNC: &str = "the circle × torus root door was handed a carrier that is
 
 /// **The certified crossings of the `carrier` circle with the `torus`**,
 /// reported within `π` of the midpoint of `[t0, t1]`, in the root doors'
-/// shape: the sweep's reading until it reads [`super::cross()`]. A wrapper:
-/// the pose ([`super::pose()`]), then the method ([`torus_method`]), mapped
+/// shape: the door rows' reading, a test reader since the sweep reads
+/// [`super::cross()`]: the pose ([`super::pose()`]), then the method ([`torus_method`]), mapped
 /// back. `Lies` (a rim of a coaxial torus, a meridian) is
 /// [`CircleRoots::On`], `Apart` [`CircleRoots::Miss`], a pose rung read in
 /// the zero band where it needed a definite reading
@@ -181,6 +185,7 @@ const DESYNC: &str = "the circle × torus root door was handed a carrier that is
 /// [`DoorRefusal::Torus`] for a torus outside the ring convention, asked
 /// before any pose; [`DoorRefusal::Escalated`] for a pose rung or a
 /// method sign in band.
+#[cfg(test)]
 pub fn circle_torus_roots<T: Decide>(
     carrier: &geom::Curve3<T>,
     t0: T,
@@ -197,7 +202,8 @@ pub fn circle_torus_roots<T: Decide>(
     torus_wrapper(carrier, (t0, t1), torus, band)
 }
 
-/// [`circle_torus_roots`]' and `ellipse_torus_roots`' one wrapper.
+/// [`circle_torus_roots`]' and `ellipse_torus_roots`' one test reader.
+#[cfg(test)]
 pub(super) fn torus_wrapper<T: Decide>(
     carrier: &geom::Curve3<T>,
     (t0, t1): (T, T),

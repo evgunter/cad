@@ -20,7 +20,7 @@
 //! circle × torus door's metering: `F`'s rounding charged against its
 //! term bound, read in residual metres through the floor
 //! `2r(R² − r²)` on `|F|` per metre of residual. Its answers are
-//! `Certified` or `Miss`, or an [`Unsettled`] refusal, never an
+//! `Certified` or `Miss`, or an [`Unsettled`](crate::roots::Unsettled) refusal, never an
 //! escalation.
 //!
 //! **Every root's slack is charged from the computation's own running
@@ -32,7 +32,7 @@
 //! metre of residual — at the carrier's top speed, must be definitely
 //! inside the band ([`crate::half_angle::RootSlack`]). A shallow
 //! crossing whose root the representation cannot place refuses
-//! [`Unsettled::Meter`] there.
+//! [`Unsettled::Meter`](crate::roots::Unsettled::Meter) there.
 //!
 //! A piece is read CLEAR in residual metres through the surface's
 //! ceiling `2r((2R + 2r)² + 3r²)`, capped at `r/2` — the bound
@@ -41,10 +41,12 @@
 
 use geom_core::{Band, Decide};
 
+#[cfg(test)]
 use super::circle_roots::{CircleRoots, DoorRefusal};
 use crate::half_angle::{
     RootSlack, SubdivisionFrame, SubdivisionRows, Terms, TrigPoly, certified_subdivision_past,
 };
+#[cfg(test)]
 use crate::roots::Unsettled;
 use geom_core::rounding_charge;
 /// The torus arm's subdivision rows (module docs).
@@ -52,7 +54,8 @@ const TORUS_ROWS: SubdivisionRows = crate::rows::ELLIPSE_TORUS;
 
 /// The certified crossings of the `carrier` ellipse with the `surface`
 /// torus, reported within `π` of the midpoint of `[t0, t1]` (module
-/// docs).
+/// docs): the door rows' reading, a test reader since the sweep reads
+/// [`super::cross()`].
 ///
 /// # Errors
 ///
@@ -62,6 +65,7 @@ const TORUS_ROWS: SubdivisionRows = crate::rows::ELLIPSE_TORUS;
 /// [`DoorRefusal::Torus`] for a torus outside the ring convention. The
 /// subdivision's sign in band is [`DoorRefusal::Escalated`], its
 /// fault is the kernel's, and its limit is the inner [`Unsettled`].
+#[cfg(test)]
 pub fn ellipse_torus_roots<T: Decide>(
     carrier: &geom::Curve3<T>,
     t0: T,
@@ -518,7 +522,14 @@ mod torus_rows {
                 let (mut certified, mut misses, mut uncertain) = (0, 0, 0);
                 for i in 0..fuzz::scaled(120) {
                     let (e, s, t0, t1) = pose(&mut rng, family, eps);
-                    let found = door_answer(ellipse_torus_roots(&e, t0, t1, &s, band));
+                    // The door's test reader, and beside it the production
+                    // reading (`cross`), each judged the same way.
+                    let read = [
+                        door_answer(ellipse_torus_roots(&e, t0, t1, &s, band)),
+                        crate::curve_face::conic_oracle::cross_reading(&e, (t0, t1), &s, band)
+                            .as_door()
+                            .map_err(Some),
+                    ];
                     let truth = exact::truth(&e, &s);
                     let label = format!(
                         "ε {eps}, {name} {i}: {e:?} against {s:?} on [{t0}, {t1}] — {}",
@@ -535,43 +546,50 @@ mod torus_rows {
                     if on_arc.at_an_end {
                         continue;
                     }
-                    match found {
-                        Ok(CircleRoots::Certified(found)) => {
-                            let (count, thetas) = (found.count(), found.roots());
-                            certified += 1;
-                            let placed = thetas[..count]
-                                .iter()
-                                .filter(|&&t| crate::curve_face::conic_oracle::on_arc((t0, t1), t))
-                                .count();
-                            assert_eq!(
-                                placed,
-                                on_arc.roots.len(),
-                                "{label}: certified {count}, {:?} on the arc",
-                                on_arc.roots
-                            );
-                            for &t in &thetas[..count] {
-                                let off = distance(&s, e.eval(t)).abs();
-                                assert!(off <= eps, "{label}: root {t} lies {off} off the torus");
-                                let arc = arc_off(&e, t, &truth.roots);
-                                assert!(
-                                    arc <= eps,
-                                    "{label}: root {t} is {arc:e} m of arc from a true crossing \
+                    for found in read {
+                        match found {
+                            Ok(CircleRoots::Certified(found)) => {
+                                let (count, thetas) = (found.count(), found.roots());
+                                certified += 1;
+                                let placed = thetas[..count]
+                                    .iter()
+                                    .filter(|&&t| {
+                                        crate::curve_face::conic_oracle::on_arc((t0, t1), t)
+                                    })
+                                    .count();
+                                assert_eq!(
+                                    placed,
+                                    on_arc.roots.len(),
+                                    "{label}: certified {count}, {:?} on the arc",
+                                    on_arc.roots
+                                );
+                                for &t in &thetas[..count] {
+                                    let off = distance(&s, e.eval(t)).abs();
+                                    assert!(
+                                        off <= eps,
+                                        "{label}: root {t} lies {off} off the torus"
+                                    );
+                                    let arc = arc_off(&e, t, &truth.roots);
+                                    assert!(
+                                        arc <= eps,
+                                        "{label}: root {t} is {arc:e} m of arc from a true crossing \
                                      ({:?})",
-                                    truth.roots
+                                        truth.roots
+                                    );
+                                }
+                            }
+                            Ok(CircleRoots::Miss) => {
+                                misses += 1;
+                                assert!(
+                                    on_arc.roots.is_empty() && on_arc.least >= 10.0 * eps,
+                                    "{label}: a Miss {} from the torus, crossings {:?}",
+                                    on_arc.least,
+                                    on_arc.roots
                                 );
                             }
+                            Err(_) => uncertain += 1,
+                            other => panic!("{label}: {other:?}"),
                         }
-                        Ok(CircleRoots::Miss) => {
-                            misses += 1;
-                            assert!(
-                                on_arc.roots.is_empty() && on_arc.least >= 10.0 * eps,
-                                "{label}: a Miss {} from the torus, crossings {:?}",
-                                on_arc.least,
-                                on_arc.roots
-                            );
-                        }
-                        Err(_) => uncertain += 1,
-                        other => panic!("{label}: {other:?}"),
                     }
                 }
                 println!(

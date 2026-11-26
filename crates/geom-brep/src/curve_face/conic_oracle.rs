@@ -287,6 +287,83 @@ pub fn holds_on_arc(found: &[f64], truth: &ArcTruth, arc: (f64, f64), band: f64)
     )
 }
 
+/// **What `cross` answered, as the safety rows judge a door's reading**
+/// ([`cross_reading`]).
+#[derive(Debug)]
+pub enum CrossReading {
+    /// A refusal, or a decided touch: the root doors' `Unsettled` (a
+    /// window, a tangency), which the rows permit wherever they permit
+    /// one.
+    Refused,
+    /// The pose's `Lies`: the doors' `On`.
+    Lies,
+    /// Its meetings' parameters on the span (an end's at that end, and a
+    /// `Through` pose's apex where the span holds it), none for `Apart`:
+    /// the doors' certified roots, or their `Miss`.
+    Roots(Vec<f64>),
+}
+
+impl CrossReading {
+    /// The reading in the root doors' shape, for a row's judge of a door
+    /// answer: a refusal is `Unsettled::Tangency` (the doors' limit, which
+    /// every safety row permits), `Lies` is `On`, the roots `Miss` or a
+    /// certified count (a count past the doors' room a `Meter` limit).
+    pub fn as_door(
+        &self,
+    ) -> Result<super::circle_roots::CircleRoots<f64>, crate::roots::Unsettled> {
+        use crate::roots::{OnCarrier, Roots, Unsettled};
+        match self {
+            Self::Refused => Err(Unsettled::Tangency),
+            Self::Lies => Ok(Roots::On(OnCarrier)),
+            Self::Roots(roots) => Roots::of(roots).ok_or(Unsettled::Meter {
+                row: "cross_reading_count",
+            }),
+        }
+    }
+}
+
+/// [`CrossReading`] of `cross`'s answer for `carrier` over `span` against
+/// `surface` at `band`: the production reading, beside a door row's
+/// wrapper leg.
+pub fn cross_reading(
+    carrier: &geom::Curve3<f64>,
+    span: (f64, f64),
+    surface: &geom::Surface<f64>,
+    band: geom_core::Band,
+) -> CrossReading {
+    use super::{Crossings, MeetingKind, OnSpan, Pose};
+    use crate::curve_pair::SpanEnd;
+    let on = crate::curve_pair::Span::new(carrier, span);
+    match super::cross(&on, surface, band) {
+        Err(_) => CrossReading::Refused,
+        Ok(Crossings {
+            pose: Pose::Lies, ..
+        }) => CrossReading::Lies,
+        Ok(Crossings { pose, meetings }) => {
+            if meetings
+                .iter()
+                .any(|m| matches!(m.kind, MeetingKind::Touch { .. }))
+            {
+                return CrossReading::Refused;
+            }
+            let mut roots: Vec<f64> = meetings
+                .iter()
+                .map(|m| match m.on_span {
+                    OnSpan::Inside { t } => t,
+                    OnSpan::End(SpanEnd::Start) => span.0,
+                    OnSpan::End(SpanEnd::Stop) => span.1,
+                })
+                .collect();
+            if let Pose::Through(apex) = pose
+                && on_arc(span, apex.at)
+            {
+                roots.insert(0, apex.at);
+            }
+            CrossReading::Roots(roots)
+        }
+    }
+}
+
 /// The crossings of the true distance from `s` along `e` on `[t0, t1]`.
 pub fn oracle(e: &geom::Curve3<f64>, s: &geom::Surface<f64>, t0: f64, t1: f64) -> Vec<f64> {
     crossings(|t| distance(s, e.eval(t)), t0, t1)
