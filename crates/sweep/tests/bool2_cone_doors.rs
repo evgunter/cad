@@ -494,9 +494,10 @@ fn a_disjoint_union_with_a_cone_face_now_assembles() {
 /// The refusal that STAYS. The cone arm retires `KindUnsupported` for
 /// `Cone` and for nothing else, and the message must stop offering
 /// "express it without a cone face" as the recourse for a kind that now
-/// has an arm. The SPLINE kinds keep the variant, and keep it as a
-/// capability claim about a HEALTHY body — the torus kept it too until
-/// issue 1011’s torus half landed the ray×torus arm.
+/// has an arm. A spindle sheet's kind keeps the variant, and keeps it as
+/// a capability claim about a HEALTHY body: the torus kept it too until
+/// issue 1011's torus half landed the ray×torus arm, and the spline kinds
+/// until PR 7798's spline arm.
 #[test]
 fn the_kind_refusal_no_longer_names_the_cone() {
     let body = cone();
@@ -514,7 +515,7 @@ fn the_kind_refusal_no_longer_names_the_cone() {
     }
     let msg = PointInSolidError::KindUnsupported {
         face: body.faces().next().unwrap().0,
-        kind: geom::SurfaceKind::Nurbs,
+        kind: geom::SurfaceKind::Spindle,
     }
     .render(geom_brep::recourse::Reading::Build);
     assert!(msg.contains("The solid itself is fine"), "{msg}");
@@ -523,11 +524,11 @@ fn the_kind_refusal_no_longer_names_the_cone() {
         !msg.contains("cone"),
         "the recourse must not tell a caller to avoid a kind that has an arm: {msg}"
     );
-    // The torus was the other kind this message named until issue
-    // 1011's torus half landed its arm; what the variant carries now is
-    // the spline kinds.
+    // The torus and the spline kinds were the others this message named
+    // until their arms landed; what the variant carries now is a spindle
+    // sheet's.
     assert!(!msg.contains("torus"), "{msg}");
-    assert!(msg.contains("spline"), "{msg}");
+    assert!(msg.contains("spindle"), "{msg}");
 
     // The arm's OWN refusal, for a cone face in neither chart class.
     // The body that reaches it through the public doors is a tilted

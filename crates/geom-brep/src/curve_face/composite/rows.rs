@@ -1,4 +1,6 @@
-//! [`super::crossings`] on Bézier and B-spline carriers against a plane,
+//! The curve × face table's ring-composite arm
+//! ([`crate::curve_face::cross()`]) on Bézier and B-spline carriers
+//! against a plane,
 //! a cylinder and a sphere: clear, a pass within the band refusing, one
 //! crossing, three crossings (the first and third of one sense), a
 //! tangency, a crossing on a knot, a meeting at a crease, an in-band
@@ -14,7 +16,8 @@ use geom::{NurbsCurve3, Surface};
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Interval, Point3, Vec3};
 
-use super::{CompositeRefusal, crossings};
+use crate::curve_face::{CrossWhy, OnSpan, cross};
+use crate::curve_pair::{MeetFault, Span};
 use crate::roots::Unsettled;
 
 const ZERO: f64 = 1e-9;
@@ -45,9 +48,24 @@ fn cubic(z: [f64; 4]) -> NurbsCurve3<f64> {
     spline(3, &[0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], &xz)
 }
 
-fn read(net: &NurbsCurve3<f64>, surface: &Surface<f64>) -> Result<Vec<f64>, CompositeRefusal> {
-    let (lo, hi) = net.domain();
-    crossings(net, (lo, hi), surface, band(), Interval::from_certified).map(|found| found.roots)
+/// The crossings strictly inside the carrier's domain, ascending (a
+/// meeting at an end is the end's), or the leading window's fault.
+fn read(net: &NurbsCurve3<f64>, surface: &Surface<f64>) -> Result<Vec<f64>, MeetFault> {
+    let carrier = geom::Curve3::Nurbs(std::sync::Arc::new(net.clone()));
+    match cross(&Span::new(&carrier, net.domain()), surface, band()) {
+        Ok(found) => Ok(found
+            .meetings
+            .iter()
+            .filter_map(|m| match m.on_span {
+                OnSpan::Inside { t } => Some(t),
+                OnSpan::End(_) => None,
+            })
+            .collect()),
+        Err(refusal) => match refusal.leading().why {
+            CrossWhy::Method { fault, .. } => Err(fault),
+            why => panic!("the arm's windows are its method's: {why:?}"),
+        },
+    }
 }
 
 /// Each crossing reads ON the surface, and the residual changes sign
@@ -97,10 +115,7 @@ fn an_in_band_pass_inside_the_span_refuses() {
         &[(0.0, 1.0 + lift), (0.5, -1.0 + lift), (1.0, 1.0 + lift)],
     );
     let got = read(&net, &ground());
-    assert!(
-        matches!(got, Err(CompositeRefusal::Escalated(_))),
-        "{got:?}"
-    );
+    assert!(matches!(got, Err(MeetFault::Touch(_))), "{got:?}");
 }
 
 #[test]
@@ -135,10 +150,7 @@ fn a_tangency_refuses() {
         &[(0.0, 1.0), (0.5, -1.0), (1.0, 1.0)],
     );
     let got = read(&net, &ground());
-    assert!(
-        matches!(got, Err(CompositeRefusal::Escalated(_))),
-        "{got:?}"
-    );
+    assert!(matches!(got, Err(MeetFault::Touch(_))), "{got:?}");
 }
 
 /// A cubic B-spline whose controls are antisymmetric about its one
@@ -179,7 +191,7 @@ fn a_meeting_at_a_crease_refuses_and_one_off_it_crosses() {
     let net = NurbsCurve3::new(kv, control, vec![1.0; 5]).unwrap();
     let got = read(&net, &ground());
     assert!(
-        matches!(got, Err(CompositeRefusal::Unsettled(Unsettled::Crease))),
+        matches!(got, Err(MeetFault::Unsettled(Unsettled::Crease))),
         "{got:?}"
     );
     let half = Surface::Plane {
@@ -250,45 +262,42 @@ fn a_rational_arc_crosses_a_plane_and_a_cylinder() {
     };
     let got = read(&arc, &own);
     assert!(
-        matches!(got, Err(CompositeRefusal::Unsettled(Unsettled::Tangency))),
+        matches!(got, Err(MeetFault::Unsettled(Unsettled::Tangency))),
         "{got:?}"
     );
 }
 
 /// A non-rational cubic from inside a sphere to outside it, read through
-/// the certified lane's door, and only over the part of its domain it is
-/// given: the crossing outside that part is not the span's.
+/// the table ([`crate::curve_face::cross()`]), and only over the part of
+/// its domain it is given: the crossing outside that part is not the
+/// span's, and a span that starts on the sphere meets it at that end.
 #[test]
 fn a_cubic_leaves_a_sphere_through_the_door() {
+    use crate::curve_face::{OnSpan, cross};
+    use crate::curve_pair::{Span, SpanEnd};
     let net = cubic([0.0, 0.0, 0.0, 0.0]);
     let ball = Surface::Sphere {
         frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 0.5,
     };
-    let lane = crate::NurbsLane::<f64>::certified();
-    let roots = lane
-        .surface_crossings(&net, (0.0, 1.0), &ball, band())
-        .unwrap()
-        .roots;
-    assert_eq!(roots.len(), 1, "{roots:?}");
-    assert!((net.eval(roots[0]).x - 0.5).abs() < 1e-9, "{roots:?}");
-    let short = lane
-        .surface_crossings(&net, (0.0, 0.25), &ball, band())
-        .unwrap()
-        .roots;
-    assert_eq!(short, vec![]);
-    let from_it = lane
-        .surface_crossings(&net, (0.5, 1.0), &ball, band())
-        .unwrap();
-    assert_eq!(
-        from_it.roots,
-        vec![],
-        "the span's start on the sphere is its end vertex's"
-    );
+    let carrier = geom::Curve3::Nurbs(std::sync::Arc::new(net.clone()));
+    let read = |span| {
+        cross(&Span::new(&carrier, span), &ball, band())
+            .unwrap()
+            .meetings
+            .into_iter()
+            .map(|m| m.on_span)
+            .collect::<Vec<_>>()
+    };
+    let whole = read((0.0, 1.0));
     assert!(
-        matches!(from_it.ends, [crate::curve_face::EndReading::Within { until }, crate::curve_face::EndReading::Past(_)] if 0.5 < until && until < 1.0),
-        "the start reads near, and its stretch stops short of the stop: {:?}",
-        from_it.ends
+        matches!(whole[..], [OnSpan::Inside { t }] if (net.eval(t).x - 0.5).abs() < 1e-9),
+        "{whole:?}"
+    );
+    assert!(read((0.0, 0.25)).is_empty());
+    assert!(
+        matches!(read((0.5, 1.0))[..], [OnSpan::End(SpanEnd::Start)]),
+        "the span's start on the sphere is its meeting at that end"
     );
 }
 
@@ -299,7 +308,7 @@ fn a_cubic_leaves_a_sphere_through_the_door() {
 fn an_in_band_apex_at_a_crease_is_not_read_clear() {
     let got = read(&crease_v(1e-12), &ground());
     assert!(
-        matches!(got, Err(CompositeRefusal::Unsettled(Unsettled::Crease))),
+        matches!(got, Err(MeetFault::Unsettled(Unsettled::Crease))),
         "{got:?}"
     );
 }
@@ -310,7 +319,7 @@ fn an_in_band_apex_at_a_crease_is_not_read_clear() {
 fn an_in_band_dip_at_a_crease_refuses_crease() {
     let got = read(&crease_v(-1e-12), &ground());
     assert!(
-        matches!(got, Err(CompositeRefusal::Unsettled(Unsettled::Crease))),
+        matches!(got, Err(MeetFault::Unsettled(Unsettled::Crease))),
         "{got:?}"
     );
 }
@@ -335,7 +344,7 @@ fn a_crossing_within_band_of_a_crease_refuses() {
     };
     let got = read(&net, &lifted);
     assert!(
-        matches!(got, Err(CompositeRefusal::Unsettled(Unsettled::Crease))),
+        matches!(got, Err(MeetFault::Unsettled(Unsettled::Crease))),
         "{got:?}"
     );
 }
@@ -457,10 +466,7 @@ fn a_reference_direction_along_the_axis_is_a_degenerate_face() {
         radius: 1.0,
     };
     let got = read(&cubic([-1.0, -0.5, 0.5, 1.0]), &along);
-    assert!(
-        matches!(got, Err(CompositeRefusal::FaceDegenerate(_))),
-        "{got:?}"
-    );
+    assert!(matches!(got, Err(MeetFault::Unsupported { .. })), "{got:?}");
 }
 
 /// The rising line `z = 2t − 1` as a cubic over `[0, 1]`, at `Interval`,
@@ -484,46 +490,47 @@ fn rising_family(w: f64) -> NurbsCurve3<Interval> {
     NurbsCurve3::new(knots, control, vec![Interval::one(); 4]).unwrap()
 }
 
-/// `settle`'s stored crossings through the door, at a scalar the arm
-/// runs at: the candidate an `f64` search proposed, read against the
-/// plane at `Interval`.
-fn settled(net: &NurbsCurve3<Interval>, candidate: f64) -> Result<Vec<Interval>, CompositeRefusal> {
-    use geom_core::{Margin, Real as _};
+/// A stored crossing through the storing door
+/// ([`crate::NurbsLane::admit_crossing`]) at `Interval`: the table's root
+/// `candidate`, read against the plane.
+fn settled(
+    net: &NurbsCurve3<Interval>,
+    candidate: f64,
+) -> Result<Interval, geom_core::solved::Unadmitted> {
     let plane = Surface::Plane {
         frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
     };
-    let off = |p: Point3<Interval>| Margin::of(crate::implicit_residual(&plane, p));
-    super::settle(
-        net,
-        (Interval::zero(), Interval::one()),
+    let carrier = geom::Curve3::Nurbs(std::sync::Arc::new(net.clone()));
+    crate::NurbsLane::<Interval>::certified().admit_crossing(
+        &carrier,
+        Interval::from_bounds(candidate, candidate),
+        &plane.map_scalar(|x| Interval::from_bounds(x, x)),
         band(),
-        &[],
-        vec![super::Meeting::Crossing(candidate)],
-        &off,
     )
-    .map(|(roots, _)| roots)
 }
 
 /// The door admits a crossing whose point reads on for the whole
 /// family, as the one point the search proposed; refuses one whose
 /// point reads definitely off by its row; and refuses at the door,
-/// typed and named, a family whose crossing spreads past the band
-/// about the candidate.
+/// named, a family whose crossing spreads past the band about the
+/// candidate.
 #[test]
 fn a_stored_crossing_is_admitted_by_its_check_at_interval() {
     use geom_core::Bounds as _;
+    use geom_core::solved::Unadmitted;
     let point = settled(&rising_family(0.0), 0.5);
     assert!(
-        matches!(point.as_deref(), Ok([t]) if t.lo() == 0.5 && t.hi() == 0.5),
+        matches!(point, Ok(t) if t.lo() == 0.5 && t.hi() == 0.5),
         "a point family's crossing is the candidate, one point: {point:?}"
     );
     let off = settled(&rising_family(0.0), 0.25);
     assert!(
         matches!(
             off,
-            Err(CompositeRefusal::Unsettled(Unsettled::Meter {
-                row: "spline_composite_root_on"
-            }))
+            Err(Unadmitted::Off {
+                row: "spline_composite_root_on",
+                ..
+            })
         ),
         "a candidate whose point reads definitely off the plane refuses by the door's row: {off:?}"
     );
@@ -531,57 +538,76 @@ fn a_stored_crossing_is_admitted_by_its_check_at_interval() {
     // against a looser band would admit this family.
     let spread = settled(&rising_family(3.0 * ZERO), 0.5);
     assert!(
-        matches!(spread, Err(CompositeRefusal::Escalated(d)) if d.predicate == Some("spline_composite_root_on")),
+        matches!(spread, Err(Unadmitted::Undecided(d)) if d.predicate == Some("spline_composite_root_on")),
         "a family spread 3·zero about the candidate refuses at the door, named: {spread:?}"
     );
     let wide = settled(&rising_family(1e-6), 0.5);
     assert!(
-        matches!(wide, Err(CompositeRefusal::Escalated(d)) if d.predicate == Some("spline_composite_root_on")),
-        "a family whose crossing spreads past the band refuses at the door, named: {wide:?}"
+        matches!(wide, Err(Unadmitted::Off { .. } | Unadmitted::Undecided(_))),
+        "a family whose crossing spreads past the band refuses at the door: {wide:?}"
     );
 }
 
 /// **The check bounds the crossing across the plane; its readers decide
 /// along the carrier.** This row states the finding of
 /// `work/scalar/a-crossing-parameters-check-bounds-across-the-face-and-its-readers-decide-along-the-edge`
-/// as it stands, and goes red when that item changes what `settle` does
-/// with it. On the shallow line `z = 10⁻³·(t − t*)`, `t* = 1 − 2·10⁻⁷`,
+/// as it stands. On the shallow line `z = 10⁻³·(t − t*)`, `t* = 1 − 2·10⁻⁷`,
 /// three candidates each read on the plane within the band's zero, and
-/// `settle` answers each differently by where its point stands against
-/// the span's end: reported, escalated, dropped as the end's.
+/// the table's placement ([`crate::curve_face::cross::place`]) answers
+/// each differently by where its point stands against the span's end:
+/// inside, in the end's escalation, at the end.
 #[test]
-fn admissible_candidates_of_one_shallow_crossing_settle_three_ways() {
-    use geom_core::Margin;
+fn admissible_candidates_of_one_shallow_crossing_place_three_ways() {
     let root = 1.0 - 2e-7;
     let z = |t: f64| 1e-3 * (t - root);
     let net = cubic([z(0.0), z(1.0 / 3.0), z(2.0 / 3.0), z(1.0)]);
-    let plane = ground();
-    let off = |p: Point3<f64>| Margin::of(crate::implicit_residual(&plane, p));
+    let carrier = geom::Curve3::Nurbs(std::sync::Arc::new(net));
+    let span = Span::new(&carrier, (0.0, 1.0));
     let at = |candidate: f64| {
         assert!(z(candidate).abs() <= ZERO, "{candidate} reads on the plane");
-        super::settle(
-            &net,
-            (0.0, 1.0),
-            band(),
-            &[],
-            vec![super::Meeting::Crossing(candidate)],
-            &off,
-        )
-        .map(|(roots, _)| roots)
+        let placed = crate::curve_face::cross::place(&span, &[candidate], band());
+        (placed.meetings, placed.refused.len())
     };
-    let reported = at(root);
+    let (inside, refused) = at(root);
     assert!(
-        matches!(reported.as_deref(), Ok([t]) if *t == root),
-        "a candidate past the escalation from the end is reported: {reported:?}"
+        matches!(inside[..], [(t, OnSpan::Inside { .. })] if t == root) && refused == 0,
+        "a candidate past the escalation from the end is inside: {inside:?}"
     );
-    let escalated = at(1.0 - 5e-9);
+    let (none, refused) = at(1.0 - 5e-9);
     assert!(
-        matches!(escalated, Err(CompositeRefusal::Escalated(d)) if d.predicate == Some("spline_composite_root_at_end")),
-        "a candidate in the end's escalation refuses there: {escalated:?}"
+        none.is_empty() && refused == 1,
+        "a candidate in the end's escalation is a window: {none:?}"
     );
-    let dropped = at(1.0 - 5e-10);
+    let (end, refused) = at(1.0 - 5e-10);
     assert!(
-        matches!(dropped.as_deref(), Ok([])),
-        "a candidate within the end's zero is the end's: {dropped:?}"
+        matches!(
+            end[..],
+            [(_, OnSpan::End(crate::curve_pair::SpanEnd::Stop))]
+        ) && refused == 0,
+        "a candidate within the end's zero is the end's: {end:?}"
+    );
+}
+
+/// **A root past the span's end is placed by a bound on its chord, never
+/// by its parameter.** The quadratic `x = −(t − 1)(t − 1.04)`,
+/// `z = 1.2·10⁻⁸·(t − 1.04)` ends `4.8·10⁻¹⁰` m under the plane and
+/// meets it, continued, at `t = 1.04`, a chord of `4.8·10⁻¹⁰` m from the
+/// end along a curve that bends back. The parameter gap times the span's
+/// least speed reads past the band, which would answer no meeting; the
+/// arm answers the end's meeting or a window, never no meeting.
+#[test]
+fn a_continuation_that_bends_back_places_its_root_by_chord_not_parameter() {
+    let (r, a) = (1.04_f64, 1.2e-8_f64);
+    let xz = [
+        (-r, -a * r),
+        ((1.0 - r) / 2.0, -a * r + a / 2.0),
+        (0.0, a * (1.0 - r)),
+    ];
+    let net = spline(2, &[0.0, 0.0, 0.0, 1.0, 1.0, 1.0], &xz);
+    let carrier = geom::Curve3::Nurbs(std::sync::Arc::new(net.clone()));
+    let found = cross(&Span::new(&carrier, net.domain()), &ground(), band());
+    assert!(
+        !matches!(&found, Ok(f) if f.meetings.is_empty()),
+        "{found:?}"
     );
 }

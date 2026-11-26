@@ -484,6 +484,9 @@ fn every_door_name_carries_a_listed_prefix() {
         NameCarrier::Const("TORUS_ROOT_SLACK"),
         NameCarrier::Const("PAST_THE_BAND"),
         NameCarrier::Const("AT_THE_END"),
+        NameCarrier::Const("AT_CREASE"),
+        NameCarrier::Const("ROOT_ON"),
+        NameCarrier::Const("STRETCH"),
         NameCarrier::Const("PAST_THE_END"),
         NameCarrier::Const("CONE_APEX"),
         NameCarrier::Const("CONE_DEFLATED_CLEAR"),
@@ -538,7 +541,6 @@ fn every_door_name_carries_a_listed_prefix() {
         indirect,
         [
             "circle_roots.rs: harmonic_roots_as: root_slack",
-            "composite.rs: settle: row",
             "conic_quadric/in_band_sweep.rs: a_circle_of_radius_1500_reading_its_noise_in_the_gap_is_answered_truly: LADDER_ROWS.noise()",
             "line_patch.rs: past_band: name",
             "pose.rs: constant_residual_as: name",
@@ -551,7 +553,10 @@ fn every_door_name_carries_a_listed_prefix() {
     assert_eq!(
         census.consts.iter().map(String::as_str).collect::<Vec<_>>(),
         [
-            "composite.rs: PAST_THE_BAND",
+            "composite/walk.rs: AT_CREASE",
+            "composite/walk.rs: PAST_THE_BAND",
+            "composite/walk.rs: ROOT_ON",
+            "composite/walk.rs: STRETCH",
             "conic_quadric.rs: CONE_APEX",
             "conic_quadric.rs: CONE_DEFLATED_CLEAR",
             "conic_quadric.rs: CONE_DEFLATED_DEPTH",

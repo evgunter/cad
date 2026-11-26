@@ -973,7 +973,7 @@ fn g_stacked_full_on_edge_germ_dump() {
     let a = finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (2.0, 3.0));
     let red = topo::boolean_reduce(topo::BooleanOp::Union, &a, &b, Tol::witness()).unwrap();
-    assert_eq!(red.contacts.vv.len(), 4, "four shared rim corners");
+    assert_eq!(red.contacts.vv().count(), 4, "four shared rim corners");
     assert!(!red.null_edges.is_empty(), "seam scaffolding minted");
     let mut horizontal_axis = 0;
     let mut other = 0;

@@ -452,8 +452,7 @@ fn the_mate_classes_the_shafts_edges_at_the_rims() {
             };
             let rims: std::collections::BTreeSet<_> = naming
                 .reduction_contacts
-                .vv
-                .iter()
+                .vv()
                 .map(|c| match shaft_side {
                     topo::Operand::A => c.a,
                     topo::Operand::B => c.b,

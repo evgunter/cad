@@ -683,6 +683,24 @@ fn halvings<X>(whole: X, count: usize, halve: impl Fn(&X) -> Option<(X, X)>) -> 
 /// `C(ma+mb, k)·C(na+nb, l)`, folded in ascending `(i, j)` then
 /// ascending `b` index (D9). `None` above [`QUOTIENT_MAX_DEGREE`].
 ///
+/// **The Bernstein product of two rows at any scalar**, of degrees `p`
+/// and `q` (from their lengths), as a row of degree `p + q`: [`product`]
+/// on two one-column grids, so a curve's row takes the same association
+/// as the tensor grids (exact integer numerators, one division per
+/// coefficient). `None` for an empty row, or where `p + q` passes
+/// [`QUOTIENT_MAX_DEGREE`], past which a binomial is no exact `f64` and
+/// no weight would be a constant at an enclosure scalar. The curve ×
+/// face table's ring composite reads it
+/// (`super::canonical_rows`, `geom_brep::curve_face::composite`).
+#[must_use]
+pub fn row_product<T: Real>(x: &[T], y: &[T]) -> Option<Vec<T>> {
+    let column = |r: &[T]| Grid::column(r.iter().map(|&v| Vector([v])).collect());
+    let grid = product(&column(x)?, &column(y)?, |a: [T; 1], b: [T; 1]| {
+        [a[0] * b[0]]
+    })?;
+    Some(grid.c.iter().map(|v| v.0[0]).collect())
+}
+
 /// **`compose`'s `bern_mul_row` states the same product with the other
 /// association**: a memoized outward quotient weight per term, on
 /// univariate certification rows. Each association is the tighter one
@@ -3065,6 +3083,24 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// **A curve row's Bernstein product is the grid product's, and stops
+    /// at the exact binomials** ([`super::row_product`]): `(1 − t + 2t)²`
+    /// as rows `[1, 2]·[1, 2]` is `[1, 2, 4]`, and the product of two rows
+    /// whose degrees sum past [`super::QUOTIENT_MAX_DEGREE`] is `None`, as
+    /// is one with an empty row.
+    #[test]
+    fn a_rows_product_is_the_grids_and_stops_at_the_exact_binomials() {
+        assert_eq!(
+            super::row_product(&[1.0, 2.0], &[1.0, 2.0]),
+            Some(vec![1.0, 2.0, 4.0])
+        );
+        let half = vec![1.0; super::QUOTIENT_MAX_DEGREE / 2 + 1];
+        assert!(super::row_product(&half, &half).is_some());
+        let over = vec![1.0; super::QUOTIENT_MAX_DEGREE / 2 + 2];
+        assert_eq!(super::row_product(&over, &half), None);
+        assert_eq!(super::row_product::<f64>(&[], &[1.0]), None);
     }
 
     /// **Two Bernstein products, one statement.** On integer rows, the
