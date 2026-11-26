@@ -2208,3 +2208,6 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - The lever defect was caught: the plane's pose `Lies` was not enough (0.9ζ off the plane is 1.27ζ off the partner). It is now decided on the partner via `bool_factored_in_bisector`.
   - The C5 edit and the `[ev]` question in PR 7818 are updated to match.
   - 7 node rows are re-pointed. `slit` (A) is in.
+- 2026-11-26 23:55 — **`[sizes]` S1 delivered** (PR 7821, head `2c17bfe22`). Its commit carried a model-naming trailer.
+  - **Re-landed** by the orchestrator as **PR 7822**, a new branch `germ/sizes-s1-clean` with a new commit `8e924be73` (same tree and parent, trailer dropped). No history was rewritten; 7821 is closed.
+  - A single FULL Opus review was dispatched on 7822.
