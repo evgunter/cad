@@ -193,6 +193,8 @@ mod torus_frame_rows;
 pub mod trace;
 pub mod voids;
 pub(crate) mod vtxfac;
+#[cfg(test)]
+mod working_set_rows;
 pub(crate) mod zip;
 
 use geom_core::UnitVec3;
@@ -721,8 +723,7 @@ pub struct EdgeInBand {
 
 /// A coincident vertex pair in the reduction's working set (`sonvv`):
 /// vertex `a` of operand A and vertex `b` of operand B, each in its
-/// operand clone's keys ([`ReductionContacts`]). Carried within one
-/// operand ([`OperandRecords`]), both are that operand's.
+/// operand clone's keys ([`ReductionContacts`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct VvContact {
     /// The A-side vertex (key into the A clone).
@@ -732,8 +733,8 @@ pub struct VvContact {
 }
 
 /// A vertex on a face in the reduction's working set (`sonva`/`sonvb`):
-/// `vertex`, of the operand the containing list names, lies within
-/// `face` of the other operand ([`ReductionContacts`]).
+/// `vertex`, of the operand the read names, lies within `face` of the
+/// other operand ([`ReductionContacts`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct VfContact {
     /// The piercing vertex.
@@ -742,32 +743,20 @@ pub struct VfContact {
     pub face: FaceKey,
 }
 
-/// A vertex resting on an edge's interior, within one operand carried
-/// back into an op ([`OperandRecords`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct VeContact {
-    /// The resting vertex.
-    pub vertex: VertexKey,
-    /// The edge whose interior holds it.
-    pub edge: crate::entity::EdgeKey,
-}
-
-/// Two edges whose interiors meet: within one operand carried back into
-/// an op, both that operand's ([`OperandRecords`]); in the reduction's
-/// working set, `a` an edge of A and `b` one of B, each in its operand
-/// clone's keys ([`ReductionContacts`]).
+/// Two edges whose interiors meet in the reduction's working set: `a`
+/// an edge of A and `b` one of B, each in its operand clone's keys
+/// ([`ReductionContacts`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct EeContact {
-    /// One edge.
+    /// A's edge.
     pub a: crate::entity::EdgeKey,
-    /// The other.
+    /// B's edge.
     pub b: crate::entity::EdgeKey,
 }
 
-/// An edge whose interior meets a face's: within one operand carried
-/// back into an op ([`OperandRecords`]); in the reduction's working
-/// set, the edge one operand's and the face the other's
-/// ([`ReductionContacts::a_in_b`]).
+/// An edge whose interior meets a face's in the reduction's working
+/// set: the edge one operand's and the face the other's
+/// ([`ReductionContacts`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct EfContact {
     /// The edge.
@@ -776,16 +765,15 @@ pub struct EfContact {
     pub face: FaceKey,
 }
 
-/// Two faces whose interiors meet along a tangent line: within one
-/// operand carried back into an op, both that operand's
-/// ([`OperandRecords`]); in the reduction's working set, `a` a face of A
-/// and `b` one of B, each in its operand clone's keys
-/// ([`ReductionContacts`]).
+/// Two faces, `a` of operand A and `b` of operand B, tangent along a
+/// line through both interiors: the reduction's face pair, each key in
+/// its operand clone's arena ([`ReductionContacts`]). Two faces of one
+/// operand carried into an op are a [`Contact`] instead.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct FfContact {
-    /// One face.
+pub struct TangentFaces {
+    /// A's face.
     pub a: FaceKey,
-    /// The other.
+    /// B's face.
     pub b: FaceKey,
 }
 
@@ -993,38 +981,151 @@ pub enum Cell {
 /// `sonvv`, `sonva`, `sonvb`; the touches along a line the
 /// classification reads; the touches of faces the glue door verifies;
 /// and the pieces of line edges lying in planar faces), each row citing
-/// the reduction's own
-/// decisions: operand-tagged, every key in its operand clone's arena.
-/// It is the reduction's vocabulary, read by operand by the
-/// classification and the insertion, and it is not a body's record:
-/// the result's carry maps it onto the result's cells and drops the
-/// tags ([`ContactRecords`]). Deterministic discovery order,
-/// deduplicated.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+/// the reduction's own decisions: one list of operand-tagged cell
+/// pairs, every key in its operand clone's arena. It is the reduction's
+/// vocabulary, read by kind and operand by the classification and the
+/// insertion ([`Self::vv`], [`Self::on`], [`Self::lying_in`]), and it
+/// is not a body's record: the result's
+/// carry maps it onto the result's cells and drops the tags
+/// ([`ContactRecords`]). Deterministic discovery order, deduplicated by
+/// its writers.
+///
+/// Its rows are of seven shapes, each read by one of the per-kind reads:
+/// coincident vertex pairs (`sonvv`, A's vertex then B's); a vertex of
+/// one operand on a face of the other (`sonva`, `sonvb`, vertex first);
+/// coincident line edges of A and B whose interiors meet with no germ
+/// between them, both staying on the result's boundary, each citing the
+/// vertex records at its two ends (`touch_rows`, written by the
+/// classification, so absent at the sweep); faces of A and B tangent
+/// along a line through both interiors, each citing the glue door's
+/// tangency decision ([`verify_distinct`], written at the door, whatever
+/// the op: the carry keeps a row where both faces survive); and pieces
+/// of line edges of one operand lying in planar faces of the other, edge
+/// first, each citing the records that placed the piece's two ends on
+/// the face: inside it, or one with a vertex bounding it
+/// (`reduce::settle_in_plane`).
+#[derive(Clone, Debug, Default)]
 pub struct ReductionContacts {
-    /// Coincident vertex pairs (`sonvv`).
-    pub vv: Vec<Cited<VvContact>>,
-    /// Vertices of A on faces of B (`sonva`).
-    pub a_on_b: Vec<Cited<VfContact>>,
-    /// Vertices of B on faces of A (`sonvb`).
-    pub b_on_a: Vec<Cited<VfContact>>,
-    /// Coincident line edges of A and B whose interiors meet with no
-    /// germ between them, both staying on the result's boundary, each
-    /// citing the vertex records at its two ends (`touch_rows`). Written
-    /// by the classification, so empty at the sweep.
-    pub ee: Vec<Cited<EeContact>>,
-    /// Faces of A and B tangent along a line through both interiors,
-    /// each citing the glue door's tangency decision
-    /// ([`verify_distinct`]). Written at the door, whatever the op: the
-    /// carry keeps a row where both faces survive.
-    pub ff: Vec<Cited<FfContact>>,
-    /// Pieces of line edges of A lying in planar faces of B, each citing
-    /// the records that placed the piece's two ends on the face: inside
-    /// it (`a_on_b`), or one with a vertex bounding it (`vv`)
-    /// (`reduce::settle_in_plane`).
-    pub a_in_b: Vec<Cited<EfContact>>,
-    /// Pieces of line edges of B lying in planar faces of A, likewise.
-    pub b_in_a: Vec<Cited<EfContact>>,
+    rows: Vec<Cited<[(Operand, Cell); 2]>>,
+}
+
+/// **One row of a per-kind read of [`ReductionContacts`]**: its pair as
+/// that kind's type, and what backs it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct KindRow<'a, R> {
+    /// The row's cells.
+    pub record: R,
+    /// What backs it.
+    pub cites: &'a Cites,
+}
+
+impl<R> core::ops::Deref for KindRow<'_, R> {
+    type Target = R;
+
+    fn deref(&self) -> &R {
+        &self.record
+    }
+}
+
+/// **A row of the reduction's working set, read by its kind**: the one
+/// reading of a tagged pair's shape ([`row_kind`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RowKind {
+    Vv(VvContact),
+    On(Operand, VfContact),
+    Ee,
+    Ff,
+    In(Operand, EfContact),
+}
+
+impl RowKind {
+    /// Where this kind stands in the order [`ReductionContacts::rows`]
+    /// states.
+    fn order(self) -> u8 {
+        match self {
+            Self::Vv(_) => 0,
+            Self::On(Operand::A, _) => 1,
+            Self::On(Operand::B, _) => 2,
+            Self::Ee => 3,
+            Self::Ff => 4,
+            Self::In(Operand::A, _) => 5,
+            Self::In(Operand::B, _) => 6,
+        }
+    }
+}
+
+/// The kind of `pair`, a row of the reduction's working set. Only the
+/// writers of the seven shapes write one, so any other shape is a
+/// defect.
+fn row_kind(pair: [(Operand, Cell); 2]) -> RowKind {
+    use Operand::{A, B};
+    match pair {
+        [(A, Cell::Vertex(a)), (B, Cell::Vertex(b))] => RowKind::Vv(VvContact { a, b }),
+        [(x, Cell::Vertex(vertex)), (y, Cell::Face(face))] if y == x.other() => {
+            RowKind::On(x, VfContact { vertex, face })
+        }
+        [(A, Cell::Edge(_)), (B, Cell::Edge(_))] => RowKind::Ee,
+        [(A, Cell::Face(_)), (B, Cell::Face(_))] => RowKind::Ff,
+        [(x, Cell::Edge(edge)), (y, Cell::Face(face))] if y == x.other() => {
+            RowKind::In(x, EfContact { edge, face })
+        }
+        _ => unreachable!("the reduction's working set holds no row {pair:?}"),
+    }
+}
+
+impl VvContact {
+    /// The row, A's vertex then B's.
+    #[must_use]
+    pub const fn cells(self) -> [(Operand, Cell); 2] {
+        [
+            (Operand::A, Cell::Vertex(self.a)),
+            (Operand::B, Cell::Vertex(self.b)),
+        ]
+    }
+}
+
+impl VfContact {
+    /// The row, `piercing`'s vertex then the other operand's face.
+    #[must_use]
+    pub fn cells(self, piercing: Operand) -> [(Operand, Cell); 2] {
+        [
+            (piercing, Cell::Vertex(self.vertex)),
+            (piercing.other(), Cell::Face(self.face)),
+        ]
+    }
+}
+
+impl EeContact {
+    /// The row, A's edge then B's.
+    #[must_use]
+    pub const fn cells(self) -> [(Operand, Cell); 2] {
+        [
+            (Operand::A, Cell::Edge(self.a)),
+            (Operand::B, Cell::Edge(self.b)),
+        ]
+    }
+}
+
+impl TangentFaces {
+    /// The row, A's face then B's.
+    #[must_use]
+    pub const fn cells(self) -> [(Operand, Cell); 2] {
+        [
+            (Operand::A, Cell::Face(self.a)),
+            (Operand::B, Cell::Face(self.b)),
+        ]
+    }
+}
+
+impl EfContact {
+    /// The row, `x_is`'s edge then the other operand's face.
+    #[must_use]
+    pub fn cells(self, x_is: Operand) -> [(Operand, Cell); 2] {
+        [
+            (x_is, Cell::Edge(self.edge)),
+            (x_is.other(), Cell::Face(self.face)),
+        ]
+    }
 }
 
 impl ReductionContacts {
@@ -1033,32 +1134,123 @@ impl ReductionContacts {
     /// vertices on B's faces, then B's on A's, each vertex first, then
     /// the edge pairs (A's edge, B's), then the face pairs (A's face,
     /// B's), then A's edges in B's faces and B's in A's, each edge
-    /// first.
+    /// first; each kind in discovery order.
     pub fn rows(&self) -> impl Iterator<Item = ([(Operand, Cell); 2], &Cites)> + '_ {
-        use Operand::{A, B};
-        fn tagged<R>(
-            [x, y]: [Operand; 2],
-            list: &[Cited<R>],
-            cells: fn(&R) -> [Cell; 2],
-        ) -> impl Iterator<Item = ([(Operand, Cell); 2], &Cites)> + '_ {
-            list.iter().map(move |c| {
-                let [p, q] = cells(c);
-                ([(x, p), (y, q)], &c.cites)
-            })
+        let mut order: Vec<&Cited<[(Operand, Cell); 2]>> = self.rows.iter().collect();
+        order.sort_by_key(|c| row_kind(c.record).order());
+        order.into_iter().map(|c| (c.record, &c.cites))
+    }
+
+    /// Whether there is no row.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.rows.is_empty()
+    }
+
+    /// Adds `row`. Each writer keeps its own kind deduplicated.
+    pub(in crate::boolean) fn push(&mut self, row: Cited<[(Operand, Cell); 2]>) {
+        let _ = row_kind(row.record);
+        self.rows.push(row);
+    }
+
+    /// Each row in discovery order with its kind.
+    fn touches(&self) -> impl Iterator<Item = (RowKind, &Cites)> + '_ {
+        self.rows.iter().map(|c| (row_kind(c.record), &c.cites))
+    }
+
+    /// The rows `pick` reads as its kind, in discovery order.
+    fn read<'s, R>(
+        &'s self,
+        pick: impl Fn(RowKind) -> Option<R> + 's,
+    ) -> impl Iterator<Item = KindRow<'s, R>> + 's {
+        self.touches()
+            .filter_map(move |(t, cites)| pick(t).map(|record| KindRow { record, cites }))
+    }
+
+    /// The coincident vertex pairs (`sonvv`), in discovery order.
+    pub fn vv(&self) -> impl Iterator<Item = KindRow<'_, VvContact>> + '_ {
+        self.read(|t| match t {
+            RowKind::Vv(record) => Some(record),
+            _ => None,
+        })
+    }
+
+    /// The vertices of `piercing` on faces of the other operand (`sonva`
+    /// for A, `sonvb` for B), in discovery order.
+    pub fn on(&self, piercing: Operand) -> impl Iterator<Item = KindRow<'_, VfContact>> + '_ {
+        self.read(move |t| match t {
+            RowKind::On(x, record) if x == piercing => Some(record),
+            _ => None,
+        })
+    }
+
+    /// The pieces of line edges of `x_is` lying in planar faces of the
+    /// other operand, in discovery order.
+    pub fn lying_in(&self, x_is: Operand) -> impl Iterator<Item = KindRow<'_, EfContact>> + '_ {
+        self.read(move |t| match t {
+            RowKind::In(x, record) if x == x_is => Some(record),
+            _ => None,
+        })
+    }
+
+    /// The citations of the row at `index` in discovery order.
+    pub(in crate::boolean) fn cites_at(&self, index: usize) -> &Cites {
+        &self.rows[index].cites
+    }
+
+    /// The citations of the row at `index` in discovery order, to add to.
+    pub(in crate::boolean) fn cites_at_mut(&mut self, index: usize) -> &mut Cites {
+        &mut self.rows[index].cites
+    }
+
+    /// The number of rows.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.rows.len()
+    }
+
+    /// Every cell of `operand` re-keyed through `key`, which keeps each
+    /// cell's kind.
+    pub(in crate::boolean) fn rekey(
+        &mut self,
+        operand: Operand,
+        mut key: impl FnMut(Cell) -> Cell,
+    ) {
+        for row in &mut self.rows {
+            for (o, cell) in &mut row.record {
+                if *o == operand {
+                    let image = key(*cell);
+                    debug_assert_eq!(
+                        core::mem::discriminant(&image),
+                        core::mem::discriminant(cell),
+                        "a re-keyed cell keeps its kind"
+                    );
+                    *cell = image;
+                }
+            }
         }
-        let vf = |c: &VfContact| [Cell::Vertex(c.vertex), Cell::Face(c.face)];
-        let ef = |c: &EfContact| [Cell::Edge(c.edge), Cell::Face(c.face)];
-        tagged([A, B], &self.vv, |c| [Cell::Vertex(c.a), Cell::Vertex(c.b)])
-            .chain(tagged([A, B], &self.a_on_b, vf))
-            .chain(tagged([B, A], &self.b_on_a, vf))
-            .chain(tagged([A, B], &self.ee, |c| {
-                [Cell::Edge(c.a), Cell::Edge(c.b)]
-            }))
-            .chain(tagged([A, B], &self.ff, |c| {
-                [Cell::Face(c.a), Cell::Face(c.b)]
-            }))
-            .chain(tagged([A, B], &self.a_in_b, ef))
-            .chain(tagged([B, A], &self.b_in_a, ef))
+    }
+}
+
+/// Two working sets are equal when their rows are, in the order
+/// [`ReductionContacts::rows`] reads them.
+impl PartialEq for ReductionContacts {
+    fn eq(&self, other: &Self) -> bool {
+        self.rows().eq(other.rows())
+    }
+}
+
+impl Eq for ReductionContacts {}
+
+#[cfg(test)]
+impl ReductionContacts {
+    /// A working set of `rows`, each of a shape the reduction writes.
+    pub(in crate::boolean) fn of_rows(
+        rows: impl IntoIterator<Item = Cited<[(Operand, Cell); 2]>>,
+    ) -> Self {
+        let mut out = Self::default();
+        rows.into_iter().for_each(|row| out.push(row));
+        out
     }
 }
 
@@ -1067,50 +1259,73 @@ impl ReductionContacts {
 /// survivors into result keys (the strict drop rule discovered records
 /// take: a record whose entity was consumed drops), each citing the
 /// operand's record it is ([`Backing::Carried`](crate::Backing::Carried)).
+///
+/// One list, kept in the carry's kind order (vertex pairs, vertex–face,
+/// vertex–edge, edge pairs, edge–face, face pairs), each kind in the
+/// order its records were filed.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct OperandRecords {
-    /// Coincident vertex pairs within the operand.
-    pub vv: Vec<CarriedRecord<VvContact>>,
-    /// Vertex-on-face rests within the operand.
-    pub vf: Vec<CarriedRecord<VfContact>>,
-    /// Vertex-on-edge records within the operand.
-    pub ve: Vec<CarriedRecord<VeContact>>,
-    /// Edge-edge records within the operand.
-    pub ee: Vec<CarriedRecord<EeContact>>,
-    /// Edge-face records within the operand.
-    pub ef: Vec<CarriedRecord<EfContact>>,
-    /// Face-face records within the operand.
-    pub ff: Vec<CarriedRecord<FfContact>>,
+    rows: Vec<CarriedRecord>,
 }
 
 /// A record of the operand's own list carried back in, and its index
 /// in that list: the record the op's result cites for it
 /// ([`Backing::Carried`](crate::Backing::Carried)).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct CarriedRecord<R> {
+pub struct CarriedRecord {
     /// The record's cells.
-    pub contact: R,
+    pub contact: Contact,
     /// Its index in the operand's records ([`ContactRecords::rows`]).
     pub record: u32,
 }
 
 impl OperandRecords {
     /// True iff nothing is carried.
+    #[must_use]
     pub fn is_empty(&self) -> bool {
-        let Self {
-            vv,
-            vf,
-            ve,
-            ee,
-            ef,
-            ff,
-        } = self;
-        vv.is_empty()
-            && vf.is_empty()
-            && ve.is_empty()
-            && ee.is_empty()
-            && ef.is_empty()
-            && ff.is_empty()
+        self.rows.is_empty()
+    }
+
+    /// Every record, in the carry's kind order.
+    #[must_use]
+    pub fn rows(&self) -> &[CarriedRecord] {
+        &self.rows
+    }
+
+    /// Every record below the face–face kind, the kind that comes last.
+    #[must_use]
+    pub fn lower(&self) -> &[CarriedRecord] {
+        &self.rows[..self.first_face_face()]
+    }
+
+    /// The face–face records, each with its two faces in canonical
+    /// order.
+    pub fn face_face(&self) -> impl Iterator<Item = (&CarriedRecord, FaceKey, FaceKey)> + '_ {
+        self.rows[self.first_face_face()..]
+            .iter()
+            .map(|c| match c.contact.cells() {
+                [Cell::Face(a), Cell::Face(b)] => (c, a, b),
+                cells => unreachable!("a record past the lower kinds is face–face, not {cells:?}"),
+            })
+    }
+
+    /// The index of the first face–face record, or the list's length.
+    fn first_face_face(&self) -> usize {
+        self.rows
+            .partition_point(|r| !matches!(r.contact.cells(), [Cell::Face(_), Cell::Face(_)]))
+    }
+
+    /// Files `row` after the records of its kind.
+    pub(in crate::boolean) fn push(&mut self, row: CarriedRecord) {
+        records::file_by_kind(&mut self.rows, row, |r| r.contact);
+    }
+}
+
+impl FromIterator<CarriedRecord> for OperandRecords {
+    fn from_iter<I: IntoIterator<Item = CarriedRecord>>(iter: I) -> Self {
+        let mut out = Self::default();
+        iter.into_iter().for_each(|row| out.push(row));
+        out
     }
 }
 
@@ -6872,11 +7087,12 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             reduce::PendingRow::tangent(touch.a, touch.b, touch.margin),
         );
         glued.push((reduce::index(k), touch.row));
-        contacts.ff.push(Cited::new(
-            FfContact {
+        contacts.push(Cited::new(
+            TangentFaces {
                 a: touch.a,
                 b: touch.b,
-            },
+            }
+            .cells(),
             Cites::decided(reduce::index(k)),
         ));
     }
@@ -6914,10 +7130,11 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
          a: &Body<T>,
          b: &Body<T>|
          -> Result<(Vec<vtxfac::PierceRead<T>>, Evidence<BooleanError>), BooleanError> {
-            let (piercing_body, pierced_body, pierced) = match operand {
-                Operand::A => (a, b, &contacts.a_on_b),
-                Operand::B => (b, a, &contacts.b_on_a),
+            let (piercing_body, pierced_body) = match operand {
+                Operand::A => (a, b),
+                Operand::B => (b, a),
             };
+            let pierced: Vec<_> = contacts.on(operand).collect();
             let mut reads = Vec::with_capacity(pierced.len());
             // Each wall's first face's read, which its second face reads
             // against (`vtxfac::WallRead`).
@@ -6975,10 +7192,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                 Err(kept) => Ok((reads, kept)),
             }
         };
-    for (operand, pierced) in [
-        (Operand::A, &contacts.a_on_b),
-        (Operand::B, &contacts.b_on_a),
-    ] {
+    for (operand, pierced) in Operand::BOTH.map(|o| (o, contacts.on(o).collect::<Vec<_>>())) {
         let (reads, kept) = read_pierces(operand, &a, &b)?;
         pierces_refused_after(operand, kept, |later| {
             read_pierces(later, &a, &b).map(|(_, kept)| kept)
@@ -7163,9 +7377,9 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     // pairs that cross at one vertex are planned together
     // (`insert::reconcile_shared`), so no mint moves a half-edge another
     // pair's plan read.
-    let mut classified = Vec::with_capacity(contacts.vv.len());
+    let mut classified = Vec::with_capacity(contacts.vv().count());
     let mut line_touches = Vec::new();
-    for (i, c) in contacts.vv.iter().map(|c| c.record).enumerate() {
+    for (i, c) in contacts.vv().map(|c| c.record).enumerate() {
         // Each vertex's sectors, cut where the other's faces turn their
         // side along them ([`sectors::pair_sectors`]).
         let [a_sectors, b_sectors] =
@@ -7346,7 +7560,8 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     // An edge of a shared vertex that two crossing pairs' edge-edge
     // germs run along folds Out in each of them (`recl::Reversed`).
     // Read before the insertion moves any edge's end onto a copy.
-    let ee = touch_rows(&a, &b, &contacts.vv, &line_touches)?;
+    let vv: Vec<KindRow<'_, VvContact>> = contacts.vv().collect();
+    let ee = touch_rows(&a, &b, &vv, &line_touches)?;
     let edge_germs: Vec<[Vec<HalfEdgeKey>; 2]> = classified
         .iter()
         .map(|(_, a_s, b_s, records, raw, _)| {
@@ -7360,7 +7575,6 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             })
         })
         .collect();
-    let vv = &contacts.vv;
     for i in 0..classified.len() {
         let mut reversed = recl::Reversed::default();
         for (slot, list) in [&mut reversed.a, &mut reversed.b].into_iter().enumerate() {
@@ -7495,7 +7709,13 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         slit_tips: tips,
         a: carved_a,
         b: carved_b,
-        contacts: ReductionContacts { ee, ..contacts },
+        contacts: {
+            let mut contacts = contacts;
+            for row in ee {
+                contacts.push(Cited::new(row.record.cells(), row.cites));
+            }
+            contacts
+        },
         null_edges,
         copies,
         null_pairs,
@@ -7543,7 +7763,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
 fn touch_rows<T: Real>(
     a: &Body<T>,
     b: &Body<T>,
-    vv: &[Cited<VvContact>],
+    vv: &[KindRow<'_, VvContact>],
     touches: &[(usize, [HalfEdgeKey; 2])],
 ) -> Result<Vec<Cited<EeContact>>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
@@ -7576,7 +7796,7 @@ fn touch_rows<T: Real>(
     }
     read.into_iter()
         .map(|(pair, ends)| match ends[..] {
-            [here, there] => Ok(Cited::new(pair, vv[here].cites.union(&vv[there].cites))),
+            [here, there] => Ok(Cited::new(pair, vv[here].cites.union(vv[there].cites))),
             _ => Err(BooleanError::ClassificationInvariant {
                 what: "two edges touching along a line are read at other than their two ends",
             }),
@@ -9229,79 +9449,28 @@ fn validate_declarations<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`BooleanError::InvalidInput`] naming the first record kind that
-/// fails.
+/// [`BooleanError::InvalidInput`] for the first record that fails,
+/// naming the kind of cell that does not resolve.
 pub(in crate::boolean) fn validate_carried<T: Real>(
     body: &Body<T>,
     c: &OperandRecords,
     operand: Operand,
 ) -> Result<(), BooleanError> {
-    let bad = |operand, what| BooleanError::InvalidInput { operand, what };
-    // A record's two cells' interiors meet, so neither bounds the other.
-    let bounds = |body: &Body<T>, x, y| {
-        matches!(Contact::new(body, x, y), Err(ContactPairError::Incident(_)))
-    };
-    for carried in &c.vv {
-        let pair = carried.contact;
-        if body.get_vertex(pair.a).is_none() || body.get_vertex(pair.b).is_none() {
-            return Err(bad(operand, "carried v-v vertex key does not resolve"));
-        }
-        if pair.a == pair.b {
-            return Err(bad(operand, "carried v-v pair names one vertex twice"));
-        }
-    }
-    for carried in &c.vf {
-        let rest = carried.contact;
-        if body.get_vertex(rest.vertex).is_none() {
-            return Err(bad(operand, "carried v-on-f vertex key does not resolve"));
-        }
-        if body.get_face(rest.face).is_none() {
-            return Err(bad(operand, "carried v-on-f face key does not resolve"));
-        }
-        if bounds(body, Cell::Vertex(rest.vertex), Cell::Face(rest.face)) {
-            return Err(bad(operand, "carried v-on-f vertex bounds its face"));
-        }
-    }
-    for CarriedRecord { contact: rest, .. } in &c.ve {
-        if body.get_vertex(rest.vertex).is_none() {
-            return Err(bad(operand, "carried v-on-e vertex key does not resolve"));
-        }
-        if body.get_edge(rest.edge).is_none() {
-            return Err(bad(operand, "carried v-on-e edge key does not resolve"));
-        }
-        if bounds(body, Cell::Vertex(rest.vertex), Cell::Edge(rest.edge)) {
-            return Err(bad(operand, "carried v-on-e vertex bounds its edge"));
-        }
-    }
-    for CarriedRecord { contact: touch, .. } in &c.ee {
-        if touch.a == touch.b {
-            return Err(bad(operand, "carried e-e pair names one edge twice"));
-        }
-        for e in [touch.a, touch.b] {
-            if body.get_edge(e).is_none() {
-                return Err(bad(operand, "carried e-e edge key does not resolve"));
+    let bad = |what| BooleanError::InvalidInput { operand, what };
+    for carried in c.rows() {
+        let cells = carried.contact.cells();
+        for cell in cells {
+            if !records::holds(body, cell) {
+                return Err(bad(match cell {
+                    Cell::Vertex(_) => "a carried record's vertex key does not resolve",
+                    Cell::Edge(_) => "a carried record's edge key does not resolve",
+                    Cell::Face(_) => "a carried record's face key does not resolve",
+                }));
             }
         }
-    }
-    for CarriedRecord { contact: touch, .. } in &c.ef {
-        if body.get_edge(touch.edge).is_none() {
-            return Err(bad(operand, "carried e-f edge key does not resolve"));
-        }
-        if body.get_face(touch.face).is_none() {
-            return Err(bad(operand, "carried e-f face key does not resolve"));
-        }
-        if bounds(body, Cell::Edge(touch.edge), Cell::Face(touch.face)) {
-            return Err(bad(operand, "carried e-f edge bounds its face"));
-        }
-    }
-    for CarriedRecord { contact: touch, .. } in &c.ff {
-        if touch.a == touch.b {
-            return Err(bad(operand, "carried f-f pair names one face twice"));
-        }
-        for f in [touch.a, touch.b] {
-            if body.get_face(f).is_none() {
-                return Err(bad(operand, "carried f-f face key does not resolve"));
-            }
+        // A record's two cells' interiors meet, so neither bounds the other.
+        if records::incident(body, cells) {
+            return Err(bad("a carried record's one cell bounds the other"));
         }
     }
     Ok(())

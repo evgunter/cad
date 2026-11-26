@@ -2,11 +2,13 @@
 id: main-red-three-loft-rows-expect-point-containment-to-refuse-a-spline-face
 kind: issue
 title: Main red since PR 7798: three slow-set rows expect point containment to refuse a spline face, and it now answers
-status: open
+status: closed
 opened: 2026-11-26
 priority: P1
 cost: E
 refs: [7798, 7799]
+closed: 2026-11-26
+pr: 7814
 ---
 
 

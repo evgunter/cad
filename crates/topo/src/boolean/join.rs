@@ -5155,8 +5155,7 @@ fn slit_tip_on<T: crate::props::AtRestPolicy>(
         .find_map(|v| {
             let paired = red
                 .contacts
-                .vv
-                .iter()
+                .vv()
                 .filter_map(|c| match side {
                     Operand::A => (c.record.a == v).then_some(c.record.b),
                     Operand::B => (c.record.b == v).then_some(c.record.a),

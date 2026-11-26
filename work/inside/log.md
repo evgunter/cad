@@ -159,3 +159,30 @@ Dispatch, with each unit's review tier:
   - **Merged over** the known `tools` and CHARTTAIL corrupt-input reds.
   - **Left open.** GERM's claimed `cross-answers-a-spline-arm-with-a-whole-span-window`: a conic or spline span against a spline face remains. `point-in-solid-refuses-a-torus-face-bounded-by-a-spline-chord`: its pinned stop is unmoved. `point-in-face-and-point-in-solid-read-a-curved-trim-by-different-chains`: partial.
   - **Filed.** P3 `the-face-door-walks-parity-guard-blames-the-other-operand` (the verifier's last MINOR, deferred from a 3 h slow-set re-run). A note on REACHHOLD's census row. The CIW CI-time row. (INSIDE orchestrator)
+- 2026-11-26 — PR 7813 merged: the ring composite's parity guard refuses `Contradiction`, which `composite_count` reads as `ClassificationInvariant`, so no door blames an operand. `the-face-door-walks-parity-guard-blames-the-other-operand` CLOSED. Tier: the orchestrator's read. Merged with kernel, lint and app green; the mesh-budget job was still running and is unrelated. (INSIDE orchestrator)
+- 2026-11-26 — PR 7814 merged: the last two slow-set rows that pinned point containment's old spline refusal now assert the true side, checked against closed-form oracles (the m5 notch floor 2.5 − √2; the Approx cap box). The sweep found a fourth such row (`a_vertex_piercing_a_lens_wall` at 1e-6), now re-pinned to its next stop. `main-red-three-loft-rows-expect-point-containment-to-refuse-a-spline-face` CLOSED.
+
+## 2026-11-26 — handed back (INSIDE orchestrator)
+
+The sitting's P0 and P1 rows are done, so the status goes back to `ready`.
+
+Closed, with their PRs:
+- the sphere spline chord (7755);
+- the two contain rows (7748);
+- the pierce copies, by design (7750);
+- the quartic discriminant (7754);
+- the spindle sheet (7790);
+- the ray × spline face arm (7798);
+- the face door (7801), with its composite passenger, the chorded-cylinder census row and the parity residue (7813);
+- three main reds: the frustum apex (7804), and the loft rows (7806, 7814).
+
+Weighed and decided without Ev, both agreed by two designers:
+- the tube-in-ball row, which is not a fork and is parked on HELDRECORDS;
+- the spline-arm design, which follows ratified text and changes none.
+
+Left at P1: the tube-in-ball row, parked. The tail is P2 and below; `plan.md` gives the order.
+
+Process notes for a successor:
+- Fable was out this sitting, so every pair was two Opus and no experiment rows were recorded.
+- A door that newly answers turns slow-set rows that pinned its old refusal red, and no PR gate runs them. Grep the slow set for the retired refusal before merging.
+- The cylinder × sphere slow rows now cost hours per PR (CIW's row). (INSIDE orchestrator)

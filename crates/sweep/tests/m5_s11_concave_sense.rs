@@ -809,19 +809,22 @@ fn a_tapered_concave_loft_keeps_the_prism_wall_directions() {
 /// was `union(notched, pellet)` on two disjoint solids: no surface
 /// intersections, so the operation asks `point_in_solid`, and a wrong
 /// `sense` on the concave wall made it answer `In` and swallow the
-/// pellet. On a LOFTED operand both doors refuse instead: the boolean
-/// reads every edge of the pellet clear of the loft's NURBS walls, finds
-/// no crossing, and its extent fallback cannot say which side of the
-/// concave top wall the pellet sits on, and `point_in_solid` has no
-/// NURBS door at all.
+/// pellet. On a LOFTED operand the boolean refuses instead: it reads
+/// every edge of the pellet clear of the loft's NURBS walls, finds no
+/// crossing, and its extent fallback cannot say which side of the
+/// concave top wall the pellet sits on.
 ///
-/// So the swallow is closed for loft by REFUSAL, not by the bit, which
-/// is why the material-side probes above carry the guard. The extrude
-/// half of the witness is `m5_s10_face_sense`'s
+/// `point_in_solid` itself crosses the loft's walls (PR 7798's spline
+/// arm), and reads the pellet's point on its true side: the top wall is
+/// the arc of radius √2 about `(1, 2.5)`, so its floor at `x = 1` is
+/// `y = 2.5 − √2 ≈ 1.0858`, and `(1, 1.3)` lies in the notch, outside
+/// the material; `(1, 0.5)` lies inside it. The extrude half of the
+/// witness is `m5_s10_face_sense`'s
 /// `fixed_union_keeps_a_pellet_in_a_concave_notch`, in this binary; it
 /// is not re-run here.
 #[test]
 fn a_lofted_operand_refuses_the_union_check_typed() {
+    use topo::SolidContainment::{In, Out};
     let lofted = loft_pair(&notched_loops(), 1.0);
     // The S11 pellet: strictly inside the concave notch (the floor at
     // x = 1 is y = 2.5 − √2 ≈ 1.0858), so the two solids are disjoint.
@@ -864,16 +867,23 @@ fn a_lofted_operand_refuses_the_union_check_typed() {
         lofted.side_faces[0][2][0][0].unwrap(),
         "the named face is the concave top wall the pellet sits under"
     );
-    let door = point_in_solid(
-        &lofted.body,
-        Point3::new(1.0, 1.3, 0.5),
-        band(),
-        Tol::witness(),
-    );
-    assert!(
-        door.is_err(),
-        "point_in_solid has no NURBS door: it must refuse, not guess: {door:?}"
-    );
+    // The notch's floor at `x = 1`, in closed form: the top arc's
+    // centre `(1, 1.5 + 1)` less its radius √2.
+    let floor = 2.5 - core::f64::consts::SQRT_2;
+    for (y, want) in [(1.3, Out), (0.5, In)] {
+        assert_eq!(y > floor, want == Out, "the oracle's side at y = {y}");
+        let door = point_in_solid(
+            &lofted.body,
+            Point3::new(1.0, y, 0.5),
+            band(),
+            Tol::witness(),
+        );
+        assert_eq!(
+            door,
+            Ok(want),
+            "point_in_solid reads (1, {y}, 0.5) on its side"
+        );
+    }
 }
 
 // =====================================================================

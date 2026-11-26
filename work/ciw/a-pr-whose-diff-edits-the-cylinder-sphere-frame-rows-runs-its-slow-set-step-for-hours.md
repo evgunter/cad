@@ -28,3 +28,31 @@ That is the price of doors that now answer. The question is whether the work bel
 - Take the per-row times from the run's junit, or a local `--profile ci` run.
 - Decide per row: trim it to the fewest runs that carry its assertion; move it to the nightly only; or file the walk's cost on the reading's owner (INSIDE's ring composite, the tier certificate's side reader).
 - Say where the mesh-budget hour went. That job is not the slow set, and its rise is unexplained here.
+
+## 2026-11-26 — per-row times (PR 7801's lane, run 45774641309's slow-set step)
+
+The step took 7641 s of wall time over 151 tests. The slowest rows, all in `crates/sweep/tests/cylinder_sphere_frame.rs`:
+
+| row | time |
+|---|---|
+| `…_wider_than_the_wall` | 7641 s, the whole step |
+| `…_in_two_loops_turned` | 2234 s |
+| `…_in_two_loops` | 2190 s |
+| `…_centre_on_the_wall` | 1921 s |
+| `…_turned_chart` | 1043 s |
+| `…_centre_outside` | 652 s |
+| the cap row | 641 s |
+| `…_centre_inside` | 570 s |
+
+For comparison, SECT's nightly census on 2026-11-02 at 1e-12 took 250 s for each two-loop row and 168 s for `wider`. So the two-loop rows now cost about 9× that, and at the default ε.
+
+Stack samples were taken on the cap row only. They put the time in the tier certificate's side reader: finish → validate → `plus_v_errors` → `side_reader::side_at_infinity` → `cast_aims` → sphere-region landings → the composite walk. These are aimed rays reading spline chords, which used to refuse at once. The other rows and the mesh-budget hour were not profiled.
+
+Likely levers, unmeasured:
+- the side reader casting fewer aims once one reads;
+- a cheaper first pass in the composite walk;
+- the rows trimmed to fewer poses.
+
+## 2026-11-26 — the mesh-budget hour, a first lead
+
+PR 7814's lane (its diff touched only sweep and editor tests) ran `mesh --features budget` locally. Several rows took more than 240 s each, among them `lift_probes` and `quadric_pair_sections`. On PRs 7813 and 7814 the hosted job was still running past an hour when their merges cancelled the run. None of this is profiled. It may predate this sitting's spline arms, so it needs a main baseline before blame.

@@ -1229,29 +1229,39 @@ fn a_forged_record_of_the_seat_refuses_loudly() {
     let pin = [(-0.1, 0.1), (-0.1, 0.1), (-0.5, 0.5)];
     // The seat's two faces, and a face of each solid that is neither.
     let faces = |tool: &AtRestBody<f64>, r: &topo::OperandRecords| {
-        let seat = r.ff[0].contact;
+        let (a, b) = r
+            .rows()
+            .iter()
+            .find_map(|c| match c.contact.kind() {
+                topo::ContactKind::FaceFace(a, b) => Some((a, b)),
+                _ => None,
+            })
+            .unwrap();
         let other = |f: FaceKey| {
             tool.faces()
                 .map(|(g, _)| g)
                 .find(|&g| g != f && tool.solid_of_face(g) == tool.solid_of_face(f))
                 .unwrap()
         };
-        (seat.a, seat.b, other(seat.a), other(seat.b))
+        (a, b, other(a), other(b))
     };
-    let forged = |a: FaceKey, b: FaceKey| topo::CarriedRecord {
-        contact: topo::FfContact { a, b },
+    let forged = |tool: &AtRestBody<f64>, a: FaceKey, b: FaceKey| topo::CarriedRecord {
+        contact: topo::Contact::new(tool, topo::Cell::Face(a), topo::Cell::Face(b)).unwrap(),
         record: 9,
+    };
+    let with = |r: &mut topo::OperandRecords, row| {
+        *r = r.rows().iter().copied().chain([row]).collect();
     };
     let dangling = cut_by_boxes(&seat, &[BOLT, PLATE], pin, |tool, r| {
         let (x, ..) = faces(tool, r);
-        r.ff.push(forged(x, FaceKey::default()));
+        with(r, forged(tool, x, FaceKey::default()));
     });
     assert!(
         matches!(
             dangling,
             Err(BooleanError::InvalidInput {
                 operand: Operand::B,
-                what: "carried f-f face key does not resolve"
+                what: "a carried record's face key does not resolve"
             })
         ),
         "a dangling key: {:?}",
@@ -1259,7 +1269,7 @@ fn a_forged_record_of_the_seat_refuses_loudly() {
     );
     let one_solid = cut_by_boxes(&seat, &[BOLT, PLATE], pin, |tool, r| {
         let (x, _, x2, _) = faces(tool, r);
-        r.ff.push(forged(x2, x));
+        with(r, forged(tool, x2, x));
     });
     assert!(
         matches!(
@@ -1275,7 +1285,7 @@ fn a_forged_record_of_the_seat_refuses_loudly() {
     );
     let apart = cut_by_boxes(&seat, &[BOLT, PLATE], pin, |tool, r| {
         let (_, _, x2, y2) = faces(tool, r);
-        r.ff.push(forged(x2, y2));
+        with(r, forged(tool, x2, y2));
     });
     match apart {
         Err(BooleanError::ToolFuseRefused { why }) => assert!(
