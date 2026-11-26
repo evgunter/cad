@@ -28,6 +28,11 @@ use crate::boolean::{BooleanDecision, BooleanError, Coincide, Operand, node};
 use crate::entity::{Edge, EdgeKey, FaceKey, VertexKey};
 use crate::validate::decide;
 
+/// The predicate a conic lying in a bisector plane is decided on the
+/// partner wall by: its farthest point's distance from the plane, times the
+/// plane's lever, in metres off the partner.
+pub(in crate::boolean) const FACTORED_IN_BISECTOR: &str = "bool_factored_in_bisector";
+
 /// The predicate an end's distance from a bisector plane is decided on:
 /// whether the end lies on the partner wall, read through the planes.
 pub(in crate::boolean) const FACTORED_PLANE_SIDE: &str = "bool_factored_plane_side";
@@ -106,11 +111,11 @@ pub(super) fn factored_crossing<T: Decide + crate::props::AtRestPolicy>(
     };
     let line = matches!(carrier, geom::Curve3::Line(_));
     // A carrier with no root lane against a plane (a spiric, a spline):
-    // the factored read has no crossing to read, so no such pair here, and
-    // the quadric's route reads the edge.
+    // the factored read cannot read its crossings, and C5 hands no span
+    // back to the quadric door, so it refuses typed, at the frontier.
     if !line && carrier.conic().is_none() {
         ends_of()?;
-        return Ok(None);
+        return Err(frontier());
     }
     // **A line's ends are decided first, a conic's after its span**: a
     // line's posture against a plane is its ends' sides, as on the planar
@@ -121,6 +126,16 @@ pub(super) fn factored_crossing<T: Decide + crate::props::AtRestPolicy>(
     // escalate a span the pose has decided, or disagree with it.
     let line_ends = if line { Some(ends_of()?) } else { None };
     let span = geom_brep::curve_pair::Span::new(carrier, (t0, t1));
+    // The edge's own wall's axis, the lever's datum.
+    let &geom::Surface::Cylinder {
+        frame: wall_frame, ..
+    } = x.proven_face(wall).expect_described()
+    else {
+        return Err(BooleanError::ClassificationInvariant {
+            what: "the factored read's wall is a cylinder",
+        });
+    };
+    let axis = wall_frame.axis_unit().get();
     // A window of a plane's answer, as the planar lane reads one
     // ([`super::plane_refused`]): a rung in band is the edge's coincidence
     // with the plane, and a root the placement cannot place or order its
@@ -167,8 +182,40 @@ pub(super) fn factored_crossing<T: Decide + crate::props::AtRestPolicy>(
             Ok(Crossings {
                 pose: Pose::Lies, ..
             }) => {
-                if !line {
-                    lies = Some(i);
+                if let Some(conic) = carrier.conic() {
+                    // **On the partner wall, decided in metres there**
+                    // (`bool_factored_in_bisector`): the conic's farthest
+                    // point from the plane, `|d₀| + r` over its whole turn
+                    // (`d₀` its centre's offset, `r` the amplitude of its
+                    // height along the normal, `|d₀| = r − belly` read
+                    // through the conic), times the plane's lever, the
+                    // partner's distance per metre off the plane,
+                    // `|â₁ ∓ â₂| = 2|â₁·n̂|` (`2cos(θ/2)` or `2sin(θ/2)`):
+                    // in the zero band the span lies on the partner wall;
+                    // in the gap the coincidence escalates; past the band
+                    // the plane's pose and the partner disagree, which keeps
+                    // the frontier.
+                    let (cp, sp) = conic.along(normal);
+                    let r = (cp.powi(2) + sp.powi(2)).sqrt();
+                    let far = r + (r - conic.belly_along(centre, normal));
+                    let lever = axis.dot(normal).abs() * T::from_f64(2.0);
+                    match geom_core::k_stats::decide_reported(
+                        FACTORED_IN_BISECTOR,
+                        Margin::of(far * lever),
+                        band,
+                    ) {
+                        Ok(d) if d.sign == Sign::Zero => lies = Some(i),
+                        Ok(_) => return Err(frontier()),
+                        Err(diag) => {
+                            return Err(BooleanError::Escalated {
+                                decision: BooleanDecision::Coincidence(
+                                    Coincide::EdgeOnCurvedFace,
+                                    read(Coincide::EdgeOnCurvedFace),
+                                ),
+                                diag,
+                            });
+                        }
+                    }
                 }
                 Vec::new()
             }
