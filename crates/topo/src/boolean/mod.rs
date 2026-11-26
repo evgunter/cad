@@ -3160,16 +3160,6 @@ pub enum NodeWhy {
     /// A crossing of an edge of one operand with the other's wall lies
     /// at the node: its germ reads neither ellipse.
     GermOnNode,
-    /// An edge of the operand, on its own wall, lies in one of the two
-    /// planes the section's ellipses lie in (`plane`: 0 the `â₁ − â₂`
-    /// bisector, 1 the `â₁ + â₂` one), so along one of the ellipses, on
-    /// both walls: the factored read crosses no edge along the section.
-    OnBisector {
-        /// The edge's operand.
-        operand: Operand,
-        /// Which bisector plane it lies in.
-        plane: usize,
-    },
 }
 
 thread_local! {
@@ -6001,11 +5991,6 @@ impl BooleanError {
                         "where they cross, which an edge of the other part meets",
                         "move or turn the parts so that no edge of either part meets a wall \
                          at a crossing point",
-                    ),
-                    NodeWhy::OnBisector { .. } => (
-                        "along an edge of either part that runs along one of the ellipses",
-                        "move or turn the parts so that no edge of either part runs along \
-                         the curve where the two walls meet",
                     ),
                 };
                 write!(

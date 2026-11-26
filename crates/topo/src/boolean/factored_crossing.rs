@@ -25,7 +25,7 @@ use geom_core::{Band, Decide, Margin, Point3, Sign};
 use super::{CurvedEvent, Landing, Placement, edge_face_read, landing, vertex_on_curved_face};
 use crate::body::Body;
 use crate::boolean::{BooleanDecision, BooleanError, Coincide, Operand, node};
-use crate::entity::{Edge, FaceKey, VertexKey};
+use crate::entity::{Edge, EdgeKey, FaceKey, VertexKey};
 use crate::validate::decide;
 
 /// The predicate an end's distance from a bisector plane is decided on:
@@ -63,7 +63,7 @@ pub(in crate::boolean) const FACTORED_PLANE_SIDE: &str = "bool_factored_plane_si
 #[allow(clippy::too_many_arguments)]
 pub(super) fn factored_crossing<T: Decide + crate::props::AtRestPolicy>(
     (x, x_is): (&Body<T>, Operand),
-    (edge, carrier, (t0, t1)): (&Edge, &geom::Curve3<T>, (T, T)),
+    (edge_key, edge, carrier, (t0, t1)): (EdgeKey, &Edge, &geom::Curve3<T>, (T, T)),
     [(u, pu), (v, pv)]: [(VertexKey, Point3<T>); 2],
     (y, face): (&mut Body<T>, FaceKey),
     declared: &super::super::GluedPairs<T>,
@@ -98,16 +98,28 @@ pub(super) fn factored_crossing<T: Decide + crate::props::AtRestPolicy>(
         )
         .map_err(on_face)
     };
-    let ends = [
-        [dist(pu, planes[0])?, dist(pu, planes[1])?],
-        [dist(pv, planes[0])?, dist(pv, planes[1])?],
-    ];
+    let ends_of = || -> Result<[[geom_core::Decided; 2]; 2], BooleanError> {
+        Ok([
+            [dist(pu, planes[0])?, dist(pu, planes[1])?],
+            [dist(pv, planes[0])?, dist(pv, planes[1])?],
+        ])
+    };
+    let line = matches!(carrier, geom::Curve3::Line(_));
     // A carrier with no root lane against a plane (a spiric, a spline):
     // the factored read has no crossing to read, so no such pair here, and
     // the quadric's route reads the edge.
-    if !matches!(carrier, geom::Curve3::Line(_)) && carrier.conic().is_none() {
+    if !line && carrier.conic().is_none() {
+        ends_of()?;
         return Ok(None);
     }
+    // **A line's ends are decided first, a conic's after its span**: a
+    // line's posture against a plane is its ends' sides, as on the planar
+    // lane. A conic's ends are read only once the span is not lying in a
+    // plane: a conic the plane's pose reads lying in it has its ends on the
+    // plane by that verdict, though an end may round to a reading in the
+    // band's gap (a point of the conic read about `2ε` off), which would
+    // escalate a span the pose has decided, or disagree with it.
+    let line_ends = if line { Some(ends_of()?) } else { None };
     let span = geom_brep::curve_pair::Span::new(carrier, (t0, t1));
     // A window of a plane's answer, as the planar lane reads one
     // ([`super::plane_refused`]): a rung in band is the edge's coincidence
@@ -118,7 +130,7 @@ pub(super) fn factored_crossing<T: Decide + crate::props::AtRestPolicy>(
             why,
             |diag| BooleanError::Escalated {
                 decision: BooleanDecision::Coincidence(
-                    Coincide::EdgeOnPlane,
+                    Coincide::EdgeOnCurvedFace,
                     read(Coincide::EdgeOnCurvedFace),
                 ),
                 diag,
@@ -131,6 +143,7 @@ pub(super) fn factored_crossing<T: Decide + crate::props::AtRestPolicy>(
     // crossing): a conic's roots, and a line's one root, posed from the
     // span's own data rather than from a far line origin.
     let mut roots: [Vec<T>; 2] = [Vec::new(), Vec::new()];
+    let mut lies = None;
     for (i, (centre, normal)) in planes.into_iter().enumerate() {
         use geom_brep::curve_face::{Crossings, OnSpan, Pose};
         let plane = geom::Surface::Plane {
@@ -140,27 +153,22 @@ pub(super) fn factored_crossing<T: Decide + crate::props::AtRestPolicy>(
             Ok(Crossings {
                 pose: Pose::Apart, ..
             }) => Vec::new(),
-            // A line in the plane lies on both walls along it: its ends
-            // read `Zero` on the plane, and the endpoint posture below
-            // reads them. A conic in the plane is one of the section's
-            // ellipses, on both walls: the factored read crosses nothing
-            // along the section, and refuses it typed, naming the plane.
+            // **The span in the plane lies on the partner wall** (C5): on
+            // its own wall the partner's residual is the product of its
+            // distances from the two planes, and one of them is zero all
+            // along it. "In the plane" is the plane's pose's `Lies`
+            // (`curve_face_pose_plane_parallel`, then `_offset`, decided in
+            // metres); a point `δ` off the bisector plane `Π₋` stands
+            // `δ·2cos(θ/2)` off the partner wall, and off `Π₊` `δ·2sin(θ/2)`,
+            // `θ` the angle between the axes. A line in the plane has its
+            // ends read `Zero` on it, and the endpoint posture below reads
+            // them; a conic in it is answered as the curved lane answers
+            // an arc lying on the face's carrier, below.
             Ok(Crossings {
                 pose: Pose::Lies, ..
             }) => {
-                if carrier.conic().is_some() {
-                    let (a_face, b_face) = match x_is {
-                        Operand::A => (wall, face),
-                        Operand::B => (face, wall),
-                    };
-                    return Err(BooleanError::NodeUnbuilt {
-                        a_face,
-                        b_face,
-                        why: crate::boolean::NodeWhy::OnBisector {
-                            operand: x_is,
-                            plane: i,
-                        },
-                    });
+                if !line {
+                    lies = Some(i);
                 }
                 Vec::new()
             }
@@ -184,6 +192,9 @@ pub(super) fn factored_crossing<T: Decide + crate::props::AtRestPolicy>(
             // where they straddle it. An end the record puts on the plane
             // owns the meeting there, so a root just inside that end is the
             // end's, never a split beside it.
+            let ends = line_ends.ok_or(BooleanError::ClassificationInvariant {
+                what: "a line's ends were not read against the bisector planes",
+            })?;
             let straddle = matches!(
                 (ends[0][i].sign, ends[1][i].sign),
                 (Sign::Positive, Sign::Negative) | (Sign::Negative, Sign::Positive)
@@ -201,6 +212,23 @@ pub(super) fn factored_crossing<T: Decide + crate::props::AtRestPolicy>(
             roots[i] = inside;
         }
     }
+    if let Some(i) = lies {
+        return lying_in_bisector(
+            (x, x_is, edge_key, edge),
+            [(u, pu), (v, pv)],
+            (y, face, wall),
+            planes[1 - i],
+            (dist, &frontier),
+            contacts,
+            band,
+            tol,
+        )
+        .map(Some);
+    }
+    let ends = match line_ends {
+        Some(ends) => ends,
+        None => ends_of()?,
+    };
     // A crossing of one plane within the band of a crossing of the
     // other is the edge passing through a node.
     for &t in &roots[0] {
@@ -293,4 +321,72 @@ pub(super) fn factored_crossing<T: Decide + crate::props::AtRestPolicy>(
     Placement::undeclared_no_interior(placed)
         .map(Some)
         .ok_or_else(frontier)
+}
+
+/// **A conic of `x` lying in bisector plane `i`, so on the partner wall
+/// `face`** ([`factored_crossing`]; C5): the curved lane's answer for an
+/// arc lying on a face's carrier ([`super::lying_on`]), its parents
+/// decided distinct from the face first ([`super::parents_distinct_from`]).
+/// Its ends lie on the plane by the span's verdict, so they carry no
+/// margin of their own. An end on the other plane too is at a node,
+/// where the walls are tangent, and the node pass reads it: one the face
+/// does not place outside refuses [`BooleanError::NodeUnbuilt`]. A node
+/// strictly inside the span is the lying arc's own reading's
+/// ([`super::lying_on`]: where the face's boundary meets the arc).
+///
+/// # Errors
+///
+/// [`BooleanError::NodeUnbuilt`] at a node; an end's distance from the
+/// other plane in band; a landing's escalation; the frontier where the
+/// parents are not decided distinct or the lying arc has no reading.
+#[allow(clippy::too_many_arguments)] // one parameter per named duty
+fn lying_in_bisector<T: Decide + crate::props::AtRestPolicy>(
+    (x, x_is, edge_key, edge): (&Body<T>, Operand, EdgeKey, &Edge),
+    [(u, pu), (v, pv)]: [(VertexKey, Point3<T>); 2],
+    (y, face, wall): (&mut Body<T>, FaceKey, FaceKey),
+    other: node::Bisector<T>,
+    (dist, frontier): (
+        impl Fn(Point3<T>, node::Bisector<T>) -> Result<geom_core::Decided, BooleanError>,
+        &impl Fn() -> BooleanError,
+    ),
+    contacts: &mut super::ContactAcc,
+    band: Band,
+    tol: geom_core::Tol,
+) -> Result<CurvedEvent<T>, BooleanError> {
+    let (a_face, b_face) = match x_is {
+        Operand::A => (wall, face),
+        Operand::B => (face, wall),
+    };
+    let node = |why| BooleanError::NodeUnbuilt {
+        a_face,
+        b_face,
+        why,
+    };
+    for (k, (_, pw)) in [(u, pu), (v, pv)].into_iter().enumerate() {
+        if k == 1 && v == u {
+            break;
+        }
+        if dist(pw, other)?.sign == Sign::Zero {
+            match landing(y, face, pw, band)? {
+                Landing::Out => {}
+                Landing::At(..) | Landing::Unplaced => {
+                    return Err(node(crate::boolean::NodeWhy::OnBoundary(x_is)));
+                }
+            }
+        }
+    }
+    if !super::parents_distinct_from(x, edge, y, face, band) {
+        return Err(frontier());
+    }
+    let arc = super::ArcOnCarrier {
+        x,
+        x_is,
+        edge_key,
+        ends: [(u, pu, None), (v, pv, None)],
+        face,
+        side: Coincide::VertexOnCurvedFace,
+        band,
+        tol,
+    };
+    super::lying_on(&arc, y, contacts)?.ok_or_else(frontier)
 }

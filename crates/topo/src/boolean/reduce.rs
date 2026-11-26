@@ -3003,7 +3003,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
         && matches!(surface, geom::Surface::Cylinder { .. })
         && let Some(event) = factored_crossing::factored_crossing(
             (x, x_is),
-            (edge, curve.carrier(), curve.params()),
+            (edge_key, edge, curve.carrier(), curve.params()),
             [(u, pu), (v, pv)],
             (&mut *y, face),
             declared,
