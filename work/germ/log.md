@@ -2164,3 +2164,7 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - The implementer proposes answering `Lies` instead, which changes what ratified text decides.
   - **Two Opus designers dispatched** (`~/.local/share/cad-work/germ-bisector-fork/`; Opus-only under the user's 11-25 ruling). If they agree, an `[ev]` question goes on U4c's PR.
   - The lane builds the `Lies` reading as a swappable commit.
+- 2026-11-26 21:00 — **Bisector fork: both designers (Opus ×2) recommend (ii).** A conic decided `Lies` in a bisector plane lies on the partner wall, by the identity `resid_B = resid_A + d₋·d₊`; its lever is `2cos(θ/2)` / `2sin(θ/2)`. The band case escalates.
+  - The C5 sentence was agent-written (`851bc56847c`) and approved in passing in PR 7167.
+  - **Disagreement (minor, an implementation point):** the ends' order. It is left to the lane, argued, with a row.
+  - **Ruling:** an `[ev]` question goes on U4c's PR, with the C5 text edited. The lane opens the PR now.
