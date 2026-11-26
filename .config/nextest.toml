@@ -35,6 +35,14 @@ failure-output = "immediate-final"
 # first reading from clearing and its rounds decide
 # (work/shell/closed-form-limb-2-costs-milliseconds-per-curved-edge.md):
 #    1.43 s  editor-core::all m10_4_stackup_interval::a_foreign_verdict_or_box_refuses_typed
+# Eight collinear sites through every op, and every order of the flush
+# partner's fold onto the edge contact (PR 7782's hosted run):
+#    0.29 s  topo::all review_m3_pr55::e_eight_collinear_sites
+#    0.25 s  topo::all union_flush_onto_edge_contact::every_order_folds_a_flush_partner_onto_the_edge_contact
+#    0.27 s  topo::all union_flush_onto_edge_contact::two_dangling_null_edges_meeting_on_the_pinch_line_build_in_every_op
+#    0.27 s  topo::all union_flush_onto_edge_contact::a_dangling_null_edge_holding_another_pairs_cut_builds_in_every_op
+#    0.26 s  topo::all union_flush_onto_edge_contact::three_crossings_at_one_corner_build_in_every_op
+#    0.25 s  topo::all union_flush_onto_edge_contact::three_pieces_two_of_whose_cuts_tie_build_in_every_op
 # The cone ring's two volume rows at the certified scalar, each a pair of
 # booleans and their volume enclosures at `Interval` (PR 6717, the hosted
 # runner):
@@ -520,6 +528,7 @@ failure-output = "immediate-final"
 #    0.31 s  topo solid_contain::volume_read_key_rows::a_second_band_racing_the_first_is_read_afresh
 default-filter = """
 not (
+  (binary_id(topo::all) & (test(=review_m3_pr55::e_eight_collinear_sites) | test(=union_flush_onto_edge_contact::every_order_folds_a_flush_partner_onto_the_edge_contact) | test(=union_flush_onto_edge_contact::two_dangling_null_edges_meeting_on_the_pinch_line_build_in_every_op) | test(=union_flush_onto_edge_contact::a_dangling_null_edge_holding_another_pairs_cut_builds_in_every_op) | test(=union_flush_onto_edge_contact::three_crossings_at_one_corner_build_in_every_op) | test(=union_flush_onto_edge_contact::three_pieces_two_of_whose_cuts_tie_build_in_every_op))) |
   (binary_id(sweep::all) & test(=review_approx_through_a_motion::an_approximated_cap_read_through_its_motion_sweeps_as_the_moved_cap)) |
   (binary_id(topo) & test(=solid_contain::volume_read_key_rows::a_second_band_racing_the_first_is_read_afresh)) |
   (binary_id(topo) & (test(=pcurves::staleness_posture::no_production_code_in_any_crate_calls_the_minting_pass) | test(=finish::tests::no_at_rest_policy_impl_writes_its_own_finish_or_leaf))) |
