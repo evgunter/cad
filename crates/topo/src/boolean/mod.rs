@@ -2764,6 +2764,9 @@ pub struct BooleanReduction<T: crate::props::AtRestPolicy> {
     pub contacts: ReductionContacts,
     /// Every null edge minted, both operands, insertion order.
     pub null_edges: Vec<BoolNullEdgeRecord<T>>,
+    /// Each operand's null-edge copies, checked as each null edge was
+    /// recorded ([`NullEdges::extend`]).
+    pub(crate) copies: [crate::lineage::NullEdgeCopies; 2],
     /// The cross-body correspondence pairs.
     pub null_pairs: Vec<NullEdgePairRecord>,
     /// Pierced-face ring insertions.
@@ -7671,7 +7674,10 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     let out = insert::mint_plans(&mut a, &mut b, &plans, &orbits, band)?;
     null_edges.extend(out.edges)?;
     null_pairs.extend(out.pairs);
-    let null_edges = null_edges.records;
+    let NullEdges {
+        records: null_edges,
+        copies,
+    } = null_edges;
     let fates = fate::border_fates(fates, &covered, &null_edges, (&a, &b), |body| {
         crate::census::collinear_overlaps(body, band)
             .map(|lines| lines.into_iter().map(|line| line.edges).collect())
@@ -7737,6 +7743,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             contacts
         },
         null_edges,
+        copies,
         null_pairs,
         pierce_rings,
         ring_ties,

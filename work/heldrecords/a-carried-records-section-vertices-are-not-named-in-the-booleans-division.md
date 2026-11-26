@@ -2,11 +2,10 @@
 id: a-carried-records-section-vertices-are-not-named-in-the-booleans-division
 kind: issue
 title: The boolean's division of a face names its section vertices only for a reduction row, not for a carried record
-status: closed
+status: open
 opened: 2026-11-25
 priority: P2
 cost: M
-closed: 2026-11-26
 ---
 
 
@@ -64,3 +63,16 @@ and both paths name the section's vertices (`Incidence::chords` takes
 no flag). `a_vertex_through_a_declared_seat::a_wall_vertexs_edges_are_in_the_seat_on_both_sides`
 passes, as does
 `three_solids_on_one_line::a_contact_line_beside_a_face_holding_it_builds_in_every_op`.
+
+## 2026-11-26 — re-opened: the naming is built and unpinned (PR 7808 review)
+
+The review of PR 7808 ran the mutant that stops naming section vertices
+on the carried path (`PROBE_NOSECTV`). It turns no row red: not the `ci`
+profile of topo and sweep, and not the slow set. The naming stays (both
+paths take one `Incidence::chords`), but nothing pins it.
+
+- **Owed:** a witness. A carried vertex record whose vertex sits where the
+  cut's section ends inside the face holding it: a tool edge piercing that
+  face at the record's vertex. It refuses `CarryRefused { Carried, Stale }`
+  without the naming, and lands on the section vertex with it.
+- **Not built:** the `heldrecords/minted-door` lane did not construct it.

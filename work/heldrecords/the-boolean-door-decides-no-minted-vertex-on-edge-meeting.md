@@ -72,8 +72,8 @@ builds, its meeting landing and citing the decision.
   input cells, for both kinds. An `OnCarrier` row on an edge and a face
   would read, in `editor-core` `eval::wire::in_member_space`, as a
   carrier pair's, which panics when a cell is made of several member
-  cells. Two meetings on one record spell one row
-  (`reduce::pend`), with the first margin.
+  cells. Two meetings on one record spell one row, at the worse margin
+  (amended below).
 - **Section vertices** are named on both paths.
 - **Witnesses.**
   - `a_plane_face_holding_the_pierce_over_a_cylinder_builds_in_every_op_and_order`
@@ -83,6 +83,39 @@ builds, its meeting landing and citing the decision.
     `a_tool_face_grazing_the_holding_face_decides_or_refuses_and_never_ships_a_wrong_body`,
     turns the wall toward `F`. The door decides Zero, and the body is
     sound, down to about 0.14° from tangent (margin 2.3e-13, against
-    2.2e-16 at 28°). Nearer tangent, some ops refuse `CarryRefused`
-    `Unread` (0.03°). At 0.007° every op refuses
+    2.2e-16 at 28°). Nearer tangent, at 0.03°, some ops refuse
+    `CarryRefused` `Unread`: the placement's confirm escalates
+    (`CensusEscalated`, an enclosure `[4.6e-13, 1.4e-3]` at
+    `curve_carrier_straddle`), not a reading in band. At 0.007° every op refuses
     `CurvedPierceEscalated` (`WallRoots`). No op ships a wrong body.
+
+## 2026-11-26 — the review's fix pass (`heldrecords/minted-door`, PR 7808)
+
+- **Two minted vertices the reduction already decided one are not
+  decided again** (`boolean::ops` `decided_already`). Each clone vertex
+  is read back through its null-edge copies (`Ledger::copies`, restored
+  for that read alone):
+  - copies of one vertex are structure;
+  - a pending row of the reduction naming the two (a ring tie) is the
+    decision the landing cites.
+
+  So one decision is still one row. Without this,
+  `editor-core coincidence_door::a_ring_serving_two_pierces_records_their_fusion_unproven`
+  gained a second `VertexFusion` row.
+- **A record's door row keeps the worst margin** of the meetings it
+  spells (`met_at_the_door`, `MarginDiag::worst`, which keeps its
+  discharge).
+- **One census reading** serves the confirm pass and the door
+  (`census::vertex_on_edge_reading`). The door's `JoinDesync` texts say
+  which finding it was: read off, in band, or unread.
+- **The stress row pins every ε CI draws.**
+  - At 1e-12 its poses refuse
+    `measuredoor/a-wall-grazing-a-plane-face-leaves-its-volume-uncomputable-at-1e-12`
+    and
+    `topo/a-section-edge-of-a-wall-grazing-a-plane-face-is-uncertified-at-1e-12`
+    (both filed), or a `Section` escalation.
+  - At 1e-6 its poses refuse `CurvedPierce*`.
+  - It also pins tier 3′'s exact findings on each built body.
+- **The pierce row pins the door's row**: on the intersection, either
+  operand first, and on the subtraction from the held pair.
+- **Section-vertex naming is unpinned.** Its row is re-opened.

@@ -4128,6 +4128,7 @@ pub(super) fn ledger<T: crate::props::AtRestPolicy>(
             Incidence::of(&red.a, scaffold[0], cut[0]),
             Incidence::of(&red.b, scaffold[1], cut[1]),
         ],
+        copies: red.copies.clone(),
     })
 }
 
@@ -4189,6 +4190,8 @@ pub(super) struct Ledger {
     /// Each operand clone's faces around each vertex and edge, before
     /// the finish discards any.
     incidence: [Incidence; 2],
+    /// Each operand's null-edge copies.
+    copies: [crate::lineage::NullEdgeCopies; 2],
 }
 
 /// **The faces around each cell of an operand's clone**, read before
@@ -4528,16 +4531,16 @@ fn carried<T: Decide + AtRestPolicy>(
             let (x, y) = (clone(0)?, clone(1)?);
             let mut cites = cites.clone();
             if l.minted {
-                let margin = minted_meeting(body, l.at, band)?;
-                let fresh = super::reduce::index(super::reduce::pend(
-                    pending,
-                    PendingRow {
-                        cells: [(side, cells[0]), (side, cells[1])],
-                        relation: crate::Relation::Meet,
-                        margin: Some(margin),
-                    },
-                ));
-                cites = cites.union(&Cites::decided(fresh));
+                match decided_already(ledger, pending, side, [x, y]) {
+                    Some(Already::Structure) => {}
+                    Some(Already::Decided(k)) => cites = cites.union(&Cites::decided(k)),
+                    None => {
+                        let margin = minted_meeting(body, l.at, band)?;
+                        let k =
+                            met_at_the_door(pending, [(side, cells[0]), (side, cells[1])], margin);
+                        cites = cites.union(&Cites::decided(k));
+                    }
+                }
             }
             out[s].push(x, y, cites)?;
         }
@@ -5885,6 +5888,71 @@ fn vertices_meet<T: Decide>(
     Ok((magnitude == geom_core::k_stats::Magnitude::Zero, margin))
 }
 
+/// What the reduction already holds of a minted meeting of two
+/// vertices, in `side`'s clone keys, each read back through its null-edge
+/// copies ([`crate::lineage::Minted::root`]).
+enum Already {
+    /// Copies of one vertex: they share its point by construction.
+    Structure,
+    /// The reduction's decision `k` that the two are one (a ring tie):
+    /// one decision, one row.
+    Decided(u32),
+}
+
+/// [`Already`] of the clone cells `[x, y]` the boolean minted, where
+/// they are two vertices; `None` where the door decides the meeting.
+fn decided_already(
+    ledger: &Ledger,
+    pending: &[PendingRow],
+    side: Operand,
+    [x, y]: [Cell; 2],
+) -> Option<Already> {
+    let (Cell::Vertex(u), Cell::Vertex(w)) = (x, y) else {
+        return None;
+    };
+    let copies = &ledger.copies[side.index()];
+    let (u, w) = (copies.root(u), copies.root(w));
+    if u == w {
+        return Some(Already::Structure);
+    }
+    let pair = [(side, Cell::Vertex(u)), (side, Cell::Vertex(w))];
+    pending
+        .iter()
+        .position(|p| p.margin.is_some() && (p.cells == pair || p.cells == [pair[1], pair[0]]))
+        .map(|k| Already::Decided(super::reduce::index(k)))
+}
+
+/// **The door's row of a minted meeting**: the meeting
+/// ([`crate::Relation::Meet`]) of the carried record's own two cells
+/// `cells`, by `margin`, and its index in `pending`. A record whose two
+/// cells meet at several such points has one row, at the worst of their
+/// margins ([`geom_core::MarginDiag::worst`]).
+fn met_at_the_door(
+    pending: &mut Vec<PendingRow>,
+    cells: [End; 2],
+    margin: geom_core::MarginDiag,
+) -> u32 {
+    let same = |p: &PendingRow| {
+        p.relation == crate::Relation::Meet && (p.cells == cells || p.cells == [cells[1], cells[0]])
+    };
+    let k = match pending.iter().position(same) {
+        Some(k) => {
+            let row = &mut pending[k];
+            row.margin = Some(row.margin.map_or(margin, |m| m.worst(margin)));
+            k
+        }
+        None => {
+            pending.push(PendingRow {
+                cells,
+                relation: crate::Relation::Meet,
+                margin: Some(margin),
+            });
+            pending.len() - 1
+        }
+    };
+    super::reduce::index(k)
+}
+
 /// **The margin two cells the boolean minted on a carried record's two
 /// cells meet by**, decided at the carry's door: two vertices by their
 /// gap ([`vertices_meet`]), a vertex inside an edge by the census's own
@@ -5895,9 +5963,9 @@ fn vertices_meet<T: Decide>(
 ///
 /// As [`vertices_meet`]; [`BooleanError::JoinDesync`] for a meeting
 /// that is neither, or one this reading does not put on the other cell.
-/// The carry's placement confirmed the landing by the census's reading
-/// of the pair at `band` and refused it there in band, so a vertex on an
-/// edge the door reads otherwise is a kernel defect.
+/// The carry's placement confirmed the landing by this same reading at
+/// `band`, and refused it `Unread` wherever the reading escalated, so a
+/// vertex on an edge the door reads otherwise is a kernel defect.
 fn minted_meeting<T: Decide>(
     body: &Body<T>,
     at: [Cell; 2],
@@ -5919,9 +5987,17 @@ fn minted_meeting<T: Decide>(
             })?;
             match crate::census::on_edge_interior_margin(body, e, q, band) {
                 Ok(Some(margin)) => Ok(margin),
-                Ok(None) | Err(_) => Err(desync(
+                Ok(None) => Err(desync(
                     "the census confirms a minted vertex inside a minted edge that the door \
-                     does not read on it",
+                     reads off it",
+                )),
+                Err(crate::ValidationError::CensusEscalated { .. }) => Err(desync(
+                    "the census confirms a minted vertex inside a minted edge that the door \
+                     reads in band",
+                )),
+                Err(_) => Err(desync(
+                    "the census confirms a minted vertex inside a minted edge whose edge the \
+                     door does not read",
                 )),
             }
         }
@@ -10978,6 +11054,7 @@ mod join_row_rows {
     use super::{Incidence, KeyView, Ledger, join_rows};
     use crate::boolean::edge_join::ClassZero;
     use crate::boolean::{Cell, EdgeSplit, Mints, Operand};
+    use crate::lineage::{LineageRows, Minted};
 
     fn ledger(a: &crate::Body<f64>, mints: Mints) -> Ledger {
         Ledger {
@@ -10989,6 +11066,7 @@ mod join_row_rows {
             recorded: Vec::new(),
             glued: Vec::new(),
             incidence: [Incidence::of(a, &BTreeSet::new(), a), Incidence::default()],
+            copies: Operand::BOTH.map(|o| Minted::new(LineageRows::NullEdgeCopies(o))),
         }
     }
 

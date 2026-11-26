@@ -407,6 +407,9 @@ struct Closed<'a> {
     volume: f64,
 }
 
+/// Which ops of a row, by name and whether the held operand is first.
+type RunSet = dyn Fn(&str, bool) -> bool;
+
 /// **Every op of `held` and `other`, either operand first**, each
 /// operand carrying its records: each builds a body [`sound`] against
 /// the two closed forms, `common` their common part's volume,
@@ -420,7 +423,9 @@ struct Closed<'a> {
 /// in a curved face with both the edge's faces leaving into the face's
 /// material, two coincident edges a curved face does not yet carry
 /// (`work/splitdoor/the-boolean-builds-the-slit-on-a-curved-face-once-it-is-meshed-and-measured.md`).
-#[allow(clippy::too_many_arguments)] // the row's closed forms and its three pinned run sets
+/// Where `decides` is given, the ops it names, and only those, carry the
+/// carry door's row: the meeting of a held record's own two cells.
+#[allow(clippy::too_many_arguments)] // the row's closed forms and its four pinned run sets
 fn every_op(
     what: &str,
     held: &Closed,
@@ -430,6 +435,7 @@ fn every_op(
     meshes: &dyn Fn(&str, bool) -> bool,
     drops_line: &dyn Fn(&str, bool) -> bool,
     parts_curved: &dyn Fn(&str, bool) -> bool,
+    decides: Option<&RunSet>,
 ) {
     for (name, op, material) in OPS {
         for held_first in [true, false] {
@@ -516,6 +522,25 @@ fn every_op(
                 volume,
                 read_pct,
             );
+            let held_input = if held_first {
+                topo::Operand::A
+            } else {
+                topo::Operand::B
+            };
+            let door = held.records.rows().iter().any(|rec| {
+                let own = rec.contact.cells().map(|c| held_cell(held_input, c));
+                r.coincidences.iter().any(|c| {
+                    c.cells == own && c.relation == topo::Relation::Meet && c.more == [None; 3]
+                })
+            });
+            if let Some(decides) = decides {
+                assert_eq!(
+                    door,
+                    decides(name, held_first),
+                    "{what}: the carry door's row: {:?}",
+                    r.coincidences
+                );
+            }
         }
     }
 }
@@ -609,6 +634,7 @@ fn a_cylinder_wall_holding_the_pierce_builds_in_every_op_and_order() {
                 &|_, _| true,
                 &|_, _| false,
                 &|name, held_first| name == "subtraction" && !held_first,
+                None,
             );
         }
         every_order(
@@ -671,6 +697,11 @@ fn a_plane_face_holding_the_pierce_over_a_cylinder_builds_in_every_op_and_order(
                 &|_, _| true,
                 &|name, held_first| name == "intersection" || (name == "subtraction" && held_first),
                 &|_, _| false,
+                // The cut splits the held edge inside the section it
+                // mints in the face holding it.
+                Some(&|name, held_first| {
+                    name == "intersection" || (name == "subtraction" && held_first)
+                }),
             );
         }
         every_order(
@@ -805,6 +836,7 @@ fn a_wall_the_ruling_pierces_twice_builds_in_every_op_and_order() {
                 &|name, held_first| !(name == "subtraction" && !held_first),
                 &|_, _| false,
                 &|name, held_first| name == "subtraction" && !held_first,
+                None,
             );
         }
         every_order(
@@ -868,14 +900,119 @@ impl Grazing {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Grazed {
     /// Builds sound, and the result carries the carry door's row on
-    /// the record's own cells `(E, F)`.
-    Decided,
+    /// the record's own cells `(E, F)`, with tier 3′'s findings
+    /// ([`Findings`]).
+    Decided(Findings),
     /// Builds sound, with no minted meeting at the door.
-    Built,
-    /// Refuses where the carry's placement reads the record in band.
+    Built(Findings),
+    /// Refuses where the carry's placement cannot read the record: the
+    /// census's confirm escalates (`CarryRefused` `Unread`).
     Unread,
     /// Refuses where the edge's pierce of the wall is in band.
     PierceEscalated,
+    /// Refuses where the edge's pierce of the wall has no lane.
+    PierceUnsupported,
+    /// Refuses where a face's volume escalates at the result gate
+    /// (`measuredoor/a-wall-grazing-a-plane-face-leaves-its-volume-uncomputable-at-1e-12`).
+    VolumeUncomputable,
+    /// Refuses where the join cannot certify a minted edge's
+    /// description
+    /// (`topo/a-section-edge-of-a-wall-grazing-a-plane-face-is-uncertified-at-1e-12`).
+    DescriptionUncertified,
+    /// Refuses where the section's coincidence is in band.
+    SectionEscalated,
+}
+
+/// Tier 3′'s findings on a built body: what the census cannot yet
+/// decide of two lumps' curved faces, and the line contacts an
+/// intersection or a subtraction leaves unrecorded
+/// (`a-carried-line-contact-an-op-cuts-is-dropped`). Nothing else.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Findings {
+    undecidable: usize,
+    dropped_lines: usize,
+}
+
+/// Whether `got` is the refusal `want` names.
+fn refuses_as(want: Grazed, got: &topo::BooleanError) -> bool {
+    use topo::BooleanError as E;
+    match want {
+        Grazed::Unread => matches!(
+            got,
+            E::CarryRefused {
+                refusal: topo::CarryRefusal::Unread { .. },
+                ..
+            }
+        ),
+        Grazed::PierceEscalated => matches!(got, E::CurvedPierceEscalated { .. }),
+        Grazed::PierceUnsupported => matches!(got, E::CurvedPierceUnsupported { .. }),
+        Grazed::VolumeUncomputable => {
+            matches!(got, E::ResultInvalid { .. })
+                && format!("{got:?}").contains("VolumeUncomputable")
+        }
+        Grazed::DescriptionUncertified => {
+            matches!(got, E::Join(_)) && format!("{got:?}").contains("DescriptionUncertified")
+        }
+        Grazed::SectionEscalated => matches!(
+            got,
+            E::Escalated {
+                decision: topo::BooleanDecision::Coincidence(topo::Coincide::Section, _),
+                ..
+            }
+        ),
+        Grazed::Decided(_) | Grazed::Built(_) => false,
+    }
+}
+
+/// Per pose, per op in `OPS` order: held first, then held second.
+type Outcomes = [[[Grazed; 2]; 3]; 4];
+
+/// What each pose does at `eps`, one of the rows CI draws
+/// (`test_utils::pinned_red::EVERY_ROW`); `None` at any other.
+fn grazed_at(eps: f64) -> Option<Outcomes> {
+    use Grazed::{
+        Built, Decided, DescriptionUncertified, PierceEscalated, PierceUnsupported,
+        SectionEscalated, Unread, VolumeUncomputable,
+    };
+    let f = |undecidable, dropped_lines| Findings {
+        undecidable,
+        dropped_lines,
+    };
+    let clear = Built(f(0, 0));
+    let first = [[clear; 2], [Decided(f(4, 1)); 2], [Decided(f(4, 1)), clear]];
+    let all = |g| [[g; 2]; 3];
+    if eps == geom_core::tolerance::DEFAULT_EPS {
+        Some([
+            first,
+            [
+                [clear; 2],
+                [Decided(f(6, 1)); 2],
+                [Decided(f(4, 2)), Built(f(9, 0))],
+            ],
+            [
+                [Unread; 2],
+                [Decided(f(6, 1)); 2],
+                [Decided(f(4, 2)), Unread],
+            ],
+            all(PierceEscalated),
+        ])
+    } else if eps == 1e-12 {
+        Some([
+            first,
+            all(VolumeUncomputable),
+            all(DescriptionUncertified),
+            all(SectionEscalated),
+        ])
+    } else if eps == 1e-6 {
+        Some([
+            first,
+            all(PierceEscalated),
+            all(PierceUnsupported),
+            all(PierceUnsupported),
+        ])
+    } else {
+        None
+    }
 }
 
 /// **A tool face grazing the face that holds the record**: the joined
@@ -885,55 +1022,51 @@ enum Grazed {
 /// which lies inside the section edge the wall mints in `F`, and the
 /// carry door decides that meeting by the census's reading of a vertex
 /// inside an edge. The falling angle amplifies the distance that
-/// reading measures, from `2e-16` where the wall meets `F` at 28° to `2e-13`
-/// at 0.14°. Each op, either operand first, does what its pose pins:
+/// reading measures, from `2e-16` where the wall meets `F` at 28° to
+/// `2e-13` at 0.14°. Each op, either operand first, does what its pose
+/// pins at each ε CI draws ([`grazed_at`]):
 ///
-/// - builds sound (tier 3, and every probe read and right) with the
-///   door's row on `(E, F)` where the meeting reaches the door, the
-///   intersection and the subtraction from the held pair;
-/// - refuses typed nearer tangent, where the placement reads the record
-///   in band (`Unread`), or the pierce of the wall is in band;
+/// - builds sound (tier 3, every probe read and right, tier 3′'s
+///   findings exactly its pinned ones) with the door's row on `(E, F)`
+///   where the meeting reaches the door, the intersection and the
+///   subtraction from the held pair;
+/// - refuses typed nearer tangent: at the default ε where the
+///   placement's confirm of the record escalates (`Unread`), or the
+///   pierce of the wall is in band;
 ///
-/// never a wrong body. The outcomes are pinned at the default ε; at
-/// another, each op builds sound or refuses typed. Tier 3′ finds only what the census cannot yet
-/// decide of two lumps' curved faces and the line contact an
-/// intersection or a subtraction leaves unrecorded
-/// (`a-carried-line-contact-an-op-cuts-is-dropped`).
+/// never a wrong body. At any other ε an op builds sound or refuses with
+/// one of the refusals pinned at some row.
 #[test]
 fn a_tool_face_grazing_the_holding_face_decides_or_refuses_and_never_ships_a_wrong_body() {
-    use Grazed::{Built, Decided, PierceEscalated, Unread};
     let prisms = line_prisms();
     let bodies: Vec<_> = prisms.iter().map(|(foot, z)| prism(foot, *z)).collect();
     let in_prisms = |q: [f64; 3]| prisms.iter().any(|(foot, z)| in_prism(foot, *z, q));
     let (pair, records) = joined_carried("sector ∪ triangle", &bodies[0], &bodies[1]);
-    let default_band = tol().eps() == geom_core::tolerance::DEFAULT_EPS;
-    let [ef] = records.ef[..] else {
+    let pinned = grazed_at(tol().eps());
+    let edge_in_face: Vec<[topo::Cell; 2]> = records
+        .rows()
+        .iter()
+        .map(|r| r.contact.cells())
+        .filter(|c| matches!(c, [topo::Cell::Edge(_), topo::Cell::Face(_)]))
+        .collect();
+    let [[e, f]] = edge_in_face[..] else {
         panic!("the joined prisms carry one edge-in-face record: {records:?}");
     };
-    // Per pose, per op in `OPS` order: held first, then held second.
-    let decided = [[Built, Built], [Decided, Decided], [Decided, Built]];
-    let poses = [
-        ((60.0, 70.0), decided),
-        ((79.9, 89.9), decided),
-        (
-            (79.98, 89.98),
-            [[Unread, Unread], [Decided, Decided], [Decided, Unread]],
-        ),
-        ((79.995, 89.995), [[PierceEscalated; 2]; 3]),
-    ];
-    for ((beta, phi), outcomes) in poses {
+    let poses = [(60.0, 70.0), (79.9, 89.9), (79.98, 89.98), (79.995, 89.995)];
+    for (p, (beta, phi)) in poses.into_iter().enumerate() {
         let g = Grazing::new(beta, phi);
         let tool = g.body();
-        for ((name, op, material), outcomes) in OPS.into_iter().zip(outcomes) {
-            for (held_first, want) in [true, false].into_iter().zip(outcomes) {
+        for (o, (name, op, material)) in OPS.into_iter().enumerate() {
+            for (h, held_first) in [true, false].into_iter().enumerate() {
+                let want = pinned.map(|t| t[p][o][h]);
                 let what = format!("β = {beta}°, φ = {phi}°: {name}, held first: {held_first}");
                 let (x, y, held) = if held_first {
                     (&pair, &tool, topo::Operand::A)
                 } else {
                     (&tool, &pair, topo::Operand::B)
                 };
-                let carried = |h| {
-                    if h == held {
+                let carried = |side| {
+                    if side == held {
                         records.clone()
                     } else {
                         topo::OperandRecords::default()
@@ -943,25 +1076,28 @@ fn a_tool_face_grazing_the_holding_face_decides_or_refuses_and_never_ships_a_wro
                     records_a: carried(topo::Operand::A),
                     records_b: carried(topo::Operand::B),
                 };
-                let r = match (
-                    want,
-                    topo::boolean_op_with(op, x, y, &inputs, topo::SweepStrategy::Realized, tol()),
-                ) {
+                let got =
+                    topo::boolean_op_with(op, x, y, &inputs, topo::SweepStrategy::Realized, tol());
+                let r = match (want, got) {
                     (
-                        Unread,
-                        Err(topo::BooleanError::CarryRefused {
-                            refusal: topo::CarryRefusal::Unread { .. },
-                            ..
-                        }),
-                    )
-                    | (PierceEscalated, Err(topo::BooleanError::CurvedPierceEscalated { .. })) => {
+                        Some(Grazed::Decided(_) | Grazed::Built(_)) | None,
+                        Ok(BooleanResult::Body(r)),
+                    ) => r,
+                    (Some(want), Err(e)) if refuses_as(want, &e) => continue,
+                    (None, Err(e))
+                        if [
+                            Grazed::Unread,
+                            Grazed::PierceEscalated,
+                            Grazed::PierceUnsupported,
+                            Grazed::VolumeUncomputable,
+                            Grazed::DescriptionUncertified,
+                            Grazed::SectionEscalated,
+                        ]
+                        .into_iter()
+                        .any(|w| refuses_as(w, &e)) =>
+                    {
                         continue;
                     }
-                    (Decided | Built, Ok(BooleanResult::Body(r))) => r,
-                    // The outcomes are the default band's; at another ε
-                    // an op refuses typed or builds sound.
-                    (_, Ok(BooleanResult::Body(r))) if !default_band => r,
-                    (_, Err(_)) if !default_band => continue,
                     (_, other) => panic!("{what}: want {want:?}, got {other:?}"),
                 };
                 assert_eq!(
@@ -972,17 +1108,31 @@ fn a_tool_face_grazing_the_holding_face_decides_or_refuses_and_never_ships_a_wro
                 let findings = topo::validate_pseudomanifold(&r.body, &r.contacts, tol())
                     .err()
                     .unwrap_or_default();
-                assert!(
-                    findings.iter().all(|e| matches!(
-                        e,
-                        topo::ValidationError::CensusUndecidable { .. }
-                            | topo::ValidationError::UnrecordedContact {
+                let count = |kind: fn(&topo::ValidationError) -> bool| {
+                    findings.iter().filter(|e| kind(e)).count()
+                };
+                let got = Findings {
+                    undecidable: count(|e| {
+                        matches!(e, topo::ValidationError::CensusUndecidable { .. })
+                    }),
+                    dropped_lines: count(|e| {
+                        matches!(
+                            e,
+                            topo::ValidationError::UnrecordedContact {
                                 contact: topo::CensusContact::EdgeFaceOverlap { .. },
                                 ..
                             }
-                    )),
-                    "{what}: tier 3′: {findings:?}"
+                        )
+                    }),
+                };
+                assert_eq!(
+                    got.undecidable + got.dropped_lines,
+                    findings.len(),
+                    "{what}: tier 3′ finds only its pinned kinds: {findings:?}"
                 );
+                if let Some(Grazed::Decided(pin) | Grazed::Built(pin)) = want {
+                    assert_eq!(got, pin, "{what}: tier 3′: {findings:?}");
+                }
                 for q in probes() {
                     let (a, b) = (in_prisms(q), g.holds(q));
                     let holds = if held_first {
@@ -996,25 +1146,24 @@ fn a_tool_face_grazing_the_holding_face_decides_or_refuses_and_never_ships_a_wro
                         "{what}: material at {q:?}"
                     );
                 }
-                let own = [
-                    topo::RowCell::Input {
-                        input: held,
-                        cell: topo::Cell::Edge(ef.contact.edge),
-                    },
-                    topo::RowCell::Input {
-                        input: held,
-                        cell: topo::Cell::Face(ef.contact.face),
-                    },
-                ];
+                let own = [held_cell(held, e), held_cell(held, f)];
                 let door = r.coincidences.iter().any(|c| {
                     c.cells == own && c.relation == topo::Relation::Meet && c.more == [None; 3]
                 });
-                assert!(
-                    !default_band || door == (want == Decided),
-                    "{what}: the door's row on the record's cells: {:?}",
-                    r.coincidences
-                );
+                if let Some(want) = want {
+                    assert_eq!(
+                        door,
+                        matches!(want, Grazed::Decided(_)),
+                        "{what}: the door's row on the record's cells: {:?}",
+                        r.coincidences
+                    );
+                }
             }
         }
     }
+}
+
+/// Cell `c` of input `input`, as a row names it.
+fn held_cell(input: topo::Operand, c: topo::Cell) -> topo::RowCell {
+    topo::RowCell::Input { input, cell: c }
 }
