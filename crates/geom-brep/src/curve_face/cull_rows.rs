@@ -74,7 +74,7 @@ fn surface(
 /// the margin `|g(m)| − L·ℓ` reads across the band. Wherever the cull
 /// answers `true`, the exact oracle finds no crossing round the whole
 /// turn, and, on the three kinds whose oracle reads the true distance,
-/// no extreme within the band's zero.
+/// no extreme within `Kε`, which is what `Apart` claims.
 ///
 /// Mutants, each red: any kind's `g` with its constant's sign swapped
 /// (`|e| + R`, `ρ + R`, `ρ cos α + |h| sin α`, `√(·) + r`), and the
@@ -127,8 +127,8 @@ fn the_cull_never_decides_apart_where_the_conic_meets_the_band() {
         );
         if !matches!(kind, Kind::Cone) {
             assert!(
-                t.depth > b.zero(),
-                "{kind:?} case {case}: culled within the band, {:e} deep ({})",
+                t.depth > b.escalate(),
+                "{kind:?} case {case}: culled within Kε, {:e} deep ({})",
                 t.depth,
                 test_utils::fuzz::replay()
             );
@@ -364,5 +364,125 @@ fn a_large_circle_grazing_a_wall_within_the_escalation_is_not_culled() {
             "radius {radius}, clear by {:e} inside Kε: culled",
             t.residual_depth
         );
+    }
+}
+
+/// **At the session box's scale the cull never decides `Apart` within
+/// `Kε`.** Each kind, the cone included, against a circle drawn tangent to
+/// it from outside at a known gap, so the circle's true distance from the
+/// surface is that gap by construction: radii up to 450 m, centres up to
+/// 500 m off the origin, the gap from `0.2·Kε` to `3·Kε`. A sphere's
+/// circle lies in a plane through its centre; a wall's square to its
+/// axis; a cone's and a torus's in a meridian plane, beside a generator
+/// line or a tube circle. The circle's ball about its centre then reaches
+/// the surface at the gap, so the cull's bound reads the gap itself,
+/// through a rounding of the box's size. Wherever the cull answers `true`,
+/// the gap is past `Kε`, the oracle finds no crossing, and on the three
+/// kinds whose oracle reads the true distance that distance is past `Kε`.
+/// Against vacuity, each kind culls some draws and hands others on.
+///
+/// Mutant: the cull's question asked past zero (`− escalate` dropped),
+/// red.
+#[test]
+fn at_the_boxs_scale_the_cull_never_decides_apart_within_k_eps() {
+    let b = band();
+    let k = b.escalate();
+    let mut rng = test_utils::fuzz::start("cull-box-scale");
+    let mut culls = [0_usize; 4];
+    let mut kept = [0_usize; 4];
+    for case in 0..test_utils::fuzz::scaled(2000) {
+        let kind = [Kind::Sphere, Kind::Wall, Kind::Cone, Kind::Torus][case % 4];
+        let o = Point3::new(
+            rng.range(-500.0, 500.0),
+            rng.range(-500.0, 500.0),
+            rng.range(-500.0, 500.0),
+        );
+        let axis = unit(|lo, hi| rng.range(lo, hi));
+        let (u, v) = axis.orthonormal_basis();
+        let a = rng.log_uniform(0.01, 450.0);
+        let gap = rng.range(0.2, 3.0) * k;
+        let (s, centre, normal) = match kind {
+            Kind::Sphere => {
+                let r = rng.log_uniform(0.3, 450.0);
+                let s = geom::Surface::Sphere {
+                    frame: frame(o, axis),
+                    radius: r,
+                };
+                (s, o + u * (r + a + gap), axis)
+            }
+            Kind::Wall => {
+                let r = rng.log_uniform(0.3, 450.0);
+                let s = geom::Surface::Cylinder {
+                    frame: frame(o, axis),
+                    radius: r,
+                };
+                (
+                    s,
+                    o + u * (r + a + gap) + axis * rng.range(-50.0, 50.0),
+                    axis,
+                )
+            }
+            Kind::Cone => {
+                let alpha = rng.range(0.2, 1.3);
+                let s = geom::Surface::Cone {
+                    frame: frame(o, axis),
+                    half_angle: alpha,
+                };
+                // Along a generator, a distance past the circle's radius
+                // from the apex, then off it outward in the meridian
+                // plane.
+                let g = axis * alpha.cos() + u * alpha.sin();
+                let w = u * alpha.cos() - axis * alpha.sin();
+                let s_along = a * rng.range(1.5, 4.0);
+                (s, o + g * s_along + w * (a + gap), v)
+            }
+            Kind::Torus => {
+                let big = rng.log_uniform(1.0, 450.0);
+                let small = big * rng.range(0.05, 0.9);
+                let s = geom::Surface::Torus {
+                    frame: frame(o, axis),
+                    major_radius: big,
+                    minor_radius: small,
+                };
+                // Outward from the tube circle at `o + u·R`, in the
+                // meridian plane, away from the axis.
+                let tilt = rng.range(-1.2, 1.2);
+                let w = u * tilt.cos() + axis * tilt.sin();
+                (s, o + u * big + w * (small + a + gap), v)
+            }
+        };
+        let circle = Curve3::circle(centre, normal, a, normal.orthonormal_basis().0);
+        let span = Span::new(&circle, (0.0, TAU));
+        let conic = circle
+            .conic()
+            .unwrap_or_else(|| unreachable!("a circle is a conic"));
+        if !culled(&span, conic, &s, b) {
+            kept[case % 4] += 1;
+            continue;
+        }
+        culls[case % 4] += 1;
+        assert!(
+            gap > k,
+            "{kind:?} case {case}: culled at a gap of {:.3}·Kε ({})",
+            gap / k,
+            test_utils::fuzz::replay()
+        );
+        let t = truth(&circle, &s);
+        assert!(
+            t.roots.is_empty(),
+            "{kind:?} case {case}: culled, but the oracle crosses ({})",
+            test_utils::fuzz::replay()
+        );
+        if !matches!(kind, Kind::Cone) {
+            assert!(
+                t.depth > k,
+                "{kind:?} case {case}: culled {:e} from the surface ({})",
+                t.depth,
+                test_utils::fuzz::replay()
+            );
+        }
+    }
+    for (kind, (&c, &h)) in culls.iter().zip(&kept).enumerate() {
+        assert!(c > 20 && h > 20, "kind {kind}: {c} culled, {h} handed on");
     }
 }

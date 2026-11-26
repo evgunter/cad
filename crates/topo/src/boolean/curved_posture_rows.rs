@@ -38,7 +38,10 @@ fn posture_over(
     span: (f64, f64),
     surface: &geom::Surface<f64>,
 ) -> CoveredPosture {
-    covered_posture(cross(&Span::new(carrier, span), surface, band()))
+    covered_posture(
+        cross(&Span::new(carrier, span), surface, band()),
+        !carrier.is_curved(),
+    )
 }
 
 /// The covered posture of `carrier`'s whole turn against `surface`.
@@ -193,13 +196,16 @@ fn a_method_sign_in_band_is_the_zero_posture() {
 
 /// The covered posture of a refusal with the one window `why`.
 fn refused(why: geom_brep::curve_face::CrossWhy) -> CoveredPosture {
-    covered_posture::<f64>(Err(geom_brep::curve_face::CrossRefusal {
-        found: Vec::new(),
-        windows: vec![geom_brep::curve_face::Undecided {
-            window: (0.0, 0.1),
-            why,
-        }],
-    }))
+    covered_posture::<f64>(
+        Err(geom_brep::curve_face::CrossRefusal {
+            found: Vec::new(),
+            windows: vec![geom_brep::curve_face::Undecided {
+                window: (0.0, 0.1),
+                why,
+            }],
+        }),
+        false,
+    )
 }
 
 /// A method's window of `fault`.
@@ -309,4 +315,75 @@ fn a_straddle_with_no_interior_crossing_fails_loud() {
             what: "the row's frontier"
         })
     ));
+}
+
+/// **A covered span through a cone's apex crosses** (the frontier): a
+/// circle in the `xz` plane through the apex of the cone of half-angle
+/// `π/4`, whose pose is `Through`. The cover rules out a crossing, so a
+/// span through the apex is the frontier, never the zero posture.
+///
+/// Mutant: `Through` read as the zero posture, red.
+#[test]
+fn a_covered_span_through_a_cones_apex_is_the_frontier() {
+    let cone = geom::Surface::Cone {
+        frame: frame(Point3::origin()),
+        half_angle: core::f64::consts::FRAC_PI_4,
+    };
+    let through = Curve3::circle(
+        Point3::new(0.5, 0.0, 0.0),
+        Vec3::unit_y(),
+        0.5,
+        Vec3::new(-1.0, 0.0, 0.0),
+    );
+    let got = posture(&through, &cone);
+    assert!(
+        matches!(got, CoveredPosture::Sign(Sign::Negative)),
+        "{got:?}"
+    );
+}
+
+/// **A refusal is read whole**: two windows, a graze and a method's
+/// tangency (each the zero posture alone), and a crossing found strictly
+/// inside the span between them. The crossing decides: the frontier.
+/// With no crossing found, the two windows read the zero posture; with a
+/// walk's exhausted budget beside them, the frontier.
+///
+/// Mutant: the leading window read alone, red.
+#[test]
+fn a_refusal_is_read_by_every_window_and_its_found_crossing() {
+    use geom_brep::curve_face::{CrossRefusal, Meeting, MeetingKind, OnSpan, Undecided};
+    use geom_brep::curve_pair::MeetFault;
+    use geom_brep::roots::Unsettled;
+    let graze = method(MeetFault::Unsettled(Unsettled::Tangency));
+    let limit = method(MeetFault::Unsettled(Unsettled::Exhausted));
+    let read = |whys: &[geom_brep::curve_face::CrossWhy], found: Vec<Meeting<f64>>| {
+        covered_posture::<f64>(
+            Err(CrossRefusal {
+                found,
+                windows: whys
+                    .iter()
+                    .enumerate()
+                    .map(|(k, &why)| Undecided {
+                        window: (k as f64, k as f64 + 0.1),
+                        why,
+                    })
+                    .collect(),
+            }),
+            false,
+        )
+    };
+    let crossing = Meeting {
+        point: Point3::origin(),
+        on_span: OnSpan::Inside { t: 0.5 },
+        kind: MeetingKind::Cross,
+    };
+    let got = read(&[graze, graze], vec![crossing]);
+    assert!(
+        matches!(got, CoveredPosture::Sign(Sign::Negative)),
+        "{got:?}"
+    );
+    let got = read(&[graze, graze], Vec::new());
+    assert!(matches!(got, CoveredPosture::Sign(Sign::Zero)), "{got:?}");
+    let got = read(&[graze, limit], Vec::new());
+    assert!(matches!(got, CoveredPosture::Frontier), "{got:?}");
 }

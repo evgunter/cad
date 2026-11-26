@@ -3088,10 +3088,19 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
             } else if covered {
                 let span = geom_brep::curve_pair::Span::new(curve.carrier(), curve.params());
                 Some(
-                    match covered_posture(geom_brep::curve_face::cross(&span, &surface, band)) {
+                    match covered_posture(
+                        geom_brep::curve_face::cross(&span, &surface, band),
+                        !curve.carrier().is_curved(),
+                    ) {
                         CoveredPosture::Sign(sign) => Ok(sign),
                         CoveredPosture::InBand(diag) => Err(diag),
                         CoveredPosture::Frontier => return Err(frontier()),
+                        CoveredPosture::Torus(torus) => {
+                            return Err(BooleanError::of_torus_refusal(
+                                torus,
+                                (x_is.other(), face),
+                            ));
+                        }
                         CoveredPosture::Fault(what) => {
                             return Err(BooleanError::ClassificationInvariant { what });
                         }
@@ -5638,22 +5647,113 @@ fn wall_crossing<T: Decide + Bounds>(
     })
 }
 
+/// **What a refused window of `cross`'s answer is to the curved lane**:
+/// the one reading of [`geom_brep::curve_face::CrossWhy`] both of the
+/// lane's maps take, [`crossing_refused`] (an edge against a face) and
+/// [`covered_posture`] (a covered arc's posture), so the two never
+/// disagree on a window. A method's fault is read through its group
+/// ([`geom_brep::curve_pair::MeetFault::kind`]), as §2.3 says. Read in
+/// this order:
+///
+/// - a fault ([`geom_brep::curve_face::CrossWhy::fault`]: a pose's
+///   fault, readings that contradict, a carrier its arm does not read)
+///   fails loud;
+/// - a reading at a cone's apex (an apex spread the band cannot call, a
+///   conic's apex rung in band, `Unsettled::AtApex`) is the apex's,
+///   before any zero-band reading, so an apex in its zero band is still
+///   the apex's;
+/// - a conic against a torus outside the ring convention is the face's;
+/// - a pose rung in its zero band is a graze ([`WhyReading::ZeroBand`]),
+///   in its escalation gap the pair's question ([`WhyReading::PoseGap`]);
+/// - a method's sign in band ([`WhyReading::MethodSign`]), or a tangency
+///   it could not settle ([`WhyReading::MethodTangency`]);
+/// - anything else unread (a limit, a meter, a count the walk could not
+///   hold, a walk that could not run, a pose with no closed form, a pair
+///   with no lane) is a limit ([`WhyReading::Limit`]).
+#[derive(Clone, Copy, Debug)]
+enum WhyReading {
+    /// A kernel fault.
+    Fault(&'static str),
+    /// A reading at a cone's apex.
+    AtApex,
+    /// A conic against a torus outside the ring convention.
+    Torus(geom_brep::TorusRefusal),
+    /// A pose rung read in its zero band: a graze the class cannot call.
+    ZeroBand,
+    /// A pose rung read in its escalation gap.
+    PoseGap(geom_brep::curve_face::PoseRung, geom_core::Indeterminate),
+    /// A method's sign or touch read in band.
+    MethodSign(geom_core::Indeterminate),
+    /// A tangency, or a span reading zero along it, the method could not
+    /// settle.
+    MethodTangency,
+    /// A limit or a dispatch question: never a sign read in the band.
+    Limit,
+}
+
+/// [`WhyReading`] of `why`, the carrier a line or not.
+fn read_why(why: geom_brep::curve_face::CrossWhy, line: bool) -> WhyReading {
+    use geom_brep::curve_face::{CrossWhy, PoseRefusal, PoseRung};
+    use geom_brep::curve_pair::MeetKind;
+    use geom_brep::roots::Unsettled;
+    if let Some(what) = why.fault() {
+        return WhyReading::Fault(what);
+    }
+    match why {
+        CrossWhy::Pose(
+            PoseRefusal::InBand {
+                rung: PoseRung::ApexSpread,
+                ..
+            }
+            | PoseRefusal::Meter {
+                rung: PoseRung::ApexSpread,
+                ..
+            },
+        ) => WhyReading::AtApex,
+        CrossWhy::Pose(PoseRefusal::InBand {
+            rung: PoseRung::Apex,
+            ..
+        }) if !line => WhyReading::AtApex,
+        CrossWhy::Pose(PoseRefusal::Torus(torus)) if !line => WhyReading::Torus(torus),
+        CrossWhy::Pose(refusal) if refusal.unsettled().is_some() => WhyReading::ZeroBand,
+        CrossWhy::Pose(PoseRefusal::InBand { rung, diag }) => WhyReading::PoseGap(rung, diag),
+        CrossWhy::Pose(
+            PoseRefusal::Meter { .. }
+            | PoseRefusal::Torus(_)
+            | PoseRefusal::Enclosed
+            | PoseRefusal::Unbuilt(_),
+        ) => WhyReading::Limit,
+        // `fault()` caught it above.
+        CrossWhy::Pose(PoseRefusal::Fault(what)) => WhyReading::Fault(what),
+        CrossWhy::Method { fault, .. } => match fault.kind() {
+            MeetKind::Escalated(diag) | MeetKind::Touch(diag) => WhyReading::MethodSign(diag),
+            MeetKind::Unread(unread) => match unread.fault() {
+                geom_brep::curve_pair::MeetFault::Unsettled(Unsettled::AtApex) => {
+                    WhyReading::AtApex
+                }
+                geom_brep::curve_pair::MeetFault::Unsettled(
+                    Unsettled::Tangency | Unsettled::Degenerate,
+                ) => WhyReading::MethodTangency,
+                _ => WhyReading::Limit,
+            },
+            MeetKind::Fault { what } => WhyReading::Fault(what),
+        },
+    }
+}
+
 /// **A window of `cross`'s answer that the face may hold, as the curved
-/// lane reads it**: the one map from [`geom_brep::curve_face::CrossWhy`]
-/// for the lane. A rung or a method's sign in the band's gap is the
-/// pair's escalation, located by `escalate` ([`crossing_decision`]); a
-/// limit (a tangency, a meter, a count the walk could not hold) keeps the
-/// caller's frontier door ([`SpanVerdict::Unsettled`]); a reading at a
-/// cone's apex is [`SpanVerdict::AtApex`]; a torus outside its ring
-/// convention is the face's ([`BooleanError::of_torus_refusal`]); a pair
-/// with no lane keeps the door; a method the table names for no pair is
-/// the dispatch's desync. A fault never reaches here (the face reading
-/// fails loud on it).
+/// lane reads it** ([`read_why`], the lane's one reading): a fault fails
+/// loud; an apex reading is [`SpanVerdict::AtApex`]; a torus outside its
+/// ring convention is the face's ([`BooleanError::of_torus_refusal`]); a
+/// rung or a method's sign in the band's gap is the pair's escalation,
+/// located by `escalate` ([`crossing_decision`]); a graze, a tangency the
+/// method could not settle, and a limit keep the caller's frontier door
+/// ([`SpanVerdict::Unsettled`]).
 ///
 /// # Errors
 ///
-/// `escalate`'s, the torus convention's, and the desync's or a
-/// contradiction's [`BooleanError::ClassificationInvariant`].
+/// `escalate`'s, the torus convention's, and a fault's
+/// [`BooleanError::ClassificationInvariant`].
 fn crossing_refused<T: Decide>(
     why: geom_brep::curve_face::CrossWhy,
     carrier: &geom::Curve3<T>,
@@ -5664,60 +5764,18 @@ fn crossing_refused<T: Decide>(
         geom_core::Indeterminate,
     ) -> Result<SpanVerdict<T>, BooleanError>,
 ) -> Result<SpanVerdict<T>, BooleanError> {
-    use geom_brep::curve_face::{CrossWhy, PoseRefusal, PoseRung};
-    use geom_brep::curve_pair::MeetFault;
     let line = !carrier.is_curved();
-    let desync = || BooleanError::ClassificationInvariant {
-        what: "the curved lane read a crossing of a pair the curve × face table routes \
-               to no root door",
-    };
-    match why {
-        CrossWhy::Pose(refusal) if refusal.unsettled().is_some() => Ok(SpanVerdict::Unsettled),
-        // An apex spread the band cannot call is the apex's, refused typed;
-        // on a conic, the apex itself too.
-        CrossWhy::Pose(
-            PoseRefusal::InBand {
-                rung: PoseRung::ApexSpread,
-                ..
-            }
-            | PoseRefusal::Meter {
-                rung: PoseRung::ApexSpread,
-                ..
-            },
-        ) => Ok(SpanVerdict::AtApex),
-        CrossWhy::Pose(PoseRefusal::InBand {
-            rung: PoseRung::Apex,
-            ..
-        }) if !line => Ok(SpanVerdict::AtApex),
-        CrossWhy::Pose(PoseRefusal::InBand { rung, diag }) => {
+    match read_why(why, line) {
+        WhyReading::Fault(what) => Err(BooleanError::ClassificationInvariant { what }),
+        WhyReading::AtApex => Ok(SpanVerdict::AtApex),
+        WhyReading::Torus(torus) => Err(BooleanError::of_torus_refusal(torus, at)),
+        WhyReading::PoseGap(rung, diag) => {
             escalate(crossing_decision(line, surface, Some(rung)), diag)
         }
-        CrossWhy::Pose(PoseRefusal::Meter { .. }) => Ok(SpanVerdict::Unsettled),
-        CrossWhy::Pose(PoseRefusal::Torus(torus)) if !line => {
-            Err(BooleanError::of_torus_refusal(torus, at))
-        }
-        // A pair with no lane here (a spiric's or a spline's, or a line's
-        // against a torus outside the convention) keeps the door, as an
-        // unbuilt one does.
-        CrossWhy::Pose(PoseRefusal::Torus(_) | PoseRefusal::Enclosed | PoseRefusal::Unbuilt(_)) => {
+        WhyReading::MethodSign(diag) => escalate(crossing_decision(line, surface, None), diag),
+        WhyReading::ZeroBand | WhyReading::MethodTangency | WhyReading::Limit => {
             Ok(SpanVerdict::Unsettled)
         }
-        CrossWhy::Pose(PoseRefusal::Fault(what)) => {
-            Err(BooleanError::ClassificationInvariant { what })
-        }
-        CrossWhy::Method { fault, .. } => match fault {
-            MeetFault::Escalated(diag) | MeetFault::Touch(diag) => {
-                escalate(crossing_decision(line, surface, None), diag)
-            }
-            MeetFault::Unsettled(geom_brep::roots::Unsettled::AtApex) => Ok(SpanVerdict::AtApex),
-            MeetFault::Unsettled(_) => Ok(SpanVerdict::Unsettled),
-            MeetFault::Contradiction { readings } => {
-                Err(BooleanError::ClassificationInvariant { what: readings })
-            }
-            MeetFault::Unwalked(_) | MeetFault::Unsupported { .. } | MeetFault::Desync => {
-                Err(desync())
-            }
-        },
     }
 }
 
@@ -5737,9 +5795,11 @@ enum CoveredPosture {
     /// A pose rung's reading in the band's escalation gap: the
     /// coincidence the cover's posture cannot call.
     InBand(geom_core::Indeterminate),
-    /// Any other refusal (a meter, a count the walk could not hold, an
-    /// apex, a pair with no lane): the frontier.
+    /// A reading at a cone's apex, a limit, or a pair with no lane: the
+    /// frontier.
     Frontier,
+    /// A conic against a torus outside the ring convention: the face's.
+    Torus(geom_brep::TorusRefusal),
     /// A fault: the kernel's, failing loud.
     Fault(&'static str),
 }
@@ -5747,12 +5807,40 @@ enum CoveredPosture {
 /// [`CoveredPosture`] of `cross`'s answer. The pose's `Isolated` carries
 /// no class on its own (on the ladder lane it says only that the method
 /// reads the meetings), so the meetings decide it.
+///
+/// A refusal is read whole, as an answer is: every window by the lane's
+/// one reading ([`read_why`]), and the meetings found outside them. A
+/// fault in any window fails loud; a crossing found strictly inside the
+/// span crosses, whatever the windows read; then any window that is a
+/// limit, an apex or a torus outside its convention decides; then any
+/// pose rung in its gap; and only where every window is a graze, a
+/// method's sign in band or a tangency it could not settle is the
+/// posture the zero one.
+///
+/// **Why a method's sign in band under a cover is the zero posture.**
+/// The cover certifies the arc's residual one-signed, so no point of the
+/// arc crosses the carrier. A method reading in band, in the zero band
+/// or in its escalation gap, says only that the arc comes within the band
+/// somewhere: a touch or a clear miss, never a crossing. The zero
+/// posture's treatment is sound for both: each endpoint is read by its
+/// own side (on the carrier, its containment; off on the side the cover
+/// certifies, no event; off on the other, the frontier), and the interior
+/// is deferred to the fragments both member orders leave
+/// ([`settle_deferred`]), so a near miss read as the zero posture makes
+/// no incidence a miss would not. A pose rung in its gap stays the
+/// coincidence refusal: it reads the pair's class, not one side of it,
+/// and the cover's one-signed residual does not settle the class.
 fn covered_posture<T: geom_core::Real>(
     answer: Result<geom_brep::curve_face::Crossings<T>, geom_brep::curve_face::CrossRefusal<T>>,
+    line: bool,
 ) -> CoveredPosture {
-    use geom_brep::curve_face::{CrossWhy, Crossings, MeetingKind, OnSpan, Pose, PoseRefusal};
-    use geom_brep::curve_pair::MeetFault;
-    use geom_brep::roots::Unsettled;
+    use geom_brep::curve_face::{Crossings, Meeting, MeetingKind, OnSpan, Pose};
+    let crosses = |m: &Meeting<T>| {
+        matches!(
+            (m.on_span, m.kind),
+            (OnSpan::Inside { .. }, MeetingKind::Cross)
+        )
+    };
     match answer {
         Ok(Crossings {
             pose: Pose::Apart, ..
@@ -5764,49 +5852,47 @@ fn covered_posture<T: geom_core::Real>(
             pose: Pose::Through(_),
             ..
         }) => CoveredPosture::Sign(Sign::Negative),
-        Ok(Crossings { meetings, .. }) => {
-            let crosses = |m: &geom_brep::curve_face::Meeting<T>| {
-                matches!(
-                    (m.on_span, m.kind),
-                    (OnSpan::Inside { .. }, MeetingKind::Cross)
-                )
-            };
-            CoveredPosture::Sign(if meetings.iter().any(crosses) {
-                Sign::Negative
-            } else if meetings.is_empty() {
-                Sign::Positive
-            } else {
-                Sign::Zero
-            })
-        }
+        Ok(Crossings { meetings, .. }) => CoveredPosture::Sign(if meetings.iter().any(crosses) {
+            Sign::Negative
+        } else if meetings.is_empty() {
+            Sign::Positive
+        } else {
+            Sign::Zero
+        }),
         Err(refusal) => {
-            if let Some(what) = refusal.windows.iter().find_map(|w| w.why.fault()) {
+            let readings: Vec<WhyReading> = refusal
+                .windows
+                .iter()
+                .map(|w| read_why(w.why, line))
+                .collect();
+            if let Some(what) = readings.iter().find_map(|r| match r {
+                WhyReading::Fault(what) => Some(*what),
+                _ => None,
+            }) {
                 return CoveredPosture::Fault(what);
             }
-            let touch = |why: Option<Unsettled>| {
-                matches!(why, Some(Unsettled::Tangency | Unsettled::Degenerate))
-            };
-            match refusal.leading().why {
-                // A rung read in its zero band (a graze, or the span
-                // reading zero along it): under the cover, a touch.
-                CrossWhy::Pose(refusal) if touch(refusal.unsettled()) => {
-                    CoveredPosture::Sign(Sign::Zero)
-                }
-                CrossWhy::Pose(PoseRefusal::InBand { diag, .. }) => CoveredPosture::InBand(diag),
-                // The method read the arc within the band of the carrier
-                // (a walk's side, or a touch, in band, or a tangency it
-                // could not settle): the cover rules out a crossing, so
-                // it is a touch, the zero posture, which the covered rung
-                // reads by its ends and interior.
-                CrossWhy::Method {
-                    fault:
-                        MeetFault::Escalated(_)
-                        | MeetFault::Touch(_)
-                        | MeetFault::Unsettled(Unsettled::Tangency | Unsettled::Degenerate),
-                    ..
-                } => CoveredPosture::Sign(Sign::Zero),
-                _ => CoveredPosture::Frontier,
+            if refusal.found.iter().any(crosses) {
+                return CoveredPosture::Sign(Sign::Negative);
             }
+            if let Some(torus) = readings.iter().find_map(|r| match r {
+                WhyReading::Torus(torus) => Some(*torus),
+                _ => None,
+            }) {
+                return CoveredPosture::Torus(torus);
+            }
+            if readings
+                .iter()
+                .any(|r| matches!(r, WhyReading::AtApex | WhyReading::Limit))
+            {
+                return CoveredPosture::Frontier;
+            }
+            if let Some(diag) = readings.iter().find_map(|r| match r {
+                WhyReading::PoseGap(_, diag) => Some(*diag),
+                _ => None,
+            }) {
+                return CoveredPosture::InBand(diag);
+            }
+            CoveredPosture::Sign(Sign::Zero)
         }
     }
 }

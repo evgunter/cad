@@ -7,26 +7,31 @@
 //!   (`reduce::place_crossing`: a cone's far nappe told off first, then
 //!   `contain::placement_on_carrier`). One at an end of the span is that
 //!   end's: the vertex rows own it.
-//! - **A window** holds no point of the face when none of its pieces
-//!   does (`window_off_face`, halving to a fixed depth); a piece standing
-//!   past its reach from the carrier holds none, and any other holds none
-//!   when its ball does not: let `m` be the piece's middle, `ℓ` its reach
-//!   along the carrier at the carrier's speed bound
+//! - **A window** holds no point of the face when none of its meetings
+//!   with the carrier can be: they are localized into clusters by
+//!   bisection (`localize`, a first- and a second-order bound on the
+//!   distance over each piece, halving to the tangency floor), and each
+//!   cluster is read by its ball. Let `m` be the cluster's middle, `ℓ`
+//!   its reach along the carrier at the carrier's speed bound
 //!   (`geom_core::bisect::reach`), and `(dist, foot)` the surface's signed
-//!   distance and foot at `C(m)` ([`distance`]). Every meeting the piece
-//!   can hold lies within `ℓ + |dist|` of the foot (the distance is
-//!   1-Lipschitz). That radius, widened by `escalate`, must decide below
-//!   the carrier's reach ρ ([`reach`]), and then the ball meets the carrier
-//!   in one disc; with every boundary vertex and edge of the face decided
-//!   clear of the ball and its foot placed `Out`, the face holds none of
-//!   that disc ([`ball_off_face`]). A window any piece of which the depth
-//!   leaves held refuses the reading, naming the window and its why. A carrier with no distance and foot (a
-//!   cone, a spline) refuses every window.
+//!   distance and foot at `C(m)` ([`distance`]). Every meeting the
+//!   cluster can hold lies within `ℓ + |dist|` of the foot (the distance
+//!   is 1-Lipschitz). That radius, widened by `escalate`, must decide
+//!   below the carrier's reach ρ ([`reach`]), and then the ball meets the
+//!   carrier in one disc; with every boundary vertex and edge of the face
+//!   decided clear of the ball and its foot placed `Out`, the face holds
+//!   none of that disc ([`ball_off_face`]). A window any cluster of which
+//!   the face may hold, or that does not localize, refuses the reading,
+//!   naming the window and its why. A carrier with no distance and foot
+//!   (a cone, a spline) refuses every window.
 //! - **A window whose why is a fault** fails loud
 //!   ([`BooleanError::ClassificationInvariant`]) and is never set aside.
-//! - **A touch** is one meeting, its in-band arc: read as a window's ball,
-//!   and off the face it is no meeting here. On the face it is the lane's
-//!   touch treatment (a curved face's typed frontier).
+//! - **A touch** is one meeting, its in-band arc: read as a window, and
+//!   off the face it is no meeting here. On the face it is the lane's
+//!   touch treatment (a curved face's typed frontier). A touch at an end
+//!   of the span is the end vertex's at its point, but its arc's stretch
+//!   inside the span is the span's: that stretch is read as an inside
+//!   touch's arc is, and only then is the meeting the vertex's.
 //!
 //! ρ is the carrier's reach, the distance from it to its medial axis: a
 //! sphere's or a cylinder's radius, a ring torus's `min(r, R − r)`, and no
@@ -151,23 +156,38 @@ pub(super) fn face_crossings<T: Decide + Bounds>(
                 });
             }
         };
-        // First, as the root doors answered it ahead of the others.
+        // In span order among the others, as `cross` answers them.
         if let Some(on_span) = on_span {
-            meetings.insert(
-                0,
-                geom_brep::curve_face::Meeting {
-                    point: carrier.eval(apex.at),
-                    on_span,
-                    kind: MeetingKind::Cross,
-                },
-            );
+            let apex = geom_brep::curve_face::Meeting {
+                point: carrier.eval(apex.at),
+                on_span,
+                kind: MeetingKind::Cross,
+            };
+            let at = meetings
+                .iter()
+                .position(|m| after(span, apex.on_span, m.on_span))
+                .unwrap_or(meetings.len());
+            meetings.insert(at, apex);
         }
     }
     let nappe = reduce::cone_nappe(y, face, surface, band)?;
     let mut out = Vec::with_capacity(meetings.len());
     for m in meetings {
         match (m.on_span, m.kind) {
-            (OnSpan::End(_), _) => out.push(FaceMeeting::End),
+            (OnSpan::End(_), MeetingKind::Cross) => out.push(FaceMeeting::End),
+            // The arc's stretch inside the span is the span's: the end's
+            // point is the vertex's only once that stretch is off the face.
+            (OnSpan::End(_), MeetingKind::Touch { arc }) => {
+                let (a, b) = span.params();
+                let inside = (arc.0.max(a.min(b)), arc.1.min(a.max(b)));
+                if inside.0.hi() < inside.1.hi()
+                    && !window_off_face(y, face, surface, carrier, inside, band)?
+                {
+                    out.push(FaceMeeting::TouchOnFace);
+                    break;
+                }
+                out.push(FaceMeeting::End);
+            }
             (OnSpan::Inside { .. }, MeetingKind::Touch { arc }) => {
                 if !window_off_face(y, face, surface, carrier, arc, band)? {
                     out.push(FaceMeeting::TouchOnFace);
@@ -197,34 +217,55 @@ pub(super) fn face_crossings<T: Decide + Bounds>(
     })
 }
 
-/// **How many times the face reading halves a window** ([`window_off_face`]):
-/// eight, as the cluster reading it replaces did (`carrier_touch`'s
-/// `CLUSTER_BUDGET`), so at most `2⁸` pieces. A window's piece is short
-/// enough at that depth for its ball to fall below a carrier's reach
-/// wherever the window is a touch or a graze's reach on a carrier of any
-/// size the session box holds; a piece the depth leaves unsettled keeps
-/// the window, and the reading refuses, as the cluster reading did past
-/// its own budget.
-const WINDOW_DEPTH: u32 = 8;
+/// Whether the meeting at `b` comes after the one at `a` along `span`
+/// from its start: an end before or after every inside meeting, two
+/// inside ones by their parameters in the span's direction.
+fn after<T: Decide + Bounds>(span: &Span<'_, T>, a: OnSpan<T>, b: OnSpan<T>) -> bool {
+    use geom_brep::curve_pair::SpanEnd::{Start, Stop};
+    let (t0, t1) = span.params();
+    match (a, b) {
+        (_, OnSpan::End(Start)) | (OnSpan::End(Stop), _) => false,
+        (OnSpan::End(Start), _) | (_, OnSpan::End(Stop)) => true,
+        (OnSpan::Inside { t: ta }, OnSpan::Inside { t: tb }) => {
+            if t1.hi() < t0.hi() {
+                tb.hi() < ta.hi()
+            } else {
+                ta.hi() < tb.hi()
+            }
+        }
+    }
+}
+
+/// **The most clusters a window localizes into** ([`window_off_face`]):
+/// the most meetings a span of a line or a conic has with these
+/// carriers. A conic against a torus is degree 8 in the conic's
+/// half-angle tangent, and every other such pair (a line against a
+/// torus, any of them against a quadric) is at most 4. A spiric or a
+/// spline window meeting the carrier more often than that is not
+/// localized, and the window is held. The cap counts clusters, runs of
+/// adjacent pieces that do not clear; the halving itself stops at the
+/// tangency floor ([`geom_core::bisect::tangency_floor`] of the carrier's
+/// reach), and the walk reads within [`geom_core::bisect::PIECE_BUDGET`]
+/// pieces, past which the window is held too.
+const CLUSTER_BUDGET: usize = 8;
 
 /// **Whether the window `(lo, hi)` of `carrier` holds no point of
-/// `face`** (module docs), read piece by piece. A piece whose middle
-/// stands past its own reach from the carrier by more than the band's
-/// escalation holds no meeting (`curve_face_window_piece_clear`, in
-/// metres: the distance is 1-Lipschitz along the carrier, so no point of
-/// the piece is within the band of the surface); any other piece is read
-/// by its ball ([`ball_off_face`]), and one the ball does not clear is
-/// halved, to [`WINDOW_DEPTH`]. The window holds no point of the face
-/// only when every piece does: the meetings it can hold lie in the union
-/// of the pieces' discs, each off the face. A piece past the depth that
-/// its ball does not clear keeps the window (`false`), whatever another
-/// piece read; one whose reading escalated keeps it too, and its
-/// escalation is the answer only where no piece is kept outright. A
-/// carrier with no distance and foot here holds the window (`false`).
+/// `face`** (module docs): its meetings with the carrier localized into
+/// clusters ([`localize`]), and each cluster read by its ball
+/// ([`ball_off_face`]). A cluster reaching `ℓ` about its middle `m`
+/// meets the carrier, if at all, within `ℓ + |dist(m)|` of `m`'s foot,
+/// and that radius, widened by `escalate`, is its ball's. The window
+/// holds no point of the face only when every cluster's ball does: the
+/// meetings it can hold lie in the union of the clusters' discs, each off
+/// the face. A cluster whose ball does not clear keeps the window
+/// (`false`), whatever another read; one whose reading escalated keeps
+/// it too, and its escalation is the answer only where no cluster is
+/// kept outright. A window the walk cannot localize, and a carrier with
+/// no distance and foot here, hold the window (`false`).
 ///
 /// # Errors
 ///
-/// [`ball_off_face`]'s, for a piece past the depth whose ball escalated.
+/// [`ball_off_face`]'s, for a cluster whose ball escalated.
 pub(super) fn window_off_face<T: Decide + Bounds>(
     y: &Body<T>,
     face: FaceKey,
@@ -237,39 +278,146 @@ pub(super) fn window_off_face<T: Decide + Bounds>(
         return Ok(false);
     };
     let speed = geom::carrier_speed::speed_range(carrier).1;
+    let bend = geom::carrier_speed::curvature_hi(carrier);
+    let Some(clusters) = localize(surface, carrier, (speed, bend), rho, (lo, hi), band) else {
+        return Ok(false);
+    };
     let escalate = T::from_f64(band.escalate());
-    let mut kept = None;
-    let mut pieces = vec![((lo, hi), 0_u32)];
-    while let Some(((a, b), depth)) = pieces.pop() {
+    // Every cluster off the face, an identity: any cluster not certified
+    // off answers `false`, whatever an earlier cluster read ([`climb`],
+    // [`Answering::Any`]). A cluster in band is kept by its standing
+    // ([`BooleanError::refusal`]), refusing only where every other is off.
+    let not_off = climb(Answering::Any, clusters, |(a, b)| {
+        let Some((dist, foot, _)) = distance(surface, carrier.eval(geom::mid_param(a, b))) else {
+            return Rung::Answers(Ok(()));
+        };
+        let radius = geom_core::bisect::reach(speed, (a, b)) + dist.abs() + escalate;
+        Rung::holds(
+            ball_off_face(y, face, foot, radius, rho, band).map(|off| !off),
+            (),
+            BooleanError::refusal,
+        )
+    });
+    match not_off {
+        Climb::Answered { answer, .. } => answer.map(|()| false),
+        Climb::Passed => Ok(true),
+        Climb::Undecided(e) => Err(e),
+    }
+}
+
+/// A localization that stopped with no clusters to answer: a piece
+/// with no distance, or more clusters than [`CLUSTER_BUDGET`].
+struct Unlocalized;
+
+/// **The parameter runs of `(lo, hi)` that may meet the carrier**, in
+/// order, the curve's speed and curvature bounds and the carrier's reach
+/// given; `None` past the budgets. The window is bisected. A piece
+/// reaches at most `ℓ` metres along the curve from its middle `m`
+/// ([`geom_core::bisect::reach`] at the speed bound), and it meets the
+/// carrier nowhere within `escalate` when a lower bound on `|dist|` over
+/// it, less `escalate`, decides positive (`curve_face_window_piece_clear`,
+/// in metres). Two bounds are taken, the larger deciding:
+///
+/// - `|dist(m)| − ℓ`, since the distance is 1-Lipschitz;
+/// - where the piece keeps clear of the carrier's medial axis
+///   (`curve_face_window_piece_off_axis`), the second-order
+///   `|dist(m)| − ℓ·|g| − ℓ²·H/2`, `g` the distance's derivative along
+///   the curve at `m` (the unit normal at the foot against the unit
+///   tangent) and `H` a bound on its second: `1/(ρ − |dist(m)| − ℓ)` for
+///   the carrier's level sets, plus the curve's own curvature
+///   ([`geom::carrier_speed::curvature_hi`]). On a plane the level sets
+///   are flat and `H` is the curve's curvature alone. A curvature bound
+///   is finite only where the curve is `C¹` across the piece: a spline
+///   with a crease bounds none, and the first bound decides alone (at
+///   `Interval`, a bound unbounded above leaves the second unbounded
+///   below, which the larger-of drops).
+///
+/// Near a tangency the first clears nothing finer than the band; the
+/// second clears pieces in proportion to their distance from the touch.
+/// A piece neither clears is halved down to the tangency floor of the
+/// radius the carrier's level sets part from the curve over (its reach,
+/// or on a plane the curve's own radius of curvature; no finite bend sets
+/// no floor, and the walk runs to its budget), and the pieces left at the
+/// floor run together into clusters.
+fn localize<T: Decide + Bounds>(
+    surface: &geom::Surface<T>,
+    carrier: &geom::Curve3<T>,
+    (speed, bend): (geom_core::SupSpeed<T>, T),
+    rho: MedialDistance<T>,
+    (lo, hi): (T, T),
+    band: Band,
+) -> Option<Vec<(T, T)>> {
+    use geom_core::bisect::Step;
+    let parting = match rho {
+        MedialDistance::Bounded(rho) => rho,
+        MedialDistance::Unbounded if geom_core::is_finite_length(bend) => T::one() / bend,
+        MedialDistance::Unbounded => T::zero(),
+    };
+    let floor = geom_core::bisect::tangency_floor(parting, band.escalate()).hi();
+    let escalate = T::from_f64(band.escalate());
+    let half = T::from_f64(0.5);
+    let mut out: Vec<(T, T)> = Vec::new();
+    // Whether a cleared piece came after the last open one: the next open
+    // piece starts a cluster.
+    let mut broken = true;
+    let walk = geom_core::bisect::bisect([(lo, hi)], |(a, b)| {
         let mid = geom::mid_param(a, b);
         let ell = geom_core::bisect::reach(speed, (a, b));
-        let Some((dist, foot)) = distance(surface, carrier.eval(mid)) else {
-            return Ok(false);
+        let Some((dist, _, normal)) = distance(surface, carrier.eval(mid)) else {
+            return Step::Stop(Unlocalized);
         };
-        if matches!(
-            decide(
-                "curve_face_window_piece_clear",
-                Margin::of(dist.abs() - ell - escalate),
-                band
-            ),
-            Ok(Sign::Positive)
+        let tangent = carrier.deriv(mid);
+        let slope = (normal.dot(tangent) / tangent.norm()).abs();
+        let lipschitz = dist.abs() - ell;
+        // A bend with no finite bound (a spline's crease or cusp) takes
+        // the first bound alone; a plane's level sets do not bend.
+        let curl = match rho {
+            _ if !geom_core::is_finite_length(bend) => None,
+            MedialDistance::Unbounded => Some(bend),
+            MedialDistance::Bounded(rho) => {
+                let axis_gap = rho - dist.abs() - ell;
+                matches!(
+                    decide(
+                        "curve_face_window_piece_off_axis",
+                        Margin::of(axis_gap),
+                        band
+                    ),
+                    Ok(Sign::Positive)
+                )
+                .then(|| T::one() / axis_gap + bend)
+            }
+        };
+        let bound = match curl {
+            Some(curl) => lipschitz.max(dist.abs() - ell * slope - ell.powi(2) * curl * half),
+            None => lipschitz,
+        };
+        if let Ok(Sign::Positive) = decide(
+            "curve_face_window_piece_clear",
+            Margin::of(bound - escalate),
+            band,
         ) {
-            continue;
+            broken = true;
+            return Step::Settled;
         }
-        let read = ball_off_face(y, face, foot, ell + dist.abs() + escalate, rho, band);
-        match read {
-            Ok(true) => {}
-            _ if depth < WINDOW_DEPTH => {
-                pieces.push(((mid, b), depth + 1));
-                pieces.push(((a, mid), depth + 1));
-            }
-            Ok(false) => return Ok(false),
-            Err(e) => {
-                kept.get_or_insert(e);
+        if ell.hi() > floor {
+            return Step::Halve([(a, mid), (mid, b)]);
+        }
+        match out.last_mut() {
+            Some(last) if !broken => last.1 = b,
+            _ => {
+                if out.len() == CLUSTER_BUDGET {
+                    return Step::Stop(Unlocalized);
+                }
+                out.push((a, b));
             }
         }
+        broken = false;
+        Step::Settled
+    });
+    match walk {
+        Ok(None) => Some(out),
+        Ok(Some(Unlocalized)) | Err(_) => None,
     }
-    kept.map_or(Ok(true), Err)
 }
 
 /// A carrier's reach, ρ in the module docs.
@@ -304,7 +452,8 @@ pub(super) fn reach<T: Real>(surface: &geom::Surface<T>) -> Option<MedialDistanc
     }
 }
 
-/// **A point's signed distance from the carrier, and its foot on it**,
+/// **A point's signed distance from the carrier, its foot on it, and the
+/// unit normal there** (the distance's gradient),
 /// posed well-conditioned (standing claim 1, `[simple.conditioned]`) and
 /// then read as exact: every quantity from `q − origin`, the surface's
 /// stored origin; an axis's offset as `|e × n|` and its direction as
@@ -314,20 +463,21 @@ pub(super) fn reach<T: Real>(surface: &geom::Surface<T>) -> Option<MedialDistanc
 pub(super) fn distance<T: Real>(
     surface: &geom::Surface<T>,
     q: Point3<T>,
-) -> Option<(T, Point3<T>)> {
+) -> Option<(T, Point3<T>, Vec3<T>)> {
     // The foot along the unit normal through `q`, from a vector along it.
-    let foot = |along: Vec3<T>, dist: T| q - along.normalize() * dist;
+    let read = |along: Vec3<T>, dist: T| {
+        let n = along.normalize();
+        Some((dist, q - n * dist, n))
+    };
     match *surface {
         geom::Surface::Sphere { frame, radius, .. } => {
             let w = q - frame.origin();
-            let dist = w.norm() - radius;
-            Some((dist, foot(w, dist)))
+            read(w, w.norm() - radius)
         }
         geom::Surface::Cylinder { frame, radius, .. } => {
             let (e, n) = (q - frame.origin(), frame.axis_unit().get());
             let across = e.cross(n);
-            let dist = across.norm() - radius;
-            Some((dist, foot(n.cross(across), dist)))
+            read(n.cross(across), across.norm() - radius)
         }
         geom::Surface::Torus {
             frame,
@@ -340,13 +490,14 @@ pub(super) fn distance<T: Real>(
             let rho = across.norm();
             let dist = ((rho - major_radius).powi(2) + h.powi(2)).sqrt() - minor_radius;
             // Along `(ρ − R)·ô + h·n`, `ô` the axis offset's direction.
-            let along = n.cross(across).normalize() * (rho - major_radius) + n * h;
-            Some((dist, foot(along, dist)))
+            read(
+                n.cross(across).normalize() * (rho - major_radius) + n * h,
+                dist,
+            )
         }
         geom::Surface::Plane { frame, .. } => {
             let n = frame.axis_unit().get();
-            let dist = (q - frame.origin()).dot(n);
-            Some((dist, foot(n, dist)))
+            read(n, (q - frame.origin()).dot(n))
         }
         geom::Surface::Cone { .. }
         | geom::Surface::Spindle { .. }

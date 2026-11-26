@@ -136,17 +136,20 @@ fn a_window_off_the_face_with_its_ball_clear_of_the_boundary_is_no_event() {
 }
 
 /// **A window whose ball meets a boundary edge refuses, naming the
-/// window's decision.** A line beside the wall at azimuth `0.52`, just
-/// past the face's edge at `½`, refused over a window wide enough that
-/// its ball reaches back across that edge: the foot reads `Out`, but the
-/// edge is inside the ball, so the reading refuses with the window, its
-/// why the pose's in-band discriminant.
+/// window's decision.** A line beside the wall at azimuth `½ + δ`, `δ`
+/// a tenth of `√escalate` past the face's edge at `½` (inside the run the
+/// line stays within the band of the wall, `√(2·escalate)` about the
+/// touch), refused over a window about the touch: the cluster about the
+/// touch cannot be cut finer than that run, so its ball reaches back
+/// across the edge. The foot reads `Out`, but the edge is inside the
+/// ball, so the reading refuses with the window, its why the pose's
+/// in-band discriminant.
 ///
 /// Mutant: the boundary check skipped (the foot's `Out` read alone), red.
 #[test]
 fn a_window_whose_ball_meets_a_boundary_edge_refuses_with_its_why() {
     let (y, face) = wall_face();
-    let u = 0.52_f64;
+    let u = 0.5 + 0.1 * band().escalate().sqrt();
     // The line tangent to the wall at azimuth `u`, half the band off it,
     // its parameter the arc length from the touch.
     let normal = Vec3::new(u.cos(), u.sin(), 0.0);
@@ -295,15 +298,15 @@ fn a_fault_window_fails_loud() {
     ));
 }
 
-/// **A whole-span window off the face is read by its pieces** where one
+/// **A whole-span window off the face is read by its clusters** where one
 /// ball cannot hold it: a line beside the wall at azimuth `π`, half the
 /// band outside it, refused over a window four metres long. Its one ball
-/// (radius about 2) passes the wall's reach `ρ = 1`; halved, the pieces
+/// (radius about 2) passes the wall's reach `ρ = 1`; bisected, the pieces
 /// far from the wall hold no meeting (`curve_face_window_piece_clear`)
-/// and those near its touch read off the face by their balls, so the
-/// window is off the face, as `off_face`'s clusters read it.
+/// and the cluster about its touch reads off the face by its ball, so
+/// the window is off the face.
 ///
-/// Mutant: the window read whole (no halving), red.
+/// Mutant: the window read whole (no bisection), red.
 #[test]
 fn a_long_window_off_the_face_is_read_by_its_pieces() {
     let (y, face) = wall_face();
@@ -313,17 +316,18 @@ fn a_long_window_off_the_face_is_read_by_its_pieces() {
     assert!(off, "every piece of the window is off the face");
 }
 
-/// **A tiled window one of whose pieces reaches a boundary edge keeps
-/// the window**: a line tangent to the wall at azimuth `0.52`, just past
-/// the face's edge at `½`, read over a window two metres long. Halving
-/// settles the pieces far from the wall, but the piece about the touch
-/// holds the edge however short it gets, so the window is held.
+/// **A long window one of whose clusters reaches a boundary edge keeps
+/// the window**: a line tangent to the wall at azimuth `½ + δ`, `δ` a
+/// tenth of `√escalate` past the face's edge, read over a window two
+/// metres long. The walk settles the pieces far from the wall, but the
+/// cluster about the touch holds the edge however far it is cut, so the
+/// window is held.
 ///
-/// Mutant: a piece past the depth read as off the face, red.
+/// Mutant: a cluster whose ball does not clear read as off the face, red.
 #[test]
 fn a_tiled_window_whose_piece_reaches_the_boundary_is_held() {
     let (y, face) = wall_face();
-    let u = 0.52_f64;
+    let u = 0.5 + 0.1 * band().escalate().sqrt();
     let normal = Vec3::new(u.cos(), u.sin(), 0.0);
     let line = Curve3::Line(geom::Line {
         origin: Point3::origin() + normal * (1.0 + band().zero() / 2.0) + Vec3::new(0.0, 0.0, 0.5),
@@ -425,4 +429,141 @@ fn the_tiled_reading_never_sets_aside_a_window_a_face_point_stands_in() {
         );
     }
     assert!(off > 20 && held > 20, "{off} read off, {held} held");
+}
+
+/// A line tangent to the unit wall at azimuth `u` and height ½, `off`
+/// outside it, its parameter the arc length from the touch.
+fn tangent_line(u: f64, off: f64) -> Curve3<f64> {
+    let normal = Vec3::new(u.cos(), u.sin(), 0.0);
+    Curve3::Line(geom::Line {
+        origin: Point3::origin() + normal * (1.0 + off) + Vec3::new(0.0, 0.0, 0.5),
+        dir: geom::stated_direction(Vec3::new(-u.sin(), u.cos(), 0.0)),
+    })
+}
+
+/// **A line or a circle tangent to the wall just past the face's edge is
+/// read off the face, over a long window**: tangent at azimuth `½ + δ`,
+/// `δ` from 0.05 down to 0.001 past the edge, half the band outside the
+/// wall: a line read over four metres about the touch, and a circle of
+/// radius 3 in the plane `z = ½`, tangent there from outside, read over
+/// its whole turn. The cluster about the touch is cut down to the
+/// tangency floor, far inside `δ`, and its ball stands clear of the edge,
+/// so the window is off the face at every `δ`, as `off_face`'s clusters
+/// read it.
+///
+/// Mutants: the second-order bound dropped, or the halving stopped at a
+/// fixed depth of eight, red (the ball about the touch stays wider than
+/// `δ`).
+#[test]
+fn a_touch_just_past_the_faces_edge_is_off_the_face_over_a_long_window() {
+    let (y, face) = wall_face();
+    let off = band().zero() / 2.0;
+    for delta in [0.05, 0.02, 0.01, 0.005, 0.002, 0.001] {
+        let u = 0.5 + delta;
+        let line = tangent_line(u, off);
+        assert!(
+            window_off_face(&y, face, &unit_wall(), &line, (-2.0, 2.0), band())
+                .unwrap_or_else(|e| panic!("δ {delta}: {e:?}")),
+            "δ {delta}: the line's window is off the face"
+        );
+        let normal = Vec3::new(u.cos(), u.sin(), 0.0);
+        let circle = Curve3::circle(
+            Point3::origin() + normal * (4.0 + off) + Vec3::new(0.0, 0.0, 0.5),
+            Vec3::unit_z(),
+            3.0,
+            Vec3::new(-u.cos(), -u.sin(), 0.0),
+        );
+        assert!(
+            window_off_face(
+                &y,
+                face,
+                &unit_wall(),
+                &circle,
+                (-core::f64::consts::PI, core::f64::consts::PI),
+                band()
+            )
+            .unwrap_or_else(|e| panic!("δ {delta}: {e:?}")),
+            "δ {delta}: the circle's whole turn is off the face"
+        );
+    }
+}
+
+/// **An end-touch's arc inside the span is the span's** (the face
+/// reading's touch rule): a line dipping half the band into the wall at
+/// azimuth `½ + δ`, `δ` a tenth of `√escalate` past the face's edge, so
+/// its touch's in-band arc reaches back across the edge onto the face.
+/// Read on a span with the touch strictly inside, the touch is held
+/// (`TouchOnFace`). Read on the span ending at the touch, the end's
+/// point is the vertex's, but the arc's stretch inside the span still
+/// reaches the face: held too, never passed as the end's.
+///
+/// Mutant: an end-touch read as the end's alone (its arc unread), red.
+#[test]
+fn an_end_touchs_arc_inside_the_span_is_read_against_the_face() {
+    let (y, face) = wall_face();
+    let u = 0.5 + 0.1 * band().escalate().sqrt();
+    let line = tangent_line(u, -band().zero() / 2.0);
+    for span in [(-0.5, 0.5), (-0.5, 0.0)] {
+        let span = Span::new(&line, span);
+        let answer = geom_brep::curve_face::cross(&span, &unit_wall(), band());
+        let got = face_crossings(&y, face, &unit_wall(), &span, answer, band())
+            .unwrap_or_else(|e| panic!("{:?}: {e:?}", span.params()));
+        let held = match got {
+            FaceCrossings::Met { meetings, .. } => meetings
+                .iter()
+                .any(|m| matches!(m, FaceMeeting::TouchOnFace)),
+            FaceCrossings::Refused(_) => true,
+            FaceCrossings::Lies | FaceCrossings::Apart => false,
+        };
+        assert!(
+            held,
+            "{:?}: the touch's arc reaches the face",
+            span.params()
+        );
+    }
+}
+
+/// **A ball is read against a ring torus's reach, `min(r, R − r)`**: a
+/// ball of radius 0.6 about a point far off the wall face (azimuth `π`),
+/// against the reach of a torus of tube radius 1 about a spine of radius
+/// 1.5, `0.5`: past it, the ball is not read off the face, whatever the
+/// face. Against a torus of spine radius 3 (reach 1), the same ball is.
+///
+/// Mutant: the torus's reach read as its tube radius `r`, red.
+#[test]
+fn a_ball_is_read_against_a_ring_toruss_reach() {
+    let (y, face) = wall_face();
+    let torus = |major: f64| geom::Surface::Torus {
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+        major_radius: major,
+        minor_radius: 1.0,
+    };
+    let foot = Point3::new(-1.0, 0.0, 0.5);
+    let read = |major: f64| {
+        let rho = super::reach(&torus(major)).unwrap_or_else(|| panic!("a torus has a reach"));
+        ball_off_face(&y, face, foot, 0.6, rho, band()).unwrap_or_else(|e| panic!("{e:?}"))
+    };
+    assert!(!read(1.5), "a ball past the reach 0.5 is not read off");
+    assert!(read(3.0), "a ball within the reach 1 is read off the face");
+}
+
+/// **A piece within the band's escalation of the carrier holds a
+/// meeting**: a line beside the wall at azimuth 0, the middle of the
+/// face, `1.5·escalate` outside it, read over a short window about its
+/// nearest point. Its second-order bound reads about `1.5·escalate` at
+/// the touch; less the escalation, it does not clear, and the cluster's
+/// ball, about a foot the face holds, keeps the window.
+///
+/// Mutant: the piece test read without `− escalate`, red (the piece at
+/// the touch clears, and the window reads off a face `1.5·escalate`
+/// from it).
+#[test]
+fn a_piece_within_the_escalation_of_the_carrier_is_not_cleared() {
+    let (y, face) = wall_face();
+    let line = tangent_line(0.0, 1.5 * band().escalate());
+    assert!(
+        !window_off_face(&y, face, &unit_wall(), &line, (-0.01, 0.01), band())
+            .unwrap_or_else(|e| panic!("{e:?}")),
+        "the window stands within the escalation of the face"
+    );
 }

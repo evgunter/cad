@@ -90,6 +90,11 @@ fn quadratic(o: Point3<f64>, d: Vec3<f64>, s: &geom::Surface<f64>) -> Quadratic 
 /// ends, `cross` answers its truth: two crossings strictly inside, or
 /// none and no touch.
 ///
+/// Every pair the retired `bool_line_cylinder_clearance` cleared (its
+/// dip bound, computed verbatim: `min(r_u, r_v) − max(0, q/2 − |m|)/4`,
+/// `q = f″·Δt²`, `m` the endpoint gap, decided past the band) is answered
+/// by `cross` without refusing, and with no meeting.
+///
 /// Mutant: the pose's discriminant read on the endpoint chord (the
 /// decision taken on the start's residual, positive here), red: every
 /// belly crossing reads `Apart`.
@@ -98,7 +103,7 @@ fn a_segment_outside_at_both_ends_is_read_against_the_closed_form() {
     let b = band();
     let clear = 10.0 * b.escalate();
     let mut rng = test_utils::fuzz::start("line-clearance");
-    let (mut bellies, mut clears) = (0, 0);
+    let (mut bellies, mut clears, mut old_clears) = (0, 0, 0);
     for case in 0..test_utils::fuzz::scaled(3000) {
         let origin = Point3::new(
             rng.range(-2.0, 2.0),
@@ -147,6 +152,32 @@ fn a_segment_outside_at_both_ends_is_read_against_the_closed_form() {
             continue;
         }
         let got = cross(&Span::new(&line, span), &s, b);
+        // The retired clearance's dip bound, verbatim.
+        let f2 = if wall {
+            (d.norm_squared() - d.dot(axis).powi(2)) / r
+        } else {
+            d.norm_squared() / r
+        };
+        let (r_u, r_v) = (
+            crate::implicit_residual(&s, line.eval(span.0)),
+            crate::implicit_residual(&s, line.eval(span.1)),
+        );
+        let q = f2 * (span.1 - span.0).powi(2);
+        let dip = (q * 0.5 - (r_v - r_u).abs()).max(0.0) * 0.25;
+        if r_u.min(r_v) - dip >= b.escalate() {
+            old_clears += 1;
+            match &got {
+                Ok(found) => assert!(
+                    found.meetings.is_empty(),
+                    "case {case}: the retired clearance cleared it, read {found:?} ({})",
+                    test_utils::fuzz::replay()
+                ),
+                Err(refusal) => panic!(
+                    "case {case}: the retired clearance cleared it, refused {refusal:?} ({})",
+                    test_utils::fuzz::replay()
+                ),
+            }
+        }
         let inside = |t: f64| t > span.0 + clear && t < span.1 - clear;
         match truth.roots {
             Some((lo, hi)) if truth.vertex_depth < -clear && inside(lo) && inside(hi) => {
@@ -186,7 +217,7 @@ fn a_segment_outside_at_both_ends_is_read_against_the_closed_form() {
         }
     }
     assert!(
-        bellies > 100 && clears > 100,
-        "{bellies} belly crossings, {clears} clear"
+        bellies > 100 && clears > 100 && old_clears > 50,
+        "{bellies} belly crossings, {clears} clear, {old_clears} the retired clearance cleared"
     );
 }
