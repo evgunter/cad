@@ -2197,3 +2197,8 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - **Rulings:** Q1, Q3, Q4 (with the spiric's own decisions retired), Q5 and Q6 as recommended; Q2 classify by band.
   - **New Q7 (open):** which run's band a witness belongs to. Possibly a fork; if so, it waits for designers after the Fable reset.
   - The fix pass is sent to the spec session.
+- 2026-11-26 23:00 — **`[sizes]` spec fix pass accepted.**
+  - New order: S1 Size; S2 blend arms hand back numbers, with the P3 token (H); S3a/b/c and S4 surfaces; S5 conics; S6 headroom (M); S7 retirements (H).
+  - **Q7 closed by the evidence:** one ε per process, a mismatched load refuses, documents are recipes.
+  - **Q8 ruled:** the corner torus is `Size(2r)`, then `RingTorus::of`.
+  - Merge follows once the rulings are recorded.
