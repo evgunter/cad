@@ -494,3 +494,5 @@ row's touching half, not a decided failure: no error but
 (`Reads::Undecided`). Designer C had read it as `t3p=false` on main;
 designer B as `CensusUndecidable`; the latter is what the census
 returns.
+
+**2026-11-26, from INSIDE's face door (PR 7801, `inside/face-door-spline-arm`).** One instance decides now: `sweep/tests/cylinder_sphere_frame.rs`'s `a_ball_across_a_cylinder_wall_in_two_loops` and `…_turned`. Their `A ∖ B` cuts the drum in two parts with spline-chorded curved faces. It was pinned `Ends::PartsUndecided` (this row's cause), and it now passes tier 3′ outright. The face door reads the parts' spline chords through `curve_face::cross`'s ring-composite arm, so the census decides the parts apart. That narrows the row; it does not close it. The shell results it measured (nested and side-by-side thin curved solids from `shell7`–`shell10`) were not re-run, and `a_closed_conic_in_the_partners_face.rs` still pins `Ends::PartsUndecided`.
