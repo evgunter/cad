@@ -6553,7 +6553,7 @@ mod moved_radius_rows {
     /// `ρ + d·(ρ − 1)/0.99` correctly rounded.
     ///
     /// Mutant: the arm re-posed as `R + (r + d)·cos v` reads 39 ulps
-    /// off.
+    /// off; the re-pose reads within 2.
     #[test]
     fn a_parallel_near_the_axis_keeps_its_own_radius() {
         let torus = Surface::Torus {
@@ -6566,10 +6566,8 @@ mod moved_radius_rows {
         let z = 0.99 * (1.0 - cos_v * cos_v).sqrt();
         let expected = 0.027_034_343_434_343_435_f64;
         let got = moved(&torus, d, radius, z).unwrap().unwrap();
-        assert!(
-            (got - expected).abs() <= 2.0 * f64::EPSILON * expected,
-            "{got:e} against {expected:e}"
-        );
+        let ulps = got.to_bits().abs_diff(expected.to_bits());
+        assert!(ulps <= 2, "{got:e} against {expected:e}: {ulps} ulps");
     }
 
     /// **At `Interval` a size past the float range has an infinite
