@@ -1207,3 +1207,87 @@ fn a_removed_member_consumes_only_where_the_touch_is_found_on_it() {
         "an unread removed member refuses"
     );
 }
+// ---- PROBE (review of PR 7799): (2) on a removed member that touches nothing ----
+
+/// The bottom (−z) or top (+z) face at z = 0 of the brick spanning
+/// `xs` and the given z range.
+fn probe_z0_face(body: &Body<f64>, x_mid: f64, up: bool) -> Cell {
+    let fs: Vec<Cell> = body
+        .faces()
+        .map(|(f, _)| f)
+        .filter(|&f| {
+            matches!(
+                body.face_surface(f),
+                Ok(topo::Surface::Plane { frame, .. })
+                    if frame.origin().z == 0.0
+                        && frame.axis().z == if up { 1.0 } else { -1.0 }
+            )
+        })
+        .filter(|&f| {
+            body.half_edges().any(|(h, _)| {
+                body.face_of_half_edge(h) == Some(f)
+                    && body
+                        .half_edge_start_point(h)
+                        .is_some_and(|p| (p.x - x_mid).abs() <= 0.5)
+            })
+        })
+        .map(Cell::Face)
+        .collect();
+    let [f] = fs[..] else { panic!("one face at x={x_mid} up={up}: {fs:?}") };
+    f
+}
+
+/// PROBE: a face–face record of `x` (P's bottom, −z, x∈[0,1]) and `y`
+/// (Q's top, +z, x∈[3,4]) on z = 0, apart; `x`'s division keeps `x` and
+/// names R's z = 0 face (x∈[6,7]) removed. R touches neither. With R's
+/// face +z (same sense as `y`) and −z (opposed): the clause says Stale
+/// both ways, since the removed member touches nothing.
+#[test]
+fn probe_a_removed_member_touching_nothing_consumes_by_sense_alone() {
+    let tol = Tol::witness();
+    let run = |r_up: bool| {
+        let mut body: Body<f64> = common::brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let q: Body<f64> = common::brick((3.0, 4.0), (0.0, 1.0), (-1.0, 0.0), tol);
+        topo::graft_disjoint_all_keyed(&mut body, &q).unwrap();
+        let r: Body<f64> = if r_up {
+            common::brick((6.0, 7.0), (0.0, 1.0), (-1.0, 0.0), tol)
+        } else {
+            common::brick((6.0, 7.0), (0.0, 1.0), (0.0, 1.0), tol)
+        };
+        topo::graft_disjoint_all_keyed(&mut body, &r).unwrap();
+        let x = probe_z0_face(&body, 0.5, false);
+        let y = probe_z0_face(&body, 3.5, true);
+        let rf = probe_z0_face(&body, 6.5, r_up);
+        let one = common::records(&body, [(x, y)]);
+        let lineage = topo::Lineage::new()
+            .with(
+                x,
+                topo::Fate::Divided(topo::Division {
+                    pieces: vec![x],
+                    minted: vec![],
+                    removed: vec![rf],
+                }),
+            )
+            .unwrap();
+        one.carried_through_removing(
+            0,
+            &lineage,
+            &body,
+            &body,
+            geom_core::Band::linear(tol).unwrap(),
+            Some(topo::RegionLane::certified()),
+        )
+        .map(|c| c.cell_pairs().count())
+    };
+    let same = run(true);
+    let opposed = run(false);
+    eprintln!("PROBE same-sense removed member: {same:?}; opposed: {opposed:?}");
+    assert!(
+        matches!(opposed, Err(topo::CarryRefusal::Stale { record: 0 })),
+        "opposed: {opposed:?}"
+    );
+    assert!(
+        matches!(same, Err(topo::CarryRefusal::Stale { record: 0 })),
+        "same sense, touching nothing, must not consume: {same:?}"
+    );
+}

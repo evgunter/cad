@@ -12,6 +12,7 @@
 //! census.
 
 use std::collections::BTreeMap;
+fn pv(n: &str) -> bool { std::env::var(n).is_ok() }
 
 use geom_core::Real;
 
@@ -937,8 +938,9 @@ pub(in crate::boolean) fn landings<'b, T: crate::props::AtRestPolicy>(
                             // touch as structure, which needs no record
                             // (D1). An image merely incident to an image of
                             // the other cell holds nothing.
-                            on_structure |=
-                                lineage.glues() && matches!(error, ContactPairError::OneCell(_));
+                            on_structure |= lineage.glues()
+                                && (matches!(error, ContactPairError::OneCell(_))
+                                    || (pv("PROBE_LOOSEINC") && !a_minted && !b_minted));
                             structure.get_or_insert(error);
                             continue;
                         }
@@ -1006,9 +1008,10 @@ pub(in crate::boolean) fn landings<'b, T: crate::props::AtRestPolicy>(
                     // them, not as the result's sides and senses, so the
                     // touch is read for its presence alone.
                     let touch = match pair.cells() {
-                        [Cell::Face(a), Cell::Face(b)] => confirm.faces_touch(a, b),
+                        [Cell::Face(a), Cell::Face(b)] if !pv("PROBE_NOPRES") => confirm.faces_touch(a, b),
                         _ => confirm.meets(pair),
                     };
+                    let touch = if pv("PROBE_CONTRAANY") { Ok(touch.unwrap_or(true)) } else { touch };
                     if touch.map_err(|_| CarryRefusal::Unread {
                         record,
                         cells: pair.cells(),
