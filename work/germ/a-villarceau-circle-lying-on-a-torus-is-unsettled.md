@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-08
 priority: P3
 cost: M
-refs: [a-torus-meridian-lying-on-a-torus-is-unsettled]
+refs: [a-torus-meridian-lying-on-a-torus-is-unsettled, the-villarceau-identity-certificate-becomes-the-poses-conic-torus-lies-rung]
 ---
 
 

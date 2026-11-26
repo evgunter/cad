@@ -1802,12 +1802,31 @@ fn conic_or_line_on<T: crate::props::AtRestPolicy>(
             geom::Curve3::Line(_) | geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..),
             geom::Surface::Plane { .. },
         ) => carrier_pose(carrier, (t0, t1), surface, Coincide::EdgeOnPlane, band),
+        (geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..), geom::Surface::Torus { .. }) => {
+            use geom_brep::curve_face::{PoseRefusal, PoseRung};
+            let span = geom_brep::curve_pair::Span::new(carrier, (t0, t1));
+            match geom_brep::curve_face::pose(&span, surface, band).map_err(|u| u.why) {
+                // **The one D3 residue: a second reading of `Lies`.** The
+                // pose has no rung that reads a Villarceau circle (or any
+                // conic of a torus's own but a parallel or a meridian)
+                // lying on the torus, so it refuses where every point it
+                // read is within the band (`curve_face_pose_not_lies`). The
+                // sampled identity certificate reads that arm as it did
+                // before the pose read `slit`'s pairs, and stands until the
+                // pose has a Villarceau rung
+                // (`work/germ/the-villarceau-identity-certificate-becomes-the-poses-conic-torus-lies-rung.md`).
+                Err(PoseRefusal::InBand {
+                    rung: PoseRung::NotLies,
+                    ..
+                }) => villarceau_certificate(carrier, t0, surface, band),
+                _ => carrier_pose(carrier, (t0, t1), surface, Coincide::EdgeOnCurvedFace, band),
+            }
+        }
         (
             geom::Curve3::Line(_) | geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..),
             geom::Surface::Sphere { .. }
             | geom::Surface::Cylinder { .. }
-            | geom::Surface::Cone { .. }
-            | geom::Surface::Torus { .. },
+            | geom::Surface::Cone { .. },
         ) => carrier_pose(carrier, (t0, t1), surface, Coincide::EdgeOnCurvedFace, band),
         (
             &geom::Curve3::Spiric { offset, .. },
@@ -1879,6 +1898,114 @@ fn carrier_pose<T: Decide>(
         }
         Err(PoseRefusal::Fault(what)) => Err(BooleanError::ClassificationInvariant { what }),
     }
+}
+
+/// **The sampled identity certificate of a conic on a torus**
+/// ([`conic_or_line_on`]'s one second reading of `Lies`, the pose's
+/// `NotLies` refusal in band): nine points equispaced over the conic's
+/// whole turn from `t0` ([`even_points`]), read on the torus through the
+/// one certificate ([`geom_brep::variety`]); one definitely off reads the
+/// conic off. A conic lies on a torus along a piece exactly where its
+/// whole carrier does, so the span does not matter.
+///
+/// **Between the samples.** On a torus `R, r` the offset
+/// `((ρ − R)² + h² − r²) / 2r` is not a polynomial along the conic: the
+/// torus's equation, `2r · offset · G` with `G = (ρ + R)² + h² − r²`, is
+/// one of degree 4, and `G ≥ R² − r²` everywhere, so the offset anywhere
+/// on the turn is at most `Λ · max(|offset| · G) / (R² − r²)` over the
+/// nine samples ([`LEBESGUE_NINE`]). That bound is decided after the
+/// samples read zero: zero reads the conic on the torus, beyond the band
+/// leaves it unread (the samples cannot certify a fat torus's conic), in
+/// band escalates. The bound is a ring's (`R > r`), so a torus decided
+/// not a ring is unread before the samples are read, and one whose ring
+/// is in band escalates ([`geom_brep::variety::Variety::of`]).
+///
+/// # Errors
+///
+/// [`BooleanError::Escalated`] where no point is definitely off and an
+/// offset, the torus's bound between them or its ring is in band.
+fn villarceau_certificate<T: Decide>(
+    carrier: &geom::Curve3<T>,
+    t0: T,
+    surface: &geom::Surface<T>,
+    band: Band,
+) -> Result<Placed, BooleanError> {
+    let refused =
+        |diag| BooleanError::coincidence(Coincide::EdgeOnCurvedFace, DeclarationRead::Moot, diag);
+    let Some(variety) = Variety::of(surface, RIDER_RING_TORUS, band).map_err(refused)? else {
+        return Ok(Placed::Unread(EdgeInFaceGap::CarrierUnread));
+    };
+    let points = even_points(carrier, t0, 9);
+    if variety
+        .read_piece(&points, RIDER_ON_CURVED, band)
+        .map_err(refused)?
+        == Piece::Off
+    {
+        return Ok(Placed::Off);
+    }
+    let &geom::Surface::Torus {
+        frame,
+        major_radius,
+        minor_radius,
+        ..
+    } = surface
+    else {
+        return Err(BooleanError::ClassificationInvariant {
+            what: "the Villarceau certificate reads a torus only",
+        });
+    };
+    torus_between(
+        &points,
+        geom::Line {
+            origin: frame.origin(),
+            dir: frame.axis_unit(),
+        },
+        (major_radius, minor_radius),
+        band,
+    )
+    .map_err(refused)
+}
+
+/// The Lebesgue constant of trigonometric interpolation at nine
+/// equispaced points over a turn (degree 4), rounded up from
+/// `2.36186`: no degree-4 trigonometric polynomial exceeds this times
+/// its largest value at the nine points anywhere on the turn.
+const LEBESGUE_NINE: f64 = 2.37;
+
+/// `n` points of conic `carrier` equispaced over its whole turn from
+/// parameter `t0`, distinct: the `k`th at `t0 + k · 2π / n`. The turn is
+/// a conic's period ([`geom::conic_period`]): read on a circle or an
+/// ellipse only ([`villarceau_certificate`]).
+fn even_points<T: Decide>(carrier: &geom::Curve3<T>, t0: T, n: u32) -> Vec<Point3<T>> {
+    let count = |m: u32| (0..m).fold(T::zero(), |c, _| c + T::one());
+    let step = geom::conic_period::<T>().length() / count(n);
+    (0..n).map(|k| carrier.eval(t0 + step * count(k))).collect()
+}
+
+/// [`carrier_on_surface`]'s bound between a conic's nine samples on the
+/// torus about the unit `axis` line, radii `(R, r)`, decided
+/// where every sample read on it.
+fn torus_between<T: Decide>(
+    points: &[Point3<T>],
+    axis: geom::Line<T>,
+    (big, small): (T, T),
+    band: Band,
+) -> Result<Placed, geom_core::Indeterminate> {
+    let mut worst = T::zero();
+    for &p in points {
+        let (h, rho) = axis.height_and_distance(p);
+        // The torus's equation over `2r`, the offset times `G`.
+        let product = ((rho - big).powi(2) + h.powi(2) - small.powi(2))
+            * ((rho + big).powi(2) + h.powi(2) - small.powi(2));
+        worst = worst.max(product.abs() / (small + small));
+    }
+    let bound = worst * T::from_f64(LEBESGUE_NINE) / (big.powi(2) - small.powi(2));
+    Ok(
+        match crate::validate::decide(RIDER_ON_CURVED, Margin::of(bound), band)? {
+            Sign::Zero => Placed::On,
+            Sign::Positive | Sign::Negative => Placed::Unread(EdgeInFaceGap::CarrierUnread),
+        },
+    )
 }
 
 /// **Whether a spline carrier is certified off a plane over its whole
@@ -4336,12 +4463,12 @@ mod curved_carrier_rows {
     }
 
     /// **A conic against a torus whose ring is in band escalates**, at the
-    /// conic site's ring gate in [`super::conic_or_line_on`]
-    /// ([`geom_brep::variety::Variety::of`]), as the spiric site's does:
-    /// the identity certificate holds only on a ring, and an `R − r` in
-    /// band is not read as no ring. The same circle against a ring torus
-    /// it misses reads off. Red where the conic site swallows the ring's
-    /// escalation (`.ok().flatten()`), which then reads the torus unread.
+    /// pose's ring convention, read before any pose of the conic
+    /// (`TorusRefusal::require`, `ring_torus_convention`): the conic site
+    /// reads the pose, which reads only a ring, and an `R − r` in band is
+    /// not read as no ring. The same circle against a ring torus it misses
+    /// reads off. Red where the conic site swallows the ring's escalation,
+    /// which then reads the torus unread.
     #[test]
     fn a_conic_against_a_torus_whose_ring_is_in_band_escalates() {
         let b = band();
@@ -4363,9 +4490,14 @@ mod curved_carrier_rows {
             "a circle far above a ring torus reads off"
         );
         let in_band = ring_in_band(Point3::origin(), Vec3::unit_z(), Vec3::unit_x());
+        let read = conic_or_line_on(&circle, span, &in_band, b);
         assert!(
-            escalates_on_the_ring(conic_or_line_on(&circle, span, &in_band, b)),
-            "a torus whose ring is in band escalates on the ring decision"
+            matches!(
+                read,
+                Err(super::BooleanError::Escalated { diag, .. })
+                    if diag.predicate == Some("ring_torus_convention")
+            ),
+            "a torus whose ring is in band escalates on the ring decision: {read:?}"
         );
     }
 
