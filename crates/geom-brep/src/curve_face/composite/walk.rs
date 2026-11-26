@@ -30,17 +30,33 @@
 //!   point where that sign is not proved, until the point reads ON
 //!   (`spline_composite_root_on`).
 //!
-//! **A span end within the band** is read once, here, on the piece that
-//! holds it: where `f` there is proved opposite the piece's far side,
-//! the crossing between is located and is a crossing like any other;
-//! otherwise the end's own point is read against the surface, and is
-//! the meeting (a root at the end) where it reads ON. Where an interval
-//! scalar cannot prove `f`'s sign there, the end's stretch (to where
-//! `f` is proved on the far side, so every meeting lies on it) is a
-//! meeting at the end where its chord is within the band, and a window
-//! otherwise. Every root found is placed
-//! against the span's ends by the table's own placement
-//! ([`super::super::cross::place`]), so no end is decided twice.
+//! **A span end within the band** is read once, here, on the monotone
+//! piece that holds it ([`near_end`]), by `f`'s sign there proved
+//! against the piece's far side:
+//!
+//! - **opposite**: the crossing between is located, a crossing like any
+//!   other;
+//! - **zero**: the end is the meeting, a root at the end;
+//! - **the same side**: the piece holds no crossing, so a meeting is
+//!   where the surface comes within the band at the end itself
+//!   ([`past_the_end`]). The end's point decided off the surface is no
+//!   meeting. Read ON, it is the end's meeting only where the root of
+//!   the end piece's polynomial continued past the end lies within the
+//!   band of the end by a chord bound (the bracket's parameter reach
+//!   times the continuation's sup speed); else a window at the end. A
+//!   continuation holds no point of the carrier, so no distance read
+//!   off it places a meeting past the band;
+//! - **unproved** (an interval scalar's straddle): the end's stretch, to
+//!   where `f` is proved on the far side so every meeting lies on it,
+//!   is a meeting at the end where its chord is within the band, and a
+//!   window otherwise (a tangency past the band, a meeting in band
+//!   within its gap).
+//!
+//! Every root found, and every end meeting, is placed against the span's
+//! ends by the table's own placement ([`super::super::cross::place`]),
+//! so no end is decided twice; the crossings' count is held against the
+//! sides of the span's ends read past the band (the parity guard), and
+//! a count that disagrees reads nothing.
 
 use geom::{NurbsCurve3, Surface};
 use geom_core::bisect::{Budget, PIECE_BUDGET, Step, bisect_within};
@@ -58,6 +74,9 @@ use crate::roots::{Unsettled, touch_or_tangency};
 
 /// A coefficient ratio, metered, against the band.
 const PAST_THE_BAND: &str = "spline_composite_past_the_band";
+/// The form's distance divisor (the majorant that meters a ratio),
+/// proved positive.
+const DIVISOR: &str = "spline_composite_divisor";
 /// A coefficient of `N′D − ND′`, proved one side of zero.
 const SLOPE: &str = "spline_composite_slope";
 /// `f` at a halving or an end, proved one side of zero.
@@ -71,11 +90,21 @@ const AT_CREASE: &str = "spline_composite_root_at_crease";
 /// A near end's stretch, by its chord.
 const STRETCH: &str = "spline_composite_end_stretch";
 
-/// The shortest piece cut, as a share of the span (the module docs of
-/// `super`).
+/// **The shortest piece cut**, as a share of the span: `2⁻⁴⁰`. A piece
+/// is cut no finer, and one at the floor its readings do not settle
+/// refuses ([`Unsettled::Floor`]). Forty halvings of a span's `f64`
+/// shadow leave it twelve of its 52 bits, so the floor is met well
+/// before the shadow closes on adjacent `f64`s, and the walk refuses on
+/// its own floor rather than on the shadow's granularity; a piece that
+/// narrow is far below any length the band reads on a curve of unit
+/// speed, so nothing a coarser cut would settle is lost to it.
 const FLOOR_SHARE: f64 = 1.0 / 1_099_511_627_776.0;
 
-/// The halvings that close on a crossing in its monotone piece.
+/// **The halvings that close on a crossing** in its monotone piece (and
+/// on a stretch's or a continuation's bracket): 64, past the 53 an `f64`
+/// shadow can halve before it closes on adjacent `f64`s, which ends
+/// each loop first. The count is a backstop that keeps every loop
+/// finite, not a precision.
 const BISECTIONS: u32 = 64;
 
 /// One piece of the composite: its parameter's ends at the scalar, their
@@ -278,10 +307,7 @@ fn pieces<T: Decide>(
         return Err(degenerate("the face's chart frame does not read"));
     }
     let (form, divisor) = form_and_divisor(surface, net.control(), origin, e)?;
-    if !matches!(
-        prove(PAST_THE_BAND, Margin::sign_of(divisor)),
-        Ok(Sign::Positive)
-    ) {
+    if !matches!(prove(DIVISOR, Margin::sign_of(divisor)), Ok(Sign::Positive)) {
         return Err(degenerate(
             "the form's distance divisor is not shown positive",
         ));
@@ -418,12 +444,13 @@ fn clear<T: Decide>(piece: &Piece<T>, read: &impl Fn(T) -> Reading) -> bool {
     side.is_some()
 }
 
-/// The sign every value of `row` is proved to hold: `None` where one is
-/// not proved strictly signed, or they differ, or there is none.
+/// The sign every coefficient of the slope row `row` (`N′D − ND′`) is
+/// proved to hold (`spline_composite_slope`): `None` where one is not
+/// proved strictly signed, or they differ, or there is none.
 fn one_signed<T: Decide>(row: &[T]) -> Option<Sign> {
     let mut sign = None;
     for &v in row {
-        let s = strict(v)?;
+        let s = slope_sign(v)?;
         if sign.is_some_and(|held| held != s) {
             return None;
         }
@@ -432,8 +459,9 @@ fn one_signed<T: Decide>(row: &[T]) -> Option<Sign> {
     sign
 }
 
-/// `v`'s sign, proved strictly one side of zero.
-fn strict<T: Decide>(v: T) -> Option<Sign> {
+/// A slope coefficient `v`'s sign, proved strictly one side of zero
+/// (`spline_composite_slope`).
+fn slope_sign<T: Decide>(v: T) -> Option<Sign> {
     match prove(SLOPE, Margin::sign_of(v)) {
         Ok(s @ (Sign::Positive | Sign::Negative)) => Some(s),
         _ => None,
@@ -446,7 +474,7 @@ fn end_value<T: Decide>(piece: &Piece<T>, at_start: bool) -> T {
     let pick = |row: &[T]| {
         if at_start { row.first() } else { row.last() }
             .copied()
-            .unwrap_or_else(|| T::from_f64(f64::NAN))
+            .unwrap_or_else(|| unreachable!("a piece's row holds its degree's coefficients"))
     };
     pick(&piece.num) / pick(&piece.den)
 }
@@ -535,7 +563,7 @@ fn value_at<T: Decide>(piece: &Piece<T>, k: f64) -> T {
             .0
             .last()
             .copied()
-            .unwrap_or_else(|| T::from_f64(f64::NAN))
+            .unwrap_or_else(|| unreachable!("a piece's row holds its degree's coefficients"))
     };
     at(&piece.num) / at(&piece.den)
 }
@@ -682,8 +710,12 @@ fn near_end<T: Decide>(
 
 /// The shares of a piece's width its polynomial is continued past an end
 /// by, tried in order until a continuation reads: the whole width first,
-/// then sixteenths, so a crossing a few rounding steps past the end is
-/// found on a continuation short enough to stay monotone.
+/// then a sixteenth, then a 256th. A long continuation may bend back
+/// (lose monotonicity, or its weight's positivity) before it crosses; a
+/// shorter one stays monotone over a root a few rounding steps past the
+/// end. Three tries, each a power of two so its cut is exact, cover the
+/// roots the chord bound can place within the band; a root further out
+/// reads a window at the end, never a placement.
 const CONTINUATIONS: [f64; 3] = [1.0, 0.0625, 0.003_906_25];
 
 /// **A near end whose `f` is on the side `far` of the piece's far end**:
