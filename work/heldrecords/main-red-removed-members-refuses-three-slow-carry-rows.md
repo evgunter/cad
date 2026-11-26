@@ -50,9 +50,11 @@ All three build as they did on the parent, with no record dropped, or a move is 
     split vertex and a section edge, is not two vertices, and no door
     decides it.
   - Setting it aside beside another landing ((C)) changes the ratified
-    clause ("decides every such meeting at its door"), so it waits for
-    designers and Ev with the door decision
-    (`the-boolean-door-decides-no-minted-vertex-on-edge-meeting`, (A)).
+    clause ("decides every such meeting at its door"), so it is not
+    built. The door decides the meeting instead. That is decided and
+    lands after PR 7799 as
+    `the-boolean-door-decides-no-minted-vertex-on-edge-meeting` (P1),
+    the row that turns this one green.
 - **The comparison** was the full default profile of topo and sweep,
   release profile with debug assertions, between `cc90e26a` and the fix.
   Outside the pierce row it moves no row from PASS to FAIL. The default

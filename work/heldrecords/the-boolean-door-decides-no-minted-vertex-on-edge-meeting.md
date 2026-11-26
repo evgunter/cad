@@ -4,7 +4,7 @@ kind: issue
 title: The boolean's carry door decides no minted vertex-on-edge meeting, so a carried record reaching one refuses JoinDesync
 status: open
 opened: 2026-11-25
-priority: P2
+priority: P1
 cost: M
 ---
 
@@ -20,22 +20,39 @@ carry clause says the boolean's tool "decides every such meeting at its
 door". `a_pierce_held_in_a_curved_face::a_plane_face_holding_the_pierce_over_a_cylinder_builds_in_every_op_and_order`
 reaches one it does not decide, and refuses `JoinDesync`:
 
-- An edge-in-face record whose edge the cut splits at a vertex. That
-  vertex lies on a section edge minted in the face, where the section's
-  own end vertex sits at the same point.
+- An edge-in-face record whose edge the cut splits at a vertex `v`.
+  `v` lies strictly inside a section edge `s` minted in the face, not
+  at either of its ends.
 - The record also lands on the edge and the kept face piece.
 - The row passed before PR 7745 named the section and has been red on
   main since.
 
 Setting the meeting aside beside the record's other landing ((C)) was
-built and taken back out (PR 7799). It changes the ratified clause, so
-(C) and this door decision go to designers and Ev together.
+built and taken back out (PR 7799): it changes the ratified clause.
+The door decides the meeting instead (below).
 
 ## Way through
 
-Decide a minted vertex-on-edge meeting at the door, as `vertices_meet`
-decides two vertices: a point-to-curve gap at the band, and a pending
-row in input cells. The section edge has no input cell yet. It needs
-its own `Mints` row, as the ring vertex does in
-`a-ring-vertex-minted-in-the-pierced-face-has-no-mints-row`. See also
-`a-carried-records-section-vertices-are-not-named-in-the-booleans-division`.
+Decided (HELDRECORDS orchestrator, after two designers and a probe
+that found no margin amplification), for a lane after PR 7799:
+
+- **Decide the meeting at the door with the census's interior
+  reading.** The boolean's carry decides a minted vertex-on-edge
+  meeting the way the census reads a vertex inside an edge, at the
+  band.
+- **Write its decision row on the record's own input cells `(E, F)`**
+  (the edge and the face of the edge-in-face record), not on the
+  minted cells, so the row names cells an input holds without a
+  `Mints` row for the section edge
+  (`a-ring-vertex-minted-in-the-pierced-face-has-no-mints-row` is not
+  needed for it).
+- **Move the vertex–vertex door's row to the record's cells too.** A
+  minted vertex–vertex meeting then names `(E, F)` as well, so section
+  vertices can be named on both the carried and the reduction paths
+  (`a-carried-records-section-vertices-are-not-named-in-the-booleans-division`).
+- **Add a stress row** where `X` grazes `F` at the section: the
+  meeting decided at the band's edge, refused in band.
+
+With it,
+`a_pierce_held_in_a_curved_face::a_plane_face_holding_the_pierce_over_a_cylinder_builds_in_every_op_and_order`
+builds, its meeting landing and citing the decision.
