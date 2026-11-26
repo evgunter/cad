@@ -335,7 +335,8 @@ pub fn pose<T: Decide>(
 /// 1-Lipschitz in space up to the stated constant `L`, whose sign is the
 /// residual's ([`crate::implicit_residual`]), so over the ball `g` keeps
 /// the sign of `g(m)` wherever `|g(m)| > L·ℓ`, and the conic meets no
-/// point of the surface. The decision reads `|g(m)| − L·ℓ`, in metres:
+/// point of the surface. The decision reads `|g(m)| − L·ℓ − escalate`,
+/// in metres (the escalation's slack below):
 ///
 /// - **sphere**: `|p − S| − R`, the distance to the centre less a
 ///   constant: 1-Lipschitz, and the residual `(|p − S|² − R²)/2R` is it
@@ -367,7 +368,18 @@ pub fn pose<T: Decide>(
 /// `e = m − origin`, the surface's stored origin, never as harmonic
 /// extremes `c₀ ± A` (which cancel for a far-centred pair at `u·|e|²/2R`):
 /// an axis's offset as `|e × n|`, never `e − (e·n)n`, which cancels far
-/// along it. So posed, the margin is decided as exact; it charges nothing.
+/// along it. So posed, each term is read to a rounding of its own size.
+///
+/// **The escalation's slack.** `|g(m)|` and `L·ℓ` are each of the
+/// conic's size while their difference may be of the band's: a circle of
+/// radius 363 grazing a wall of radius 0.0094 reads its bound as the
+/// difference of two lengths near 363, whose rounding (a few ulps of 363,
+/// near 1e-13) carries a true gap of 0.999·Kε past Kε. So the margin
+/// takes the band's escalation off first, as the face reading's piece
+/// rule does: a bound decided past it stands past the band by the
+/// escalation's width less a rounding of the conic's size, which the
+/// session box keeps far below it, and the cull answers only where the
+/// closed rungs would answer `Apart` too. It still charges nothing.
 pub(super) fn culled<T: Decide>(
     span: &Span<'_, T>,
     conic: &dyn Conic<T>,
@@ -428,7 +440,7 @@ pub(super) fn culled<T: Decide>(
     matches!(
         decide(
             "curve_face_pose_clearance",
-            Margin::of(g.abs() - reach * lipschitz),
+            Margin::of(g.abs() - reach * lipschitz - T::from_f64(band.escalate())),
             band
         ),
         Ok(Sign::Positive)

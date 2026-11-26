@@ -33,7 +33,7 @@ crates/geom-brep/src/chart_singularity.rs	2	constant	f64::from(i)	a sample sched
 crates/geom-brep/src/curve_face.rs	1	constant	band.escalate()	the band's escalation width, a tolerance: a window's one widening, Kε at the span's least speed (escalation_reach)
 crates/geom-brep/src/curve_face/conic_quadric.rs	1	constant	band.escalate()	the band's escalation width, a tolerance (a root bracket's width through the apex)
 crates/geom-brep/src/curve_face/end_root.rs	1	constant	band.zero()	the band's zero width, a tolerance: the most a coefficient decided Zero admits, charged at its power
-crates/geom-brep/src/curve_face/pose.rs	1	constant	band.escalate()	the band's escalation width, a tolerance: a touch's reach past which a span is apart
+crates/geom-brep/src/curve_face/pose.rs	2	constant	band.escalate()	the band's escalation width, a tolerance: a touch's reach past which a span is apart, and the cull's slack past its bound
 crates/geom-brep/src/curve_face/pose.rs	1	constant	band.zero()	the band's zero width, a tolerance: a touch's in-band depth
 crates/geom-brep/src/curve_face/pose.rs	1	constant	k / 4.0	a quarter of the span, from a literal schedule: the not-Lies rung's sample shares
 crates/geom-brep/src/curve_face/spiric_plane.rs	1	constant	band.escalate()	the band's escalation width, a tolerance: how far the line is moved across itself to read a near miss of the oval in band

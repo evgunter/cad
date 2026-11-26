@@ -264,3 +264,102 @@ fn a_circle_far_from_its_spheres_centre_reads_its_stored_gap() {
         );
     }
 }
+
+/// **A large circle grazing a small wall within the band's escalation is
+/// never culled** (the escalation's slack, [`super::pose::culled`]). Five
+/// circles of radius 68 to 1323 m in planes all but square to a wall's
+/// axis, each grazing a wall of radius 0.003 to 4.7 m from outside with
+/// its residual aimed within `0.01·ε` of `Kε` at `ε = 10⁻¹²` (the
+/// first-harmonic edge sweep's draws, `conic_quadric::in_band_sweep`):
+/// the exact oracle reads each clear but inside `Kε`, which the cull's
+/// bound, the difference of two lengths of the circle's size, does not
+/// resolve. The cull hands every one on.
+///
+/// Mutant: the slack dropped (`|g(m)| − L·ℓ` decided bare), red: a
+/// circle's rounding reads it past the band.
+#[test]
+fn a_large_circle_grazing_a_wall_within_the_escalation_is_not_culled() {
+    let b = Band::new(1e-12, 1e-11).unwrap_or_else(|e| panic!("the 1e-12 band: {e:?}"));
+    // (centre x, centre z, axis (x, y, z), u_ref (x, y, z), radius, wall r)
+    let draws: [(f64, f64, [f64; 3], [f64; 3], f64, f64); 5] = [
+        (
+            363.136_956_988_935_94,
+            -8.871_150_746_191_029e-8,
+            [-2.442_984_817_845_077_3e-10, 0.0, -1.0],
+            [-1.0, 0.0, 2.442_984_817_845_077_3e-10],
+            363.127_543_052_688_57,
+            0.009_413_936_237_377_16,
+        ),
+        (
+            1_323.480_833_810_390_8,
+            -1.620_792_733_947_465_3e-13,
+            [
+                -1.224_646_799_147_353_2e-16,
+                8.307_255_315_739_171e-11,
+                -1.0,
+            ],
+            [-1.0, 0.0, 1.224_646_799_147_353_2e-16],
+            1_323.477_704_000_797_8,
+            0.003_129_809_583_038_564_4,
+        ),
+        (
+            189.204_362_531_105_1,
+            -2.316_800_225_917_064e-14,
+            [
+                -1.224_646_799_147_353_2e-16,
+                -1.386_127_232_462_233_7e-9,
+                -1.0,
+            ],
+            [-1.0, 0.0, 1.224_646_799_147_353_2e-16],
+            189.181_095_114_943_4,
+            0.023_267_416_151_701_834,
+        ),
+        (
+            72.409_753_874_600_82,
+            -8.292_267_095_612_705e-15,
+            [
+                -1.224_646_799_147_353_2e-16,
+                2.965_405_227_249_024_6e-8,
+                -1.0,
+            ],
+            [-1.0, 0.0, 1.224_646_799_147_352_7e-16],
+            67.711_499_359_538_66,
+            4.698_254_515_052_163,
+        ),
+        (
+            182.686_514_255_106_8,
+            -2.219_215_823_871_732_2e-14,
+            [-1.224_646_799_147_353_2e-16, 3.382_284_766_224_552e-9, -1.0],
+            [-1.0, 0.0, 1.224_646_799_147_353_2e-16],
+            181.212_723_980_239_6,
+            1.473_790_274_857_219_8,
+        ),
+    ];
+    for (cx, cz, axis, u_ref, radius, r) in draws {
+        let wall = geom::Surface::Cylinder {
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+            radius: r,
+        };
+        let ring = Curve3::circle(
+            Point3::new(cx, 0.0, cz),
+            Vec3::new(axis[0], axis[1], axis[2]),
+            radius,
+            Vec3::new(u_ref[0], u_ref[1], u_ref[2]),
+        );
+        let t = truth(&ring, &wall);
+        assert!(
+            t.roots.is_empty() && t.residual_depth > 0.0 && t.residual_depth < b.escalate(),
+            "radius {radius}: the oracle reads it clear inside Kε: {:e}",
+            t.residual_depth
+        );
+        let span = Span::new(&ring, (-TAU / 2.0, TAU / 2.0));
+        let conic = ring
+            .conic()
+            .unwrap_or_else(|| unreachable!("a circle is a conic"));
+        assert!(
+            !culled(&span, conic, &wall, b),
+            "radius {radius}, clear by {:e} inside Kε: culled",
+            t.residual_depth
+        );
+    }
+}

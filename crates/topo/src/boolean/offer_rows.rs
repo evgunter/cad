@@ -185,6 +185,12 @@ const CURVED_ARM_SITE: Door = Door::Site(
     "the curved sweep arm is the one door for an edge against a cylinder wall sheet, and a \
      solid built around the pose meets other questions first",
 );
+const RIDER_SITE: Door = Door::Site(
+    "whether a line along a wall's axis lies on the wall is read inside the slit's rider \
+     reading (`slit::carrier_on_surface`), on an edge and a face it is handed; the crossing \
+     layer reads a line clear of or inside a wall by the pose's discriminant, so no public \
+     raise reaches it at this pose first",
+);
 const WALL_ROOT_SITE: Door = Door::Site(
     "the wall's axis-parallel rung is read inside the edge sweep's wall crossing, on a line and \
      a run set directly: the prism fixtures' edges run across a wall's axis or exactly along it, \
@@ -222,10 +228,10 @@ cases! {
         tangent_side(false);
     lever_arm_sector_curving_in_band: "LeverArm(SectorCurving)", D, TANGENT_SITE, Valued =>
         tangent_side(true);
-    line_clear_of_a_wall: "Coincidence(EdgeOnCurvedFace)", D, CURVED_ARM_SITE, Valued =>
-        line_against_a_wall(1.0 + D, 0.0);
-    line_inside_a_wall: "Coincidence(EdgeOnCurvedFace)", -D, CURVED_ARM_SITE, Valued =>
-        line_against_a_wall(1.0 - D, 0.0);
+    line_clear_of_a_wall: "Coincidence(EdgeOnCurvedFace)", D, RIDER_SITE, Valued =>
+        line_along_a_wall(1.0 + D);
+    line_inside_a_wall: "Coincidence(EdgeOnCurvedFace)", -D, RIDER_SITE, Valued =>
+        line_along_a_wall(1.0 - D);
     endpoint_clear_of_a_wall: "Coincidence(VertexOnCurvedFace)", D, CURVED_ARM_SITE, Valued =>
         line_against_a_wall(1.0, (2.0 * D).sqrt());
     edge_drifting_off_a_walls_axis: "WallRoots(AxisParallel)", D, WALL_ROOT_SITE, Valued =>
@@ -678,8 +684,29 @@ fn line_against_a_wall(x0: f64, y0: f64) -> Result<(), BooleanError> {
     line_run(profile)
 }
 
-/// A line from inside the unit wall about `z`, off the axis direction
-/// by `drift` over the unit run its edge covers.
+/// A line along a unit wall sheet about `z`, `x0` off its axis: the
+/// slit's reading of whether the line lies on the wall.
+fn line_along_a_wall(x0: f64) -> Result<(), BooleanError> {
+    let tol = Tol::witness();
+    let mut y: crate::body::Body<f64> = crate::body::Body::new();
+    let wall = cyl_wall_sheet(
+        &mut y,
+        CylFrame::canonical(1.0),
+        (-0.5, 0.5),
+        (0.0, 1.0),
+        tol,
+    );
+    let line = geom::Curve3::Line(geom::Line {
+        origin: Point3::new(x0, 0.0, 0.0),
+        dir: geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
+    });
+    crate::boolean::slit::carrier_on_surface(&y, &line, (0.0, 1.0), wall, band()).map(|_| ())
+}
+
+/// A line from the unit wall about `z`, off the axis direction by
+/// `drift` over the unit run its edge covers: its offset from the wall
+/// stays within the drift, so the drift in band is the question (a line
+/// whose offset clears the drift is apart, however it drifts).
 fn line_drifting_off_a_walls_axis(drift: f64) -> Result<(), BooleanError> {
     let z = Vec3::new(0.0, 0.0, 1.0);
     let wall = geom::Surface::Cylinder {
@@ -687,7 +714,7 @@ fn line_drifting_off_a_walls_axis(drift: f64) -> Result<(), BooleanError> {
         radius: 1.0,
     };
     let line = geom::Curve3::Line(geom::Line {
-        origin: Point3::new(0.5, 0.0, 0.0),
+        origin: Point3::new(1.0, 0.0, 0.0),
         dir: geom_core::UnitVec3::squared(Vec3::new(drift, 0.0, 1.0)),
     });
     crate::boolean::reduce::crossing_mapped(&line, (0.0, 1.0), &wall, band()).map(|_| ())
