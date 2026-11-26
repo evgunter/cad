@@ -49,14 +49,11 @@
 //!   [`MappedCurve`] pre-composes the isometry into its rigid
 //!   placement (`place ↦ map ∘ place`) and maps its world-space
 //!   vectors/axis data — sketch-space payloads are untouched;
-//! - a `Nurbs` carrier, and a DESCRIBED `Nurbs` surface, maps by its
-//!   CONTROL POINTS, with knots and weights carried over verbatim: a rigid map
+//! - a `Nurbs` carrier or surface maps by its CONTROL POINTS, with knots and weights carried over verbatim: a rigid map
 //!   is affine, and the Euclidean-storage section of `geom`'s
 //!   `curves::nurbs` data model is where the commutation that makes
 //!   the mapped net the exact IMAGE — never a re-fit — is argued;
-//! - the `Nurbs` surface PLACEHOLDER — and only it — is refused typed (its
-//!   evaluation is all-poison; transforming one would launder poison
-//!   as geometry);
+//! - a pending surface slot has no geometry and stays pending;
 //! - approximating surfaces: the offset description's base net and the
 //!   fit net by the full affine map, `d` negated under a reflection,
 //!   the window and the certificate carried (`map_approx`).
@@ -71,20 +68,12 @@ use slotmap::SecondaryMap;
 
 use crate::body::Body;
 use crate::entity::EdgeKey;
-use crate::geometry::CurveKey;
+use crate::geometry::{CurveKey, SurfaceSlot};
 use crate::null::CurveGeom;
 
 /// Typed failure of [`transform_rigid`] (closed enum, D4 ¶3).
 #[derive(Debug)]
 pub enum TransformError {
-    /// The mirror's re-mint of the image's pcurve rows refused
-    /// ([`crate::mirror`]): a row on an analytic chart, restated with its
-    /// azimuth, lands on a branch other than the one a fresh mint takes,
-    /// so the mirror derives its rows afresh.
-    Pcurve {
-        /// The typed pcurve-pass refusal, nested whole.
-        source: crate::pcurves::PcurveMintError,
-    },
     /// The body carries a null-scaffold edge: what an unfinished edit
     /// leaves behind (a lone `mev_null` on a fresh face, say). At a
     /// build, a caller reaches it by moving a body in the middle of its
@@ -96,11 +85,6 @@ pub enum TransformError {
         /// The offending edge.
         edge: EdgeKey,
     },
-    /// A `Nurbs` placeholder surface — the "no description yet" net,
-    /// whose control points are all-poison, so transforming it would
-    /// launder poison as geometry. A DESCRIBED net is not this arm: it
-    /// maps, by its control points.
-    NurbsPlaceholder,
     /// The body is corrupt (the validators would refuse it too): a
     /// reference that does not resolve, an arena entry nothing
     /// references, or an image no door builds.
@@ -125,7 +109,6 @@ impl TransformError {
         let defect = at.map(geom_brep::recourse::defect_ending);
         let ended = |defect: Option<&str>| defect.map(|d| format!(". {d}")).unwrap_or_default();
         match self {
-            Self::Pcurve { source } => write!(f, "{}", geom_brep::recourse::read_at(source, at)),
             Self::NullScaffold { .. } if at.is_some_and(ReadAt::is_build) => write!(
                 f,
                 "the body still carries what an edit left behind, which the map cannot \
@@ -144,11 +127,6 @@ impl TransformError {
                      cannot move"
                 ),
             },
-            Self::NurbsPlaceholder => write!(
-                f,
-                "a spline (NURBS) surface cannot be transformed yet. {}",
-                geom_core::NOT_YET_ENDING
-            ),
             Self::Corrupt { found } => {
                 write!(f, "the body is corrupt: {found}{}", ended(defect))
             }
@@ -231,18 +209,6 @@ impl<T: Real> Isometry<T> {
     }
 }
 
-impl Hand {
-    /// `v` under `map`'s linear part, negated under an improper map:
-    /// the axis that keeps a right-handed frame's sense of turning
-    /// (`(−M·a) × (M·u) = M·(a × u)` when `det M = −1`).
-    fn axial<T: Real>(self, map: &Affine3<T>, v: Vec3<T>) -> Vec3<T> {
-        match self {
-            Hand::Proper => map_vec(map, v),
-            Hand::Improper => -map_vec(map, v),
-        }
-    }
-}
-
 /// Every datum of one surface under `map` at `hand` (module docs: what
 /// maps how).
 ///
@@ -262,15 +228,15 @@ impl Hand {
 ///
 /// `motion` is the map as the rigid motion it is, where it is one: an
 /// analytic frame is then that frame moved ([`geom::Frame::moved`]), a
-/// rigid image of a rigid frame, as [`map_carrier_stretched`] moves a conic's. A
-/// reflection, or a map handed only as an affine, maps the frame's three
-/// data and squares them ([`geom::Frame::new`]), the plane's normal as
-/// the axial image.
+/// rigid image of a rigid frame, as [`map_carrier_stretched`] moves a conic's.
+/// Under a reflection, where `motion` is `None`, the frame's image is the
+/// reflected frame ([`geom::Frame::reflected`]), the plane's normal as the
+/// axial image.
 /// **A carrier's frame under the map**: under a proper motion the
 /// frame's own image ([`geom::Frame::moved`]); under a reflection its
-/// mapped data squared ([`geom::Frame::new`]), the axis as the axial
-/// image where `axial` (a plane's normal, a conic's axis, so the image
-/// keeps its side and its parameter) and as a plain vector elsewhere.
+/// reflected image ([`geom::Frame::reflected`]), kept right-handed by
+/// reversing its `w` where `axial` (a plane's normal, a conic's axis, so
+/// the image keeps its side and its parameter) and its `v` elsewhere.
 fn map_frame<T: Real>(
     map: &Affine3<T>,
     hand: Hand,
@@ -280,15 +246,25 @@ fn map_frame<T: Real>(
 ) -> geom::Frame<T> {
     match motion {
         Some(motion) => f.moved(motion),
-        None => geom::Frame::new(
-            map.transform_point(f.origin()),
-            if axial {
-                hand.axial(map, f.axis())
-            } else {
-                map_vec(map, f.axis())
-            },
-            map_vec(map, f.u_ref()),
-        ),
+        // The axis is the axial image `−M·a` where `axial` (`(−M·a) × (M·u)
+        // = M·(a × u)` when `det M = −1`, so the turning is kept), so the
+        // frame's `w` is reversed; elsewhere the axis is `M·a` and the parameter
+        // keeps `M·u`, so `v` is. Either is the frame `Frame::new` squared
+        // from those data, held as a rigid image rather than squared.
+        None => {
+            debug_assert!(
+                matches!(hand, Hand::Improper),
+                "a rigid map carries its motion"
+            );
+            f.reflected(
+                map,
+                if axial {
+                    geom_core::Negated::W
+                } else {
+                    geom_core::Negated::V
+                },
+            )
+        }
     }
 }
 
@@ -346,19 +322,11 @@ fn map_surface<T: Real>(
             major_radius,
             minor_radius,
         },
-        // A DESCRIBED net maps by its control points, weights and
-        // knots untouched — the exact image, not a re-fit, so there is
-        // no certificate to re-derive and no fit door to reach
+        // A net maps by its control points, weights and knots
+        // untouched — the exact image, not a re-fit, so there is no
+        // certificate to re-derive and no fit door to reach
         // (`NurbsSurface::map_points` states what the caller owes).
-        // The PLACEHOLDER is the state this refusal's text describes
-        // and the only state it refuses: its net is all-poison, so
-        // mapping it would launder poison as geometry.
-        Surface::Nurbs(ref n) => {
-            if n.is_placeholder() {
-                return Err(TransformError::NurbsPlaceholder);
-            }
-            Surface::Nurbs(Arc::new(n.map_points(|p| map.transform_point(p))))
-        }
+        Surface::Nurbs(ref n) => Surface::Nurbs(Arc::new(n.map_points(|p| map.transform_point(p)))),
         Surface::Approx(ref a) => Surface::Approx(Arc::new(map_approx(map, hand, a))),
     })
 }
@@ -459,25 +427,17 @@ pub(crate) fn map_carrier_stretched<T: Real>(
                 minor_radius,
                 offset,
             } => {
-                let (center, axis, u_ref) = (
-                    carrier_frame.origin(),
-                    carrier_frame.axis(),
-                    carrier_frame.u_ref(),
-                );
                 // `(axis, u_ref, offset)` and `(−axis, −u_ref, −offset)` name
                 // one oval; under a reflection the image keeps its `v` with
                 // `axis` mapped and the plane's side negated.
                 // Under a motion the frame is moved, as a conic's is.
                 let (frame, offset) = match iso {
                     Isometry::Proper(motion) => (carrier_frame.moved(motion), offset),
-                    Isometry::Improper(_) => (
-                        geom::Frame::new(
-                            map.transform_point(center),
-                            map_vec(map, axis),
-                            -map_vec(map, u_ref),
-                        ),
-                        -offset,
-                    ),
+                    // `(M·a, −M·u)`, its `v` then `M·v`: the frame
+                    // with `u` reversed.
+                    Isometry::Improper(_) => {
+                        (carrier_frame.reflected(map, geom_core::Negated::U), -offset)
+                    }
                 };
                 Curve3::Spiric {
                     frame,
@@ -567,11 +527,18 @@ fn mapped_image<T: Real>(
     match hand {
         Hand::Proper => Ok(image.clone()),
         Hand::Improper => {
-            let class = body.surfaces.get(surface).map(OrientationClass::of).ok_or(
-                TransformError::Corrupt {
-                    found: "a chart image lies on a missing surface",
-                },
-            )?;
+            let class = match body.get_surface(surface) {
+                Ok(s) => OrientationClass::of(s),
+                Err(crate::SurfaceMiss::Stale) => {
+                    return Err(TransformError::Corrupt {
+                        found: "a chart image lies on a missing surface",
+                    });
+                }
+                Err(crate::SurfaceMiss::Pending) => unreachable!(
+                    "{surface:?} is pending under a chart image: certification refuses a \
+                     pending key"
+                ),
+            };
             reflected_image(image, class)
         }
     }
@@ -691,7 +658,8 @@ impl OrientationClass {
 /// `sense`, since their mapped frames carry the outward normal across,
 /// and an edge image on an analytic chart has its azimuth negated with
 /// the chart. Its pcurve rows and joints are left as found, for the
-/// mirror to re-mint ([`crate::mirror`]).
+/// mirror to drop and the image's completion to derive again
+/// ([`crate::mirror`]).
 pub(crate) fn map_isometry<T: Decide>(
     body: &Body<T>,
     iso: &Isometry<T>,
@@ -703,8 +671,12 @@ pub(crate) fn map_isometry<T: Decide>(
         *p = map.transform_point(*p);
     }
     let mut mapped_surfaces = Vec::new();
-    for (k, s) in &out.surfaces {
-        mapped_surfaces.push((k, map_surface(map, hand, iso.motion(), s)?));
+    for (k, slot) in &out.surfaces {
+        // A pending slot has no geometry to move.
+        if let SurfaceSlot::Described(s) = slot {
+            let moved = map_surface(map, hand, iso.motion(), s)?;
+            mapped_surfaces.push((k, SurfaceSlot::Described(moved)));
+        }
     }
     for (k, s) in mapped_surfaces {
         out.surfaces[k] = s;
@@ -833,9 +805,8 @@ pub(crate) fn map_isometry<T: Decide>(
             .faces
             .iter()
             .filter(|(_, f)| {
-                out.surfaces
-                    .get(f.surface)
-                    .is_some_and(|s| OrientationClass::of(s) == OrientationClass::Analytic)
+                out.get_surface(f.surface)
+                    .is_ok_and(|s| OrientationClass::of(s) == OrientationClass::Analytic)
             })
             .map(|(k, _)| k)
             .collect();
@@ -872,8 +843,9 @@ fn map_mapped_curve<T: Real>(map: &Affine3<T>, hand: Hand, mc: &MappedCurve<T>) 
                 axis: geom::Line {
                     origin: map.transform_point(axis.origin),
                     // An isometry's image of the unit axis, its sense
-                    // kept under either hand ([`Hand::axial`]); an axis
-                    // has no span to stretch.
+                    // kept under either hand (negated under an improper
+                    // map, `(−M·a) × (M·u) = M·(a × u)` when `det M = −1`);
+                    // an axis has no span to stretch.
                     dir: match hand {
                         Hand::Proper => axis.dir.through_isometry(map.linear).0,
                         Hand::Improper => -axis.dir.through_isometry(map.linear).0,
@@ -889,11 +861,8 @@ fn map_mapped_curve<T: Real>(map: &Affine3<T>, hand: Hand, mc: &MappedCurve<T>) 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    //! The NURBS gate: the discriminator is the placeholder STATE, not
-    //! the `Nurbs` variant. These rows pin both directions, so the gate
-    //! cannot silently invert — a described net refusing and a
-    //! placeholder mapping are each one edit away from each other, and
-    //! only one of them is loud on its own.
+    //! The rigid map's rows: each surface and carrier kind maps to its
+    //! exact image.
 
     use super::*;
     use geom::{NurbsCurve3, NurbsSurface};
@@ -988,14 +957,6 @@ mod tests {
     }
 
     #[test]
-    fn the_surface_placeholder_is_what_refuses() {
-        assert!(matches!(
-            map_surface(&aside(), Hand::Proper, None, &Surface::nurbs_placeholder()),
-            Err(TransformError::NurbsPlaceholder)
-        ));
-    }
-
-    #[test]
     fn a_described_surface_maps_by_its_control_points() {
         let map = aside();
         let before = described_surface();
@@ -1041,18 +1002,16 @@ mod tests {
         }
     }
 
-    /// **Known defect, pinned as it stands**: an all-poison carrier net
-    /// is MAPPED, not refused — the curve has no placeholder, and this
-    /// arm reads no poison. SHELL's
-    /// `transform-rigid-maps-a-poisoned-net-into-the-placeholder` owns
-    /// the refusal; the day it lands this row goes red, and the fix
-    /// replaces it with the typed-refusal row.
+    /// **A carrier net that is not finite is mapped as found**: the map
+    /// reads no geometry, and the poison travels to the image, where the
+    /// at-rest check refuses it (`PoisonedCurveDatum`). Whether the map
+    /// should refuse it up front is SHELL's call.
     #[test]
-    fn a_poisoned_carrier_net_is_still_mapped_until_shell_refuses_it() {
+    fn a_poisoned_carrier_net_is_mapped_as_found() {
         let poisoned: Curve3<f64> = geom::test_support::poisoned_nurbs_segment();
         let mapped = map_carrier(&Isometry::Proper(aside_motion()), &poisoned);
         let Ok(Curve3::Nurbs(n)) = mapped else {
-            panic!("expected today's mapped poisoned net, got {mapped:?}");
+            panic!("expected the mapped poisoned net, got {mapped:?}");
         };
         assert!(
             n.control()
@@ -1106,6 +1065,54 @@ mod tests {
                     "{kind}: the image at {t} is {off} off the reflected point"
                 );
             }
+        }
+    }
+
+    /// **A frame's image under a reflection is the frame its mapped data
+    /// state, hand for hand**: a plane's (its normal axial, `w`
+    /// reversed), a chart of revolution's (its axis forward, `v`
+    /// reversed) and a spiric's (`u` reversed) each read, axis by axis,
+    /// what squaring the mapped origin, axis and seam stated before
+    /// (`Frame::new(M·o, ∓M·a, ±M·u)`), to rounding, and each is
+    /// right-handed. Red with any other axis reversed.
+    #[test]
+    fn a_reflected_frame_is_the_frame_its_mapped_data_state() {
+        let r = reflection();
+        let m = r.to_affine();
+        let (o, a) = (Point3::new(0.5, -1.0, 2.0), Vec3::new(2.0, 2.0, 1.0) / 3.0);
+        let u_ref = Vec3::new(1.0, -2.0, 2.0) / 3.0;
+        let frame = geom::Frame::new(o, a, u_ref);
+        let mv = |v: Vec3<f64>| m.linear * v;
+        let close = |x: Vec3<f64>, y: Vec3<f64>| (x - y).norm() < 1e-15;
+        let plane = map_frame(&m, Hand::Improper, None, &frame, true);
+        let chart = map_frame(&m, Hand::Improper, None, &frame, false);
+        let spiric = match map_carrier(
+            &Isometry::Improper(r),
+            &Curve3::Spiric {
+                frame,
+                major_radius: 2.0,
+                minor_radius: 0.5,
+                offset: 0.3,
+            },
+        )
+        .expect("an analytic carrier")
+        {
+            Curve3::Spiric { frame, .. } => frame,
+            other => panic!("a spiric maps to a spiric: {other:?}"),
+        };
+        for (kind, image, axis, seam) in [
+            ("plane", plane, -mv(a), mv(u_ref)),
+            ("chart", chart, mv(a), mv(u_ref)),
+            ("spiric", spiric, mv(a), -mv(u_ref)),
+        ] {
+            let stated = geom::Frame::new(m.transform_point(o), axis, seam);
+            assert!(close(image.axis(), stated.axis()), "{kind}: axis");
+            assert!(close(image.u_ref(), stated.u_ref()), "{kind}: u_ref");
+            assert!(close(image.v_ref(), stated.v_ref()), "{kind}: v_ref");
+            assert!(
+                (image.origin() - stated.origin()).norm() < 1e-15,
+                "{kind}: origin"
+            );
         }
     }
 
@@ -1172,17 +1179,18 @@ mod tests {
         }
     }
 
-    /// The gate as the public door reports it: a body whose only
-    /// geometry is a placeholder surface refuses, and the same body
-    /// carrying a described patch instead maps.
+    /// The public door on a body whose only surface slot is pending:
+    /// the slot has no geometry to move and stays pending, and the same
+    /// body carrying a described patch instead maps.
     #[test]
-    fn the_body_door_refuses_the_placeholder_and_admits_the_description() {
-        let mut placeheld: Body<f64> = Body::new();
-        placeheld.add_surface(Surface::nurbs_placeholder());
-        assert!(matches!(
-            transform_rigid(&placeheld, &aside_motion()),
-            Err(TransformError::NurbsPlaceholder)
-        ));
+    fn the_body_door_keeps_a_pending_slot_pending_and_maps_the_description() {
+        let mut pending: Body<f64> = Body::new();
+        let key = pending.add_pending_surface();
+        let moved = transform_rigid(&pending, &aside_motion()).expect("a pending slot maps");
+        assert!(
+            moved.surface_slot(key).is_some_and(SurfaceSlot::is_pending),
+            "the slot is still pending"
+        );
 
         let mut described: Body<f64> = Body::new();
         described.add_surface(described_surface());
@@ -1378,7 +1386,7 @@ mod chain_rows {
         for _ in 0..1000 {
             body = transform_rigid(&body, &motion).expect("a brick moves");
         }
-        for (_, s) in body.surfaces.iter() {
+        for (_, s) in body.described_surfaces() {
             if let Some(frame) = s.frame() {
                 assert!(
                     RigidMotion::check_rigid(&frame.motion().to_affine()).is_ok(),

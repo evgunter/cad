@@ -82,12 +82,12 @@ fn prism(scale: f64) -> Body<f64> {
 }
 
 fn is_flat(body: &Body<f64>, key: topo::SurfaceKey, scale: f64) -> bool {
-    matches!(body.get_surface(key), Some(Surface::Nurbs(n))
-        if !n.is_placeholder() && n.control().iter().all(|p| p.y == -scale))
+    matches!(body.get_surface(key), Ok(Surface::Nurbs(n))
+        if n.control().iter().all(|p| p.y == -scale))
 }
 fn is_bowed(body: &Body<f64>, key: topo::SurfaceKey, scale: f64) -> bool {
-    matches!(body.get_surface(key), Some(Surface::Nurbs(n))
-        if !n.is_placeholder() && n.control().iter().any(|p| p.y != -scale)
+    matches!(body.get_surface(key), Ok(Surface::Nurbs(n))
+        if n.control().iter().any(|p| p.y != -scale)
             && n.control().iter().any(|p| p.x.abs() == scale))
 }
 
@@ -171,7 +171,7 @@ fn main() {
     // the flat wall's chart and so moves with neither; the minting pass
     // restates the wall's rows in the widened chart.
     let old_chart = match body.get_surface(bowed) {
-        Some(Surface::Nurbs(n)) => n.as_ref().clone(),
+        Ok(Surface::Nurbs(n)) => n.as_ref().clone(),
         _ => panic!(),
     };
     let widened = widened_u_chart(&old_chart);
@@ -208,7 +208,7 @@ fn main() {
     body.detach_pcurve(he_bowed);
 
     let chart = match body.get_surface(new_key) {
-        Some(Surface::Nurbs(n)) => n.as_ref().clone(),
+        Ok(Surface::Nurbs(n)) => n.as_ref().clone(),
         _ => panic!(),
     };
     println!(
@@ -299,7 +299,10 @@ fn main() {
         let d = topo::pcurve_of(&cleared, he, band);
         let kind = match &d {
             Ok(Pcurve::General(_)) => "General".to_string(),
-            Ok(Pcurve::IsoLine { p0, pl, .. }) => format!("IsoLine p0={p0:?} pl={pl:?}"),
+            Ok(p @ Pcurve::IsoLine { .. }) => {
+                let (p0, pl) = p.iso_line_form().expect("an IsoLine has a line form");
+                format!("IsoLine p0={p0:?} pl={pl:?}")
+            }
             Ok(p) => format!("{p:?}"),
             Err(e) => format!("REFUSED {e:?}"),
         };

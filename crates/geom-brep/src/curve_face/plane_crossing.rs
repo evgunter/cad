@@ -155,7 +155,7 @@ fn conic_plane_meet<T: Decide>(
     band: Band,
 ) -> ConicPlaneMeet<T> {
     use super::pose::{Formed, Pose, PoseRefusal, PoseRung};
-    let roots = match super::pose::plane_conic(span, conic, plane, band) {
+    let roots = match super::pose::plane_conic(span, conic, plane, band).map_err(|r| r.why) {
         Ok(Pose::Lies) => return ConicPlaneMeet::InPlane,
         Ok(Pose::Apart) => return ConicPlaneMeet::Miss,
         Ok(Pose::Tangent(touch)) => vec![touch.at],
@@ -178,6 +178,11 @@ fn conic_plane_meet<T: Decide>(
             super::cross::PlaceWhy::End(diag) => Err(ConicRootFault::CrossingInterior(diag)),
             super::cross::PlaceWhy::Apart(diag) => Err(ConicRootFault::RootOrder(diag)),
             super::cross::PlaceWhy::Together(t) => Ok(vec![t]),
+            // A kernel fault this wrapper's shape has no arm for: it fails
+            // loud.
+            super::cross::PlaceWhy::Contradiction(what) => {
+                unreachable!("the plane lane's placement read a contradiction: {what}")
+            }
         });
     }
     ConicPlaneMeet::Roots(Ok(placed

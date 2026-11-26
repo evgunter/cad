@@ -174,19 +174,22 @@ fn a_cone_wall_clear_of_a_bar_builds_at_every_pose_and_scale() {
 }
 
 /// The `Approx` cap clears every face of the bar at every pose, so each
-/// op reaches the classification, where the ray test has no `Approx`
-/// arm. The bar's point stands past the capped box's every face reach
-/// along the box's own face normals, so the classification answers
-/// outside without crossing a face, and every op builds to the closed
-/// forms: the box `2 × 2 × 1`, the bar `0.5 × 1 × 0.6`.
+/// op reaches the classification, which crosses the cap on its fitted
+/// chart (`geom_brep::curve_face::line_patch`, PR 7798), and every op
+/// builds to the closed forms: the box `2 × 2 × 1`, the bar
+/// `0.5 × 1 × 0.6`.
 ///
-/// The capped box's own probes hold the reading both ways. A point in
-/// it, on it or in band of it never reads a side; a point definitely
-/// past it reads `Out`, and the one over the cap near a corner is past
-/// the hull only along the box's `z` normal — inside it along the
-/// anchor axis — so it reads `Out` through the planar-normal candidate
-/// alone. A probe near a face stands off it by a multiple of the
-/// run's band, past the cap's fit, so it means the same at every ε.
+/// The capped box's own probes hold the reading at every pose. The box
+/// is `[0, 2]² × [0, 1]`, its cap fitted to `z = 1` within `fit`. A probe
+/// inside it that stands off every face by `fit` plus four times the
+/// band's escalation reads `In`: past the fit and the band, the fitted
+/// chart's side is the plane's. A point on the box or in band of it
+/// never reads `In` or `Out`; a point definitely past it reads `Out`, and
+/// the one over the cap near a corner is past the hull only along the
+/// box's `z` normal (inside it along the anchor axis), so it reads `Out`
+/// through the planar-normal candidate alone. A probe near a face
+/// stands off it by a multiple of the run's band, past the cap's fit, so
+/// it means the same at every ε.
 ///
 /// Every third pose, and every turn about `z` and about the skew axis,
 /// which are where a world-axis reading refused: re-certifying the fit
@@ -201,9 +204,15 @@ fn an_approx_cap_clear_of_a_bar_reads_alike_at_every_pose() {
     let (capped, _) = box_with_approx_cap(0.05, fit);
     let clear = fit + 4.0 * band.escalate();
     let bar = brick::<f64>((2.3, 2.8), (0.5, 1.5), (0.2, 0.8), tol);
-    let unread = [
+    let inside = [
         ("the centre", Point3::new(1.0, 1.0, 0.5)),
         ("just under the cap", Point3::new(1.0, 1.0, 1.0 - clear)),
+        (
+            "inside, near a side face",
+            Point3::new(2.0 - clear, clear, clear),
+        ),
+    ];
+    let unread = [
         ("on the cap", Point3::new(1.0, 1.0, 1.0)),
         (
             "in band over the cap",
@@ -212,10 +221,6 @@ fn an_approx_cap_clear_of_a_bar_reads_alike_at_every_pose() {
         (
             "in band of the corner",
             Point3::new(2.0 + 0.5 * eps, 2.0 + 0.5 * eps, 1.0 + 0.5 * eps),
-        ),
-        (
-            "inside, near a side face",
-            Point3::new(2.0 - clear, clear, clear),
         ),
     ];
     let outside = [
@@ -231,11 +236,18 @@ fn an_approx_cap_clear_of_a_bar_reads_alike_at_every_pose() {
     for (_, (pose, map)) in walked {
         let label = format!("ε {eps:e}, {pose}");
         let box_ = posed("the capped box", &capped, &map, tol);
+        for (what, q) in inside {
+            let got = topo::point_in_solid(&box_, map.transform_point(q), band, tol);
+            assert!(
+                matches!(got, Ok(In)),
+                "{label}, {what}: inside the box, got {got:?}"
+            );
+        }
         for (what, q) in unread {
             let got = topo::point_in_solid(&box_, map.transform_point(q), band, tol);
             assert!(
                 !matches!(got, Ok(In | Out)),
-                "{label}, {what}: no side is read, got {got:?}"
+                "{label}, {what}: on or in band of the box, no side is read, got {got:?}"
             );
         }
         for (what, q) in outside {

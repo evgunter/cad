@@ -49,7 +49,7 @@ fn a_blend_of_infinite_size_is_refused_at_the_door() {
 fn sphere_faces(body: &Body<f64>) -> Vec<FaceKey> {
     body.faces()
         .map(|(k, _)| k)
-        .filter(|&k| matches!(body.face_surface(k), Some(Surface::Sphere { .. })))
+        .filter(|&k| matches!(body.face_surface(k), Ok(Surface::Sphere { .. })))
         .collect()
 }
 

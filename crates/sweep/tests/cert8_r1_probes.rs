@@ -22,12 +22,7 @@ use topo::{Body, FaceKey};
 
 fn nurbs_wall(body: &Body<f64>) -> FaceKey {
     body.faces()
-        .find(|(fk, _)| {
-            matches!(
-                body.face_surface(*fk),
-                Some(Surface::Nurbs(payload)) if !payload.is_placeholder()
-            )
-        })
+        .find(|(fk, _)| matches!(body.face_surface(*fk), Ok(Surface::Nurbs(_))))
         .map(|(key, _)| key)
         .expect("a loft has described NURBS walls")
 }
@@ -76,10 +71,7 @@ fn probe(name: &str, surface: &Surface<f64>) {
     let sup = geom_brep::chart_stretch_sup(surface);
     let (sup_u, sup_v) = match sup {
         Ok(pair) => (pair.0.get(), pair.1.get()),
-        Err(_) => (
-            f64::NAN,
-            geom_brep::chart_stretch_sup_v(surface).map_or(f64::NAN, |v| v.get()),
-        ),
+        Err(_) => (f64::NAN, geom_brep::chart_stretch_sup_v(surface).get()),
     };
     let (arm_u, arm_v, rho) = assemble(&inf);
     let mw = 2.0 * (arm_u * arm_v) / (2.0 * (arm_u + arm_v));
@@ -151,9 +143,7 @@ fn probe_loft_wall_digits_and_sampled_soundness() {
         .expect("the bulged prism builds")
         .body;
     for (fk, _) in body.faces() {
-        if let Some(s @ Surface::Nurbs(p)) = body.face_surface(fk)
-            && !p.is_placeholder()
-        {
+        if let Ok(s @ Surface::Nurbs(_)) = body.face_surface(fk) {
             let inf = geom_brep::chart_stretch_inf(s);
             if (inf.inf_u - 1.0488).abs() < 0.01 {
                 probe("iso-arc-wall", s);

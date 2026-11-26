@@ -133,7 +133,7 @@ pub fn ring_on_cap(body: &mut Body<f64>, h: f64, r: f64, rr: f64) {
         .faces()
         .find(|(fk, _)| {
             matches!(body.face_surface(*fk),
-                Some(Surface::Plane { frame, .. }) if (frame.origin().y - h).abs() <= 1e-12)
+                Ok(Surface::Plane { frame, .. }) if (frame.origin().y - h).abs() <= 1e-12)
         })
         .expect("the cap")
         .0;
@@ -325,7 +325,7 @@ pub fn two_arc_sphere() -> Body<f64> {
     );
     let sphere = body
         .faces()
-        .find(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Sphere { .. })))
+        .find(|(fk, _)| matches!(body.face_surface(*fk), Ok(Surface::Sphere { .. })))
         .expect("the sphere")
         .1
         .surface;
@@ -334,20 +334,19 @@ pub fn two_arc_sphere() -> Body<f64> {
 }
 
 /// The axial door's cavity of `body` at wall thickness `t` — every
-/// chart moved inward through `offset_charts_together` — asserted
-/// tier-3 valid, which is the door's own contract and the premise of
-/// every row that reverts or grafts the cavity.
+/// chart moved inward through `offset_charts_together` — finished, its
+/// rows completed, which is the premise of every row that reverts or
+/// grafts the cavity.
 pub fn door_cavity(body: &Body<f64>, t: f64) -> Body<f64> {
     let mut cavity = body.clone();
     let band = geom_core::Band::linear(Tol::witness()).expect("band");
     topo::offset_charts_together(&mut cavity, &hollow_moves(body, t), band, Tol::witness())
         .expect("the door takes it");
-    assert_eq!(
-        topo::validate_geometric(&cavity, Tol::witness()),
-        Ok(()),
-        "cavity tier 3"
-    );
-    cavity
+    // The finish completes the rows the door left for it, as the shell
+    // completes its cavity before it is grafted.
+    let cavity =
+        topo::finish(cavity, Tol::witness()).unwrap_or_else(|e| panic!("cavity tier 3: {e:?}"));
+    topo::FinishedBody::into_body(cavity)
 }
 
 /// Every edge of `body` re-certified as `graft_solid`'s re-certifying
@@ -413,7 +412,7 @@ pub fn plane_images(body: &Body<f64>) -> Vec<(EdgeKey, Pcurve<f64>)> {
         .filter_map(|(k, e)| {
             let curve = body.get_curve_geom(e.curve)?.certified()?;
             let c = curve.description().chart()?;
-            matches!(body.get_surface(c.surface), Some(Surface::Plane { .. }))
+            matches!(body.get_surface(c.surface), Ok(Surface::Plane { .. }))
                 .then(|| (k, c.pcurve.clone()))
         })
         .collect()
@@ -517,19 +516,33 @@ pub fn latitude_on_partial_wall(
     station: Point2<f64>,
     theta: f64,
 ) {
+    latitude_on_partial_wall_at(body, surface, station, theta);
+}
+
+/// [`latitude_on_partial_wall`] at any scalar the revolve builds at: the
+/// same cut, its split parameters and the latitude's frame read off the
+/// scalar's brackets by their middles (exact at `f64`, so the `f64` body
+/// is the one [`latitude_on_partial_wall`] builds).
+pub fn latitude_on_partial_wall_at<T>(
+    body: &mut Body<T>,
+    surface: SurfaceKey,
+    station: Point2<f64>,
+    theta: f64,
+) where
+    T: geom_core::Decide + geom_core::Bounds + topo::AtRestPolicy,
+{
     let tol = Tol::witness();
-    let on_wall = |b: &Body<f64>, he: HalfEdgeKey| {
+    let on_wall = |b: &Body<T>, he: HalfEdgeKey| {
         b.face_of_half_edge(he)
             .is_some_and(|f| b.get_face(f).unwrap().surface == surface)
     };
-    let at = crossing(station.y);
     let meridians: Vec<(EdgeKey, f64)> = body
         .edges()
         .filter(|(_, e)| on_wall(body, e.he_plus) != on_wall(body, e.he_minus))
         .filter_map(|(k, e)| {
             let c = body.get_curve_geom(e.curve).unwrap().certified().unwrap();
             let (t0, t1) = c.params();
-            at(c.carrier(), t0, t1).map(|t| (k, t))
+            crossing_at(station.y)(c.carrier(), mid(t0), mid(t1)).map(|t| (k, t))
         })
         .collect();
     assert_eq!(
@@ -538,7 +551,119 @@ pub fn latitude_on_partial_wall(
         "the latitude crosses both cap meridians"
     );
     for (m, t) in meridians {
-        body.split_edge(m, t, tol).expect("the meridian splits");
+        body.split_edge(m, T::from_f64(t), tol)
+            .expect("the meridian splits");
     }
-    latitude_arc(body, surface, station, 0.0, theta);
+    latitude_arc_at(body, surface, station, 0.0, theta);
+}
+
+/// The middle of `x`'s bracket: `x` itself at `f64`.
+fn mid<T: geom_core::Bounds>(x: T) -> f64 {
+    0.5 * (x.lo() + x.hi())
+}
+
+/// [`crossing`] at any scalar, its carrier read at bracket middles.
+fn crossing_at<T: geom_core::Real + geom_core::Bounds + geom_core::spline::SpanLocate>(
+    y: f64,
+) -> impl Fn(&Curve3<T>, f64, f64) -> Option<f64> {
+    move |c, mut lo, mut hi| {
+        let at = |t: f64| mid(c.eval(T::from_f64(t)).y);
+        let (y_lo, y_hi) = (at(lo), at(hi));
+        if (y_lo - y) * (y_hi - y) >= 0.0 {
+            return None;
+        }
+        let rising = y_hi > y_lo;
+        for _ in 0..200 {
+            let m = 0.5 * (lo + hi);
+            if (at(m) < y) == rising {
+                lo = m;
+            } else {
+                hi = m;
+            }
+        }
+        Some(0.5 * (lo + hi))
+    }
+}
+
+/// [`latitude_arc`] at any scalar.
+fn latitude_arc_at<T>(
+    body: &mut Body<T>,
+    surface: SurfaceKey,
+    station: Point2<f64>,
+    from: f64,
+    theta: f64,
+) -> EdgeKey
+where
+    T: geom_core::Decide + geom_core::Bounds + topo::AtRestPolicy,
+{
+    let tol = Tol::witness();
+    let near = |b: &Body<T>, p: Point3<f64>| {
+        b.vertex_points()
+            .find(|(_, q)| q.map(mid).distance(p) <= 1e-12)
+            .unwrap_or_else(|| panic!("no vertex at {p:?}"))
+            .0
+    };
+    let (va, vb) = (
+        near(body, turned(station, from)),
+        near(body, turned(station, from + theta)),
+    );
+    let band = geom_core::Band::linear(tol).expect("band");
+    let mid_point = turned(station, from + theta / 2.0).map(T::from_f64);
+    let face = body
+        .faces()
+        .find(|(k, f)| {
+            f.surface == surface
+                && topo::curved_face_containment(body, *k, mid_point, band).unwrap()
+                    == Some(topo::FaceContainment::In)
+        })
+        .expect("a wall face holds the latitude's midpoint")
+        .0;
+    let leaving = |b: &Body<T>, v: VertexKey| {
+        b.half_edges()
+            .find(|(h, he)| he.start == v && b.face_of_half_edge(*h) == Some(face))
+            .unwrap_or_else(|| panic!("{face:?} has no half-edge leaving {v:?}"))
+            .0
+    };
+    let (he1, he2) = (leaving(body, va), leaving(body, vb));
+    let (sin, cos) = from.sin_cos();
+    let l = |x: f64| T::from_f64(x);
+    let p3 = |x: f64, y: f64, z: f64| Point3::new(l(x), l(y), l(z));
+    let v3 = |x: f64, y: f64, z: f64| Vec3::new(l(x), l(y), l(z));
+    let spec = EdgeCurveSpec {
+        description: EdgeDescriptionSpec::Scaffold(geom_brep::MappedCurve::whole(
+            geom_brep::MappedSource::RevolvedPoint {
+                point: station.map(T::from_f64),
+                place: geom_core::Affine3::rotation_about_axis(
+                    p3(0.0, 0.0, 0.0),
+                    v3(0.0, 1.0, 0.0),
+                    l(from),
+                ),
+                axis: geom::Line {
+                    origin: p3(0.0, 0.0, 0.0),
+                    dir: geom_core::UnitVec3::exact_y(),
+                },
+                angle: l(theta),
+            },
+        )),
+        carrier: Curve3::circle(
+            p3(0.0, station.y, 0.0),
+            v3(0.0, theta.signum(), 0.0),
+            l(station.x),
+            v3(cos, 0.0, -sin),
+        ),
+        param_start: l(0.0),
+        param_end: l(theta.abs()),
+    };
+    let edge = body
+        .mef(
+            MefSite::Chords { he1, he2 },
+            spec,
+            FaceSurface::Inherit,
+            tol,
+        )
+        .expect("the latitude splits the wall")
+        .edge;
+    body.describe_at_rest(edge, tol)
+        .expect("the latitude rests in the wall's chart");
+    edge
 }

@@ -398,26 +398,18 @@ impl Through {
             crossings: BTreeMap::new(),
             records: Vec::new(),
         };
-        let mut records = own.clone();
-        let OperandRecords {
-            vv,
-            vf,
-            ve,
-            ee,
-            ef,
-            ff,
-        } = &mut records;
         let mut places = Vec::new();
-        let mut place = |record: &mut u32| {
-            places.push(vec![*record]);
-            *record = super::reduce::index(places.len() - 1);
-        };
-        vv.iter_mut().for_each(|c| place(&mut c.record));
-        vf.iter_mut().for_each(|c| place(&mut c.record));
-        ve.iter_mut().for_each(|c| place(&mut c.record));
-        ee.iter_mut().for_each(|c| place(&mut c.record));
-        ef.iter_mut().for_each(|c| place(&mut c.record));
-        ff.iter_mut().for_each(|c| place(&mut c.record));
+        let records = own
+            .rows()
+            .iter()
+            .map(|c| {
+                places.push(vec![c.record]);
+                super::CarriedRecord {
+                    contact: c.contact,
+                    record: super::reduce::index(places.len() - 1),
+                }
+            })
+            .collect();
         through.records = places;
         (through, records)
     }
@@ -503,65 +495,15 @@ impl Through {
         let face = |f| keys.face(f).ok_or_else(unread);
         let edge = |e| keys.edge(e).ok_or_else(unread);
         let vertex = |v| keys.vertex(v).ok_or_else(unread);
-        let OperandRecords {
-            vv,
-            vf,
-            ve,
-            ee,
-            ef,
-            ff,
-        } = carried;
-        for c in vv {
-            records.vv.push(super::CarriedRecord {
-                contact: super::VvContact {
-                    a: vertex(c.contact.a)?,
-                    b: vertex(c.contact.b)?,
-                },
-                record: at(c.record),
-            });
-        }
-        for c in vf {
-            records.vf.push(super::CarriedRecord {
-                contact: super::VfContact {
-                    vertex: vertex(c.contact.vertex)?,
-                    face: face(c.contact.face)?,
-                },
-                record: at(c.record),
-            });
-        }
-        for c in ve {
-            records.ve.push(super::CarriedRecord {
-                contact: super::VeContact {
-                    vertex: vertex(c.contact.vertex)?,
-                    edge: edge(c.contact.edge)?,
-                },
-                record: at(c.record),
-            });
-        }
-        for c in ee {
-            records.ee.push(super::CarriedRecord {
-                contact: super::EeContact {
-                    a: edge(c.contact.a)?,
-                    b: edge(c.contact.b)?,
-                },
-                record: at(c.record),
-            });
-        }
-        for c in ef {
-            records.ef.push(super::CarriedRecord {
-                contact: super::EfContact {
-                    edge: edge(c.contact.edge)?,
-                    face: face(c.contact.face)?,
-                },
-                record: at(c.record),
-            });
-        }
-        for c in ff {
-            records.ff.push(super::CarriedRecord {
-                contact: super::FfContact {
-                    a: face(c.contact.a)?,
-                    b: face(c.contact.b)?,
-                },
+        let cell = |c| match c {
+            Cell::Vertex(v) => vertex(v).map(Cell::Vertex),
+            Cell::Edge(e) => edge(e).map(Cell::Edge),
+            Cell::Face(f) => face(f).map(Cell::Face),
+        };
+        for c in carried.rows() {
+            let [x, y] = c.contact.cells();
+            records.push(super::CarriedRecord {
+                contact: super::Contact::of(cell(x)?, cell(y)?).map_err(|_| unread())?,
                 record: at(c.record),
             });
         }
@@ -601,71 +543,30 @@ impl Through {
         let edge = |e| edges.get(&e).copied();
         let vertex = |v| vertices.get(&v).copied();
         let mut out = carried;
-        let OperandRecords {
-            vv,
-            vf,
-            ve,
-            ee,
-            ef,
-            ff,
-        } = riding;
         let mut place = |record: u32| {
             self.records.push(vec![record]);
             u32::try_from(self.records.len() - 1)
                 .unwrap_or_else(|_| unreachable!("a record list's place fits its index"))
         };
-        use Cell::{Edge, Face, Vertex};
-        for c in vv {
-            let (x, y) = (c.contact.a, c.contact.b);
-            let (Some(a), Some(b)) = (vertex(x), vertex(y)) else {
-                return Err(unread(c.record, [Vertex(x), Vertex(y)]));
+        let cell = |c| match c {
+            Cell::Vertex(v) => vertex(v).map(Cell::Vertex),
+            Cell::Edge(e) => edge(e).map(Cell::Edge),
+            Cell::Face(f) => face(f).map(Cell::Face),
+        };
+        for c in riding.lower() {
+            let [x, y] = c.contact.cells();
+            let Some(contact) = cell(x)
+                .zip(cell(y))
+                .and_then(|(a, b)| super::Contact::of(a, b).ok())
+            else {
+                return Err(unread(c.record, [x, y]));
             };
-            out.vv.push(super::CarriedRecord {
-                contact: super::VvContact { a, b },
+            out.push(super::CarriedRecord {
+                contact,
                 record: place(c.record),
             });
         }
-        for c in vf {
-            let (x, y) = (c.contact.vertex, c.contact.face);
-            let (Some(vertex), Some(face)) = (vertex(x), face(y)) else {
-                return Err(unread(c.record, [Vertex(x), Face(y)]));
-            };
-            out.vf.push(super::CarriedRecord {
-                contact: super::VfContact { vertex, face },
-                record: place(c.record),
-            });
-        }
-        for c in ve {
-            let (x, y) = (c.contact.vertex, c.contact.edge);
-            let (Some(vertex), Some(edge)) = (vertex(x), edge(y)) else {
-                return Err(unread(c.record, [Vertex(x), Edge(y)]));
-            };
-            out.ve.push(super::CarriedRecord {
-                contact: super::VeContact { vertex, edge },
-                record: place(c.record),
-            });
-        }
-        for c in ee {
-            let (x, y) = (c.contact.a, c.contact.b);
-            let (Some(a), Some(b)) = (edge(x), edge(y)) else {
-                return Err(unread(c.record, [Edge(x), Edge(y)]));
-            };
-            out.ee.push(super::CarriedRecord {
-                contact: super::EeContact { a, b },
-                record: place(c.record),
-            });
-        }
-        for c in ef {
-            let (x, y) = (c.contact.edge, c.contact.face);
-            let (Some(edge), Some(face)) = (edge(x), face(y)) else {
-                return Err(unread(c.record, [Edge(x), Face(y)]));
-            };
-            out.ef.push(super::CarriedRecord {
-                contact: super::EfContact { edge, face },
-                record: place(c.record),
-            });
-        }
-        if let Some(c) = ff.first() {
+        if let Some((c, ..)) = riding.face_face().next() {
             unreachable!(
                 "face–face record {} rides between two solids the fold keeps apart, though a \
                  face–face record between two solids is a verdict or refuses",
@@ -777,8 +678,6 @@ impl Through {
             uncut: _,
             edge_classes: _,
             unread_partners: _,
-            chart_cuts: _,
-            recharted,
             null_copies: _,
             cone_splits: _,
             edge_joins: _,
@@ -786,15 +685,6 @@ impl Through {
             carved_lineage: _,
             fused_seams: _,
         } = &out.naming;
-        // A sphere shell of the material the cut re-charted holds cells
-        // under keys its re-chart minted, which the read-back has no
-        // lineage for.
-        if !recharted[1].is_empty() {
-            return Err(BooleanError::JoinDesync {
-                what: "a cut by its tool's material re-charted a sphere shell of the material, \
-                       whose turned cells read back to no cell of the tool",
-            });
-        }
         let n = &mut out.naming;
         for (s, _) in &mut n.graft_faces {
             *s = self.face(*s);
@@ -852,9 +742,6 @@ impl Through {
                 *y = self.vertex(*y);
             }
         }
-        for e in &mut n.chart_cuts[1] {
-            *e = self.edge(*e);
-        }
         n.fused_seams.clone_from(&self.seams);
         let carved = core::mem::take(&mut n.carved_lineage[1]);
         n.carved_lineage[1] = self
@@ -868,27 +755,11 @@ impl Through {
             )
             .collect();
         let rc = &mut n.reduction_contacts;
-        for c in &mut rc.vv {
-            c.record.b = self.vertex(c.record.b);
-        }
-        for c in &mut rc.a_on_b {
-            c.record.face = self.face(c.record.face);
-        }
-        for c in &mut rc.b_on_a {
-            c.record.vertex = self.vertex(c.record.vertex);
-        }
-        for c in &mut rc.ee {
-            c.record.b = self.edge(c.record.b);
-        }
-        for c in &mut rc.ff {
-            c.record.b = self.face(c.record.b);
-        }
-        for c in &mut rc.a_in_b {
-            c.record.face = self.face(c.record.face);
-        }
-        for c in &mut rc.b_in_a {
-            c.record.edge = self.edge(c.record.edge);
-        }
+        rc.rekey(Operand::B, |c| match c {
+            Cell::Vertex(v) => Cell::Vertex(self.vertex(v)),
+            Cell::Edge(e) => Cell::Edge(self.edge(e)),
+            Cell::Face(f) => Cell::Face(self.face(f)),
+        });
         for v in &mut out.verdicts {
             v.b = match self.read(Cell::Face(v.b)) {
                 Some((Cell::Face(f), None, _)) => f,

@@ -156,22 +156,25 @@ fn a_record_no_reading_covers_lands_by_lineage_through_an_op_that_keeps_its_cell
 /// An op that divides one of the record's cells puts each piece to the
 /// census's record confirm, which reads a line against a cylinder: the
 /// plate's bottom edge touches the rod's wall nowhere, so each piece
-/// reads stale. A notch across the edge drops it from the result; a
-/// split across the rod refuses it as stale.
+/// reads stale. A notch across the edge removes a span of it, which does
+/// not meet the rod either, so the boolean refuses it as stale, as a
+/// split across the rod does. Red where any removal consumes it.
 #[test]
 fn a_record_an_op_divides_is_read_and_found_stale() {
     let (u, one) = rested();
     let notch = block("notch", (-1.0, -0.5), (-2.5, -1.5), (-0.5, 0.5));
     let got = carried(topo::BooleanOp::Subtract, &u, &one, &notch);
-    match got {
-        Ok(BooleanResult::Body(r)) => assert_eq!(
-            r.contacts.edge_face().count(),
-            0,
-            "∖ a notch across the edge: the stale record is dropped: {:?}",
-            r.contacts
+    assert!(
+        matches!(
+            got,
+            Err(topo::BooleanError::CarryRefused {
+                row: topo::RefusedRow::Carried(topo::Operand::A),
+                refusal: topo::CarryRefusal::Stale { record: 0 },
+            })
         ),
-        other => panic!("∖ a notch across the edge: {:?}", other.map(|_| ())),
-    }
+        "∖ a notch across the edge: {:?}",
+        got.map(|_| ())
+    );
     let plane = topo::test_support::split_plane(
         Point3::new(0.0, 0.0, 0.0),
         Vec3::new(1.0, 0.0, 0.0),

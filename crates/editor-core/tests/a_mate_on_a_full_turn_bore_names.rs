@@ -171,8 +171,7 @@ fn a_mate_on_a_full_turn_bore_names() {
                 };
                 let rims: std::collections::BTreeSet<_> = naming
                     .reduction_contacts
-                    .vv
-                    .iter()
+                    .vv()
                     .map(|c| match shaft_side {
                         topo::Operand::A => c.a,
                         topo::Operand::B => c.b,

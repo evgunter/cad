@@ -728,7 +728,7 @@ fn nappes(body: &Body<f64>) -> Vec<f64> {
     let points: std::collections::HashMap<_, _> = body.vertex_points().collect();
     body.faces()
         .filter_map(|(fk, face)| {
-            let geom::Surface::Cone { frame, .. } = *body.face_surface(fk)? else {
+            let geom::Surface::Cone { frame, .. } = *body.face_surface(fk).ok()? else {
                 return None;
             };
             let (apex, axis) = (frame.origin(), frame.axis());
@@ -1506,13 +1506,15 @@ fn a_cone_wall_holding_a_ring_meshes_on_the_cone_row() {
 
 // ------------------------------------------------------- creased lofts
 
-/// **A line rim on a creased loft wall meshes at some δ and refuses at
-/// its neighbours.** Degree-1 lofts of a square whose `+x` side bulges
-/// by the listed amounts, one section a metre (`sweep`'s
-/// `degree1_loft_slabs`). The refusal is `trim_polygon`'s crease check;
-/// the loft with no bulge-0 section meshes at every δ.
+/// **A line rim on a loft wall cut at its sub-arc joints meshes at
+/// every δ.** Degree-1 lofts of a square whose `+x` side bulges by the
+/// listed amounts, one section a metre (`sweep`'s `degree1_loft_slabs`).
+/// The loft cuts the side's wall at every section's sub-arc joint, and
+/// each section's line at the same joint, so no line rim crosses a
+/// crease and `trim_polygon`'s crease check is never reached
+/// (`work/tesslane/a-line-rim-on-a-creased-loft-wall-does-not-mesh.md`).
 #[test]
-fn a_line_rim_on_a_creased_loft_wall_meshes_or_refuses_with_delta() {
+fn a_line_rim_on_a_loft_wall_cut_at_its_joints_meshes_at_every_delta() {
     let corners = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
     let section = |b: f64| -> Section {
         vec![bulge_loop(
@@ -1525,12 +1527,12 @@ fn a_line_rim_on_a_creased_loft_wall_meshes_or_refuses_with_delta() {
         )]
     };
     let deltas = [5e-3, 2e-3, 1e-3, 5e-4];
-    let (ok, no) = (Got::Meshed, Got::Crease);
+    let ok = Got::Meshed;
     let cases: [(&[f64], [&Got; 4]); 4] = [
-        (&[0.0, 1.0, 0.0], [&ok, &ok, &no, &no]),
-        (&[1.0, 0.2, 1.0], [&ok, &ok, &ok, &ok]),
-        (&[1.0, 0.2, 0.0, 0.7, 1.0], [&no, &no, &ok, &ok]),
-        (&[0.0, 1.0, 0.3, 0.0], [&no, &ok, &no, &no]),
+        (&[0.0, 1.0, 0.0], [&ok; 4]),
+        (&[1.0, 0.2, 1.0], [&ok; 4]),
+        (&[1.0, 0.2, 0.0, 0.7, 1.0], [&ok; 4]),
+        (&[0.0, 1.0, 0.3, 0.0], [&ok; 4]),
     ];
     for (bulges, want) in cases {
         let sections: Vec<Section> = bulges.iter().map(|&b| section(b)).collect();

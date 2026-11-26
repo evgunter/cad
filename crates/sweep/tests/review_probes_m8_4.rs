@@ -45,13 +45,13 @@ fn offset_square_prism() -> Body<f64> {
 }
 
 fn is_flat_wall(body: &Body<f64>, key: topo::SurfaceKey) -> bool {
-    matches!(body.get_surface(key), Some(Surface::Nurbs(n))
-        if !n.is_placeholder() && n.control().iter().all(|p| p.y == -1.0))
+    matches!(body.get_surface(key), Ok(Surface::Nurbs(n))
+        if n.control().iter().all(|p| p.y == -1.0))
 }
 
 fn is_bowed_wall(body: &Body<f64>, key: topo::SurfaceKey) -> bool {
-    matches!(body.get_surface(key), Some(Surface::Nurbs(n))
-        if !n.is_placeholder() && n.control().iter().any(|p| p.y != -1.0)
+    matches!(body.get_surface(key), Ok(Surface::Nurbs(n))
+        if n.control().iter().any(|p| p.y != -1.0)
             && n.control().iter().any(|p| p.x.abs() == 1.0))
 }
 
@@ -109,7 +109,7 @@ fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo:
         // refusal that would otherwise be silent lands here, payload
         // and all.
         let flipped = match body.get_surface(bowed) {
-            Some(Surface::Nurbs(n)) => Surface::Nurbs(Arc::new(
+            Ok(Surface::Nurbs(n)) => Surface::Nurbs(Arc::new(
                 n.reversed_v()
                     .expect("mirror-symmetric v knots: the reversal is the same point set"),
             )),
@@ -228,25 +228,29 @@ fn probe_e_reversed_chart_takes_the_backward_candidate() {
         return;
     };
     let chart = match body.get_surface(bowed) {
-        Some(Surface::Nurbs(n)) => (**n).clone(),
+        Ok(Surface::Nurbs(n)) => (**n).clone(),
         other => panic!("the bowed wall is a described chart: {other:?}"),
     };
     let out = topo::pcurve_of(&body, he, band());
-    let Ok(Pcurve::IsoLine { p0, pl, .. }) = out else {
+    let Ok(image @ Pcurve::IsoLine { line, rate, .. }) = out else {
         panic!("the boundary seam on the reversed chart mints: {out:?}");
     };
-    assert_eq!(pl.x, 0.0, "u stays banded-constant: {pl:?}");
+    assert_eq!(
+        line.axis,
+        geom_brep::ChartAxis::U,
+        "u stays banded-constant: {line:?}"
+    );
     let (du0, du1) = chart.knots_u_f64_interim().domain();
     assert!(
-        p0.x == du0 || p0.x == du1,
+        line.value == du0 || line.value == du1,
         "still a boundary column: u = {} of [{du0}, {du1}]",
-        p0.x
+        line.value
     );
     let (dv0, dv1) = chart.knots_v_f64_interim().domain();
     assert!(
-        (pl.y - (dv0 - dv1)).abs() < 1e-12,
+        (rate - (dv0 - dv1)).abs() < 1e-12,
         "the BACKWARD candidate wins on the reversed chart: slope {} on [{dv0}, {dv1}]",
-        pl.y
+        rate
     );
     // Certify the backward image directly through the seam class (the
     // whole-body mint is off the table here: reversing the chart
@@ -267,7 +271,7 @@ fn probe_e_reversed_chart_takes_the_backward_candidate() {
         (c.carrier().clone(), a, b)
     };
     let verdict = geom_brep::PcurveCache::certify(
-        Pcurve::IsoLine { p0, pl, ends: None },
+        image,
         t0,
         t1,
         &carrier,
@@ -284,8 +288,8 @@ fn probe_e_reversed_chart_takes_the_backward_candidate() {
     println!(
         "P-E @ eps={:e}: u = {}, v slope {}",
         Tol::witness().get().eps,
-        p0.x,
-        pl.y
+        line.value,
+        rate
     );
 }
 

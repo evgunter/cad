@@ -38,7 +38,7 @@ fn edge_spec(body: &mut Body<f64>, surface: SurfaceKey, e: &IslandEdge) -> EdgeC
     } else {
         (e.carrier.reversed().unwrap(), -t0, -t1)
     };
-    let Some(&geom::Surface::Torus { major_radius, .. }) = body.get_surface(surface) else {
+    let Ok(&geom::Surface::Torus { major_radius, .. }) = body.get_surface(surface) else {
         panic!("the sheet is a torus");
     };
     let touching = matches!(

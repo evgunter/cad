@@ -28,10 +28,22 @@ pub(super) type Strips<T> = Vec<Vec<Vec<Vec<Point3<T>>>>>;
 /// With it, **which segments each slab holds flat**, `[loop][segment][slab]`:
 /// segment `j` pinned at both ends and the same curve in both sections
 /// ([`rim_pinned`]; a line always is), the edge both sections hold.
+///
+/// And **which sub-arc joints each slab pins**, `[loop][segment][joint][slab]`:
+/// the C⁰ knots of segment `j`'s compatible strip, where the loft cuts
+/// its wall ([`Joints`]), each decided as a corner is, so a joint that is
+/// one world point in both sections is a corner of the two walls it
+/// parts.
 pub(super) struct Pinned {
     corners: Vec<Vec<Vec<bool>>>,
     flats: Vec<Vec<Vec<bool>>>,
+    joints: Vec<Vec<Vec<Vec<bool>>>>,
 }
+
+/// The control index of each sub-arc joint of each strip,
+/// `[loop][segment][joint]` (`crate::skin::crease_columns`): where the
+/// strip's curves interpolate a control point at a C⁰ knot.
+pub(super) type Joints = Vec<Vec<Vec<usize>>>;
 
 impl Pinned {
     /// Whether loop `l`'s corner `j` is pinned in `slab`.
@@ -47,6 +59,24 @@ impl Pinned {
     /// Whether loop `l`'s corner `j` is pinned in every slab of `slabs`.
     pub(super) fn at_through(&self, l: usize, j: usize, slabs: core::ops::Range<usize>) -> bool {
         slabs.into_iter().all(|s| self.at(l, j, s))
+    }
+
+    /// Whether loop `l`'s segment `j`'s sub-arc joint `i` is pinned in
+    /// every slab of `slabs`.
+    pub(super) fn joint_through(
+        &self,
+        l: usize,
+        j: usize,
+        i: usize,
+        slabs: core::ops::Range<usize>,
+    ) -> bool {
+        slabs.into_iter().all(|s| self.joints[l][j][i][s])
+    }
+
+    /// Whether loop `l`'s segment `j`'s sub-arc joint `i` is pinned in
+    /// `slab`.
+    pub(super) fn joint_at(&self, l: usize, j: usize, i: usize, slab: usize) -> bool {
+        self.joints[l][j][i][slab]
     }
 
     /// Whether loop `l`'s segment `j` is held flat in every slab of
@@ -113,15 +143,16 @@ const LOFT_RIM_PINNED: &str = "loft_rim_pinned";
 ///    [`LoftError::ReversedStacking`], [`LoftError::FarSectionNotForward`]
 ///    and their escalations).
 ///
-/// What passes is each corner's class per slab ([`Pinned`]): a corner
+/// Each sub-arc joint ([`Joints`]) is classed with the corners in step
+/// 1, by the same predicate ([`LoftError::JointEscalated`] where the band
+/// cannot call it), and refuses with them in class 2.
+///
+/// What passes is each corner's and joint's class per slab ([`Pinned`]): a corner
 /// pinned throughout the span its wall covers is one vertex there, and
 /// the skin writes it as one point ([`mod@crate::skin`]'s `pin_strips`), so
-/// each wall beside it has a collapsed side. Then, once every slab has
-/// passed, **a one-segment loop's pinned vertex**
-/// ([`LoftError::PinnedCornerUnsupported`]), which the assembly does not
-/// build: its wall is the whole turn, and the vertex its wrap edge. It
-/// waits for every slab, because a kernel limit is reported only where
-/// no slab holds a fault of the sections.
+/// each wall beside it has a collapsed side. A one-segment loop's vertex
+/// is pinned the same way: the loft cuts its full turn at its sub-arc
+/// joints, so the vertex is a corner between two quarter walls.
 ///
 /// Every refusal names the first loop, corner or segment pair within its
 /// slab.
@@ -137,6 +168,7 @@ pub(super) fn stacking_door<T: Decide>(
     places: &[SketchPlane<T>],
     canonical: &[ValidatedProfile<T>],
     strips: &Strips<T>,
+    joints: &Joints,
     v_degree: usize,
     band: Band,
     tol: Tol,
@@ -147,7 +179,12 @@ pub(super) fn stacking_door<T: Decide>(
         && strips
             .iter()
             .flatten()
-            .all(|strip| strip.len() == k && strip.iter().all(|c| c.len() >= 2));
+            .all(|strip| strip.len() == k && strip.iter().all(|c| c.len() >= 2))
+        && joints.len() == strips.len()
+        && joints
+            .iter()
+            .zip(strips)
+            .all(|(js, lp)| js.len() == lp.len());
     if k < 2 || !shaped {
         return Err(LoftError::SectionStructure);
     }
@@ -161,25 +198,22 @@ pub(super) fn stacking_door<T: Decide>(
     let mut pinned = Pinned {
         corners: table(),
         flats: table(),
+        joints: joints
+            .iter()
+            .map(|lp| {
+                lp.iter()
+                    .map(|js| vec![vec![false; slabs]; js.len()])
+                    .collect()
+            })
+            .collect(),
     };
     for slab in 0..slabs {
-        classify(strips, &mut pinned, slab, band)?;
+        classify(strips, joints, &mut pinned, slab, band)?;
         if v_degree >= 2 {
             retraced(&pinned, slab)?;
         }
         clearance(strips, canonical, places, &pinned, slab, band, tol)?;
         step(strips, places, &pinned, slab, band)?;
-    }
-    for slab in 0..slabs {
-        for (l, lp) in pinned.corners.iter().enumerate() {
-            if lp.len() == 1 && lp[0][slab] {
-                return Err(LoftError::PinnedCornerUnsupported {
-                    loop_index: l,
-                    at: PinnedSite::Corner(0),
-                    slab,
-                });
-            }
-        }
     }
     Ok(pinned)
 }
@@ -202,10 +236,27 @@ fn site(pinned: &Pinned, l: usize, j: usize, slab: usize) -> PinnedSite {
 /// coincidence.
 fn classify<T: Decide>(
     strips: &Strips<T>,
+    joints: &Joints,
     pinned: &mut Pinned,
     slab: usize,
     band: Band,
 ) -> Result<(), LoftError> {
+    for (l, lp) in strips.iter().enumerate() {
+        for (j, strip) in lp.iter().enumerate() {
+            for (i, &c) in joints[l][j].iter().enumerate() {
+                pinned.joints[l][j][i][slab] =
+                    corner_pinned(strip[slab][c], strip[slab + 1][c], band).map_err(|source| {
+                        LoftError::JointEscalated {
+                            loop_index: l,
+                            segment: j,
+                            joint: i,
+                            slab,
+                            source,
+                        }
+                    })?;
+            }
+        }
+    }
     for (l, lp) in strips.iter().enumerate() {
         for (j, strip) in lp.iter().enumerate() {
             pinned.corners[l][j][slab] = corner_pinned(strip[slab][0], strip[slab + 1][0], band)
@@ -244,10 +295,11 @@ fn classify<T: Decide>(
 }
 
 /// Step 1's class 2 at v-degree 2 or more, once slab `slab` is
-/// classified: a corner pinned in one of slabs `0..=slab` and moving in
-/// another, named by the first slab that pins it and the first it moves
-/// in; and a segment held flat in one and not another, named as the
-/// segment, whose wall through every section holds one curve twice.
+/// classified: a corner or a sub-arc joint pinned in one of slabs
+/// `0..=slab` and moving in another, named by the first slab that pins
+/// it and the first it moves in; and a segment held flat in one and not
+/// another, named as the segment, whose wall through every section holds
+/// one curve twice.
 fn retraced(pinned: &Pinned, slab: usize) -> Result<(), LoftError> {
     for (l, lp) in pinned.flats.iter().enumerate() {
         for (j, by_slab) in lp.iter().enumerate() {
@@ -276,6 +328,26 @@ fn retraced(pinned: &Pinned, slab: usize) -> Result<(), LoftError> {
                     slab: first,
                     moving,
                 });
+            }
+        }
+    }
+    for (l, lp) in pinned.joints.iter().enumerate() {
+        for (j, js) in lp.iter().enumerate() {
+            for (i, by_slab) in js.iter().enumerate() {
+                let read = &by_slab[..=slab];
+                if let (Some(first), Some(moving)) =
+                    (read.iter().position(|&p| p), read.iter().position(|&p| !p))
+                {
+                    return Err(LoftError::PinnedCorner {
+                        loop_index: l,
+                        at: PinnedSite::Joint {
+                            segment: j,
+                            joint: i,
+                        },
+                        slab: first,
+                        moving,
+                    });
+                }
             }
         }
     }

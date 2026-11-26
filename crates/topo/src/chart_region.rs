@@ -258,9 +258,10 @@ pub enum ChartRegionError {
         /// The image's incidence read.
         read: geom_brep::IncidenceRead,
     },
-    /// A minting chart's stored cache is absent — the body must
-    /// re-mint before region queries (the `props.rs` posture); only
-    /// plane charts are derive-on-demand.
+    /// A minting chart's stored cache is absent — the body's rows must
+    /// be completed before region queries (the finish completes them,
+    /// `crate::finish::complete_in_place`); only plane charts are
+    /// derive-on-demand.
     MissingCache {
         /// The half-edge with no stored cache.
         half_edge: HalfEdgeKey,
@@ -386,6 +387,13 @@ pub enum ChartRegionError {
     /// its carrier gates have no region to read: the carrier's own refusal
     /// and each boundary entity that left its boundary unread.
     FaceUncovered(crate::cover::FaceUncovered),
+    /// A face of the pair has no surface yet
+    /// ([`crate::SurfaceMiss::Pending`]): a body mid-construction, which
+    /// tier 3 refuses at rest.
+    PendingFace {
+        /// The pending face.
+        face: FaceKey,
+    },
     /// The topology could not be walked, or the crossing walk
     /// contradicted itself (fail-loud kernel-invariant class).
     Corrupt,
@@ -426,7 +434,8 @@ impl ChartRegionError {
     ///   [`Self::EdgeScale`] (an edge length no ordinary number holds).
     /// - An abort: [`Self::MissingCache`] (a body that must re-mint, row
     ///   1(a)); [`Self::CarrierTilt`] (the declaration's carriers
-    ///   definitely apart, row 1(a)); [`Self::Corrupt`] (row 4);
+    ///   definitely apart, row 1(a)); [`Self::PendingFace`] (a body
+    ///   mid-construction, row 1(a)); [`Self::Corrupt`] (row 4);
     ///   [`Self::TrimOffFace`] where its read is a decided miss (a trim
     ///   its own plane contradicts, row 4 at a build); and
     ///   [`Self::ShortLoop`], which mixes classes (a loop collapsed in its
@@ -463,6 +472,7 @@ impl ChartRegionError {
             Self::NoOutline(_) => Ok(crate::live::LONE_LOOP_REFUSAL),
             Self::MissingCache { .. }
             | Self::CarrierTilt
+            | Self::PendingFace { .. }
             | Self::Corrupt
             | Self::ShortLoop { .. } => Err(Aborts),
         }
@@ -517,7 +527,8 @@ impl ChartRegionError {
             Self::MissingCache { half_edge } => write!(
                 f,
                 "chart-region: half-edge {half_edge:?} has no stored pcurve cache on \
-                 a minting chart — re-mint pcurves before region queries"
+                 a minting chart — complete the body's rows (finish it) before region \
+                 queries"
             ),
             Self::ArmUnbounded { chart } => write!(
                 f,
@@ -572,14 +583,14 @@ impl ChartRegionError {
                 "chart-region: loop {loop:?} of face {face:?} images to {vertices} straight \
                  chart segment(s), too few to bound a polygon the area test reads. Repair \
                  the loop so its chart image is three or more straight segments, or \
-                 re-mint its pcurves"
+                 drop its rows for the finish to derive again"
             ),
             Self::DegenerateLoop { face, r#loop } => write!(
                 f,
                 "chart-region: loop {loop:?} of face {face:?} has no definite chart \
                  orientation (degenerate polygon at this ε). Repair the loop so its \
                  chart image encloses area — collapsed or collinear runs are the \
-                 usual cause — or re-mint its pcurves"
+                 usual cause — or drop its rows for the finish to derive again"
             ),
             // A poisoned margin is reached by no declaration or move.
             Self::Escalated(diag) if diag.margin.is_invalid() => write!(
@@ -621,6 +632,12 @@ impl ChartRegionError {
                 f,
                 "chart-region: a face of the pair has no region to read its carriers over: \
                  {why}"
+            ),
+            Self::PendingFace { face } => write!(
+                f,
+                "chart-region: face {face:?}: {}. {}",
+                geom_brep::PENDING_SURFACE,
+                crate::pcurves::PLACEHOLDER_RECOURSE
             ),
             Self::NoOutline(_) => write!(
                 f,
@@ -1313,12 +1330,15 @@ fn world_carrier<T: Decide + Bounds>(
     }
 }
 
-/// **A face's surface, as this module refuses it**: [`Body::face`]'s [`crate::live::FaceView::surface`],
-/// a stale face key (the caller's argument) [`ChartRegionError::Corrupt`].
+/// **A face's surface, as this module refuses it**: [`Body::face`]'s
+/// [`crate::live::FaceView::surface`], a stale face key (the caller's
+/// argument) [`ChartRegionError::Corrupt`] and a pending surface
+/// [`ChartRegionError::PendingFace`].
 fn face_surface<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<&Surface<T>, ChartRegionError> {
     body.face(face)
-        .map(|f| f.surface())
-        .ok_or(ChartRegionError::Corrupt)
+        .ok_or(ChartRegionError::Corrupt)?
+        .surface()
+        .map_err(|_| ChartRegionError::PendingFace { face })
 }
 
 /// A face's plane description as `(origin, unit normal)`; the CHART
@@ -2587,11 +2607,15 @@ fn declared_chart<T: Decide + Bounds>(
 ) -> Result<Surface<T>, ChartRegionError> {
     let fa = body_a.face(face_a).ok_or(ChartRegionError::Corrupt)?;
     let fb = body_b.face(face_b).ok_or(ChartRegionError::Corrupt)?;
-    let s_a = fa.surface();
+    let s_a = fa
+        .surface()
+        .map_err(|_| ChartRegionError::PendingFace { face: face_a })?;
     if std::ptr::eq(body_a, body_b) && fa.record().surface == fb.record().surface {
         return Ok(s_a.clone());
     }
-    let s_b = fb.surface();
+    let s_b = fb
+        .surface()
+        .map_err(|_| ChartRegionError::PendingFace { face: face_b })?;
     if surface_bits_equal(s_a, s_b) {
         Ok(s_a.clone())
     } else {
@@ -2655,41 +2679,23 @@ fn exact_zero<T: Bounds>(x: T) -> bool {
 /// the pcurve VARIANT (module docs: the planar trim inventory).
 /// `Ok(point)` only when the image is a straight chart segment whose
 /// endpoint this is; `Err(what)` names the violated inventory clause.
+///
+/// An iso image states no ends: its entry is the joint the loop's lift
+/// reads there (`joint`, [`crate::pcurves::Lift::joint_point`]: a
+/// corner's meet where a row meets a column), or, for an image read
+/// outside a lift, its own value where it enters.
 fn pcurve_entry<T: Decide + Bounds>(
     pcurve: &geom_brep::Pcurve<T>,
-    span: geom_brep::StoredSpan<T>,
+    (t0, t1): (T, T),
     forward: bool,
+    joint: Option<Point2<T>>,
 ) -> Result<Point2<T>, &'static str> {
     use geom_brep::Pcurve;
-    let (t0, t1) = span.ends();
     match pcurve {
-        // Straight by variant: `P(t) = p0 + pl·t`, its ends read as its
-        // mint placed them where it stored them.
-        Pcurve::IsoLine { .. } => {
-            let [start, end] = pcurve.span_ends(span);
-            Ok(if forward { start } else { end })
+        // Straight by variant: a row or a column of its chart.
+        Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. } => {
+            Ok(joint.unwrap_or_else(|| pcurve.eval(if forward { t0 } else { t1 })))
         }
-        // The UV image lies on the straight segment `p0 → p0 + pd` by
-        // variant; only the parameterization along it is
-        // transcendental. An edge spanning the image's whole arc has
-        // the segment's ends as its own, read structurally (`g = 0` at
-        // `t0`, `g = 1` at `t1`); an edge covering part of the arc (a
-        // split rim's child) ends where the image is at its parameter.
-        Pcurve::IsoArc {
-            p0,
-            pd,
-            t0: at0,
-            angle,
-            ..
-        } => Ok(if exact_zero(*at0 - t0) && exact_zero(*angle - (t1 - t0)) {
-            if forward {
-                *p0
-            } else {
-                Point2::new(p0.x + pd.x, p0.y + pd.y)
-            }
-        } else {
-            pcurve.eval(if forward { t0 } else { t1 })
-        }),
         // Straight iff each channel is (C6). An angle channel is, by
         // its kind: a phase and a winding's rate, with no trig terms.
         // A free channel is straight iff its trig coefficients are
@@ -2753,10 +2759,10 @@ fn loop_uv_polygon<T: Decide + Bounds>(
     // ([`crate::Body::loop_lift`]); a loop with no lift reads as rowless
     // here, and each half refuses or derives below.
     let lifted = match read {
-        ChartRead::Minted => crate::pcurves::lifted_images(body, &cycle),
-        ChartRead::WorldCarrier => vec![None; cycle.len()],
+        ChartRead::Minted => crate::pcurves::lift_of_halves(body, &cycle),
+        ChartRead::WorldCarrier => None,
     };
-    for (he, image) in cycle.into_iter().zip(lifted) {
+    for (i, he) in cycle.into_iter().enumerate() {
         let he_data = body.get_half_edge(he).ok_or(ChartRegionError::Corrupt)?;
         let edge = body.linked_edge(he_data.edge, crate::entity::EntityId::HalfEdge(he), "edge");
         let forward = crate::pcurves::is_plus(body, he);
@@ -2765,9 +2771,13 @@ fn loop_uv_polygon<T: Decide + Bounds>(
             half_edge: he,
             what,
         };
-        let cache = body.pcurve(he).zip(image);
-        let entry = if let Some((cache, image)) = cache {
-            pcurve_entry(&image, cache.edge_span(), forward).map_err(refuse)?
+        let row = lifted
+            .as_ref()
+            .and_then(|(lift, rows)| Some((lift, rows[i]?)));
+        let entry = if let Some((cache, (lift, row))) = body.pcurve(he).zip(row) {
+            let image = &lift.rows()[row].pcurve;
+            pcurve_entry(image, cache.params(), forward, Some(lift.joint_point(row)))
+                .map_err(refuse)?
         } else if matches!(surface, Surface::Plane { .. }) {
             // Derive-on-demand affine image (C4's standing plane
             // status). A plane chart has no branches, so the
@@ -2789,7 +2799,7 @@ fn loop_uv_polygon<T: Decide + Bounds>(
                         None => refuse("no closed-form chart image for this carrier kind"),
                     }
                 })?;
-            pcurve_entry(&pcurve, curve.edge_span(), forward).map_err(refuse)?
+            pcurve_entry(&pcurve, curve.params(), forward, None).map_err(refuse)?
         } else {
             return Err(ChartRegionError::MissingCache { half_edge: he });
         };
@@ -4025,6 +4035,9 @@ mod tests {
                     geom::cover::Unknown::Unbounded,
                 )),
             ),
+            ChartRegionErrorKind::PendingFace => ChartRegionError::PendingFace {
+                face: FaceKey::default(),
+            },
             ChartRegionErrorKind::Corrupt => ChartRegionError::Corrupt,
         }
     }
@@ -4059,6 +4072,7 @@ mod tests {
                 ChartRegionErrorKind::NoOutline => Ok(crate::live::LONE_LOOP_REFUSAL),
                 ChartRegionErrorKind::MissingCache
                 | ChartRegionErrorKind::CarrierTilt
+                | ChartRegionErrorKind::PendingFace
                 | ChartRegionErrorKind::Corrupt
                 | ChartRegionErrorKind::ShortLoop => Err(Aborts),
             };
@@ -4218,7 +4232,8 @@ mod tests {
             "bring",
             "repair",
             "restrict",
-            "re-mint",
+            "complete",
+            "drop",
             "simplify",
             "rebuild",
             "split",
@@ -4505,59 +4520,65 @@ mod tests {
     #[test]
     fn iso_line_and_iso_arc_entry_points_are_exact() {
         let line = geom_brep::Pcurve::IsoLine {
-            p0: Point2::new(0.25, 0.0),
-            pl: Vec2::new(0.5, 1.0),
-            ends: None,
+            line: geom_brep::ChartLine::column(0.25),
+            at0: 0.0,
+            rate: 1.0,
         };
         assert_pt(
-            pcurve_entry(&line, geom_brep::StoredSpan::for_tests(0.0, 2.0), true).unwrap(),
+            pcurve_entry(&line, (0.0, 2.0), true, None).unwrap(),
             0.25,
             0.0,
         );
         assert_pt(
-            pcurve_entry(&line, geom_brep::StoredSpan::for_tests(0.0, 2.0), false).unwrap(),
-            1.25,
+            pcurve_entry(&line, (0.0, 2.0), false, None).unwrap(),
+            0.25,
             2.0,
+        );
+        // Read in a loop's lift, an iso image enters at the joint the lift
+        // hands in (a corner's meet), whatever its own map reads there.
+        assert_pt(
+            pcurve_entry(&line, (0.0, 2.0), true, Some(Point2::new(0.25, -0.125))).unwrap(),
+            0.25,
+            -0.125,
         );
 
         let arc = geom_brep::Pcurve::IsoArc {
-            p0: Point2::new(0.0, 1.0),
-            pd: Vec2::new(1.0, 0.0),
+            line: geom_brep::ChartLine::row(1.0),
+            g0: 0.0,
+            gd: 1.0,
             t0: 0.0,
             angle: core::f64::consts::FRAC_PI_2,
             breaks: geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
             ends: Box::default(),
         };
-        // The UV image is the straight segment p0 → p0 + pd by
-        // variant; a span that is the whole arc ends at its ends,
-        // structurally.
+        // The UV image is a straight segment of its row by variant;
+        // read outside a lift, an end is the image's own value there.
         let quarter = core::f64::consts::FRAC_PI_2;
         assert_pt(
-            pcurve_entry(&arc, geom_brep::StoredSpan::for_tests(0.0, quarter), true).unwrap(),
+            pcurve_entry(&arc, (0.0, quarter), true, None).unwrap(),
             0.0,
             1.0,
         );
-        assert_pt(
-            pcurve_entry(&arc, geom_brep::StoredSpan::for_tests(0.0, quarter), false).unwrap(),
-            1.0,
-            1.0,
+        let whole = pcurve_entry(&arc, (0.0, quarter), false, None).unwrap();
+        assert!(
+            (whole.x - 1.0).abs() < 1e-15 && whole.y == 1.0,
+            "the whole arc's own map ends at its segment's end: {whole:?}"
         );
         // A span covering part of the arc (a split rim's child) ends
         // where the image is at its parameter: on one sub-arc of a
         // quarter turn, `g(π/4)` is the Bézier midpoint, `½`.
         let half = core::f64::consts::FRAC_PI_4;
         assert_pt(
-            pcurve_entry(&arc, geom_brep::StoredSpan::for_tests(0.0, half), false).unwrap(),
+            pcurve_entry(&arc, (0.0, half), false, None).unwrap(),
             0.5,
             1.0,
         );
         assert_pt(
-            pcurve_entry(&arc, geom_brep::StoredSpan::for_tests(half, quarter), true).unwrap(),
+            pcurve_entry(&arc, (half, quarter), true, None).unwrap(),
             0.5,
             1.0,
         );
-        let end =
-            pcurve_entry(&arc, geom_brep::StoredSpan::for_tests(half, quarter), false).unwrap();
+        let end = pcurve_entry(&arc, (half, quarter), false, None).unwrap();
         assert!(
             (end.x - 1.0).abs() < 1e-15 && end.y == 1.0,
             "the child ending at the arc's end ends at its corner: {end:?}"
@@ -4573,7 +4594,7 @@ mod tests {
             Vec2::new(1.0, 0.0),
         );
         assert_pt(
-            pcurve_entry(&linear, geom_brep::StoredSpan::for_tests(0.0, 3.0), true).unwrap(),
+            pcurve_entry(&linear, (0.0, 3.0), true, None).unwrap(),
             0.0,
             0.5,
         );
@@ -4585,7 +4606,7 @@ mod tests {
             Vec2::new(0.0, 0.3),
             Vec2::new(1.0, 0.0),
         );
-        assert!(pcurve_entry(&sinusoid, geom_brep::StoredSpan::for_tests(0.0, 3.0), true).is_err());
+        assert!(pcurve_entry(&sinusoid, (0.0, 3.0), true, None).is_err());
     }
 
     #[test]
@@ -4598,7 +4619,7 @@ mod tests {
             Vec2::zero(),
             Vec2::new(1.0, 0.0),
         );
-        assert!(pcurve_entry(&nearly, geom_brep::StoredSpan::for_tests(0.0, 3.0), true).is_err());
+        assert!(pcurve_entry(&nearly, (0.0, 3.0), true, None).is_err());
     }
 
     // ------------------------------------------------------------------
@@ -5028,14 +5049,7 @@ mod tests {
             Vec2::new(0.0, 0.5),
             Vec2::new(1.0, 0.0),
         );
-        assert!(
-            pcurve_entry(
-                &sinusoid,
-                geom_brep::StoredSpan::for_tests(0.0, core::f64::consts::PI),
-                true
-            )
-            .is_err()
-        );
+        assert!(pcurve_entry(&sinusoid, (0.0, core::f64::consts::PI), true, None,).is_err());
     }
 
     // ------------------------------------------------------------------
@@ -5065,7 +5079,7 @@ mod tests {
     }
 
     /// Builds an open rectangular sheet (a pillow: the mef face is the
-    /// rectangle, the mvfs seed face keeps its placeholder) whose mef
+    /// rectangle, the mvfs seed face stays pending) whose mef
     /// face carries `surface`. Returns the rectangle face.
     ///
     /// `pub(super)`, with this module's other polygon and plane
@@ -5372,11 +5386,11 @@ mod tests {
         let (arm_u, arm_v) = arm_values(certified_arms(&sphere, -0.5, 0.5, band())).unwrap();
         assert!((arm_u - 0.5_f64.cos()).abs() < 1e-15, "got {arm_u}");
         assert_eq!(arm_v, 1.0);
-        // A pole-reaching window, and a payload with no net at all,
-        // still refuse typed.
+        // A pole-reaching window, and a net that is not finite, still
+        // refuse typed.
         for (surface, v_hi, chart) in [
             (sphere, core::f64::consts::FRAC_PI_2, "sphere"),
-            (Surface::nurbs_placeholder(), 0.5, "NURBS"),
+            (crate::fixtures::poisoned_net(|_| true), 0.5, "NURBS"),
         ] {
             match arm_values(certified_arms(&surface, -0.5, v_hi, band())) {
                 Err(ChartRegionError::ArmUnbounded { chart: c }) => assert_eq!(c, chart),
@@ -5409,7 +5423,7 @@ mod tests {
                         Vec2::new(1.0, 0.0),
                     );
                     assert!(
-                        pcurve_entry(&h, geom_brep::StoredSpan::for_tests(0.0, 1.0), true).is_err(),
+                        pcurve_entry(&h, (0.0, 1.0), true, None).is_err(),
                         "a {tiny:e} trig channel must refuse typed"
                     );
                 }
@@ -5426,11 +5440,7 @@ mod tests {
                 Vec2::new(0.0, -0.0),
                 Vec2::new(1.0, 2.0),
             );
-            assert_pt(
-                pcurve_entry(&h, geom_brep::StoredSpan::for_tests(0.5, 1.0), true).unwrap(),
-                0.75,
-                1.5,
-            );
+            assert_pt(pcurve_entry(&h, (0.5, 1.0), true, None).unwrap(), 0.75, 1.5);
         }
 
         // ---- Claim 2: the same-chart lane is airtight, its boundary

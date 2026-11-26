@@ -689,6 +689,10 @@ pub enum TouchUnread {
     /// Its standing is the crate's one lone-loop standing
     /// (`live::LONE_LOOP_REFUSAL`).
     LoneLoop,
+    /// A face around the touch has no surface yet
+    /// ([`SurfaceMiss::Pending`](crate::SurfaceMiss::Pending)): a body
+    /// mid-construction, which tier 3 refuses at rest. An abort.
+    PendingFace,
 }
 
 /// **Which cause left a curved face or edge unread**
@@ -742,9 +746,11 @@ impl TouchUnread {
             Self::Unanalysed | Self::Degenerate | Self::ChordScale => Ok(Refusal::Limit),
             Self::LoneLoop => Ok(crate::live::LONE_LOOP_REFUSAL),
             Self::EdgeTangent(why) => Ok(why.refusal()),
-            Self::Curved(_) | Self::OffInterior | Self::NormalFault(_) | Self::Corrupt => {
-                Err(Aborts)
-            }
+            Self::Curved(_)
+            | Self::OffInterior
+            | Self::NormalFault(_)
+            | Self::Corrupt
+            | Self::PendingFace => Err(Aborts),
         }
     }
 
@@ -2612,7 +2618,7 @@ impl<T: Decide> Link<T> {
         let tied = horns
             .iter()
             .map(|h| h.apex)
-            .chain(lobes.iter().flat_map(|a| [a.vertex, a.cone.apex]))
+            .chain(lobes.iter().flat_map(|a| [a.vertex, a.cone.apex()]))
             .map(|q| (q - p).norm())
             .fold(T::zero(), |r, l| r.max(l));
         if sectors.is_empty() && !(horns.is_empty() && lobes.is_empty()) {
@@ -2761,7 +2767,10 @@ impl<T: Decide> FaceSector<T> {
         band: Band,
     ) -> Result<Vec<Self>, TouchUnread> {
         let face = body.face(f).ok_or(TouchUnread::Corrupt)?;
-        let surface = face.surface().clone();
+        let surface = face
+            .surface()
+            .map_err(|crate::Pending| TouchUnread::PendingFace)?
+            .clone();
         if !matches!(surface, geom::Surface::Plane { .. }) {
             return Err(TouchUnread::Curved(CurvedUnread::Unreadable));
         }
@@ -2835,7 +2844,10 @@ impl<T: Decide> FaceSector<T> {
         band: Band,
     ) -> Result<Vec<Self>, TouchUnread> {
         let face = body.face(f).ok_or(TouchUnread::Corrupt)?;
-        let surface = face.surface().clone();
+        let surface = face
+            .surface()
+            .map_err(|crate::Pending| TouchUnread::PendingFace)?
+            .clone();
         let geom::Surface::Plane { frame, .. } = surface else {
             return Err(TouchUnread::Curved(CurvedUnread::Unreadable));
         };

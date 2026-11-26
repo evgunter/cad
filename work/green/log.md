@@ -608,6 +608,98 @@ Window: the 170 completed `ci.yml` PR runs from 11-01 18:33Z to 11-02
   - Cost: about 100 tests leave the fast set on the first drift run. Awaiting Ev's approval.
 - U8 reported: PR 7402, gate green. The P0 seamless-pipe 1e-12 red is a `Stalled` refusal under PR 7131's bracket cost; 7131's own mutant F1X alone builds both poses. Re-blessed as a tight pin on the class Ev accepted on 7131, though the margin (2.19e-12) is wider than anything 7131 listed. FULL review (Opus) dispatched, with that as a claim: is it inside Ev's acceptance?
 - U10: PR 7399 moves 4 tests. Its gate is red on two causes outside the diff: the bar on `a_knife_edge_fillet…cusp` (1.11 s; left, the class 7397 decides) and `a_cylinder_wall_through_a_prism_corner…` at 1e-12. The latter was not on the 11-21 failure list; filed P1 on TESSLIE. Tier changed to the orchestrator's read: the unit shrank from a sweep to a measured four-line interim list.
+- 2026-11-22 20:48Z — Ev on 7397: "15 seconds is probably ok; we can go forward with this and if necessary revisit later".
+  - 7397 merged, ratifying the §2 bullet "A fast-set test costs under 0.25 s": re-timed alone ×3, fastest; 0.25 s for added or edited tests; a 1 s ceiling for any test; a drift check of its own. The row's `design` flag cleared.
+  - **U11 `green/fast-set-bar`** dispatched to implement it (Opus, letter M, FULL single). Ev asked to revisit if the added time exceeds about 15 s; U11 measures it.
+- 2026-11-22 — The PR 7400 reviewer's lane setup ran `git checkout --detach` in the ORCHESTRATOR's worktree: a `cd <lane> && …; git checkout …` chain whose `cd` failed after the lane dir was removed. Caught when a merge landed on the detached HEAD; restored to `green/orchestrator` with nothing lost (the branch was pushed). Class, logged: in a lane command, a `;` after a `cd` runs in the caller's directory when the `cd` fails. Briefs should say "join every step to its `cd` with `&&`".
+- 2026-11-22 — Correction to this log's 20:00Z-ish entry: dispatched nightly 44989234943 IS a reading of main. It ran on `green/nightly-build` at `1942290ead`, which is main `4d3402ecb1`'s kernel plus nightly.yml and a sampler script. The PR 7402 review caught this. Its 1e-12 legs hold about 19 new reds against 11-21, several frame-cost shaped. PR 7131's cost at 1e-12 exceeds what it counted and Ev accepted ("11-12 rows, 1.02-1.32e-12"): the seamless pipe alone refuses at 2.19e-12.
+  - U8's fix pass files a ONEHOME P1 row for it.
+  - **U12 `green/1e-12-read`** (Opus) attributes every new red: 7131's mutants for frame-cost shapes, bisects for the rest. That count goes to Ev before anything is pinned.
+- 2026-11-22 — PR 7399 (U10, four tests moved as an interim) merged on the orchestrator's read, on its two inherited reds, both annotated: the bar flake and TESSLIE's 1e-12 prism corner. Its nextest header still says 7397 decides the policy; U11 rewrites that header.
+- 2026-11-22 — 7400 reviewed (STYLE, Opus): APPROVE-WITH-FIXES. MINOR-1 (the tilted rod's current-main read was default ε only) and MINOR-2 ("7267 greens all three" was a prediction) were fixed on the branch. The held-reds row is closed in 7400. The review's Q3/Q6 finding is filed as P3 `a-fixture-digest-pin-moves-on-a-debug-respelling`. The reviewer's `;`-chained checkout is the detached checkout logged earlier, not a second one.
+- 2026-11-22 — U8 handed back 7402's fix pass. M1, M2 (ONEHOME P1 `pr-7131s-frame-cost-at-1e-12-is-larger-than-it-counted`), m1-m3, and Q7 (pin keyed on values through `FRAME_COST`) are done. FIXTURE P4 is filed for the margin window, which is spelled in four places. Code head `d560a22739` gated green on its second attempt (run 45070499085). The first attempt was red only on the fast-set 1 s bar, from `verbs_tubewall_r2_probes::r2_the_bore_has_a_nonempty_escalating_zone` at 1.068 s off the PR's path. That is the class 7397's re-time-alone step removes (U11). Head `8e58bee11f` (U12's docs-only count) awaits run 45100298276.
+- 2026-11-22 — U12 handed back with PR 7505. Of the 19 new 1e-12 reds, 18 are PR 7131's: 17 frame cost (11 bracket, 4 polar, 2 f64 squaring) and 1 stale STEP golden that PR 7361 has since restored. The 19th was already held. The count went onto ONEHOME's row on 7402's branch (`8e58bee11f`). The question to Ev is on 7505, now titled `[ev]`: accept, reduce, or (recommended) accept polar and squaring and have ONEHOME reduce the bracket lever. The pins follow Ev's answer, and a waiter is armed. CPAIR's contradicted f64 window reading is filed P2 and is outside the question.
+- 2026-11-23 — Ev answered on 7505 (06:20Z): "if the 'cost' is just the random tests that don't work anymore, then of course this is fine; if it breaks a demo or makes things meaningfully slower then that cost would be more worth weighing". Checked: on 44989234943 the demos pass (tour suite, certified cells at every ε, die corpus). Criterion medians across 7131 (`f5ef8f2` → `787aed5`) are all within 0.82–1.09×. So option 1, and the count stands. My first recommendation (option 3) was withdrawn at 04:15Z, because 7131's section (g) had already measured that the bracket lever recovers none of those rows. The [ev] is off 7505. U13 is dispatched (`green/frame-cost-pins`) to re-pin 15 rows as recorded cost, plus CPAIR's wrong answer as a pinned red, and to close ONEHOME's row.
+- 2026-11-23 — Ev's standing rule this sitting: a PR that touches only docs, comments or work items merges after a local `work.py lint`, without waiting for CI. Other PRs may merge on whatever local evidence is enough. But local contention is also bad ("probably ci is actually better for not crashing my whole computer"), so code PRs stay on CI and no cargo runs locally.
+- 2026-11-23 — 7505 merged under Ev's docs-only rule (work/ only; local lint ok; clean merge of main). U12's lane is kept until U13 is done, because U13 reuses its scripts and scratch.
+- 2026-11-23 — 7402 merged. The gate passed on `8e58bee11f`, and a work-only close commit went on top under Ev's rule. GREEN's seamless-pipe P0 is closed. ONEHOME's frame-cost row is on main, and U13 closes it with the re-pins.
+- 2026-11-23 — U11 handed back PR 7448 (the fast-set bar, implementing 7397). Added gate time: 0–3.4 s on hosted runs, against Ev's ~15 s. Three proofs ran hosted. The gate is red only on the inherited 1e-12 TESSLIE row. Its new P1 `a-test-timed-alone-still-reads-the-runners-speed-class` (design) records that alone readings swing 0.77–1.32× with the runner's speed class, so a one-run drift list flaps. The first move should take the 95-test intersection of two runs. FULL review (Opus) dispatched.
+- 2026-11-23 — 7448's FULL review (Opus): APPROVE-WITH-FIXES. The gate is sound. The fixes are on the drift side: env not under the guard, fail-open on an empty fast set, a 24 h blind spot, five surviving selftest mutants. Added time reaches about 20 s worst case (PR 7477) against Ev's ~15 s. Sent U11 a fix pass: an adaptive re-time (passes 2–3 only for tests still over the bar), the env guard, fail-closed, a wider window, killing the mutants, one BAR, a row scheduling the 95-test move, and a header line saying GREEN's orchestrator reads the drift each sitting.
+- 2026-11-23 — 7400 was conflicted again after 7402 and 7505 merged; its waiter timed out because GitHub runs no CI on a dirty PR. Merged main and resolved three additive conflicts (closing sections kept last); lint ok. The waiter now also exits on `dirty`. SCALAR's 7267 merged at 03:36Z (`90e79bb843`), and SCALAR had already closed the census row `main-red-three-source-censuses-red-since-the-told-quantity-type` and the offer-rows row; nothing owed here.
+- 2026-11-23 — Push failure class: after a big merge of main, the pre-push hook runs rustfmt over every .rs file the merge brings in (736 here). That takes minutes, and GitHub closes the idle SSH connection, so the push fails while `| tail -1` hides it. Fix: run `rustfmt --check --edition 2024` on the PR's own .rs files, then `git push --no-verify`, and confirm the PR head moved. 7400 is at `c271040a5f`.
+- 2026-11-23 — 7400's CI (run 45168956268) is red on three things. (1) The kite digest moved again since 7131: now 18304608028150963762 against the pinned 6885395609920571358; suspect a `SegmentKind` field addition (the `value_channel.rs` `..` matches). (2) Two dead slow-set entries; the arc-loft one is already fixed on main by `188fc58d25`. (3) Lint gates: an uncurated `NodeErrorClass` payload rung. (2) and (3) are not this PR's. U14 is dispatched to merge main, bisect and verify the digest move is spelling only before re-pinning, and file P0 rows for any of (2) and (3) still red on main.
+- 2026-11-23 — U13 handed back PR 7558, re-pinning 7131's frame cost: 15 rows plus the oracle pinned red. Test jobs are green, and the gate is red only on the inherited `NodeErrorClass` lint red (U14 is checking it on main). FULL review (Opus) dispatched. Filed P1 `main-red-the-window-oracle-fuzzer-is-red-at-random-seeds-at-every-eps-since-7131`: CPAIR's wrong answer is red at random seeds at every ε, so the nightly flakes; CPAIR owns the fix.
+- 2026-11-23 — 7558's FULL review (Opus): APPROVE-WITH-FIXES. Every cause label holds against the mutant run. Fixes: two prefix text pins looser than their windows, a leftover MEASURE marker and stale doc, the re-posed meeting-axes twin unread, and three rows (ORBIT, NEARPOINT, ONEHOME plain-sphere) that lost their only 1e-12 witness. Fix pass sent to U13. **My slip:** my 06:31Z reply to Ev on 7505 said each of the 17 was a refusal and none was at the default ε. The oracle row is a wrong answer at every ε, default included. It's pinned as CPAIR's red, not as cost, so the ruling covers the 16 refusals. Corrected to Ev in the session chat (Ev is the user) and in 7558's body.
+- 2026-11-23 — 7400 merged under Ev's docs-only rule: after U14's pass it has no .rs change, local lint is ok, and it merged main cleanly. U14 found the kite digest moved **in value** at PR 7411 (`3547fe5764`, a more exact `plane_offset`), not in spelling, so it did not re-bless. It filed three GREEN P0s: the kite at 7411; a slow-set entry under the viewer's `app` feature that the name check can't see and no gate runs (PR 7548); and `NodeErrorClass` in the payload-rung sweep (`581b4e1090`, PR 7458), which is red on every PR touching editor-core while main's push runs skip lint. U15 is dispatched on the kite (judge 7411's values against exact; re-bless only if all moved toward exact). U16 is dispatched on the two gate reds. U14's lane is cleaned.
+
+## 2026-11-23: U15 hands back the kite moat (PR 7597)
+
+U15 replayed 7411's 102 moved chunks against exact fractions. Every
+move was toward exact:
+- a vertex z of `2+1ulp` now reads `2.0`;
+- the plane–plane lines are now correctly rounded, or closer;
+- the 96 `max_residual` readings are now the correctly rounded true
+  sampled residual. The old readings were `(q−o)·n` cancellation
+  noise.
+
+It re-pinned to `0xfe07_0805_06b3_9e32` in 7597. The GERM log note
+says nothing is owed. I added this instance to the respelling row. The
+gate on `c837247c3d` is running, with a waiter on it.
+
+## 2026-11-23: two pins moved again on main's later merges
+
+- **7597:** the kite gate read `0x5533_9c14_5231_454e` on `c837247c3d`,
+  so something after 7411 moved the digest again. U15 is sent back to
+  find the commit and judge the move.
+- **7558:** the merge of main brought ONEHOME's check-1 change
+  (7323/7349), and U13's probe run 45244053101 found it moved 10 of 14
+  rows at 1e-12:
+  - six band rims now read `shared_row_touch` at hi 2e-11 to 5e-11;
+  - the rod and far-off carrier margins grew to 1.3e-12 to 1.7e-12;
+  - 7131's ruling pin reads 1.112e-12 against its (1e-12, 1.1e-12)
+    window, so main's 1e-12 leg is presumably red on it.
+
+  I ruled the probe before merging, and U13 re-pins all of them,
+  the ruling pin included, in 7558. The pattern: a kernel change that
+  moves f64 rounding moves every pin at 1e-12, and PR gates run slow-set
+  pins at the default ε only.
+
+## 2026-11-23: 7597 merged (`62abb9cab0`)
+
+U15 bisected the kite's second move to PR 7501 (`43bbb7277f`), which
+redefined `fixture::digest`. It was a respelling, with no value moved. The
+pin is now `0x5533_9c14_5231_454e`, and the gate passed on `833320a385`. The
+respelling row now records how 7501 narrowed it.
+
+## 2026-11-23: 7558 and 7599 merged
+
+- **7558 (`5fdf61e7be`).** U13 re-pinned the rows that ONEHOME's check-1
+  change (7323/7349) moved. Verified by run 45274813404 at every ε and
+  45274824819 under the mutants.
+  - Tipped rods (1.25, 1.35], torus rod (1.65, 1.8], far-off carrier
+    (1.45, 1.6], and 7131's ruling row (1.05, 1.2] (×1e-12).
+  - Seven of the 11 band rims now reach BAND's own `shared_row_touch`, at
+    hi 2.9 to 4.9e-11. The frame cost widens them but no longer decides
+    the stop. The four that still refuse are named in
+    `UNADMITTED_AT_THE_FRAME_COST`.
+- **7599 (`583a682298`).** U16:
+  - the slow-set name check defers viewer (`--elsewhere`);
+  - the viewer jobs check viewer against an `app` listing and run the
+    diff's app slow tests;
+  - the two app entries are restored;
+  - a flag value can no longer be another flag.
+
+  It also closes `NodeErrorClass`, already fixed by FORMWORDS' 7580. New
+  rows: P3 `a-landed-lint-red-is-seen-by-no-run-of-main` and P3 for the
+  duplicated viewer slow tests. Main fixed the pncad-py lints drift
+  (`6bf0e19ef7`) at the same time.
+
+Reds inherited on the 7599 gate: NEARPOINT's 1e-12 cylinder wall, the
+python suite's Union errors (GREEN P1), and a new prose-census red on
+`BooleanError`'s `curve`/`surface`, which U16 is filing as P0.
+
+My slip: I asked U16 to slow-set the shell8 test, which main already
+had in the slow set (PR 7291). I should have grepped `.config/nextest.toml` first.
 - 2026-11-23 — (CIW, `ciw/census-digest-goldens`) **The digest and count goldens on GREEN's ground are narrowed to what an intended change does not move** (row `census-and-digest-pins-cost-a-fix-a-day-and-caught-eight-real-defects-in-a-month`). The sweep thread-count suite compares the 1- and 4-thread walks with a serial walk run beside them (the shape report sends `topo::props` down its serial arm), and its golden files are gone; the rim-Zero row asserts the winding door reads no theorem more often than the build (the 10 → 18 catch still reds, re-planted); the three measured-pad pins are deleted, their ε-scaled ceilings kept; `fixture::digest` and the name digests (`lib_g16`, seat4/7/8, `msolve14`'s pin) read cells by geometry with no arena key or mint id; `m4_pr3`'s die golden is a replay-identity check beside an id-free names digest; `perf2` reads every name back through the reverse map and keeps only the persisted-text digest; editor-core's `perf12_census_goldens` is deleted for the 40- and 160-fin pre-filter differential in `perf12_census_bvh_diff`. Open rows that pin a line of a deleted golden (the thread-count `sym validate` lines, `check-6s-spline-loop-winding...`) lose their pin site; their accounts are still owed if wanted.
 - 2026-11-23 — (CIW, `ciw/census-text-pins`) Text pins narrowed to their claims (`work/ciw/census-and-digest-pins-cost-a-fix-a-day-and-caught-eight-real-defects-in-a-month.md`): `m5_pr12_die_body` and `m6_surgery` match `UnbuiltEnd::CurvedEndFace` instead of its text; `germ_tilted_rod`'s steeper union resolves the refusal's faces to the donut's torus wall and the rod's cylinder instead of pinning `FaceKey(3v1)`/`FaceKey(4v1)`; `refusal_concision_chains`' `OVER_BUDGET` ceilings are bounds (a row shortening under one no longer reds); `test_north_star.py`'s teapot spout row no longer pins the stop; `test_utils::source::cfg_test_extents` is public.
 - 2026-11-23 — (CIW, `ciw/census-text-pins` fix pass) `name_words_corpus`' `OVER_BUDGET` is a ceiling like `refusal_concision_chains`': a row that shortens no longer asks for its number to be lowered; one that grows still reds. `germ_tilted_rod`'s steeper union also asserts its torus face is the half donut's inner wall.
@@ -642,3 +734,55 @@ Window: the 170 completed `ci.yml` PR runs from 11-01 18:33Z to 11-02
 - 2026-11-23, 19:20Z — (ONEROUND orchestrator) **A second main red filed here today:** `main-red-a-true-rulings-pinned-escalation-window-is-missed-at-1e-12` (P1, E). geom-brep's ruling row pins an `Interval` escalation window at ε 1e-12 and the enclosure now stands just past it (1.112e-12 against 1.1e-12), by one lane's run of clean main at `aa7754fa9b`; PR 7323 is the likely cause, not established.
 - 2026-11-23, 21:17Z — (ONEROUND orchestrator) A main red filed here, found on two ONEROUND PRs' merge refs: `main-red-the-python-suite-errors-on-a-union-that-reads-a-family-whole` (P1). The python suite ends with 18 errors, each a union handed a family whole and refused as "a list of bodies, where it takes a body"; suspected, not bisected, PR 7506 (`formwords/binders`), noted on FORMWORDS' log too. No run of main has concluded since that merge, every push cancelling the run before it.
 - 2026-11-23, 23:06Z — (ONEROUND orchestrator) A main red filed here that is ONEROUND's gate meeting a later merge: `main-red-the-conic-centre-census-meets-a-read-that-landed-after-it` (P1). The lint job's conic-centre census (PR 7510, merged 21:47Z) fires on `curve_face/end_root.rs`, added by PR 7463 at 22:13Z with a circle-centre read and no pin. The lane that built the gate is fixing it (`oneround/conic-census-main-red`); until it lands, a red census on a PR that does not touch that file is this.
+- 2026-11-23, 23:18Z — (ONEROUND orchestrator) `main-red-the-conic-centre-census-meets-a-read-that-landed-after-it` is closed: ORBIT's PR 7648 fixed it on main at 23:09Z, two minutes after it was filed; the census and plain clippy both pass on main's tip.
+- 2026-11-23, 23:57Z — (EMBED orchestrator) **Topo's recourse roster is red on main on nine lines, measured on bare main `a7522805e0`** (`cargo nextest run --profile ci --ignore-default-filter -p topo --test all -E 'test(/recourse_roster::/)'`; `every_decided_name_has_its_door_and_every_site_is_read`, panic at `recourse_roster.rs` line 1024). Until today the test stopped at an undoored name (`junction_bound_rides_rim`, since given its door), so its site check never ran. It prints:
+  - source the reader does not walk: `live.rs` (a `let Some(rest) = l.trim().strip_prefix("#[path = \"")` line: neither a `#[path]` mount nor an `include!`). ORIGIN's file.
+  - an indirect site not listed: `boolean/join.rs: conic_section_frame_at: sa`; `boolean/section_cert.rs: cone_torus: f`.
+  - an indirect site not listed: `census.rs: meeting_point: a.p0 + a.dir.get() * s` and `…: e.p0 + e.dir.get() * ((f.origin - e.p0).dot(f.normal) / along)`; and the two listed spellings of the same sites without `.get()` "no longer found": the roster's text is stale since PR 7349's unit directions.
+  - an indirect site not listed: `pcurves/sheet_apex_rows.rs: joint: DescribedChart::of(surface).unwrap()`. CHARTTAIL's file.
+  - a listed indirect site the census no longer finds: `ring_path.rs: spline_crossings`.
+  EMBED's second landing merges onto this and re-pins none of it (its first landing re-pinned main's drift and one such pin went stale in a clean merge); the landing's own roster lines (`definite_as`, `present_plane: x`) are in neither output.
+
+## 2026-11-24: the P0/P1 sweep (U17–U20)
+
+Merged:
+- **7671** (`c3990d22c5`, work-only): the python suite's Union red was
+  already fixed by FORMWORDS' 7660. The binding was wrong and the door
+  right, per D10 `[repetition]`.
+- **7670** (`d94deebf04`):
+  - the prose census for `BooleanError`'s `curve`/`surface`;
+  - the recourse roster, already fixed by 7408;
+  - the foot-seed scan, where both reads are `CertifiedRange::seed()`
+    windows and so are listed.
+- **7682** (`674ac5088e`):
+  - Of the eleven moved rows, seven pass on main.
+  - The two sweep rows are held with `pinned_red`, under SECTCONE's new
+    P1 for PR 7354's decision changes.
+  - The boss_union and m10 pins are re-pointed there.
+- **7678** (`9d9de17f0a`):
+  - the cones-apex rows are re-pinned at 1e-6 (GERM's 7299 seam-pose
+    refusal);
+  - `corpus_finish_count` is 398, the cost of OFFER's 7362;
+  - the ring-path flag was a false positive, already fixed by 7494.
+- **7676** (`67a2738f81`): `predicate_name_coverage`.
+  - geom-core's test-local `NAMES` is spelled at the call.
+  - The census now skips a `decide*` whose first argument is a closure,
+    per its own definition of a site, so quantity's `Exact::decide` is
+    no site.
+
+Left red, owned elsewhere: the ten `revalue_corpus` rows and m10's
+`at_sym_a_fixed_box_is_the_build` (PR 7411's Sym drift). They are filed
+as `work/sym/a-sym-posed-reading-carries-a-value-its-node-does-not-compute`
+(P1, `design: true`, a GERM/SYM call). They are left unheld, because a
+stop would skip every later check in each row.
+
+The conic-centre census red was fixed by EMBED's 7690 before we got to
+it.
+- 2026-11-24 — (EMBED lane `embed/conic-symmetry`) **Red on bare main `690c40bc89`: `geom`'s `curves::on_carrier::rows::a_foots_seed_is_read_only_where_it_seeds_a_search_or_a_bound`** (a foot's seed read outside its list, or a listed count moved; the lane's reviewer read it as an unlisted `.seed()` in `pncad-py/src/py/range.rs`). Command, in a worktree of that sha: `cargo nextest run -p geom --lib -E 'test(=curves::on_carrier::rows::a_foots_seed_is_read_only_where_it_seeds_a_search_or_a_bound)'`. Not checked against GREEN's open rows, and not on a later main.
+- 2026-11-23 — (GREEN, U17, PR 7670) Four census reds. The prose census names `BooleanError`'s `curve`/`surface`, and the foot-seed scan lists the two `CertifiedRange::seed()` readers: both rows closed. The geom-brep roster row is green on main (PRs 7408 and 7496) and closed. `predicate_name_coverage`'s first-bullet names resolve on main, but the row is red on new causes, filed as `main-red-predicate-name-coverage-meets-quantitys-decide-and-geom-cores-test-local-row-names` (P0). A `chain_shape_random` counterexample is filed on PROFILE.
+- 2026-11-23 — (GREEN, U20) `main-red-the-python-suite-errors-on-a-union-that-reads-a-family-whole` closed. FORMWORDS' own PR 7660 had fixed it before the lane started. The cause was PR 7426's `MembersArg::bodies` change meeting PR 7506's kind door. The tests were right (D10 `[repetition]`). Evidence is in the row's closing section. FORMWORDS' log has the note.
+- 2026-11-23 — (GREEN, U17, PR 7676) `predicate_name_coverage`'s two new reds: the census skips a closure-headed `decide` (quantity), and `k_stats_doors.rs` spells its row names at the call.
+- 2026-11-24 — **From EMBED: an existing sweep row is at the fast set's time bar on hosted runners (06:05Z).** Hosted CI run 31557 (pull_request, EMBED's second landing, head `6b498b0d64`) failed `test (kernel)`'s default-ε step on the time bar alone, with no test failing: "SLOW sweep::all rest_zip_admission::a_box_dipping_into_a_plate_at_a_tangent_site_never_ships_the_overlap_twice 1.025 s (existing test: 1.0 s)". The landing does not touch that file; EMBED's verifier timed the same row locally at 0.646 s, 0.530 s and 0.573 s on three trees (the first landing, main `1bd32ee6`, the second landing), so it does not move with EMBED's changes: it is an existing test near the bar on a 4-vCPU hosted runner, and the next PR whose filter selects sweep can go red on it the same way. It wants the slow-set move the drift check is for, or a re-time; not done here. (The same run's slow-set step was red on the two known main reds, the notched rod and topo's roster.) (EMBED orchestrator)
+
+**2026-11-24 — a note from BOXFINISH: the slow set named two `sweep` tests twice, and every PR's test jobs were red on it.** `join_pierce_runs_sweep::a_pinchs_cones_share_one_point_key` and `…::a_shared_vertex_fan_reads_its_cuts_from_its_own_first_entry` were in two `binary_id(sweep::all)` groups of `.config/nextest.toml`: one added on 11-23 by the lane that wrote the rows, one by the drift move (`c0d17f26589`, PR 7697), which landed after it. `check-slow-set-names` fails a duplicate, so `test (kernel)` and `test (app)` went red at "the slow set names only tests that exist" on every PR that ran them (seen on PR 7704, run 45393047176: no test failed). Fixed in the PR that carries this note by dropping the second pair; nothing else is duplicated. The class: a move into the slow set computed against a main that has since gained the same names. (BOXFINISH orchestrator)
+- 2026-11-24 — (GREEN U21) Closed `main-red-two-editor-core-slow-rows-no-row-holds-at-f2815a23` and `main-red-the-folded-oblique-cut-reads-budget-at-interval-at-1e-12`. Each item is bisected on hosted CI, and the per-item classes are on the rows. One fixture is fixed (7506's binders). trim_3 is fixed by PR 7734. The revalue pair is inherited from SYM's row. The tour 1e-6 red is filed on SECTCONE, and the folded cut is filed on GERM and held at 1e-12.

@@ -64,7 +64,7 @@ fn a_sphere_caps_axial_range_reaches_its_pole() {
 #[test]
 fn a_cone_cap_holding_its_apex_reaches_it_along_the_axis() {
     let (body, face) = crate::test_support_fixtures::cone_cap(0.5, 1.0, Tol::witness());
-    let cone = body.proven_face(face).surface().clone();
+    let cone = body.proven_face(face).surface().unwrap().clone();
     let (lo, hi) =
         super::face_range_along(&body, face, Point3::origin(), Vec3::unit_z(), band()).unwrap();
     assert!(
@@ -115,6 +115,7 @@ fn a_ruled_face_on_a_lone_vertex_has_no_cover() {
         assert!(
             matches!(&got, Err(why) if why
                 .carrier()
+                .expect("a described face's carrier")
                 .unknowns()
                 .iter()
                 .all(|&(_, what)| what == geom::cover::Unknown::Unbounded)),

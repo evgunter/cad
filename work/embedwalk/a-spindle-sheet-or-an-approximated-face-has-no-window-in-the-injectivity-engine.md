@@ -2,10 +2,13 @@
 id: a-spindle-sheet-or-an-approximated-face-has-no-window-in-the-injectivity-engine
 kind: issue
 title: The injectivity engine opens no window on a spindle sheet's face or an approximated face, so every finished body holding one refuses Unsupported at the at-rest gate
-status: open
+status: closed
 opened: 2026-11-21
 priority: P0
 cost: H
+branch: embedwalk/approx-window
+pr: 7767
+closed: 2026-11-25
 ---
 
 
@@ -57,3 +60,68 @@ Two units, not one:
 - **The approximated face:** a window on its fit's knot domain, the
   NURBS face's iso-bounded window (`iso_bounded_domain`), and a reading
   of the face through its fit and its distance certificate.
+
+## Evidence: the spindle half (lane `embedwalk-spindle`, 2026-11-25)
+
+The 20 spindle tests of the census, each solid asked at the gate's
+budgets (depth 40, 65 536 pairs) after tier 3, on current main and on
+the branch giving the sheet its window and by-kind discharge (the
+gate's ask ported as a logging harness, f64 throughout):
+
+| | sheet asks | `Embedded` | `Budget` | `Uncertified` | `Unsupported` | tests whose every ask holds | gate seconds |
+|---|---|---|---|---|---|---|---|
+| main | 143 | 0 | 0 | 0 | 143 | 0 | 7.4 |
+| branch | 143 | 101 | 28 | 14 | 0 | 7 | 140.3 |
+
+The other asks (non-sheet solids in the same tests: 60 `Embedded`, one
+ring-torus `Budget`) are unchanged. The residue, each filed:
+- `Budget(Pairs)` on two π-bands sharing meridians to rim corners, 26
+  asks, ~3.5 s each, and the ring torus refuses the same:
+  `two-bands-of-a-revolved-arc-sharing-their-meridians-spend-the-pair-budget`.
+- Horn bodies refused departure at a shared edge, 8 asks, and a horn's
+  part-way caps at wedge 0, 4: `a-horns-cusp-is-a-zero-angle-apex-no-certificate-parts` (EMBED).
+- A part-way football's cap against its sheet, 2 departure and 2 depth:
+  `a-part-way-revolved-sheets-cap-refuses-at-the-meridian-through-its-apexes` (EMBED).
+- No station lands inside a sheet face, only on its boundary, so a
+  crossing through one is confirmed only where boundary stations meet it:
+  `the-point-door-places-no-point-on-a-spindle-sheet-face` (INSIDE).
+- A full-revolve football does not finish at `Interval`:
+  `a-full-revolve-football-does-not-finish-at-interval` (SPIRICARM).
+
+## The approximated half, measured (lane `embedwalk-approx`, 2026-11-25)
+
+An approximated face is read as its fit, a NURBS face, and takes the
+NURBS window (`window_of`). On `embed/gate-measure` (`6eb881a63`), the
+seven `sweep::all` reproducers refusing "an approximated face": six
+pass with the window; the seventh,
+`encl_curved_loft_shell::a_moved_plane_meets_a_fitted_cap_along_their_certified_section`,
+now refuses at the NURBS window's trimmed-face test, filed as
+`a-trimmed-free-form-face-has-no-window-in-the-injectivity-engine`.
+
+## The approximated half: no certificate is composed (2026-11-25)
+
+The "reading of the face through its fit and its distance certificate"
+asked for above reads the fit alone; the certificate is not composed
+into any reading. The fit is the face's geometry (OFFSET-DESIGN O2:
+"geometry questions … read the fit"), the face's edges are sections of
+the fit and its chart images lie on the fit's chart, so the boundary
+the gate asks embedded is the fit's; the certified distance is the
+face's claim about the surface it stands in for, which tier 3
+re-derives (O5). Charging it could not certify the described surface
+anyway: a surface within δ of an embedded fit may fold at scale δ, so
+no touching pair's local certificate carries over, and the described
+body's own edges are not stored. The window reads the fit
+(`clearance::carrier_lifted`, through `Surface::spline_chart`).
+
+On `embed/gate-measure`, `operand_gate_pose::an_approx_cap_clear_of_a_bar_reads_alike_at_every_pose`
+goes from a 0.5 s refusal to a 37 s pass with the window: a slow-set
+candidate once the gate lands.
+
+## Closed
+
+2026-11-25, both halves: the spindle sheet's window and its by-kind
+discharge (PR 7769), and the approximated face windowed as its fit
+(PR 7767). What either reached and did not settle is on its own rows:
+`two-bands-of-a-revolved-arc-sharing-their-meridians-spend-the-pair-budget`
+and `a-trimmed-free-form-face-has-no-window-in-the-injectivity-engine`
+here, and the rows the spindle lane filed on EMBED, INSIDE and SPIRICARM.

@@ -75,6 +75,8 @@
 //! - [`RigidMotion::compose`] — products of witnesses are not decided
 //!   again;
 //! - [`RigidMotion::inverse`] — the transpose;
+//! - [`RigidMotion::relative`] — `a⁻¹ ∘ b` between two placements in one
+//!   frame, through the two above;
 //! - [`RigidMotion::world_at`] — the world frame with its axes stated,
 //!   not computed;
 //! - [`RigidMotion::standing_at`] and [`RigidMotion::turn_alone`] — a
@@ -336,6 +338,18 @@ pub enum OrthoAxis {
     /// the mints that take an axis and a reference, that the
     /// reference has no component perpendicular to the axis.
     V,
+}
+
+/// **Which axis of a frame [`RigidMotion::reflected_by`] reverses**, so
+/// that its image under an improper map is right-handed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Negated {
+    /// The first axis.
+    U,
+    /// The second axis.
+    V,
+    /// The third axis.
+    W,
 }
 
 /// **Why an authored pair is no frame** — the direction door's refusal,
@@ -1072,6 +1086,24 @@ impl<T: Real> RigidMotion<T> {
         Ok(Self::from_linear(rt, origin))
     }
 
+    /// **The map from `b`'s coordinates into `a`'s**: `a⁻¹ ∘ b`, for `a`
+    /// and `b` each the motion from its own coordinates into one frame
+    /// they share, `None` for that frame itself, so `None` where both are
+    /// (`[placement.frame]`'s composition through the nearest frame two
+    /// share).
+    ///
+    /// # Errors
+    ///
+    /// The inverse's or the composition's overflow.
+    pub fn relative(a: Option<&Self>, b: Option<&Self>) -> Result<Option<Self>, RigidMotionError> {
+        Ok(match (a, b) {
+            (None, None) => None,
+            (None, Some(&b)) => Some(b),
+            (Some(a), None) => Some(a.inverse()?),
+            (Some(a), Some(&b)) => Some(a.inverse()?.compose(b)?),
+        })
+    }
+
     /// **This motion, then the translation by `t`**: the axes kept,
     /// the origin moved to `origin + t` — the bits
     /// [`Self::compose`] of a translation onto this motion would round
@@ -1419,6 +1451,29 @@ impl<T: Real> RigidMotion<T> {
             l * self.u.get(),
             l * self.v.get(),
             l * self.w.get(),
+        )
+    }
+
+    /// **This frame's image under an improper isometry `map`, kept
+    /// right-handed by reversing its `negated` axis**: its origin through
+    /// `map` and each axis through `map`'s linear part, the `negated` one
+    /// reversed. An improper map turns a right-handed triple left-handed,
+    /// so reversing one image column is what makes the image a frame, and
+    /// which one is the reader's convention (a plane's normal is its
+    /// outward side, [`Negated::W`]; a conic keeps its axis and parameter
+    /// and reverses its `v`, [`Negated::V`]). Nothing is decided. The image
+    /// is measured as [`RigidMotion::carried_by`]'s is: its bits kept within
+    /// its rounding, squared about its `w` past it, and poison past any
+    /// rounding, so a `map` that is not an improper isometry poisons it.
+    #[must_use]
+    pub fn reflected_by(self, map: &Affine3<T>, negated: Negated) -> Self {
+        let l = map.linear;
+        let sign = |axis: Negated, c: Vec3<T>| if axis == negated { -c } else { c };
+        Self::measured_frame(
+            map.transform_point(self.origin),
+            sign(Negated::U, l * self.u.get()),
+            sign(Negated::V, l * self.v.get()),
+            sign(Negated::W, l * self.w.get()),
         )
     }
 
@@ -2364,6 +2419,72 @@ mod tests {
     use crate::tolerance::Tol;
 
     pub(super) const SITE: &str = "rigid_motion_test_axis";
+
+    /// **A frame's image under a reflection is the frame `negated`
+    /// reverses, bit for bit, and right-handed**: a turned frame across a
+    /// tilted mirror keeps each image column `±M·c` exactly (every margin
+    /// within its rounding, [`RigidMotion::measured_frame`]), with the
+    /// `negated` one reversed and `u × v = w` to rounding; a map that is no
+    /// isometry (a stretch with a reversed axis) poisons it.
+    #[test]
+    fn a_reflected_frame_reverses_its_negated_axis_and_stays_right_handed() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let frame = RigidMotion::from_axis_and_reference(
+            Point3::new(0.3, -1.2, 2.0),
+            Vec3::new(0.2, 0.9, -0.4),
+            Vec3::new(1.0, 0.1, 0.3),
+            SITE,
+            band,
+        )
+        .unwrap();
+        let normal = UnitVec3::new(Vec3::new(0.6, -0.3, 0.74), SITE, band).unwrap();
+        let mirror =
+            crate::linalg::frame::mirror_across_unit_plane(Point3::new(1.0, 0.5, -0.2), normal);
+        let l = mirror.linear;
+        for negated in [Negated::U, Negated::V, Negated::W] {
+            let image = frame.reflected_by(&mirror, negated);
+            let column = |axis: Negated, c: UnitVec3<f64>| {
+                if axis == negated {
+                    -(l * c.get())
+                } else {
+                    l * c.get()
+                }
+            };
+            assert_eq!(
+                format!("{:?}", image.u.get()),
+                format!("{:?}", column(Negated::U, frame.u)),
+                "{negated:?}: u"
+            );
+            assert_eq!(
+                format!("{:?}", image.v.get()),
+                format!("{:?}", column(Negated::V, frame.v)),
+                "{negated:?}: v"
+            );
+            assert_eq!(
+                format!("{:?}", image.w.get()),
+                format!("{:?}", column(Negated::W, frame.w)),
+                "{negated:?}: w"
+            );
+            assert_eq!(
+                format!("{:?}", image.origin),
+                format!("{:?}", mirror.transform_point(frame.origin)),
+                "{negated:?}"
+            );
+            let turning = image.u.get().cross(image.v.get()).dot(image.w.get());
+            assert!(
+                (turning - 1.0).abs() < 1e-12,
+                "{negated:?}: right-handed, {turning}"
+            );
+        }
+        let stretch = Affine3::from_parts(
+            Mat3::from_cols(Vec3::new(-2.0, 0.0, 0.0), Vec3::unit_y(), Vec3::unit_z()),
+            Vec3::zero(),
+        );
+        assert!(
+            frame.reflected_by(&stretch, Negated::U).u.get().x.is_nan(),
+            "a stretch is no isometry: poison"
+        );
+    }
 
     /// **No read carries a frame into `Dual` or `Sym`**: across witness
     /// kinds `map_scalar` reads only to `Interval`, and a target that
@@ -4901,7 +5022,11 @@ mod least_turn_spelling_probe {
         let sym = f.map_scalar(crate::sym::Sym::<f64>::from_f64).rounding();
         let dual = f.map_scalar(crate::dual::Dual::<f64>::from_f64).rounding();
         let bits = |p: (f64, f64)| (p.0.to_bits(), p.1.to_bits());
-        assert_eq!(bits((sym.0.value, sym.1.value)), bits(at_f64), "Sym<f64>");
+        assert_eq!(
+            bits((sym.0.value(), sym.1.value())),
+            bits(at_f64),
+            "Sym<f64>"
+        );
         assert_eq!(
             bits((dual.0.value, dual.1.value)),
             bits(at_f64),

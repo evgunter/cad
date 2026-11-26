@@ -78,20 +78,20 @@ fn blade(tol: Tol) -> topo::Body<f64> {
 
 /// **A round tube big enough, against its resolution, that its number
 /// stays open**: two circles (two semicircular arcs each, so every wall
-/// is rational) of radii `23.4·s` and `11.7·s`, lofted `125·s` apart,
-/// `s = 5.12e11` units (`common::box_unit`) measured at `1024` units, so
-/// the tube stands `5e8` resolutions across. The width a wall reaches at
+/// is a rational quarter turn) of radii `23.4·s` and `11.7·s`, lofted
+/// `125·s` apart, `s = 4.096e12` units (`common::box_unit`) measured at
+/// `1024` units, so the tube stands `4e9` resolutions across. The width a wall reaches at
 /// the work wall is a length that grows with the part, so that ratio
 /// puts the same crossing at every ε row. Measured at ε = 1e-9 and the
-/// pinned `1024·ε`: the tube certifies its number at `s = 64` and stops
-/// each wall at the work wall (the exact-v arm's round 11) at 512, with
-/// its bracket holding the frustum.
+/// pinned `1024·ε`: the tube certifies its number at `s = 512` and stops
+/// each wall at the work wall at 4096, with its bracket holding the
+/// frustum.
 ///
 /// The unit is ε where the tube, `125·s` high, fits the far end of the
 /// session box (ε = 1e-12: 64 m), and less where it does not (1e-9: 900
 /// m at `s = 7.2`). It is never under `ε/1024`, so the resolution is
-/// never finer than ε, and at ε = 1e-6 that least tube is `s = 500`,
-/// 62.5 km high: its loft's refusal by the box is asserted, and the tube
+/// never finer than ε, and at ε = 1e-6 that least tube is `s = 4000`,
+/// 500 km high: its loft's refusal by the box is asserted, and the tube
 /// is `None`. Its 64 km form at 1e-9 is `pncad-py`'s
 /// `oversized_round_loft_refusal`, refused by the box.
 fn round_tube(tol: Tol) -> Option<(topo::Body<f64>, topo::Settle<f64>)> {
@@ -122,8 +122,16 @@ fn round_tube(tol: Tol) -> Option<(topo::Body<f64>, topo::Settle<f64>)> {
     Some((body, crate::common::unit_resolution(unit)))
 }
 
-/// The tube's scale, in [`crate::common::box_unit`]s: `512` at ε = 1e-9.
-const TUBE: f64 = 5.12e11;
+/// The tube's scale, in [`crate::common::box_unit`]s: `4096` at ε = 1e-9.
+///
+/// The scale is a property of today's meter, not of the tube: it is a
+/// scale at which the walls stop at the work wall, measured, and it
+/// moved from `512` to `4096` when the skin cut the walls into quarter
+/// turns. A change to the quadrature schedule or to how a wall is cut
+/// moves it again; re-measure it by raising `s` by powers of two at
+/// ε = 1e-9 until every wall stops at the work wall with the frustum in
+/// its bracket, as [`round_tube`]'s note records.
+const TUBE: f64 = 4.096e12;
 
 /// The blade certifies: tier 3 admits it on a positive enclosure, the
 /// reporting door measures it at the default ε and looser, and the

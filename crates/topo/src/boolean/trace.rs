@@ -88,6 +88,11 @@ pub enum TraceFault {
     OnCarrier,
     /// A sign the band cannot call: the sliver band.
     Escalated(Indeterminate),
+    /// A circle whose stated axis and seam name no frame: an axis, or a
+    /// seam's part square to it, decided zero or not a finite direction
+    /// ([`geom_core::RigidMotion::from_axis_and_reference`]). A length in
+    /// the band is [`Self::Escalated`].
+    Frame(geom_core::OrthonormalizeError),
     /// A root count the door cannot certify: a root door's own
     /// `Unsettled`, past the two this door names itself (a double root
     /// is [`Self::Grazing`], a root at a cone's apex [`Self::Apex`]).
@@ -128,6 +133,7 @@ impl core::fmt::Display for TraceFault {
                 why.sentence()
             ),
             Self::Torus(refusal) => f.write_str(&refusal.said("the carrier's", None)),
+            Self::Frame(refusal) => write!(f, "the circle names no frame ({refusal})"),
         }
     }
 }
@@ -145,9 +151,7 @@ impl core::error::Error for TraceFault {}
 /// On a kernel fault: the pose's or the method's readings contradict.
 fn refused<T: Real>(surface: &Surface<T>, refusal: &CrossRefusal<T>) -> TraceFault {
     use geom_brep::curve_pair::MeetFault;
-    let Some(window) = refusal.windows.first() else {
-        unreachable!("a crossing refusal holds a window");
-    };
+    let window = refusal.leading();
     match window.why {
         CrossWhy::Pose(PoseRefusal::InBand { diag, .. }) => TraceFault::Escalated(diag),
         CrossWhy::Pose(PoseRefusal::Torus(torus)) => TraceFault::Torus(torus),
@@ -181,12 +185,25 @@ fn refused<T: Real>(surface: &Surface<T>, refusal: &CrossRefusal<T>) -> TraceFau
 /// lying on it, through a cone's apex or grazing it refuses; apart, none;
 /// otherwise each meeting's parameter and point, ascending, past the
 /// ends `skip` names.
+///
+/// A spline carrier refuses [`TraceFault::Unsupported`] before the
+/// reading: a crossing's sense is read off the carrier's closed-form
+/// outward normal ([`crossing`]), which a spline has none of. C5's line
+/// arm reads a line's crossings of a chart with their incidence
+/// (`curve_face::OnChart`), which a trace may read the sense off once it
+/// reads a spline section at all; until then the trace refuses a spline
+/// as it did before the arm.
 fn meetings<T: Decide>(
     span: &Span<'_, T>,
     surface: &Surface<T>,
     skip: &[SpanEnd],
     band: Band,
 ) -> Result<Vec<(T, Point3<T>)>, TraceFault> {
+    if matches!(surface, Surface::Nurbs(_) | Surface::Approx(_)) {
+        return Err(TraceFault::Unsupported {
+            carrier: surface.kind(),
+        });
+    }
     let found = cross(span, surface, band).map_err(|refusal| refused(surface, &refusal))?;
     // A touch is no crossing: it grazes the piece where it is on the
     // span read, and is no meeting there where it is not (at an end the
@@ -369,6 +386,42 @@ pub fn ray_crossings_to<T: Decide>(
     taken_over(reach, read, taken)
 }
 
+/// **The frame a circle's stated axis and seam name, decided**: each is
+/// decided a direction at `trace_circle_frame`, the axis over its length
+/// and the seam's part square to it over its own
+/// ([`geom_core::RigidMotion::from_axis_and_reference`]), and the frame
+/// is then the one they state ([`geom_core::RigidMotion::squared`]):
+/// where both are certified points it is minted at `f64` and read by
+/// its enclosure (DESIGN `[scalars]`), which the decided mint's
+/// arithmetic at the scalar would widen.
+///
+/// # Errors
+///
+/// [`TraceFault::Frame`] where either is decided to name no direction
+/// (a length decided zero, past the format, or not finite);
+/// [`TraceFault::Escalated`] where a length is in the band.
+fn circle_frame<T: Decide>(
+    (center, axis, u_ref): (Point3<T>, Vec3<T>, Vec3<T>),
+    band: Band,
+) -> Result<geom::Frame<T>, TraceFault> {
+    geom_core::RigidMotion::from_axis_and_reference(
+        center,
+        axis,
+        u_ref,
+        "trace_circle_frame",
+        band,
+    )
+    .map_err(|refusal| match refusal.error {
+        // An in-band length is the band's, as every other sign the trace
+        // cannot call is: one spelling of undecided.
+        geom_core::UnitVec3Error::Escalated(diag) => TraceFault::Escalated(diag),
+        _ => TraceFault::Frame(refusal),
+    })?;
+    Ok(geom::Frame::of_motion(&geom_core::RigidMotion::squared(
+        center, axis, u_ref,
+    )))
+}
+
 /// **[`circle_crossings`] up to the crossing the piece takes**
 /// ([`taken_over`]): the whole turn read for where its crossings are,
 /// and each read levered over the arc it runs.
@@ -387,7 +440,7 @@ pub fn circle_crossings_to<T: Decide>(
     band: Band,
     taken: impl Fn(&[Crossing<T>]) -> Option<usize>,
 ) -> Result<Vec<Crossing<T>>, TraceFault> {
-    let frame = geom::Frame::new(center, axis, u_ref);
+    let frame = circle_frame((center, axis, u_ref), band)?;
     let (u_ref, v_ref) = (frame.u_ref(), frame.v_ref());
     let tau = geom::conic_period::<T>().length();
     let carrier = Curve3::Circle(geom::Circle::new(frame, radius));
@@ -429,9 +482,9 @@ pub fn circle_crossings<T: Decide>(
     (center, axis, radius, u_ref): (Point3<T>, Vec3<T>, T, Vec3<T>),
     band: Band,
 ) -> Result<Vec<Crossing<T>>, TraceFault> {
-    // The circle on the frame its stated directions square to; the
+    // The circle on the frame its stated directions decide; the
     // crossings' velocity reads that same frame, so it is the carrier's.
-    let frame = geom::Frame::new(center, axis, u_ref);
+    let frame = circle_frame((center, axis, u_ref), band)?;
     let (axis, u_ref, v_ref) = (frame.axis_unit(), frame.u_ref(), frame.v_ref());
     // The circle's period: its parameter is its angle.
     let tau = geom::conic_period::<T>().length();

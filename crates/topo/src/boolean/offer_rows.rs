@@ -185,6 +185,12 @@ const CURVED_ARM_SITE: Door = Door::Site(
     "the curved sweep arm is the one door for an edge against a cylinder wall sheet, and a \
      solid built around the pose meets other questions first",
 );
+const RIDER_SITE: Door = Door::Site(
+    "whether a line along a wall's axis lies on the wall is read inside the slit's rider \
+     reading (`slit::carrier_on_surface`), on an edge and a face it is handed; the crossing \
+     layer reads a line clear of or inside a wall by the pose's discriminant, so no public \
+     raise reaches it at this pose first",
+);
 const WALL_ROOT_SITE: Door = Door::Site(
     "the wall's axis-parallel rung is read inside the edge sweep's wall crossing, on a line and \
      a run set directly: the prism fixtures' edges run across a wall's axis or exactly along it, \
@@ -222,10 +228,10 @@ cases! {
         tangent_side(false);
     lever_arm_sector_curving_in_band: "LeverArm(SectorCurving)", D, TANGENT_SITE, Valued =>
         tangent_side(true);
-    line_clear_of_a_wall: "Coincidence(EdgeOnCurvedFace)", D, CURVED_ARM_SITE, Valued =>
-        line_against_a_wall(1.0 + D, 0.0);
-    line_inside_a_wall: "Coincidence(EdgeOnCurvedFace)", -D, CURVED_ARM_SITE, Valued =>
-        line_against_a_wall(1.0 - D, 0.0);
+    line_clear_of_a_wall: "Coincidence(EdgeOnCurvedFace)", D, RIDER_SITE, Valued =>
+        line_along_a_wall(1.0 + D);
+    line_inside_a_wall: "Coincidence(EdgeOnCurvedFace)", -D, RIDER_SITE, Valued =>
+        line_along_a_wall(1.0 - D);
     endpoint_clear_of_a_wall: "Coincidence(VertexOnCurvedFace)", D, CURVED_ARM_SITE, Valued =>
         line_against_a_wall(1.0, (2.0 * D).sqrt());
     edge_drifting_off_a_walls_axis: "WallRoots(AxisParallel)", D, WALL_ROOT_SITE, Valued =>
@@ -470,11 +476,6 @@ cases! {
     seam_barely_creased: "SeamWedge", D, SEAM_SITE, Valued =>
         seam(D, 1.0, Vec3::new(0.0, 0.0, 1.0));
     seam_barely_bending_apart: "SeamJet", D, SEAM_SITE, Valued => seam_bend(D);
-    sphere_barely_leaning: "Sphere(RecutAlign)", D, Door::Site(
-        "a re-cut sphere's lean is read on a crossing-free escape, where an axis near the escape \
-         normal carries a seam across the escape plane that the crossing layer meets first: no \
-         public raise is known to reach it in band"
-    ), Valued => recut(D);
 }
 
 /// The norm of the coincfr4 review's cc2 turning axis, `(−2, 1, ½)`.
@@ -683,30 +684,40 @@ fn line_against_a_wall(x0: f64, y0: f64) -> Result<(), BooleanError> {
     line_run(profile)
 }
 
-/// A line from inside the unit wall about `z`, off the axis direction
-/// by `drift` over the unit run its edge covers.
+/// A line along a unit wall sheet about `z`, `x0` off its axis: the
+/// slit's reading of whether the line lies on the wall.
+fn line_along_a_wall(x0: f64) -> Result<(), BooleanError> {
+    let tol = Tol::witness();
+    let mut y: crate::body::Body<f64> = crate::body::Body::new();
+    let wall = cyl_wall_sheet(
+        &mut y,
+        CylFrame::canonical(1.0),
+        (-0.5, 0.5),
+        (0.0, 1.0),
+        tol,
+    );
+    let line = geom::Curve3::Line(geom::Line {
+        origin: Point3::new(x0, 0.0, 0.0),
+        dir: geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
+    });
+    crate::boolean::slit::carrier_on_surface(&y, &line, (0.0, 1.0), wall, band()).map(|_| ())
+}
+
+/// A line from the unit wall about `z`, off the axis direction by
+/// `drift` over the unit run its edge covers: its offset from the wall
+/// stays within the drift, so the drift in band is the question (a line
+/// whose offset clears the drift is apart, however it drifts).
 fn line_drifting_off_a_walls_axis(drift: f64) -> Result<(), BooleanError> {
     let z = Vec3::new(0.0, 0.0, 1.0);
-    geom_brep::curve_face::line_quadric::line_wall_roots(
-        geom::Line {
-            origin: Point3::new(0.5, 0.0, 0.0),
-            dir: geom_core::UnitVec3::squared(Vec3::new(drift, 0.0, 1.0)),
-        },
-        geom::Line {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            dir: geom::stated_direction(z),
-        },
-        1.0,
-        1.0,
-        band(),
-        geom_brep::curve_face::line_quadric::About::Start,
-    )
-    .map(|_| ())
-    .map_err(|fault| {
-        BooleanError::of_line_quadric_refusal(
-            geom_brep::curve_face::line_quadric::LineQuadricRefusal::Wall(fault),
-        )
-    })
+    let wall = geom::Surface::Cylinder {
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), z, Vec3::new(1.0, 0.0, 0.0)),
+        radius: 1.0,
+    };
+    let line = geom::Curve3::Line(geom::Line {
+        origin: Point3::new(1.0, 0.0, 0.0),
+        dir: geom_core::UnitVec3::squared(Vec3::new(drift, 0.0, 1.0)),
+    });
+    crate::boolean::reduce::crossing_mapped(&line, (0.0, 1.0), &wall, band()).map(|_| ())
 }
 
 fn line_run(profile: [(f64, f64); 4]) -> Result<(), BooleanError> {
@@ -1463,21 +1474,6 @@ fn seam_bend(sagitta: f64) -> Result<(), BooleanError> {
     })
 }
 
-/// A re-cut sphere of radius 1 whose polar axis leans off the escape
-/// normal by the angle whose sine is `lean`.
-fn recut(lean: f64) -> Result<(), BooleanError> {
-    let (axis, align) = (
-        Vec3::new(0.0, 0.0, 1.0),
-        Vec3::new(lean, 0.0, (1.0 - lean * lean).sqrt()),
-    );
-    super::super::ops::recut_lean(
-        axis,
-        align,
-        geom_core::test_support::fixture_lever(1.0),
-        band(),
-    )
-}
-
 /// A point on a unit wall sheet's carrier well outside its trim, `D`
 /// from a corner of a second sheet in the same body.
 fn vertex_near_a_sheet_corner() -> Result<(), BooleanError> {
@@ -2209,7 +2205,6 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::GermEdgeCarrierUnsupported
         | BooleanErrorKind::ArcLoopContainmentUnsupported
         | BooleanErrorKind::PointInFaceRefused
-        | BooleanErrorKind::RechartedRowUnstated
         | BooleanErrorKind::CarryRefused
         | BooleanErrorKind::InsideOutOperand
         | BooleanErrorKind::NonMaximalFaces
@@ -2236,7 +2231,6 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::GermFrameUnsupported
         | BooleanErrorKind::GermSectionUnbuilt
         | BooleanErrorKind::GermSectionOpenConic
-        | BooleanErrorKind::GermSectionSpiric
         | BooleanErrorKind::NodeUnbuilt
         | BooleanErrorKind::JoinDesync
         | BooleanErrorKind::Carve
@@ -2259,7 +2253,6 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::CrossingInsertion
         | BooleanErrorKind::Containment
         | BooleanErrorKind::Merge
-        | BooleanErrorKind::Pcurves
         | BooleanErrorKind::Euler
         | BooleanErrorKind::OneRecordUncertified
         | BooleanErrorKind::Join
@@ -2545,12 +2538,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     (
-        "carrier_touch.rs",
-        "ball_off_face",
-        "BooleanDecision::Containment",
-        1,
-    ),
-    (
         "factored_crossing.rs",
         "factored_crossing",
         "BooleanDecision::VertexOnVertex",
@@ -2638,48 +2625,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("mod.rs", "coincidence", "BooleanDecision::Coincidence", 1),
     ("mod.rs", "unglued_corner", "Coincide::CornerBound", 1),
     ("mod.rs", "torus_refusal_at", "BooleanDecision::Torus", 1),
-    (
-        "mod.rs",
-        "of_conic_quadric_refusal",
-        "BooleanDecision::ArcConeRoots",
-        1,
-    ),
-    (
-        "mod.rs",
-        "of_conic_quadric_refusal",
-        "BooleanDecision::ArcCylinderRoots",
-        1,
-    ),
-    (
-        "mod.rs",
-        "of_conic_quadric_refusal",
-        "BooleanDecision::ArcSphereRoots",
-        1,
-    ),
-    (
-        "mod.rs",
-        "of_line_quadric_refusal",
-        "BooleanDecision::ConeRoots",
-        1,
-    ),
-    (
-        "mod.rs",
-        "of_line_quadric_refusal",
-        "BooleanDecision::SphereRoots",
-        1,
-    ),
-    (
-        "mod.rs",
-        "of_line_quadric_refusal",
-        "BooleanDecision::TorusRoots",
-        1,
-    ),
-    (
-        "mod.rs",
-        "of_line_quadric_refusal",
-        "BooleanDecision::WallRoots",
-        1,
-    ),
     ("mod.rs", "rim_unread", "Coincide::Rim", 1),
     (
         "mod.rs",
@@ -2745,10 +2690,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("ops.rs", "apply_cut_ins", "SphereQuestion::CutIn", 1),
     ("ops.rs", "sphere_pair_cut", "BooleanDecision::Sphere", 1),
     ("ops.rs", "sphere_pair_cut", "SphereQuestion::CutIn", 1),
-    ("ops.rs", "pair_seam", "BooleanDecision::Sphere", 1),
-    ("ops.rs", "pair_seam", "SphereQuestion::CutIn", 1),
-    ("ops.rs", "recut_lean", "BooleanDecision::Sphere", 1),
-    ("ops.rs", "recut_lean", "SphereQuestion::RecutAlign", 1),
     ("ops.rs", "of_describe", "BooleanDecision::EdgeOnFaces", 1),
     (
         "ops.rs",
@@ -2778,12 +2719,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("ops.rs", "sphere_extent_scan", "SphereQuestion::Apart", 1),
-    (
-        "ops.rs",
-        "sphere_extent_scan",
-        "SphereQuestion::EscapeParallel",
-        1,
-    ),
     ("ops.rs", "sphere_extent_scan", "SphereQuestion::Nested", 1),
     (
         "ops.rs",
@@ -2820,12 +2755,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     (
         "reduce.rs",
         "curved_face_arm",
-        "Coincide::EdgeOnCurvedFace",
-        1,
-    ),
-    (
-        "reduce.rs",
-        "curved_face_arm",
         "Coincide::VertexOnCoveredFace",
         3,
     ),
@@ -2834,6 +2763,66 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "curved_face_arm",
         "Coincide::VertexOnCurvedFace",
         3,
+    ),
+    (
+        "face_reading.rs",
+        "ball_off_face",
+        "BooleanDecision::Containment",
+        1,
+    ),
+    (
+        "face_reading.rs",
+        "face_crossings",
+        "BooleanDecision::Crossing",
+        1,
+    ),
+    (
+        "reduce.rs",
+        "crossing_decision",
+        "BooleanDecision::ArcConeRoots",
+        1,
+    ),
+    (
+        "reduce.rs",
+        "crossing_decision",
+        "BooleanDecision::ArcCylinderRoots",
+        1,
+    ),
+    (
+        "reduce.rs",
+        "crossing_decision",
+        "BooleanDecision::ArcSphereRoots",
+        1,
+    ),
+    (
+        "reduce.rs",
+        "crossing_decision",
+        "BooleanDecision::ArcTorusRoots",
+        1,
+    ),
+    (
+        "reduce.rs",
+        "crossing_decision",
+        "BooleanDecision::ConeRoots",
+        1,
+    ),
+    (
+        "reduce.rs",
+        "crossing_decision",
+        "BooleanDecision::SphereRoots",
+        1,
+    ),
+    (
+        "reduce.rs",
+        "crossing_decision",
+        "BooleanDecision::TorusRoots",
+        1,
+    ),
+    (
+        "reduce.rs",
+        "crossing_decision",
+        "BooleanDecision::WallRoots",
+        1,
     ),
     ("reduce.rs", "esc", "BooleanDecision::Containment", 1),
     ("reduce.rs", "interior", "BooleanDecision::CurveMeeting", 1),
@@ -2909,7 +2898,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::ConeRoots",
         1,
     ),
-    ("reduce.rs", "wall_crossing", "BooleanDecision::Crossing", 1),
     (
         "reduce.rs",
         "spline_plane_crossings",
@@ -2945,12 +2933,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "spline_interior",
         "BooleanDecision::Crossing",
         1,
-    ),
-    (
-        "reduce.rs",
-        "wall_crossing",
-        "BooleanDecision::ArcTorusRoots",
-        2,
     ),
     (
         "sectors.rs",
@@ -3025,6 +3007,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::PartingOrder",
         1,
     ),
+    ("slit.rs", "pole_beyond", "BooleanDecision::Sphere", 1),
+    ("slit.rs", "pole_beyond", "SphereQuestion::CutIn", 1),
     (
         "slit.rs",
         "spiric_on_curved",

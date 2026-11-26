@@ -548,10 +548,14 @@ pub(crate) struct MixedVertex {
 /// [`geom_brep::implicit_outward_normal`] — never a sampled or
 /// re-derived orientation (S10 category A). Unwrapped here because
 /// both consumers read it as geometry (a dot, a mean).
-pub(super) fn outward<T: Decide>(body: &Body<T>, face: FaceKey, p: Point3<T>) -> Option<Vec3<T>> {
-    let f = body.get_face(face)?;
+pub(super) fn outward<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    p: Point3<T>,
+) -> Result<Vec3<T>, topo::SurfaceMiss> {
+    let f = body.get_face(face).ok_or(topo::SurfaceMiss::Stale)?;
     let s = body.face_surface(face)?;
-    Some(geom_brep::implicit_outward_normal(s, f.sense, p).vec())
+    Ok(geom_brep::implicit_outward_normal(s, f.sense, p).vec())
 }
 
 /// The sample parameters of an edge, and its carrier
@@ -651,12 +655,13 @@ pub fn radius_headroom<T: Decide + Bounds>(
             "a link's support face, for the curvature headroom predicate",
         ));
     };
-    let Some(s) = body.face_surface(face) else {
-        return Err(unresolved(
-            EntityId::Face(face),
+    let s = body.face_surface(face).map_err(|miss| {
+        super::surgery::surface_missed(
+            face,
             "a link's support face, for the curvature headroom predicate",
-        ));
-    };
+            miss,
+        )
+    })?;
     let arm = geom_brep::min_radius_of_curvature_toward(s, p, ball_side(convexity, f.sense));
     // An unbounded arm saturates at `r` rather than dividing by an
     // infinity.
@@ -1106,8 +1111,15 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
     let extent = extent_of(&carrier, t0, t1);
     let mid = geom::mid_param(t0, t1);
     let (p, tau) = carrier.ders1(mid);
-    let sa = body.face_surface(face_a).ok_or_else(broken)?.clone();
-    let sb = body.face_surface(face_b).ok_or_else(broken)?.clone();
+    let surface = |face: FaceKey| {
+        body.face_surface(face).cloned().map_err(|miss| match miss {
+            topo::SurfaceMiss::Stale => broken(),
+            topo::SurfaceMiss::Pending => {
+                super::surgery::surface_missed(face, "a link's support face", miss)
+            }
+        })
+    };
+    let (sa, sb) = (surface(face_a)?, surface(face_b)?);
     // Predicate 5 first at the link level: the arm's side depends on
     // the convexity, so the sign is established before any geometry.
     // It is the edge's wedge read whole, as tier 3 reads it: every
@@ -1161,7 +1173,7 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
         // (`arms::Branch`). The link records the end's reading as its
         // convexity margin: that is the decision its convexity came
         // from.
-        geom_brep::WedgeVerdict::End { end, margin } => {
+        geom_brep::WedgeVerdict::End { end, margin, .. } => {
             let convexity = match end {
                 geom_brep::WedgeEnd::Cusp => Convexity::Convex,
                 geom_brep::WedgeEnd::Slit => Convexity::Concave,
@@ -2665,8 +2677,8 @@ fn turn_at<T: Decide + Bounds>(
         TurnVerdict::Overrun { far } => {
             // The far band's cut-off at the near band's face of `third`.
             let near = others[1 - far];
-            let normal = outward(body, near, point_at(body, vertex)?).ok_or_else(|| {
-                unresolved(EntityId::Face(near), "an overrun's end face's stored plane")
+            let normal = outward(body, near, point_at(body, vertex)?).map_err(|miss| {
+                super::surgery::surface_missed(near, "an overrun's end face's stored plane", miss)
             })?;
             let section = cut_off_section(vertex, links[far], normal, radius, kind, band)?;
             (
@@ -3113,10 +3125,13 @@ fn corner_at<T: Decide + Bounds>(
                 "a ruled link's end, whose three faces do not meet as a cap",
             ));
         };
-        let Some(Surface::Plane {
+        let cap_surface = body
+            .face_surface(cap)
+            .map_err(|miss| super::surgery::surface_missed(cap, "a ruled link's end face", miss))?;
+        let Surface::Plane {
             frame: carrier_frame,
             ..
-        }) = body.face_surface(cap)
+        } = cap_surface
         else {
             return refuse(UnbuiltEnd::CurvedEndFace { vertex });
         };
@@ -3135,10 +3150,11 @@ fn corner_at<T: Decide + Bounds>(
             let p = point_at(body, vertex)?;
             let mut normals = [Vec3::new(T::zero(), T::zero(), T::zero()); 3];
             for (slot, f) in normals.iter_mut().zip([link.face_a, link.face_b, cap]) {
-                *slot = outward(body, f, p).ok_or_else(|| {
-                    unresolved(
-                        EntityId::Face(f),
+                *slot = outward(body, f, p).map_err(|miss| {
+                    super::surgery::surface_missed(
+                        f,
                         "a ruled cap's face or its stored surface, for its outward normal",
+                        miss,
                     )
                 })?;
             }
@@ -3208,7 +3224,10 @@ fn corner_at<T: Decide + Bounds>(
                 "a chain end's three faces do not meet as two supports and an end face",
             ));
         };
-        let Some(Surface::Plane { frame, .. }) = body.face_surface(end) else {
+        let end_surface = body
+            .face_surface(end)
+            .map_err(|miss| super::surgery::surface_missed(end, "a chain end's end face", miss))?;
+        let Surface::Plane { frame, .. } = end_surface else {
             return refuse(UnbuiltEnd::CurvedEndFace { vertex });
         };
         let normal = frame.axis();
@@ -3258,10 +3277,11 @@ fn corner_at<T: Decide + Bounds>(
         ));
     }
     for (i, f) in faces.iter().enumerate() {
-        normals[i] = outward(body, *f, p).ok_or_else(|| {
-            unresolved(
-                EntityId::Face(*f),
+        normals[i] = outward(body, *f, p).map_err(|miss| {
+            super::surgery::surface_missed(
+                *f,
                 "a corner's support face or its stored surface, for its outward normal",
+                miss,
             )
         })?;
     }

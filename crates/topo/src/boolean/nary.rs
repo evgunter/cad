@@ -161,16 +161,13 @@ pub type MemberFace = (usize, FaceKey);
 /// **Which member faces each face of an accumulation descends from**,
 /// read off each step's naming, never off a name: a piece of a face
 /// descends from what the face does, a merged face from what each face
-/// it absorbed does, a face a re-chart turned from every face of the
-/// sphere shell it was turned over ([`FaceSource::inputs`]), and a face
-/// of the joining member from that face.
+/// it absorbed does, and a face of the joining member from that face.
 ///
 /// It routes the judgements' verdicts to the steps
 /// ([`given_pairs`], [`restated_rows`]), where a superset is harmless:
 /// a verdict decides a carrier pair, so handing it to a face that wears
 /// the carrier of a member face it lists but holds no area of decides
-/// the same pair. A turned face lists every face of its shell, all of
-/// which wear its one sphere. It grows along the fold. What a face holds
+/// the same pair. It grows along the fold. What a face holds
 /// is its [`Holdings`].
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct MemberLineage {
@@ -208,7 +205,7 @@ impl MemberLineage {
     /// this accumulation descends from**: an accumulation face's lineage
     /// for operand A, the member's own face for operand B. `f` is a face
     /// of that operand as the step was given it
-    /// ([`FaceSource::inputs`]).
+    /// ([`FaceSource::root`]).
     ///
     /// # Panics
     ///
@@ -232,9 +229,7 @@ impl MemberLineage {
                 let mut set = BTreeSet::new();
                 for &g in merged.get(&f).map_or(&[f][..], Vec::as_slice) {
                     let source = descent.source(g);
-                    for k in source.inputs {
-                        set.extend(self.operand_faces(member, source.operand, k));
-                    }
+                    set.extend(self.operand_faces(member, source.operand, source.root));
                 }
                 (f, set)
             })
@@ -243,23 +238,15 @@ impl MemberLineage {
     }
 }
 
-/// **Where a face of a boolean result comes from**: its operand, the
-/// operand face it is a piece of in the keys the op ran on, and the faces
-/// of the op's input that one stands for.
+/// **Where a face of a boolean result comes from**: its operand and the
+/// operand face it is a piece of.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FaceSource {
     /// The operand.
     pub operand: Operand,
-    /// The operand face the result face is a piece of, in the keys of the
-    /// operand as the op ran on it. Where a re-chart turned that face's
-    /// sphere shell before the op ran (`BooleanNaming::recharted`), it is
-    /// the turned face, whose key names no face of the input at its
-    /// place, or none.
+    /// The operand face the result face is a piece of, in the op's
+    /// input keys.
     pub root: FaceKey,
-    /// The faces of the op's input `root` stands for: `root` itself, or,
-    /// for a turned face, every face of the input shell it was turned
-    /// over, any of which its region may meet.
-    pub inputs: Vec<FaceKey>,
 }
 
 /// **Which operand face each face of a boolean result descends from**,
@@ -299,14 +286,7 @@ impl<'n> FaceDescent<'n> {
             Operand::A => self.naming.face_fragments_a.root(f),
             Operand::B => self.naming.face_fragments_b.root(f),
         };
-        let inputs = self.naming.recharted[operand.index()]
-            .input_faces(super::Cell::Face(root))
-            .map_or_else(|| vec![root], <[FaceKey]>::to_vec);
-        FaceSource {
-            operand,
-            root,
-            inputs,
-        }
+        FaceSource { operand, root }
     }
 
     /// Merged result face → every face it holds, itself first, in
@@ -955,13 +935,6 @@ fn lift<T: Decide + crate::AtRestPolicy>(
             face: *f,
             refusal: refusal.clone(),
         },
-        HeldRefusal::Recharted { face: (1, f) } => HeldRefusal::Recharted { face: (member, *f) },
-        HeldRefusal::Recharted { face: (_, f) } => HeldRefusal::Accumulation {
-            face: *f,
-            refusal: super::overlap::OverlapRefusal::Unread(
-                super::overlap::OverlapUnread::RechartedRegionLost,
-            ),
-        },
         HeldRefusal::NotUnder {
             member_face: (1, f),
         } => HeldRefusal::NotUnder {
@@ -1291,15 +1264,8 @@ fn tool_parts<T: Decide + AtRestPolicy>(
     records: &OperandRecords,
     tol: Tol,
 ) -> Result<Option<ToolParts<T>>, BooleanError> {
-    use super::Cell::{Edge, Face, Vertex};
-    let OperandRecords {
-        vv,
-        vf,
-        ve,
-        ee,
-        ef,
-        ff,
-    } = records;
+    use super::Cell::Face;
+    let ff = records.face_face();
     let solids: Vec<crate::SolidKey> = tool.solids().map(|(s, _)| s).collect();
     let place = |cell: super::Cell| {
         crate::census_cell_solid(tool, cell).and_then(|s| solids.iter().position(|&k| k == s))
@@ -1310,8 +1276,7 @@ fn tool_parts<T: Decide + AtRestPolicy>(
     // a curved one between two refuses, and a planar one inside one solid
     // is a solid touching itself over an area, which no finished body is.
     let mut verdicts: Vec<PairVerdict<T>> = Vec::new();
-    for carried in ff {
-        let (x, y) = (carried.contact.a, carried.contact.b);
+    for (carried, x, y) in ff {
         let cells = [Face(x), Face(y)];
         let (Some(i), Some(j)) = (place(cells[0]), place(cells[1])) else {
             continue;
@@ -1389,31 +1354,20 @@ fn tool_parts<T: Decide + AtRestPolicy>(
         (Some(i), Some(j)) if fused(i) && roots[i] == roots[j] => Err(unread(record, cells)),
         _ => Ok(Ride::Material),
     };
-    macro_rules! split_list {
-        ($list:ident, |$c:ident| $cells:expr) => {
-            for carried in $list {
-                let $c = &carried.contact;
-                match split($cells, carried.record)? {
-                    Ride::Member(g, m) => own[g][m].$list.push(*carried),
-                    Ride::Standing => standing_records.$list.push(*carried),
-                    Ride::Material => riding.$list.push(*carried),
-                }
-            }
-        };
+    for carried in records.lower() {
+        match split(carried.contact.cells(), carried.record)? {
+            Ride::Member(g, m) => own[g][m].push(*carried),
+            Ride::Standing => standing_records.push(*carried),
+            Ride::Material => riding.push(*carried),
+        }
     }
-    split_list!(vv, |c| [Vertex(c.a), Vertex(c.b)]);
-    split_list!(vf, |c| [Vertex(c.vertex), Face(c.face)]);
-    split_list!(ve, |c| [Vertex(c.vertex), Edge(c.edge)]);
-    split_list!(ee, |c| [Edge(c.a), Edge(c.b)]);
-    split_list!(ef, |c| [Edge(c.edge), Face(c.face)]);
-    for carried in ff {
-        let cells = [Face(carried.contact.a), Face(carried.contact.b)];
-        if let (Some(i), Some(j)) = (place(cells[0]), place(cells[1]))
+    for (carried, x, y) in records.face_face() {
+        if let (Some(i), Some(j)) = (place(Face(x)), place(Face(y)))
             && i == j
         {
             match at[i] {
-                Some((g, m)) => own[g][m].ff.push(*carried),
-                None => standing_records.ff.push(*carried),
+                Some((g, m)) => own[g][m].push(*carried),
+                None => standing_records.push(*carried),
             }
         }
     }

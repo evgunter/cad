@@ -13,10 +13,11 @@
 //!    suite and no additional claim. The reversed-DATA arm and its ε
 //!    posture moved there verbatim;
 //! 2. dense residual sampling of every minted `IsoArc` against its own
-//!    carrier and chart, concentrated at the sub-arc JOINS, checked
-//!    against the cache's own certified numbers (the quarter-circle
-//!    bulge is one sub-arc under C6's η, so a half-circle prism carries
-//!    the joins);
+//!    carrier and chart, concentrated at its ends, checked against the
+//!    cache's own certified numbers. The half-circle prism's sub-arc
+//!    JOIN is where two of its quarter walls meet (the loft cuts a wall
+//!    at each joint), so every minted `IsoArc` is one sub-arc and the
+//!    join lies at the end of two of them;
 //! 3. a FOREIGN segmentation (4 uniform sub-arcs where the native form
 //!    is 1) certified through the same public door the mint uses —
 //!    carrier-keyed means the class accepts any chart that really is
@@ -44,7 +45,8 @@ use geom_core::{Point2, Vec3};
 use sweep::loft_body;
 
 /// The arc section with its bulge a half circle (bulge 1, sweep π):
-/// two sub-arcs, so one interior JOIN, which probe 2 samples.
+/// two sub-arcs, so two quarter walls meeting at the JOIN, which probe 2
+/// samples at their rims' ends.
 fn half_circle_section(s: f64) -> sweep::Section {
     use profile::test_support::bulge_loop;
     let v = |x: f64, y: f64, bulge: f64| (Point2::new(x, y), bulge);
@@ -68,10 +70,11 @@ fn native_arc_loft() -> topo::AtRestBody<f64> {
 }
 
 /// Probe 2: every minted `IsoArc` on the arc prism and the arc loft,
-/// sampled densely (1009 points, plus 41-point windows of width 1e-6
-/// around every interior sub-arc JOIN): `|S(P(t)) − C(t)|` must be
-/// within the cache's own certified statement (envelope + sampled max)
-/// at every point.
+/// sampled densely (1009 points, plus 21-point windows of width 1e-6
+/// inside each end, where the half-circle prism's quarter walls meet at
+/// the sub-arc JOIN): `|S(P(t)) − C(t)|` must be within the cache's own
+/// certified statement (envelope + sampled max) at every point, and
+/// every `IsoArc` is one sub-arc.
 #[test]
 fn probe_dense_isoarc_residuals_at_joins() {
     let bodies = [
@@ -103,13 +106,7 @@ fn probe_dense_isoarc_residuals_at_joins() {
     let mut joins = 0usize;
     for (who, body) in &bodies {
         for (hek, cache) in body.pcurves() {
-            let geom_brep::Pcurve::IsoArc {
-                breaks,
-                t0: at0,
-                angle,
-                ..
-            } = cache.pcurve()
-            else {
+            let geom_brep::Pcurve::IsoArc { breaks, .. } = cache.pcurve() else {
                 continue;
             };
             seen += 1;
@@ -152,18 +149,13 @@ fn probe_dense_isoarc_residuals_at_joins() {
             for i in 0..=1008 {
                 check(t0 + (t1 - t0) * (f64::from(i) / 1008.0));
             }
-            // Join neighborhoods: τ = k/m ⇒ t = at0 + angle·k/m.
-            #[allow(clippy::cast_precision_loss)]
-            for k in 1..spans {
-                let tj = at0 + angle * (k as f64) / (spans as f64);
-                for j in -20i32..=20 {
-                    let t = tj + f64::from(j) * 1e-6;
-                    if t >= t0 && t <= t1 {
-                        check(t);
-                    }
-                }
-                joins += 1;
+            assert_eq!(spans, 1, "{who}: a minted IsoArc is one sub-arc");
+            // The ends' neighbourhoods, where a join now lies.
+            for j in 0..=20i32 {
+                check(t0 + f64::from(j) * 1e-6);
+                check(t1 - f64::from(j) * 1e-6);
             }
+            joins += 2;
             println!(
                 "RW2 probe 2: {who} IsoArc ({spans} sub-arcs) worst residual {worst:e} \
                  vs certified {bound:e}"
@@ -171,7 +163,7 @@ fn probe_dense_isoarc_residuals_at_joins() {
         }
     }
     assert!(seen >= 4, "expected at least 4 minted IsoArcs, saw {seen}");
-    assert!(joins > 0, "no minted IsoArc had an interior join to sample");
+    assert_eq!(joins, 2 * seen, "both ends of every IsoArc sampled");
 }
 
 /// Probe 3: the FOREIGN-segmentation attack on the carrier-keyed
@@ -251,8 +243,9 @@ fn probe_foreign_segmentation_certifies_through_the_same_door() {
     knots_b.extend([1.0, 1.0]);
     let breaks = geom_core::spline::KnotVector::clamped(knots_b, 1).unwrap();
     let pcurve = geom_brep::Pcurve::IsoArc {
-        p0: Point2::new(0.0, 0.0),
-        pd: geom_core::Vec2::new(1.0, 0.0),
+        line: geom_brep::ChartLine::row(0.0),
+        g0: 0.0,
+        gd: 1.0,
         t0: 0.0,
         angle: theta,
         breaks,
@@ -297,8 +290,9 @@ fn probe_foreign_segmentation_certifies_through_the_same_door() {
     knots_b2.extend([1.0, 1.0]);
     let breaks2 = geom_core::spline::KnotVector::clamped(knots_b2, 1).unwrap();
     let pcurve2 = geom_brep::Pcurve::IsoArc {
-        p0: Point2::new(0.0, 0.0),
-        pd: geom_core::Vec2::new(1.0, 0.0),
+        line: geom_brep::ChartLine::row(0.0),
+        g0: 0.0,
+        gd: 1.0,
         t0: 0.0,
         angle: theta,
         breaks: breaks2,

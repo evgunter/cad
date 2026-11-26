@@ -222,7 +222,8 @@ impl<T: Decide> Orbit<T> {
             crate::sector_face::resolve(body, vertex, he, band).map_err(StarFault::Face)?;
         let face = resolved.face;
         let view = body.proven_face(face);
-        let bend = FaceBend::at(view.surface(), view.sense(), p);
+        // The star is read over a split's or a boolean's finished body.
+        let bend = FaceBend::at(view.expect_described(), view.sense(), p);
         let corner_bounds = tips.bounds(vertex, face, n == 1);
         let shape = |fault| StarFault::Shape(face, fault);
         let sector = |at, arm| Sector {
@@ -400,7 +401,7 @@ impl<T: Decide> Star<T> {
             (StarFace::Apex(apex), Datum::Plane(_) | Datum::Cone(_)) => {
                 let across = match datum {
                     Datum::Plane(n) => *n,
-                    Datum::Cone(other) => other.axis.get(),
+                    Datum::Cone(other) => other.axis().get(),
                 };
                 let window = apex.azimuth_from(start, end);
                 Ok(
@@ -579,12 +580,14 @@ mod tests {
             })
             .unwrap();
         let tilted = |x: f64, y: f64, z: f64| Vec3::new(x, y, z).normalize();
-        let partner = |axis: Vec3<f64>| ConeApex {
-            apex: Point3::origin(),
-            axis: geom_core::UnitVec3::checked(axis),
-            half_angle: 0.3,
-            u_ref: axis.cross(Vec3::unit_x()).normalize(),
-            sense: true,
+        let partner = |axis: Vec3<f64>| {
+            ConeApex::stated(
+                Point3::origin(),
+                geom_core::UnitVec3::checked(axis),
+                0.3,
+                axis.cross(Vec3::unit_x()).normalize(),
+                true,
+            )
         };
         let rows = [
             (&fan, fan_apex, vec![]),
@@ -641,7 +644,7 @@ mod tests {
                 for datum in datums {
                     let across = match datum {
                         Datum::Plane(n) => *n,
-                        Datum::Cone(c) => c.axis.get(),
+                        Datum::Cone(c) => c.axis().get(),
                     };
                     let side: Vec<f64> = along.iter().map(|d| d.dot(across)).collect();
                     let steps: Vec<f64> = side.windows(2).map(|w| w[1] - w[0]).collect();

@@ -52,6 +52,7 @@
 // There is no `#![allow(clippy::duplicate_mod)]` here because no file is
 // loaded twice any more; if one ever is, the lint is meant to fire.
 mod common;
+mod euler_cube_support;
 mod mate2_common;
 mod revolve_common;
 mod seam_region_common;
@@ -68,10 +69,14 @@ mod a_body_on_a_rods_cap_glues_as_its_rim_reads;
 mod a_carried_record_no_reading_covers;
 #[path = "a_circle_of_one_radius_elsewhere_is_no_rim.rs"]
 mod a_circle_of_one_radius_elsewhere_is_no_rim;
+#[path = "a_closed_cut_leaves_each_ball_one_face.rs"]
+mod a_closed_cut_leaves_each_ball_one_face;
 #[path = "a_closed_rider_lying_in_a_face_refuses_its_slit_form.rs"]
 mod a_closed_rider_lying_in_a_face_refuses_its_slit_form;
 #[path = "a_cone_on_a_torus_meridian_in_every_order.rs"]
 mod a_cone_on_a_torus_meridian_in_every_order;
+#[path = "a_cone_with_a_ball_or_a_cone_in_every_order.rs"]
+mod a_cone_with_a_ball_or_a_cone_in_every_order;
 #[path = "a_conical_ended_football_revolves.rs"]
 mod a_conical_ended_football_revolves;
 #[path = "a_corner_cut_on_a_far_wall_reads_its_sections_width.rs"]
@@ -84,6 +89,8 @@ mod a_curved_keel_in_the_plane;
 mod a_curved_keel_on_the_floor_refuses_its_slit_form;
 #[path = "a_cut_by_a_curved_seat_refuses_its_material.rs"]
 mod a_cut_by_a_curved_seat_refuses_its_material;
+#[path = "a_cut_by_a_seated_tool_cuts_its_ball_in.rs"]
+mod a_cut_by_a_seated_tool_cuts_its_ball_in;
 #[path = "a_cylinder_split_just_off_its_rim_vertex.rs"]
 mod a_cylinder_split_just_off_its_rim_vertex;
 #[path = "a_face_across_a_wavy_corner.rs"]
@@ -132,6 +139,8 @@ mod a_plane_along_an_elliptic_cut;
 mod a_plane_holding_a_conic_tangent_at_a_vertex;
 #[path = "a_plane_moved_to_a_cone_apex.rs"]
 mod a_plane_moved_to_a_cone_apex;
+#[path = "a_plane_nearly_through_a_torus_axis_cuts_it_at_any_face_size.rs"]
+mod a_plane_nearly_through_a_torus_axis_cuts_it_at_any_face_size;
 #[path = "a_plane_through_a_cones_apex.rs"]
 mod a_plane_through_a_cones_apex;
 #[path = "a_plane_through_a_pole_cuts_a_cap.rs"]
@@ -218,6 +227,8 @@ mod a_wrap_tip_sits_on_its_faces_chart_singularity;
 mod an_annular_tube_through_a_plate;
 #[path = "an_apex_lying_in_a_partners_face.rs"]
 mod an_apex_lying_in_a_partners_face;
+#[path = "an_approximated_face_is_embedded_as_its_fit.rs"]
+mod an_approximated_face_is_embedded_as_its_fit;
 #[path = "an_arc_loft_seams_its_rational_wall_at_every_spacing.rs"]
 mod an_arc_loft_seams_its_rational_wall_at_every_spacing;
 #[path = "an_arc_off_a_plane_or_cylinder_face_ends_as_its_incidence_read.rs"]
@@ -372,8 +383,6 @@ mod pipeline_null_edge_rows;
 mod pis_arc_capped_poses;
 #[path = "pis_cut_cavity.rs"]
 mod pis_cut_cavity;
-#[path = "placeholder_loop_windings.rs"]
-mod placeholder_loop_windings;
 #[path = "planar_ring_arc_closure.rs"]
 mod planar_ring_arc_closure;
 #[path = "pocket_ring_steep_ellipse.rs"]
@@ -406,6 +415,8 @@ mod review_4996_blend_cap;
 mod review_5956_r1_probes;
 #[path = "review_5956_r2_probes.rs"]
 mod review_5956_r2_probes;
+#[path = "review_approx_through_a_motion.rs"]
+mod review_approx_through_a_motion;
 #[path = "review_arm_vs_reach_probes.rs"]
 mod review_arm_vs_reach_probes;
 #[path = "review_r2_vv_probes.rs"]
@@ -454,8 +465,8 @@ mod spiric_faces_fuzz;
 mod sym11_far_placement_rows;
 #[path = "the_door_reads_seam_regions_as_tier_3_does.rs"]
 mod the_door_reads_seam_regions_as_tier_3_does;
-#[path = "the_nary_door_reads_a_re_charted_accumulation_through_its_shell.rs"]
-mod the_nary_door_reads_a_re_charted_accumulation_through_its_shell;
+#[path = "the_nary_door_reads_a_cut_in_accumulation_through_its_pieces.rs"]
+mod the_nary_door_reads_a_cut_in_accumulation_through_its_pieces;
 #[path = "tilted_sphere_pair.rs"]
 mod tilted_sphere_pair;
 #[path = "tilted_sphere_pair_k_rows.rs"]
@@ -1349,6 +1360,9 @@ mod shell10_r2_dump;
 #[path = "cross_solid_apart.rs"]
 mod cross_solid_apart;
 
+#[path = "pair_doors_read_apart.rs"]
+mod pair_doors_read_apart;
+
 #[path = "holdings_of_a_sunk_boss.rs"]
 mod holdings_of_a_sunk_boss;
 
@@ -1495,7 +1509,17 @@ mod a_loops_lift_runs_through_its_poles;
 mod a_partner_across_a_lofted_wall_is_joined_on_its_section_value;
 #[path = "a_peg_in_a_two_segment_bore_moves_only_its_wall.rs"]
 mod a_peg_in_a_two_segment_bore_moves_only_its_wall;
+#[path = "a_pending_end_face_is_refused_as_scaffolding.rs"]
+mod a_pending_end_face_is_refused_as_scaffolding;
+#[path = "a_rest_on_a_cut_in_piece_lands_on_it.rs"]
+mod a_rest_on_a_cut_in_piece_lands_on_it;
 #[path = "a_station_frame_is_minted_to_its_floor.rs"]
 mod a_station_frame_is_minted_to_its_floor;
 #[path = "check_1_reads_no_frame_on_a_turned_disc.rs"]
 mod check_1_reads_no_frame_on_a_turned_disc;
+#[path = "completion_keeps_what_a_face_stores.rs"]
+mod completion_keeps_what_a_face_stores;
+#[path = "completion_refuses_a_stale_row.rs"]
+mod completion_refuses_a_stale_row;
+#[path = "separation_reads_turned_directions.rs"]
+mod separation_reads_turned_directions;

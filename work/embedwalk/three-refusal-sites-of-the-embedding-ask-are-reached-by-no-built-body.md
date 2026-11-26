@@ -47,3 +47,25 @@ site and of no body.
 A built body for the by-kind refusal and for the declined witness, or
 the argument that none exists. Until then the engine rows pin the
 stop and the receipt at each; they do not show a body can read them.
+
+## Evidence
+
+- 2026-11-25 — PR 7769 gives a spindle sheet its window, so
+  `by_kind`'s spindle arm is no longer dead behind `window_of`: its
+  discharge is reached by every built sheet body. Its refusal (datums
+  `geom::spindle_sheet` does not decide a sheet's) is reached by no built
+  body, since tier 3 refuses those datums at rest
+  (`validate::door_roster::a_stored_spindle_sheet_is_refused_outside_its_range`).
+  It is pinned at the engine (`injective::by_kind_rows::a_spindle_sheet_is_injective_on_its_range_alone`).
+  A second site of this class lands with it: `singular_ends`' sheet arm
+  reads a vertex at both of a sheet's apexes (a horn's cusp) as no one end
+  of the face's `v`, and a cell holding it refuses `Structural`. No built
+  body asks such a cell. The revolve refuses a face reaching the cusp from
+  both sides (`sweep::all the_football_revolves::a_horn_reached_at_its_cusp_from_both_sides_pinches`),
+  and the needle tip's two π-bands refuse
+  `Uncertified { arm: Departure }` at their shared meridian at the root,
+  with no split. Deleting the check leaves every row green (the PR's
+  review). It is kept as the `None` the cone's apex without one nappe
+  reads, not a named refusal: `Structural` is that refusal's class (no
+  depth reads it), and a new variant would be one more site no body
+  reaches. (lane `embedwalk-spindle`)

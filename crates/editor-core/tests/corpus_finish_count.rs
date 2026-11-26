@@ -78,6 +78,11 @@ fn the_corpus_runs_its_pinned_count_of_finishes() {
 /// kitchen_sink, boss_union, face_sketch, plate_param, axis_projection and
 /// blocks_on_one_floor) and the localization 5 (heat_sink 34 -> 29).
 /// Moving each member's leaf before its take again puts back 440, and the
-/// copies' as well, 445.
+/// copies' as well, 445. Then an interference finding offers the assertion
+/// that quiets it only where the quieting rule takes that assertion at
+/// every member of the family it is written over
+/// (`checks::at_rest::written_pair`), and reading each member's pair
+/// finishes: 390 -> 398, all in heat_sink (29 -> 37). Offering the pair
+/// without the members' reading puts back 390.
 #[cfg(debug_assertions)]
-const PINNED: u64 = 390;
+const PINNED: u64 = 398;

@@ -117,7 +117,13 @@ impl Frame {
                 let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                 (center, axis, u_ref, Kind::Sphere { radius })
             }
+            // A spindle sheet's chart is the torus's with `R` signed.
             Surface::Torus {
+                frame,
+                major_radius,
+                minor_radius,
+            }
+            | Surface::Spindle {
                 frame,
                 major_radius,
                 minor_radius,
@@ -229,7 +235,7 @@ fn wall(body: &Body<f64>, kind: fn(&Surface<f64>) -> bool) -> (FaceKey, Frame) {
     let (face, frame) = body
         .faces()
         .find_map(|(k, _)| {
-            let s = body.face_surface(k)?;
+            let s = body.face_surface(k).ok()?;
             kind(s).then(|| (k, Frame::of(s)))
         })
         .expect("the wall");
@@ -332,6 +338,10 @@ fn is_sphere(s: &Surface<f64>) -> bool {
 
 fn is_torus(s: &Surface<f64>) -> bool {
     matches!(s, Surface::Torus { .. })
+}
+
+fn is_sheet(s: &Surface<f64>) -> bool {
+    matches!(s, Surface::Spindle { .. })
 }
 
 /// **A window planted on `face`**, at `T`: the chart rectangle azimuth
@@ -495,6 +505,60 @@ fn a_cone_band_refuses_a_window_beyond_its_rim() {
     honest_then_misplaced("P09", &honest, &misplaced, face);
 }
 
+/// **A lemon band reads its window's side at tier 3**: a barrel, the
+/// lemon meridian `R = −1/2`, `r = 1` cut at heights `±0.4` and capped by
+/// two discs, revolved a whole turn, a window planted on one of its two
+/// half-turn sheet faces. The sheet's point door reads the window's ring
+/// against the face's outer loop: the honest window over tube angles
+/// `±0.2` raises no region finding, and the misplaced one over
+/// `[0.6, 0.8]`, past the rim at `0.41` and short of the apex at `1.05`,
+/// is refused on the sheet face. (The volume lane reads no ring on a
+/// curved face, so only the region arm's findings are compared.) Red if
+/// tier 3 reads a sheet face's cycles wrongly, or leaves them unread.
+#[test]
+fn a_lemon_band_refuses_a_window_beyond_its_rim() {
+    let h = 0.4_f64;
+    let x = -0.5 + (1.0 - h * h).sqrt();
+    let bulge = (2.0 * h.asin() / 4.0).tan();
+    let barrel = revolved(&[(0.0, -h, 0.0), (x, -h, bulge), (x, h, 0.0), (0.0, h, 0.0)]);
+    let (face, frame) = wall(&barrel, is_sheet);
+    // `wall` turns the frame to the middle of a circle edge, here one of
+    // the face's meridians: the face is the half turn to one side of it.
+    let Surface::Spindle { frame: stored, .. } = *barrel.face_surface(face).unwrap() else {
+        panic!("a sheet face")
+    };
+    let seam = frame
+        .e1
+        .dot(stored.axis().cross(stored.u_ref()))
+        .atan2(frame.e1.dot(stored.u_ref()));
+    let half = core::f64::consts::FRAC_PI_2;
+    let band = geom_core::Band::linear(tol()).unwrap();
+    let side = match topo::cell_region::station_region(&barrel, face, (seam + half, 0.0), band) {
+        Some(topo::FaceContainment::In) => half,
+        _ => -half,
+    };
+    let (us, at) = ((side - 0.4, side + 0.4), |v0: f64, v1: f64| {
+        (v0 - frame.shift, v1 - frame.shift)
+    });
+    let mut honest = barrel.clone();
+    plant(&mut honest, face, frame, us, at(-0.2, 0.2));
+    let mut misplaced = barrel;
+    plant(&mut misplaced, face, frame, us, at(0.6, 0.8));
+    assert_eq!(
+        region_findings(&honest),
+        [],
+        "the window in the face validates"
+    );
+    let errors = region_findings(&misplaced);
+    assert!(
+        !errors.is_empty()
+            && errors.iter().all(
+                |e| matches!(e, ValidationError::CycleOffFaceSide { face: f, .. } if *f == face)
+            ),
+        "the misplaced window is refused on the sheet face: {errors:?}"
+    );
+}
+
 /// **P47, a cone cap with a window outside it**: the cap from the apex
 /// to the rim at slant 2, with a window over slant `[3, 3.5]` and an
 /// azimuth span of 1. The honest twin's is over slant `[1, 1.5]`.
@@ -586,7 +650,7 @@ fn a_torus_face_reads_its_essential_cycles_as_one_pair() {
     let (face, cycles) = honest
         .faces()
         .find_map(|(face, _)| {
-            matches!(honest.face_surface(face), Some(Surface::Torus { .. })).then(|| {
+            matches!(honest.face_surface(face), Ok(Surface::Torus { .. })).then(|| {
                 let cycles = topo::surface_boundary::surface_cycle_windings(&honest, face).unwrap();
                 (face, cycles)
             })
@@ -1181,7 +1245,7 @@ fn lune_pole_rows(d: f64) {
             .into_body();
         let face = lune
             .faces()
-            .find(|(fk, _)| matches!(lune.face_surface(*fk), Some(Surface::Sphere { .. })))
+            .find(|(fk, _)| matches!(lune.face_surface(*fk), Ok(Surface::Sphere { .. })))
             .unwrap()
             .0;
         for (q, want) in rows {
@@ -1239,7 +1303,7 @@ fn points_beside_a_domes_far_pole<T: Scalar>(scalar: &str) {
         let at_f64 = dome_by::<f64>(angle);
         let body = dome_by::<T>(angle);
         for (k, _) in at_f64.faces() {
-            if !matches!(at_f64.face_surface(k), Some(Surface::Sphere { .. })) {
+            if !matches!(at_f64.face_surface(k), Ok(Surface::Sphere { .. })) {
                 continue;
             }
             let face = same_face(&at_f64, k, &body);
@@ -1283,7 +1347,7 @@ fn a_frustums_apex<T: Scalar>(scalar: &str) {
     let (k, apex) = at_f64
         .faces()
         .find_map(|(k, _)| match at_f64.face_surface(k) {
-            Some(Surface::Cone { frame, .. }) => {
+            Ok(Surface::Cone { frame, .. }) => {
                 let apex = frame.origin();
                 Some((k, apex))
             }

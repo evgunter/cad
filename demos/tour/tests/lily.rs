@@ -40,7 +40,7 @@ mod review_probes {
     fn torus(b: &Body<f64>) -> (Point3<f64>, Vec3<f64>, f64, f64, Vec3<f64>) {
         let mut found = None;
         for (fk, _) in b.faces() {
-            if let Some(Surface::Torus {
+            if let Ok(Surface::Torus {
                 frame,
                 major_radius,
                 minor_radius,
@@ -320,7 +320,7 @@ mod review_probes {
             let mut cones = 0usize;
             for (fk, _) in b.faces() {
                 match b.face_surface(fk) {
-                    Some(Surface::Sphere { frame, radius, .. }) => {
+                    Ok(Surface::Sphere { frame, radius, .. }) => {
                         let (center, axis) = (frame.origin(), frame.axis());
                         saw_sphere = true;
                         assert!(
@@ -332,7 +332,7 @@ mod review_probes {
                         assert!((center.z - cen.1).abs() < 1e-12, "{name} center.z");
                         assert!((radius - rad).abs() < 1e-15, "{name} radius");
                     }
-                    Some(Surface::Cone { frame, .. }) => {
+                    Ok(Surface::Cone { frame, .. }) => {
                         let axis = frame.axis();
                         cones += 1;
                         assert!(
@@ -420,9 +420,9 @@ mod review_probes {
                 continue;
             }
             match lant.get_surface(sides.plus.surface) {
-                Some(Surface::Plane { .. }) => planar_pairs += 1,
-                Some(_) => curved_pairs += 1,
-                None => {}
+                Ok(Surface::Plane { .. }) => planar_pairs += 1,
+                Ok(_) => curved_pairs += 1,
+                Err(_) => {}
             }
         }
         // Each pair is counted from both of its two struts.
@@ -712,9 +712,11 @@ mod review_probes {
             // (71 snapped bands -> 0: their aspects are malign in raw
             // UV and benign over the face's metric), so each band keeps
             // its own columns and the grid drops 1_152 -> 1_081 cells —
-            // 5_374 -> 5_254. Leaf c measures unchanged.
+            // 5_374 -> 5_254. Leaf c measured unchanged then; it is now
+            // leaf b's mirror image across the stem, and meshes as leaf b
+            // does — 4_962 -> 5_254.
             ("lily_leaf_b", 2e-3, 5_254),
-            ("lily_leaf_c", 2e-3, 4_962),
+            ("lily_leaf_c", 2e-3, 5_254),
         ];
         // Measured first, compared once: a row-at-a-time assert stops
         // at the first move and hides the rest, and this table is read
@@ -801,7 +803,9 @@ mod review_probes {
         // which is exactly what a loft stops being. What pins the
         // lofted blade instead is
         // `the_lofted_blade_tapers_and_rolls_in_the_stored_geometry`.
-        for (name, leaf) in [("lily_leaf_b", LEAF_B), ("lily_leaf_c", LEAF_C)] {
+        // `lily_leaf_c` is `lily_leaf_b` mirrored across the stem, so it
+        // is held to the same section, path and Pappus volume.
+        for (name, leaf) in [("lily_leaf_b", LEAF_B), ("lily_leaf_c", LEAF_B)] {
             let pappus = lance_area(leaf.section)
                 * leaf
                     .curl
@@ -986,8 +990,7 @@ mod review_probes {
         let lant = body(&ps, "lily_lantern");
         let mut centre = None;
         for (fk, _) in lant.faces() {
-            if let Some(pncad::geom::Surface::Sphere { frame, radius, .. }) = lant.face_surface(fk)
-            {
+            if let Ok(pncad::geom::Surface::Sphere { frame, radius, .. }) = lant.face_surface(fk) {
                 let center = frame.origin();
                 assert!((radius - FLOWER_GLOBE).abs() < 1e-12);
                 centre = Some(center);
@@ -1001,7 +1004,7 @@ mod review_probes {
             // keel's apex is the section's deepest point.
             let mut points: Vec<Point3<f64>> = s.vertex_points().map(|(_, p)| p).collect();
             for (fk, _) in s.faces() {
-                if let Some(&pncad::geom::Surface::Plane { frame, .. }) = s.face_surface(fk) {
+                if let Ok(&pncad::geom::Surface::Plane { frame, .. }) = s.face_surface(fk) {
                     let (origin, normal) = (frame.origin(), frame.axis());
                     let margins: Vec<Point3<f64>> = s
                         .vertex_points()
@@ -1150,7 +1153,7 @@ mod review_probes {
             let a = segs[i].1;
             let mut halves: Vec<Vec3<f64>> = Vec::new();
             for (fk, _) in b.faces() {
-                let Some(&pncad::geom::Surface::Plane {
+                let Ok(&pncad::geom::Surface::Plane {
                     frame: carrier_frame,
                     ..
                 }) = b.face_surface(fk)
@@ -1240,7 +1243,7 @@ mod review_probes {
     pub(super) fn pucker_cone_faces(ps: &[Piece<f64>]) -> Vec<pncad::topo::FaceKey> {
         let lant = body(ps, "lily_lantern");
         let (neck, _, _, _) = weld_circle(lant, body(ps, "lily_arch"), caps(ps, "lily_arch"));
-        let Some(&Surface::Cone {
+        let Ok(&Surface::Cone {
             frame: carrier_frame,
             ..
         }) = lant.face_surface(neck)
@@ -1252,7 +1255,7 @@ mod review_probes {
             .filter(|(fk, _)| {
                 matches!(
                     lant.face_surface(*fk),
-                    Some(&Surface::Cone { frame, .. }) if (frame.origin() - neck_apex).norm() > 1e-9
+                    Ok(&Surface::Cone { frame, .. }) if (frame.origin() - neck_apex).norm() > 1e-9
                 )
             })
             .map(|(k, _)| k)
@@ -1276,7 +1279,7 @@ mod review_probes {
     fn sphere_of(b: &Body<f64>) -> (Point3<f64>, f64, Vec3<f64>) {
         let mut found: Option<SphereCarrier> = None;
         for (fk, _) in b.faces() {
-            if let Some(pncad::geom::Surface::Sphere { frame, radius }) = b.face_surface(fk) {
+            if let Ok(pncad::geom::Surface::Sphere { frame, radius }) = b.face_surface(fk) {
                 let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                 let s = (center, *radius, axis, u_ref);
                 match found {
@@ -1350,7 +1353,7 @@ mod review_probes {
     fn cap_frames(b: &Body<f64>) -> Vec<Cap> {
         let mut out = Vec::new();
         for (fk, _) in b.faces() {
-            let Some(&pncad::geom::Surface::Plane {
+            let Ok(&pncad::geom::Surface::Plane {
                 frame: carrier_frame,
                 ..
             }) = b.face_surface(fk)
@@ -1523,7 +1526,7 @@ mod verbs_gate_r1_probes {
         let mut zone = None;
         for (k, _) in lant.faces() {
             match lant.face_surface(k) {
-                Some(&Surface::Cone {
+                Ok(&Surface::Cone {
                     frame, half_angle, ..
                 }) if pucker.contains(&k) => {
                     let (apex, axis) = (frame.origin(), frame.axis());
@@ -1559,7 +1562,7 @@ mod verbs_gate_r1_probes {
                     let d = seg(v_lo, v_lo.abs() * ta, v_hi, v_hi.abs() * ta) - br;
                     min_frustum_gap = min_frustum_gap.min(d);
                 }
-                Some(&Surface::Sphere { frame, radius, .. }) => {
+                Ok(&Surface::Sphere { frame, radius, .. }) => {
                     let center = frame.origin();
                     let d = (center - bc).norm();
                     if d <= radius + br && d + br >= radius {
@@ -1694,7 +1697,7 @@ mod verbs_gate_r1_probes {
             seamed.faces().any(|(fk, face)| !face.rings.is_empty()
                 && matches!(
                     seamed.face_surface(fk),
-                    Some(pncad::topo::Surface::Sphere { .. })
+                    Ok(pncad::topo::Surface::Sphere { .. })
                 )),
             "a seam's section is a ring of a sphere face"
         );
@@ -1869,7 +1872,7 @@ mod verbs_gate_r1_probes {
             if !faces.contains(&k) {
                 continue;
             }
-            let Some(&Surface::Cone {
+            let Ok(&Surface::Cone {
                 frame, half_angle, ..
             }) = lant.face_surface(k)
             else {

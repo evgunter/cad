@@ -70,3 +70,74 @@ variants of the hand-built wedge
 **Unchecked:** only this pose is traced; the table's other mirrored
 poses are taken to be the same shape, not measured. Re-measure them and
 pin the holding ones once PR 7115 lands.
+
+## Re-measured with PR 7115 and PR 7315 together (EMBED, lane pole, 2026-11-23)
+
+On PR 7115's branch merged with the landing train
+(`origin/embed/wave3-land` at `f06547ccf`: PR 7315's plane through the
+apex and PR 7115's `ends_on_collapse` in one tree), through the verdict
+door, the default budget. Every `−θ` pose of the table, at both
+scalars, discharged / refused / splits:
+
+| `−θ`, pose | f64 | `Interval` |
+|---|---|---|
+| −4.7224, plain | Embedded, 205 / 0 / 195 | Embedded, 207 / 0 / 197 |
+| −4.7224, turned | Embedded, 894 / 0 / 884 | Embedded, 894 / 0 / 884 |
+| −4.7224, moved (64, −57, 52) | Embedded, 175 / 0 / 165 | Embedded, 175 / 0 / 165 |
+| −4.7224, moved (640, −570, 520) | Embedded, 173 / 0 / 163 | Embedded, 173 / 0 / 163 |
+| −4.7224, a hundred times the size | Embedded, 181 / 0 / 171 | Embedded, 181 / 0 / 171 |
+| −4.7224, a needle | Embedded, 1,472 / 0 / 1,462 | Embedded, 1,472 / 0 / 1,462 |
+| −4.7224, flat | Embedded, 269 / 0 / 259 | Embedded, 273 / 0 / 263 |
+| −5.5, plain | Embedded, 211 / 0 / 201 | Embedded, 191 / 0 / 181 |
+| −5.5, turned | `Budget { Depth { 40 }, 1v1, 4v1 }`, 1,533 / 1 / 1,612 | the same, 1,533 / 1 / 1,612 |
+| −5.5, moved (64, −57, 52) | Embedded, 182 / 0 / 172 | Embedded, 182 / 0 / 172 |
+| −5.5, moved (640, −570, 520) | Embedded, 180 / 0 / 170 | Embedded, 180 / 0 / 170 |
+| −5.5, a hundred times | Embedded, 188 / 0 / 178 | Embedded, 210 / 0 / 200 |
+| −5.5, a needle | Embedded, 1,030 / 0 / 1,020 | Embedded, 1,030 / 0 / 1,020 |
+| −5.5, flat | Embedded, 335 / 0 / 325 | Embedded, 341 / 0 / 331 |
+
+The verdicts are the same at ε 1e-6 (the turned −4.7224 pose at
+897 / 0 / 887, the turned −5.5 pose at 1,545 / 1 / 1,626). At ε 1e-12
+the poses that build read the same; the two at coordinates of a hundred
+and more do not build there, as by `+θ`. One of those build refusals is
+a kind the `+θ` poses did not meet: the `−4.7224` and `−5.5` wedges a
+hundred times the size, at `Interval`, refuse the cone's rung 3 with
+limb 2 undecided (`AnalyticRung3Refusal::Stalled`), which
+`at_the_build_limit` now names beside the kernel limit.
+
+So thirteen of the fourteen mirrored poses are embedded at both
+scalars, and the scalars agree on every pose.
+`a_cone_wedge_past_a_half_turn_is_embedded_at_its_apex` now asks every
+pose by `−θ` as by `+θ`.
+
+**What is left on this row: `−5.5` in the turned frame**, which runs
+out of depth between the wedge's start plane `1v1` and the cone `4v1`,
+one cell refused, at both scalars and all three ε. The same row pins it
+as that refusal, red when it holds. Its exit is not traced: whether it
+is the cover test at the apex again, at a ruling this PR's run-on does
+not reach, or another reading, is not measured.
+
+## Evidence from EMBEDWALK: the turned `−5.5` wedge holds once windows are read off supports
+
+Lane `embedwalk/unit-cone` (PR 7779, its head after merging main at
+`e329f79ce`), with `injective.rs` unchanged. `window_of` there reads a
+face's affine chart coordinates (a plane's `u` and `v`, a cone's slant)
+off its boundary pieces' supports along the coordinate's direction
+instead of the boundary's world box, which in a turned frame reached
+past the boundary (on a cone, past the apex into the other nappe;
+`work/embedwalk/the-unit-cone-on-a-turned-plane-held-until-the-windows-came-from-covers-and-refuses-departure-since.md`).
+At f64 and `Interval`, the default ε, release build:
+
+| `−θ`, pose | f64 | `Interval` |
+|---|---|---|
+| −5.5, turned | Embedded, 195 / 0 / 185 | Embedded, 221 / 0 / 211 |
+| −4.7224, turned | Embedded, 205 / 0 / 195 | Embedded, 186 / 0 / 176 |
+
+Every other pose of `a_cone_wedge_past_a_half_turn_is_embedded_at_its_apex`
+is embedded too, and the test now asks `Embedded` of every pose. Its
+exit was not traced cell by cell: what is demonstrated is that the
+window reading alone moves it. The ε 1e-6 and 1e-12 rows are CI's.
+
+The "same row pins it as that refusal" above no longer holds: that pin
+is gone, and every pose, the turned `−5.5` one included, is asked
+`Embedded` and is. The row looks answered; closing it is EMBED's call.

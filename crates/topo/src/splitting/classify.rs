@@ -4,7 +4,7 @@
 //! `split_edge` lane, at the meetings the curve × face crossing reading
 //! finds.
 
-use geom_brep::curve_face::{CrossWhy, OnSpan, Pose, PoseRefusal, cross};
+use geom_brep::curve_face::{CrossWhy, OnSpan, Pose, cross};
 use geom_brep::curve_pair::{MeetFault, Span};
 use geom_core::{Band, Decide, Margin, Point3, Sign, Tol};
 use slotmap::SecondaryMap;
@@ -15,7 +15,6 @@ use crate::entity::{EdgeKey, VertexKey};
 use crate::null::CurveGeom;
 use crate::validate::decide;
 use crate::vertex_section::VertexRefusal;
-use geom::cover::BoxAxes;
 
 /// **The carrier gate, scoped to what the plane can reach** (C12.1:
 /// the gate retires per arm, never wholesale).
@@ -24,8 +23,9 @@ use geom::cover::BoxAxes;
 /// arm — `Plane`, `Cylinder` and `Cone`. A face of any other kind
 /// (`Sphere`, `Torus`, `Nurbs`, `Approx`) refuses typed only when the
 /// plane MAY meet it: when its padded reach along the plane's normal
-/// (`census::face_reach_in`, the face's cover at this body's scalar)
-/// is not definitely on one side of the plane
+/// (`census::face_reach_toward`, the face's cover at this body's
+/// scalar, with a sphere face's pole-side cut along the normal) is not
+/// definitely on one side of the plane
 /// ([`reach_clears`]). Behind a reach that clears, the face has no
 /// vertex on or across the plane, no edge crossing it and no section
 /// through it, so every later stage carries it through whole. The
@@ -34,8 +34,7 @@ use geom::cover::BoxAxes;
 /// refuses by kind, since an arm executed against the fit would cut
 /// the approximation, not the surface the modeller described.
 ///
-/// The reach is read in the plane's own frame
-/// ([`geom::cover::BoxAxes::aimed`]), never in the world's
+/// The reach is read along the plane's normal, never in the world's
 /// axes, so whether a cut clears a face is a fact about the two of
 /// them and not about how the body is turned.
 ///
@@ -51,10 +50,13 @@ pub(super) fn carrier_gate<T: Decide>(
     plane: &SplitPlane<T>,
     band: Band,
 ) -> Result<(), SplitReduceError> {
-    let frame = BoxAxes::aimed(plane.normal);
     for face in body.face_views() {
         let face_key = face.key();
-        let surface = face.surface();
+        // The split's one read of every face's surface: a pending slot
+        // is refused here, so no reader past the gate meets one.
+        let surface = face
+            .surface()
+            .map_err(|crate::Pending| SplitReduceError::PendingFace { face: face_key })?;
         let kind = surface.kind();
         match kind {
             geom::SurfaceKind::Plane | geom::SurfaceKind::Cylinder | geom::SurfaceKind::Cone => {}
@@ -64,7 +66,7 @@ pub(super) fn carrier_gate<T: Decide>(
             | geom::SurfaceKind::Nurbs
             | geom::SurfaceKind::Approx => {
                 if !reach_clears(
-                    crate::census::face_reach_in(body, face_key, band, &frame),
+                    crate::census::face_reach_toward(body, face_key, band, plane.normal),
                     plane,
                     band,
                 ) {
@@ -86,7 +88,7 @@ pub(super) fn carrier_gate<T: Decide>(
                 | geom::Curve3::Spiric { .. } => {}
                 // No crossing-root arm reads a spline.
                 geom::Curve3::Nurbs(_) | geom::Curve3::Periodic(_) => {
-                    if !edge_clears(body, edge_key, plane, band, &frame) {
+                    if !edge_clears(body, edge_key, plane, band) {
                         return Err(SplitReduceError::CurvedEdgeUnsupported { edge: edge_key });
                     }
                 }
@@ -105,8 +107,7 @@ pub(super) fn carrier_gate<T: Decide>(
 /// either face it
 /// bounds, since an edge lies on both its faces. A spline edge's own
 /// reach is its control net's hull (its cover), which its faces'
-/// reaches may beat. `frame` is the plane's
-/// ([`BoxAxes::aimed`] at its normal).
+/// reaches may beat. Each reach is read along the plane's normal.
 ///
 /// `edge` is one the gate's arena walk read out of the at-rest operand,
 /// so it is proven, and its halves and their faces are links, which
@@ -116,17 +117,16 @@ fn edge_clears<T: Decide>(
     edge: EdgeKey,
     plane: &SplitPlane<T>,
     band: Band,
-    frame: &BoxAxes<T>,
 ) -> bool {
     let e = crate::live::proven(&body.edges, edge, crate::entity::EntityId::Edge);
     let reach = crate::cover::edge_cover(body, edge)
         .ok()
-        .map(|cover| cover.box_in(frame));
+        .map(|cover| cover.range_along(plane.normal.get()));
     reach_clears(reach, plane, band)
         || [e.he_plus, e.he_minus].into_iter().any(|he| {
             let face = body.face_of_linked(he);
             reach_clears(
-                crate::census::face_reach_in(body, face, band, frame),
+                crate::census::face_reach_toward(body, face, band, plane.normal),
                 plane,
                 band,
             )
@@ -137,30 +137,23 @@ fn edge_clears<T: Decide>(
 /// split plane along the plane's normal (metres).
 const SPLIT_GATE_BOX_SIDE: &str = "split_gate_box_side";
 
-/// Whether the plane certainly misses a reach read in the plane's
-/// frame ([`BoxAxes::aimed`]), whose first coordinate is the
-/// component along the plane's normal: the reach's gap from the
-/// plane's own offset along that normal, less the boolean sweep's pad,
-/// decided definitely positive. No reach (an entity the reach lane
-/// cannot bound) answers `false`.
-fn reach_clears<T: Decide>(
-    reach: Option<(Point3<T>, Point3<T>)>,
-    plane: &SplitPlane<T>,
-    band: Band,
-) -> bool {
+/// Whether the plane certainly misses a reach along its normal, bounds
+/// on `n·p`: the reach's gap from the plane's own offset along that
+/// normal, less the boolean sweep's pad, decided definitely positive.
+/// No reach (an entity the reach lane cannot bound) answers `false`.
+fn reach_clears<T: Decide>(reach: Option<(T, T)>, plane: &SplitPlane<T>, band: Band) -> bool {
     let Some((lo, hi)) = reach else {
         return false;
     };
     let pad = T::from_f64(crate::boxes::sweep_pad(band));
-    // The frame turns about the world origin, so a reach's first
-    // coordinate is `n·p`, and the world origin's own offset from the
+    // The reach is `n·p`, and the world origin's own offset from the
     // plane turns it into `n·(p − q)`.
     let origin = geom::plane_offset(
         plane.origin,
         plane.normal.get(),
         Point3::new(T::zero(), T::zero(), T::zero()),
     );
-    let gap = (lo.x + origin).max(T::zero() - (hi.x + origin)) - pad;
+    let gap = (lo + origin).max(T::zero() - (hi + origin)) - pad;
     matches!(
         decide(SPLIT_GATE_BOX_SIDE, Margin::of(gap), band),
         Ok(Sign::Positive)
@@ -315,10 +308,9 @@ pub(super) fn classify_vertices_margined<T: Decide>(
 ///   finds no meeting inside the span and none at an end, contradict
 ///   each other ([`MeetFault::Contradiction`]): a kernel fault, never a
 ///   pose.
-/// - A spline carrier's span has no closed pose
-///   ([`PoseRefusal::Enclosed`]): it is read by the ring composite at
-///   this scalar (`AtRestPolicy::spline_face_crossings`), and refuses
-///   where the scalar has none.
+/// - A spline carrier's span is read by the table's ring composite, and
+///   each crossing it stores is admitted at the store
+///   ([`stored_crossing`]).
 /// - Any window is [`SplitReduceError::CrossingEscalated`].
 ///
 /// Every split is certified by `split_edge` itself (the span's place of
@@ -406,6 +398,7 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
         }
         let mut target = edge_key;
         for t in roots {
+            let t = stored_crossing::<T>(curve.carrier(), t, &surface, band).map_err(refused)?;
             // Any refusal here (in practice the certification lane's
             // strict-row ResidualExceeded) gets the crossing site
             // attached; the typed Euler error stays nested whole.
@@ -427,6 +420,43 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
     Ok(pieces)
 }
 
+/// **A crossing the split stores**: a closed-form root as the table
+/// read it, and a spline's admitted at the storing site as the proposal
+/// it is ([`geom_brep::NurbsLane::admit_crossing`], DUAL-DESIGN DL5.2),
+/// through the scalar's certification lane. A scalar with no lane (a
+/// dual) has no derivative of a spline crossing to store, and refuses
+/// it as not built.
+fn stored_crossing<T: Decide + crate::props::AtRestPolicy>(
+    carrier: &geom::Curve3<T>,
+    t: T,
+    surface: &geom::Surface<T>,
+    band: Band,
+) -> Result<T, CrossWhy> {
+    use geom_brep::NurbsLaneOf;
+    if !matches!(carrier, geom::Curve3::Nurbs(_)) {
+        return Ok(t);
+    }
+    let door = geom_brep::curve_face::Door::SplineComposite;
+    let Some(lane) = T::nurbs_lane() else {
+        return Err(CrossWhy::Method {
+            door,
+            fault: MeetFault::Unsupported {
+                pose: "a spline crossing is stored only at a scalar that certifies",
+            },
+        });
+    };
+    lane.admit_crossing(carrier, t, surface, band)
+        .map_err(|refused| CrossWhy::Method {
+            door,
+            fault: match refused {
+                geom_core::solved::Unadmitted::Undecided(diag) => MeetFault::Escalated(diag),
+                geom_core::solved::Unadmitted::Off { row, .. } => {
+                    MeetFault::Unsettled(geom_brep::roots::Unsettled::Meter { row })
+                }
+            },
+        })
+}
+
 /// **An edge's meetings with the split plane** ([`insert_crossings`]):
 /// `None` where the carrier lies in the plane or is apart from it; else
 /// the parameters strictly inside the span, ascending, and whether a
@@ -434,9 +464,8 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
 /// placement window at an end (a root in band of it, or two roots in band
 /// of each other there: the window's centre the span reads at an end or
 /// in band of one) is that vertex's, read by its record, and the
-/// meetings outside the windows stand. A spline span is read by the ring composite at this
-/// scalar, whose meetings are interior by its own placement.
-fn edge_roots<T: Decide + crate::props::AtRestPolicy>(
+/// meetings outside the windows stand.
+fn edge_roots<T: Decide>(
     carrier: &geom::Curve3<T>,
     params: (T, T),
     surface: &geom::Surface<T>,
@@ -464,22 +493,9 @@ fn edge_roots<T: Decide + crate::props::AtRestPolicy>(
             }
         },
         Err(refusal) => {
-            // A placement window, a root in band of an end or two roots in
-            // band of each other, whose centre the span reads at an end or
-            // in band of one: the recorded vertex's.
             let span = Span::new(carrier, params);
             let at_an_end = |w: &geom_brep::curve_face::Undecided<T, CrossWhy>| {
-                matches!(
-                    w.why,
-                    CrossWhy::Method {
-                        fault: MeetFault::Escalated(_)
-                            | MeetFault::Unsettled(geom_brep::roots::Unsettled::Tangency),
-                        door: geom_brep::curve_face::Door::PlaneCrossing,
-                    }
-                ) && !matches!(
-                    span.place_param(geom::mid_param(w.window.0, w.window.1), band),
-                    Ok(geom_brep::curve_pair::Place::Inside | geom_brep::curve_pair::Place::Past)
-                )
+                window_at_an_end(&span, w, band)
             };
             if recorded && refusal.windows.iter().all(&at_an_end) {
                 return Ok(read(refusal.found, true));
@@ -492,34 +508,49 @@ fn edge_roots<T: Decide + crate::props::AtRestPolicy>(
             else {
                 unreachable!("a crossing refusal holds a window")
             };
-            match (why, carrier) {
-                (CrossWhy::Pose(PoseRefusal::Enclosed), geom::Curve3::Nurbs(net)) => {
-                    let door = geom_brep::curve_face::Door::SplineComposite;
-                    match T::spline_face_crossings(net, params, surface, band) {
-                        Some(Ok(roots)) => Ok(Some((roots, false))),
-                        Some(Err(refusal)) => Err(CrossWhy::Method {
-                            door,
-                            fault: composite_fault(refusal),
-                        }),
-                        None => Err(why),
-                    }
-                }
-                _ => Err(why),
-            }
+            Err(why)
         }
     }
 }
 
-/// The ring composite's refusal, as a meeting reading's.
-fn composite_fault(refusal: geom_brep::curve_face::composite::CompositeRefusal) -> MeetFault {
-    use geom_brep::curve_face::composite::CompositeRefusal;
-    match refusal {
-        CompositeRefusal::Escalated(diag) => MeetFault::Escalated(diag),
-        CompositeRefusal::Unsettled(why) => MeetFault::Unsettled(why),
-        CompositeRefusal::FaceDegenerate(pose) | CompositeRefusal::Unread(pose) => {
-            MeetFault::Unsupported { pose }
-        }
+/// **Whether a crossing window is the recorded end's** ([`edge_roots`]):
+/// a placement window, a root in band of an end or two roots in band of
+/// each other, whose centre the span reads at an end or in band of one.
+/// The plane-crossing door's windows are a band's reach about a root, so
+/// their centre places them. The ring composite's are stretches, which
+/// can run from an end into the span or be the whole span, so each of
+/// its windows must be read about one end throughout: its ends and
+/// centre none inside the span or past it, and those that place at an
+/// end all at the same one. A stretch that reaches inside the span, or
+/// from one end to the other, is a meeting the record does not read.
+fn window_at_an_end<T: Decide>(
+    span: &Span<'_, T>,
+    w: &geom_brep::curve_face::Undecided<T, CrossWhy>,
+    band: Band,
+) -> bool {
+    use geom_brep::curve_face::Door;
+    use geom_brep::curve_pair::Place;
+    let CrossWhy::Method { door, fault } = w.why else {
+        return false;
+    };
+    if !matches!(
+        fault,
+        MeetFault::Escalated(_) | MeetFault::Unsettled(geom_brep::roots::Unsettled::Tangency)
+    ) {
+        return false;
     }
+    let centre = geom::mid_param(w.window.0, w.window.1);
+    let read: &[T] = match door {
+        Door::PlaneCrossing => &[centre],
+        Door::SplineComposite => &[w.window.0, centre, w.window.1],
+        _ => return false,
+    };
+    let mut end = None;
+    read.iter().all(|&t| match span.place_param(t, band) {
+        Ok(Place::Inside | Place::Past) => false,
+        Ok(Place::End(which)) => *end.get_or_insert(which) == which,
+        Err(_) => true,
+    })
 }
 
 #[cfg(test)]
@@ -529,6 +560,91 @@ mod tests {
     use geom_brep::curve_face::{CrossWhy, PoseRefusal, PoseRung, cross};
     use geom_brep::curve_pair::Span;
     use geom_core::{Band, Point3, Vec3};
+
+    /// **The ring composite's in-band meeting is no ordering question at
+    /// the split** ([`super::super::window_reading`]): its `Touch` is a
+    /// stretch where a spline edge meets the plane in band, not two roots
+    /// the band cannot order, so the split asks whether the plane cuts the
+    /// edge, grazes it or misses it and ends on its own lever, with no
+    /// declaration. The same fault at the plane-crossing door stays the
+    /// ordering question.
+    #[test]
+    fn the_composites_in_band_meeting_asks_the_graze_at_the_split() {
+        use geom_core::Decide;
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let diag = 3e-9_f64.sign_within(band).unwrap_err();
+        let render = |door| {
+            super::SplitReduceError::CrossingEscalated {
+                edge: crate::entity::EdgeKey::default(),
+                fault: CrossWhy::Method {
+                    door,
+                    fault: geom_brep::curve_pair::MeetFault::Touch(diag),
+                },
+            }
+            .render(geom_brep::recourse::Reading::Build)
+        };
+        let composite = render(geom_brep::curve_face::Door::SplineComposite);
+        assert!(
+            composite.starts_with(&format!(
+                "whether a plane cuts a curved edge, grazes it or misses it is undecided: {}. ",
+                diag.payload()
+            )) && composite.ends_with(&format!("Recourse: {}", geom_core::SPLIT_PLANE_RECOURSE))
+                && !composite.contains("declare"),
+            "{composite}"
+        );
+        let plane = render(geom_brep::curve_face::Door::PlaneCrossing);
+        assert!(
+            plane.starts_with("which of two crossings on an edge comes first is undecided: "),
+            "{plane}"
+        );
+    }
+
+    /// **A composite window is the recorded end's only when it is read
+    /// about that end throughout** ([`super::window_at_an_end`]). On a unit
+    /// segment, a tangency window reaching from before the start to
+    /// `0.6` has its centre at the start: the plane-crossing door's
+    /// window, a band's reach about a root, is the start's, but the
+    /// composite's, a stretch, reaches inside the span and is not. A
+    /// stretch in band of the start is the start's at either door, and
+    /// one from end to end is neither end's.
+    #[test]
+    fn a_composite_stretch_into_the_span_is_no_ends_window() {
+        use geom_brep::curve_face::{Door, Undecided};
+        let carrier = geom::Curve3::Line(geom::Line {
+            origin: Point3::origin(),
+            dir: geom::stated_direction(Vec3::new(1.0, 0.0, 0.0)),
+        });
+        let span = Span::new(&carrier, (0.0, 1.0));
+        let band = Band::linear(geom_core::Tol::witness()).unwrap();
+        let at = |door, window| {
+            super::window_at_an_end(
+                &span,
+                &Undecided {
+                    window,
+                    why: CrossWhy::Method {
+                        door,
+                        fault: geom_brep::curve_pair::MeetFault::Unsettled(
+                            geom_brep::roots::Unsettled::Tangency,
+                        ),
+                    },
+                },
+                band,
+            )
+        };
+        let reach = (-0.6, 0.6);
+        assert!(
+            at(Door::PlaneCrossing, reach),
+            "the placement's window is the start's"
+        );
+        assert!(
+            !at(Door::SplineComposite, reach),
+            "the stretch reaches inside the span"
+        );
+        let near = (0.0, 1e-12);
+        assert!(at(Door::PlaneCrossing, near) && at(Door::SplineComposite, near));
+        let whole = (0.0, 1.0);
+        assert!(!at(Door::PlaneCrossing, whole) && !at(Door::SplineComposite, whole));
+    }
 
     /// **Vertex sides decided opposite where the carrier meets the plane
     /// nowhere contradict.** A unit cube with one top corner's point moved
@@ -991,13 +1107,12 @@ mod torn_rows {
     /// `edge_clears` reads both faces of an edge the plane crosses, and a
     /// half whose loop was dropped panics naming it, where a read of the
     /// miss as no face would clear the edge on its other face alone.
-    /// The gate's face reach (`census::face_reach_in`) reads the face's surface, and a dropped one
-    /// panics naming it, where a read of the miss as no claim to make
-    /// would answer the census's box.
+    /// The gate's face reach (`census::face_reach_toward`) reads the
+    /// face's surface, and a dropped one panics naming it, where a read
+    /// of the miss as no claim to make would clear the face.
     #[test]
     fn the_gate_panics_on_a_torn_face_of_an_edge_and_a_torn_surface() {
         use crate::live::OPERATORS_KEEP_LINKS;
-        use geom::cover::BoxAxes;
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
         let fresh = || crate::test_support_fixtures::geometric_cube::<f64>(tol).body;
@@ -1006,8 +1121,6 @@ mod torn_rows {
             Vec3::unit_z(),
             tol,
         );
-        let frame = BoxAxes::aimed(plane.normal);
-
         let mut body = fresh();
         let crosses = |b: &crate::body::Body<f64>, e| {
             let (u, v) = b.edge_vertices(e).unwrap();
@@ -1020,7 +1133,7 @@ mod torn_rows {
             .map(|(k, e)| (k, e.clone()))
             .unwrap();
         assert!(
-            !super::edge_clears(&body, edge, &plane, band, &frame),
+            !super::edge_clears(&body, edge, &plane, band),
             "the plane meets an edge it crosses"
         );
         let lost = body.get_half_edge(data.he_plus).unwrap().parent_loop;
@@ -1034,22 +1147,22 @@ mod torn_rows {
             "edge_clears",
             &mut body,
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
-            |b| super::edge_clears(b, edge, &plane, band, &frame),
+            |b| super::edge_clears(b, edge, &plane, band),
         );
 
         let mut body = fresh();
         let (face, surface) = body.faces().next().map(|(k, f)| (k, f.surface)).unwrap();
         assert!(
-            crate::census::face_reach_in(&body, face, band, &frame).is_some(),
+            crate::census::face_reach_toward(&body, face, band, plane.normal).is_some(),
             "a sound face has a reach"
         );
         body.surfaces.remove(surface);
         let named = format!("{}'s surface names", EntityId::Face(face));
         assert_torn_op_panics(
-            "face_reach_in",
+            "face_reach_toward",
             &mut body,
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
-            |b| crate::census::face_reach_in(b, face, band, &frame),
+            |b| crate::census::face_reach_toward(b, face, band, plane.normal),
         );
     }
 }

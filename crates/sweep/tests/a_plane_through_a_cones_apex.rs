@@ -152,22 +152,23 @@ fn closed_forms(r: f64, pose: &Pose) -> [(f64, f64); 2] {
 /// that variant, `None` at an ε no row measured.
 ///
 /// - ε 1e-6: the sliver lies within the band. Off the seam it lands
-///   whole on its material side; along the seam the reduction reads the
-///   seam edge and the extremal ruling beside it both On
-///   (`ConsecutiveOnSectors`,
-///   `a-plane-a-milliradian-off-a-cones-seam-through-its-apex-refuses-consecutive-ons-at-1e-6`);
-///   at 60° the base circle reads the near graze in band first
-///   (`CrossingEscalated`,
+///   whole on its material side. Along the seam the split's plane
+///   crossing reads the seam edge, which lies in the plane, as a
+///   tangency it does not settle (`CrossingEscalated`, `Method { door:
+///   PlaneCrossing, fault: Unsettled(Tangency) }`), ahead of the
+///   reduction that would read it and the extremal ruling beside it
+///   both On
+///   (`a-plane-a-milliradian-off-a-cones-seam-through-its-apex-refuses-consecutive-ons-at-1e-6`).
+///   At 60° the base circle reads the near graze in band first, at every
+///   azimuth (`CrossingEscalated`, its pose's `BellyGraze` rung,
 ///   `a-sixty-degree-cones-base-circle-reads-a-milliradian-graze-in-band-at-1e-6`).
 /// - ε 1e-9 and 1e-12: the apex lane's pair reach reads in band
 ///   (`SectionGermsEscalated`) and then off the apex (`ApexSection`,
 ///   `a-plane-a-milliradian-off-a-cones-ruling-through-its-apex-reads-its-section-off-the-apex`).
 fn near_tangent(deg: f64, theta: f64, eps: f64) -> Option<Option<&'static str>> {
     Some(if eps == 1e-6 {
-        if deg == 60.0 {
+        if deg == 60.0 || theta == 0.0 {
             Some("CrossingEscalated")
-        } else if theta == 0.0 {
-            Some("ConsecutiveOnSectors")
         } else {
             None
         }
@@ -336,7 +337,7 @@ fn a_plane_grazing_a_conical_pit_through_its_apex_refuses_the_knife_edge() {
                 let wall = body.face_surface(knife.wall).map(geom::Surface::kind);
                 assert_eq!(
                     wall,
-                    Some(geom::SurfaceKind::Cone),
+                    Ok(geom::SurfaceKind::Cone),
                     "{what}: names the pit's wall"
                 );
             }

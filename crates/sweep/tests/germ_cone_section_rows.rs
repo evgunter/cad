@@ -68,7 +68,7 @@ fn pin(r: f64, x: f64, y0: f64, y1: f64) -> Body<f64> {
 }
 
 fn is_cone(body: &Body<f64>, face: FaceKey) -> bool {
-    matches!(body.face_surface(face), Some(geom::Surface::Cone { .. }))
+    matches!(body.face_surface(face), Ok(geom::Surface::Cone { .. }))
 }
 
 /// The pass's verdict on every pair of `a`'s cone face with a face of
@@ -149,14 +149,22 @@ fn the_preview_bricks_clear_by_w1_and_w2() {
 }
 
 /// **P10, the coaxial pin**: its wall meets the cone in parallels,
-/// essential on both, cleared W2; its end discs cut parallels too.
+/// essential on both, cleared W2; its end discs cut parallels too. The
+/// section value lists the parallels the operation's region holds: the
+/// one on the cone's own nappe, or none where the pair's faces stand
+/// apart in it.
 #[test]
 fn the_coaxial_pin_clears_by_w2() {
     let v = cone_verdicts(&cone(), &pin(0.1, 0.0, -0.5, 0.5));
     verdicts_are(
         &v,
-        &[W2, "Ok([Essential(F), Essential(F)])"],
-        &["Ok([Essential(F), Essential(F)])"],
+        &[
+            W2,
+            "Ok([])",
+            "Ok([Essential(F)])",
+            "Ok([Essential(F), Essential(F)])",
+        ],
+        &["Ok([Essential(F)])"],
         "P10",
     );
 }
@@ -164,9 +172,10 @@ fn the_coaxial_pin_clears_by_w2() {
 /// **A parallel-axis pin through the lateral face**: its wall, not
 /// enclosing the cone's axis, meets each nappe in one loop — null on
 /// the cone, but encircling the pin, so W2 clears it on the pin's wall,
-/// which carries its seam. The mutant reading the wall's side as not
-/// essential leaves the face's own loop to its witness, inside both
-/// faces with no event: R-loop, red.
+/// which carries its seam. The section value lists the loop the
+/// operation's region holds, the one on the cone's own nappe. The mutant
+/// reading the wall's side as not essential leaves the face's own loop
+/// to its witness, inside both faces with no event: R-loop, red.
 #[test]
 fn a_parallel_pin_meets_the_cone_in_loops_cleared_on_the_pin() {
     let cone = cone();
@@ -174,8 +183,8 @@ fn a_parallel_pin_meets_the_cone_in_loops_cleared_on_the_pin() {
     let v = cone_verdicts(&cone, &pin);
     verdicts_are(
         &v,
-        &[W2, "Ok([Essential(G), Essential(G)])"],
-        &["Ok([Essential(G), Essential(G)])"],
+        &[W2, "Ok([Essential(G)])", "Ok([Essential(G), Essential(G)])"],
+        &["Ok([Essential(G)])"],
         "the pin",
     );
     assert_eq!(
@@ -319,7 +328,8 @@ fn the_preview_pairs_clear_with_the_sweeps_events() {
     let cleared = |v: &str| {
         matches!(
             v,
-            "Ok([Unbounded, Unbounded])"
+            "Ok([])"
+                | "Ok([Unbounded, Unbounded])"
                 | "Ok([Essential(F)])"
                 | "Ok([Essential(G)])"
                 | "Ok([Essential(F), Essential(F)])"

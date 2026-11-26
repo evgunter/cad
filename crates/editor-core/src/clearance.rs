@@ -420,6 +420,17 @@ impl ClearanceVerdict {
             Self::Refused(_) => None,
         }
     }
+
+    /// **The parameter point the verdict stands at**, where it cites a
+    /// pair the `f64` rebuild verified: that rebuild's point. `None`
+    /// for a verdict that cites no pair, which says nothing of where
+    /// the rebuild stood.
+    pub fn point(&self) -> Option<&ParamWitness> {
+        match self {
+            Self::Within(witness) | Self::Violated(witness) => Some(&witness.param),
+            Self::Holds | Self::Exceeded | Self::Refused(_) => None,
+        }
+    }
 }
 
 /// A verified pair: where in the parameter box, and where on the two
@@ -2096,9 +2107,11 @@ pub(crate) fn closest_pair(
     (ask, band): (Ask, Band),
     over: &topo::clearance::Enclosure<'_>,
 ) -> Result<GeometryWitness, String> {
-    // Each face's carrier in the frame the pair is decided in.
+    // Each face's carrier in the frame the pair is decided in. Both
+    // bodies are at rest, which carries no pending face, so the miss
+    // `.ok()?` folds is a key that did not survive the rebuild.
     let surface_at = |seat: topo::Seat<'_, f64>, face: FaceKey| -> Option<Surface<f64>> {
-        seat.surface(seat.body().face_surface(face)?)
+        seat.surface(seat.body().face_surface(face).ok()?)
     };
     let (Some(sa), Some(sb)) = (surface_at(bx, face_a), surface_at(by, face_b)) else {
         return Err(

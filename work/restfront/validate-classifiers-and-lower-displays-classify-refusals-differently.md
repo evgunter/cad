@@ -107,3 +107,17 @@ rims build (`work/shell/shell-open-refuses-a-curved-designated-face`).
 (SHELL orchestrator)
 
 Moved from RESTWORD to RESTFRONT on 2026-11-20, by `git mv`, when RESTWORD merged into RESTFRONT: RESTWORD held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one RESTFRONT carries.
+
+## 2026-11-25: one more arm — `Uncrossable` (INSIDE, PR 7748 review)
+
+`ContainError::Uncrossable` ends differently at its two readings. The
+door's own text (`crates/topo/src/contain.rs`, `ContainError::write`)
+ends "Recourse: {CONIC_OUTLINE_RECOURSE}" (`crate::meeting`), which is a
+lever: re-model the outline. `validate.rs` `classify_contain` (and
+`classify_point_in_solid` for `Loop(Uncrossable)` and
+`EdgeCarrierUnsupported`) classes it `(uncrossable(u), NOT_YET_ENDING)`,
+a limit of the walk that no move lifts. `PointInLoopError::render_as`
+(`splitting/containment.rs`) agrees with the classifier
+(`NOT_YET_ENDING`). Which one is true wants the same per-arm ruling as
+the rest of this row. (Found in the style review of PR 7748, lane
+`inside-contain-small`.)

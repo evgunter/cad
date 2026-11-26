@@ -1443,7 +1443,7 @@ mod tests {
         let (fk, surface) = body
             .faces()
             .find(|(_, f)| !f.rings.is_empty())
-            .and_then(|(fk, _)| Some((fk, body.face_surface(fk)?)))
+            .and_then(|(fk, _)| Some((fk, body.face_surface(fk).ok()?)))
             .expect("the wall holds a ring");
         assert!(
             matches!(surface, Surface::Cylinder { .. }),
@@ -1575,8 +1575,8 @@ mod tests {
         .unwrap();
         let (fk, surface) = body
             .faces()
-            .find(|&(fk, _)| matches!(body.face_surface(fk), Some(Surface::Cylinder { .. })))
-            .and_then(|(fk, _)| Some((fk, body.face_surface(fk)?)))
+            .find(|&(fk, _)| matches!(body.face_surface(fk), Ok(Surface::Cylinder { .. })))
+            .and_then(|(fk, _)| Some((fk, body.face_surface(fk).ok()?)))
             .expect("the bore");
         let outer = body.get_face(fk).unwrap().outer;
         assert!(
@@ -1909,8 +1909,8 @@ mod tests {
 
     /// The die pip (`sweep`'s `m5_s13_pips` shape): a 4 × 4 × 1 slab
     /// with a radius-0.5 ball subtracted 0.2 above its top face. The
-    /// cavity's two sphere faces are the only curved faces in this
-    /// crate's reach that a BOOLEAN produced rather than a sweep.
+    /// cavity's sphere face is the only curved face in this crate's
+    /// reach that a BOOLEAN produced rather than a sweep.
     fn die_pip() -> Body<f64> {
         let lp = <ProfileLoop<f64> as RawLoop<f64>>::polygon([
             Point2::new(0.0, 0.0),
@@ -1951,6 +1951,9 @@ mod tests {
         (*cut.body().expect("a pip is a dent, not a void").body).clone()
     }
 
+    /// The [`die_pip`] fixture's name.
+    const DIE_PIP: &str = "die pip (boolean cut)";
+
     fn fixtures() -> Vec<(&'static str, Body<f64>)> {
         let pi = core::f64::consts::PI;
         vec![
@@ -1970,7 +1973,7 @@ mod tests {
             ("axis wedge(pi/2)", axis_wedge(pi / 2.0)),
             ("axis wedge(pi + 0.5)", axis_wedge(pi + 0.5)),
             ("rounded prism", rounded_prism()),
-            ("die pip (boolean cut)", die_pip()),
+            (DIE_PIP, die_pip()),
         ]
     }
 
@@ -2463,7 +2466,7 @@ mod tests {
     /// The #653 row's totals, measured. They are asserted so that a
     /// change in the fixture list is VISIBLE rather than silent — the
     /// row's actual guarantee is its per-fixture floor, not these.
-    const TOTAL_MESHED: usize = 250;
+    const TOTAL_MESHED: usize = 244;
     /// Typed refusals in the same sweep: none. A split ruling sends its
     /// face to the trimmed lane (`walk::splits_a_straight_side`), which
     /// meshes the mirror nappe's split walls. The donut contributes none
@@ -2489,14 +2492,21 @@ mod tests {
     /// count: `curved_walks` reaches its body through a silent
     /// `continue` (the route), so a
     /// global floor lets a fixture that stopped contributing hide
-    /// behind its siblings' faces. The die pip is the one this matters
-    /// most for: the boolean's
-    /// chart re-cut is what keeps a CUT sphere face iso-rectangular,
-    /// and if a future re-cut gave the cavity rim an ellipse carrier it
-    /// would drop out of the sweep silently.
+    /// behind its siblings' faces. The die pip is not swept: the
+    /// boolean cuts the ball in on its own chart, so the cavity is one
+    /// face bounded by a circle tilted against that chart, a trim
+    /// carrier the router sends to the trimmed lane, and it puts no face
+    /// in front of this one.
     #[test]
     fn every_curved_walk_is_its_own_bounding_rectangle() {
         for (name, body) in fixtures() {
+            if name == DIE_PIP {
+                assert!(
+                    curved_walks(name, &body).is_empty(),
+                    "{name}: a curved walk, though its cavity is a trim-carrier face"
+                );
+                continue;
+            }
             let walks = curved_walks(name, &body);
             assert!(
                 !walks.is_empty(),
@@ -2782,6 +2792,7 @@ mod tests {
                 let (_, _, v0, v1) = bbox(&poly);
                 let charted = body
                     .face_surface(fk)
+                    .ok()
                     .and_then(Chart::of)
                     .is_some_and(|c| !c.poles().is_empty());
                 for (e, &(lu, _)) in poly.iter().zip(&levers).filter(|(e, _)| e.pole) {

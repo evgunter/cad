@@ -2188,6 +2188,12 @@ impl Real for Probe {
 
     type Carries<C: Copy + core::fmt::Debug + Send + Sync + 'static> = C;
 
+    type Expression = crate::real::NoExpression;
+
+    fn expression(self) -> Option<crate::real::NoExpression> {
+        None
+    }
+
     /// The probe itself: it records the decisions its value meets.
     type Value = Self;
 
@@ -2248,6 +2254,18 @@ impl Real for Probe {
             o.map(|x| x.0),
             n.map(|x| x.0),
         ))
+    }
+
+    fn harmonic_belly(curve: crate::StoredHarmonic<Self>, o: [Self; 3], n: [Self; 3]) -> Self {
+        Self(f64::harmonic_belly(
+            curve.map(|x| x.0),
+            o.map(|x| x.0),
+            n.map(|x| x.0),
+        ))
+    }
+
+    fn quartic_sign_algebra(p: Self, q_hat: Self, s: Self) -> [Self; 2] {
+        f64::quartic_sign_algebra(p.0, q_hat.0, s.0).map(Self)
     }
 
     fn abs(self) -> Self {

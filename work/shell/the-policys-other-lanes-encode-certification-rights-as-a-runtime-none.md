@@ -94,3 +94,16 @@ policy's `nurbs_lane`); these two keep it.
 **2026-11-20, from SCALAR's `certification-interiors-are-closed-to-a-dual-by-a-marker-bound` (PR 7190).** The lane types named here are declared over `geom_core::Certifies`, and the policy's `fitted_lane`, `shell_door`, `quad_lane`, `region_lane` (with the other five lanes) each answer `Option<Self::…>`, an associated type that is the lane where the scalar certifies and `geom_core::NoLane`, a type with no values, at a dual. `dihedral_side` and `normal_at` take `Option<impl NurbsLaneOf<T>>`. Every `None` arm this row lists is still there with its meaning unchanged: what moved is that a dual cannot hold the `Some`, by type. Not moved: `spline_face_crossings` and `spline_chart_meetings` still answer `None` at a dual, and `spline_chart_arm` still answers `ChartArmRefusal::NoLane`, as functions of the policy; and what each consumer does at a dual in place of refusing is this row's question still.
 
 **2026-11-20, from the review of PR 7190.** Both reviewers read `spline_face_crossings`, `spline_chart_meetings` (`None` at a dual) and `spline_chart_arm` (`ChartArmRefusal::NoLane` at a dual) as DL5.3's forbidden "`Option` a dual answers `None` to" in substance, under another name: each is documented as reading certified enclosures a dual does not hold. The rule does not say whether a policy function counts as a lane. PR 7190 did not move them.
+
+## 2026-11-25 — more instances, and DL5.3 now rules on it (INSIDE orchestrator)
+
+`AtRestPolicy::spline_face_crossings`, `spline_chart_meetings` and
+`nurbs_lane` (`crates/topo/src/props.rs`, with their `Dual` impl) are
+`Option`s that a dual answers `None` to. `crates/geom-core/README.md`
+DL5.3 (PR 7176) says that a scalar's lanes are "an associated type with
+no values at a dual, never an `Option` a dual answers `None` to". INSIDE's
+face-door design (`work/inside/log.md`, 2026-11-25) retires
+`spline_face_crossings` by moving the spline arm into
+`curve_face::cross`, at `T: Decide`. The other two remain this row's.
+
+**2026-11-26, from INSIDE's face door (`inside/face-door-spline-arm`, PR 7801).** `spline_face_crossings` is retired: the spline arm answers inside `curve_face::cross` at `T: Decide`. Its stored crossings are admitted at the storing site through `nurbs_lane`, which adds two consumers of that `Option`'s `None` at a dual: `crates/topo/src/splitting/classify.rs` `stored_crossing` refuses `MeetFault::Unsupported` ("a spline crossing is stored only at a scalar that certifies"), and `crates/topo/src/boolean/reduce.rs` `composite_count` refuses where `T::nurbs_lane()` is `None`. Each refuses by value where DL5.3 would have it refuse by type; they move with `nurbs_lane` when it becomes an associated type.

@@ -312,7 +312,7 @@ fn a_sphere_sphere_waist_reaches_its_arm_and_carves_as_a_concave_chain() {
     // Both walls really are spheres with distinct centres.
     let mut sphere_centres: Vec<f64> = source
         .faces()
-        .filter_map(|(k, _)| match source.face_surface(k)? {
+        .filter_map(|(k, _)| match source.face_surface(k).ok()? {
             Surface::Sphere { frame, .. } => {
                 let center = frame.origin();
                 Some(center.y)

@@ -176,8 +176,9 @@ fn resolution(e: &geom::Curve3<f64>, s: &geom::Surface<f64>, t: f64) -> f64 {
     speed * rounding / slope.abs()
 }
 
-/// **A certified answer holds against the oracle round the turn about
-/// `mid`, the apex's double root included.** Every root lies on the
+/// **A certified answer holds against the oracle on the arc, the apex's
+/// double root included.** The roots it places on the arc are judged,
+/// those it reads off it are not. Every root lies on the
 /// double cone, within `eps` of it. A root within `eps` of the apex is
 /// the carrier through it (`through_the_apex`): there are none or two,
 /// and they stand only for the oracle's crossings within `eps` of them
@@ -191,7 +192,7 @@ fn assert_holds(
     e: &geom::Curve3<f64>,
     s: &geom::Surface<f64>,
     roots: &[f64],
-    mid: f64,
+    arc: (f64, f64),
     eps: f64,
 ) {
     let (tip, _, _) = parts(s);
@@ -199,9 +200,10 @@ fn assert_holds(
         let off = distance(s, e.eval(t));
         assert!(off <= eps, "{label}: root {t} lies {off} off the cone");
     }
-    let truth = crossings(|t| form(s, e.eval(t)), mid - PI, mid + PI);
+    let truth = crossings(|t| form(s, e.eval(t)), arc.0, arc.1);
     let (at_apex, off_apex): (Vec<f64>, Vec<f64>) = roots
         .iter()
+        .filter(|&&t| crate::curve_face::conic_oracle::on_arc(arc, t))
         .partition(|&&t| (e.eval(t) - tip).norm() <= eps);
     if at_apex.is_empty() {
         assert_placed(label, e, s, &off_apex, &truth, eps);
@@ -353,7 +355,7 @@ fn a_root_at_the_apex_is_the_carrier_through_it_and_beside_it_refuses() {
         // The other two are the circle's crossings of the generators
         // through the apex's meridian, each the oracle's, in its place.
         assert_eq!(found.count(), 4, "{label}: {found:?}");
-        assert_holds(&label, &through, &s, found.roots(), PI, eps);
+        assert_holds(&label, &through, &s, found.roots(), (0.0, TAU), eps);
         // Its centre moved out along `x`, so the circle passes `3ε` from
         // the apex (along the axis it would pass `9ε²` from it: through).
         let near = circle([0.5 + 3.0 * eps, 0.0, 0.0], [0.0, 1.0, 0.0], 0.5);
@@ -541,7 +543,12 @@ fn certified_answers_hold_against_the_quadric_form() {
             };
             let t0 = rng.range(0.0, TAU);
             let t1 = t0 + rng.range(0.1, TAU);
-            let mid = (t0 + t1) / 2.0;
+            // Judged on the arc alone; an arc whose end stands in band is
+            // the end's to read, and is set aside.
+            let at_an_end = |t: f64| distance(&s, e.eval(t)) < 2.0 * band.escalate();
+            if at_an_end(t0) || at_an_end(t1) {
+                continue;
+            }
             let label = format!(
                 "ε {eps}, case {i}: {e:?} against {s:?} on [{t0}, {t1}] — {}",
                 fuzz::replay()
@@ -550,8 +557,8 @@ fn certified_answers_hold_against_the_quadric_form() {
                 uncertain += 1;
                 continue;
             };
-            let at = |k: u32| mid - PI + TAU * f64::from(k) / f64::from(dense);
-            let truth = crossings(|t| form(&s, e.eval(t)), mid - PI, mid + PI);
+            let at = |k: u32| t0 + (t1 - t0) * f64::from(k) / f64::from(dense);
+            let truth = crossings(|t| form(&s, e.eval(t)), t0, t1);
             let changes = truth.len();
             let closest = (0..=dense)
                 .map(|k| distance(&s, e.eval(at(k))))
@@ -560,7 +567,7 @@ fn certified_answers_hold_against_the_quadric_form() {
                 Ok(CircleRoots::Certified(found)) => {
                     let (count, thetas) = (found.count(), found.roots());
                     certified += 1;
-                    assert_holds(&label, &e, &s, &thetas[..count], mid, eps);
+                    assert_holds(&label, &e, &s, &thetas[..count], (t0, t1), eps);
                 }
                 Ok(CircleRoots::Miss) => {
                     misses += 1;
@@ -570,7 +577,7 @@ fn certified_answers_hold_against_the_quadric_form() {
                     );
                 }
                 Ok(CircleRoots::On(_)) => {
-                    let (_, far) = extremes(|t| distance(&s, e.eval(t)), mid - PI, mid + PI);
+                    let (_, far) = extremes(|t| distance(&s, e.eval(t)), t0, t1);
                     assert!(far <= eps, "{label}: OnSurface, but a point lies {far} off");
                 }
                 Err(Unsettled::AtApex) => apex += 1,
@@ -634,7 +641,12 @@ fn grazes_and_apex_passes_never_certify_what_they_cannot() {
             };
             let t0 = rng.range(0.0, TAU);
             let t1 = t0 + rng.range(0.1, TAU);
-            let mid = (t0 + t1) / 2.0;
+            // Judged on the arc alone; an arc whose end stands in band is
+            // the end's to read, and is set aside.
+            let at_an_end = |t: f64| distance(&s, e.eval(t)) < 2.0 * band.escalate();
+            if at_an_end(t0) || at_an_end(t1) {
+                continue;
+            }
             let label = format!(
                 "ε {eps}, case {i}: {e:?} against {s:?} on [{t0}, {t1}] — {}",
                 fuzz::replay()
@@ -643,8 +655,8 @@ fn grazes_and_apex_passes_never_certify_what_they_cannot() {
                 refused += 1;
                 continue;
             };
-            let at = |j: u32| mid - PI + TAU * f64::from(j) / f64::from(dense);
-            let truth = crossings(|t| form(&s, e.eval(t)), mid - PI, mid + PI);
+            let at = |j: u32| t0 + (t1 - t0) * f64::from(j) / f64::from(dense);
+            let truth = crossings(|t| form(&s, e.eval(t)), t0, t1);
             let changes = truth.len();
             let closest = (0..=dense)
                 .map(|j| distance(&s, e.eval(at(j))))
@@ -653,7 +665,7 @@ fn grazes_and_apex_passes_never_certify_what_they_cannot() {
                 Ok(CircleRoots::Certified(found)) => {
                     let (count, thetas) = (found.count(), found.roots());
                     certified += 1;
-                    assert_holds(&label, &e, &s, &thetas[..count], mid, eps);
+                    assert_holds(&label, &e, &s, &thetas[..count], (t0, t1), eps);
                 }
                 Ok(CircleRoots::Miss) => {
                     misses += 1;
@@ -794,7 +806,7 @@ fn a_crossing_beside_the_apex_is_never_the_apex_double_root() {
                 &e,
                 &s,
                 &found.roots()[..found.count()],
-                (t0 + t1) / 2.0,
+                (t0, t1),
                 eps,
             );
         }

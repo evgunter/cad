@@ -105,7 +105,7 @@ use super::battery::{
     face_clearance_margin, outward, same_supports,
 };
 use super::open::planar::{MixedGeometry, MixedLink, mixed_corner_geometry};
-use super::surgery::{disagrees, loop_walk, unresolved, unwalked};
+use super::surgery::{disagrees, loop_walk, surface_missed, unresolved, unwalked};
 use super::{BlendDecision, BlendError, BlendKind, BlendSite, classify};
 
 /// How many cells one face may be cut into against one reach before it
@@ -897,14 +897,13 @@ fn normal_at<T: Decide>(
     face: FaceKey,
     p: Point3<T>,
 ) -> Result<Vec3<T>, BlendError> {
-    outward(body, face, p)
-        .ok_or_else(|| unresolved(EntityId::Face(face), "a face the band reach reads"))
+    outward(body, face, p).map_err(|miss| surface_missed(face, "a face the band reach reads", miss))
 }
 
 fn surface_of<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<Surface<T>, BlendError> {
     body.face_surface(face)
         .cloned()
-        .ok_or_else(|| unresolved(EntityId::Face(face), "a face's stored surface"))
+        .map_err(|miss| surface_missed(face, "a face's stored surface", miss))
 }
 
 fn surface_key<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<SurfaceKey, BlendError> {
@@ -3547,7 +3546,7 @@ mod tests {
         let (wall, stored) = faces
             .into_iter()
             .find_map(|f| {
-                let s = body.face_surface(f)?;
+                let s = body.face_surface(f).ok()?;
                 matches!(s, geom::Surface::Cylinder { .. }).then(|| (f, s.clone()))
             })
             .expect("the rod's wall");
@@ -3608,7 +3607,7 @@ mod tests {
             .into_iter()
             .find(|&f| {
                 body.face_surface(f)
-                    .is_some_and(|s| matches!(s, geom::Surface::Sphere { .. }))
+                    .is_ok_and(|s| matches!(s, geom::Surface::Sphere { .. }))
             })
             .expect("the cap's sphere face");
         (body, face)
@@ -3636,7 +3635,7 @@ mod tests {
             .map(|(k, _)| k)
             .find(|&f| {
                 body.face_surface(f)
-                    .is_some_and(|s| matches!(s, geom::Surface::Sphere { .. }))
+                    .is_ok_and(|s| matches!(s, geom::Surface::Sphere { .. }))
             })
             .expect("the pip's bowl");
         let t = 0.2_f64;
@@ -3678,7 +3677,7 @@ mod tests {
                     .into_iter()
                     .filter(|&f| {
                         body.face_surface(f)
-                            .is_some_and(|s| matches!(s, geom::Surface::Plane { .. }))
+                            .is_ok_and(|s| matches!(s, geom::Surface::Plane { .. }))
                     })
                     .map(|f| {
                         sheet_clip(&body, f, axis, band).map(|[r0, r1, _, _]| (r0.lo(), r1.hi()))

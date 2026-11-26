@@ -264,7 +264,7 @@ impl<T: Decide> Quadric<T> {
                     return Ok(Vec::new());
                 }
                 let arc = CircleArc {
-                    circle: geom::Circle::new(geom::Frame::new(centre, axis, a), radius),
+                    circle: geom::Circle::new(great_circle(centre, axis, a), radius),
                     span: (T::zero(), sine.atan2(a.dot(b))),
                 };
                 Ok(vec![Path {
@@ -522,6 +522,16 @@ impl<T: Real> Path<T> {
     }
 }
 
+/// **A great circle's frame** on the axis `axis`, the direction of
+/// `a × b`, whose sine the path decided positive, levered over the arc
+/// (`split_ring_path_span`), and `a`, one end's direction from the
+/// centre: the frame they state ([`geom_core::RigidMotion::squared`]),
+/// its stated-point read at an enclosure scalar kept. The decision is
+/// the path's own, so nothing is decided again here.
+fn great_circle<T: Real>(centre: Point3<T>, axis: Vec3<T>, a: Vec3<T>) -> geom::Frame<T> {
+    geom::Frame::of_motion(&geom_core::RigidMotion::squared(centre, axis, a))
+}
+
 /// The arc of the circle centred `centre` about the unit `axis`, of
 /// radius `radius`, from `from` to `to` (both in its plane), the short
 /// way round: a parallel, or a torus's meridian.
@@ -745,9 +755,8 @@ impl<T: Real> ConicArc<T> {
 /// is at least `minor`.
 #[derive(Clone, Copy)]
 pub(crate) struct Oval<T: Real> {
-    centre: Point3<T>,
-    axis: Vec3<T>,
-    u_ref: Vec3<T>,
+    /// The spiric carrier's frame, as the carrier holds it.
+    frame: geom::Frame<T>,
     major: T,
     minor: T,
     offset: T,
@@ -788,7 +797,7 @@ pub(crate) enum LoopArc<T: Real> {
     Spline(SplineArc<T>),
 }
 
-/// **A spline arc on a cylinder, a sphere, a torus or a spline face,
+/// **A spline arc on a cylinder, a sphere, a cone, a torus or a spline face,
 /// with the evidence that it lies on the face's surface to within the
 /// band.**
 ///
@@ -809,10 +818,14 @@ pub(crate) enum LoopArc<T: Real> {
 ///   with its three-limb certificate against both surfaces of the
 ///   section, the chord a join is about to mint from it.
 ///
-/// Both are read on a cylinder, a sphere, a torus or a spline face: the
-/// faces a carried chord bounds, which the ring lane's rows read
-/// (`ring_path::tests`, `ring_path::spline_wall_rows`). A spline wall's
-/// pieces are its own iso curves, which lie on it. Every piece of a
+/// Both are read on a cylinder, a sphere, a cone, a torus or a spline
+/// face: the faces a carried chord bounds, which the ring lane's rows
+/// read (`ring_path::tests`, `ring_path::spline_wall_rows`). A spline
+/// wall's pieces are its own iso curves, which lie on it. A cone's are
+/// its parallels, at each end's own radius, and its rulings' segments,
+/// off its apex, each segment leaning off its ruling by at most the
+/// ends' offsets from the cone, within the band ([`Quadric::ruled_paths`]),
+/// as a cylinder's does. Every piece of a
 /// torus path past its lead lies on the tube through its end, within the band of the face's own, so the
 /// argument is the cylinder's: a crossing on the surface is a meeting in
 /// space. The lead, which moves the start onto that tube along its own
@@ -956,7 +969,7 @@ impl<T: Decide> Oval<T> {
     /// The oval's carrier.
     fn carrier(&self) -> geom::Curve3<T> {
         geom::Curve3::Spiric {
-            frame: geom::Frame::new(self.centre, self.axis, self.u_ref),
+            frame: self.frame,
             major_radius: self.major,
             minor_radius: self.minor,
             offset: self.offset,
@@ -1128,9 +1141,7 @@ impl<T: Decide> Quadric<T> {
             spiric_frame.u_ref(),
         );
         Some(LoopArc::Oval(Oval {
-            centre: center,
-            axis,
-            u_ref,
+            frame: spiric_frame,
             major: major_radius,
             minor: minor_radius,
             offset,
@@ -2006,7 +2017,7 @@ fn path_resolution<T: Decide>(path: &Path<T>, arcs: &[LoopArc<T>]) -> T {
         match arc {
             LoopArc::Conic(_) => {}
             LoopArc::Crest { circle, .. } => points.push(circle.frame().origin()),
-            LoopArc::Oval(Oval { centre, .. }) => points.push(*centre),
+            LoopArc::Oval(Oval { frame, .. }) => points.push(frame.origin()),
             LoopArc::Line { line, .. } => points.push(line.origin),
             LoopArc::Spline(SplineArc { carrier, span }) => {
                 points.extend([carrier.eval(span.0), carrier.eval(span.1)]);
@@ -3735,9 +3746,10 @@ mod tests {
 
     /// **A circle piece decided apart from a conic arc misses it, past a
     /// plane meeting read in band** ([`coplanar_apart`]): the piece, a
-    /// unit circle in the `xz` plane, rises to the conic's plane `z = h`
-    /// within the band of touching it (its gap `1 − h` mid-band), so
-    /// [`plane_roots`] refuses; the conic, a unit circle about
+    /// unit circle in the `xz` plane over `(−2, 1)`, rises at `−π/2` to
+    /// the conic's plane `z = h` within the band of touching it (its gap
+    /// `1 − h` mid-band), so [`plane_roots`] refuses; the conic, a unit
+    /// circle about
     /// `(10, 0, h)`, lies decided apart from it whatever the planes. The
     /// pair crosses nowhere and flips nothing. Red against the old order,
     /// which refused at the plane meeting.
@@ -3753,7 +3765,7 @@ mod tests {
         );
         let piece = CircleArc {
             circle: geom::Circle::new(geom::Frame::new(o, y, x), 1.0),
-            span: (-1.0, 1.0),
+            span: (-2.0, 1.0),
         };
         let arc = LoopArc::of(
             &geom::Curve3::circle(Point3::new(10.0, 0.0, h), z, 1.0, x),

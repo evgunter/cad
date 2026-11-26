@@ -2,12 +2,12 @@
 id: a-sphere-cut-in-survives-unglued-in-the-union-of-a-lens-and-a-tilted-brick
 kind: issue
 title: A sphere cut-in's meridian survives unglued in the union of a lens and a tilted brick, leaving two pieces of one face
-status: open
+status: closed
 opened: 2026-10-13
 priority: P0
 cost: H
-design: true
 parent: closed-sphere-escape-is-re-charted-by-rotation-beside-the-meridian-cut
+closed: 2026-11-24
 ---
 
 
@@ -60,6 +60,14 @@ cap, whose cut runs between the circle's two crossings only, glues.
 `joinable-reads-a-chart-singularity-by-distance-alone` may be the same
 ground.
 
+## Evidence (2026-11-23, ORBIT `orbit/one-sphere-escape-cut`)
+
+**This row now stands between the tour's die and building.** That branch retires the re-chart, so a closed ball's escape is cut in too (`apply_cut_ins`). The die of `die_composed_tour` with two pips dragged together used to refuse `UnsupportedTurnedCell` at its pips' union. It now refuses there with this row's `Emission("a chart cut survives in the result")`, in all eight edits (`crates/editor-core/tests/the_tours_die_with_two_pips_run_together_refuses_their_surviving_cut.rs`). The kernel result is sound; only the naming refuses.
+
+Where the cut survives, measured on two radius-0.09 balls 0.08 apart (z-poled, offset along y). The union keeps one live chart cut per ball, and its naming lists `merge_skipped: PeriodClosure` for each ball's run. The run's faces meet across both the cut and the ball's own seam, so merging the whole run would close the sphere's period. `merge_faces` refuses curved runs that close the period (`crates/geom-brep/README.md` C12(5)), and it refuses the whole run rather than merging across the cut while the seam stays as the period's edge. `a - b` keeps its cut for the same reason. The intersect glues both cuts away. The same skip already leaves operand seams unmerged on balls that need no cut-in, for example y-poled balls offset along y. There the edges are operand edges, which names read.
+
+Two ways through, each on other ground. One is a partial merge: kill the chart cut and keep one period edge, the operand's seam. The question there is whether C12(5)'s "a run that closes its period refuses" allows a sub-period merge of the same run. The other is to name a surviving chart cut. By the blocker rule (`work/README.md`, Priority), the part of this row that unblocks the die is P0 work.
+
 ## 2026-11-23 — claimed by ORBIT, re-banded P0 (the die)
 
 ORBIT's P0 (`closed-sphere-escape-is-re-charted-by-rotation-beside-the-meridian-cut`,
@@ -83,3 +91,27 @@ on it). How a chart cut that survives into the result should be treated
 reads a ratified clause, so it carries `design: true`: designers first.
 Moved from `work/hone/` (HONE is `ready`, with no orchestrator); id
 unchanged. (ORBIT orchestrator)
+
+## Closed (2026-11-24, PR 7664)
+
+Ev ruled the fork on [ev] PR 7639: a cut the kernel makes for its own
+reasons is transient, and the door that mints it removes it. PR 7664
+carries the cut-in's meridians into the re-entered boolean as a record
+and closes each surviving piece in the output stage (`slit::close_cuts`:
+`kef`, `kev`, `kemr`) before the coplanar merge, so no result holds a
+chart cut and naming no longer reads them. The lens-and-brick union and
+lens − brick now build without a surviving cut, and so does the die's
+pips union; their conventional vertex is named by PR 7694 (next
+section), with which every op here builds, names and meshes. Dual review (two Opus) approved at d8b78b203; the unreached
+ring-move path is `a-chart-cut-kef-onto-a-ringed-piece-has-no-row`.
+
+## 2026-11-24 — every op names on `orbit/conventional-vertex-names`
+
+With PRs 7602 and 7664 beneath it and the conventional vertex named
+for its circle (`a-conventional-vertex-mints-no-edge-derived-name`),
+all six ops of `emit_sphere_cut_in_cap`'s document build and name, the
+union and the lens minus the brick included: no cut survives there. The
+pin named above is now
+`emit_sphere_cut_in_cap::every_op_over_a_sphere_cut_in_names_the_circles_vertex_for_the_circle`,
+which asserts each op names one conventional vertex on the seam between
+the lens and the brick. (orbit-cvname lane)

@@ -5,7 +5,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::*;
-use crate::entity::EdgeKey;
+use crate::entity::{EdgeKey, LoopKey};
 use crate::region::QueryFoot;
 use crate::region::refusal_class as class;
 use core::f64::consts::{PI, TAU};
@@ -80,7 +80,6 @@ fn cylinder(edges: Vec<Edge<f64>>) -> RuledFaceRegion<f64> {
         charted,
         surface,
         sense: true,
-        outer: LoopKey::default(),
         scale: 1.0,
         edges,
     }
@@ -253,7 +252,6 @@ fn cone(edges: Vec<Edge<f64>>, scale: f64) -> RuledFaceRegion<f64> {
         charted,
         surface,
         sense: true,
-        outer: LoopKey::default(),
         scale,
         edges,
     }
@@ -748,7 +746,6 @@ fn cone_window(
         charted,
         surface,
         sense: true,
-        outer: LoopKey::default(),
         scale: 2.0,
         edges: vec![
             cone_rim(1, vs.0, us, true),
@@ -792,7 +789,6 @@ fn a_ruled_faces_answer_about_the_bands_zero_depends_on_no_chart_frame() {
                 charted,
                 surface,
                 sense: true,
-                outer: LoopKey::default(),
                 scale: 1.0,
                 edges: window(1, us, zs, false),
             }
