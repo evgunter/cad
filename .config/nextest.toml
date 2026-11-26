@@ -567,7 +567,7 @@ not (
   (binary_id(sweep::all) & (test(=snowman::a_hemisphere_against_a_ball_crossing_its_cap_and_dome_builds) | test(=snowman::a_slab_tilted_across_the_lens_seams_builds) | test(=snowman::the_near_tangent_family_builds_to_1e_6_at_the_finer_bands) | test(=snowman::a_corner_at_a_caps_conventional_vertex_reads_the_circles_interior))) |
   (binary_id(sweep::all) & (test(=a_rest_on_a_cut_in_piece_lands_on_it::a_rest_on_either_piece_of_a_cut_in_face_lands_on_that_piece) | test(=a_rest_on_a_cut_in_piece_lands_on_it::a_rest_on_either_piece_of_a_cut_in_rim_arc_lands_on_that_piece))) |
   (binary_id(sweep::all) & test(=a_cone_on_a_torus_meridian_in_every_order::the_meridian_triangle_and_its_torus_build_in_every_order)) |
-  (binary_id(sweep::all) & (test(=a_cone_with_a_ball_or_a_cone_in_every_order::a_cone_and_a_ball_off_its_axis_build_in_every_order) | test(=a_cone_with_a_ball_or_a_cone_in_every_order::two_cones_in_general_pose_build_in_every_order))) |
+  (binary_id(sweep::all) & (test(=a_cone_with_a_ball_or_a_cone_in_every_order::a_cone_and_a_ball_off_its_axis_refuse_their_loop_in_every_order) | test(=a_cone_with_a_ball_or_a_cone_in_every_order::two_cones_in_general_pose_build_in_every_order))) |
   (binary_id(sweep::all) & (test(=cone_operand_rows::the_bite_rides_the_carried_cone_cylinder_section) | test(=a_cone_with_a_tilted_seam::a_cone_with_a_tilted_seam_builds_its_true_body_or_refuses_typed))) |
   (binary_id(geom-brep::all) & (test(=cone_pair_section::a_cone_pairs_components_are_carried_on_both_surfaces) | test(=cone_pair_section::a_carried_loop_winds_as_its_claim_on_both_carriers))) |
   (binary_id(sweep::all) & test(=a_plane_nearly_through_a_torus_axis_cuts_it_at_any_face_size::a_plane_nearly_through_a_torus_axis_cuts_it_at_any_face_size)) |

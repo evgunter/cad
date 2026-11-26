@@ -1379,11 +1379,16 @@ fn spline_face_oracle(body: &Body<f64>, face: FaceKey, s: &Surface<f64>) -> Orac
 }
 
 /// [`grid`] on a body at `f64`, over the carrier's whole canonical
-/// window: an eighth of an `n × n` grid's cells, `(i + 2j) mod 8 = 0`
-/// (one in eight along every `v`-row, one in four along every even
-/// `u`-column), each decided cell checked against `oracle` on a 5 × 5
-/// interior lattice.
-fn grid_f64(body: &Body<f64>, face: FaceKey, n: usize, oracle: &Oracle) -> GridStats {
+/// window: an `n × n` grid's cells with `(i + 2j) mod stride = 0` (at
+/// stride 8 an eighth of them: one in eight along every `v`-row, one in
+/// four along every even `u`-column; at stride 1 every cell), each
+/// decided cell checked against `oracle` on a 5 × 5 interior lattice.
+fn grid_f64(
+    body: &Body<f64>,
+    face: FaceKey,
+    (n, stride): (usize, usize),
+    oracle: &Oracle,
+) -> GridStats {
     let s = body.face_surface(face).unwrap().clone();
     let ((u0, u1), (v0, v1)) = match s {
         Surface::Sphere { .. } => ((0.0, TAU), (-PI / 2.0, PI / 2.0)),
@@ -1393,7 +1398,7 @@ fn grid_f64(body: &Body<f64>, face: FaceKey, n: usize, oracle: &Oracle) -> GridS
     let mut st = GridStats::default();
     let (du, dv) = ((u1 - u0) / n as f64, (v1 - v0) / n as f64);
     for i in 0..n {
-        for j in (0..n).filter(|j| (i + 2 * j) % 8 == 0) {
+        for j in (0..n).filter(|j| (i + 2 * j) % stride == 0) {
             let cu = (u0 + i as f64 * du, u0 + (i + 1) as f64 * du);
             let cv = (v0 + j as f64 * dv, v0 + (j + 1) as f64 * dv);
             st.cells += 1;
@@ -1436,8 +1441,10 @@ fn grid_f64(body: &Body<f64>, face: FaceKey, n: usize, oracle: &Oracle) -> GridS
 
 /// **A cell off a face a spline section bounds is dropped, and one
 /// holding a point of the face never is.** Every sphere and torus face of
-/// the ball ∪ donut that a section's spline edge bounds is read on an
-/// eighth of a 16 × 16 grid of its carrier's whole window ([`grid_f64`]). Each decides cells both
+/// the ball ∪ donut that a section's spline edge bounds is read on a
+/// 16 × 16 grid of its carrier's whole window ([`grid_f64`]): every cell
+/// of the ball's one face, which spans the window but for the donut's
+/// section, and an eighth of the torus's. Each decides cells both
 /// ways, so a cell wholly off the face reads `Outside` and one wholly in
 /// it `Inside`: a region that read no spline edge answers neither on
 /// these faces. No decided cell holds a lattice point the operands'
@@ -1451,13 +1458,18 @@ fn a_cell_off_a_face_a_spline_section_bounds_is_dropped() {
         let spline = face_edges(&body, face)
             .iter()
             .any(|(c, _)| matches!(c, geom::Curve3::Nurbs(_)));
-        let kind = match s {
-            Surface::Sphere { .. } if spline => &mut read.0,
-            Surface::Torus { .. } if spline => &mut read.1,
+        let (kind, stride) = match s {
+            Surface::Sphere { .. } if spline => (&mut read.0, 1),
+            Surface::Torus { .. } if spline => (&mut read.1, 8),
             _ => continue,
         };
         *kind += 1;
-        let st = grid_f64(&body, face, 16, &spline_face_oracle(&body, face, &s));
+        let st = grid_f64(
+            &body,
+            face,
+            (16, stride),
+            &spline_face_oracle(&body, face, &s),
+        );
         let label = format!("{face:?} ({})", s.kind().name());
         assert_eq!(
             st.violations, 0,
