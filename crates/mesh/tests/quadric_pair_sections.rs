@@ -404,11 +404,22 @@ fn a_ball_against_a_donut_turned_a_quarter_builds_in_both_orders() {
         donut(0.6, 0.2),
         Affine3::translation(by) * Affine3::rotation_about_axis(Point3::origin(), x, turn),
     );
-    cut_in_volumes(
-        "the ball and the donut turned a quarter",
-        (&six(&ball, &ring), [&ball, &ring]),
-        (ball_volume(0.5), DONUT_VOLUME),
-        donut_lens(by, turn),
+    // Pinned red at ε 1e-6: the oval's cut-in is not made there, and the
+    // section pass's refusal stands (`FallbackExtentUnsupported`)
+    // (`work/lathe/a-ball-against-a-donut-turned-a-quarter-refuses-its-cut-in-at-1e-6.md`).
+    test_utils::pinned_red::row(
+        tol().eps(),
+        &[1e-6],
+        "the ball and the donut turned a quarter at ε 1e-6",
+        &["FallbackExtentUnsupported", "cutting it in is not built"],
+        || {
+            cut_in_volumes(
+                "the ball and the donut turned a quarter",
+                (&six(&ball, &ring), [&ball, &ring]),
+                (ball_volume(0.5), DONUT_VOLUME),
+                donut_lens(by, turn),
+            );
+        },
     );
 }
 

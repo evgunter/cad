@@ -28,7 +28,7 @@ use topo::{AtRestBody, BooleanError, BooleanResult};
 use crate::common::differential::outcome;
 use crate::common::oracles::{ball_lens as lens, ball_volume, cap_volume};
 
-use Want::{Budget, Draws, Folds, RingUnread};
+use Want::{Budget, Draws, Folds};
 
 /// A `y`-poled ball of radius `r` turned by `turn`, then moved to `c`.
 fn placed(r: f64, turn: Affine3<f64>, c: Vec3<f64>) -> AtRestBody<f64> {
@@ -95,12 +95,6 @@ enum Want {
     /// for more chords than the sphere arm's budget
     /// (`SphereTrimShape { ChordBudget }`).
     Budget,
-    /// `SOUND`, and the mesher refuses a face holding a section circle as
-    /// a ring, undecided: the ring reader cannot clear the ring's point of
-    /// an outer loop row whose chart box does not tighten, a seam's iso
-    /// arc or a tilted circle's image
-    /// (`work/lathe/an-analytic-outer-loops-whole-span-boxes-never-tighten-under-the-ring-reader.md`).
-    RingUnread,
 }
 
 /// One op's `out` against `want`, its volume against `volume` to
@@ -129,18 +123,6 @@ fn check(
             assert!(
                 matches!(&drawn, Err(mesh::TessellateError::FoldedTriangle { .. })),
                 "{label}: the folded-triangle refusal, got {:?}",
-                drawn.map(|m| m.positions.len())
-            );
-        }
-        RingUnread => {
-            let drawn = mesh::tessellate(&bb.body, 5e-3, tol);
-            assert!(
-                matches!(
-                    &drawn,
-                    Err(mesh::TessellateError::DomainUnread { cause, .. })
-                        if matches!(**cause, topo::pcurves::RingPlacementError::Undecided { .. })
-                ),
-                "{label}: the unplaced ring's refusal, got {:?}",
                 drawn.map(|m| m.positions.len())
             );
         }
@@ -424,7 +406,7 @@ fn tilted_and_spun_charts_build() {
 /// (`work/tesslane/a-tilted-circle-near-a-sphere-pole-refuses-at-the-sphere-arm.md`).
 /// A face that keeps such a circle as a ring beside its chart pole (the
 /// small balls', whose circles pass beside their own poles, outside the
-/// unit ball) is refused at its ring first ([`Want::RingUnread`]).
+/// unit ball) has its ring placed by the ring reader, and draws.
 /// The distances are band-relative
 /// (at `ε = 10⁻⁶` the `10⁻⁷` circle is inside the band, and at `10⁻¹²`
 /// the `10⁻³` ball meets the f64 placement frontier,
@@ -442,7 +424,7 @@ fn a_circle_beside_a_pole_builds_though_the_mesher_refuses_it() {
     let r = 0.01f64;
     let theta = (1.0 - r * r / 2.0).acos();
     for (delta, wants) in [
-        (1e-5, [Folds, RingUnread, Folds, RingUnread, Draws, Draws]),
+        (1e-5, [Folds, Folds, Folds, Draws, Draws, Draws]),
         (1e-7, [Budget; 6]),
     ] {
         let a = theta + delta;
@@ -450,13 +432,7 @@ fn a_circle_beside_a_pole_builds_though_the_mesher_refuses_it() {
         against_the_unit_ball(&format!("δ {delta:e}"), &small, r, 1.0, wants);
     }
     let tiny = toward(1e-3, 1.0, Vec3::new(0.0, 0.0, 1.0), 0.0);
-    against_the_unit_ball(
-        "r 1e-3 on the sphere",
-        &tiny,
-        1e-3,
-        1.0,
-        [RingUnread, RingUnread, Draws, RingUnread, Draws, Draws],
-    );
+    against_the_unit_ball("r 1e-3 on the sphere", &tiny, 1e-3, 1.0, [Draws; 6]);
 }
 
 /// Both spheres trimmed, each by a box across its own seam and clear of
@@ -496,13 +472,11 @@ fn two_trimmed_spheres_build() {
 /// `δ` builds, `10⁻⁷` included: the arc's pcurve beside the pole is the
 /// projected image (C4), whose sector pieces refine toward the pole and
 /// certify while the arc stays clear of it, and every op's volume holds.
-/// At `10⁻³` the mesher draws the three ops where no face keeps the
-/// circle as a ring, and refuses the ring in the others
-/// ([`Want::RingUnread`]). At `10⁻⁵` the uniform chord schedule the
-/// circle asks near the pole folds a triangle over the chord beside the
-/// pole where the unit ball's remnant is meshed first, which refuses
-/// typed ([`Want::Folds`]), and the small ball's ring refuses as at
-/// `10⁻³` where it is. At
+/// At `10⁻³` the mesher draws every op, the ring reader placing the
+/// circle where a face keeps it as a ring. At `10⁻⁵` the uniform chord
+/// schedule the circle asks near the pole folds a triangle over the
+/// chord beside the pole in each union and `a ∖ b`, which refuses typed
+/// ([`Want::Folds`]); the others draw. At
 /// `10⁻⁷` the schedule asks one edge for more chords than the sphere
 /// arm's budget, and the mesher refuses at once ([`Want::Budget`]).
 /// The distances are band-relative (at `ε = 10⁻⁶` the `10⁻⁵` circle's
@@ -538,9 +512,9 @@ fn a_trimmed_face_cut_beside_its_pole_builds() {
                 lens(1.0, r, 1.0),
             ),
             if delta > 1e-4 {
-                [RingUnread, RingUnread, Draws, RingUnread, Draws, Draws]
+                [Draws; 6]
             } else if delta > 1e-6 {
-                [Folds, RingUnread, Folds, RingUnread, Draws, Draws]
+                [Folds, Folds, Folds, Draws, Draws, Draws]
             } else {
                 [Budget; 6]
             },
@@ -765,12 +739,9 @@ fn a_large_ball_near_external_tangency_is_pinned() {
 /// in the intersection the band keeps no edge of the ball's own: the
 /// last piece of the cut parts two circles, and the one the chart's pole
 /// lies beyond is the outline (`topo::boolean::slit`, closing a cut).
-/// Every op builds maximal at its closed form. Where the band is kept,
-/// its outline is the tilted circle, whose chart rows the ring reader
-/// cannot clear, so the mesher refuses the ring undecided
-/// ([`Want::RingUnread`]); with the two roles swapped it would refuse
-/// `NoShift` instead, the ring outside its outline, and the roles are
-/// read off the loops before that. The other ops mesh.
+/// Every op builds maximal at its closed form, and every op meshes: where
+/// the band is kept, its outline is the tilted circle, and the ring
+/// reader places the other circle inside it.
 #[test]
 fn a_band_between_two_circles_builds_under_every_boolean() {
     let (lo, hi) = (0.4f64, 0.7f64);
@@ -822,6 +793,6 @@ fn a_band_between_two_circles_builds_under_every_boolean() {
         &unit(),
         &slab,
         (ball_volume(1.0), slab_volume, band(lo, hi)),
-        [Draws, Draws, Draws, RingUnread, RingUnread, RingUnread],
+        [Draws; 6],
     );
 }

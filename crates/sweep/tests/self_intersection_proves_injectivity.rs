@@ -1920,45 +1920,36 @@ fn ball_in_half_spaces(slabs: &[(f64, f64, f64)]) -> Body<f64> {
     })
 }
 
-/// **Sphere bodies off each other's axes cost what main's walk costs**:
+/// **Sphere bodies off each other's axes hold within a small walk**:
 /// five unions of balls whose waists are circles off both spheres' axes,
 /// and a spherical triangle and a lens cut from the unit ball by tilted
-/// half-spaces, each read with its main verdict and within a ceiling of
-/// main's own split count (main + 25% + 8; main's counts are the PR 7113
-/// re-review's, at `704ed655`'s merge base). Each union refuses
-/// `Departure` at once, as on main: where a ball's cell holds a line of
-/// its stored chart that has no place at any depth, its face's extent
-/// being unknown ([`topo`]'s `unplaced_line`), no pose is tried, and the
-/// stored chart's answer stands. Red if a pose's `Local` stands in for
-/// that answer (the walk then splits two thousand times or more to
-/// refuse the same), or the poses cost a body read alike more splits.
+/// half-spaces. Each holds, within a ceiling of its measured split count
+/// (measured + 25% + 8). On main, where each full revolve's ball is two
+/// π-bands, each union and the triangle refuse `Departure` at once: a
+/// ball's cell holds a line of its stored chart with no place at any
+/// depth (the two bands' shared meridian). Main's counts, at
+/// `704ed655`'s merge base, were 0, 253, 0, 259 and 275 for the unions,
+/// 536 for the triangle and 115 for the lens. A full revolve's ball is
+/// one band, with no meridian two of its faces share, and the walk
+/// proves each body. Red if any refuses, or costs more than its ceiling.
 #[test]
-fn off_axis_sphere_bodies_cost_what_mains_walk_costs() {
-    let departs = |r: &BoundReport<Witness>| {
-        matches!(
-            r.verdict,
-            BoundVerdict::Refused(EngineRefusal::Uncertified {
-                arm: CertificateArm::Departure,
-                ..
-            })
-        )
-    };
+fn off_axis_sphere_bodies_hold_within_a_small_walk() {
     type Balls = Vec<(f64, [f64; 3])>;
     let unions: [(&str, Balls, usize); 5] = [
         (
             "head x 0.1",
             vec![(1.0, [0.0; 3]), (0.8, [0.1, 1.4, 0.0])],
-            0,
+            129,
         ),
         (
             "head (0.2, 0.15)",
             vec![(1.0, [0.0; 3]), (0.8, [0.2, 1.4, 0.15])],
-            253,
+            223,
         ),
         (
             "small head x 0.3",
             vec![(1.0, [0.0; 3]), (0.4, [0.3, 1.1, 0.0])],
-            0,
+            174,
         ),
         (
             "three balls",
@@ -1967,58 +1958,52 @@ fn off_axis_sphere_bodies_cost_what_mains_walk_costs() {
                 (0.8, [0.3, 1.4, 0.0]),
                 (0.5, [0.5, 2.3, 0.1]),
             ],
-            259,
+            335,
         ),
         (
             "side by side",
             vec![(1.0, [0.0; 3]), (0.9, [1.5, 0.2, 0.1])],
-            275,
+            223,
         ),
     ];
-    let ceiling = |main: usize| main + main / 4 + 8;
-    for (what, balls, main) in unions {
-        let r = injective(&balls_united(&balls), None, BUDGET);
+    let ceiling = |measured: usize| measured + measured / 4 + 8;
+    let holds = |what: &str, r: &BoundReport<Witness>, measured: usize| {
         assert!(
-            departs(&r),
-            "{what}: refuses Departure, as on main: {:?}",
+            matches!(r.verdict, BoundVerdict::Holds),
+            "{what}: holds: {:?}",
             r.verdict
         );
         assert!(
-            r.receipt.splits <= ceiling(main),
-            "{what}: {} splits, main's {main}: {:?}",
+            r.receipt.splits <= ceiling(measured),
+            "{what}: {} splits, measured {measured}: {:?}",
             r.receipt.splits,
             r.receipt
         );
+    };
+    for (what, balls, measured) in unions {
+        holds(
+            what,
+            &injective(&balls_united(&balls), None, BUDGET),
+            measured,
+        );
     }
-    let triangle = injective(
-        &ball_in_half_spaces(&[(0.2, 0.9, 0.0), (0.2, 0.9, 2.1), (0.2, 0.9, -2.1)]),
-        None,
-        BUDGET,
+    holds(
+        "the triangle",
+        &injective(
+            &ball_in_half_spaces(&[(0.2, 0.9, 0.0), (0.2, 0.9, 2.1), (0.2, 0.9, -2.1)]),
+            None,
+            BUDGET,
+        ),
+        260,
     );
-    assert!(
-        departs(&triangle),
-        "the triangle, as on main: {:?}",
-        triangle.verdict
-    );
-    assert!(
-        triangle.receipt.splits <= ceiling(536),
-        "the triangle: {:?}",
-        triangle.receipt
-    );
-    let lens = injective(
-        &ball_in_half_spaces(&[(0.3, 0.9, 0.0), (0.3, -0.9, 0.0)]),
-        None,
-        BUDGET,
-    );
-    assert!(
-        matches!(lens.verdict, BoundVerdict::Holds),
-        "the lens: {:?}",
-        lens.verdict
-    );
-    assert!(
-        lens.receipt.splits <= ceiling(115),
-        "the lens: {:?}",
-        lens.receipt
+    holds(
+        "the lens",
+        &injective(
+            &ball_in_half_spaces(&[(0.3, 0.9, 0.0), (0.3, -0.9, 0.0)]),
+            None,
+            BUDGET,
+        ),
+        107,
     );
 }
 
