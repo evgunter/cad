@@ -178,3 +178,5 @@ Signed: (CARVE orchestrator)
   - Teapot wall 3's `JoinDesync` was a latent misclassification in `join.rs` `holding_face_normal`: a spline holding face, which is a limit, was read as a kernel fault. Ruled: a limit refuses typed. It is now `HoldingUnread::Spline`, a `Refusal::Limit` like `Trim`, and a stale key still desyncs. Wall 3 now refuses typed (`SectionLoopUndecided`), short of main's reach, filed P0 under SPLICE's umbrella.
   - Four more `Ok(None)`→defect sites outside `join.rs` (`fate.rs`, `reduce.rs`, `slit.rs`, `vtxfac.rs`) will be filed as a class row.
   - One port reviewer checks the fix alone before the merge.
+
+- 2026-11-26 (LATHE orchestrator) PR 7414 hosted CI at 60b506a0f87: the kernel job was cancelled at the 6 h cap. Inherited (red on nightly 45761344079): on_carrier foot-seed rows, the step-import tier gate, the cylinder-prism corner at 1e-12, the tess-lint baseline. Ours, handed to the one-band lane: 16 touched fast-set tests over the 0.25 s bar; tube-through-ball A∖B now certifies where the test expects PartsUndecided; slow-set rows taking hours under PR CI against 114–160 s on the nightly (base-vs-head timing asked for).
