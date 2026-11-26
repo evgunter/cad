@@ -15,8 +15,8 @@
 //!   tube. Each union is checked against its closed-form volume and
 //!   `point_in_solid`. A ball scraping the tube in an oval interior to
 //!   both faces is certified a loop inside both (R-loop), and builds
-//!   through a cut-in of the ball's face that the output merge glues
-//!   away.
+//!   through a cut-in of the ball's face whose cut the output stage
+//!   closes (`topo::boolean::slit`).
 //! - **Sphere × cone** is examined by the pass: a ball strictly inside
 //!   the cone is certified apart, and a ball meeting the lateral face in
 //!   a loop with no crossing refuses R-loop, naming the cone face. The
@@ -205,7 +205,7 @@ fn a_ball_inside_the_tube_unions_to_the_donut() {
 /// certificate proves it a loop inside both faces (R-loop). The ball's
 /// face is cut in along a meridian of its chart the oval's tube is read
 /// crossing, the op re-enters on the crossings, and the output
-/// merge glues the cut away. Every op builds in both operand orders, with
+/// stage closes the cut (`topo::boolean::slit`). Every op builds in both operand orders, with
 /// no trace of the cut. The lens is the intersection: the union and the
 /// differences answer the operands' closed forms with it, and it answers
 /// its integral over slices across the donut's axis

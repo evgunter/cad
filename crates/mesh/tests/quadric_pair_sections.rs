@@ -417,7 +417,7 @@ fn a_ball_against_a_donut_turned_a_quarter_builds_in_both_orders() {
 /// turned so its seam lines miss it: the section loop is interior to a
 /// face of each solid, so no event seats it. The ball's face is cut in
 /// along a meridian its tube is read crossing, which seats it where
-/// it crosses, and the output merge glues the cut away: every op builds
+/// it crosses, and the output stage closes the cut: every op builds
 /// with no trace of the cut, and each volume answers the operands'
 /// closed forms with the lens's, which answers its quadrature. The
 /// unseated loop's reading is `geom-brep`'s row

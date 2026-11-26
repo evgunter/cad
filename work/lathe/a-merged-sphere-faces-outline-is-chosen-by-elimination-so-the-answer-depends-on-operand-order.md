@@ -30,7 +30,9 @@ Where neither lift places the ring, two slots are left standing,
 the arena order the merge met the pieces in, and that is the operand
 order. In one order the run merges. In the other it refuses
 `PeriodClosure`, the cut-in's meridian survives, and the op refuses at
-`boolean::ops::surviving_cut`. DESIGN calls an operand order that refuses
+the surviving-cut check (`boolean::ops::surviving_cut` on PR 7440's
+branch; on main's cut-in framework the output stage closes the cut
+before the merge, `slit::close_cuts`). DESIGN calls an operand order that refuses
 where the other builds a kernel defect.
 
 So the defect is the choice by elimination. The short edge beside the

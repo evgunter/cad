@@ -81,6 +81,8 @@ mod a_cone_with_a_ball_or_a_cone_in_every_order;
 mod a_conical_ended_football_revolves;
 #[path = "a_corner_cut_on_a_far_wall_reads_its_sections_width.rs"]
 mod a_corner_cut_on_a_far_wall_reads_its_sections_width;
+#[path = "a_crossings_path_cut_in_is_made_only_where_its_closing_is_total.rs"]
+mod a_crossings_path_cut_in_is_made_only_where_its_closing_is_total;
 #[path = "a_curve_off_its_face_at_a_build_is_the_kernels.rs"]
 mod a_curve_off_its_face_at_a_build_is_the_kernels;
 #[path = "a_curved_keel_in_the_plane.rs"]
@@ -247,8 +249,8 @@ mod an_edge_on_a_ruling_lying_in_its_own_face;
 mod an_edge_running_past_a_face_reads_its_crossings;
 #[path = "an_inside_out_thin_tube_operand.rs"]
 mod an_inside_out_thin_tube_operand;
-#[path = "an_interior_loop_on_a_one_band_ball_is_cut_in_and_glued_away.rs"]
-mod an_interior_loop_on_a_one_band_ball_is_cut_in_and_glued_away;
+#[path = "an_interior_loop_on_a_one_band_ball_is_cut_in_and_its_cut_closed.rs"]
+mod an_interior_loop_on_a_one_band_ball_is_cut_in_and_its_cut_closed;
 #[path = "at_rest_pcurve_faces.rs"]
 mod at_rest_pcurve_faces;
 #[path = "band_apart_partners_on_a_steep_ellipse.rs"]

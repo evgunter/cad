@@ -335,6 +335,63 @@ fn sphere_capped_cone(r0: f64, z0: f64, r1: f64, z1: f64, d_mint: f64) -> (Body<
     (body, apex_y)
 }
 
+/// **The volume of [`sphere_capped_cone`]'s body with its cone offset by
+/// `d`** (in the fixture's own convention, the `d_mint` it takes), its
+/// spheres unmoved: the closed form the row holds the door to. The
+/// offset moves the cone's apex along the axis by `−d / sin α`, and the
+/// offset generator meets each sphere where the nearer root of the
+/// quadratic in height lies; the solid is the bottom sphere's cap below
+/// that height, the frustum between the two, and the top sphere's cap
+/// above, each `π∫r² dz` in closed form. Independent of the kernel's
+/// quadrature.
+fn offset_volume(r0: f64, z0: f64, r1: f64, z1: f64, d_mint: f64, d: f64) -> f64 {
+    let tan_a = (r1 - r0) / (z1 - z0);
+    let apex_y = z0 - r0 / tan_a;
+    let sin_a = tan_a.abs().atan().sin();
+    // The fixture's spheres, as it builds them.
+    let cos_a = tan_a.abs().atan().cos();
+    let image = |z: f64| {
+        let v = (z - apex_y) / cos_a;
+        let v2 = v + d_mint * cos_a / sin_a;
+        let apex2 = apex_y - d_mint / sin_a;
+        (v2.abs() * sin_a, apex2 + v2 * cos_a)
+    };
+    let center = |r: f64, z: f64| {
+        let (r2, z2) = image(z);
+        (r2 * r2 + z2 * z2 - r * r - z * z) / (2.0 * (z2 - z))
+    };
+    let (c0, c1) = (center(r0, z0), center(r1, z1));
+    let big0 = (r0 * r0 + (z0 - c0).powi(2)).sqrt();
+    let big1 = (r1 * r1 + (z1 - c1).powi(2)).sqrt();
+    // The offset generator: r = (z − apex)·tan α about the moved apex.
+    let apex = apex_y - d / sin_a;
+    let meet = |c: f64, big: f64, near: f64| {
+        // ((z − apex)·t)² + (z − c)² = R²
+        let t2 = tan_a * tan_a;
+        let (qa, qb, qc) = (
+            t2 + 1.0,
+            -2.0 * (t2 * apex + c),
+            t2 * apex * apex + c * c - big * big,
+        );
+        let disc = (qb * qb - 4.0 * qa * qc).sqrt();
+        let roots = [(-qb - disc) / (2.0 * qa), (-qb + disc) / (2.0 * qa)];
+        if (roots[0] - near).abs() < (roots[1] - near).abs() {
+            roots[0]
+        } else {
+            roots[1]
+        }
+    };
+    let (za, zb) = (meet(c0, big0, z0), meet(c1, big1, z1));
+    let radius = |z: f64| ((z - apex) * tan_a).abs();
+    let cap = |c: f64, big: f64, a: f64, b: f64| {
+        core::f64::consts::PI * (big * big * (b - a) - ((b - c).powi(3) - (a - c).powi(3)) / 3.0)
+    };
+    let (ra, rb) = (radius(za), radius(zb));
+    cap(c0, big0, c0 - big0, za)
+        + core::f64::consts::PI * (zb - za) * (ra * ra + ra * rb + rb * rb) / 3.0
+        + cap(c1, big1, zb, c1 + big1)
+}
+
 /// **Is the per-chart cone offset reachable?** On both nappes: a cone
 /// between two spheres that hold its transported rims at exactly one
 /// inward `d`. If the door BUILDS, the minted cone must be the home's
@@ -421,10 +478,17 @@ fn r1_per_chart_cone_offset_reachability_attack() {
                             "{what}: the control's outward offset must grow the body"
                         );
                     }
+                    let sign = if chosen { 1.0 } else { -1.0 };
+                    let want_v = offset_volume(r0, 0.0, r1, H, d_mint, sign * d_mint);
+                    println!("[r1]   closed form {want_v}");
+                    assert!(
+                        (v1 - want_v).abs() <= 1e-12 * want_v,
+                        "{what} d={d}: volume {v1} against the closed form {want_v}"
+                    );
                     assert_eq!(tier3, Ok(()), "{what}: tier 3");
                 }
-                Err(e) => println!(
-                    "[r1] {what} d={d} chosen={chosen}: {}: {e_at}",
+                Err(e) => panic!(
+                    "{what} d={d} chosen={chosen}: the offset builds, got {}: {e_at}",
                     name(e),
                     e_at = e.render(geom_brep::recourse::Reading::Build)
                 ),

@@ -1290,7 +1290,9 @@ fn pole_beyond<T: Decide>(
     };
     // Either pole serves: the face holds no edge of its own boundary
     // here, so its chart's seam, which joins the two poles, lies outside
-    // it, both poles beyond one loop.
+    // it, both poles beyond one loop. A crossings-path cut-in is made
+    // only where each pole lies decidedly off each circle it cuts
+    // across (`ops::interior_cuts::closing_holds`).
     let pole = frame.origin() + frame.axis() * radius;
     let Some(&first) = other.first() else {
         return Err(BooleanError::JoinDesync {

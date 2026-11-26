@@ -336,59 +336,47 @@ fn die_slab_and_ball(h: f64) -> (topo::AtRestBody<f64>, topo::AtRestBody<f64>) {
     )
 }
 
-/// **The die pip's slab cut in a circle by its top builds every op at
-/// its closed form.** The top face meets the ball in the circle
-/// `z = 0.7`, inside the ball's one face and clear of its seam, which
-/// the slab's bottom face holds: the interior-loop guard proves the
-/// circle, and the crossings path cuts the ball's face in through it and
-/// re-enters. The slab holds the half ball `z > 0` less its cap above
-/// `0.7`.
+/// **The die pip's slab cut in a circle by its top refuses at the
+/// interior-loop guard.** The top face meets the ball in the circle
+/// `z = 0.7`, inside the ball's one face and clear of its seam: the
+/// interior-loop guard proves it. The slab's bottom face cuts the same
+/// face in the circle `z = 0`, which crosses it through both poles, so
+/// the face carries a first-pass crossing beside the loop. The output
+/// stage would not close a cut in it (`topo::boolean::slit`'s closing
+/// rests on no first-pass crossing on the cut face), so the crossings
+/// path does not cut in, and the guard's refusal stands in every op
+/// (`work/lathe/close-cuts-is-not-total-on-crossings-path-cut-ins.md`;
+/// the six ops in both orders:
+/// `a_crossings_path_cut_in_is_made_only_where_its_closing_is_total`).
 #[test]
-fn the_die_slab_cutting_the_ball_in_its_top_builds_at_its_closed_form() {
-    use crate::common::membership::{Region, ball as round, cuboid, holds};
+fn the_die_slab_cutting_the_ball_in_its_top_refuses_at_the_interior_loop_guard() {
     let (a, b) = die_slab_and_ball(0.7);
-    let (vs, vb) = (16.0 * 0.7, 4.0 * core::f64::consts::PI / 3.0);
-    let both = vb / 2.0 - core::f64::consts::PI * 0.09 * (3.0 - 0.3) / 3.0;
-    let sphere = || round(Point3::origin(), 1.0);
-    let slab = || cuboid((-2.0, 2.0), (-2.0, 2.0), (0.0, 0.7));
-    let lattice = (Point3::new(-1.3, -1.3, -1.3), Point3::new(1.3, 1.3, 1.3));
-    for (op, r, want, region) in [
+    for (op, r) in [
         (
             "slab ∖ ball",
             topo::boolean::subtract(&a, &b, Tol::witness()),
-            vs - both,
-            Box::new(move |p| slab()(p).min(-sphere()(p))) as Region,
         ),
         (
             "ball ∖ slab",
             topo::boolean::subtract(&b, &a, Tol::witness()),
-            vb - both,
-            Box::new(move |p| sphere()(p).min(-slab()(p))),
         ),
         (
             "slab ∩ ball",
             topo::boolean::intersect(&a, &b, Tol::witness()),
-            both,
-            Box::new(move |p| slab()(p).min(sphere()(p))),
         ),
-        (
-            "slab ∪ ball",
-            topo::boolean::union(&a, &b, Tol::witness()),
-            vs + vb - both,
-            Box::new(move |p| slab()(p).max(sphere()(p))),
-        ),
+        ("slab ∪ ball", topo::boolean::union(&a, &b, Tol::witness())),
     ] {
-        let body = match r {
-            Ok(r @ topo::BooleanResult::Body(_)) => {
-                sweep::test_support::cut_trace::assert_no_cut_trace(op, &r, [&a, &b]);
-                match r {
-                    topo::BooleanResult::Body(b) => b.body,
-                    topo::BooleanResult::Empty => unreachable!("matched a body"),
-                }
-            }
-            other => panic!("{op}: {other:?}"),
-        };
-        holds(op, &body, want, &region, lattice, 9);
+        assert!(
+            matches!(
+                r,
+                Err(topo::BooleanError::CurvedPairUnsupported {
+                    site: topo::PairRefusalSite::InteriorLoopGuard,
+                    ..
+                })
+            ),
+            "{op}: the interior-loop guard's refusal, got {:?}",
+            r.map(|_| ())
+        );
     }
 }
 

@@ -7,7 +7,8 @@
 //! inside both faces, which no event marks: the interior-loop guard
 //! proves it, the crossings path cuts the sphere face in along the
 //! meridian of its chart through the circle and re-enters, and the output
-//! merge glues the cut away. On a sphere every same-face edge the cut
+//! stage closes the cut (`topo::boolean::slit`), which the crossings path
+//! checks it can before it cuts in (`interior_cuts::closing_holds`). On a sphere every same-face edge the cut
 //! leaves that is no spur is a bridge, whatever the face holds: a pole
 //! and its wrap edge (a band), the seam from rim to rim (a zone), or no
 //! seam at all (an annulus clear of it). The rows:
@@ -175,7 +176,7 @@ fn a_zone_against_planes_whose_circles_miss_its_seam() {
 /// radius `0.5` turned half a turn about `y`, its seam on `z = 0, x < 0`,
 /// against `x > −0.9`: the circle `x = −0.9` misses the outer seam, the
 /// cut runs along the outer face's meridian on `−x`, and the inner ball's
-/// seam lies in that half-plane too. The merge glues the cut away; the
+/// seam lies in that half-plane too. The output stage closes the cut; the
 /// inner seam is its own face's, which the op leaves as it found it.
 #[test]
 fn a_hollow_shell_whose_inner_seam_lies_in_the_cuts_half_plane() {

@@ -181,7 +181,13 @@ fn a_half_minted_face_fills_as_the_whole_derivation() {
 /// bit for bit.
 #[test]
 fn a_row_on_the_wrong_half_edge_is_refused_not_laundered() {
-    for (name, reference) in fixtures() {
+    // The plane cube stores no row, and the one-band sphere's only rows
+    // are its wrap edge's two sides, one row: neither has two rows to
+    // swap.
+    for (name, reference) in fixtures()
+        .into_iter()
+        .filter(|(name, _)| !matches!(*name, "plane cube" | "sphere"))
+    {
         let faces: Vec<_> = reference.faces().map(|(f, _)| f).collect();
         let mut tried = 0;
         for face in faces {
@@ -190,10 +196,9 @@ fn a_row_on_the_wrong_half_edge_is_refused_not_laundered() {
                     continue;
                 }
                 let (a, b) = (cycle[0], cycle[1]);
-                // A wrap edge's two half-edges carry its two sides, a
-                // period apart on the face's own chart: swapping them
-                // moves each image by the period, the lift unchanged, so
-                // it is no wrong row.
+                // A wrap edge's two half-edges carry the same row bit
+                // for bit, so swapping them changes nothing: no wrong row
+                // to plant.
                 let edge = |h| reference.get_half_edge(h).unwrap().edge;
                 if edge(a) == edge(b) {
                     continue;
@@ -233,6 +238,7 @@ fn a_row_on_the_wrong_half_edge_is_refused_not_laundered() {
             }
         }
         println!("{name}: {tried} swaps refused");
+        assert!(tried > 0, "{name}: no swap was tried");
     }
 }
 
@@ -283,22 +289,15 @@ fn an_element_kept_without_its_images_is_not_replaced() {
 /// is not the current edge's (the cone's, whose height moves its
 /// images) is refused, whole and with a gap completion fills around;
 /// a row whose image certifies against the current carrier — a
-/// cylinder's or torus's, whose chart image does not read the radius,
-/// and the twisted loft's — is current, and the body finishes.
+/// torus's, whose chart image does not read the radius, and the
+/// twisted loft's — is current, and the body finishes. Each fixture
+/// plants at least one row.
 #[test]
 fn rows_over_a_moved_support_finish_where_their_images_are_current_and_refuse_where_not() {
     let t = tol();
     let rev = |v: Vec<(Point2<f64>, f64)>| {
         let b = sweep::test_support::revolved_about_y(v, sweep::Revolution::Full, t);
         topo::test_support::completed(b, t).unwrap()
-    };
-    let cyl = |r: f64| {
-        rev(vec![
-            (Point2::new(0.0, 0.0), 0.0),
-            (Point2::new(r, 0.0), 0.0),
-            (Point2::new(r, 2.0), 0.0),
-            (Point2::new(0.0, 2.0), 0.0),
-        ])
     };
     let torus = |big: f64| {
         rev(vec![
@@ -313,25 +312,23 @@ fn rows_over_a_moved_support_finish_where_their_images_are_current_and_refuse_wh
             (Point2::new(0.0, h), 0.0),
         ])
     };
-    // (name, body, other, whether the transplanted rows are stale,
-    // whether any row differs to plant). A full revolve's cylinder wall
-    // is one band whose rows are chart images of its rims and its wrap
-    // edge, none reading the radius, so r = 1.2's rows are r = 1's.
+    // (name, body, other, whether the transplanted rows are stale). A
+    // full revolve's cylinder wall is one band whose rows are chart
+    // images of its rims and its wrap edge, none reading the radius, so
+    // a cylinder of another radius plants nothing and is no fixture here.
     let pairs = vec![
-        ("cylinder r", cyl(1.0), cyl(1.2), false, false),
-        ("torus R", torus(2.0), torus(2.1), false, true),
-        ("cone h", cone(1.5), cone(1.7), true, true),
+        ("torus R", torus(2.0), torus(2.1), false),
+        ("cone h", cone(1.5), cone(1.7), true),
         (
             "spline twist",
             crate::common::approx::twisted_loft(0.3),
             crate::common::approx::twisted_loft(0.35),
             false,
-            true,
         ),
     ];
     let mut laundered = Vec::new();
     let mut wrongly_refused = Vec::new();
-    for (name, body, other, stale, differs) in pairs {
+    for (name, body, other, stale) in pairs {
         for gap in [false, true] {
             let mut moved = body.clone();
             let mut planted = 0;
@@ -368,11 +365,7 @@ fn rows_over_a_moved_support_finish_where_their_images_are_current_and_refuse_wh
                     Err(findings) => format!("{} findings", findings.len()),
                 }
             );
-            assert_eq!(
-                planted > 0,
-                differs,
-                "{name}: rows transplanted where they differ, none where they do not"
-            );
+            assert!(planted > 0, "{name}: nothing transplanted");
             if stale && r.is_ok() {
                 laundered.push(format!("{name} gap={gap}"));
             }

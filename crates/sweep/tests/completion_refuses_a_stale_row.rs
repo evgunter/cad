@@ -68,8 +68,8 @@ fn curved_face(body: &Body<f64>) -> (FaceKey, Vec<HalfEdgeKey>) {
 }
 
 /// Of `hes`, the first and the first after it on another edge: a wrap
-/// edge's two half-edges carry its two sides a period apart on the
-/// face's chart, which a swap only moves by the period.
+/// edge's two half-edges carry the same row bit for bit, so a swap of
+/// them changes nothing.
 fn on_two_edges(body: &Body<f64>, hes: &[HalfEdgeKey]) -> (HalfEdgeKey, HalfEdgeKey) {
     let edge = |h| body.get_half_edge(h).unwrap().edge;
     let a = hes[0];

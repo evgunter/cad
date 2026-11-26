@@ -47,3 +47,17 @@ escalation: `MergeCoplanarError::Escalated`, or a `Pcurve { source }`
 whose source escalates. Return that escalation (through the boolean's
 merge-escalation spelling) instead of the refusal. Only a skip whose
 reason is structural should answer as the surviving-cut refusal.
+
+## Re-grounded (2026-11-26, LATHE, the main merge's port)
+
+`reenter_recut` and `surviving_cut` are gone. On main's cut-in framework,
+the output stage closes every cut the kernel made
+(`topo::boolean::slit::close_cuts`) before the output merge runs
+(`ops.rs`, `finish_output`), so no cut reaches the merge, and no
+`SkippedMerge` stands in for one. An in-band reading in the closing
+(`slit::pole_beyond`, `bool_cut_close_pole_side`) raises
+`BooleanError::Escalated` as itself. The class this row records, an
+escalation answered as the surviving-cut refusal, has no path left. The
+crossings path decides that reading's premise before it cuts in
+(`interior_cuts::closing_holds`, which escalates the same question in
+band). What remains for the orchestrator is to close the row.

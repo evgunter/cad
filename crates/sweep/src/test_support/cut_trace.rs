@@ -1,7 +1,7 @@
 //! **What a boolean built through a sphere cut-in leaves of the cut**:
 //! nothing. A cut-in divides a sphere face along a meridian of its own
-//! chart, and the output merge glues the cut away with the pieces it
-//! divided, so the result carries no edge the operands' faces did not
+//! chart, and the output stage closes the cut again
+//! (`topo::boolean::slit`, closing a cut), so the result carries no edge the operands' faces did not
 //! (DESIGN `[topology]`'s seam clause, read on the result at rest).
 //!
 //! The reading, of any built result against its two operands:
@@ -11,7 +11,7 @@
 //!   divides its own faces by (a run's authored cuts, which a torus,
 //!   cylinder or cone run keeps by design: the sweep README's "Walls:
 //!   one per run", C12.5; read at its two ends and its middle, on an
-//!   operand's closed-form edge). A group the output merge skipped
+//!   operand's closed-form edge). A cut the closing left standing
 //!   leaves such an edge, so it is read there;
 //! - every edge with one sphere face on both sides lies on that face's
 //!   own chart seam, the half-meridian at azimuth zero (the plane of its
