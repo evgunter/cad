@@ -2116,3 +2116,7 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
     - apex arm order;
     - the dodge plate builds only for its own geometry.
   - All taken. The fix pass was sent to the U4b session; the confirmation pair follows.
+- 2026-11-26 10:35 — **U4b item 5: the method-in-gap Zero rule is kept.**
+  - Narrowing it would lose 7 rows main reads as `Zero` and the dodge plate, all gap readings of `conic_quadric_sub_side`.
+  - The argument: the cover certifies the residual one-signed, so the zero posture gives what a miss would, with the endpoints read and the interior deferred.
+  - It needs a code doc, and a row with a gap-near-miss twin equal to a clear miss at three ε, plus a mutant.
