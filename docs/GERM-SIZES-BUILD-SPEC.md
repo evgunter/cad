@@ -10,9 +10,8 @@ sites. This spec cites that audit's table as "audit #n". Names are cited
 with their line on that commit; the line may go stale, the name may not.
 This spec is deleted when the last stage merges.
 
-Section 3 records the orchestrator's rulings and lists the questions
-still open. A stage that depends on an open question does not dispatch
-before it is answered.
+Section 3 records the orchestrator's rulings on the questions this
+spec raised. None is open.
 
 ## 0. What the clause asks, in build terms
 
@@ -222,9 +221,11 @@ numbers". It is moved to GERM, or closed by this PR with a note.
   their numbers from `corner_ball`'s record.
   - `two_r = r + r` overflows above `MAX/2`. It goes through S1's mint
     here.
-  - Which decision mints the corner torus's ring is Q8. Until it is
-    answered, the corner torus literal stays as today, with its
-    radii already minted `Size`s.
+  - The corner torus's ring (ruled Q8): the post-battery mint mints
+    `Size(r + r)`, then `RingTorus::of` on the run's band. Until S3b the
+    torus literal reads that ring's radii. The corner spheres
+    (`planar.rs:249`, `reach.rs:1780`) mint their radius the same way,
+    and become S3a's witness mint.
 - **Evaluators stay total.** No `eval`, `eval_d`, chart or residual
   gains a `Result`.
 
@@ -259,8 +260,6 @@ numbers". It is moved to GERM, or closed by this PR with a note.
 - A token-forgery compile-fail doc test, or an argument at the type.
 
 ### S3a — `cylinder-sphere-radius-witness` (L, dual)
-
-**Gated by Q7.**
 
 **Scope.**
 - **The witness type.** `Surface::Cylinder { radius }`
@@ -358,8 +357,13 @@ Each retired K name leaves the recourse roster in the same commit.
 4. An imported body whose radius misses the convention is refused at
    import. The refusal comes at the witness mint, with the import's
    typed error, and tier 3 never sees such a body.
+5. No path reads a witness at a wider ε than it was minted at (ruled
+   Q7). A load whose recorded ε differs from the process ε refuses
+   (`EpsilonSeam`), and the row pins that refusal.
 
 **Rows owed.**
+- A load of a document recorded at another ε, refusing `EpsilonSeam`
+  before any witness is read (claim 5).
 - For each retired guard, a row that once reached it, re-pointed to the
   producer's refusal at the mint.
 - PR 7658's `a_plane_cylinder_rim_decides_the_cylinders_radius` built
@@ -370,8 +374,6 @@ Each retired K name leaves the recourse roster in the same commit.
   - Its mutant is on the mint.
 
 ### S3b — `torus-holds-ring-torus` (H, dual)
-
-**Gated by Q7.**
 
 **Scope.**
 - **The torus.** `Surface::Torus { major_radius, minor_radius }`
@@ -399,7 +401,8 @@ sites. Examples:
 - the blend's post-battery mint (S2's token);
 - the junction torus (`blend/junction.rs:317`) and the surgery torus
   (`blend/surgery.rs:4508`);
-- the corner torus (`blend/open/planar.rs:430`, Q8);
+- the corner torus (`blend/open/planar.rs:430`): `RingTorus::of` on
+  the run's band, after `Size(r + r)` (ruled Q8);
 - `offset_surface` (`offset.rs:379`–`397`), which re-mints the ring at
   `r + d`;
 - STEP import (`recognize.rs:893` and the entity resolution);
@@ -835,9 +838,9 @@ The rows S2 and S5 close belong to other programs: BAND, CPAIR and
 TRACE. Each is moved to GERM, or closed by the stage's PR with a closing
 note, as PR 7658 closed SHELL's.
 
-## 3. Rulings and open questions
+## 3. Rulings
 
-### Ruled (the orchestrator, 2026-11-26, on this spec's first review)
+### Ruled (the orchestrator, 2026-11-26, on this spec's reviews)
 
 - **Q1. User-facing sizes at the door** (the blend size and the shell
   thickness): they go through the one mint, and the verb's variant
@@ -863,77 +866,32 @@ note, as PR 7658 closed SHELL's.
 - **Q6. An over-range offset** is a `Refusal::Limit` beside
   `MovedCircleCollapses`. Built in S5.
 
-### Open
+- **Q7. A witness's band is the process band**, the only band there is.
+  It is not a fork. The evidence:
+  - one ε per process, committed once in a `OnceLock` and never loosened
+    (`crates/pncad/src/tolerance.rs:1`–`11`; S22, D4 ¶1);
+  - a load whose recorded ε differs refuses (`ToleranceConflict`, mapped
+    to `ResolveFault::EpsilonSeam` at `crates/pncad/src/workspace.rs:842`);
+  - `DocEdit::SetTolerance` replays through save and load in a fresh
+    process, and `eval::evaluate` refuses a disagreeing ε in the editing
+    process (`crates/editor-core/src/edit.rs:536`–`548`);
+  - no `Deserialize` exists for `Surface` or `Body` in `geom` or `topo`:
+    documents are recipes, rebuilt on load;
+  - STEP import mints in the importing process;
+  - a cross-document reference sets the referencing document's ε to the
+    referenced one's (`editor-core/src/refactor.rs:1971`, `:3992`).
 
-**Q7. Which run's band does a witness belong to?** This gates S3a and
-S3b.
-
-A witness is decided on the band of the run that produced the surface.
-`[sizes]` says "on the run's tolerance and never on a caller's band". A
-later run that reads the body at a different ε would hold a witness
-decided at the wrong ε. The paths to check are an import, the editor
-changing ε, and a replay.
-
-What the tree shows on whether any production path consumes a body at
-an ε other than the one it was built at:
-- **One ε per process, committed once and never loosened.**
-  - `geom_core::tolerance` holds a `OnceLock` (`crates/pncad/src/tolerance.rs:1`–`11`,
-    S22, D4 ¶1).
-  - A document's recorded ε outranks the environment. A disagreement
-    refuses at load (`ToleranceConflict`, mapped to
-    `ResolveFault::EpsilonSeam` at `crates/pncad/src/workspace.rs:842`).
-- **The editor changing ε replays in a fresh process.**
-  - `DocEdit::SetTolerance` (`crates/editor-core/src/edit.rs:536`–`548`)
-    replays through save and load.
-  - In the editing process, `eval::evaluate` refuses a document whose
-    recorded ε disagrees with the committed ε.
-  - So every body is rebuilt from the recipe at the new ε, and its
-    witnesses are re-minted.
-- **Bodies are not persisted as B-rep.** No `Deserialize` exists for
-  `Surface` or `Body` in `geom` or `topo`. A document is a recipe, so a
-  load rebuilds and re-mints.
-- **STEP import is the only B-rep-from-file path.** It mints in the
-  importing process, at its committed ε.
-- **A cross-document reference** (`editor-core/src/refactor.rs:1971`,
-  `:3992`) sets the referencing document's ε to the referenced one's.
-  It does not read the referenced document's bodies at a second ε.
-- **The one cross-ε reading in production** is `offered_band`
-  (`predicate.rs:3490`, see Q2). It is a smaller tolerance, used only to
-  re-quote a refusal.
-  - A margin decided `Positive` at ε stays `Positive` at any smaller ε′
-    on the linear band, since its escalation edge `K·ε′` is smaller.
-  - So a witness read at an offered tolerance would still hold. This is
-    likely, not checked at every band shape.
-
-*Reading:* no production path was found that consumes a body at an ε
-other than the one it was built at. This is left open. If a path is
-found, for example a cache keyed on bodies across a tolerance change,
-or a band shape where a smaller ε does not preserve `Positive`, it is a
-fork, and it waits for designers.
-
-**Q8. Which decision mints the blend corner torus's ring?** This gates
-S3b's corner-torus site.
-
-The corner torus (`blend/open/planar.rs:430`) has `major_radius: two_r`
-(`two_r = r + r`) and `minor_radius: r`.
-- P3 does not cover it: the corner has no spine regularity.
-- Its ring half is `R − r = r`, and its tube half is `r`. Both are the
-  blend radius's own positivity on the band.
-- Today nothing decides `r` positive on the band. The blend door's gate
-  is a bracket read (ruled Q1: an exact `Size`), and
-  `work/verdict/blend-size-gate-unmetered-under-epsilon.md` owns "a
-  positive size below the band".
-
-*Recommendation:*
-- The corner's post-battery mint mints its `RingTorus` through
-  `RingTorus::of` on the run's band, like any producer. "Minted where
-  the surface comes to exist" is exactly this site. The `Size` of
-  `r + r` is minted first, so overflow refuses as the arm's own
-  refusal (S2).
-- A sub-band `r` then refuses late, at the corner, after the battery
-  has passed. That breaks the battery's "construction cannot fail"
-  claim.
-  - That is the verdict row's existing question.
-  - Note it there, and do not add a second decision here.
-- The corner spheres (`planar.rs:249`, `reach.rs:1780`) take the same
-  posture through S3a's witness mint.
+  The one cross-ε read in production is `offered_band`
+  (`crates/geom-core/src/predicate.rs:3490`; callers
+  `geom-brep/src/dihedral.rs:1100`, `:2423`). It reads at a smaller ε,
+  and a `Positive` decided past `K·ε` stays `Positive` on the narrower
+  band. S3a claim 5 pins it.
+- **Q8. The blend corner torus** (`blend/open/planar.rs:430`,
+  `major_radius: two_r`, `two_r = r + r`) is not covered by P3. Its
+  post-battery mint mints `Size(r + r)`, then `RingTorus::of` on the
+  run's band, like any producer (S2, S3b). The corner spheres
+  (`planar.rs:249`, `reach.rs:1780`) follow the same rule through S3a's
+  witness mint. A sub-band `r` then refuses late, at the corner. That is
+  the existing question of
+  `work/verdict/blend-size-gate-unmetered-under-epsilon.md`, noted
+  there, and no second decision is added here.
