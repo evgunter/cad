@@ -811,7 +811,7 @@ impl<T: Real> RemovedIn<'_, T> {
 ///   each member against every cell `removed` holds of the other record
 ///   cell, in `removed`'s body, read for the touch's presence whatever
 ///   class the census would give it there
-///   ([`crate::census::RecordConfirm::touches`]): a reading that rules
+///   ([`crate::census::RecordConfirm::faces_touch`]): a reading that rules
 ///   the touch out before reading where it is refuses `Unread`;
 /// - the lineage removed one of its cells whole;
 /// - a cell kept or substituted whole has an image that does not hold
@@ -1005,7 +1005,11 @@ pub(in crate::boolean) fn landings<'b, T: crate::props::AtRestPolicy>(
                     // The reading body holds the cells as the cut left
                     // them, not as the result's sides and senses, so the
                     // touch is read for its presence alone.
-                    if confirm.touches(pair).map_err(|_| CarryRefusal::Unread {
+                    let touch = match pair.cells() {
+                        [Cell::Face(a), Cell::Face(b)] => confirm.faces_touch(a, b),
+                        _ => confirm.meets(pair),
+                    };
+                    if touch.map_err(|_| CarryRefusal::Unread {
                         record,
                         cells: pair.cells(),
                     })? {

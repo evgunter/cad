@@ -1219,7 +1219,14 @@ impl Declared {
         let confirms = |fa, fb| {
             pair_verified(body, fa, fb, band, region) || {
                 let mut read = Vec::new();
-                confirm_face_pair(body, geo, fa, fb, band, region, &mut read);
+                confirm_face_pair(
+                    body,
+                    geo,
+                    (fa, fb),
+                    (band, region),
+                    Reading::Record,
+                    &mut read,
+                );
                 read.is_empty()
             }
         };
@@ -11160,7 +11167,7 @@ fn confirm_records<T: crate::props::AtRestPolicy>(
             ContactKind::EdgeEdge(a, b) => confirm_edge_edge(body, geo, a, b, band, errors),
             ContactKind::EdgeFace(e, f) => confirm_edge_face(body, geo, e, f, band, errors),
             ContactKind::FaceFace(a, b) => {
-                confirm_face_pair(body, geo, a, b, band, region, errors);
+                confirm_face_pair(body, geo, (a, b), (band, region), Reading::Record, errors);
             }
         }
     }
@@ -11274,153 +11281,18 @@ fn confirm_edge_face<T: Decide>(
     }
 }
 
-/// **Whether two faces touch, read for its presence alone**: the
-/// touch [`confirm_face_pair`] reads, found or not found, whatever class
-/// a record of it would claim. A carry reads a removed member this way
-/// in a body that is not the result (the boolean's two whole clones),
-/// where the touch's sides and senses are not the result's: a patch is
-/// found by its region overlap on one carrier, senses opposed or
-/// aligned; a tangent pair by its line inside both faces. A reading that
-/// rules the touch out before it reads where the touch is (two tangent
-/// carriers the table calls not tangent) is never found: it is the
-/// error, and the carry refuses unread.
-///
-/// # Errors
-///
-/// The finding that stopped the reading: an escalation, a pair outside
-/// the census's lanes, or a ruling made before the touch was read.
-fn face_pair_touches<T: crate::props::AtRestPolicy>(
-    body: &Body<T>,
-    geo: &Geo<T>,
-    a: FaceKey,
-    b: FaceKey,
-    band: Band,
-    region: Option<T::RegionLane>,
-) -> Result<bool, ValidationError> {
-    if body.get_face(a).is_none() || body.get_face(b).is_none() {
-        return Ok(false);
-    }
-    if planar_face(geo, a).is_some() && planar_face(geo, b).is_some() {
-        return patch_touches(body, a, b, band, region);
-    }
-    match crate::boolean::carrier_pair_relation(body, a, body, b, band) {
-        Ok(Ok(geom_brep::CarrierRelation::Distinct))
-        | Err(crate::boolean::PairUnread::OutsideInventory) => {}
-        Ok(
-            Ok(_)
-            | Err(
-                geom_brep::CarrierEqError::Undecided { .. }
-                | geom_brep::CarrierEqError::OffRing { .. },
-            ),
-        ) => return patch_touches(body, a, b, band, region),
-        Ok(Err(geom_brep::CarrierEqError::Escalated { diag, .. })) => {
-            return Err(ValidationError::CensusEscalated { cause: diag });
-        }
-        Err(crate::boolean::PairUnread::Extent(_)) => {
-            return Err(ValidationError::CensusUnsupported {
-                subject: CensusSubject::FacePair(a, b),
-                cause: CensusUnsupportedCause::ContactLane(
-                    crate::contact::ContactRefusal::NotCertifiable {
-                        what: "a face of the face-face record has no extent to read",
-                    },
-                ),
-            });
-        }
-    }
-    let mut errors = Vec::new();
-    if let Some(read) = point::face_face(body, a, b, band, &mut errors) {
-        return match errors.into_iter().next() {
-            Some(finding) => Err(finding),
-            None => Ok(read != point::Read::Stale),
-        };
-    }
-    let (carrier, overlap) = match crate::boolean::tangent_pair_at_rest(body, a, b, band) {
-        Ok(crate::boolean::RestTangent::Apart) => return Ok(false),
-        Ok(crate::boolean::RestTangent::Line { carrier, overlap }) => (carrier, overlap),
-        Ok(crate::boolean::RestTangent::NotTangent(verdict)) => {
-            return Err(ValidationError::ContactContradicted {
-                record: crate::contact::ContactPair {
-                    a,
-                    b,
-                    class: crate::contact::GlueClass::Tangent,
-                },
-                verdict,
-            });
-        }
-        Ok(crate::boolean::RestTangent::NoLine) => {
-            return Err(pair_lane_refused(
-                a,
-                b,
-                crate::contact::ContactRefusal::NotCertifiable {
-                    what: "a face-face record on two carriers with no closed-form tangent locus \
-                           (plane x cylinder along a ruling, parallel cylinders)",
-                },
-            ));
-        }
-        Err(refusal) => return Err(pair_lane_refused(a, b, refusal)),
-    };
-    match crate::boolean::rest_line_in_both_faces(
-        body,
-        [a, b],
-        carrier,
-        overlap,
-        band,
-        line_unread(a, b),
-    ) {
-        Ok(found) => Ok(found.is_some()),
-        Err(held) => Err(held
-            .into_iter()
-            .next()
-            .unwrap_or(ValidationError::CensusUnsupported {
-                subject: CensusSubject::FacePair(a, b),
-                cause: CensusUnsupportedCause::ContactLane(
-                    crate::contact::ContactRefusal::NotCertifiable {
-                        what: "the tangent line through both faces could not be read",
-                    },
-                ),
-            })),
-    }
-}
-
-/// **Whether two faces of one carrier overlap**: the patch's region
-/// overlap ([`confirm_patch`]'s Door 2), on one carrier whichever way
-/// the two senses point. Two carriers hold no patch.
-///
-/// # Errors
-///
-/// As [`confirm_patch`], less its sense contradiction.
-fn patch_touches<T: crate::props::AtRestPolicy>(
-    body: &Body<T>,
-    a: FaceKey,
-    b: FaceKey,
-    band: Band,
-    region: Option<T::RegionLane>,
-) -> Result<bool, ValidationError> {
-    match rest_door(body, a, b, band)? {
-        crate::contact::RestVerdict::Rest(_)
-        | crate::contact::RestVerdict::Ruled(crate::contact::RestRuling {
-            row: crate::contact::RestRow::SensesAligned,
-            ..
-        }) => {}
-        crate::contact::RestVerdict::Ruled(_) => return Ok(false),
-    }
-    match region.map(|lane| {
-        lane.declared_overlap(
-            body,
-            a,
-            body,
-            b,
-            crate::chart_region::CarrierPremise::Decided,
-            band,
-        )
-    }) {
-        None => Err(ValidationError::CensusLaneUnsupported {
-            subject: CensusSubject::FacePair(a, b),
-        }),
-        Some(Ok(crate::chart_region::ChartOverlap::PositiveArea)) => Ok(true),
-        Some(Ok(crate::chart_region::ChartOverlap::Empty)) => Ok(false),
-        Some(Err(cause)) => Err(chart_region_finding(CensusSubject::FacePair(a, b), cause)),
-    }
+/// **What a face-pair reading asks**: whether a record's claim holds,
+/// its class included, or only whether the touch is there.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Reading {
+    /// The record: the touch and the class it claims.
+    Record,
+    /// The touch's presence alone, whatever its class: a patch found by
+    /// its region overlap on one carrier, senses opposed or aligned; a
+    /// tangent pair by its line inside both faces. A ruling made before
+    /// the touch is read (two tangent carriers the table calls not
+    /// tangent) is still raised, never read as found.
+    Presence,
 }
 
 /// One face–face record's witness, read from the two faces' carriers.
@@ -11443,10 +11315,9 @@ fn patch_touches<T: crate::props::AtRestPolicy>(
 fn confirm_face_pair<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     geo: &Geo<T>,
-    a: FaceKey,
-    b: FaceKey,
-    band: Band,
-    region: Option<T::RegionLane>,
+    (a, b): (FaceKey, FaceKey),
+    (band, region): (Band, Option<T::RegionLane>),
+    reading: Reading,
     errors: &mut Vec<ValidationError>,
 ) {
     let stale = ValidationError::StaleContactDeclaration {
@@ -11460,7 +11331,7 @@ fn confirm_face_pair<T: crate::props::AtRestPolicy>(
         return;
     }
     if planar_face(geo, a).is_some() && planar_face(geo, b).is_some() {
-        confirm_patch(body, a, b, band, region, errors);
+        confirm_patch(body, (a, b), (band, region), reading, errors);
         return;
     }
     // A carrier the ladder calls one, or one within the band, is a
@@ -11477,7 +11348,7 @@ fn confirm_face_pair<T: crate::props::AtRestPolicy>(
                 | geom_brep::CarrierEqError::OffRing { .. },
             ),
         ) => {
-            confirm_patch(body, a, b, band, region, errors);
+            confirm_patch(body, (a, b), (band, region), reading, errors);
             return;
         }
         Ok(Err(geom_brep::CarrierEqError::Escalated { diag, .. })) => {
@@ -11555,6 +11426,9 @@ fn confirm_face_pair<T: crate::props::AtRestPolicy>(
             return;
         }
     };
+    if reading == Reading::Presence {
+        return;
+    }
     use crate::contact::{ContactVerdict, TangentVerdict};
     match crate::boolean::tangent_table_at_rest(&line, band) {
         TangentVerdict::Touch(_) => {}
@@ -11906,21 +11780,23 @@ impl<'b, T: crate::props::AtRestPolicy> RecordConfirm<'b, T> {
         self.body
     }
 
-    /// Whether the touch a record of `pair` claims is there, whatever
-    /// class the record claims for it: a face pair's touch read for its
-    /// presence ([`face_pair_touches`]), any other pair as [`Self::meets`]
-    /// reads it.
+    /// Whether faces `a` and `b` touch, whatever class a record of the
+    /// touch would claim ([`Reading::Presence`]).
     ///
     /// # Errors
     ///
-    /// As [`face_pair_touches`] and [`Self::meets`].
-    pub(crate) fn touches(&self, pair: crate::Contact) -> Result<bool, ValidationError> {
-        match pair.cells() {
-            [crate::boolean::Cell::Face(a), crate::boolean::Cell::Face(b)] => {
-                face_pair_touches(self.body, &self.geo, a, b, self.band, self.region)
-            }
-            _ => self.meets(pair),
-        }
+    /// As [`Self::meets`]: the first finding that is not staleness.
+    pub(crate) fn faces_touch(&self, a: FaceKey, b: FaceKey) -> Result<bool, ValidationError> {
+        let mut errors = Vec::new();
+        confirm_face_pair(
+            self.body,
+            &self.geo,
+            (a, b),
+            (self.band, self.region),
+            Reading::Presence,
+            &mut errors,
+        );
+        read_of(errors)
     }
 
     /// Whether a record of `pair` is confirmed: `Ok(false)` where the
@@ -11945,13 +11821,20 @@ impl<'b, T: crate::props::AtRestPolicy> RecordConfirm<'b, T> {
             self.region,
             &mut errors,
         );
-        match errors
-            .iter()
-            .find(|e| !matches!(e, ValidationError::StaleContactDeclaration { .. }))
-        {
-            Some(finding) => Err(finding.clone()),
-            None => Ok(errors.is_empty()),
-        }
+        read_of(errors)
+    }
+}
+
+/// A reading's findings as its answer: `Ok(false)` where they are all
+/// staleness, `Ok(true)` where there are none, and otherwise the first
+/// finding that is not staleness.
+fn read_of(errors: Vec<ValidationError>) -> Result<bool, ValidationError> {
+    match errors
+        .iter()
+        .find(|e| !matches!(e, ValidationError::StaleContactDeclaration { .. }))
+    {
+        Some(finding) => Err(finding.clone()),
+        None => Ok(errors.is_empty()),
     }
 }
 
@@ -13272,10 +13155,9 @@ pub fn census_contact_row(finding: &ValidationError) -> Option<crate::Coincidenc
 /// evidence door those records certify through.
 fn confirm_patch<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
-    face_a: FaceKey,
-    face_b: FaceKey,
-    band: Band,
-    region: Option<T::RegionLane>,
+    (face_a, face_b): (FaceKey, FaceKey),
+    (band, region): (Band, Option<T::RegionLane>),
+    reading: Reading,
     errors: &mut Vec<ValidationError>,
 ) {
     let stale = ValidationError::StaleContactDeclaration {
@@ -13290,7 +13172,21 @@ fn confirm_patch<T: crate::props::AtRestPolicy>(
     // contradicts; in band escalates). Door 2's world-carrier arm
     // exists only because this reading decided one carrier, so it runs
     // on the run's own band.
-    if let Err(error) = rest_door_one(body, face_a, face_b, band) {
+    // Read for presence, one carrier is the patch's whichever way the
+    // senses point; two carriers hold no patch.
+    let door = match reading {
+        Reading::Record => rest_door_one(body, face_a, face_b, band).map(|_| ()),
+        Reading::Presence => {
+            rest_door(body, face_a, face_b, band).and_then(|verdict| match verdict {
+                crate::contact::RestVerdict::Ruled(crate::contact::RestRuling {
+                    row: crate::contact::RestRow::TwoCarriers,
+                    ..
+                }) => Err(stale.clone()),
+                _ => Ok(()),
+            })
+        }
+    };
+    if let Err(error) = door {
         errors.push(error);
         return;
     }
