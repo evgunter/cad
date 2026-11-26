@@ -2270,7 +2270,7 @@ fn leaves_on_its_side<T: Decide>(
     } else {
         (t_far, split)
     };
-    held && (!rest_left || super::face_reading::arc_clear_of_ball(carrier, rest, p, spread, band))
+    held && (!rest_left || super::carrier_touch::arc_clear_of_ball(carrier, rest, p, spread, band))
 }
 
 /// How far along an edge leaving the end, in spreads, its own side is
@@ -2297,7 +2297,7 @@ const NEAR_PIECE: f64 = 1.25;
 ///   corner there lies away from the edge's side. Past that, its
 ///   carrier's distance floor clears `σ`.
 /// - Any other edge is read by its carrier's distance floor
-///   ([`super::face_reading::arc_clear_of_ball`]), and a lone vertex by
+///   ([`super::carrier_touch::arc_clear_of_ball`]), and a lone vertex by
 ///   its distance.
 ///
 /// Anything not decided clear is near.
@@ -2342,7 +2342,7 @@ fn junction_end_boundary_clear<T: Decide>(
                 let (carrier, span) = (curve.carrier(), curve.params());
                 geom_brep::curve_face::end_root::is_the_circle(carrier, rim_circle, band)
                     || leaves_on_its_side(q, conormal, (carrier, span), spread, band)
-                    || super::face_reading::arc_clear_of_ball(carrier, span, p, spread, band)
+                    || super::carrier_touch::arc_clear_of_ball(carrier, span, p, spread, band)
             }),
         };
         Rung::holds(clear.map(|c| !c), (), BooleanError::refusal)

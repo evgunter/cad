@@ -50,12 +50,12 @@ use geom_brep::curve_pair::Span;
 use geom_core::ladder::{Answering, Climb, Rung, climb};
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Vec3};
 
+use super::BooleanDecision;
 use super::BooleanError;
-use super::{BooleanDecision, reduce};
+use super::carrier_touch::{edge_clear_of_ball, gap_clears};
 use crate::body::Body;
-use crate::boxes;
 use crate::contain::{ContainError, CurvedPlacement, FaceContainment};
-use crate::entity::{EdgeKey, FaceKey};
+use crate::entity::FaceKey;
 use crate::live::BoundaryMember;
 use crate::validate::decide;
 
@@ -89,7 +89,7 @@ pub(super) enum FaceMeeting<T: Real> {
         /// Its point.
         p: Point3<T>,
         /// Where it stands against the face.
-        placed: reduce::Placed,
+        placed: super::reduce::Placed,
     },
     /// A touch whose in-band arc's ball the face may hold.
     TouchOnFace,
@@ -190,7 +190,7 @@ pub(super) fn face_crossings<T: Decide + Bounds>(
             meetings.insert(at, apex);
         }
     }
-    let nappe = reduce::cone_nappe(y, face, surface, band)?;
+    let nappe = super::reduce::cone_nappe(y, face, surface, band)?;
     let mut out = Vec::with_capacity(meetings.len());
     for m in meetings {
         match (m.on_span, m.kind) {
@@ -223,10 +223,12 @@ pub(super) fn face_crossings<T: Decide + Bounds>(
                 }
             }
             (OnSpan::Inside { t }, MeetingKind::Cross) => {
-                let placed = reduce::place_crossing(y, face, m.point, nappe, band)?;
+                let placed = super::reduce::place_crossing(y, face, m.point, nappe, band)?;
                 let decisive = matches!(
                     placed,
-                    reduce::Placed::At(..) | reduce::Placed::Unplaced | reduce::Placed::NappeGap(_)
+                    super::reduce::Placed::At(..)
+                        | super::reduce::Placed::Unplaced
+                        | super::reduce::Placed::NappeGap(_)
                 );
                 out.push(FaceMeeting::Inside {
                     t,
@@ -546,7 +548,7 @@ pub(super) fn ball_off_face<T: Decide + Bounds>(
     let not_clear = climb(Answering::Any, f.boundary(), |member| {
         let clear_of_ball = match member {
             BoundaryMember::Isolated { point, .. } => {
-                Ok(clear((point - foot).norm(), radius, band))
+                Ok(gap_clears((point - foot).norm(), radius, band))
             }
             BoundaryMember::Edge { edge, .. } => {
                 edge_clear_of_ball(y, edge.key(), foot, radius, band)
@@ -593,64 +595,6 @@ pub(super) fn ball_off_face<T: Decide + Bounds>(
         }),
         Err(ContainError::StaleFace(face)) => crate::contain::driver_face_stale(face),
     }
-}
-
-/// Whether a lower bound `gap` on a distance from a ball's centre
-/// definitely exceeds its `radius`.
-pub(super) fn clear<T: Decide>(gap: T, radius: T, band: Band) -> bool {
-    matches!(
-        decide("bool_touch_edge_clear", Margin::of(gap - radius), band),
-        Ok(Sign::Positive)
-    )
-}
-
-/// **Whether `edge` of `y` stays definitely farther than `radius` from
-/// `at`.** Its certified box, padded by the sweep's pad, clear of the
-/// ball's box answers at once. Otherwise a lower bound on the distance
-/// is decided against `radius`, read on the edge's own carrier
-/// ([`crate::splitting::containment::arc_distance_floor`]: a segment,
-/// any other carrier's cover, and then a spiric's or a spline's arc's
-/// pieces). A carrier with no cover over its span (a spline net carrying
-/// poison) is not clear.
-///
-/// # Errors
-///
-/// [`BooleanError::ClassificationInvariant`] for an edge with no
-/// certified carrier.
-pub(super) fn edge_clear_of_ball<T: Decide + Bounds>(
-    y: &Body<T>,
-    edge: EdgeKey,
-    at: Point3<T>,
-    radius: T,
-    band: Band,
-) -> Result<bool, BooleanError> {
-    let pad = boxes::sweep_pad(band);
-    if !boxes::edge_box(y, edge, pad).overlaps(&boxes::centred_box(at, radius, pad)) {
-        return Ok(true);
-    }
-    let curve = reduce::certified(y.proven_edge(edge))?;
-    Ok(arc_clear_of_ball(
-        curve.carrier(),
-        curve.params(),
-        at,
-        radius,
-        band,
-    ))
-}
-
-/// **Whether the arc `span` of `carrier` stays definitely farther than
-/// `radius` from `at`**: its distance floor
-/// ([`crate::splitting::containment::arc_distance_floor`]) decided past
-/// `radius`. A carrier with no cover over the span is not clear.
-pub(super) fn arc_clear_of_ball<T: Decide>(
-    carrier: &geom::Curve3<T>,
-    span: (T, T),
-    at: Point3<T>,
-    radius: T,
-    band: Band,
-) -> bool {
-    crate::splitting::containment::arc_distance_floor(carrier, span, at)
-        .is_some_and(|floor| floor.clears(|gap| clear(gap, radius, band)))
 }
 
 #[cfg(test)]

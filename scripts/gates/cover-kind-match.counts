@@ -74,8 +74,7 @@ arm 6 crates/sweep/src/blend/surgery.rs
 ball 1 crates/sweep/src/revolve/tube.rs
 arm 1 crates/sweep/src/test_support.rs
 arm 1 crates/topo/src/boolean/arcs.rs
-arm 5 crates/topo/src/boolean/carrier_touch.rs
-arm 9 crates/topo/src/boolean/face_reading.rs
+arm 9 crates/topo/src/boolean/face_reading.rs # from crates/topo/src/boolean/carrier_touch.rs
 arm 10 crates/topo/src/boolean/join.rs
 whole 1 crates/topo/src/boolean/join.rs
 arm 6 crates/topo/src/boolean/ops.rs

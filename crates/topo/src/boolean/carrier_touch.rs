@@ -53,18 +53,16 @@
 //! A carrier with no closed-form distance and foot (a cone, a spline)
 //! localizes nothing, and the door stays.
 
-use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, SupSpeed, UnitVec3, Vec3};
+use geom_core::{Band, Bounds, Decide, Margin, Point3, Sign, SupSpeed};
 
 use super::BooleanError;
-use super::face_reading::{MedialDistance, ball_off_face, reach};
+use super::face_reading::{MedialDistance, ball_off_face, distance, reach};
 use crate::body::Body;
-use crate::entity::FaceKey;
+use crate::boxes;
+use crate::entity::{EdgeKey, FaceKey};
 use crate::validate::decide;
 use geom_core::bisect::Step;
 use geom_core::ladder::{Answering, Climb, Rung, climb};
-
-#[cfg(test)]
-use super::face_reading::{clear, edge_clear_of_ball};
 
 /// The most clusters a span may localize into: the most meetings a span
 /// of a line or a conic has with these carriers. A conic against a
@@ -208,61 +206,62 @@ fn clusters<T: Decide + Bounds>(
     }
 }
 
-/// A point's signed distance from the carrier, its foot on it, and the
-/// distance's gradient there (the unit normal at the foot), in plain
-/// arithmetic: the cluster reading's own, which `composite_count` alone
-/// reads until U4d retires it (the face reading's is
-/// [`super::face_reading::distance`], re-posed). Not
-/// `carrier_eq::distance_to`, which answers the unsigned distance alone.
-fn distance<T: Real>(surface: &geom::Surface<T>, q: Point3<T>) -> Option<(T, Point3<T>, Vec3<T>)> {
-    // The point's height along `axis` from `origin`, and its offset
-    // across it.
-    let split = |origin: Point3<T>, axis: Vec3<T>| {
-        let a = UnitVec3::squared(axis);
-        let (h, off) = geom::Line { origin, dir: a }.param_and_offset(q);
-        (a.get() * h, off)
-    };
-    match *surface {
-        geom::Surface::Sphere { frame, radius, .. } => {
-            let center = frame.origin();
-            let w = q - center;
-            let (w_hat, n) = w.direction_and_length();
-            Some((n - radius, center + w * (radius / n), w_hat))
-        }
-        geom::Surface::Cylinder { frame, radius, .. } => {
-            let (origin, axis) = (frame.origin(), frame.axis());
-            let (along, across) = split(origin, axis);
-            let (across_hat, rho) = across.direction_and_length();
-            Some((
-                rho - radius,
-                origin + along + across * (radius / rho),
-                across_hat,
-            ))
-        }
-        geom::Surface::Torus {
-            frame,
-            major_radius,
-            minor_radius,
-            ..
-        } => {
-            let (center, axis) = (frame.origin(), frame.axis());
-            let (_, across) = split(center, axis);
-            let core = center + across * (major_radius / across.norm());
-            let v = q - core;
-            let (v_hat, d) = v.direction_and_length();
-            Some((d - minor_radius, core + v * (minor_radius / d), v_hat))
-        }
-        geom::Surface::Plane { frame, .. } => {
-            let (origin, normal) = (frame.origin(), frame.axis());
-            let n = normal.normalize();
-            let d = (q - origin).dot(n);
-            Some((d, q - n * d, n))
-        }
-        geom::Surface::Cone { .. }
-        | geom::Surface::Spindle { .. }
-        | geom::Surface::Nurbs(_)
-        | geom::Surface::Approx(_) => None,
+/// Whether a lower bound `gap` on a distance from a ball's centre
+/// definitely exceeds its `radius`.
+pub(super) fn gap_clears<T: Decide>(gap: T, radius: T, band: Band) -> bool {
+    matches!(
+        decide("bool_touch_edge_clear", Margin::of(gap - radius), band),
+        Ok(Sign::Positive)
+    )
+}
+
+/// **Whether `edge` of `y` stays definitely farther than `radius` from
+/// `at`.** Its certified box, padded by the sweep's pad, clear of the
+/// ball's box answers at once. Otherwise a lower bound on the distance
+/// is decided against `radius`, read on the edge's own carrier
+/// ([`crate::splitting::containment::arc_distance_floor`]: a segment,
+/// any other carrier's cover, and then a spiric's or a spline's arc's
+/// pieces). A carrier with no cover over its span (a spline net carrying
+/// poison) is not clear.
+///
+/// # Errors
+///
+/// [`BooleanError::ClassificationInvariant`] for an edge with no
+/// certified carrier.
+pub(super) fn edge_clear_of_ball<T: Decide + Bounds>(
+    y: &Body<T>,
+    edge: EdgeKey,
+    at: Point3<T>,
+    radius: T,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    let pad = boxes::sweep_pad(band);
+    if !boxes::edge_box(y, edge, pad).overlaps(&boxes::centred_box(at, radius, pad)) {
+        return Ok(true);
     }
+    let curve = super::reduce::certified(y.proven_edge(edge))?;
+    Ok(arc_clear_of_ball(
+        curve.carrier(),
+        curve.params(),
+        at,
+        radius,
+        band,
+    ))
+}
+
+/// **Whether the arc `span` of `carrier` stays definitely farther than
+/// `radius` from `at`**: its distance floor
+/// ([`crate::splitting::containment::arc_distance_floor`]) decided past
+/// `radius`. A carrier with no cover over the span is not clear.
+pub(super) fn arc_clear_of_ball<T: Decide>(
+    carrier: &geom::Curve3<T>,
+    span: (T, T),
+    at: Point3<T>,
+    radius: T,
+    band: Band,
+) -> bool {
+    crate::splitting::containment::arc_distance_floor(carrier, span, at)
+        .is_some_and(|floor| floor.clears(|gap| gap_clears(gap, radius, band)))
 }
 
 #[cfg(test)]
