@@ -2100,3 +2100,19 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - **Dual review dispatched concurrently.** Both reviewers are Opus (user's ruling during the Fable outage), on one brief (sha256 `e198542fa24d`) that differs only in the lane name: `germ-review-7809-r1` and `-r2`.
   - No model-compare draws or rows (rule 12).
 - 2026-11-26 — U4b R2 report delivered (APPROVE-WITH-FIXES). Its findings are held unlogged until R1 delivers, for isolation.
+- 2026-11-26 — **U4b dual review (both Opus): APPROVE-WITH-FIXES ×2.** No MAJOR, so no tally candidate. Correspondence is in `~/.local/share/cad-work/germ-u4b-review/correspondence.md`.
+  - **Bilateral:**
+    - `covered_posture` reads only the leading window;
+    - two `CrossWhy` maps that disagree;
+    - the torus ρ and covered `Through` are unpinned;
+    - the cull and line-clearance fuzzes are too weak;
+    - the `WINDOW_DEPTH` doc;
+    - stale prose.
+  - **Unilateral R1:**
+    - an end-touch's arc is unread;
+    - the tiling is weaker than main's clusters (demonstrated at unit level).
+  - **Unilateral R2:**
+    - the method-in-gap Zero asymmetry;
+    - apex arm order;
+    - the dodge plate builds only for its own geometry.
+  - All taken. The fix pass was sent to the U4b session; the confirmation pair follows.
