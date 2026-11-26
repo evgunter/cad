@@ -3774,7 +3774,7 @@ fn sense_of(
 /// vertex `vertex` with**, where no operand names any of its own keys
 /// `keys` ([`operand_vertex_keys`]): the other operand's vertex in
 /// every vertex-pair row (`ReductionContacts::vv`) that holds one of
-/// them. A vertex-on-face row (`a_on_b`, `b_on_a`) is not read: it
+/// them. A vertex-on-face row (`ReductionContacts::on`) is not read: it
 /// holds the resting vertex's own key and a face, no second vertex key
 /// at the point to pair with, so it can name a result vertex only
 /// through that key, which `keys` already reads.
@@ -3785,7 +3785,7 @@ fn contact_identity(
     named_in: impl Fn(OpSide<VertexKey>) -> Result<Option<Upstream>, NamingError>,
 ) -> Result<Option<(OpSide<VertexKey>, Upstream)>, NamingError> {
     let mut named = Vec::new();
-    for row in &contacts.vv {
+    for row in contacts.vv() {
         let partner = if keys.contains(&(topo::Operand::A, row.a)) {
             OpSide::B(row.b)
         } else if keys.contains(&(topo::Operand::B, row.b)) {

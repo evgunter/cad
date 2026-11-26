@@ -98,4 +98,14 @@ Two more seeds panic the same way (`ring_torus_convention` undecided, margins 6.
 - 2026-11-23 (GERM, PR 7553's review): another seed draws the same failure. At `CAD_FUZZ_SEED=0x12ef5c0007e519b4`, `ellipse_torus::torus_rows::certified_torus_answers_hold_against_the_true_distance` fails with `ring_torus_convention` Undecided, and it fails the same way on the merge base, outside PR 7553's diff.
 - 2026-11-23 (GERM, PR 7553's battery): a third seed. At `CAD_FUZZ_SEED=0xf16f58a1203054fa`, ε 1e-12, the same panic: `ring_torus_convention` Undecided, margin 5.0e-6 at band zero 1e-6.
 
+<<<<<<< HEAD
 - 2026-11-24 (GERM orchestrator) — another seed: `0x9deec1ee782114a3` reds the slow-set `ellipse_torus` fuzz identically on main (`9c79b8502`) and on PR 7577's head. A tiny torus's ring convention reads in band before any arc is read (the `Torus(..)` refusal in `door_answer`). Found by GERM's U4a lane after it restored the partial-arc fuzz draws.
+=======
+## 2026-11-25 — another seed (INSIDE, `inside/face-door-spline-arm`)
+
+`CAD_FUZZ_SEED=0x24d54ed8f5337e1f` reds
+`certified_torus_answers_hold_against_the_true_distance` the same way
+(`door_answer` panics on `TorusRefusal { convention: Ring, verdict:
+Undecided(… predicate: "ring_torus_convention") }`, band `1e-6`), on a
+branch that does not touch the ellipse × torus arm.
+>>>>>>> origin/main

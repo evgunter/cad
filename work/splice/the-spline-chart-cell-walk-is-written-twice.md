@@ -57,3 +57,32 @@ both.
 2026-11-14 (`tesslane/spline-ring-door`): topo's cells (`bezier_cells`, `Patch`, `refined`, `blend`, `point_rounding`) and the trim's `Piece` now live at the crate root, `topo/src/spline_trim.rs`, beside the trim that meters by them; the boolean's carrier walk reads them from there. Their one home in geom-brep is still this row's.
 
 **Note from `a-place-is-an-f64-argument-answered-on-the-value-channel` (PR 7250).** The two `refined` copies answer an inserted knot the held runs do not hold differently: `spline_trim`'s enters it as a computed value (`T::from_computed(v)`), `spline_incidence`'s as NaN, the poison. Both are right for their callers: `spline_incidence` inserts only the chart's own breakpoints, so an unheld knot there is a defect and poisons the row; `spline_trim`'s is also called by `bezier_pieces`, which inserts a pcurve image's span ends `a`, `b`, places the image is cut at. One home has to keep that difference as a parameter (held breakpoints only, or breakpoints and cut points). Both walks now run only at a scalar that carries no tangent (`Decide<Value = T>`), with their places handed to `eval_at`.
+
+## A third reader takes geom-brep's cut, not a third copy (2026-11-25, `inside/ray-spline-face-arm`)
+
+The line × spline patch arm (`geom-brep/src/curve_face/line_patch.rs`,
+point containment's ray test) cuts its chart through
+`spline_incidence`'s cut, now factored out of `Net::of` as `Cut::of`
+(any `T: Decide`, held about a centre the caller names, the `f64`
+rounding bound carried only where asked) and `Cell::split_at` /
+`Cell::restricted` (a cut at a literal fraction or a place, the place
+stepped in `split_at`, listed as a place step). The arm reads the cells'
+nets and carries no floor or charge. `topo/src/spline_trim.rs`'s
+`bezier_cells` / `Patch` are still the second copy: the trim's placement
+meters by them on the chart's value view. The one home this row asks for
+is still owed; the arm is one more reader of geom-brep's copy.
+
+**The Bernstein algebra on a cell is written three times as well**
+(2026-11-25, `inside/ray-spline-face-arm`'s review). Beside the cut,
+the arm carries its own tensor-product product and partial derivative
+at the scalar `T` (`geom-brep/src/curve_face/line_patch.rs`:
+`Form::times`, `Form::derivative`, for its cone test's quotient-rule
+numerators). The same algebra is
+`geom_core::spline::compose::PatchSpans::mul` (`compose/patch.rs:458`,
+cellwise, `Interval` only) and the row forms of
+`geom-brep/src/curve_face/composite.rs:607-640` (`binomial`,
+`derivative`, `product`, `Interval` only, with its own exact integer
+`binomial` beside `geom_core::spline::pieces::binomial`, which the arm
+reads). None is generic over the scalar but the arm's, which is why it
+did not reuse one. One home is a generic tensor form in `geom-core`'s
+`spline` read by all three.

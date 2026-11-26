@@ -654,8 +654,9 @@ fn a_disjoint_union_with_a_donut_now_assembles() {
 }
 
 /// **The refusal that stays.** The torus arm retires `KindUnsupported`
-/// for `Torus` and for nothing else; `Nurbs` and `Approx` keep the
-/// variant, and keep it as a capability claim about a HEALTHY body. The
+/// for `Torus` and for nothing else; a spindle sheet's kind keeps the
+/// variant (`Nurbs` and `Approx` kept it until PR 7798's spline arm), and
+/// keeps it as a capability claim about a HEALTHY body. The
 /// message must stop offering "express it without a torus face" as the
 /// recourse for a kind that now has an arm.
 #[test]
@@ -674,7 +675,7 @@ fn the_kind_refusal_no_longer_names_the_torus() {
     }
     let msg = PointInSolidError::KindUnsupported {
         face: body.faces().next().unwrap().0,
-        kind: geom::SurfaceKind::Nurbs,
+        kind: geom::SurfaceKind::Spindle,
     }
     .render(geom_brep::recourse::Reading::Build);
     assert!(msg.contains("The solid itself is fine"), "{msg}");
@@ -683,7 +684,7 @@ fn the_kind_refusal_no_longer_names_the_torus() {
         !msg.contains("torus"),
         "the recourse must not tell a caller to avoid a kind that has an arm: {msg}"
     );
-    assert!(msg.contains("spline"), "{msg}");
+    assert!(msg.contains("spindle"), "{msg}");
 
     // The arm's OWN refusal, for a torus face with a boundary edge in no
     // plane. No public door mints one today — it wants a spline edge on
@@ -730,10 +731,12 @@ fn the_kind_refusal_no_longer_names_the_torus() {
 ///
 /// Neither is measured here, and neither should be read as covered by
 /// the row below. What IS closed regardless of the door is the concrete
-/// hazard: a spindle reaching the torus region's legs would divide by a
-/// vanishing radial, so the region decides the ring convention when it
-/// is read (`geom::require_ring_torus`, in `torus_face_region`) and takes
-/// a typed refusal instead of a poison frame. On a ring torus it never
+/// hazard: a torus RECORD whose radii are a spindle's would send the
+/// region's legs across the axis, so the region decides the ring
+/// convention of a torus record when it is read
+/// (`geom::require_ring_torus`, in `TorusFaceRegion::contains`) and takes
+/// a typed refusal instead. A spindle sheet record is read by the
+/// sheet's own legs, which stop at its apexes. On a ring torus neither
 /// fires.
 #[test]
 fn a_spindle_profile_revolves_to_a_sheet_and_no_torus() {
@@ -744,18 +747,7 @@ fn a_spindle_profile_revolves_to_a_sheet_and_no_torus() {
     let r = (0.25 + s * s) / (2.0 * s);
     let big_r = 1.0 + s - r;
     assert!(big_r < r, "this profile really does describe a spindle");
-    let lp = bulge_loop(vec![
-        (Point2::new(0.0, 0.0), 0.0),
-        (Point2::new(1.0, 0.0), 0.3),
-        (Point2::new(1.0, 1.0), 0.0),
-        (Point2::new(0.0, 1.0), 0.0),
-    ]);
-    let vp = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    let body = revolve(&vp, axis_y(), Revolution::Full, Tol::witness())
-        .unwrap()
-        .body;
+    let body = spindle_between_discs();
     let kinds: Vec<_> = body
         .faces()
         .filter_map(|(fk, _)| body.face_surface(fk).ok())
@@ -776,6 +768,50 @@ fn a_spindle_profile_revolves_to_a_sheet_and_no_torus() {
     );
     // The revolve door finishes what it ships.
     let _: topo::AtRestBody<f64> = body;
+}
+
+/// The shallow bulge on the unit chord, revolved whole: two discs and a
+/// spindle sheet between them, cut into two π-bands that share both
+/// meridians, each ending on a rim corner with a disc.
+fn spindle_between_discs() -> topo::AtRestBody<f64> {
+    let lp = bulge_loop(vec![
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(1.0, 0.0), 0.3),
+        (Point2::new(1.0, 1.0), 0.0),
+        (Point2::new(0.0, 1.0), 0.0),
+    ]);
+    let vp = Profile::new(SketchPlane::xy(), vec![lp])
+        .validate(Tol::witness())
+        .unwrap();
+    revolve(&vp, axis_y(), Revolution::Full, Tol::witness())
+        .unwrap()
+        .body
+}
+
+/// **The spindle profile's two bands are embedded within a small
+/// budget.** Each band's window is the latitude its boundary spans
+/// between the rims, not the sheet's from apex to apex: off both faces
+/// near an apex, every cell of one band meets every cell of the other
+/// at the apex itself, so no reading parts them and the pair refused
+/// its budget. Red if a band's window reaches an apex again.
+#[test]
+fn the_spindle_profiles_two_bands_are_embedded_within_a_small_budget() {
+    let body = spindle_between_discs();
+    let side = topo::clearance::Side {
+        body: &body,
+        faces: body.faces().map(|(k, _)| k).collect(),
+    };
+    let budgets = topo::clearance::Budgets {
+        max_cell_depth: topo::clearance::DEFAULT_MAX_CELL_DEPTH,
+        max_cell_pairs: 256,
+    };
+    let report = topo::clearance::embedded(&side, band(), budgets);
+    assert_eq!(
+        report.verdict,
+        topo::clearance::Embedding::Embedded,
+        "{:?}",
+        report.receipt
+    );
 }
 
 /// **The analytic oracle.** Two and a half thousand points on a lattice
@@ -834,5 +870,48 @@ fn an_analytic_oracle_sweep_over_the_donut() {
         escalated * 20 < total,
         "the arm declined {escalated} of {total} queries — a margined arm escalates \
          near its own degeneracies, but not everywhere"
+    );
+}
+
+/// **A copy of the spindle profile's body crossing it beside the rim
+/// reads its crossing.** The copy, grafted in as a solid of its own, is
+/// moved `0.996` up the axis, so the two sheets cross on the circle at
+/// height `0.998`, `v ≈ 0.5803` on the lower body's band: 99.55% of
+/// the band's rim latitude, the edge of its window. Red if the window is
+/// narrowed past the crossing (at 0.995 of its latitude the walk refuses
+/// its budget instead), or if the crossing reads anything but `Crosses`.
+#[test]
+fn a_spindle_copy_crossing_beside_the_rim_reads_its_crossing() {
+    let at = |s: f64| {
+        let lp = bulge_loop(vec![
+            (Point2::new(0.0, s), 0.0),
+            (Point2::new(1.0, s), 0.3),
+            (Point2::new(1.0, 1.0 + s), 0.0),
+            (Point2::new(0.0, 1.0 + s), 0.0),
+        ]);
+        let vp = Profile::new(SketchPlane::xy(), vec![lp])
+            .validate(Tol::witness())
+            .unwrap();
+        revolve(&vp, axis_y(), Revolution::Full, Tol::witness())
+            .unwrap()
+            .body
+            .into_body()
+    };
+    let mut body: Body<f64> = at(0.0);
+    topo::graft_disjoint(&mut body, &at(0.996)).expect("the copy grafts");
+    let side = topo::clearance::Side {
+        body: &body,
+        faces: body.faces().map(|(k, _)| k).collect(),
+    };
+    let budgets = topo::clearance::Budgets {
+        max_cell_depth: topo::clearance::DEFAULT_MAX_CELL_DEPTH,
+        max_cell_pairs: 65_536,
+    };
+    let report = topo::clearance::embedded(&side, band(), budgets);
+    assert!(
+        matches!(report.verdict, topo::clearance::Embedding::Crosses(_)),
+        "{:?} {:?}",
+        report.verdict,
+        report.receipt
     );
 }

@@ -885,7 +885,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             "Containment(KindUnsupported)",
             PointInSolidError::KindUnsupported {
                 face,
-                kind: SurfaceKind::Nurbs,
+                kind: SurfaceKind::Spindle,
             },
         ),
         (
@@ -903,6 +903,10 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
         (
             "Containment(PartialTorusFace)",
             PointInSolidError::PartialTorusFace { face },
+        ),
+        (
+            "Containment(PartialSplineFace)",
+            PointInSolidError::PartialSplineFace { face },
         ),
         (
             "Containment(EdgeCarrierUnsupported)",

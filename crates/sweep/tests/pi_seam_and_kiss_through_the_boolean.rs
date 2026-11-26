@@ -730,7 +730,7 @@ fn a_rim_in_band_of_the_partners_wall_escalates() {
 ///   the tube's by a lamina of no volume.
 /// - `k = ±0.9`: the dome's meridian meets the tube's wall `√2·|k|·zero`
 ///   along its arc from the rim, and the crossing layer escalates on that
-///   arc length, both orders
+///   arc length (located at the edge and the face it reads), both orders
 ///   (`work/germ/boolean-in-span-readings-of-grazing-roots-are-levered-by-arc-length.md`).
 /// - `k = ±1.1, ±2`: in band, both orders escalate. Which question
 ///   escalates first follows the operand walked first.
@@ -789,6 +789,7 @@ fn a_rim_offset_inside_the_zero_band_answers_alike_in_both_member_orders() {
                     matches!(
                         &e,
                         BooleanError::Escalated { diag, .. }
+                        | BooleanError::CurvedPierceEscalated { diag, .. }
                             if diag.predicate == Some("curve_pair_span_end_chord")
                                 && matches!(
                                     diag.margin.diagnostic_f64_for_error_text(),
@@ -801,7 +802,10 @@ fn a_rim_offset_inside_the_zero_band_answers_alike_in_both_member_orders() {
                      √2·0.9·zero: {e:?}"
                 ),
                 _ => assert!(
-                    matches!(e, BooleanError::Escalated { .. }),
+                    matches!(
+                        e,
+                        BooleanError::Escalated { .. } | BooleanError::CurvedPierceEscalated { .. }
+                    ),
                     "{label}: in band: {e:?}"
                 ),
             }
@@ -1694,8 +1698,11 @@ fn quarter_rod_of(side: f64, len: f64, tol: Tol) -> AtRestBody<f64> {
 /// line the plate's bottom leaves on `y < 0`, though every boundary
 /// vertex and arc midpoint reads `y ≥ 0`. A quarter rod on `y > 0` leaves it on the other side, a seam:
 /// the boolean verifies it, and the union goes on past it. The square
-/// plate, which lies on `y < 0` everywhere, is the control. Both member
-/// orders.
+/// plate, which lies on `y < 0` everywhere, is the control. The dodge
+/// plate also reaches over the rod, and that crossing passes the crossing
+/// layer: it builds, its volume read by inclusion and exclusion, or a
+/// later door refuses the pair typed (`CurvedPairUnsupported`, at
+/// `ε = 1e-6`). Both member orders.
 #[test]
 fn a_line_seam_is_read_where_the_faces_leave_the_line() {
     let tol = Tol::witness();
@@ -1743,11 +1750,30 @@ fn a_line_seam_is_read_where_the_faces_leave_the_line() {
                 assert!((v - want).abs() <= 1e-12, "{label}: {v} vs {want}");
             } else {
                 // The dodge plate's outline also reaches over the rod on
-                // `y > 0`, and that crossing stops at the crossing layer,
-                // past the seam.
+                // `y > 0`: the crossing layer reads it through the face,
+                // and the union builds, sound, with the overlap the
+                // intersect builds (`V(A ∪ B) + V(A ∩ B) = V(A) + V(B)`;
+                // the overlap, about 0.005 m³, read independently on a
+                // grid of the dodge profile against the quarter disc).
+                let vol = |b: &AtRestBody<f64>| {
+                    topo::test_support::pinned_volume("an operand", b, tol).volume
+                };
+                // Past the crossing layer a later door may still refuse
+                // the pair typed (at `ε = 1e-6`, the interior loop's
+                // guard on the two walls); where it builds, it is sound.
+                if let Err(BooleanError::CurvedPairUnsupported { .. }) = r {
+                    continue;
+                }
+                let (union, _, _) = built(label, r);
+                let (overlap, _, _) = built(label, topo::intersect(x, y, tol));
                 assert!(
-                    matches!(r, Err(BooleanError::CurvedPierceUnsupported { .. })),
-                    "{label}: the crossing layer: {r:?}"
+                    overlap > 1e-3,
+                    "{label}: the plate reaches over the rod: {overlap}"
+                );
+                let sum = vol(&plate) + vol(&rod);
+                assert!(
+                    (union + overlap - sum).abs() <= 1e-9 * sum,
+                    "{label}: {union} + {overlap} against {sum}"
                 );
             }
         }

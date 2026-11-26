@@ -111,6 +111,12 @@ pub(super) enum Formed<T: Real> {
     LineCone { parallel: bool },
     /// A line against a torus, which it never lies on.
     LineTorus,
+    /// A spline span against an analytic face: the method reads the ring
+    /// composite on its pieces ([`super::composite`]).
+    SplineComposite,
+    /// A line against a spline chart: the method reads its cells
+    /// ([`super::line_patch`]).
+    LinePatch,
     /// A conic on the first-harmonic lane, crossing: its extremes read
     /// definitely on either side.
     FirstHarmonic(super::circle_roots::FirstHarmonic<T>),
@@ -234,15 +240,15 @@ impl PoseRefusal {
         matches!(self, Self::InBand { diag, .. } if diag.margin.rejected_sign() == Some(Sign::Zero))
     }
 
-    /// **What a zero-band refusal is, in the root doors' shape** (their
-    /// wrappers): a span no point of which reads off the surface
+    /// **What a zero-band refusal is, in the root doors' shape** (the
+    /// sweep's one map from `CrossWhy`, and the door rows' test readers): a span no point of which reads off the surface
     /// ([`PoseRung::NotLies`]) is [`crate::roots::Unsettled::Degenerate`],
     /// its residual read zero along it with nothing deciding it lies; any
     /// other rung's zero reading is a graze the class cannot call,
     /// [`crate::roots::Unsettled::Tangency`]. `None` for a refusal that
     /// is not a zero-band one.
     #[must_use]
-    pub(super) fn unsettled(&self) -> Option<crate::roots::Unsettled> {
+    pub fn unsettled(&self) -> Option<crate::roots::Unsettled> {
         match self {
             Self::InBand {
                 rung: PoseRung::NotLies,
@@ -309,7 +315,15 @@ pub fn pose<T: Decide>(
             Door::ConicQuadric => conic_quadric(span, surface, band),
             Door::ConicTorus => conic_torus(span, surface, band).map_err(Refused::from),
             Door::SpiricPlane => spiric_plane(span, surface, band).map_err(Refused::from),
-            Door::SplineComposite | Door::SplineFace => Err(PoseRefusal::Enclosed.into()),
+            // A spline span is read by its method alone: no pose is
+            // decided ahead of the composite's pieces.
+            Door::SplineComposite => Ok(Pose::Isolated(Form(Formed::SplineComposite))),
+            // A line against a spline chart is read by its method alone
+            // (`super::line_patch`): no pose is decided ahead of its cells.
+            Door::SplineFace if matches!(carrier, geom::Curve3::Line(_)) => {
+                Ok(Pose::Isolated(Form(Formed::LinePatch)))
+            }
+            Door::SplineFace => Err(PoseRefusal::Enclosed.into()),
             Door::Spiric | Door::Sheet => Err(PoseRefusal::Unbuilt(way).into()),
         }
     } else {
@@ -319,6 +333,139 @@ pub fn pose<T: Decide>(
         window: window.unwrap_or_else(|| super::ascending(span.params())),
         why,
     })
+}
+
+// ------------------------------------------------------------- the cull
+
+/// **`Apart`'s first stage on the conic arms: the ball cull**
+/// (`curve_face_pose_clearance`). `true` where the span is decided
+/// apart from `surface` past the band; `false` hands on to the arm's
+/// rungs, in band and short of clear alike, never refusing alone.
+///
+/// The whole conic lies in the ball about its centre `m` whose radius
+/// `ℓ` is its larger semi-axis, so the cull is the carrier's, sound for
+/// any span of it, and a span's `Apart` is the turn's (the closed rungs
+/// behind it read the turn too). Each kind has a signed function `g`,
+/// 1-Lipschitz in space up to the stated constant `L`, whose sign is the
+/// residual's ([`crate::implicit_residual`]), so over the ball `g` keeps
+/// the sign of `g(m)` wherever `|g(m)| > L·ℓ`, and the conic meets no
+/// point of the surface. `Apart` claims more: the conic stands past `Kε`
+/// of the surface (a conic within `Kε` is a window, W2), so the question
+/// is the bound less `Kε`, `|g(m)| − L·ℓ − escalate`, in metres:
+///
+/// - **sphere**: `|p − S| − R`, the distance to the centre less a
+///   constant: 1-Lipschitz, and the residual `(|p − S|² − R²)/2R` is it
+///   times the positive `(|p − S| + R)/2R`.
+/// - **cylinder**: `ρ − R`, `ρ` the distance to the axis line: 1-Lipschitz
+///   as a distance to a set, `n` unit by type (`UnitVec3`), and the
+///   residual `(ρ² − R²)/2R` is it times a positive factor.
+/// - **cone**: `ρ cos α − |h| sin α`, the residual itself
+///   ([`crate::cone_elevation`] on the double cone): the smaller of the
+///   two forms `ρ cos α ∓ h sin α`, each with gradient
+///   `cos α ∇ρ ∓ sin α ∇h`, `∇ρ ⊥ ∇h` unit off the axis, so of norm
+///   `L = √(sin²α + cos²α)` at the stored angle's computed pair; a
+///   minimum of `L`-Lipschitz forms is `L`-Lipschitz, both nappes and the
+///   axis included (`ρ` and `|h|` are 1-Lipschitz there too).
+/// - **torus**: `√((ρ − R)² + h²) − r`, the distance to the spine circle
+///   less the tube radius: 1-Lipschitz as a distance to a set, and the
+///   residual `((ρ − R)² + h² − r²)/2r` is it times the positive
+///   `(√(·) + r)/2r` for `r > 0`. Nothing in that reads `R > r`: a
+///   spindle's zero set is the same `√(·) = r`, and its `g` the same.
+///   The cull runs past the ring convention all the same
+///   ([`crate::TorusRefusal::require`]), which the torus arm asks first:
+///   a tube radius at or below zero breaks the factor's sign, and the
+///   doors read no torus but a ring.
+///
+/// **Re-posed** (standing claim 1, `[simple.conditioned]`): `m` is read
+/// through the conic's points ([`Conic::point_at`]), the midpoint of two
+/// antipodal ones (`P(θ) + P(θ + π) = 2c` on a circle and an ellipse
+/// alike), never its stored or derived centre; `g(m)` is read from
+/// `e = m − origin`, the surface's stored origin, never as harmonic
+/// extremes `c₀ ± A` (which cancel for a far-centred pair at `u·|e|²/2R`):
+/// an axis's offset as `|e × n|`, never `e − (e·n)n`, which cancels far
+/// along it. It charges nothing.
+///
+/// **Why the question is past `Kε`, not past zero.** `|g(m)| − L·ℓ`
+/// bounds the conic's distance from the surface; deciding it alone asks
+/// whether that distance is past zero, the wrong question for `Apart`,
+/// and the band then reads the bound against `Kε` with no room for its
+/// own rounding: a circle of radius 363 m grazing a wall of radius
+/// 0.0094 m at 0.999·`Kε` (`ε` = 1e-12) read past `Kε` and answered
+/// `Apart` (`cull_rows`'
+/// `a_large_circle_grazing_a_wall_within_the_escalation_is_not_culled`).
+/// Asked past `Kε`, a `Positive` reading puts the computed bound at
+/// `2Kε` or more, and its rounding is bounded by the session box (D4,
+/// 1 km a coordinate, so no length past its diagonal `2√3` km): the
+/// conic's points, their midpoint, `e`, `|e × n|` or `|e|`, `g`, `L·ℓ`
+/// and the two differences take about sixteen ulps of that diagonal (one
+/// ulp of 3.46 km is 4.5e-13 m), 7.3e-12 m, against `Kε` = 1e-11 m at
+/// `ε` = 1e-12, the least `ε` the kernel runs. So the true bound stands
+/// past `2Kε − 7.3e-12 > Kε`, and the conic past `Kε`.
+pub(super) fn culled<T: Decide>(
+    span: &Span<'_, T>,
+    conic: &dyn Conic<T>,
+    surface: &geom::Surface<T>,
+    band: Band,
+) -> bool {
+    let (t0, t1) = span.params();
+    let (a, b) = conic.semi_axes();
+    let reach = a.abs().max(b.abs());
+    let at = geom::mid_param(t0, t1);
+    let half_turn = geom::conic_period::<T>().length() / T::from_f64(2.0);
+    let (p, q) = (conic.point_at(at), conic.point_at(at + half_turn));
+    let m = p.mid(q);
+    // `m`'s height along the unit axis `n` and its distance from the axis
+    // line, `|e × n|`.
+    let split = |origin: Point3<T>, n: geom_core::UnitVec3<T>| {
+        let e = m - origin;
+        (e.dot(n.get()), e.cross(n.get()).norm())
+    };
+    let (g, lipschitz) = match *surface {
+        geom::Surface::Sphere { frame, radius, .. } => {
+            ((m - frame.origin()).norm() - radius, T::one())
+        }
+        geom::Surface::Cylinder { frame, radius, .. } => {
+            let (_, rho) = split(frame.origin(), frame.axis_unit());
+            (rho - radius, T::one())
+        }
+        geom::Surface::Cone {
+            frame, half_angle, ..
+        } => {
+            let (h, rho) = split(frame.origin(), frame.axis_unit());
+            let (sin, cos) = half_angle.sin_cos();
+            (
+                rho * cos - h.abs() * sin,
+                (sin.powi(2) + cos.powi(2)).sqrt(),
+            )
+        }
+        geom::Surface::Torus {
+            frame,
+            major_radius,
+            minor_radius,
+            ..
+        }
+        | geom::Surface::Spindle {
+            frame,
+            major_radius,
+            minor_radius,
+            ..
+        } => {
+            let (h, rho) = split(frame.origin(), frame.axis_unit());
+            (
+                ((rho - major_radius).powi(2) + h.powi(2)).sqrt() - minor_radius,
+                T::one(),
+            )
+        }
+        _ => return false,
+    };
+    matches!(
+        decide(
+            "curve_face_pose_clearance",
+            Margin::of(g.abs() - reach * lipschitz - T::from_f64(band.escalate())),
+            band
+        ),
+        Ok(Sign::Positive)
+    )
 }
 
 // ------------------------------------------------------------- shared
@@ -1117,12 +1264,14 @@ fn line_wall<T: Decide>(
     .pose(span, band)
 }
 
-/// [`line_wall`]'s span-free half, over the line's run `(t0, t1)`.
+/// [`line_wall`]'s span-free half, over the line's run `(t0, t1)`. A
+/// drift in the axis-parallel rung's gap is `Apart` where the offset
+/// (`curve_face_pose_axis_offset`) clears its drift.
 ///
 /// # Errors
 ///
 /// The axis-parallel rung's diagnostics in band
-/// ([`PoseRung::AxisParallel`]).
+/// ([`PoseRung::AxisParallel`]), where the offset does not clear.
 pub(super) fn line_wall_read<T: Decide>(
     line: geom::Line<T>,
     (wall, radius): (geom::Line<T>, T),
@@ -1136,11 +1285,21 @@ pub(super) fn line_wall_read<T: Decide>(
     let mid = geom::mid_param(t0, t1);
     let at_mid = wall.distance(line.origin + d.get() * mid) - radius;
     let speed = dp.norm();
-    if axis_drift(Margin::metered(run, geom_core::InfSpeed::new(speed)), band)? {
-        return Ok(LineQuadric::Parallel {
-            at_mid,
-            half_drift: speed * run / T::from_f64(2.0),
-        });
+    let half_drift = speed * run / T::from_f64(2.0);
+    match axis_drift(Margin::metered(run, geom_core::InfSpeed::new(speed)), band) {
+        Ok(true) => return Ok(LineQuadric::Parallel { at_mid, half_drift }),
+        Ok(false) => {}
+        // A drift in the gap reads neither as parallel nor as the
+        // discriminant's: it still bounds the line's distance from the
+        // axis, 1-Lipschitz along it, to within `half_drift` of `at_mid`
+        // over the span, so a line whose offset is one-signed past that
+        // is apart however it drifts; a `Lies` is never read here.
+        Err(diag) => {
+            return match axis_offset(at_mid, half_drift, band) {
+                Ok(Pose::Apart) => Ok(LineQuadric::Apart),
+                Ok(_) | Err(_) => Err(diag),
+            };
+        }
     }
     let centred = super::line_quadric::wall_quadratic(line, (wall, radius), run, about);
     Ok(discriminant(
@@ -1555,6 +1714,9 @@ fn conic_quadric<T: Decide>(
     use super::conic_quadric as door;
     let carrier = span.carrier();
     let conic = carrier.conic().ok_or(PoseRefusal::Fault(door::DESYNC))?;
+    if culled(span, conic, surface, band) {
+        return Ok(Pose::Apart);
+    }
     match (carrier, surface) {
         (
             &geom::Curve3::Circle(circle),
@@ -1978,10 +2140,16 @@ fn conic_torus<T: Decide>(
     };
     let (t_center, t_axis) = (frame.origin(), frame.axis_unit());
     // The doors read only a ring, asked of the convention before any
-    // pose: their harmonics take the witness, whose floor on `|F|` per
+    // pose, the cull included: their harmonics take the witness, whose floor on `|F|` per
     // metre and whose meridian bound lean on `R − r > 0`.
     let ring = crate::TorusRefusal::require(major_radius, minor_radius, band)
         .map_err(PoseRefusal::Torus)?;
+    let conic = span.carrier().conic().ok_or(PoseRefusal::Fault(
+        "the conic × torus arm was handed a carrier that is not a conic",
+    ))?;
+    if culled(span, conic, surface, band) {
+        return Ok(Pose::Apart);
+    }
     let floor = crate::ring_floor(ring);
     let walk = || -> Result<Pose<T>, PoseRefusal> {
         not_lies(span, surface, band)?;

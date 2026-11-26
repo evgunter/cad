@@ -6,8 +6,10 @@
 //!
 //! # Method: the closest crossing along a great circle
 //!
-//! Every boundary edge of such a face is a circle arc on the sphere (a
-//! plane's section of it). The face is the side of its loops to their
+//! Every boundary edge of such a face is an arc of a curve on the
+//! sphere: a circle (a plane's section of it), or a spline (the fitted
+//! section another surface leaves on it, a cylinder's or a cone's off
+//! the centre, a torus's). The face is the side of its loops to their
 //! left under its OUTWARD normal `N = σ·(p − c)/R` (`σ` the sense bit) —
 //! the convention the flux lane's Gauss–Bonnet area reads
 //! (`geom_brep::props`' sphere circle loop) — so at a point of an arc's
@@ -19,7 +21,8 @@
 //!    great circle `cos s·p̂ + sin s·t`, `s ∈ (0, 2π)`, in the plane
 //!    through the centre with normal `ĝ = p̂ × t`.
 //! 2. Every arc of every loop meets the ray where the arc crosses the
-//!    ray's plane ([`region::landings`], through the plane door): the
+//!    ray's plane ([`region::landings`], through the plane door, a
+//!    spline's piece by piece): the
 //!    plane cuts the sphere in the ray's circle alone, so every root of
 //!    the arc on it is a meeting, and a root within the band of an arc's
 //!    end reads no side there. The ray starts at `p`'s foot on the
@@ -82,9 +85,10 @@
 //!
 //! # The boundary first
 //!
-//! Before any ray, `p` is read against every arc on the arc's own
-//! circle ([`ConicArc::hit`](crate::splitting::containment::ConicArc::hit), the boundary reading the planar loop walk
-//! takes of a circle edge): on an arc, or within the band of one of its
+//! Before any ray, `p` is read against every arc on its own carrier, the
+//! boundary reading the planar loop walk takes of that edge: a circle's
+//! on its circle ([`ConicArc::hit`](crate::splitting::containment::ConicArc::hit)), a spline's piece by
+//! piece ([`PiecedArc::contact`](crate::splitting::pieced_arc::PiecedArc::contact)): on an arc, or within the band of one of its
 //! ends, is the point on the boundary ([`None`]); in the band of one
 //! refuses. A crossing's place along a ray is no measure of `p`'s
 //! distance from the arc it crosses — on a ray meeting an arc at a
@@ -129,6 +133,12 @@
 //!   sits against the arc is [`ConicArc::hit`](crate::splitting::containment::ConicArc::hit), the on-carrier and span
 //!   readings' rows (`curve_carrier_*`, `curve_pair_span_*`). `bool_sphere_region_arc_straddle`
 //!   is the name an ellipse's straddle would carry; a circle never does.
+//! - `bool_sphere_region_spline_end`, `_clear`, `_on`, `_leaf`: a spline
+//!   arc's boundary reading
+//!   ([`PiecedArc::contact`](crate::splitting::pieced_arc::PiecedArc::contact)'s rows).
+//! - Where a spline arc crosses a leg's plane, and whether an end of it
+//!   is near the plane, is the ring composite's (`spline_composite_*`,
+//!   [`region::landings`]).
 
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
@@ -139,14 +149,18 @@ use crate::entity::FaceKey;
 use crate::ray_walk::{self, RayFault};
 use crate::region::{
     self, End, Fault, Leg, Legs, Path, Paths, QueryFoot, Region, RegionEdge, RegionRefusal, Round,
-    circle_edge_hit, targets,
+    circle_edge_hit, spline_edge_hit, targets,
 };
 use crate::solid_contain::PointInSolidError;
 use crate::splitting::containment::{ConicRows, SCHEDULE};
+use crate::splitting::pieced_arc::ArcRows;
 use crate::validate::decide;
 
-/// The boundary reading's rows (module docs).
+/// A circle arc's boundary reading's rows (module docs).
 const BOUNDARY: ConicRows = crate::rows::SPHERE_REGION_CONIC;
+
+/// A spline arc's boundary reading's rows (module docs).
+const SPLINE: ArcRows = crate::rows::SPHERE_REGION_SPLINE;
 
 /// The fraction of each arc's span [`SphereFaceRegion::aim`] steps from:
 /// the golden section ([`geom_core::GOLDEN_SECTION`]), off the middle a
@@ -182,12 +196,15 @@ fn tangent<T: Decide>(a: Vec3<T>, raw: Vec3<T>) -> Vec3<T> {
     t.normalize()
 }
 
-/// `face`'s region on its own sphere, or `None` when an
-/// edge of it is not a circle arc — a spline or spiric carrier, whose
-/// crossings with a great circle have no closed form here, or an edge
-/// with no certified carrier that is no placeholder
-/// ([`crate::null::is_placeholder`]). A placeholder bounds nothing and
-/// is left out ([`region::boundary`]).
+/// `face`'s region on its own sphere, or `None` when an edge of it is
+/// neither a circle nor a spline — a line, an ellipse or a spiric, none
+/// of which lies on a sphere — or has no certified carrier and is no
+/// placeholder ([`crate::null::is_placeholder`]). A placeholder bounds
+/// nothing and is left out ([`region::boundary`]). A spline is read on
+/// its certified carrier (a periodic cubic's clamped view over the
+/// edge's span), which tier 3 places on the face's sphere, as every
+/// edge of the face, and crossed with a leg's plane by the curve × face
+/// table's ring composite at the region's scalar ([`region::landings`]).
 ///
 /// # Errors
 ///
@@ -207,8 +224,8 @@ pub(crate) fn sphere_face_region<T: Decide>(
     let f = body
         .get_face(face)
         .ok_or(PointInSolidError::CorruptFace { face })?;
-    let circles = [geom::CurveKind::Circle];
-    let Some(edges) = region::boundary(body, face, &circles)? else {
+    let admits = &[geom::CurveKind::Circle, geom::CurveKind::Nurbs];
+    let Some(edges) = region::boundary(body, face, admits)? else {
         return Ok(None);
     };
     // Read after the boundary, so a torn curve panics whatever the face's
@@ -313,11 +330,15 @@ impl<T: Decide> SphereFaceRegion<T> {
     /// outer loop's first, in walk order) at [`AIM_FRACTION`] of its span,
     /// stepped along its great circle toward the face (`N × τ`, module
     /// docs) by an angle `φ` that keeps the step's path off every boundary
-    /// arc. `φ` is at most half the arc's circle's angular radius about
-    /// the nearer pole, so the path does not meet that circle again, and
-    /// `R·φ` at most half a lower bound on `m`'s distance from every other
-    /// arc ([`Self::clearance`]), so it meets no other arc: the stepped
-    /// point lies in the face, as the face lies along `N × τ` at `m`. One
+    /// arc. On a circle arc `φ` is at most half the circle's angular
+    /// radius about the nearer pole, so the path does not meet that circle
+    /// again, and `R·φ` at most half a lower bound on `m`'s distance from
+    /// every other arc ([`Self::clearance`]), so it meets no other arc: the
+    /// stepped point lies in the face, as the face lies along `N × τ` at
+    /// `m`. A spline arc's bend has no closed form here, so its own bound
+    /// is half `m`'s distance from the arc's nearer end, a measure of the
+    /// arc's size and not of its bend: where the arc bends back within
+    /// that the stepped point may lie off the face. One
     /// arc is stepped from, by its place in the walk: choosing among
     /// arcs by their steps would be a choice on values, which two arcs a
     /// symmetric face holds alike tie, and an enclosure of a tie is the
@@ -327,13 +348,17 @@ impl<T: Decide> SphereFaceRegion<T> {
     pub(crate) fn aim(&self) -> Option<Point3<T>> {
         let half = T::from_f64(0.5);
         let arc = self.edges.first()?;
-        let geom::Curve3::Circle(conic_k) = arc.carrier else {
-            unreachable!("sphere_face_region admits circles only")
-        };
-        let radius = conic_k.radius();
         let t = arc.t0 + (arc.t1 - arc.t0) * T::from_f64(AIM_FRACTION);
         let m = arc.at(t);
-        let own = (radius / self.radius).abs().min(T::one()).asin() * half;
+        let own = match arc.carrier {
+            geom::Curve3::Circle(conic_k) => {
+                (conic_k.radius() / self.radius).abs().min(T::one()).asin() * half
+            }
+            _ => {
+                let end = (m - arc.at(arc.t0)).norm().min((m - arc.at(arc.t1)).norm());
+                end * half / self.radius
+            }
+        };
         let room = self.clearance(0, m) * half / self.radius;
         let phi = own.min(room).max(T::zero());
         let w = m - self.center;
@@ -343,23 +368,32 @@ impl<T: Decide> SphereFaceRegion<T> {
     }
 
     /// A lower bound on the distance from `m` to every arc but the `k`th:
-    /// the least of the arcs' closed-form distances from `m`
-    /// ([`geom::Curve3::distance_within`]).
+    /// the least of the arcs' distances from `m`, a circle's closed-form
+    /// ([`geom::Curve3::distance_within`]), a spline's its cover's nearest
+    /// ([`crate::cover::arc_cover`]). A spline with no cover over its span
+    /// leaves no room.
     fn clearance(&self, k: usize, m: Point3<T>) -> T {
         let mut least: Option<T> = None;
         for (j, arc) in self.edges.iter().enumerate() {
             if j == k {
                 continue;
             }
-            let (geom::Curve3::Circle(_), Some(gap)) = (
-                &arc.carrier,
-                arc.carrier.distance_within(m, (arc.t0, arc.t1)),
-            ) else {
-                unreachable!(
-                    "sphere_face_region admits circles only, and a circle's arc distance is \
-                     closed-form (geom::Curve3::distance_within): a non-circle arc, or a circle \
-                     whose azimuth read no parameter"
-                )
+            let span = (arc.t0, arc.t1);
+            let gap = match arc.carrier {
+                geom::Curve3::Circle(_) => {
+                    let Some(gap) = arc.carrier.distance_within(m, span) else {
+                        unreachable!(
+                            "a circle's arc distance is closed-form \
+                             (geom::Curve3::distance_within): a circle whose azimuth read no \
+                             parameter"
+                        )
+                    };
+                    gap
+                }
+                _ => crate::cover::arc_cover(&arc.carrier, span).map_or_else(
+                    |_| T::zero(),
+                    |cover| cover.distance_range(&geom::cover::Site::Point(m)).0,
+                ),
             };
             least = Some(least.map_or(gap, |l| l.min(gap)));
         }
@@ -476,8 +510,16 @@ impl<T: Decide> Region<T> for SphereFaceRegion<T> {
         &mut self.edges
     }
 
+    /// A circle on its own carrier, a spline by its contact
+    /// ([`PiecedArc::contact`](crate::splitting::pieced_arc::PiecedArc::contact)).
     fn on_edge(&self, arc: &Arc<T>, p: Point3<T>, band: Band) -> Result<bool, RegionRefusal> {
-        circle_edge_hit(&arc.carrier, arc.turn.as_ref(), BOUNDARY, p, band)
+        match arc.carrier {
+            geom::Curve3::Circle(_) => {
+                circle_edge_hit(&arc.carrier, arc.turn.as_ref(), BOUNDARY, p, band)
+            }
+            geom::Curve3::Nurbs(ref spline) => spline_edge_hit(spline, arc, SPLINE, p, band),
+            _ => unreachable!("sphere_face_region admits circles and splines only"),
+        }
     }
 }
 
@@ -804,6 +846,96 @@ mod tests {
                 region.contains(aim, band),
                 Ok(Some(true)),
                 "{what}: {aim:?} is not in the face"
+            );
+        }
+    }
+
+    /// [`carved`]'s rim carried on a spline: the rational quadratic of
+    /// nine control points that is the circle at polar angle 60°, run the
+    /// circle's way round, one arc over its whole domain.
+    fn carved_on_a_spline(forward: bool) -> SphereFaceRegion<f64> {
+        let (r, w) = (0.75f64.sqrt(), core::f64::consts::FRAC_1_SQRT_2);
+        let corners = [
+            (1.0, 0.0),
+            (1.0, 1.0),
+            (0.0, 1.0),
+            (-1.0, 1.0),
+            (-1.0, 0.0),
+            (-1.0, -1.0),
+            (0.0, -1.0),
+            (1.0, -1.0),
+            (1.0, 0.0),
+        ];
+        let control = corners
+            .iter()
+            .map(|&(x, y)| Point3::new(r * x, r * y, 0.5))
+            .collect();
+        let weights = (0..9).map(|k| if k % 2 == 0 { 1.0 } else { w }).collect();
+        let knots = geom_core::spline::KnotVector::clamped(
+            vec![
+                0.0, 0.0, 0.0, 0.25, 0.25, 0.5, 0.5, 0.75, 0.75, 1.0, 1.0, 1.0,
+            ],
+            2,
+        )
+        .unwrap();
+        let spline = geom::NurbsCurve3::new(knots, control, weights).unwrap();
+        SphereFaceRegion::on(
+            fixture_sphere(Point3::origin(), 1.0),
+            true,
+            vec![RegionEdge {
+                edge: EdgeKey::from(KeyData::from_ffi(1)),
+                r#loop: LoopKey::default(),
+                cycle: 0,
+                carrier: geom::Curve3::Nurbs(std::sync::Arc::new(spline)),
+                t0: 0.0,
+                t1: 1.0,
+                turn: None,
+                forward,
+            }],
+        )
+    }
+
+    /// **A rim carried on a spline reads as the same rim on its circle**:
+    /// [`carved`] and [`carved_on_a_spline`], each way round, answer
+    /// alike on the rim (`None`), a band's width past it either side, a
+    /// tenth of a radian off it and at both poles, at 6 azimuths, none of
+    /// them a knot's; and
+    /// the spline face's aim lies in it. Every answer is a definite one,
+    /// so the agreement is no pair of refusals.
+    #[test]
+    fn a_rim_on_a_spline_reads_as_the_rim_on_its_circle() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let rim = core::f64::consts::FRAC_PI_3;
+        for forward in [true, false] {
+            let (circle, spline) = (carved(forward), carved_on_a_spline(forward));
+            let mut queries = vec![
+                (at(0.0, 0.0), Some(forward)),
+                (at(core::f64::consts::PI, 0.0), Some(!forward)),
+            ];
+            for i in 0..6 {
+                let az = f64::from(i) * core::f64::consts::TAU / 6.0 + 0.3;
+                queries.push((at(rim, az), None));
+                for (off, above) in [(-1e-6, true), (1e-6, false), (-0.1, true), (0.1, false)] {
+                    queries.push((at(rim + off, az), Some(above == forward)));
+                }
+            }
+            for (q, want) in queries {
+                assert_eq!(
+                    circle.contains(q, band),
+                    Ok(want),
+                    "the circle, forward {forward}, at {q:?}"
+                );
+                assert_eq!(
+                    spline.contains(q, band),
+                    Ok(want),
+                    "the spline, forward {forward}, at {q:?}"
+                );
+            }
+            let aim = spline.aim().expect("an aim");
+            assert_eq!(
+                spline.contains(aim, band),
+                Ok(Some(true)),
+                "the spline face's aim {aim:?}, forward {forward}"
             );
         }
     }
@@ -1767,4 +1899,64 @@ mod tests {
             }
         }
     }
+
+    /// **A crossing beside a spline arc's end is landed or set aside,
+    /// never lost.** The arc of the circle at polar angle 1 over the
+    /// azimuths `(0.3, 2.5)`, carried on its exact rational quadratic, and
+    /// the great circles from the north pole toward azimuths `d` metres
+    /// along the arc from either end, `d` from inside the band's zero to
+    /// `10⁻⁴` and finely about its escalation: the reading lands within the band of the crossing (at the
+    /// end itself where the end lies on the leg's plane), or sets the path
+    /// aside. No reading answers that the leg misses the arc.
+    #[test]
+    fn a_crossing_beside_a_spline_end_is_never_lost() {
+        let b = Band::new(1e-9, 1e-8).unwrap();
+        let (polar, azimuths) = (1.0f64, (0.3, 2.5));
+        let rim = RegionEdge {
+            edge: EdgeKey::from(KeyData::from_ffi(1)),
+            r#loop: LoopKey::default(),
+            cycle: 0,
+            carrier: geom::Curve3::circle(
+                Point3::new(0.0, 0.0, polar.cos()),
+                Vec3::new(0.0, 0.0, 1.0),
+                polar.sin(),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
+            t0: azimuths.0,
+            t1: azimuths.1,
+            turn: None,
+            forward: true,
+        };
+        let arc = crate::region::fixture_spline_of_arc(&rim);
+        let region = SphereFaceRegion::on(
+            fixture_sphere(Point3::origin(), 1.0),
+            true,
+            vec![arc.clone()],
+        );
+        let pole = Point3::new(0.0, 0.0, 1.0);
+        let mut lost: Vec<String> = Vec::new();
+        let ds = (-10..-3)
+            .flat_map(|k| [1.0, 2.0, 5.0].map(|m| m * 10f64.powi(k)))
+            .chain([0.6, 0.8, 0.9, 1.1, 1.2, 1.5].map(|m| m * 1e-8));
+        for d in ds {
+            let step = d / polar.sin();
+            for (end, az) in [("start", azimuths.0 + step), ("end", azimuths.1 - step)] {
+                let toward = Vec3::new(az.cos(), az.sin(), 0.0);
+                let foot = QueryFoot::read(Legs::charted(&region).surface(), pole, b);
+                let leg = region.ray(foot, toward);
+                if let Ok(got) = region::landings(&region, &arc, &leg, b)
+                    && !got
+                        .iter()
+                        .any(|l| (l.0 - at(polar, az)).norm() <= b.escalate())
+                {
+                    lost.push(format!("{d:e} from the {end}: landings {got:?}"));
+                }
+            }
+        }
+        assert!(lost.is_empty(), "crossings lost: {lost:#?}");
+    }
 }
+
+#[cfg(test)]
+#[path = "sphere_region_spline_rows.rs"]
+mod sphere_region_spline_rows;

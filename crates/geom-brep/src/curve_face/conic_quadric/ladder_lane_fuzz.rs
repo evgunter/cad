@@ -200,7 +200,15 @@ fn judge(
         &truth.roots,
         10.0 * eps,
     );
-    let why = contradiction(&got, &on_arc, (c, (m - h, m + h)), (nearest, farthest), eps)?;
+    // The production reading (`cross`), forced to the same lane, judged
+    // beside the door's test reader.
+    let production = Ok(crate::curve_face::pose::ladder_lane::forcing(|| {
+        crate::curve_face::conic_oracle::cross_reading(c, (m - h, m + h), s, band).as_door()
+    }));
+    let (got, why) = [got, production].into_iter().find_map(|got| {
+        contradiction(&got, &on_arc, (c, (m - h, m + h)), (nearest, farthest), eps)
+            .map(|why| (got, why))
+    })?;
     Some(format!(
         "{what}, ε {eps:e}: {why}: {got:?}\n  truth: {} roots {:?}, depth {:.3e}, \
          residual depth {:.3e}, sampled {nearest:.3e} to {farthest:.3e}\n  {c:?}\n  {s:?}",

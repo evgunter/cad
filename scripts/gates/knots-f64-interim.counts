@@ -34,7 +34,11 @@ crates/geom 212
 # (`analytic_limbs`' `cert_grid` arm) goes with it (SECTCONE).
 # geom-brep 223 -> 222: nurbs_limbs reads its pcurve's knots once for
 # the grid, the composite and limb 2's knot-rectangle hold (PCERT).
-crates/geom-brep 222
+# geom-brep 222 -> 220: the ring composite's interval rows
+# (curve_face/composite.rs's composite_rows) retire: the table's arm
+# cuts the carrier's held knots and weights at the scalar (INSIDE, the
+# face door's spline arm).
+crates/geom-brep 220
 crates/geom-core 18
 crates/mesh 29
 crates/step-export 9

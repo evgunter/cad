@@ -88,25 +88,33 @@ fn a_circle_grazing_a_torus_is_answered_truly_or_not_at_all() {
                 &truth.roots,
                 10.0 * eps,
             );
-            let got = circle_torus_roots(&c, arc.0, arc.1, &torus, band);
-            let found = match &got {
-                Ok(Err(_)) | Err(_) => continue,
-                Ok(Ok(CircleRoots::Miss | CircleRoots::On(_))) => &[][..],
-                Ok(Ok(CircleRoots::Certified(found))) => found.roots(),
-            };
-            let lies = matches!(got, Ok(Ok(CircleRoots::On(_))));
-            let Some(holds) =
-                crate::curve_face::conic_oracle::holds_on_arc(found, &on_arc, arc, eps)
-            else {
-                continue;
-            };
-            if lies || !holds {
-                wrong.push(format!(
-                    "ε {eps:e}, depth {depth:e} (true {:.3e}, {} true roots, on the arc \
+            // The door's test reader, and beside it the production reading
+            // (`cross`), each judged the same way.
+            let production =
+                Ok(crate::curve_face::conic_oracle::cross_reading(&c, arc, &torus, band).as_door());
+            for got in [
+                circle_torus_roots(&c, arc.0, arc.1, &torus, band),
+                production,
+            ] {
+                let found = match &got {
+                    Ok(Err(_)) | Err(_) => continue,
+                    Ok(Ok(CircleRoots::Miss | CircleRoots::On(_))) => &[][..],
+                    Ok(Ok(CircleRoots::Certified(found))) => found.roots(),
+                };
+                let lies = matches!(got, Ok(Ok(CircleRoots::On(_))));
+                let Some(holds) =
+                    crate::curve_face::conic_oracle::holds_on_arc(found, &on_arc, arc, eps)
+                else {
+                    continue;
+                };
+                if lies || !holds {
+                    wrong.push(format!(
+                        "ε {eps:e}, depth {depth:e} (true {:.3e}, {} true roots, on the arc \
                      {arc:?} {on_arc:?}): {got:?}\n  {c:?} torus R 1 r {small}",
-                    truth.depth,
-                    truth.roots.len()
-                ));
+                        truth.depth,
+                        truth.roots.len()
+                    ));
+                }
             }
         }
     }

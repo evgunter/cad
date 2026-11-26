@@ -1065,30 +1065,12 @@ fn curved_interior_placement<T: Decide>(
         }
         geom::Surface::Sphere { frame, radius, .. } => {
             let center = frame.origin();
-            sphere_face_containment(body, face, center, radius, q, band, cut)
+            let carrier = SphereCarrier { center, radius };
+            sphere_face_containment(body, face, carrier, q, band, cut)
         }
-        geom::Surface::Torus {
-            frame,
-            major_radius,
-            minor_radius,
-            ..
-        } => {
-            let (center, axis) = (frame.origin(), frame.axis_unit());
-            torus_face_containment(
-                body,
-                face,
-                TorusCarrier {
-                    axis: geom::Line {
-                        origin: center,
-                        dir: axis,
-                    },
-                    major_radius,
-                    minor_radius,
-                },
-                q,
-                band,
-                cut,
-            )
+        geom::Surface::Torus { .. } | geom::Surface::Spindle { .. } => {
+            let carrier = TorusCarrier::of(surface);
+            torus_face_containment(body, face, carrier, q, band, cut)
         }
         geom::Surface::Nurbs(_) | geom::Surface::Approx(_) if cut.is_some() => {
             Ok(CurvedPlacement::Trim(None))
@@ -1096,9 +1078,7 @@ fn curved_interior_placement<T: Decide>(
         geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => {
             return crate::spline_region::spline_face_placement(body, face, q, band);
         }
-        geom::Surface::Plane { .. } | geom::Surface::Spindle { .. } => {
-            Ok(CurvedPlacement::Trim(None))
-        }
+        geom::Surface::Plane { .. } => Ok(CurvedPlacement::Trim(None)),
     };
     analytic.map(|at| (at, None))
 }
@@ -1115,17 +1095,18 @@ fn curved_interior_placement<T: Decide>(
 /// whole sphere.
 ///
 /// `None` is the honest remainder: a boundary edge that is not a circle
-/// arc, or a point on the region's boundary that the walk above did not
-/// place. A region no ray settles refuses as a planar face's does.
+/// arc nor a spline arc, or a point on the region's
+/// boundary that the walk above did not place. A region no ray
+/// settles refuses as a planar face's does.
 fn sphere_face_containment<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
-    center: Point3<T>,
-    radius: T,
+    carrier: SphereCarrier<T>,
     q: Point3<T>,
     band: Band,
     cut: Option<&[usize]>,
 ) -> Result<CurvedPlacement, ContainError> {
+    let SphereCarrier { center, radius } = carrier;
     if cut.is_none() {
         match decide(
             "bool_curved_contain_carrier",
@@ -1171,29 +1152,86 @@ fn region_placement(
     }
 }
 
+/// One sphere carrier's data, as [`sphere_face_containment`] reads it.
+struct SphereCarrier<T: geom_core::Real> {
+    center: Point3<T>,
+    radius: T,
+}
+
 /// One torus carrier's data, as [`torus_face_containment`] reads it.
 struct TorusCarrier<T: geom_core::Real> {
     axis: geom::Line<T>,
     major_radius: T,
     minor_radius: T,
+    /// A spindle sheet rather than a ring torus.
+    sheet: bool,
 }
 
-/// The TORUS chart's arm of [`curved_face_containment`], reached after
-/// the shared boundary walk.
+impl<T: Decide> TorusCarrier<T> {
+    /// The carrier of a torus or a spindle sheet.
+    ///
+    /// # Panics
+    ///
+    /// On any other surface: the dispatch reads the kind first.
+    fn of(surface: &geom::Surface<T>) -> Self {
+        let (frame, major_radius, minor_radius, sheet) = match *surface {
+            geom::Surface::Torus {
+                frame,
+                major_radius,
+                minor_radius,
+            } => (frame, major_radius, minor_radius, false),
+            geom::Surface::Spindle {
+                frame,
+                major_radius,
+                minor_radius,
+            } => (frame, major_radius, minor_radius, true),
+            _ => unreachable!("a torus carrier is a torus's or a sheet's"),
+        };
+        Self {
+            axis: geom::Line {
+                origin: frame.origin(),
+                dir: frame.axis_unit(),
+            },
+            major_radius,
+            minor_radius,
+            sheet,
+        }
+    }
+
+    /// **`q`'s distance off the carrier**, in metres: on a ring torus the
+    /// elevation off its tube, `√((ρ − R)² + h²) − r`, its exact signed
+    /// distance; on a sheet its distance from the sheet's arc
+    /// ([`geom::sheet_distance`]), which the circle's elevation falls short
+    /// of beyond an apex.
+    fn elevation(&self, q: Point3<T>) -> T {
+        let (r_big, r) = (self.major_radius, self.minor_radius);
+        if self.sheet {
+            let (h, rho) = self.axis.height_and_distance(q);
+            geom::sheet_distance(r_big, r, rho, h)
+        } else {
+            crate::solid_contain::torus_elevation(self.axis, r_big, r, q)
+        }
+    }
+}
+
+/// The TORUS and SPINDLE SHEET charts' arm of [`curved_face_containment`],
+/// reached after the shared boundary walk: a sheet is the torus's chart
+/// with `R` signed, read by the one region reading.
 ///
 /// The same steps as the sphere arm, in the same order and for the same
-/// reasons: the CARRIER first (the point's elevation off the tube,
-/// `√((ρ − R)² + h²) − r`, which is exact distance to a ring torus), then
-/// the face's region, read from its boundary edges by the one reading the
-/// ray lane takes too ([`crate::torus_region`]). This door is asked about
-/// ONE face, so it reads that face's own region whatever group it sits
-/// in: a donut's two faces are each bounded by the parallels they share,
-/// and a face closed on its own surface has only seams, so its region is
-/// the whole torus.
+/// reasons: the CARRIER first (the point's distance off it,
+/// [`TorusCarrier::elevation`]), then the face's region, read from its
+/// boundary edges by the reading the ray lane takes of a ring torus too
+/// ([`crate::torus_region`]). This door is asked about ONE face, so it
+/// reads that face's own region whatever group it sits in: a donut's two
+/// faces are each bounded by the parallels they share, and a face closed
+/// on its own surface has only seams, so its region is the whole torus or
+/// sheet.
 ///
-/// `None` is the honest remainder: a boundary edge that lies in no plane,
-/// or a point on the region's boundary that the walk above did not place.
-/// A region no path settles refuses as a planar face's does.
+/// `None` is the honest remainder: a boundary edge that lies in no plane
+/// and is no spline arc, or a point on the region's
+/// boundary that the walk above did not place. A region no path
+/// settles refuses as a planar face's does.
 fn torus_face_containment<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -1202,12 +1240,7 @@ fn torus_face_containment<T: Decide>(
     band: Band,
     cut: Option<&[usize]>,
 ) -> Result<CurvedPlacement, ContainError> {
-    let TorusCarrier {
-        axis,
-        major_radius,
-        minor_radius,
-    } = carrier;
-    let elevation = crate::solid_contain::torus_elevation(axis, major_radius, minor_radius, q);
+    let elevation = carrier.elevation(q);
     if cut.is_none() {
         match decide("bool_curved_contain_carrier", Margin::of(elevation), band) {
             Ok(Sign::Zero) => {}
@@ -1343,6 +1376,56 @@ mod tests {
     use super::*;
     use crate::entity::LoopBoundary;
     use geom_core::Tol;
+
+    /// **A sheet's carrier distance is the distance to its arc**
+    /// ([`TorusCarrier::elevation`], [`geom::sheet_distance`]): on the
+    /// sheet zero; at a point of the axis whose nearest point of the
+    /// meridian circle lies across the axis, on the spindle's other sheet
+    /// (past the lemon's apex; at the apple's centre, the other sheet a
+    /// short arc there by the horn), the distance to the apex, which the
+    /// circle's elevation falls short of (six times over at that apple);
+    /// and on a ring torus the tube's signed elevation unchanged.
+    #[test]
+    fn a_sheets_carrier_distance_is_to_its_arc() {
+        let carrier = |major_radius: f64, minor_radius: f64, sheet: bool| TorusCarrier {
+            axis: geom::Line {
+                origin: Point3::new(0.0, 0.0, 0.0),
+                dir: geom_core::UnitVec3::exact_z(),
+            },
+            major_radius,
+            minor_radius,
+            sheet,
+        };
+        let at = |big: f64, u: f64, v: f64| {
+            let rho = big + v.cos();
+            Point3::new(rho * u.cos(), rho * u.sin(), v.sin())
+        };
+        for (what, big, h) in [
+            ("the lemon", -0.5, 1.0),
+            ("an apple by the horn", 0.95, 0.0),
+        ] {
+            let sheet = carrier(big, 1.0, true);
+            let apex = geom::sheet_apex(big, 1.0).height;
+            assert!(
+                sheet.elevation(at(big, 0.7, 0.3)).abs() < 1e-14,
+                "{what}: a point of the sheet is on it"
+            );
+            let past = Point3::new(0.0, 0.0, h);
+            let ring = crate::solid_contain::torus_elevation(sheet.axis, big, 1.0, past);
+            let got = sheet.elevation(past);
+            assert!(
+                (got - (h - apex).abs()).abs() < 1e-14 && ring.abs() < got,
+                "{what}: the distance is to the apex ({}), not the circle's {ring}: {got}",
+                (h - apex).abs()
+            );
+        }
+        let ring = carrier(2.0, 0.5, false);
+        assert_eq!(
+            ring.elevation(Point3::new(2.1, 0.0, 0.0)),
+            crate::solid_contain::torus_elevation(ring.axis, 2.0, 0.5, Point3::new(2.1, 0.0, 0.0)),
+            "a ring torus reads the tube's elevation"
+        );
+    }
 
     /// **A curved face's exhausted region walk is the solid door's refusal
     /// about that face** ([`region_placement`]): carried as `Curved`, with

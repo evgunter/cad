@@ -15,10 +15,7 @@ use std::collections::BTreeMap;
 
 use geom_core::Real;
 
-use super::{
-    CarriedRecord, Cell, EeContact, EfContact, FfContact, OperandRecords, VeContact, VfContact,
-    VvContact,
-};
+use super::{CarriedRecord, Cell, OperandRecords};
 use crate::body::Body;
 use crate::coincidence::{Backing, Cited, Cites};
 use crate::entity::{EdgeKey, EntityId, FaceKey, VertexKey};
@@ -234,6 +231,31 @@ impl Contact {
             }
         }
     }
+
+    /// Where this record's kind stands in the order [`OperandRecords`]
+    /// states ([`file_by_kind`]).
+    pub(in crate::boolean) fn carry_order(self) -> u8 {
+        match self.kind() {
+            ContactKind::VertexVertex(..) => 0,
+            ContactKind::VertexFace(..) => 1,
+            ContactKind::VertexEdge(..) => 2,
+            ContactKind::EdgeEdge(..) => 3,
+            ContactKind::EdgeFace(..) => 4,
+            ContactKind::FaceFace(..) => 5,
+        }
+    }
+}
+
+/// Files `row` into `list`, kept in [`Contact::carry_order`], after the
+/// rows of its kind.
+pub(in crate::boolean) fn file_by_kind<R>(
+    list: &mut Vec<R>,
+    row: R,
+    contact: impl Fn(&R) -> Contact,
+) {
+    let order = contact(&row).carry_order();
+    let at = list.partition_point(|r| contact(r).carry_order() <= order);
+    list.insert(at, row);
 }
 
 /// Whether the lesser cell of `cells` bounds the greater in `body`: a
@@ -494,11 +516,14 @@ impl ContactRecords {
     /// pair are one record citing both.
     ///
     /// A record that lands on no pair, every pair read definitely, is
-    /// read against the cells a division names removed, and is
-    /// **consumed** where it lands on them, where the op removed one of
-    /// its cells whole, or where the op moved one of them whole; so too
-    /// a vertex–vertex record whose two vertices the op made one (D1's
-    /// strict record-drop rule). It is never dropped because no witness
+    /// read against the cells a division names removed, for the touch's
+    /// presence whatever its class, and is **consumed** where the touch
+    /// is found on them, where the op removed one of its cells whole, or
+    /// where the op moved one of them whole; so too a vertex–vertex
+    /// record whose two vertices the op made one, and, for an op that
+    /// glues cells, one an image of whose one cell is an image of the
+    /// other (D1's strict record-drop rule, structure needing no
+    /// record). It is never dropped because no witness
     /// turned up: a removal elsewhere on its cells does not consume it,
     /// and otherwise it refuses. This door has no body holding removed
     /// members, so a division that names one refuses `Unread`
@@ -662,37 +687,14 @@ impl ContactRecords {
     /// with its index here.
     #[must_use]
     pub fn carried(&self) -> OperandRecords {
-        let mut out = OperandRecords::default();
-        for (k, c) in self.rows.iter().enumerate() {
-            let record = super::reduce::index(k);
-            match c.kind() {
-                ContactKind::VertexVertex(a, b) => out.vv.push(CarriedRecord {
-                    contact: VvContact { a, b },
-                    record,
-                }),
-                ContactKind::VertexFace(vertex, face) => out.vf.push(CarriedRecord {
-                    contact: VfContact { vertex, face },
-                    record,
-                }),
-                ContactKind::VertexEdge(vertex, edge) => out.ve.push(CarriedRecord {
-                    contact: VeContact { vertex, edge },
-                    record,
-                }),
-                ContactKind::EdgeEdge(a, b) => out.ee.push(CarriedRecord {
-                    contact: EeContact { a, b },
-                    record,
-                }),
-                ContactKind::EdgeFace(edge, face) => out.ef.push(CarriedRecord {
-                    contact: EfContact { edge, face },
-                    record,
-                }),
-                ContactKind::FaceFace(a, b) => out.ff.push(CarriedRecord {
-                    contact: FfContact { a, b },
-                    record,
-                }),
-            }
-        }
-        out
+        self.rows
+            .iter()
+            .enumerate()
+            .map(|(k, c)| CarriedRecord {
+                contact: c.record,
+                record: super::reduce::index(k),
+            })
+            .collect()
     }
 
     /// The same records with every cell re-keyed through `key` into
@@ -804,18 +806,23 @@ impl<T: Real> RemovedIn<'_, T> {
 /// A row that lands nowhere, every pair read definitely, is **consumed**
 /// where:
 ///
-/// - it lands on a member its cells' divisions name removed, read the
-///   same way, each member against every cell `removed` holds of the
-///   other record cell, in `removed`'s body;
+/// - its touch is found on a member its cells' divisions name removed,
+///   each member against every cell `removed` holds of the other record
+///   cell, in `removed`'s body, read for the touch's presence whatever
+///   class the census would give it there
+///   ([`crate::census::RecordConfirm::faces_touch`]): a reading that rules
+///   the touch out before reading where it is refuses `Unread`;
 /// - the lineage removed one of its cells whole;
 /// - a cell kept or substituted whole has an image that does not hold
 ///   its geometry (the touch went with what the op moved; a moved piece
 ///   of a division consumes nothing);
 /// - its two vertices became one vertex (D1's strict record-drop rule);
 /// - for an op that glues cells ([`crate::Lineage::glued`]), every pair
-///   of its images is structure, or a cell the op minted in one record
-///   cell is itself an image of the other (the record's edge, now the
-///   section the cut ran along it: structure needs no record).
+///   of its images is structure, or an image of one record cell is
+///   itself an image of the other (the record's edge, now the section
+///   the cut ran along it, or the one edge a glue made of two that
+///   overlapped: structure needs no record); an image merely incident
+///   to the other's consumes nothing.
 ///
 /// # Errors
 ///
@@ -922,15 +929,15 @@ pub(in crate::boolean) fn landings<'b, T: crate::props::AtRestPolicy>(
                     let pair = match Contact::new(body, a, b) {
                         Ok(pair) => pair,
                         Err(error) => {
-                            // A cell the op minted in one record cell that
-                            // is itself an image of the other (the record's
-                            // edge, now the section the cut ran along it)
-                            // holds the touch as structure, which needs no
-                            // record (D1). A minted cell merely incident to
-                            // an image of the other cell holds nothing.
-                            on_structure |= lineage.glues()
-                                && matches!(error, ContactPairError::OneCell(_))
-                                && (a_minted || b_minted);
+                            // An image of one record cell that is itself an
+                            // image of the other (the record's edge, now the
+                            // section the cut ran along it, or the piece a
+                            // glue made of two overlapping edges) holds the
+                            // touch as structure, which needs no record
+                            // (D1). An image merely incident to an image of
+                            // the other cell holds nothing.
+                            on_structure |=
+                                lineage.glues() && matches!(error, ContactPairError::OneCell(_));
                             structure.get_or_insert(error);
                             continue;
                         }
@@ -994,7 +1001,14 @@ pub(in crate::boolean) fn landings<'b, T: crate::props::AtRestPolicy>(
                         continue;
                     };
                     removed_read = true;
-                    if confirm.meets(pair).map_err(|_| CarryRefusal::Unread {
+                    // The reading body holds the cells as the cut left
+                    // them, not as the result's sides and senses, so the
+                    // touch is read for its presence alone.
+                    let touch = match pair.cells() {
+                        [Cell::Face(a), Cell::Face(b)] => confirm.faces_touch(a, b),
+                        _ => confirm.meets(pair),
+                    };
+                    if touch.map_err(|_| CarryRefusal::Unread {
                         record,
                         cells: pair.cells(),
                     })? {
@@ -1072,7 +1086,7 @@ impl FromIterator<Cited<Contact>> for ContactRecords {
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::{Cell, Contact, ContactKind, ContactPairError, ContactRecords};
-    use crate::boolean::{CarriedRecord, EfContact, FfContact};
+    use crate::boolean::CarriedRecord;
     use crate::coincidence::{Backing, Cited, Cites};
     use crate::test_support_fixtures::prism_z;
     use geom_core::Tol;
@@ -1162,8 +1176,9 @@ mod tests {
     }
 
     /// An operand's edge–face and face–face records re-enter an op as
-    /// its own, each with its index. Red if either kind is dropped, or
-    /// filed under the other's index.
+    /// its own, each with its index, in the carry's kind order. Red if
+    /// either kind is dropped, filed under the other's index, or out of
+    /// kind order.
     #[test]
     fn curve_and_patch_records_carry_back_in_with_their_indices() {
         let p = prism();
@@ -1192,48 +1207,33 @@ mod tests {
             ));
         }
         let carried = records.carried();
-        let (low, high) = if p.top_face < p.bottom_face {
-            (p.top_face, p.bottom_face)
-        } else {
-            (p.bottom_face, p.top_face)
+        let filed = |k: usize, x, y| CarriedRecord {
+            contact: Contact::new(&p.body, x, y).unwrap(),
+            record: u32::try_from(k).unwrap(),
         };
         assert_eq!(
-            carried.ff,
-            [CarriedRecord {
-                contact: FfContact { a: low, b: high },
-                record: 1
-            }]
-        );
-        assert_eq!(
-            carried.ef,
-            [CarriedRecord {
-                contact: EfContact {
-                    edge,
-                    face: p.bottom_face
-                },
-                record: 2
-            }]
-        );
-        assert_eq!(
-            carried.vf.len(),
-            1,
-            "the vertex record stays filed as before"
+            carried.rows(),
+            [
+                filed(0, Cell::Vertex(p.top[0]), Cell::Face(p.bottom_face)),
+                filed(2, Cell::Edge(edge), Cell::Face(p.bottom_face)),
+                filed(1, Cell::Face(p.bottom_face), Cell::Face(p.top_face)),
+            ],
+            "each record with its index, in the carry's kind order"
         );
     }
 
-    /// **Structure consumes a glued record only where a cell the op
-    /// minted in one record cell is an image of the other.** A
-    /// bookkeeping vertex–face record (the prism's top corner against
-    /// its bottom, no touch) through glued hand lineages that keep the
-    /// corner and divide the bottom into itself and one minted cell. The
-    /// minted cell the corner's strut, incident to the corner: no
-    /// structure holds the touch, and the record refuses `Stale`. Red
-    /// where any incident pair consumes. The minted cell the corner
-    /// itself: the record's vertex now lies in the division as one of
-    /// its cells, and the record is consumed. Red where structure never
-    /// consumes.
+    /// **Structure consumes a glued record only where an image of one
+    /// record cell is an image of the other.** A bookkeeping vertex–face
+    /// record (the prism's top corner against its bottom, no touch)
+    /// through glued hand lineages that keep the corner and divide the
+    /// bottom. The corner's strut, incident to the corner, as a piece of
+    /// the division or a cell minted in it: no structure holds the
+    /// touch, and the record refuses `Stale`. Red where any incident pair
+    /// consumes, piece or minted. The corner itself minted in the
+    /// division: the record's vertex is now one of its cells, and the
+    /// record is consumed. Red where structure never consumes.
     #[test]
-    fn structure_consumes_only_on_a_minted_image_of_the_other_cell() {
+    fn structure_consumes_only_on_an_image_of_the_other_cell() {
         use crate::props::AtRestPolicy;
         let p = prism();
         let corner = Cell::Vertex(p.top[0]);
@@ -1248,14 +1248,14 @@ mod tests {
             })
             .expect("the corner's strut");
         let band = geom_core::Band::linear(Tol::witness()).unwrap();
-        let carry = |minted: Cell| {
+        let carry_into = |pieces: Vec<Cell>, minted: Vec<Cell>| {
             let lineage = crate::Lineage::new()
                 .glued()
                 .with(
                     Cell::Face(p.bottom_face),
                     crate::Fate::Divided(crate::Division {
-                        pieces: vec![Cell::Face(p.bottom_face)],
-                        minted: vec![minted],
+                        pieces,
+                        minted,
                         removed: vec![],
                     }),
                 )
@@ -1271,6 +1271,12 @@ mod tests {
             )
             .map(|landed| landed.len())
         };
+        let carry = |minted: Cell| carry_into(vec![Cell::Face(p.bottom_face)], vec![minted]);
+        assert_eq!(
+            carry_into(vec![Cell::Face(p.bottom_face), Cell::Edge(strut)], vec![]),
+            Err(super::CarryRefusal::Stale { record: 0 }),
+            "a piece incident to the corner holds nothing"
+        );
         assert_eq!(
             carry(Cell::Edge(strut)),
             Err(super::CarryRefusal::Stale { record: 0 }),

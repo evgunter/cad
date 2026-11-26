@@ -121,8 +121,7 @@ pub(super) fn on_face(
 ) -> Vec<Point3<f64>> {
     let (x, contacts) = got.unwrap_or_else(|e| panic!("the sweep reads the arc: {e:?}"));
     contacts
-        .a_on_b
-        .iter()
+        .on(crate::boolean::Operand::A)
         .filter(|c| c.record.face == face)
         .map(|c| {
             x.vertex_points()

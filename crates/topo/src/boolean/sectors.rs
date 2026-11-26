@@ -1617,8 +1617,7 @@ pub(super) fn germ_loci<T: crate::props::AtRestPolicy>(
         (ca, cb) => {
             let (far_a, far_b) = (site_of(a.body, ea.far)?, site_of(b.body, eb.far)?);
             if contacts
-                .vv
-                .iter()
+                .vv()
                 .any(|c| far_a.contains(&c.a) && far_b.contains(&c.b))
             {
                 return one_segment(a, ea, b, eb, declared);
@@ -2028,32 +2027,17 @@ fn touch<T: Decide>(
 ) -> Result<Touch, BooleanError> {
     let site = site_of(side.body, far)?;
     Ok(
-        if on_faces(contacts, side.operand)
-            .iter()
-            .any(|c| site.contains(&c.vertex))
-        {
+        if contacts.on(side.operand).any(|c| site.contains(&c.vertex)) {
             Touch::Face
         } else if contacts
-            .vv
-            .iter()
-            .any(|c| site.contains(&vv_sides(c, side.operand).0))
+            .vv()
+            .any(|c| site.contains(&vv_sides(&c, side.operand).0))
         {
             Touch::Boundary
         } else {
             Touch::Apart
         },
     )
-}
-
-/// The recorded contacts of `operand`'s vertices on the partner's faces.
-fn on_faces(
-    contacts: &super::ReductionContacts,
-    operand: Operand,
-) -> &[crate::Cited<super::VfContact>] {
-    match operand {
-        Operand::A => &contacts.a_on_b,
-        Operand::B => &contacts.b_on_a,
-    }
 }
 
 /// A vertex pair's two vertices, `operand`'s first.
@@ -2085,13 +2069,13 @@ fn tangent_face<T: Decide>(
         return Ok(None);
     };
     let far_site = site_of(partner.body, far)?;
-    let mut far_faces: Vec<FaceKey> = on_faces(contacts, partner.operand)
-        .iter()
+    let mut far_faces: Vec<FaceKey> = contacts
+        .on(partner.operand)
         .filter(|c| far_site.contains(&c.vertex))
         .map(|c| c.face)
         .collect();
-    for c in &contacts.vv {
-        let (mine, theirs) = vv_sides(c, side.operand);
+    for c in contacts.vv() {
+        let (mine, theirs) = vv_sides(&c, side.operand);
         if far_site.contains(&theirs) {
             far_faces.extend(faces_at(side.body, mine).map_err(stale_site)?);
         }
@@ -2473,8 +2457,7 @@ fn coincident_run<T: Decide>(
         return Ok(false);
     };
     Ok(contacts
-        .vv
-        .iter()
+        .vv()
         .any(|c| a.far.contains(&c.a) && b.far.contains(&c.b))
         && parallel_same_as(
             a.dir,

@@ -23,13 +23,13 @@
 //!   point sample against both operands, at every point `point_in_solid`
 //!   decides in all three bodies.
 //!
-//! **What it cannot see.** `point_in_solid` decides no point against a
-//! NURBS face, so the point sample is silent against a spline operand,
-//! and a volume reads the same whatever `sense` a closed spline shell's
-//! faces carry; a wrong `sense` on a built spline face is the void row's
-//! below (`a_subtracted_spline_void_carries_its_walls_reverted`) and the
-//! at-rest gate's gap
-//! (`finding_a_cavity_with_its_spline_walls_unreversed_passes_the_gate_at_the_true_volume`).
+//! **What it cannot see.** A volume reads the same whatever `sense` a
+//! closed spline shell's faces carry; a wrong `sense` on a built spline
+//! face is the void row's below
+//! (`a_subtracted_spline_void_carries_its_walls_reverted`) and the
+//! at-rest gate's, whose shell roles read it through rays that cross
+//! the spline walls
+//! (`a_cavity_with_its_spline_walls_unreversed_is_refused_at_the_gate`).
 //!
 //! The operands: the loft prism (`V = 9`), the lofted cylinder
 //! (`V = 2π`), the wavy loft (2 × 2 squares at `z = 0, 1, 2, 3` offset
@@ -395,7 +395,7 @@ fn every_op_of_a_spline_operand_refuses_typed_or_builds_right() {
         (
             "inside, on the bottom cap",
             ((-0.5, 0.5), (-0.5, 0.5), (0.0, 0.5)),
-            0.25,
+            0.5,
         ),
         (
             "inside, on the −y wall",
@@ -531,23 +531,23 @@ fn a_subtracted_spline_void_carries_its_walls_reverted() {
     );
 }
 
-/// **FINDING: a cavity whose spline walls carry the wrong `sense` passes
-/// the at-rest gate at the true volume** (adopted from PR 6476's
-/// review; `work/verdict/m6-sense-gate-recorded-residuals.md`, residual 3).
+/// **A cavity whose spline walls carry the wrong `sense` is refused at
+/// the at-rest gate** (adopted from PR 6476's review;
+/// `work/verdict/m6-sense-gate-recorded-residuals.md`, residual 3).
 /// `brick ∖ prism` builds a cavity with sense-false NURBS walls; flipping
 /// each back — what a reversal that ignored `sense` on spline faces would
-/// build — is admitted by `AtRestBody::validate`, and its volume reads
-/// the same 135 m³. So neither the gate nor a volume oracle sees a wrong
-/// `sense` on a spline face. Pinned as found: red the day the gate
-/// refuses it.
+/// build — leaves the cavity's shell reading as a second outer shell, now
+/// that the side reader's rays cross the spline walls and read their
+/// sense: the gate refuses it `SolidOuterShells`.
 #[test]
-fn finding_a_cavity_with_its_spline_walls_unreversed_passes_the_gate_at_the_true_volume() {
+fn a_cavity_with_its_spline_walls_unreversed_is_refused_at_the_gate() {
     let t = tol();
     let (around, prism) = prism_in_a_brick();
     let Ok(BooleanResult::Body(cavity)) = topo::subtract(&around, &prism, t) else {
         panic!("brick ∖ prism builds");
     };
     let v_right = topo::test_support::volume_at("the cavity", &cavity.body, t, 1e-6).volume;
+    assert!((v_right - 135.0).abs() < 1e-6, "the cavity: {v_right}");
     let cavity: topo::Body<f64> = (*cavity.body).clone();
     let walls = spline_walls(&cavity);
     assert_eq!(walls.len(), 4, "the cavity's four NURBS walls");
@@ -561,12 +561,9 @@ fn finding_a_cavity_with_its_spline_walls_unreversed_passes_the_gate_at_the_true
             .flipped_face_sense_for_tests(k, geom_core::Tol::witness())
             .unwrap();
     }
-    let admitted = topo::finish(wrong, t).expect("the gate admits the wrong-sense cavity");
-    let v_wrong =
-        topo::test_support::volume_at("the wrong-sense cavity", &admitted, t, 1e-6).volume;
-    assert!((v_right - 135.0).abs() < 1e-6, "the cavity: {v_right}");
+    let refused = topo::finish(wrong, t).expect_err("the gate refuses the wrong-sense cavity");
     assert!(
-        (v_wrong - 135.0).abs() < 1e-6,
-        "the wrong-sense cavity reads the true volume: {v_wrong}"
+        format!("{refused:?}").contains("SolidOuterShells"),
+        "the cavity's shell reads as a second outer shell: {refused:?}"
     );
 }

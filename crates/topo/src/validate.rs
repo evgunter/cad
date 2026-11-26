@@ -4346,6 +4346,7 @@ pub(crate) fn classify_point_in_solid(
         S::PartialSphereFace { .. }
         | S::PartialConeFace { .. }
         | S::PartialTorusFace { .. }
+        | S::PartialSplineFace { .. }
         | S::WallOutlineUnsupported { .. } => (
             "a curved face's trim is one the check cannot yet read".into(),
             NOT_YET_ENDING.into(),
@@ -8333,9 +8334,9 @@ pub(crate) fn tier3_local_checks_marked<
     // A sheet apex is read as a pole is: at a vertex passes, inside an
     // edge or the interior refuses. It is stricter only where it is not
     // shown outside the face, which refuses `SheetApexReached` where a
-    // pole is exempt. No door places a point on a sheet, so
-    // its side is the walk of each surface cycle's chart image through
-    // the sheet's chart (`geom_brep::chart_singularity::holds`); not
+    // pole is exempt. The sheet's door leaves a point on its axis unread,
+    // so an apex's side is the walk of each surface cycle's chart image
+    // through the sheet's chart (`geom_brep::chart_singularity::holds`); not
     // shown outside is that walk unread, the boundary placement refusing
     // without a reading in band, or loops that do not flatten. Only a
     // reading in band stays the undecided finding, which carries its
@@ -12963,6 +12964,7 @@ mod tests {
             S::PartialSphereFace { face },
             S::PartialConeFace { face },
             S::PartialTorusFace { face },
+            S::PartialSplineFace { face },
             S::WallOutlineUnsupported { face },
         ] {
             assert_eq!(

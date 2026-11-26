@@ -53,8 +53,11 @@ pub enum Door {
     /// A spline span against an analytic face: the face's residual
     /// composed along the span (the ring composite).
     SplineComposite,
-    /// Any span against a spline face: enclosures on the span's pieces
-    /// and the surface's cells, a Krawczyk contraction for one meeting.
+    /// Any span against a spline face. [`cross()`] reads a line by the
+    /// signs of its two planes' residuals on the chart's Bernstein cells
+    /// ([`line_patch`]); the boolean's door reads any span by enclosures
+    /// on its pieces and the surface's cells, a Krawczyk contraction for
+    /// one meeting ([`spline_face`]).
     SplineFace,
     /// A spiric span against a plane: the section reduction, the line
     /// where the two planes meet read against the spiric's own torus
@@ -118,8 +121,9 @@ pub fn route(curve: CurveKind, surface: SurfaceKind) -> Route {
         ),
         (Line | Circle | Ellipse | Nurbs, SurfaceKind::Nurbs | Approx) => built(
             Door::SplineFace,
-            "boxes of the span's parameter and the chart's, cleared past the band or \
-             proved one transverse meeting by a Krawczyk contraction",
+            "a line by the signs of its planes' residuals on the chart's Bernstein cells; \
+             any span by boxes of the span's parameter and the chart's, cleared past the \
+             band or proved one transverse meeting by a Krawczyk contraction",
         ),
         (Spiric, SurfaceKind::Nurbs | Approx) => unbuilt(
             Door::SplineFace,
@@ -718,8 +722,13 @@ pub mod composite;
 pub mod conic_oracle;
 pub mod conic_quadric;
 pub mod cross;
+#[cfg(test)]
+mod cull_rows;
 pub mod ellipse_torus;
 pub mod end_root;
+#[cfg(test)]
+mod line_clearance_fuzz;
+pub mod line_patch;
 pub mod line_quadric;
 pub mod plane_crossing;
 pub mod pose;

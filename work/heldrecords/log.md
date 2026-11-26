@@ -293,3 +293,57 @@
   - The gate is red only from the stack.
   - Rows filed: the-parting-re-decides-an-edge-lying-in-a-face-the-sweep-decided and a-rim-whose-vertex-lies-on-a-wrap-edge-refuses-shared.
   - Single FULL review dispatched (session_018u3gVFWHiYZyakWSYnoknS).
+
+- 2026-11-25 **Main red from my merge of PR 7745.** Three slow-set carry rows (two union_flush `Stale{3}`, face_face_touch `Unread{18}`) fail on `0ac627ec92` and pass on its parent; checked locally. My merge evidence was `ci` plus the touched files. I did not ask for the full default profile on a carry change, and this is the cost. From here, a carry or records change merges only on a full default-profile topo+sweep per-test diff against its base. Filed P0 `main-red-removed-members-refuses-three-slow-carry-rows`, sent to the 7745 lane (session_018u3gVK16A8ND9orBs4bSqb) as a fix PR off main.
+
+- 2026-11-25 PR 7783 review (session_018u3gVFWHiYZyakWSYnoknS): NOT MERGEABLE.
+  - MAJOR: `disc_loop` reads its side on m² against a band in metres, and its two `Zero` defaults disagree. A 1e-3 rim at ε=1e-6 picks the wrong circle, and only the `ResultInvalid` backstop stops it.
+  - MINORs: the `ArcOnFace` margin is the first sample's residual, not a bound; the "division everywhere" claim is false for ringed faces; the `PartsTouch` sentence contradicts itself (without the gap a body that fails t3′ ships).
+  - Fix pass sent with small-scale pins and full default-profile evidence. The row's note is corrected.
+
+- 2026-11-25 The P0 fix for main red from PR 7745 (lane branch `heldrecords/removed-members-red`, a4c33327) fixes the three reds:
+  - glued structure is OneCell on any image, piece or minted;
+  - ContactContradicted counts as touched in a removed-member read only.
+  The full-default per-test diff (8533 vs 8549 tests) found a fork: with section edges named, `a_plane_face_holding_the_pierce_over_a_cylinder…` refuses JoinDesync (a minted vertex meets a minted section edge at a point); with no section, `three_solids_on_one_line::a_contact_line_beside_a_face_holding_it…` refuses Stale.
+  Ruled (C): an undecidable minted point meeting is set aside only where the record also lands on a non-minted pair. That is never consumption, and t3′ on the result stays the backstop. Pinned both ways with a mutant. (A), the door deciding vertex-on-edge meetings, is filed P2.
+
+- 2026-11-25 The P0 fix is PR 7799 (head 17237bee03). The full-default per-test diff shows 0 PASS → FAIL; the mutants all go red, including SETASIDEALONE and CONTRALEAK. Single FULL review dispatched (session_018u3gVJYnrwgxoiemwioLv7). (A) is filed P2 as `the-boolean-door-decides-no-minted-vertex-on-edge-meeting`.
+
+- 2026-11-25 PR 7783's fix pass is done (head 21f1f66afa). `disc_loop` now reads a signed length; `Zero` → `DiscSide`; there is new `ClosedDisc` vocabulary. Margins are bounded by Λ₂ on sphere and cylinder; a cone refuses `CarrierUnread`. The full default per-test diff shows built → refused empty. The small sphere rim at ε=1e-6, ρ ≤ 1e-3, now picks the right circle but refuses at the result gate's sphere props lane; that is filed on nearpoint. Rows filed: a-conic-on-a-cone-reads-no-bounded-margin, a-closed-rider-in-a-face-with-rings-keeps-its-zero-area-ring, the-split-leaves-curved-pieces-touching-along-a-curve-with-no-guard-the-census-reads. A delta re-read has been sent to the reviewer.
+
+- 2026-11-25 PR 7783 delta re-read: MERGEABLE. M1 and m1–m3 are closed. Λ₂ = 1.98885 was checked as the 5-node equispaced trig Lebesgue constant. The small-sphere `ResultInvalid` was judged an acceptable typed limit, since before this PR it was a `CurvedFace` refusal; the nearpoint row should note that the class reads as a door defect. Merged into `heldrecords/split-on` (d5a5787a1a). Its gate reds are all inherited from the stack. It reaches main with PR 7481 once PR 7124 lands. The tube witnesses get pinned when the stack takes main. The division row closes on PR 7481's merge.
+
+- 2026-11-25 **PR 7799 review: NOT MERGEABLE, 2 MAJOR.**
+  - **M1, fix (2) is unsound:** `confirm_patch` reports `ContactContradicted` at Door 1 (carrier and sense) before region overlap is read. So a same-sense removed member touching nothing consumed a record, a silent drop where 7745's head refused `Unread`.
+  - **M2, (C) changes the ratified clause** ("decides every such meeting at its door"), so it is Ev's call.
+  - **Ruled:**
+    - Drop (2). A sound removed-member read must actually find the touch, pinned in `ci`.
+    - Take (C) out. The pierce row stays red (loud `JoinDesync`, already red on main since 7745), listed on the P0 row.
+    - Keep (1), with a piece-incidence pin.
+  - Fix pass sent. The (C)/(A) fork goes to two Opus designers: A session_018u3gVHEtKTbcP5hj8j7VvE, B session_018u3gVGSw5Y3NcYbqNE1X1B (brief fork-minted-meeting.md), then an `[ev]` PR.
+  - I chose this over reverting PR 7745: fixing forward leaves at most one loud slow-set red, against reopening 7745's silent-drop hole.
+
+- 2026-11-25 **The minted-meeting fork (C)/(A), three rounds, two Opus designers.**
+  - Both first proposed a maker/cutter field. I showed them commit `a2090eeb4d5`: Ev's `[ev]` D1 ruling, "no cutter field", with the per-op form and the accepted cost of a redundant decision where one tool face cut both cells.
+  - They then crossed. By the final round both agree:
+    - (B) is rejected, (C) is unsound as a final state, and (C′) is the interim: set aside only where the result already holds the exact pair, placed after `carry_rows`.
+    - The final state is the per-op door decision: vertex-on-edge via the census's interior reading, with rows on the record's input cells (E, F), and the vertex–vertex row moved the same way so section vertices can be named.
+    - Unless one measurable fact holds: a single-maker meeting reads in the sliver band when the record's gap is Zero (a near-tangent X amplifies it). In that case makers kept in the boolean's `Mints` win, and that goes to Ev as a narrower cutter field.
+  - Probe lane dispatched (session_018u3gVJFgDMfc8FxoUJr3H6). If the fact does not hold, the door form is within the ruling and needs no `[ev]`.
+
+- 2026-11-26 **Minted-meeting fork decided: the door form, within Ev's ruling, so no `[ev]`.**
+  - The probe (session_018u3gVJFgDMfc8FxoUJr3H6, branch `heldrecords/probe-minted-margin`): all 12 pierce meetings read Zero, at a margin of 4.6e-16 with a 1e-9 threshold.
+  - The prism was nudged at ±0.25/0.5/0.9 ε, three cylinder heights and three ε. The v–s margin equals the posed gap to within 1.0004×: no amplification, never sliver.
+  - Vertex–vertex meetings: 109 door calls, all at gap 0.
+  - My reading of the remaining premise: X near-tangent to E is not reached by this fixture. Geometrically, the v–s distance scales as the gap over sin(X, F), so it is amplified only where X grazes F, which is the reduction's own sliver section.
+  - Final state, to build after PR 7799:
+    - the boolean door decides vertex-on-edge meetings with the census interior reading, writing rows on the record's input cells;
+    - vertex–vertex rows move the same way;
+    - section vertices are named on both paths;
+    - a stress row with X grazing F at the section.
+  - Re-band `the-boolean-door-decides-no-minted-vertex-on-edge-meeting` to P1 and retarget it once it reaches main. The interim is no (C): the pierce row stays a loud refusal until the door lands.
+
+- 2026-11-26 PR 7799 merged (9a25655c18) after a delta re-read (MERGEABLE, M1 and M2 closed; NOPRES, CONTRAANY and LOOSEINC each red). Main's three carry reds are fixed. The pierce row stays a loud JoinDesync until the minted-door lane lands.
+  - The reviewer showed the three loft/NURBS containment reds are main's, from INSIDE's PR 7798 (`33191a617a`). Filed P1 `work/inside/main-red-three-loft-rows-expect-point-containment-to-refuse-a-spline-face`.
+  - Dispatched lane `heldrecords/minted-door` (session_018u3gVFsPxLJDhJLgrGLPTt), single FULL review.
+  - one-list told to merge main and re-diff.
