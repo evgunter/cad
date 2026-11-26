@@ -3686,24 +3686,20 @@ fn full_latitude() -> (f64, f64) {
     )
 }
 
-/// A certified pair of ends, as the `f64` range their enclosures span.
-fn lifted_ends<T: CertifiedBounds>((lo, hi): (T, T)) -> (f64, f64) {
-    (
-        Interval::from_certified(lo).lo(),
-        Interval::from_certified(hi).hi(),
-    )
+/// A pair of window ends, as the `f64` range their certified brackets
+/// span; `None` where either end does not certify, which leaves the
+/// channel its canonical range.
+fn lifted_ends<T: CertifiedBounds>((lo, hi): (T, T)) -> Option<(f64, f64)> {
+    Some((lo.certified_bracket()?.0, hi.certified_bracket()?.1))
 }
 
-/// A periodic channel's window from its certified ends: the ends'
-/// enclosure, or the whole turn where that reaches a period.
+/// A periodic channel's window from its ends: their certified range, or
+/// the whole turn where that reaches a period or an end does not certify.
 fn within_turn<T: CertifiedBounds>(lo: T, hi: T) -> (f64, f64) {
-    let (lo, hi) = lifted_ends((lo, hi));
     let turn = full_turn();
-    if hi - lo < turn.1 - turn.0 {
-        (lo, hi)
-    } else {
-        full_turn()
-    }
+    lifted_ends((lo, hi))
+        .filter(|&(lo, hi)| hi - lo < turn.1 - turn.0)
+        .unwrap_or(turn)
 }
 
 /// **A spindle sheet's canonical tube-angle range** `[−v*, v*]`, its
@@ -3752,12 +3748,12 @@ fn sheet_latitude(major_radius: Interval, minor_radius: Interval) -> (f64, f64) 
 ///   of its one loop that the loop bounds in the chart: the window is
 ///   their rectangle, widened by its certificate slack
 ///   ([`crate::cover::bounded_torus_window`]), each channel the whole
-///   turn where that spans a period. Any other face takes the whole
-///   tube.
+///   turn where that spans a period or an end does not certify
+///   ([`lifted_ends`]). Any other face takes the whole tube.
 /// - **Spindle sheet**: `u` takes the whole turn. `v` takes the latitude
 ///   its boundary's chart images span, on the same terms
-///   ([`crate::cover::bounded_sheet_latitude`]) and strictly inside
-///   `(−π, π)`, met with the canonical range between the apexes
+///   ([`crate::cover::bounded_sheet_latitude`]), certified and strictly
+///   inside `(−π, π)`, met with the canonical range between the apexes
 ///   ([`sheet_latitude`]); any other face takes that canonical range, as
 ///   the sphere does, since a cap's boundary is one circle while it
 ///   reaches an apex.
@@ -3866,7 +3862,7 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
         } => {
             let sheet = sheet_latitude(*major_radius, *minor_radius);
             let v = sheet_lat()
-                .map(lifted_ends)
+                .and_then(lifted_ends)
                 .filter(|&(lo, hi)| -core::f64::consts::PI < lo && hi < core::f64::consts::PI)
                 .map_or(sheet, |(lo, hi)| (lo.max(sheet.0), hi.min(sheet.1)));
             superset(full_turn(), v)
@@ -6266,7 +6262,8 @@ mod refines_rows {
 mod trv_rows {
     use super::{
         Bracket, Budgets, Cell, CellPair, CellReceipt, MinSeparationRefusal, Question, RegionMemo,
-        Side, Task, Walk, Which, Window, min_separation, poisoned, root_separations, window_of,
+        Side, Task, Walk, Which, Window, lifted_ends, min_separation, poisoned, root_separations,
+        window_of, within_turn,
     };
     use crate::test_support_fixtures::trv;
     use crate::{Body, FaceKey};
@@ -6368,6 +6365,26 @@ mod trv_rows {
             "unbounded"
         );
         assert!(poisoned(Interval::from_bounds(f64::NAN, 1.0)), "NaI");
+    }
+
+    /// **A window end that does not certify narrows nothing**: the
+    /// torus and sheet arms take a channel's range off its ends only
+    /// where both certify (`lifted_ends`), and the canonical range
+    /// otherwise. Red if an end's bracket is read without its refusal:
+    /// the refused pair's channel would be `(0.3, 1.9)`, which claims
+    /// the face lies inside a range nothing certified.
+    #[test]
+    fn a_window_end_that_does_not_certify_narrows_nothing() {
+        let (lo, hi) = (Interval::from_f64(0.3), Interval::from_f64(1.9));
+        assert_eq!(lifted_ends((lo, hi)), Some((0.3, 1.9)), "certified");
+        assert_eq!(within_turn(lo, hi), (0.3, 1.9), "certified, inside a turn");
+        assert_eq!(lifted_ends((trv(0.3), hi)), None, "low end refused");
+        assert_eq!(lifted_ends((lo, trv(1.9))), None, "high end refused");
+        assert_eq!(
+            within_turn(trv(0.3), trv(1.9)),
+            crate::injective::full_turn(),
+            "a refused pair keeps the whole turn"
+        );
     }
 
     /// `i` with its bounds intact and its decoration refused.

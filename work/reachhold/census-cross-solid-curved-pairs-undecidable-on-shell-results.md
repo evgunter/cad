@@ -495,4 +495,6 @@ row's touching half, not a decided failure: no error but
 designer B as `CensusUndecidable`; the latter is what the census
 returns.
 
-**2026-11-26, from INSIDE's face door (PR 7801, `inside/face-door-spline-arm`).** One instance decides now: `sweep/tests/cylinder_sphere_frame.rs`'s `a_ball_across_a_cylinder_wall_in_two_loops` and `…_turned`. Their `A ∖ B` cuts the drum in two parts with spline-chorded curved faces. It was pinned `Ends::PartsUndecided` (this row's cause), and it now passes tier 3′ outright. The face door reads the parts' spline chords through `curve_face::cross`'s ring-composite arm, so the census decides the parts apart. That narrows the row; it does not close it. The shell results it measured (nested and side-by-side thin curved solids from `shell7`–`shell10`) were not re-run, and `a_closed_conic_in_the_partners_face.rs` still pins `Ends::PartsUndecided`.
+## 2026-11-26 — two poses decided (INSIDE orchestrator)
+
+Since PR 7801, the census reads cylinder × sphere results' spline chords through `curve_face::cross`. Two poses that pinned this row's `CensusUndecidable { MayOverlap }` now pass tier 3′, and are re-pinned SOUND: `cylinder_sphere_frame::a_ball_across_a_cylinder_wall_in_two_loops` and `…_turned` (A ∖ B). The census now tells the drum's two parts apart. Whether other poses this row holds have moved is not measured. `a_closed_conic_in_the_partners_face.rs` still pins `Ends::PartsUndecided` for its own run.

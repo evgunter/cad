@@ -2,11 +2,14 @@
 id: the-face-door-reads-no-spline-arc-of-a-sphere-face
 kind: issue
 title: The face door and the side reader read no spline arc of a sphere face: their scalar bound holds no spline reader, where point_in_solid's does
-status: open
+status: closed
 opened: 2026-11-25
 priority: P0
 cost: H
 refs: [point-in-solid-refuses-a-sphere-face-bounded-by-a-spline-chord, point-in-face-and-point-in-solid-read-a-curved-trim-by-different-chains, cross-answers-a-spline-arm-with-a-whole-span-window, point-containments-ray-test-has-no-spline-arm]
+closed: 2026-11-26
+pr: 7801
+branch: inside/face-door-spline-arm
 ---
 
 

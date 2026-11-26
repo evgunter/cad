@@ -41,3 +41,7 @@ Claimed by `the-face-door-reads-no-spline-arc-of-a-sphere-face`'s unit
 `SplineFace` half is `inside/ray-spline-face-arm`'s (a line against a
 spline patch), and the other spans against a spline face still answer
 one window over the whole span.
+
+## 2026-11-26 — two halves answered (INSIDE orchestrator)
+
+`cross` now reads `Door::SplineComposite`, a spline span against a plane, cylinder, cone, sphere or torus, at `T: Decide` (PR 7801). It also reads `Door::SplineFace` for a **line** carrier (PR 7798). Still `Enclosed`: a conic or spline span against a spline face. It needs its own Bernstein composition on the decided design (`work/inside/log.md`, 2026-11-25).
