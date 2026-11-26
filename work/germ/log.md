@@ -2168,3 +2168,8 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - The C5 sentence was agent-written (`851bc56847c`) and approved in passing in PR 7167.
   - **Disagreement (minor, an implementation point):** the ends' order. It is left to the lane, argued, with a row.
   - **Ruling:** an `[ev]` question goes on U4c's PR, with the C5 text edited. The lane opens the PR now.
+- 2026-11-26 21:05 — **U4c measured rows:** 13 of 78 red.
+  - 4 builds are lost to the bisector refusal; the `Lies` reading (to Ev) restores them.
+  - 8 node rows change refusal kind to `NodeUnbuilt`, with no build lost (C5).
+  - The `sliver_shell_role` refusal moves to the crossing.
+  - All agreed.
