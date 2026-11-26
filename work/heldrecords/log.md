@@ -365,3 +365,13 @@
   - Per-test diff: none at either ε.
   - The reviewer did not run sweep's whole slow set (about 10 hours on its box); it ran the touched sweep files with the slow set included instead.
   - Row closed. PR 7808 (minted-door) will need main merged after its review: the carry moved under it.
+
+- 2026-11-26 PR 7808 review: NOT MERGEABLE.
+  - MAJOR: with `uncopied` deleted, the vertex–vertex door writes a fresh `Meet {E1, E2}` row at margin 0 for two copies of one ring vertex. editor-core `coincidence_door::a_ring_serving_two_pierces…` went PASS→FAIL. The lane's evidence ran topo and sweep but not editor-core.
+  - Ruling: copies of one vertex are structure. The landing cites the reduction's existing decision, and no fresh row is written.
+  - MINORs:
+    - section-vertex naming is unpinned;
+    - `pend` keeps the first margin, not the worst;
+    - the stress row's other-ε arm accepts any `Err`;
+    - the `place_found` sibling has no witness search.
+  - Fix pass sent. The full comparison now includes editor-core.
