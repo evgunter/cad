@@ -151,3 +151,4 @@ Dispatch, with each unit's review tier:
   - **From other programs:** PR 7497 (WALKS) turned the spiric reimport and the seam-split census red, and PR 7745 (HELDRECORDS) turned two carried-record rows red. Each is filed as a P1 main red on its owner's slate.
   - **Already held:** `tier_gate` was red at the last nightly too, under IMPORTGATE's row.
   - Seam notes are on WALKS and HELDRECORDS through the filed rows themselves. (INSIDE orchestrator)
+- 2026-11-26 — PR 7801's slow-set red was its own pins going GREEN. Since the face door reads spline chords, the census tells the two-loop drum's parts apart, and tier 3′ passes. Both rows are re-pinned SOUND at `d98cd3bf6b`, so REACHHOLD's census row narrows (noted at merge). The CI cost of those rows is filed on CIW: `a-pr-whose-diff-edits-the-cylinder-sphere-frame-rows-runs-its-slow-set-step-for-hours` (P2). The slow-set step ran 2 h 47 min and mesh-budget 1 h 44 min. (INSIDE orchestrator)
