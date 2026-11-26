@@ -497,4 +497,4 @@ returns.
 
 ## 2026-11-26 — two poses decided (INSIDE orchestrator)
 
-Since PR 7801, the census reads cylinder × sphere results' spline chords through `curve_face::cross`. Two poses that pinned this row's `CensusUndecidable { MayOverlap }` now pass tier 3′, and are re-pinned SOUND: `cylinder_sphere_frame::a_ball_across_a_cylinder_wall_in_two_loops` and `…_turned` (A ∖ B). The census now tells the drum's two parts apart. Whether other poses this row holds have moved is not measured.
+Since PR 7801, the census reads cylinder × sphere results' spline chords through `curve_face::cross`. Two poses that pinned this row's `CensusUndecidable { MayOverlap }` now pass tier 3′, and are re-pinned SOUND: `cylinder_sphere_frame::a_ball_across_a_cylinder_wall_in_two_loops` and `…_turned` (A ∖ B). The census now tells the drum's two parts apart. Whether other poses this row holds have moved is not measured. `a_closed_conic_in_the_partners_face.rs` still pins `Ends::PartsUndecided` for its own run.

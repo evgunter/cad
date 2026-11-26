@@ -16,3 +16,5 @@ Found by PR 7801's verifier (2026-11-26). It was not fixed in that PR, because t
 No row reaches the guard. It is defensive, and a fuzz-oracle mutation showed that it masks paired losses as a refusal.
 
 Done when the guard's refusal carries a kernel-invariant class (for example a `ClassificationInvariant` ending) that no door attributes to an operand, and a row pins it, if a fault seam already exists.
+
+**2026-11-26, PR 7801 at `83118f42d`.** The guard now refuses `CompositeRefusal::Contradiction`, which maps to `MeetFault::Contradiction`, a kernel fault. `reduce::composite_count` reads it through `CrossWhy::fault()` as `BooleanError::ClassificationInvariant` before its `Unsupported` → `InvalidInput` arm. The split reads it as `CrossingReading::Fault`, and the region door fails loud on it. No door names an operand. No row pins it: no fault seam reaches the walk. The site (`walk.rs` `read`) says why no input reaches the guard while the walk holds its invariants.
