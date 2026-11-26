@@ -2158,3 +2158,9 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
 - 2026-11-26 20:30 — **U4c stop on `slit` → pose.** The pose refuses `NotLies` in band for a Villarceau circle, which `slit`'s nine samples read On.
   - **Ruling (A):** pose first; the sampled certificate is kept only on a conic × torus `NotLies` zero-band refusal, as a named D3 residue.
   - (B), the certificate becoming the pose's `Lies` rung, is filed as a GERM P2 follow-up unit.
+- 2026-11-26 20:45 — **U4c gate (unset ε):**
+  - R1 `Together`: 0. R3: only `slit`'s rows. R4(a): 0, so the `Contradiction` arm stands. R4(b): 13 decided roots, owned by the end.
+  - **R2 stop:** `crossing_rods_build_past_the_ellipse_edge_copy` builds today through the bisector-plane decline's hand-back. C5's ratified text (Ev, PR 7167) says it refuses typed.
+  - The implementer proposes answering `Lies` instead, which changes what ratified text decides.
+  - **Two Opus designers dispatched** (`~/.local/share/cad-work/germ-bisector-fork/`; Opus-only under the user's 11-25 ruling). If they agree, an `[ev]` question goes on U4c's PR.
+  - The lane builds the `Lies` reading as a swappable commit.
