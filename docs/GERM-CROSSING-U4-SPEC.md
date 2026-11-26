@@ -260,10 +260,11 @@ window. Dual: it fixes the answer shape U4b–U4d and U5 build on, which is hard
   semi-axis `ℓ`, and each kind has a signed function `g`, `L`-Lipschitz with the residual's sign
   (`|p − S| − R`, `ρ − R`, `ρ cos α − |h| sin α`, `√((ρ − R)² + h²) − r`), so `|g(m)| − L·ℓ −
   escalate` decided past the band is `Apart`. It reads no harmonic extremes and charges nothing:
-  `g(m)` is read from `m − origin` (an axis's offset as `|e × n|`). The escalation is the slack for
-  `|g(m)|` and `L·ℓ` being of the conic's size while their difference is of the band's, as the face
-  reading's piece rule takes it (§2.3): bare, a 363-m circle's rounding read a graze at 0.999·Kε past
-  Kε. The torus arm asks the ring convention before it.
+  `g(m)` is read from `m − origin` (an axis's offset as `|e × n|`). The question is past `Kε`, not
+  past zero, because `Apart` claims the conic stands past `Kε` (W2), as the face reading's piece rule
+  asks (§2.3). Asked past zero, a 363-m circle's rounding read a graze at 0.999·Kε past Kε. Asked past
+  `Kε`, the session box bounds the bound's rounding to about 3.6e-12 m, against `Kε` = 1e-11 at
+  ε = 1e-12. The torus arm asks the ring convention before it.
 - `bool_line_cylinder_clearance` goes: the pose's discriminant decides that line's class exactly.
 - The straddle arm's `NoInterior` with no window becomes `Contradiction` (§2.3).
 - The walk does not drop a piece wholly off the arc at its split (§2.2): it walks such a piece until
@@ -312,7 +313,7 @@ change to C5's fixed method per arm, and goes to Ev as an `[ev]` question on U4b
 | the rescue list (gate above), each `OffFace` | `face_crossings` reads every window as refusing |
 | a definite clearance answers `Apart` where the closed rungs escalate | the cull skipped |
 | a circle 1e6 m from its sphere's centre, 10 `Kε` clear, against a double-double oracle | the cull reads `c₀ − swing` at the far centre |
-| large circles grazing a small wall inside `Kε`, against a double-double oracle, never culled | the escalation's slack dropped |
+| large circles grazing a small wall inside `Kε`, against a double-double oracle, never culled | the question asked past zero |
 | the line-clearance fuzz: line × wall and line × sphere, both endpoint residuals positive, the answer against the closed-form quadratic in double-double | the pose's discriminant read on the endpoint chord |
 | a straddle with no interior crossing fails loud | the contradiction read as the frontier |
 

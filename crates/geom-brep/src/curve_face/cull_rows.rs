@@ -266,7 +266,7 @@ fn a_circle_far_from_its_spheres_centre_reads_its_stored_gap() {
 }
 
 /// **A large circle grazing a small wall within the band's escalation is
-/// never culled** (the escalation's slack, [`super::pose::culled`]). Five
+/// never culled** (`Apart` asked past `Kε`, [`super::pose::culled`]). Five
 /// circles of radius 68 to 1323 m in planes all but square to a wall's
 /// axis, each grazing a wall of radius 0.003 to 4.7 m from outside with
 /// its residual aimed within `0.01·ε` of `Kε` at `ε = 10⁻¹²` (the
@@ -275,7 +275,7 @@ fn a_circle_far_from_its_spheres_centre_reads_its_stored_gap() {
 /// bound, the difference of two lengths of the circle's size, does not
 /// resolve. The cull hands every one on.
 ///
-/// Mutant: the slack dropped (`|g(m)| − L·ℓ` decided bare), red: a
+/// Mutant: the question asked past zero (`|g(m)| − L·ℓ` decided bare), red: a
 /// circle's rounding reads it past the band.
 #[test]
 fn a_large_circle_grazing_a_wall_within_the_escalation_is_not_culled() {

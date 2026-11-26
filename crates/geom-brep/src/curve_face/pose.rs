@@ -335,8 +335,9 @@ pub fn pose<T: Decide>(
 /// 1-Lipschitz in space up to the stated constant `L`, whose sign is the
 /// residual's ([`crate::implicit_residual`]), so over the ball `g` keeps
 /// the sign of `g(m)` wherever `|g(m)| > L·ℓ`, and the conic meets no
-/// point of the surface. The decision reads `|g(m)| − L·ℓ − escalate`,
-/// in metres (the escalation's slack below):
+/// point of the surface. `Apart` claims more: the conic stands past `Kε`
+/// of the surface (a conic within `Kε` is a window, W2), so the question
+/// is the bound less `Kε`, `|g(m)| − L·ℓ − escalate`, in metres:
 ///
 /// - **sphere**: `|p − S| − R`, the distance to the centre less a
 ///   constant: 1-Lipschitz, and the residual `(|p − S|² − R²)/2R` is it
@@ -368,18 +369,23 @@ pub fn pose<T: Decide>(
 /// `e = m − origin`, the surface's stored origin, never as harmonic
 /// extremes `c₀ ± A` (which cancel for a far-centred pair at `u·|e|²/2R`):
 /// an axis's offset as `|e × n|`, never `e − (e·n)n`, which cancels far
-/// along it. So posed, each term is read to a rounding of its own size.
+/// along it. It charges nothing.
 ///
-/// **The escalation's slack.** `|g(m)|` and `L·ℓ` are each of the
-/// conic's size while their difference may be of the band's: a circle of
-/// radius 363 grazing a wall of radius 0.0094 reads its bound as the
-/// difference of two lengths near 363, whose rounding (a few ulps of 363,
-/// near 1e-13) carries a true gap of 0.999·Kε past Kε. So the margin
-/// takes the band's escalation off first, as the face reading's piece
-/// rule does: a bound decided past it stands past the band by the
-/// escalation's width less a rounding of the conic's size, which the
-/// session box keeps far below it, and the cull answers only where the
-/// closed rungs would answer `Apart` too. It still charges nothing.
+/// **Why the question is past `Kε`, not past zero.** `|g(m)| − L·ℓ`
+/// bounds the conic's distance from the surface; deciding it alone asks
+/// whether that distance is past zero, the wrong question for `Apart`,
+/// and the band then reads the bound against `Kε` with no room for its
+/// own rounding: a circle of radius 363 m grazing a wall of radius
+/// 0.0094 m at 0.999·`Kε` (`ε` = 1e-12) read past `Kε` and answered
+/// `Apart` (`cull_rows`'
+/// `a_large_circle_grazing_a_wall_within_the_escalation_is_not_culled`).
+/// Asked past `Kε`, a `Positive` reading puts the computed bound at
+/// `2Kε` or more, and its rounding is bounded by the session box (D4,
+/// 1 km a coordinate): the conic's points, their midpoint, `e`, `|e × n|`
+/// or `|e|`, `g`, `L·ℓ` and the two differences take about sixteen ulps
+/// of the box's 2-km diameter (one ulp is 2.3e-13 m), 3.6e-12 m, against
+/// `Kε` = 1e-11 m at `ε` = 1e-12, the least `ε` the kernel runs. So the
+/// true bound stands past `2Kε − 3.6e-12 > Kε`, and the conic past `Kε`.
 pub(super) fn culled<T: Decide>(
     span: &Span<'_, T>,
     conic: &dyn Conic<T>,
