@@ -384,7 +384,7 @@ Each retired K name leaves the recourse roster in the same commit.
   `Curve3::Spiric {` sites).
   - `Curve3::spiric`'s own two decisions, `spiric_minor_positive` and
     `ring_torus_convention` (`crates/geom/src/curves.rs:1502`, the
-    decisions at `:1514` and `:1531`), retire with it.
+    decisions at `:1512` and `:1517`), retire with it.
   - `RingTorus::decided` (`surfaces.rs:767`), the crate-private
     unchecked mint, retires. It is used at `curves.rs:1522`, after the
     spiric's own decisions, and at `:1567` (`spiric_torus`), which rests
