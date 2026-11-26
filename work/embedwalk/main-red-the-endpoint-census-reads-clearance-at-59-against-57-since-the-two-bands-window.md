@@ -2,11 +2,12 @@
 id: main-red-the-endpoint-census-reads-clearance-at-59-against-57-since-the-two-bands-window
 kind: issue
 title: main red: the endpoint census reads clearance.rs at 59 endpoint reads against its pin of 57 since the two bands' window (PR 7786) landed beside the trimmed free-form window (PR 7787)
-status: dispatched
+status: closed
 opened: 2026-11-26
 priority: P1
 cost: E
 branch: embedwalk/census-two-bands
+closed: 2026-11-26
 ---
 
 
@@ -49,3 +50,12 @@ torus or sheet channel, the certifying direction of a superset claim.
 refusal door, and an end that does not certify leaves the channel its
 canonical range. The census reads `clearance.rs` at (57, 16) again,
 and its roster row stands.
+
+## Closed
+
+2026-11-26 by PR 7811: the two reads were a defect, not a count to move.
+`lifted_ends` (PR 7786) took a refused bracket's ordinary endpoints, so on
+a `Body<Interval>` a window end that did not certify could narrow a torus
+or sheet channel. It now reads each end through `certified_bracket` and
+the channel keeps its canonical range where either refuses; the census
+reads clearance.rs at 57 again.
