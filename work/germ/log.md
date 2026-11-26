@@ -2189,3 +2189,11 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
 - 2026-11-26 22:20 — **`[sizes]` spec delivered:** PR 7819, with stages S1–S7 (S1 M, S2 L, S3a L, S3b H, S3c M, S4 M, S5 H, S6 H, S7 M) and six questions.
   - A single FULL Opus spec review is dispatched.
   - Q1–Q6 are to be ruled after the review; any that are genuinely tricky wait for the Fable reset (11-29) to get more designers.
+- 2026-11-26 22:50 — **`[sizes]` spec review: APPROVE-WITH-FIXES.**
+  - M1: the stage order doesn't compile, because the blend arms block S2–S4.
+  - M2: S2's stored sites need S3.
+  - M3: missing producers, including the corner torus at `planar.rs:430`.
+  - M4: `Curve3::ellipse`'s door decisions.
+  - **Rulings:** Q1, Q3, Q4 (with the spiric's own decisions retired), Q5 and Q6 as recommended; Q2 classify by band.
+  - **New Q7 (open):** which run's band a witness belongs to. Possibly a fork; if so, it waits for designers after the Fable reset.
+  - The fix pass is sent to the spec session.
