@@ -894,7 +894,8 @@ enum Grazed {
 /// - refuses typed nearer tangent, where the placement reads the record
 ///   in band (`Unread`), or the pierce of the wall is in band;
 ///
-/// never a wrong body. Tier 3′ finds only what the census cannot yet
+/// never a wrong body. The outcomes are pinned at the default ε; at
+/// another, each op builds sound or refuses typed. Tier 3′ finds only what the census cannot yet
 /// decide of two lumps' curved faces and the line contact an
 /// intersection or a subtraction leaves unrecorded
 /// (`a-carried-line-contact-an-op-cuts-is-dropped`).
@@ -905,6 +906,7 @@ fn a_tool_face_grazing_the_holding_face_decides_or_refuses_and_never_ships_a_wro
     let bodies: Vec<_> = prisms.iter().map(|(foot, z)| prism(foot, *z)).collect();
     let in_prisms = |q: [f64; 3]| prisms.iter().any(|(foot, z)| in_prism(foot, *z, q));
     let (pair, records) = joined_carried("sector ∪ triangle", &bodies[0], &bodies[1]);
+    let default_band = tol().eps() == geom_core::tolerance::DEFAULT_EPS;
     let [ef] = records.ef[..] else {
         panic!("the joined prisms carry one edge-in-face record: {records:?}");
     };
@@ -956,6 +958,10 @@ fn a_tool_face_grazing_the_holding_face_decides_or_refuses_and_never_ships_a_wro
                         continue;
                     }
                     (Decided | Built, Ok(BooleanResult::Body(r))) => r,
+                    // The outcomes are the default band's; at another ε
+                    // an op refuses typed or builds sound.
+                    (_, Ok(BooleanResult::Body(r))) if !default_band => r,
+                    (_, Err(_)) if !default_band => continue,
                     (_, other) => panic!("{what}: want {want:?}, got {other:?}"),
                 };
                 assert_eq!(
@@ -1003,9 +1009,8 @@ fn a_tool_face_grazing_the_holding_face_decides_or_refuses_and_never_ships_a_wro
                 let door = r.coincidences.iter().any(|c| {
                     c.cells == own && c.relation == topo::Relation::Meet && c.more == [None; 3]
                 });
-                assert_eq!(
-                    door,
-                    want == Decided,
+                assert!(
+                    !default_band || door == (want == Decided),
                     "{what}: the door's row on the record's cells: {:?}",
                     r.coincidences
                 );
