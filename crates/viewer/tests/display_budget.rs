@@ -852,11 +852,12 @@ const ANSWERS: &[Answer] = &[
         probe_triangles: 18400,
         stop: ProbeStop::AtTheRequest,
     },
+    // The one-band die's cost, exact as the fit computes it.
     Answer {
         document: "die_composed_tour",
         requested: 5e-6,
         delta: 1.1248938565032009e-5,
-        requested_cost: Some(2249787.0),
+        requested_cost: Some(2249787.7130064014),
         largest_probe: 113006,
         probe_triangles: 161590,
         stop: ProbeStop::Converged,
