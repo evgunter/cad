@@ -2,10 +2,11 @@
 id: a-carried-records-section-vertices-are-not-named-in-the-booleans-division
 kind: issue
 title: The boolean's division of a face names its section vertices only for a reduction row, not for a carried record
-status: open
+status: closed
 opened: 2026-11-25
 priority: P2
 cost: M
+closed: 2026-11-26
 ---
 
 
@@ -52,3 +53,14 @@ edges again, and the vertices alone stay unnamed. The edge's minted
 vertex-on-section-edge meeting that this reaches in
 `a_pierce_held_in_a_curved_face` refuses `JoinDesync` until the door
 decides it (`the-boolean-door-decides-no-minted-vertex-on-edge-meeting`).
+
+## 2026-11-26 — closed: the carried path names the section vertices (`heldrecords/minted-door`)
+
+The carry's door now writes a minted meeting's row on the carried
+record's own two input cells, as their meeting, never on a cell the
+op's clones minted, two vertices or a vertex inside an edge alike
+(`boolean::ops` `minted_meeting`). So no row names a section vertex,
+and both paths name the section's vertices (`Incidence::chords` takes
+no flag). `a_vertex_through_a_declared_seat::a_wall_vertexs_edges_are_in_the_seat_on_both_sides`
+passes, as does
+`three_solids_on_one_line::a_contact_line_beside_a_face_holding_it_builds_in_every_op`.
