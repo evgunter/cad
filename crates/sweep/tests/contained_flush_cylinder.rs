@@ -73,13 +73,11 @@ fn a_carried_edge_edge_row_on_a_discarded_wall_is_consumed() {
         })
         .expect("the seam the arc does not meet");
     let inputs = topo::BooleanInputs {
-        records_a: topo::OperandRecords {
-            ee: vec![topo::CarriedRecord {
-                contact: topo::EeContact { a: top, b: seam },
-                record: 0,
-            }],
-            ..Default::default()
-        },
+        records_a: topo::OperandRecords::from_iter([topo::CarriedRecord {
+            contact: topo::Contact::new(&cylinder, topo::Cell::Edge(top), topo::Cell::Edge(seam))
+                .unwrap(),
+            record: 0,
+        }]),
         ..Default::default()
     };
     let with = |block: (f64, f64)| {

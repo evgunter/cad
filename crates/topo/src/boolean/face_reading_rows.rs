@@ -263,6 +263,7 @@ fn a_touch_whose_arc_reaches_the_boundary_is_held() {
         point: line.eval(0.0),
         on_span: OnSpan::Inside { t: 0.0 },
         kind: MeetingKind::Touch { arc: (-w, w) },
+        chart: None,
     };
     let answer = Err(CrossRefusal {
         found: vec![touch],

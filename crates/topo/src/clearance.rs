@@ -74,11 +74,12 @@
 //! holds on a plane, a cylinder, a cone, a sphere and a torus. A cell
 //! straddling the boundary, within `K · ε` of it, or one whose station
 //! the point door does not place, is kept: the set the sweep covers
-//! still contains the face. A NURBS face's window is exact rather than
-//! a superset (an approximated face's is its fit's, the fit being its
-//! geometry): such a window is admitted only where the face is the whole patch
-//! (`iso_bounded_domain`), so its cells read `Inside` and its stations
-//! are admitted with neither door asked (`Region::Whole`).
+//! still contains the face. A NURBS face's window, and an approximated
+//! face's (its fit being its geometry), is its knot domain, read the
+//! same way, except where the face is the whole patch
+//! (`iso_bounded_domain`): there the window is exact, its cells read
+//! `Inside` and its stations are admitted with neither door asked
+//! (`Region::Whole`).
 //!
 //! So the looseness runs one way, and it is the safe way for a defect
 //! gate. `Holds` covers strictly more than the faces and is therefore
@@ -1798,9 +1799,11 @@ impl Sweep {
                     }
                     continue;
                 }
-                if injective && x.face == y.face && x.region == Region::Trimmed {
+                if injective && x.face == y.face && !matches!(x.surface, Surface::Nurbs(_)) {
                     // **Injective by its carrier's kind**: one leaf, never
-                    // subdivided.
+                    // subdivided. A free-form face, whole or trimmed, is
+                    // walked: the monotone arm reads a chart rectangle,
+                    // which holds the face's part of it either way.
                     match injective::by_kind(x.face, &x.surface, self.band) {
                         Ok(()) => {
                             receipt.discharged += 1;
@@ -3558,7 +3561,8 @@ enum Region {
     /// still a point of the closed face, which is what the minimum walk
     /// reads off `Inside`: its centre station is a point of the face.
     Whole,
-    /// The window is a superset of the face (every analytic carrier):
+    /// The window is a superset of the face (every analytic carrier,
+    /// and a NURBS face that is not its whole patch):
     /// [`cell_region`](crate::cell_region::cell_region) reads each cell, and [`station_region`] each
     /// station.
     Trimmed,
@@ -3682,6 +3686,22 @@ fn full_latitude() -> (f64, f64) {
     )
 }
 
+/// A pair of window ends, as the `f64` range their certified brackets
+/// span; `None` where either end does not certify, which leaves the
+/// channel its canonical range.
+fn lifted_ends<T: CertifiedBounds>((lo, hi): (T, T)) -> Option<(f64, f64)> {
+    Some((lo.certified_bracket()?.0, hi.certified_bracket()?.1))
+}
+
+/// A periodic channel's window from its ends: their certified range, or
+/// the whole turn where that reaches a period or an end does not certify.
+fn within_turn<T: CertifiedBounds>(lo: T, hi: T) -> (f64, f64) {
+    let turn = full_turn();
+    lifted_ends((lo, hi))
+        .filter(|&(lo, hi)| hi - lo < turn.1 - turn.0)
+        .unwrap_or(turn)
+}
+
 /// **A spindle sheet's canonical tube-angle range** `[−v*, v*]`, its
 /// apexes' angle ([`geom::sheet_apex`]) taken at its widest over the
 /// lifted datums, widened as [`full_latitude`] is. Evaluating a hair
@@ -3723,16 +3743,26 @@ fn sheet_latitude(major_radius: Interval, minor_radius: Interval) -> (f64, f64) 
 /// - **Sphere**: latitude has an interior extremum (a cap's boundary is
 ///   one circle while the region reaches the pole), so both coordinates
 ///   take their canonical ranges.
-/// - **Torus**: both coordinates are periodic and no boundary bounds
-///   either.
-/// - **Spindle sheet**: as the sphere, `u` takes the whole turn and `v`
-///   its canonical range between the apexes ([`sheet_latitude`]).
-/// - **NURBS**: a face whose boundary is its chart's own isos, run
-///   once around the knot domain — every loft and sweep wall — is the
-///   whole patch, and its window is that domain
-///   ([`iso_bounded_domain`]). A trimmed face, one with a boundary edge
-///   that is not an iso, and one whose isos do not cover the domain's
-///   boundary refuse [`EngineRefusal::Unsupported`] naming which.
+/// - **Torus**: both coordinates are periodic, so no box bounds either.
+///   The boundary's stored chart images do, where the face is the side
+///   of its one loop that the loop bounds in the chart: the window is
+///   their rectangle, widened by its certificate slack
+///   ([`crate::cover::bounded_torus_window`]), each channel the whole
+///   turn where that spans a period or an end does not certify
+///   ([`lifted_ends`]). Any other face takes the whole tube.
+/// - **Spindle sheet**: `u` takes the whole turn. `v` takes the latitude
+///   its boundary's chart images span, on the same terms
+///   ([`crate::cover::bounded_sheet_latitude`]), certified and strictly
+///   inside `(−π, π)`, met with the canonical range between the apexes
+///   ([`sheet_latitude`]); any other face takes that canonical range, as
+///   the sphere does, since a cap's boundary is one circle while it
+///   reaches an apex.
+/// - **NURBS**: the knot domain ([`knot_domain`]), the chart's whole
+///   parameter set. A face whose boundary is its chart's own isos, run
+///   once around that domain — every loft and sweep wall — is the whole
+///   patch, and the window is exact ([`iso_bounded_domain`],
+///   [`Region::Whole`]); any other face is a region of it, read as an
+///   analytic face's window is ([`Region::Trimmed`]).
 /// - **An approximated face** is its fit, a NURBS face, and takes the
 ///   NURBS window.
 ///
@@ -3783,6 +3813,10 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
         return unsupported("a face whose carrier does not certify");
     };
     let superset = |u, v| (u, v, Region::Trimmed);
+    // The chart windows a torus or sheet face's boundary reads, each
+    // `None` off its own carrier.
+    let torus_rect = || crate::cover::bounded_torus_window(body, face);
+    let sheet_lat = || crate::cover::bounded_sheet_latitude(body, face);
     let (u, v, region) = match &charted {
         Surface::Plane { frame } => {
             let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
@@ -3815,15 +3849,30 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
             superset(full_turn(), v)
         }
         Surface::Sphere { .. } => superset(full_turn(), full_latitude()),
-        Surface::Torus { .. } => superset(full_turn(), full_turn()),
+        Surface::Torus { .. } => {
+            let (u, v) = torus_rect().map_or((full_turn(), full_turn()), |(u, v)| {
+                (within_turn(u.lo, u.hi), within_turn(v.lo, v.hi))
+            });
+            superset(u, v)
+        }
         Surface::Spindle {
             major_radius,
             minor_radius,
             ..
-        } => superset(full_turn(), sheet_latitude(*major_radius, *minor_radius)),
-        Surface::Nurbs(net) => match iso_bounded_domain(body, f.record(), net) {
-            Ok((u, v)) => (u, v, Region::Whole),
+        } => {
+            let sheet = sheet_latitude(*major_radius, *minor_radius);
+            let v = sheet_lat()
+                .and_then(lifted_ends)
+                .filter(|&(lo, hi)| -core::f64::consts::PI < lo && hi < core::f64::consts::PI)
+                .map_or(sheet, |(lo, hi)| (lo.max(sheet.0), hi.min(sheet.1)));
+            superset(full_turn(), v)
+        }
+        Surface::Nurbs(net) => match knot_domain(net) {
             Err(carrier) => return unsupported(carrier),
+            Ok(domain) if iso_bounded_domain(body, f.record(), domain) => {
+                (domain.0, domain.1, Region::Whole)
+            }
+            Ok(domain) => superset(domain.0, domain.1),
         },
         Surface::Approx(_) => unreachable!("an approximated face is read as its fit"),
     };
@@ -3955,10 +4004,9 @@ mod lift {
 /// bounds the fit from the surface it stands in for, a claim tier 3
 /// re-derives, and says nothing about where the boundary is. That the
 /// boundary lies on the fit is the face's own: tier 3 certifies each
-/// edge against its chart image on the fit, and the window admits a
-/// free-form face only where [`iso_bounded_domain`] finds those images
-/// run once around the fit's knot domain. `None` where a crossing does
-/// not certify ([`certified_lift`]).
+/// edge against its chart image on the fit, and the window is the fit's
+/// knot domain ([`knot_domain`]), which holds every point of a face on
+/// it. `None` where a crossing does not certify ([`certified_lift`]).
 fn carrier_lifted<T: CertifiedBounds>(stored: &Surface<T>) -> Option<Surface<Interval>> {
     certified_lift(|lift| match stored.spline_chart() {
         Some(net) => Surface::Nurbs(std::sync::Arc::new(net.map_scalar(|x| lift.of(x)))),
@@ -3969,60 +4017,69 @@ fn carrier_lifted<T: CertifiedBounds>(stored: &Surface<T>) -> Option<Surface<Int
 /// A rectangle of carrier parameters, `(u, v)` ranges.
 type ParamRect = ((f64, f64), (f64, f64));
 
-/// **The window of a NURBS face bounded by its chart's own isos**: the
-/// whole knot domain `[u0, u1] × [v0, v1]`, admitted only where the
-/// face's boundary IS that domain's boundary, traversed once.
+/// The value of an enclosure that is one finite point, certified:
+/// exact structure, such as a knot or a held iso coordinate.
+fn exact(x: Interval) -> Option<f64> {
+    (x.is_certified() && x.lo() == x.hi() && x.lo().is_finite()).then_some(x.lo())
+}
+
+/// **A NURBS chart's knot domain** `[u0, u1] × [v0, v1]`: every point
+/// of a face on the chart is the image of a point of it, so it is a
+/// superset of the face's region whatever the face's boundary. Its
+/// bounds must be exact structure, as the window's rectangle is read in
+/// `f64`.
+fn knot_domain(net: &NurbsSurface<Interval>) -> Result<ParamRect, &'static str> {
+    let domain = |(lo, hi): (Interval, Interval)| Some((exact(lo)?, exact(hi)?));
+    match (
+        domain(net.knot_values_u().domain()),
+        domain(net.knot_values_v().domain()),
+    ) {
+        (Some(u), Some(v)) => Ok((u, v)),
+        _ => Err("a free-form face whose knot domain is not exact structure"),
+    }
+}
+
+/// **Whether a NURBS face is its whole patch**: its boundary IS the
+/// knot domain's ([`knot_domain`]) boundary, traversed once. Such a
+/// face's window is [`Region::Whole`]; any other face on the chart is a
+/// region of the domain, read as [`Region::Trimmed`].
 ///
 /// The test reads the face's one loop through its lift
 /// ([`crate::pcurves::Lift::read`]): each half-edge's stored chart image,
 /// moved by the joint elements summed along the loop, so the two halves
-/// of a seam sit on the two columns they bound. It admits when
+/// of a seam sit on the two columns they bound. It holds when
 ///
 /// - the face has no ring, and every image is an iso by VARIANT
 ///   ([`Pcurve::IsoLine`], [`Pcurve::IsoArc`]): a straight segment of
 ///   the chart, a shape no scalar test has to decide;
-/// - each image holds one chart coordinate at a bound of the exact
-///   knot domain at both of its ends, so the whole segment lies on that
-///   side. The held coordinate is exact structure by the variant (its
-///   velocity is an exact zero); the moving one is read as the interval
-///   the image evaluates to, since an edge's parameter span need not be
-///   a point;
+/// - each image holds one chart coordinate at a bound of the domain at
+///   both of its ends, so the whole segment lies on that side. The held
+///   coordinate is exact structure by the variant (its velocity is an
+///   exact zero); the moving one is read as the interval the image
+///   evaluates to, since an edge's parameter span need not be a point;
 /// - each image's end meets the next one's start, as intervals within
 ///   a few ulps of their magnitude, so the images chain into one closed
 ///   curve on the domain's boundary;
 /// - that curve winds once. Its shoelace is the winding times the
 ///   domain's area, so the interval quotient of the two encloses an
-///   integer, and it is admitted only where that enclosure isolates
-///   `±1`. The compare identifies an integer under interval bounds; it
-///   decides nothing against a band.
+///   integer, and it holds only where that enclosure isolates `±1`. The
+///   compare identifies an integer under interval bounds; it decides
+///   nothing against a band.
 ///
 /// A closed curve on a rectangle's boundary that winds once passes
 /// every point of that boundary, so the loop is the whole boundary and
-/// the face is the whole patch. Every other face refuses naming what
-/// it found.
+/// the face is the whole patch.
 fn iso_bounded_domain<T: Decide + CertifiedBounds>(
     body: &Body<T>,
     f: &Face,
-    net: &NurbsSurface<Interval>,
-) -> Result<ParamRect, &'static str> {
-    const NOT_ISO: &str = "a free-form face with a boundary edge that is not an iso of its chart";
-    const NOT_COVERING: &str =
-        "a free-form face whose iso boundary does not run once around its knot domain";
+    (u, v): ParamRect,
+) -> bool {
     if !f.rings.is_empty() {
-        return Err("a trimmed free-form face (it carries an inner loop)");
+        return false;
     }
-    let exact = |x: Interval| {
-        (x.is_certified() && x.lo() == x.hi() && x.lo().is_finite()).then_some(x.lo())
+    let Ok(rows) = crate::pcurves::Lift::read(body, f.outer) else {
+        return false;
     };
-    let domain = |(lo, hi): (Interval, Interval)| Some((exact(lo)?, exact(hi)?));
-    let (Some(u), Some(v)) = (
-        domain(net.knot_values_u().domain()),
-        domain(net.knot_values_v().domain()),
-    ) else {
-        return Err("a free-form face whose knot domain is not exact structure");
-    };
-    let rows = crate::pcurves::Lift::read(body, f.outer)
-        .map_err(|_| "a free-form face whose boundary stores no chart image to lift")?;
     let on_side = |(x, y): (Interval, Interval)| {
         let (x, y) = (exact(x), exact(y));
         [
@@ -4035,7 +4092,7 @@ fn iso_bounded_domain<T: Decide + CertifiedBounds>(
     let mut path: Vec<[(Interval, Interval); 2]> = Vec::with_capacity(rows.rows().len());
     for row in &rows {
         if !matches!(&row.pcurve, Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. }) {
-            return Err(NOT_ISO);
+            return false;
         }
         let (t0, t1) = row.params();
         let point = |t: T| {
@@ -4045,7 +4102,7 @@ fn iso_bounded_domain<T: Decide + CertifiedBounds>(
         let (a, b) = (point(t0), point(t1));
         let (sa, sb) = (on_side(a), on_side(b));
         if !(0..4).any(|side| sa[side] && sb[side]) {
-            return Err(NOT_COVERING);
+            return false;
         }
         let forward = crate::pcurves::is_plus(body, row.half_edge);
         path.push(if forward { [a, b] } else { [b, a] });
@@ -4065,7 +4122,7 @@ fn iso_bounded_domain<T: Decide + CertifiedBounds>(
         .zip(path.iter().cycle().skip(1))
         .all(|(this, next)| meet(this[1].0, next[0].0) && meet(this[1].1, next[0].1));
     if path.is_empty() || !closes {
-        return Err("a free-form face whose iso boundary does not close in its chart");
+        return false;
     }
     let at = |x: f64| Interval::from_bounds(x, x);
     let shoelace = path
@@ -4076,10 +4133,7 @@ fn iso_bounded_domain<T: Decide + CertifiedBounds>(
     let winding = shoelace * at(0.5) / area;
     let isolates =
         |k: f64| winding.is_certified() && winding.lo() > k - 0.5 && winding.hi() < k + 0.5;
-    if !(isolates(1.0) || isolates(-1.0)) {
-        return Err(NOT_COVERING);
-    }
-    Ok((u, v))
+    isolates(1.0) || isolates(-1.0)
 }
 
 /// Whether halving the window on either axis actually narrows the
@@ -6208,7 +6262,8 @@ mod refines_rows {
 mod trv_rows {
     use super::{
         Bracket, Budgets, Cell, CellPair, CellReceipt, MinSeparationRefusal, Question, RegionMemo,
-        Side, Task, Walk, Which, Window, min_separation, poisoned, root_separations, window_of,
+        Side, Task, Walk, Which, Window, lifted_ends, min_separation, poisoned, root_separations,
+        window_of, within_turn,
     };
     use crate::test_support_fixtures::trv;
     use crate::{Body, FaceKey};
@@ -6310,6 +6365,26 @@ mod trv_rows {
             "unbounded"
         );
         assert!(poisoned(Interval::from_bounds(f64::NAN, 1.0)), "NaI");
+    }
+
+    /// **A window end that does not certify narrows nothing**: the
+    /// torus and sheet arms take a channel's range off its ends only
+    /// where both certify (`lifted_ends`), and the canonical range
+    /// otherwise. Red if an end's bracket is read without its refusal:
+    /// the refused pair's channel would be `(0.3, 1.9)`, which claims
+    /// the face lies inside a range nothing certified.
+    #[test]
+    fn a_window_end_that_does_not_certify_narrows_nothing() {
+        let (lo, hi) = (Interval::from_f64(0.3), Interval::from_f64(1.9));
+        assert_eq!(lifted_ends((lo, hi)), Some((0.3, 1.9)), "certified");
+        assert_eq!(within_turn(lo, hi), (0.3, 1.9), "certified, inside a turn");
+        assert_eq!(lifted_ends((trv(0.3), hi)), None, "low end refused");
+        assert_eq!(lifted_ends((lo, trv(1.9))), None, "high end refused");
+        assert_eq!(
+            within_turn(trv(0.3), trv(1.9)),
+            crate::injective::full_turn(),
+            "a refused pair keeps the whole turn"
+        );
     }
 
     /// `i` with its bounds intact and its decoration refused.
@@ -7521,10 +7596,145 @@ mod seated_windows {
 
     use super::{Budgets, ClearanceBound, DEFAULT_MAX_CELL_DEPTH, Side, Sweep, Which};
 
+    /// **A torus face's window is its loop's chart rectangle only on the
+    /// loop's bounded side.** The patch `[0.3, 1.9] × [−0.7, 0.8]` and its
+    /// complement have one loop and the same images; the patch's window
+    /// is that rectangle, widened by its slack alone, and the
+    /// complement's is the whole tube. Red if the window is read off the
+    /// images without the side (the complement's would be the patch's,
+    /// missing every point of the complement), or if a torus window is
+    /// the whole tube again.
+    #[test]
+    fn a_torus_window_is_its_loops_rectangle_on_the_bounded_side_alone() {
+        let patch = |clockwise: bool| {
+            let at = (Point3::origin(), Vec3::unit_z(), Vec3::unit_x());
+            if clockwise {
+                crate::boxes::tests::torus_wall_clockwise(
+                    at.0,
+                    at.1,
+                    at.2,
+                    2.0,
+                    0.5,
+                    (0.3, 1.9),
+                    (-0.7, 0.8),
+                )
+            } else {
+                crate::boxes::tests::torus_wall(at.0, at.1, at.2, 2.0, 0.5, (0.3, 1.9), (-0.7, 0.8))
+            }
+        };
+        let (body, face) = patch(false);
+        let w = super::window_of(&body, face, Which::First, None).unwrap();
+        let near = |(lo, hi): (f64, f64), (a, b): (f64, f64)| {
+            lo <= a && b <= hi && a - lo < 1e-9 && hi - b < 1e-9
+        };
+        assert!(
+            near(w.u, (0.3, 1.9)) && near(w.v, (-0.7, 0.8)),
+            "the patch's window is its rectangle: {:?} × {:?}",
+            w.u,
+            w.v
+        );
+        let (body, face) = patch(true);
+        let w = super::window_of(&body, face, Which::First, None).unwrap();
+        assert_eq!(
+            (w.u, w.v),
+            (crate::injective::full_turn(), crate::injective::full_turn()),
+            "the complement's window is the whole tube"
+        );
+    }
+
+    /// **A torus window's side reads alike reverted and across the
+    /// seam.** The patch and its complement, each as built and reverted
+    /// (all four sense-and-direction quadrants), on a patch inside the
+    /// chart, one past the turn and one straddling `u = 0`: the patch's
+    /// window spans it (modulo a turn), the complement's is the whole
+    /// tube. Red if the side reads the sense alone or the direction
+    /// alone (`bounded = !sense` passes the as-built pair only), or if a
+    /// lift past the seam reads the wrong side.
+    #[test]
+    fn a_torus_windows_side_reads_alike_reverted_and_across_the_seam() {
+        let at = (Point3::origin(), Vec3::unit_z(), Vec3::unit_x());
+        let full = (crate::injective::full_turn(), crate::injective::full_turn());
+        let turn = core::f64::consts::TAU;
+        for us in [(0.3, 1.9), (5.8, 6.9), (-0.4, 0.4)] {
+            let vs = (-0.7, 0.8);
+            let patch = crate::boxes::tests::torus_wall(at.0, at.1, at.2, 2.0, 0.5, us, vs);
+            let comp =
+                crate::boxes::tests::torus_wall_clockwise(at.0, at.1, at.2, 2.0, 0.5, us, vs);
+            for ((body, face), is_patch) in [(patch, true), (comp, false)] {
+                for rev in [false, true] {
+                    let b = if rev {
+                        body.revert().unwrap()
+                    } else {
+                        body.clone()
+                    };
+                    let w = super::window_of(&b, face, Which::First, None).unwrap();
+                    if is_patch {
+                        let k = |lo: f64, a: f64| ((a - lo) / turn).round() * turn;
+                        let span = |(lo, hi): (f64, f64), (a, b): (f64, f64)| {
+                            lo + k(lo, a) <= a && b <= hi + k(lo, a)
+                        };
+                        assert!(
+                            span(w.u, us) && span(w.v, vs),
+                            "patch {us:?} rev={rev}: {:?}x{:?}",
+                            w.u,
+                            w.v
+                        );
+                    } else {
+                        assert_eq!((w.u, w.v), full, "complement {us:?} rev={rev}");
+                    }
+                }
+            }
+        }
+    }
+
+    /// **A sheet window's side reads alike reverted**: the sheet's patch
+    /// `[0.3, 1.9] × [−0.7, 0.8]` (`R = 0.5`, `r = 1`, apexes at
+    /// `v* ≈ 2.09`) windows to its latitude, and the sheet with that
+    /// patch cut out keeps the whole sheet, each as built and reverted.
+    /// Red if the sheet's latitude is read without the side.
+    #[test]
+    fn a_sheet_windows_side_reads_alike_reverted() {
+        let at = (Point3::origin(), Vec3::unit_z(), Vec3::unit_x());
+        let (us, vs) = ((0.3, 1.9), (-0.7, 0.8));
+        let patch = crate::boxes::tests::sheet_wall(at.0, at.1, at.2, 0.5, 1.0, us, vs);
+        let hole = crate::boxes::tests::sheet_wall_clockwise(at.0, at.1, at.2, 0.5, 1.0, us, vs);
+        let sheet = super::sheet_latitude(
+            geom_core::interval::Interval::from_bounds(0.5, 0.5),
+            geom_core::interval::Interval::from_bounds(1.0, 1.0),
+        );
+        for ((body, face), is_patch) in [(patch, true), (hole, false)] {
+            for rev in [false, true] {
+                let b = if rev {
+                    body.revert().unwrap()
+                } else {
+                    body.clone()
+                };
+                let w = super::window_of(&b, face, Which::First, None).unwrap();
+                assert_eq!(
+                    w.u,
+                    crate::injective::full_turn(),
+                    "rev={rev}: the whole turn"
+                );
+                if is_patch {
+                    assert!(
+                        w.v.0 <= vs.0
+                            && vs.1 <= w.v.1
+                            && vs.0 - w.v.0 < 1e-9
+                            && w.v.1 - vs.1 < 1e-9,
+                        "patch rev={rev}: {:?}",
+                        w.v
+                    );
+                } else {
+                    assert_eq!(w.v, sheet, "the holed sheet rev={rev}: the whole sheet");
+                }
+            }
+        }
+    }
+
     /// **A trimmed face read across a turn sweeps as the placed face does**
-    /// (`[placement.frame]`; [`Side::windows_at`]). A torus patch, its
-    /// window the whole torus and its face a quarter of it, against a
-    /// brick that cuts the torus away from the patch, so the only cells
+    /// (`[placement.frame]`; [`Side::windows_at`]). A sphere zone, its
+    /// window the whole sphere and its face a quarter of it, against a
+    /// brick that cuts the sphere away from the zone, so the only cells
     /// of the window near the brick hold none of the face, and the sweep
     /// holds only by reading them off it.
     /// Read with the patch built where a skew motion puts it, and with the
@@ -7537,13 +7747,13 @@ mod seated_windows {
     /// the Holds and Violated asserts pass under that mutant, the region
     /// assert does not.
     ///
-    /// A second brick stands 0.1 off the patch's middle, and `≥ 0.3` is
+    /// A second brick stands 0.1 off the zone's middle, and `≥ 0.3` is
     /// violated in both frames: the cells there read on the face.
     ///
     /// *Breaks if* a cell's region is read against the placed carrier and
     /// the face's own boundary together (the window's own lift dropped):
     /// the two frames disagree, every cell reads clear of the boundary, and
-    /// a cell straddling the patch's edge reads by its centre alone.
+    /// a cell straddling the zone's edge reads by its centre alone.
     #[test]
     fn a_trimmed_face_read_across_a_turn_sweeps_as_the_placed_face() {
         let tol = Tol::witness();
@@ -7553,26 +7763,11 @@ mod seated_windows {
             .unwrap()
             .compose(RigidMotion::rotation(axis, 0.9).unwrap())
             .unwrap();
-        let (patch, face) = crate::boxes::tests::torus_wall(
-            Point3::origin(),
-            Vec3::unit_z(),
-            Vec3::unit_x(),
-            2.0,
-            0.5,
-            (0.3, 1.9),
-            (-0.7, 0.8),
-        );
-        let (moved, moved_face) = crate::boxes::tests::torus_wall(
-            m.transform_point(Point3::origin()),
-            m.transform_vec(Vec3::unit_z()),
-            m.transform_vec(Vec3::unit_x()),
-            2.0,
-            0.5,
-            (0.3, 1.9),
-            (-0.7, 0.8),
-        );
+        let (patch, face) =
+            crate::boxes::sphere_rect_rows::sphere_zone_sheet((0.3, 1.9), (-0.6, 0.7), tol);
+        let (moved, moved_face) = (crate::transform_rigid(&patch, &m).unwrap(), face);
         let brick: crate::Body<f64> = crate::transform_rigid(
-            &crate::test_support_fixtures::brick((2.0, 2.6), (-1.5, -0.9), (-0.3, 0.3), tol),
+            &crate::test_support_fixtures::brick((0.7, 1.1), (-0.7, -0.3), (-0.2, 0.2), tol),
             &m,
         )
         .unwrap();
@@ -7613,7 +7808,7 @@ mod seated_windows {
             assert_eq!(
                 report.verdict,
                 super::BoundVerdict::Holds,
-                "{what}: the brick cuts the torus off the patch, so only cells off the face \
+                "{what}: the brick cuts the sphere off the zone, so only cells off the face \
                  come near it: {:?}",
                 report.receipt
             );
@@ -7623,11 +7818,11 @@ mod seated_windows {
                 report.receipt
             );
         }
-        // A second brick, 0.1 past the patch's middle along its outward
+        // A second brick, 0.1 past the zone's middle along its outward
         // radial: the cells there hold the face, so `≥ 0.3` is violated,
         // and the sweep sees it only if it reads those cells on the face.
         let radial = Vec3::new(1.1f64.cos(), 1.1f64.sin(), 0.0);
-        let at = Point3::origin() + radial * 2.6;
+        let at = Point3::origin() + radial * 1.1;
         let near: crate::Body<f64> = crate::transform_rigid(
             &crate::test_support_fixtures::brick(
                 (at.x - 0.02, at.x + 0.02),

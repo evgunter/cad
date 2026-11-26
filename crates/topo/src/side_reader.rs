@@ -290,7 +290,8 @@ impl core::fmt::Display for UnreadRays<'_> {
 
 impl<V> SideUnread<V> {
     /// The first limit an aimed ray met, where one did: a face it could
-    /// not read (a spline face), or a broken one.
+    /// not read (a spindle sheet's, a spline face with no trim), or a
+    /// broken one.
     pub(crate) fn limit(&self) -> Option<&PointInSolidError> {
         match self {
             Self::Fallback { set_aside, .. } => set_aside.iter().find_map(|s| match &s.why {
@@ -325,8 +326,8 @@ type Aim<T> = (Point3<T>, Vec3<T>);
 /// reader's (below). A cylinder or cone face whose
 /// region cannot be read ([`FaceGeo::PartialWall`],
 /// [`FaceGeo::PartialCone`]) has no window to aim in and offers none. A
-/// spline offers none: a selection holding one casts no ray
-/// ([`side_at_infinity`]).
+/// spline face's aim is its chart window's middle, its normal the
+/// chart's `S_u × S_v` there with the face's sense folded in.
 ///
 /// # Errors
 ///
@@ -366,6 +367,22 @@ fn aim_at<T: Decide>(
         // surface: the ray starts beyond every face whatever it aims at.
         FaceGeo::Torus { .. } | FaceGeo::TorusPatch { .. } => surface.eval(T::pi(), T::pi()),
         FaceGeo::Sphere { .. } => surface.eval(T::from_f64(1.0), T::from_f64(0.3)),
+        // A spline face is aimed at its chart window's middle, a point of
+        // its carrier whether or not the trim holds it: the aim only
+        // steers, and the ray reads the trim where it crosses.
+        FaceGeo::Spline { ref surface, .. } => {
+            let Some(chart) = surface.spline_chart() else {
+                unreachable!("a spline face has a spline chart")
+            };
+            let two = T::from_f64(2.0);
+            let ((u0, u1), (v0, v1)) = (
+                chart.knot_values_u().domain(),
+                chart.knot_values_v().domain(),
+            );
+            let jet = chart.ders((u0 + u1) / two, (v0 + v1) / two);
+            let normal = geom_brep::OutwardNormal::from_chart(jet.du.cross(jet.dv), f.sense());
+            return Ok(Some((jet.point, normal.vec())));
+        }
         _ => return Ok(None),
     };
     // A cylinder's or a sphere's aim lies on its surface by construction,
@@ -532,7 +549,7 @@ fn aim_turn() -> (f64, f64) {
 /// the side: a selection all of whose faces are cylinders or cones whose
 /// region cannot be read, or whose rays all grazed, met a limit, a
 /// corner or a wedge. A selection holding a face the ray test has no
-/// arm for ([`crate::solid_contain::ray_crosses`]: a spline) casts no ray at all: every ray
+/// arm for ([`crate::solid_contain::ray_crosses`]: a spindle sheet's) casts no ray at all: every ray
 /// would fault on that face, whatever it aimed at, so the volume reads
 /// with it as the limit.
 /// An aimed ray read in band on two faces that do not meet refuses on
@@ -1174,11 +1191,12 @@ mod pre_filter_tests {
             .collect()
     }
 
-    /// **A selection holding a spline face casts no aimed ray**, and
-    /// reads the volume with that face's refusal as its limit — the
-    /// refusal every ray would have met at it, whatever it aimed at.
+    /// **A spline face whose trim its chart cannot read** limits the
+    /// volume with that face's refusal: a brick face re-carried on a
+    /// patch its edges do not lie on has no trim in the patch's chart, so
+    /// every ray would meet the refusal there, whatever it aimed at.
     #[test]
-    fn a_spline_face_casts_no_ray_and_limits_the_volume_as_a_ray_would() {
+    fn a_spline_face_with_no_trim_limits_the_volume_as_a_ray_would() {
         let tol = Tol::witness();
         let band = Band::linear(tol).expect("the witness band");
         let (mut body, faces) = brick_and_faces(tol);
@@ -1187,38 +1205,55 @@ mod pre_filter_tests {
         *body.surfaces.get_mut(key).expect("its surface resolves") =
             geom::test_support::unit_patch().into();
         let sel = SolidFaces::select(&body, faces).expect("the faces select");
-
-        let bracket = Bracket::open();
         let read = side_at_infinity(&body, &sel, band, || {
             Err::<SolidContainment, _>("the volume")
         });
-        let log = bracket.finish();
-
-        let want = PointInSolidError::KindUnsupported {
-            face: spline,
-            kind: geom::SurfaceKind::Nurbs,
-        };
+        let want = PointInSolidError::PartialSplineFace { face: spline };
         assert!(
             matches!(
                 &read,
-                Ok(Err(SideUnread::Fallback {
+                Ok(Err(unread @ SideUnread::Fallback {
                     volume: "the volume",
-                    aimed: 0,
-                    set_aside,
-                })) if set_aside == &[SetAside {
-                    aimed: spline,
-                    aim: None,
-                    why: SetAsideWhy::Limit(want.clone()),
-                }]
+                    ..
+                })) if unread.limit() == Some(&want)
             ),
-            "the volume reads, limited by the spline face"
+            "the volume reads, limited by the spline face: {read:?}"
         );
-        assert_eq!(aimed(&log), Vec::<&str>::new(), "no aimed ray is cast");
-        // The limit is the one a ray meets at that face, from anywhere:
-        // the face's geometry refuses.
         assert!(
             matches!(face_geo(&body, spline, &sel.charts, band), Err(e) if e == want),
             "a ray meets the same refusal"
+        );
+    }
+
+    /// **A point past every reach is read past a spline face whose trim
+    /// does not read**, as past a face of a kind the ray cannot cross: no
+    /// ray from it meets the face, so it takes the side at infinity, not
+    /// the face's refusal. That side is the selection's signed volume,
+    /// which a brick face re-carried on a patch its edges do not lie on
+    /// leaves uncertified, so it refuses as the volume; a point inside the
+    /// hull refuses with the face's refusal.
+    #[test]
+    fn a_point_past_every_reach_answers_past_a_spline_face_with_no_trim() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).expect("the witness band");
+        let (mut body, faces) = brick_and_faces(tol);
+        let spline = *faces.last().expect("a brick has faces");
+        let key = body.get_face(spline).expect("the face resolves").surface;
+        *body.surfaces.get_mut(key).expect("its surface resolves") =
+            geom::test_support::unit_patch().into();
+        let sel = SolidFaces::select(&body, faces).expect("the faces select");
+        let at = |x: f64| {
+            crate::solid_contain::point_in_solid_faces(&body, &sel, Point3::new(x, x, x), band, tol)
+        };
+        assert_eq!(
+            at(9.0),
+            Err(PointInSolidError::VolumeUncertified),
+            "past every reach"
+        );
+        assert_eq!(
+            at(0.5),
+            Err(PointInSolidError::PartialSplineFace { face: spline }),
+            "inside the hull"
         );
     }
 
@@ -1247,73 +1282,10 @@ mod pre_filter_tests {
         );
     }
 
-    /// The brick with a point of `faces[0]` removed: that planar face's
-    /// in-face walk panics on the vertex's point link, and its plane still
-    /// reads.
-    fn with_unwalkable_first_face(body: &mut Body<f64>, faces: &[FaceKey]) {
-        let point = body
-            .half_edges
-            .values()
-            .find(|he| {
-                body.loops
-                    .get(he.parent_loop)
-                    .is_some_and(|l| l.face == faces[0])
-            })
-            .and_then(|he| body.vertices.get(he.start))
-            .map(|v| v.point)
-            .expect("the first face has a vertex");
-        body.points.remove(point);
-    }
-
-    /// **A spline face takes no aim.** On a selection whose first planar
-    /// face's in-face walk breaks, the first aim reads that face and
-    /// panics on its torn link; with a spline face in the selection no
-    /// aim is taken, so the face is never walked and the volume reads,
-    /// limited by the spline face.
+    /// **A planar selection casts its rays**, and the volume is not read
+    /// where one decides.
     #[test]
-    fn a_spline_face_reads_the_volume_where_a_planar_aims_walk_refuses() {
-        let tol = Tol::witness();
-        let band = Band::linear(tol).expect("the witness band");
-        let (mut body, faces) = brick_and_faces(tol);
-        with_unwalkable_first_face(&mut body, &faces);
-        let sel = SolidFaces::select(&body, faces.clone()).expect("the faces select");
-        let report = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
-            let _ = side_at_infinity(&body, &sel, band, || {
-                Err::<SolidContainment, _>("the volume")
-            });
-        }));
-        assert!(
-            report.contains("'s point names"),
-            "without a spline face the first aim walks the torn face: {report}"
-        );
-
-        let spline = *faces.last().expect("a brick has faces");
-        let key = body.get_face(spline).expect("the face resolves").surface;
-        *body.surfaces.get_mut(key).expect("its surface resolves") =
-            geom::test_support::unit_patch().into();
-        let sel = SolidFaces::select(&body, faces).expect("the faces select");
-        let read = side_at_infinity(&body, &sel, band, || {
-            Err::<SolidContainment, _>("the volume")
-        });
-        assert!(
-            matches!(
-                &read,
-                Ok(Err(unread @ SideUnread::Fallback {
-                    volume: "the volume",
-                    ..
-                })) if matches!(
-                    unread.limit(),
-                    Some(PointInSolidError::KindUnsupported { face, .. }) if *face == spline
-                )
-            ),
-            "with one, the volume reads, limited by the spline face"
-        );
-    }
-
-    /// **A selection with no spline face still casts its rays**, and the
-    /// volume is not read where one decides.
-    #[test]
-    fn a_selection_with_no_spline_face_still_aims() {
+    fn a_planar_selection_aims() {
         let tol = Tol::witness();
         let band = Band::linear(tol).expect("the witness band");
         let (body, faces) = brick_and_faces(tol);

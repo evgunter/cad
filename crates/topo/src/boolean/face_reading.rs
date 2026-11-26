@@ -162,6 +162,7 @@ pub(super) fn face_crossings<T: Decide + Bounds>(
                 point: carrier.eval(apex.at),
                 on_span,
                 kind: MeetingKind::Cross,
+                chart: None,
             };
             // Whether the meeting at `b` comes after the one at `a` along
             // the span from its start: an end before or after every inside

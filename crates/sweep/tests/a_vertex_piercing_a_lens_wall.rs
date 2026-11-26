@@ -68,8 +68,11 @@ fn ridge(b: &topo::Body<f64>) -> (FaceKey, Point3<f64>) {
 /// lane's own image of the chord misses it
 /// (`work/sectarms/a-planes-carried-arc-across-a-flared-spline-wall-misses-its-own-image-at-rest.md`),
 /// or, at `ε = 1e-6`, past the ring the chords close on the wall, which
-/// the join winds, at the inside/outside test of a body holding the
-/// wall (`work/inside/point-containments-ray-test-has-no-spline-arm.md`).
+/// the join winds, and past the inside/outside test, which crosses the
+/// wall (PR 7798's spline arm), at the result's volume: no quadrature
+/// lane reads a spline face holding a ring
+/// (`VolumeUncomputable { source: RingOnCurvedFace }`,
+/// `work/quad/a-ringed-spline-face-has-no-volume-lane.md`).
 /// A ring struck by a chord `mev` into the wall refused
 /// `Euler(PcurveMint { face: wall, refusal: SplineChart })` here, as on
 /// the lily.
@@ -77,7 +80,7 @@ fn ridge(b: &topo::Body<f64>) -> (FaceKey, Point3<f64>) {
 fn a_vertex_piercing_a_lens_wall_mints_its_ring_and_reaches_the_chords_certificate() {
     let tol = Tol::witness();
     let b = blade(tol);
-    let (wall, p) = ridge(&b);
+    let (_, p) = ridge(&b);
     assert!(
         p.z > 0.05,
         "the ridge wall's middle stands above the chord: {p:?}"
@@ -92,9 +95,9 @@ fn a_vertex_piercing_a_lens_wall_mints_its_ring_and_reaches_the_chords_certifica
     let pose = topo::test_support::meeting::Pose::rest();
     let pyr =
         topo::test_support::meeting::posed_pyramid_at::<f64>(&base, [p.x, p.y, p.z], &pose, tol);
-    // At `ε = 1e-6` the run passes the join and meets the wall at the
-    // inside/outside test; at every other row it stops before, at the
-    // chord's at-rest certificate.
+    // At `ε = 1e-6` the run passes the join and the inside/outside test
+    // and stops at the result's volume; at every other row it stops
+    // before, at the chord's at-rest certificate.
     let past_the_join = test_utils::kernel_limit::at_row(tol.eps(), &[1e-6]);
     for (what, x, y) in [("pyr ∪ blade", &pyr, &b), ("blade ∪ pyr", &b, &pyr)] {
         let got = topo::union(x, y, tol).map(|_| ());
@@ -102,12 +105,16 @@ fn a_vertex_piercing_a_lens_wall_mints_its_ring_and_reaches_the_chords_certifica
             assert!(
                 matches!(
                     &got,
-                    Err(BooleanError::Containment(topo::PointInSolidError::KindUnsupported {
-                        face,
-                        kind: geom::SurfaceKind::Nurbs,
-                    })) if *face == wall
+                    Err(BooleanError::ResultInvalid { findings }) if !findings.is_empty()
+                        && findings.iter().all(|f| matches!(
+                            f,
+                            topo::ValidationError::VolumeUncomputable {
+                                source: topo::MassPropsError::RingOnCurvedFace { .. },
+                                ..
+                            }
+                        ))
                 ),
-                "{what}: {got:?}, not the inside/outside test's refusal of the wall {wall:?}"
+                "{what}: {got:?}, not the result's volume stopping at the ringed wall"
             );
         } else {
             assert!(

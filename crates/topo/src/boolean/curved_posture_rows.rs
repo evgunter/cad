@@ -376,6 +376,7 @@ fn a_refusal_is_read_by_every_window_and_its_found_crossing() {
         point: Point3::origin(),
         on_span: OnSpan::Inside { t: 0.5 },
         kind: MeetingKind::Cross,
+        chart: None,
     };
     let got = read(&[graze, graze], vec![crossing]);
     assert!(

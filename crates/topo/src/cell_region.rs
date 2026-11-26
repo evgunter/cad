@@ -23,9 +23,11 @@
 //!    or wholly out of it. A seam is no boundary: the face lies on both
 //!    sides of it. The centre station, placed by the face's
 //!    point-in-face door ([`crate::contfp`] on a plane,
-//!    [`crate::contain::curved_face_placement`] on a curved carrier),
-//!    says which; a station the curved door reads off its own carrier
-//!    is the kernel's defect, and panics.
+//!    [`crate::contain::curved_face_placement`] on a curved carrier, whose
+//!    sphere and torus regions read a boundary arc on a spline), says
+//!    which; a
+//!    station the curved door reads off its own carrier is the kernel's
+//!    defect, and panics.
 //!
 //! Anything else is [`CellRegion::Undecided`]: an edge not decided
 //! clear (in the band, poisoned, or genuinely crossing), a station the
@@ -134,16 +136,10 @@ pub(crate) fn cell_region_lifted<T: Decide + CertifiedBounds>(
     v: (f64, f64),
     band: Band,
 ) -> CellRegion {
-    let span = |(lo, hi): (f64, f64)| Interval::from_bounds(lo, hi);
     let (mu, mv) = centre(u, v);
     let station = surface.eval_at(mu, mv);
-    let reach = (surface.eval(span(u), span(v)) - station).norm();
-    let clear_as = |row: &'static str, distance: Interval| {
-        matches!(
-            decide(row, Margin::of(distance - reach), band),
-            Ok(Sign::Positive)
-        )
-    };
+    let ball = Ball::holding(station, surface.rect_enclosure(u, v));
+    let clear_as = |row: &'static str, distance: Interval| ball.clear_as(row, distance, band);
     if !(clear_of_singular(surface, station, &clear_as)
         && clear_of_boundary_as(boundary, station, &clear_as))
     {

@@ -543,3 +543,114 @@ fn the_near_horn_ladder_reads_its_band() {
         );
     }
 }
+
+/// **The band pair of the near-horn ladder is embedded within a small
+/// budget**, on each carrier the ladder builds near the horn: a ring
+/// torus past the escalate, the horn-class sheet a hair past `R = r`,
+/// and the sheet just inside it. The two π-bands share one carrier and
+/// both meridians, each ending on a rim corner with a cone. Each band's
+/// window is its boundary's chart rectangle, so neither reaches the
+/// carrier's inner rows near the axis, where cells off both faces are
+/// neither decided outside nor apart. Red if a band's window is the
+/// whole tube or sheet again: the pair then refuses its budget.
+#[test]
+fn the_near_horn_band_pair_is_embedded_within_a_small_budget() {
+    let tol = Tol::witness();
+    let band = geom_core::Band::linear(tol).unwrap();
+    let (z, e) = (band.zero(), band.escalate());
+    let budgets = topo::clearance::Budgets {
+        max_cell_depth: topo::clearance::DEFAULT_MAX_CELL_DEPTH,
+        max_cell_pairs: 4096,
+    };
+    for (what, d, kind) in [
+        ("past the escalate, outside", 2.0 * e, "torus"),
+        ("half the zero, outside", 0.5 * z, "spindle"),
+        ("past the escalate, inside", -2.0 * e, "spindle"),
+    ] {
+        let b = Band {
+            major: 1.0 + d,
+            minor: 1.0,
+            half: 2.0,
+            tip: 1.5,
+            at: (0.0, 0.0),
+        };
+        let built = revolve(
+            &validated(vec![b.profile()]),
+            b.axis(),
+            Revolution::Full,
+            tol,
+        )
+        .unwrap_or_else(|e| panic!("{what} (d = {d:e}): {e}"));
+        let body: &topo::Body<f64> = &built.body;
+        assert!(
+            kinds(body).iter().filter(|s| s.starts_with(kind)).count() == 2,
+            "{what} (d = {d:e}): two {kind} bands: {:?}",
+            kinds(body)
+        );
+        let side = topo::clearance::Side {
+            body,
+            faces: body.faces().map(|(k, _)| k).collect(),
+        };
+        let report = topo::clearance::embedded(&side, band, budgets);
+        assert_eq!(
+            report.verdict,
+            topo::clearance::Embedding::Embedded,
+            "{what} (d = {d:e}): {:?}",
+            report.receipt
+        );
+    }
+}
+
+/// **A copy of the near-horn torus band crossing it beside its rim reads
+/// its crossing there.** The band past the escalate and a copy moved up
+/// the axis by `2·sin(π − 1.998)`, grafted in as a solid of its own, their
+/// torus faces asked alone: the two tubes cross on two circles, one at
+/// `v = ±1.998` on the bands, two thousandths of a radian inside the
+/// rims at `v = ±2`, and one well inside. The walk reports the one at the
+/// rims. Red if the band's window is narrowed past it (at 0.995 of its
+/// `v` half-width the crossing read is the inner one), or if the bands
+/// read anything but `Crosses`.
+#[test]
+fn a_torus_band_copy_crossing_beside_its_rim_reads_its_crossing_there() {
+    let tol = Tol::witness();
+    let band = geom_core::Band::linear(tol).unwrap();
+    let build = |y: f64| {
+        let b = Band {
+            major: 1.0 + 2.0 * band.escalate(),
+            minor: 1.0,
+            half: 2.0,
+            tip: 1.5,
+            at: (0.0, y),
+        };
+        revolve(
+            &validated(vec![b.profile()]),
+            b.axis(),
+            Revolution::Full,
+            tol,
+        )
+        .unwrap()
+        .body
+        .into_body()
+    };
+    let mut body: topo::Body<f64> = build(0.0);
+    topo::graft_disjoint(&mut body, &build(2.0 * (PI - 1.998).sin())).expect("the copy grafts");
+    let faces: Vec<_> = body
+        .faces()
+        .map(|(k, _)| k)
+        .filter(|&k| matches!(body.face_surface(k), Ok(geom::Surface::Torus { .. })))
+        .collect();
+    assert_eq!(faces.len(), 4, "two torus bands on each body");
+    let side = topo::clearance::Side { body: &body, faces };
+    let budgets = topo::clearance::Budgets {
+        max_cell_depth: topo::clearance::DEFAULT_MAX_CELL_DEPTH,
+        max_cell_pairs: 65_536,
+    };
+    let report = topo::clearance::embedded(&side, band, budgets);
+    let topo::clearance::Embedding::Crosses(crossing) = report.verdict else {
+        panic!("{:?} {:?}", report.verdict, report.receipt)
+    };
+    assert!(
+        crossing.stations.iter().all(|&(_, v)| v.abs() > 1.99),
+        "the crossing read is the one beside the rims: {crossing:?}"
+    );
+}

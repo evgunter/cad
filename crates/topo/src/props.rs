@@ -7293,26 +7293,11 @@ pub trait AtRestPolicy: Decide {
     /// ([`crate::ReplaceFaceError::NurbsLaneUnsupported`]).
     fn spline_foot() -> Option<Self::SplineFoot>;
 
-    /// **A spline span's crossings of an analytic face's carrier at this
-    /// scalar, or `None` where it is not derived here** — the boolean's
-    /// planar lane ([`geom_brep::NurbsLane::surface_crossings`], the
-    /// curve × face table's ring-composite arm). The arm crosses its
-    /// scalars into certification arithmetic by their certified
-    /// enclosures, so it is read at the certifying scalars alone, and
-    /// a dual answers `None` and the lane refuses the class by name.
-    fn spline_face_crossings(
-        net: &geom::NurbsCurve3<Self>,
-        params: (Self, Self),
-        surface: &geom::Surface<Self>,
-        band: geom_core::Band,
-    ) -> Option<Result<Vec<Self>, geom_brep::curve_face::composite::CompositeRefusal>>;
-
     /// **An analytic span's meetings with a spline chart at this
     /// scalar, or `None` where it is not derived here** — the boolean's
     /// spline-face lane ([`geom_brep::NurbsLane::chart_meetings`], the
     /// curve × face table's spline-face arm), read at the certifying
-    /// scalars as [`AtRestPolicy::spline_face_crossings`] is, and `None`
-    /// at a dual, where the lane refuses the class by name.
+    /// scalars, and `None` at a dual, where the lane refuses the class by name.
     fn spline_chart_meetings(
         carrier: &geom::Curve3<Self>,
         params: (Self, Self),
@@ -7651,15 +7636,6 @@ impl AtRestPolicy for f64 {
         Some(geom_brep::SplineFoot::certified())
     }
 
-    fn spline_face_crossings(
-        net: &geom::NurbsCurve3<Self>,
-        params: (Self, Self),
-        surface: &geom::Surface<Self>,
-        band: geom_core::Band,
-    ) -> Option<Result<Vec<Self>, geom_brep::curve_face::composite::CompositeRefusal>> {
-        Some(geom_brep::NurbsLane::certified().surface_crossings(net, params, surface, band))
-    }
-
     fn spline_chart_meetings(
         carrier: &geom::Curve3<Self>,
         params: (Self, Self),
@@ -7835,15 +7811,6 @@ impl AtRestPolicy for geom_core::Probe {
         Some(geom_brep::SplineFoot::certified())
     }
 
-    fn spline_face_crossings(
-        net: &geom::NurbsCurve3<Self>,
-        params: (Self, Self),
-        surface: &geom::Surface<Self>,
-        band: geom_core::Band,
-    ) -> Option<Result<Vec<Self>, geom_brep::curve_face::composite::CompositeRefusal>> {
-        Some(geom_brep::NurbsLane::certified().surface_crossings(net, params, surface, band))
-    }
-
     fn spline_chart_meetings(
         carrier: &geom::Curve3<Self>,
         params: (Self, Self),
@@ -8017,15 +7984,6 @@ impl AtRestPolicy for geom_core::interval::Interval {
         Some(geom_brep::SplineFoot::certified())
     }
 
-    fn spline_face_crossings(
-        net: &geom::NurbsCurve3<Self>,
-        params: (Self, Self),
-        surface: &geom::Surface<Self>,
-        band: geom_core::Band,
-    ) -> Option<Result<Vec<Self>, geom_brep::curve_face::composite::CompositeRefusal>> {
-        Some(geom_brep::NurbsLane::certified().surface_crossings(net, params, surface, band))
-    }
-
     fn spline_chart_meetings(
         carrier: &geom::Curve3<Self>,
         params: (Self, Self),
@@ -8193,15 +8151,6 @@ where
 
     fn spline_foot() -> Option<Self::SplineFoot> {
         Some(geom_brep::SplineFoot::certified())
-    }
-
-    fn spline_face_crossings(
-        net: &geom::NurbsCurve3<Self>,
-        params: (Self, Self),
-        surface: &geom::Surface<Self>,
-        band: geom_core::Band,
-    ) -> Option<Result<Vec<Self>, geom_brep::curve_face::composite::CompositeRefusal>> {
-        Some(geom_brep::NurbsLane::certified().surface_crossings(net, params, surface, band))
     }
 
     fn spline_chart_meetings(
@@ -8389,15 +8338,6 @@ where
     }
 
     /// The arm reads certified enclosures, which a dual does not hold.
-    fn spline_face_crossings(
-        _net: &geom::NurbsCurve3<Self>,
-        _params: (Self, Self),
-        _surface: &geom::Surface<Self>,
-        _band: geom_core::Band,
-    ) -> Option<Result<Vec<Self>, geom_brep::curve_face::composite::CompositeRefusal>> {
-        None
-    }
-
     /// The arm reads certified enclosures, which a dual does not hold.
     fn spline_chart_meetings(
         _carrier: &geom::Curve3<Self>,

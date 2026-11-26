@@ -141,10 +141,9 @@ pub(super) struct ContactAcc {
     /// records cite ([`Backing::Decided`](crate::Backing::Decided) names an index here until
     /// the result's carry renumbers it).
     pending: Vec<PendingRow>,
-    seen_vv: std::collections::BTreeMap<(VertexKey, VertexKey), usize>,
-    seen_ab: std::collections::BTreeMap<(VertexKey, FaceKey), usize>,
-    seen_ba: std::collections::BTreeMap<(VertexKey, FaceKey), usize>,
-    seen_ef: std::collections::BTreeMap<(Operand, EdgeKey, FaceKey), usize>,
+    /// Each row the sweep recorded, by its pair, with its index in
+    /// `records`.
+    seen: std::collections::BTreeMap<[(Operand, super::Cell); 2], usize>,
     /// Every line edge the sweep read lying in a planar face's plane,
     /// whose pieces the face holds are recorded once both directions
     /// have split it ([`settle_in_plane`]).
@@ -220,39 +219,36 @@ impl ContactAcc {
     }
     pub(super) fn vv(&mut self, c: VvContact, row: PendingRow) {
         let cites = self.decide(row);
-        record(
-            &mut self.seen_vv,
-            &mut self.records.vv,
-            (c.a, c.b),
-            c,
-            cites,
-        );
+        self.record(c.cells(), cites);
     }
     pub(super) fn vf(&mut self, piercing: Operand, c: VfContact, row: PendingRow) {
         let cites = self.decide(row);
-        let (seen, list) = match piercing {
-            Operand::A => (&mut self.seen_ab, &mut self.records.a_on_b),
-            Operand::B => (&mut self.seen_ba, &mut self.records.b_on_a),
-        };
-        record(seen, list, (c.vertex, c.face), c, cites);
+        self.record(c.cells(piercing), cites);
     }
     /// Records `c`, a piece of an edge of `x_is` lying in a face of the
     /// other operand, citing `cites`.
     fn ef(&mut self, x_is: Operand, c: EfContact, cites: Cites) {
-        let list = match x_is {
-            Operand::A => &mut self.records.a_in_b,
-            Operand::B => &mut self.records.b_in_a,
-        };
-        record(&mut self.seen_ef, list, (x_is, c.edge, c.face), c, cites);
+        self.record(c.cells(x_is), cites);
+    }
+    /// Records `pair`, citing `cites`: or, where it is recorded already,
+    /// adds `cites` to the record there.
+    fn record(&mut self, pair: [(Operand, super::Cell); 2], cites: Cites) {
+        match self.seen.get(&pair) {
+            Some(&i) => {
+                let at = self.records.cites_at_mut(i);
+                *at = at.union(&cites);
+            }
+            None => {
+                self.seen.insert(pair, self.records.len());
+                self.records.push(Cited::new(pair, cites));
+            }
+        }
     }
     /// Whether `vertex` of `x_is` is recorded strictly inside `face` of
     /// the other operand.
     fn rests_in(&self, x_is: Operand, vertex: VertexKey, face: FaceKey) -> bool {
-        match x_is {
-            Operand::A => &self.seen_ab,
-            Operand::B => &self.seen_ba,
-        }
-        .contains_key(&(vertex, face))
+        self.seen
+            .contains_key(&VfContact { vertex, face }.cells(x_is))
     }
     /// The citations of the record placing `vertex` of `x_is` on `face`
     /// of the other operand: strictly inside it, or a tie with one of
@@ -268,12 +264,8 @@ impl ContactAcc {
         face: FaceKey,
         bounding: &std::collections::BTreeSet<VertexKey>,
     ) -> Result<Option<&Cites>, BooleanError> {
-        let (seen, list) = match x_is {
-            Operand::A => (&self.seen_ab, &self.records.a_on_b),
-            Operand::B => (&self.seen_ba, &self.records.b_on_a),
-        };
-        if let Some(&i) = seen.get(&(vertex, face)) {
-            return Ok(Some(&list[i].cites));
+        if let Some(&i) = self.seen.get(&VfContact { vertex, face }.cells(x_is)) {
+            return Ok(Some(self.records.cites_at(i)));
         }
         let mut ties = self.ties(x_is, vertex, bounding);
         let tie = ties.next();
@@ -282,7 +274,7 @@ impl ContactAcc {
                 what: "a vertex is tied to two vertices bounding one face",
             });
         }
-        Ok(tie.map(|c| &c.cites))
+        Ok(tie.map(|c| c.cites))
     }
     /// The vertex-vertex records tying `vertex` of `x_is` to one of
     /// `bounding`, a face's vertices.
@@ -291,8 +283,8 @@ impl ContactAcc {
         x_is: Operand,
         vertex: VertexKey,
         bounding: &'b std::collections::BTreeSet<VertexKey>,
-    ) -> impl Iterator<Item = &'s Cited<VvContact>> + use<'s, 'b> {
-        self.records.vv.iter().filter(move |c| match x_is {
+    ) -> impl Iterator<Item = super::KindRow<'s, VvContact>> + use<'s, 'b> {
+        self.records.vv().filter(move |c| match x_is {
             Operand::A => c.a == vertex && bounding.contains(&c.b),
             Operand::B => c.b == vertex && bounding.contains(&c.a),
         })
@@ -326,27 +318,6 @@ impl ContactAcc {
     /// The records, each citing rows of the decisions alongside them.
     pub(super) fn finish(self) -> (ReductionContacts, Vec<PendingRow>) {
         (self.records, self.pending)
-    }
-}
-
-/// Records `c` in `list` under `key`, citing `cites`: or, where `seen`
-/// holds `key` already, adds `cites` to the record there.
-fn record<K: Ord, R>(
-    seen: &mut std::collections::BTreeMap<K, usize>,
-    list: &mut Vec<Cited<R>>,
-    key: K,
-    c: R,
-    cites: Cites,
-) {
-    match seen.get(&key) {
-        Some(&i) => {
-            let at = &mut list[i].cites;
-            *at = at.union(&cites);
-        }
-        None => {
-            seen.insert(key, list.len());
-            list.push(Cited::new(c, cites));
-        }
     }
 }
 
@@ -5218,9 +5189,7 @@ pub(super) enum SpanVerdict<T: geom_core::Real> {
 
 /// **A spline span against a plane face**: the crossings strictly inside
 /// the span, ascending, by the curve × face table's ring-composite arm
-/// ([`crate::props::AtRestPolicy::spline_face_crossings`]), read through the
-/// scalar's certified lane. A spiric span, or a scalar with no certified
-/// lane, has no arm.
+/// ([`composite_count`]). A spiric span has no arm.
 ///
 /// # Errors
 ///
@@ -5274,21 +5243,26 @@ enum Counted<T> {
 
 /// **The ring composite's count of a spline span against an analytic
 /// face**, for both lanes ([`spline_plane_crossings`],
-/// [`spline_wall_event`]). A touch the arm cannot settle (`Unsettled`), or
-/// reads in the band's gap (`Escalated`), is localized and read against
-/// the face ([`super::carrier_touch::off_face`]); off it, it is no
-/// crossing here, and otherwise it is the lane's refusal:
-/// [`BooleanError::SplineCrossingUnsettled`], or `escalated`'s. A face
-/// whose frame or meter does not certify is the operand's invalid input,
-/// and a composite that does not form on a built route is the kernel's.
+/// [`spline_wall_event`]): the curve × face table's arm
+/// ([`geom_brep::curve_face::cross()`]), its meetings strictly inside the
+/// span. A meeting at an end is the end's, which the lane reads by its
+/// vertex. A stretch the arm cannot settle (`Unsettled`), or reads in
+/// the band's gap (`Escalated`), is localized and read against the face
+/// ([`super::carrier_touch::off_face`]); off it, it is no crossing here,
+/// and otherwise it is the lane's refusal:
+/// [`BooleanError::SplineCrossingUnsettled`], or `escalated`'s. A
+/// composite the arm cannot form from the face
+/// ([`geom_brep::curve_pair::MeetFault::Unsupported`]: a frame or a meter
+/// that does not read) is the operand's invalid input, and a window that
+/// is a fault the kernel's.
 ///
 /// # Errors
 ///
 /// [`BooleanError::EdgeCarrierUnsupported`] at `site` where there is no
-/// arm (`net` is `None`, or the scalar has no certified lane),
-/// [`BooleanError::InvalidInput`] for a degenerate face,
-/// [`BooleanError::ClassificationInvariant`] for a composite that did not
-/// form, and `off_face`'s.
+/// arm (`net` is `None`) or no certification lane to admit a stored
+/// crossing by (a dual), [`BooleanError::InvalidInput`] for a degenerate
+/// face, [`BooleanError::ClassificationInvariant`] for a fault, and
+/// `off_face`'s.
 fn composite_count<T: Bounds + crate::props::AtRestPolicy>(
     (x, x_is, edge_key): (&Body<T>, Operand, EdgeKey),
     (y, face, surface): (&Body<T>, FaceKey, &geom::Surface<T>),
@@ -5297,9 +5271,11 @@ fn composite_count<T: Bounds + crate::props::AtRestPolicy>(
     band: Band,
     escalated: impl FnOnce(geom_core::Indeterminate) -> BooleanError,
 ) -> Result<Counted<T>, BooleanError> {
-    use geom_brep::curve_face::composite::CompositeRefusal;
-    let found = net.and_then(|net| T::spline_face_crossings(net, params, surface, band));
-    let Some(found) = found else {
+    use geom_brep::NurbsLaneOf;
+    use geom_brep::curve_face::{CrossWhy, OnSpan, cross};
+    use geom_brep::curve_pair::MeetFault;
+    let lane = net.and_then(|_| T::nurbs_lane());
+    let Some(lane) = lane else {
         return Err(BooleanError::EdgeCarrierUnsupported {
             operand: x_is,
             edge: x
@@ -5310,29 +5286,69 @@ fn composite_count<T: Bounds + crate::props::AtRestPolicy>(
             site,
         });
     };
-    Ok(match found {
-        Ok(ts) => Counted::Crossings(ts),
-        Err(CompositeRefusal::Escalated(_) | CompositeRefusal::Unsettled(_))
-            if super::carrier_touch::off_face(y, face, surface, carrier, params, band)? =>
-        {
-            Counted::OffFace
+    let refusal = match cross(
+        &geom_brep::curve_pair::Span::new(carrier, params),
+        surface,
+        band,
+    ) {
+        Ok(found) => {
+            // Each crossing the lane stores is a proposal, admitted here
+            // by its check (DUAL-DESIGN DL5.2).
+            let mut ts = Vec::with_capacity(found.meetings.len());
+            for m in &found.meetings {
+                let OnSpan::Inside { t } = m.on_span else {
+                    continue;
+                };
+                match lane.admit_crossing(carrier, t, surface, band) {
+                    Ok(t) => ts.push(t),
+                    Err(geom_core::solved::Unadmitted::Undecided(diag)) => {
+                        return Ok(Counted::Refused(escalated(diag)));
+                    }
+                    Err(geom_core::solved::Unadmitted::Off { row, .. }) => {
+                        return Ok(Counted::Refused(spline_unsettled(
+                            (x, x_is, edge_key),
+                            face,
+                            geom_brep::roots::Unsettled::Meter { row },
+                        )?));
+                    }
+                }
+            }
+            return Ok(Counted::Crossings(ts));
         }
-        Err(CompositeRefusal::Escalated(diag)) => Counted::Refused(escalated(diag)),
-        Err(CompositeRefusal::Unsettled(why)) => {
-            Counted::Refused(spline_unsettled((x, x_is, edge_key), face, why)?)
-        }
-        Err(CompositeRefusal::FaceDegenerate(what)) => {
-            return Err(BooleanError::InvalidInput {
-                operand: x_is.other(),
-                what,
-            });
-        }
-        Err(CompositeRefusal::Unread(_)) => {
-            return Err(BooleanError::ClassificationInvariant {
-                what: "a built spline carrier's composite against an analytic face did not form",
-            });
-        }
-    })
+        Err(refusal) => refusal,
+    };
+    let why = refusal.leading().why;
+    if let Some(what) = why.fault() {
+        return Err(BooleanError::ClassificationInvariant { what });
+    }
+    if let CrossWhy::Method {
+        fault: MeetFault::Unsupported { pose },
+        ..
+    } = why
+    {
+        return Err(BooleanError::InvalidInput {
+            operand: x_is.other(),
+            what: pose,
+        });
+    }
+    if super::carrier_touch::off_face(y, face, surface, carrier, params, band)? {
+        return Ok(Counted::OffFace);
+    }
+    Ok(Counted::Refused(match (why.diag(), why) {
+        (Some(diag), _) => escalated(diag),
+        (
+            None,
+            CrossWhy::Method {
+                fault: MeetFault::Unsettled(u),
+                ..
+            },
+        ) => spline_unsettled((x, x_is, edge_key), face, u)?,
+        (None, _) => spline_unsettled(
+            (x, x_is, edge_key),
+            face,
+            geom_brep::roots::Unsettled::Tangency,
+        )?,
+    }))
 }
 
 /// [`BooleanError::SplineCrossingUnsettled`] for `x`'s edge against
@@ -9067,7 +9083,11 @@ mod contact_acc_rows {
         }
         let (r, pending) = acc.finish();
         assert_eq!(
-            (r.vv.len(), r.a_on_b.len(), r.b_on_a.len()),
+            (
+                r.vv().count(),
+                r.on(crate::boolean::Operand::A).count(),
+                r.on(crate::boolean::Operand::B).count()
+            ),
             (1, 1, 1),
             "one record of each kind"
         );
@@ -9243,7 +9263,7 @@ mod spline_face_rows {
             Ok(CurvedEvent::Along { recorded: true }) => {}
             other => panic!("the rim lies along the face's rim: {other:?}"),
         }
-        assert_eq!(acc.records.vv.len(), 2, "both ends recorded");
+        assert_eq!(acc.records.vv().count(), 2, "both ends recorded");
         assert_eq!(
             y.vertices().count(),
             before + 1,
@@ -9269,7 +9289,7 @@ mod spline_face_rows {
             tol,
         )
         .unwrap();
-        assert_eq!(acc.records.vv.len(), 3, "the minted vertex recorded");
+        assert_eq!(acc.records.vv().count(), 3, "the minted vertex recorded");
         assert_eq!(
             y.vertices().count(),
             before + 2,
@@ -9305,7 +9325,7 @@ mod spline_face_rows {
             Ok(CurvedEvent::Recorded) => {}
             other => panic!("the chord's interior is clear, its ends recorded: {other:?}"),
         }
-        assert_eq!(acc.records.vv.len(), 2, "both ends at corners");
+        assert_eq!(acc.records.vv().count(), 2, "both ends at corners");
     }
 
     /// A flat spline patch in `z = 0` bounded by the parabola
@@ -9667,7 +9687,8 @@ mod spline_face_rows {
             other => panic!("a meeting past the trim is no event of the face: {other:?}"),
         }
         assert!(
-            acc.records.vv.is_empty() && acc.records.a_on_b.is_empty(),
+            acc.records.vv().next().is_none()
+                && acc.records.on(crate::boolean::Operand::A).next().is_none(),
             "nothing recorded"
         );
     }
@@ -9894,7 +9915,8 @@ mod spline_face_rows {
             other => panic!("a meeting past the trim is no event of the face: {other:?}"),
         }
         assert!(
-            acc.records.vv.is_empty() && acc.records.a_on_b.is_empty(),
+            acc.records.vv().next().is_none()
+                && acc.records.on(crate::boolean::Operand::A).next().is_none(),
             "nothing recorded"
         );
     }

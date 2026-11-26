@@ -1128,7 +1128,7 @@ pub(super) fn recl_edges<T: crate::props::AtRestPolicy>(
 /// coincident edges, where the edge's own vertex meets them, or inside
 /// the edge where a pinch vertex meets it, starts as a vertex-on-edge
 /// event, and the reduction splits the edges there before this lane
-/// reads `contacts.vv`, so that end too pairs one vertex with both
+/// reads `contacts.vv()`, so that end too pairs one vertex with both
 /// pieces' (the witness's top end does: its prism corner meets the
 /// pinch edges' interiors). The pieces' membership about the edge
 /// reads the same along it, so both ends hold the same two crossing

@@ -41,3 +41,14 @@ loudly, and no test reaches it today.
 Decide a meeting of two section vertices in terms the decision can
 name: the record's own two input cells, or the section's edge in the
 reduction's keys. Then name the section vertices on both paths.
+
+## 2026-11-25 — the carried path names the section's edges (`heldrecords/removed-members-red`)
+
+Naming no section on the carried path refused
+`three_solids_on_one_line::a_contact_line_beside_a_face_holding_it_builds_in_every_op`
+(`Carried(A) Stale`): its edge-in-face record becomes structure only
+through the section edge. So the carried path names the section's
+edges again, and the vertices alone stay unnamed. The edge's minted
+vertex-on-section-edge meeting that this reaches in
+`a_pierce_held_in_a_curved_face` refuses `JoinDesync` until the door
+decides it (`the-boolean-door-decides-no-minted-vertex-on-edge-meeting`).

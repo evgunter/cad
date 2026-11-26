@@ -11,7 +11,7 @@ use crate::common;
 use geom_core::Tol;
 use topo::{
     Body, Cell, CensusContact, ContactPairError, ContactRecords, EdgeKey, StaleDeclaration,
-    ValidationError, VeContact, VertexKey, validate_pseudomanifold,
+    ValidationError, VertexKey, validate_pseudomanifold,
 };
 
 /// `a ∪ b` carrying `inputs`.
@@ -77,12 +77,19 @@ fn errors(body: &Body<f64>, records: &ContactRecords) -> Vec<ValidationError> {
         .unwrap_or_default()
 }
 
-fn ve(vertex: VertexKey, edge: EdgeKey) -> VeContact {
-    VeContact { vertex, edge }
+/// A vertex resting on an edge's interior.
+#[derive(Clone, Copy, Debug)]
+struct Rest {
+    vertex: VertexKey,
+    edge: EdgeKey,
+}
+
+fn ve(vertex: VertexKey, edge: EdgeKey) -> Rest {
+    Rest { vertex, edge }
 }
 
 /// Each `(vertex, edge)` pair as a record of `body`.
-fn records(body: &Body<f64>, rows: &[VeContact]) -> ContactRecords {
+fn records(body: &Body<f64>, rows: &[Rest]) -> ContactRecords {
     common::records(
         body,
         rows.iter()
@@ -94,7 +101,7 @@ fn records(body: &Body<f64>, rows: &[VeContact]) -> ContactRecords {
 /// `edge_touch`'s overlap, as records of `body`: the overlap is a pair
 /// whose interiors meet, owed its own record (D1), which its two
 /// bounds' records confirm.
-fn with_overlap(body: &Body<f64>, rows: &[VeContact]) -> ContactRecords {
+fn with_overlap(body: &Body<f64>, rows: &[Rest]) -> ContactRecords {
     let a_edge = edge_between(body, [0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
     let c_edge = edge_between(body, [0.5, 0.0, 0.0], [1.5, 0.0, 0.0]);
     common::records(
@@ -106,7 +113,7 @@ fn with_overlap(body: &Body<f64>, rows: &[VeContact]) -> ContactRecords {
 }
 
 /// The two records `edge_touch` needs, in the order its bounds come.
-fn edge_touch_records(body: &Body<f64>) -> [VeContact; 2] {
+fn edge_touch_records(body: &Body<f64>) -> [Rest; 2] {
     let a_edge = edge_between(body, [0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
     let c_edge = edge_between(body, [0.5, 0.0, 0.0], [1.5, 0.0, 0.0]);
     [
@@ -353,10 +360,7 @@ fn ends(body: &Body<f64>, edge: EdgeKey) -> [[f64; 3]; 2] {
 fn a_vertex_on_edge_record_follows_its_vertex_onto_a_piece_of_a_split_edge() {
     let tol = Tol::witness();
     let y = joined_edge_touch(tol);
-    let carried = topo::OperandRecords {
-        vf: Vec::new(),
-        ..y.contacts.carried()
-    };
+    let carried = without_vertex_face(y.contacts.carried());
     for (at, rim, slab, piece) in [
         (
             [0.5, 0.0, 0.0],
@@ -453,10 +457,7 @@ fn a_vertex_on_edge_record_stays_before_a_split_moves_past_it_and_meets_it() {
         vec![(corner, [[0.0, -0.5, 0.0], [0.0, 0.5, 0.0]])],
         "the join leaves the corner's record on b's edge"
     );
-    let carried = topo::OperandRecords {
-        vf: Vec::new(),
-        ..y.contacts.carried()
-    };
+    let carried = without_vertex_face(y.contacts.carried());
     let near = |p: [[f64; 3]; 2], q: [[f64; 3]; 2]| {
         p.iter()
             .flatten()
@@ -610,10 +611,7 @@ fn crossing_into(y: &topo::BooleanBody<f64>, slab: (f64, f64), tol: Tol) -> topo
         tol,
     );
     let inputs = topo::BooleanInputs {
-        records_a: topo::OperandRecords {
-            vf: Vec::new(),
-            ..y.contacts.carried()
-        },
+        records_a: without_vertex_face(y.contacts.carried()),
         ..topo::BooleanInputs::default()
     };
     let topo::BooleanResult::Body(out) =
@@ -814,7 +812,8 @@ fn a_split_at_the_other_edges_end_records_a_vertex_vertex_pair() {
 }
 
 /// **A carried edge-edge row is validated at the door**, as its
-/// siblings are. Red when the door reads carried e-e rows unchecked.
+/// siblings are, and a pair naming one edge twice is no record at all.
+/// Red when the door reads carried e-e rows unchecked.
 #[test]
 fn a_carried_edge_edge_row_whose_key_does_not_resolve_refuses_at_the_door() {
     let tol = Tol::witness();
@@ -829,41 +828,31 @@ fn a_carried_edge_edge_row_whose_key_does_not_resolve_refuses_at_the_door() {
         .edge_edge()
         .next()
         .expect("the crossing's record");
-    for (row, what) in [
-        (
-            topo::EeContact {
-                a: live,
-                b: EdgeKey::default(),
-            },
-            "carried e-e edge key does not resolve",
+    let row = topo::Contact::new(&y.body, Cell::Edge(live), Cell::Edge(EdgeKey::default()))
+        .expect("a dangling key bounds nothing");
+    let inputs = topo::BooleanInputs {
+        records_a: topo::OperandRecords::from_iter([topo::CarriedRecord {
+            contact: row,
+            record: 0,
+        }]),
+        ..topo::BooleanInputs::default()
+    };
+    let got = united(&y.body, &s, &inputs, tol).map(|_| ());
+    assert!(
+        matches!(
+            got,
+            Err(topo::BooleanError::InvalidInput {
+                operand: topo::Operand::A,
+                what: "a carried record's edge key does not resolve",
+            })
         ),
-        (
-            topo::EeContact { a: live, b: live },
-            "carried e-e pair names one edge twice",
-        ),
-    ] {
-        let inputs = topo::BooleanInputs {
-            records_a: topo::OperandRecords {
-                ee: vec![topo::CarriedRecord {
-                    contact: row,
-                    record: 0,
-                }],
-                ..topo::OperandRecords::default()
-            },
-            ..topo::BooleanInputs::default()
-        };
-        let got = united(&y.body, &s, &inputs, tol).map(|_| ());
-        assert!(
-            matches!(
-                got,
-                Err(topo::BooleanError::InvalidInput {
-                    operand: topo::Operand::A,
-                    what: w,
-                }) if w == what
-            ),
-            "{what}: {got:?}"
-        );
-    }
+        "a dangling edge key: {got:?}"
+    );
+    assert_eq!(
+        topo::Contact::new(&y.body, Cell::Edge(live), Cell::Edge(live)),
+        Err(topo::ContactPairError::OneCell(Cell::Edge(live))),
+        "a pair naming one edge twice is no record to carry"
+    );
 }
 
 /// **Edge-edge records at the census, both directions.** Without its
@@ -948,16 +937,15 @@ fn a_carried_vertex_on_edge_row_whose_key_does_not_resolve_refuses_at_the_door()
         tol,
     );
     let inputs = topo::BooleanInputs {
-        records_a: topo::OperandRecords {
-            ve: vec![topo::CarriedRecord {
-                contact: VeContact {
-                    vertex: corner,
-                    edge: EdgeKey::default(),
-                },
-                record: 0,
-            }],
-            ..topo::OperandRecords::default()
-        },
+        records_a: topo::OperandRecords::from_iter([topo::CarriedRecord {
+            contact: topo::Contact::new(
+                &y.body,
+                Cell::Vertex(corner),
+                Cell::Edge(EdgeKey::default()),
+            )
+            .expect("a dangling key bounds nothing"),
+            record: 0,
+        }]),
         ..topo::BooleanInputs::default()
     };
     let got = united(&y.body, &s, &inputs, tol).map(|_| ());
@@ -966,7 +954,7 @@ fn a_carried_vertex_on_edge_row_whose_key_does_not_resolve_refuses_at_the_door()
             got,
             Err(topo::BooleanError::InvalidInput {
                 operand: topo::Operand::A,
-                what: "carried v-on-e edge key does not resolve",
+                what: "a carried record's edge key does not resolve",
             })
         ),
         "{got:?}"
@@ -1030,4 +1018,190 @@ fn an_edge_on_face_bound_at_the_faces_vertex_is_bounded_by_its_record() {
         vec![],
         "both bounds recorded: the seat certifies"
     );
+}
+
+/// A division of a hand lineage into `pieces` and the cells `minted`
+/// between them, nothing removed.
+fn divided(pieces: Vec<Cell>, minted: Vec<Cell>) -> topo::Fate {
+    topo::Fate::Divided(topo::Division {
+        pieces,
+        minted,
+        removed: vec![],
+    })
+}
+
+/// **A kept pair the census reads as contradicted is unread.** Two
+/// bricks in one arena, one inside the other's footprint, their bottoms
+/// on one plane with one sense, and a face–face record of the two
+/// bottoms through a hand lineage that divides the first into itself:
+/// the census finds the touch but contradicts the record's class, and
+/// the carry refuses `Unread` rather than land or consume. Only a
+/// removed member's reading takes a contradicted touch as found. Red
+/// where that reading leaks to kept pairs.
+#[test]
+fn a_kept_pair_read_as_contradicted_is_unread() {
+    let tol = Tol::witness();
+    let mut body: Body<f64> = common::brick((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), tol);
+    let inner: Body<f64> = common::brick((0.5, 1.5), (0.5, 1.5), (0.0, 0.5), tol);
+    topo::graft_disjoint_all_keyed(&mut body, &inner).unwrap();
+    let bottoms: Vec<Cell> = body
+        .faces()
+        .map(|(f, _)| f)
+        .filter(|&f| {
+            matches!(
+                body.face_surface(f),
+                Ok(topo::Surface::Plane { frame, .. })
+                    if frame.axis().z == -1.0 && frame.origin().z == 0.0
+            )
+        })
+        .map(Cell::Face)
+        .collect();
+    let [x, y] = bottoms[..] else {
+        panic!("two bottoms: {bottoms:?}")
+    };
+    let one = common::records(&body, [(x, y)]);
+    let lineage = topo::Lineage::new()
+        .with(x, divided(vec![x], vec![]))
+        .unwrap();
+    let got = one.carried_through(
+        0,
+        &lineage,
+        &body,
+        geom_core::Band::linear(tol).unwrap(),
+        Some(topo::RegionLane::certified()),
+    );
+    assert!(
+        matches!(got, Err(topo::CarryRefusal::Unread { record: 0, .. })),
+        "the contradicted kept pair is unread: {got:?}"
+    );
+}
+
+/// The face on z = 0 of `body` facing up (+z) or down (−z) that has a
+/// boundary point within 0.5 of `x_mid` in x.
+fn z0_face(body: &Body<f64>, x_mid: f64, up: bool) -> Cell {
+    let fs: Vec<Cell> = body
+        .faces()
+        .map(|(f, _)| f)
+        .filter(|&f| {
+            matches!(
+                body.face_surface(f),
+                Ok(topo::Surface::Plane { frame, .. })
+                    if frame.origin().z == 0.0
+                        && frame.axis().z == if up { 1.0 } else { -1.0 }
+            )
+        })
+        .filter(|&f| {
+            body.half_edges().any(|(h, _)| {
+                body.face_of_half_edge(h) == Some(f)
+                    && body
+                        .half_edge_start_point(h)
+                        .is_some_and(|p| (p.x - x_mid).abs() <= 0.5)
+            })
+        })
+        .map(Cell::Face)
+        .collect();
+    let [f] = fs[..] else {
+        panic!("one face at x={x_mid} up={up}: {fs:?}")
+    };
+    f
+}
+
+/// A face–face record of P's bottom (−z, x∈[0,1]) and Q's top (+z,
+/// x∈[3,4]) on z = 0, apart, carried through a hand lineage that keeps
+/// P's bottom as its one piece (or, `edge_piece`, P's top-front edge,
+/// whose pair with Q's top reads with no region door) and names removed
+/// the z = 0 face of a third brick R spanning `r_x`, above z = 0
+/// (`r_up` false) or below it. Read through `region`.
+fn removed_member_read(
+    r_x: (f64, f64),
+    r_up: bool,
+    region: Option<topo::RegionLane<f64>>,
+    edge_piece: bool,
+) -> Result<usize, topo::CarryRefusal> {
+    let tol = Tol::witness();
+    let mut body: Body<f64> = common::brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+    let q: Body<f64> = common::brick((3.0, 4.0), (0.0, 1.0), (-1.0, 0.0), tol);
+    topo::graft_disjoint_all_keyed(&mut body, &q).unwrap();
+    let x = z0_face(&body, 0.5, false);
+    let y = z0_face(&body, 3.5, true);
+    let r: Body<f64> = if r_up {
+        common::brick(r_x, (0.0, 1.0), (-1.0, 0.0), tol)
+    } else {
+        common::brick(r_x, (0.0, 1.0), (0.0, 1.0), tol)
+    };
+    let Cell::Face(r_face) = z0_face(&r, f64::midpoint(r_x.0, r_x.1), r_up) else {
+        unreachable!("z0_face finds a face")
+    };
+    let keys = topo::graft_disjoint_all_keyed(&mut body, &r).unwrap();
+    let rf = Cell::Face(keys.face(r_face).expect("R's face grafted"));
+    let one = common::records(&body, [(x, y)]);
+    let lineage = topo::Lineage::new()
+        .with(
+            x,
+            topo::Fate::Divided(topo::Division {
+                pieces: vec![if edge_piece {
+                    Cell::Edge(edge_between(&body, [0.0, 0.0, 1.0], [1.0, 0.0, 1.0]))
+                } else {
+                    x
+                }],
+                minted: vec![],
+                removed: vec![rf],
+            }),
+        )
+        .unwrap();
+    one.carried_through_removing(
+        0,
+        &lineage,
+        &body,
+        &body,
+        geom_core::Band::linear(tol).unwrap(),
+        region,
+    )
+    .map(|c| c.cell_pairs().count())
+}
+
+/// **A removed member consumes a record only where the touch is found
+/// on it.** The record of `removed_member_read` lands on no kept pair.
+/// A removed member far from both faces, facing up as Q's top does or
+/// down, touches nothing: the record refuses `Stale` either way (the
+/// census's sense door does not stand in for the overlap). A removed
+/// member over Q's top, facing up as it does, holds the touch, though
+/// the census would rule its sense out as a rest: the record is
+/// consumed. Read through no region door, with a kept piece whose pair
+/// reads without one, the removed member's overlap is unread and the
+/// record refuses `Unread`. Red where a sense ruling counts as found
+/// (the first), where it counts as not found (the second), and where an
+/// unread reading counts as found (the third).
+#[test]
+fn a_removed_member_consumes_only_where_the_touch_is_found_on_it() {
+    let certified = Some(topo::RegionLane::certified());
+    for r_up in [true, false] {
+        assert_eq!(
+            removed_member_read((6.0, 7.0), r_up, certified, false),
+            Err(topo::CarryRefusal::Stale { record: 0 }),
+            "a removed member touching nothing, facing up: {r_up}"
+        );
+    }
+    assert_eq!(
+        removed_member_read((3.2, 3.8), true, certified, false),
+        Ok(0),
+        "a removed member over the touch, senses aligned, holds it"
+    );
+    assert!(
+        matches!(
+            removed_member_read((3.2, 3.8), true, None, true),
+            Err(topo::CarryRefusal::Unread { record: 0, .. })
+        ),
+        "an unread removed member refuses"
+    );
+}
+
+/// `records` with its vertex–face records left out.
+fn without_vertex_face(records: topo::OperandRecords) -> topo::OperandRecords {
+    records
+        .rows()
+        .iter()
+        .filter(|c| !matches!(c.contact.kind(), topo::ContactKind::VertexFace(..)))
+        .copied()
+        .collect()
 }

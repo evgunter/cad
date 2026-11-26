@@ -93,8 +93,9 @@ the copy, then `kemr`), and the circle bounding the disc becomes a face
 (`mfkrh`). Which circle bounds the disc is decided at the conic's
 midpoint (`disc_loop`, `bool_rider_closed_disc`): toward the centre on a
 plane, and on a curved surface the side of the conic's plane the face's
-outline is not on. The plane's closed rims take it too, so the one
-final state is a division everywhere.
+outline is not on. The plane's closed rims take it too, in a face with no
+rings. A face with rings still takes the zero-area-ring arm, which is
+sound per PR 7783's review probe.
 
 **Measured** at the default ε, 1e-6 and 1e-12, tiers 1, 3 and 3′:
 

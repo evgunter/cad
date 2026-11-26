@@ -3735,6 +3735,7 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
                     | Solid::RegionRayExhausted { .. }
                     | Solid::PartialConeFace { .. }
                     | Solid::PartialTorusFace { .. }
+                    | Solid::PartialSplineFace { .. }
                     | Solid::WallOutlineUnsupported { .. }
                     | Solid::PendingFace { .. },
                 ),

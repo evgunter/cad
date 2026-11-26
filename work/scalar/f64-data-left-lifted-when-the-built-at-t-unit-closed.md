@@ -20,3 +20,11 @@ Data built whole at `f64` is built at `T` (DL5.2's third row). `f64-built-data-i
 - The tour demos: `lily.rs` (14), `klein.rs` (2), `projectbox.rs` (2), `f64` frames and points a demo lifts into its scalar.
 
 Cost: M. The demos are a consumer's spelling: build them at `T` through the public doors.
+
+**A third cell walk lifts a place** (2026-11-25, `inside/ray-spline-face-arm`'s
+fix pass): `geom-brep/src/curve_face/line_patch.rs`'s `Walk::gradient_boxes`
+scales each part's quotient-rule numerator boxes by `1/(u1 − u0)` and
+`1/(v1 − v0)`, its rectangle's widths, so the boxes of a region grown across
+knot lines are met at the chart's own parameters. The widths are places,
+lifted through `from_computed`; listed in `scripts/gates/from-computed-sites.tsv`
+under this row.

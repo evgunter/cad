@@ -2,10 +2,13 @@
 id: point-containments-ray-test-has-no-spline-arm
 kind: issue
 title: Point containment's ray test has no arm for a spline face, so a selection holding one casts no aimed ray and reads its side off its volume
-status: open
+status: closed
 opened: 2026-10-25
 priority: P0
 cost: H
+closed: 2026-11-25
+pr: 7798
+branch: inside/ray-spline-face-arm
 ---
 
 

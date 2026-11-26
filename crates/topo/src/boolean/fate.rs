@@ -1066,7 +1066,7 @@ fn end_at<T: crate::props::AtRestPolicy>(
     // A pinch is several vertices on one point, one per cone, each a
     // partner: every one is offered, and the face's own is placed.
     let mut at = Vec::new();
-    for c in &red.contacts.vv {
+    for c in red.contacts.vv() {
         let (k, d) = match holder {
             Operand::A => (c.a, c.b),
             Operand::B => (c.b, c.a),
@@ -1098,11 +1098,8 @@ fn end_at<T: crate::props::AtRestPolicy>(
             End::Touch(x)
         });
     }
-    let on = match holder {
-        Operand::A => &red.contacts.a_on_b,
-        Operand::B => &red.contacts.b_on_a,
-    };
-    on.iter()
+    red.contacts
+        .on(holder)
         .find(|c| xs.contains(&c.vertex) && divisions.root(c.face) == root)
         .map(|c| End::Touch(c.vertex))
         .ok_or(BooleanError::ClassificationInvariant {
