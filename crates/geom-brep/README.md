@@ -1398,8 +1398,10 @@ the other through their bisector planes (`factored_crossing`), reached
 only where the surface-pair pose decides that pose. On its own wall, the
 partner's residual is the product of the span's distances from the two
 planes. So the span crosses the partner where it crosses a plane, and
-lies on the partner where the plane's pose reads it lying in one; the
-read answers that as the curved lane's lying-on. Where the read cannot
+lies on the partner where it lies in one: decided on the partner, as the
+conic's farthest offset from the plane times the lever 2|â₁·n̂|
+(2cos(θ/2) on one plane, 2sin(θ/2) on the other), and answered as the
+curved lane's lying-on. Where the read cannot
 decide, it refuses typed: two crossings within the band of each other
 (a node), or a conic whose plane is within the band of a bisector
 plane's. It never hands the span back to the quadric door. Every consumer of where
