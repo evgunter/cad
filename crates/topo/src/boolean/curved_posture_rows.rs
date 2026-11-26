@@ -513,3 +513,64 @@ fn a_covered_near_miss_in_the_gap_records_nothing_a_miss_would_not() {
     assert_eq!(clear, 0, "the clear circle defers nothing");
     assert!(clear_settled.is_ok(), "{clear_settled:?}");
 }
+
+/// **The lane's one reading of a refused window, read alike by both
+/// maps** (`read_why`): an apex reading in its zero band is the apex's
+/// before it is a graze, a conic's on its edge (`AtApex`) and a covered
+/// arc's on its posture (the frontier); a method that met a pose with no
+/// closed form (`MeetFault::Unsupported`, a limit by
+/// `MeetFault::kind`) keeps the door on an edge (`Unsettled`) and is the
+/// frontier under a cover, never a fault.
+///
+/// Mutants: the zero-band arm read before the apex arms, red (an apex in
+/// its zero band reads as a graze); an unread method fault read as a
+/// fault, red.
+#[test]
+fn a_refused_window_is_read_alike_by_both_maps() {
+    use crate::boolean::{Operand, reduce::SpanVerdict as Verdict};
+    use geom_brep::curve_face::{CrossWhy, PoseRefusal, PoseRung};
+    use geom_brep::curve_pair::MeetFault;
+    let b = band();
+    let zero = geom_core::k_stats::decide_nonzero(
+        "test_curve_posture_zero",
+        geom_core::Margin::of(0.0_f64),
+        b,
+    )
+    .err()
+    .unwrap_or_else(|| panic!("a zero reading is rejected"));
+    let cone = geom::Surface::Cone {
+        frame: frame(Point3::origin()),
+        half_angle: core::f64::consts::FRAC_PI_4,
+    };
+    let apex_in_zero_band = CrossWhy::Pose(PoseRefusal::InBand {
+        rung: PoseRung::Apex,
+        diag: zero,
+    });
+    let unsupported = method(MeetFault::Unsupported {
+        pose: "a row's pose",
+    });
+    let edge = |why| {
+        super::crossing_refused(
+            why,
+            &ring(),
+            &cone,
+            (Operand::B, crate::entity::FaceKey::default()),
+            &|_, _| Err(frontier()),
+        )
+    };
+    assert!(
+        matches!(edge(apex_in_zero_band), Ok(Verdict::AtApex)),
+        "{:?}",
+        edge(apex_in_zero_band)
+    );
+    assert!(
+        matches!(edge(unsupported), Ok(Verdict::Unsettled)),
+        "{:?}",
+        edge(unsupported)
+    );
+    assert!(matches!(
+        refused(apex_in_zero_band),
+        CoveredPosture::Frontier
+    ));
+    assert!(matches!(refused(unsupported), CoveredPosture::Frontier));
+}
