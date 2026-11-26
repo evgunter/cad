@@ -3,7 +3,7 @@ id: main-red-removed-members-refuses-three-slow-carry-rows
 kind: issue
 title: Main red since PR 7745: three slow-set carry rows refuse (two union_flush rows Stale{record:3}, face_face_touch Unread{record:18}) that pass on its parent
 status: closed
-closed: 2026-11-25
+closed: 2026-11-26
 opened: 2026-11-25
 priority: P0
 cost: E

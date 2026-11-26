@@ -342,3 +342,8 @@
     - section vertices are named on both paths;
     - a stress row with X grazing F at the section.
   - Re-band `the-boolean-door-decides-no-minted-vertex-on-edge-meeting` to P1 and retarget it once it reaches main. The interim is no (C): the pierce row stays a loud refusal until the door lands.
+
+- 2026-11-26 PR 7799 merged (9a25655c18) after a delta re-read (MERGEABLE, M1 and M2 closed; NOPRES, CONTRAANY and LOOSEINC each red). Main's three carry reds are fixed. The pierce row stays a loud JoinDesync until the minted-door lane lands.
+  - The reviewer showed the three loft/NURBS containment reds are main's, from INSIDE's PR 7798 (`33191a617a`). Filed P1 `work/inside/main-red-three-loft-rows-expect-point-containment-to-refuse-a-spline-face`.
+  - Dispatched lane `heldrecords/minted-door` (session_018u3gVFsPxLJDhJLgrGLPTt), single FULL review.
+  - one-list told to merge main and re-diff.
