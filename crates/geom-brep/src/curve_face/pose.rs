@@ -111,6 +111,9 @@ pub(super) enum Formed<T: Real> {
     LineCone { parallel: bool },
     /// A line against a torus, which it never lies on.
     LineTorus,
+    /// A spline span against an analytic face: the method reads the ring
+    /// composite on its pieces ([`super::composite`]).
+    SplineComposite,
     /// A line against a spline chart: the method reads its cells
     /// ([`super::line_patch`]).
     LinePatch,
@@ -312,12 +315,15 @@ pub fn pose<T: Decide>(
             Door::ConicQuadric => conic_quadric(span, surface, band),
             Door::ConicTorus => conic_torus(span, surface, band).map_err(Refused::from),
             Door::SpiricPlane => spiric_plane(span, surface, band).map_err(Refused::from),
+            // A spline span is read by its method alone: no pose is
+            // decided ahead of the composite's pieces.
+            Door::SplineComposite => Ok(Pose::Isolated(Form(Formed::SplineComposite))),
             // A line against a spline chart is read by its method alone
             // (`super::line_patch`): no pose is decided ahead of its cells.
             Door::SplineFace if matches!(carrier, geom::Curve3::Line(_)) => {
                 Ok(Pose::Isolated(Form(Formed::LinePatch)))
             }
-            Door::SplineComposite | Door::SplineFace => Err(PoseRefusal::Enclosed.into()),
+            Door::SplineFace => Err(PoseRefusal::Enclosed.into()),
             Door::Spiric | Door::Sheet => Err(PoseRefusal::Unbuilt(way).into()),
         }
     } else {

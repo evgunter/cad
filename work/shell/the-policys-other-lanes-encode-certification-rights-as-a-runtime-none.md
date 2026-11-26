@@ -105,3 +105,5 @@ no values at a dual, never an `Option` a dual answers `None` to". INSIDE's
 face-door design (`work/inside/log.md`, 2026-11-25) retires
 `spline_face_crossings` by moving the spline arm into
 `curve_face::cross`, at `T: Decide`. The other two remain this row's.
+
+**2026-11-26, from INSIDE's face door (`inside/face-door-spline-arm`, PR 7801).** `spline_face_crossings` is retired: the spline arm answers inside `curve_face::cross` at `T: Decide`. Its stored crossings are admitted at the storing site through `nurbs_lane`, which adds two consumers of that `Option`'s `None` at a dual: `crates/topo/src/splitting/classify.rs` `stored_crossing` refuses `MeetFault::Unsupported` ("a spline crossing is stored only at a scalar that certifies"), and `crates/topo/src/boolean/reduce.rs` `composite_count` refuses where `T::nurbs_lane()` is `None`. Each refuses by value where DL5.3 would have it refuse by type; they move with `nurbs_lane` when it becomes an associated type.

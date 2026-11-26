@@ -475,9 +475,10 @@ const MEASURED_PAD: [f64; 9] = [
 /// **Every run of pose `index` is a body at its volume**
 /// ([`at_its_volume`]), a legal operand, its enclosure no wider than the
 /// pinned resolution admits on the operands' area and guarded at four
-/// times the pose's [`MEASURED_PAD`]. Each passes tier 3′ but the
-/// two-loop poses' `A ∖ B`, which cuts the drum in two
-/// ([`Ends::PartsUndecided`]).
+/// times the pose's [`MEASURED_PAD`]. Each passes tier 3′, the two-loop
+/// poses' `A ∖ B` too, which cuts the drum in two: the census tells the
+/// two parts' curved faces apart now that the face door reads their
+/// spline chords (it read [`Ends::PartsUndecided`] before).
 fn builds_at_its_volume_or_refuses_at_its_door(index: usize) {
     let pose = &poses()[index];
     let (a, b) = pose.operands();
@@ -485,15 +486,10 @@ fn builds_at_its_volume_or_refuses_at_its_door(index: usize) {
     let drum_area = 2.0 * PI * R * (pose.drum.z1 - pose.drum.z0) + 2.0 * PI * R * R / TILT.cos();
     let area = drum_area + 4.0 * PI * pose.big.powi(2);
     let ceiling = pad_ceiling(area);
-    let two_loops = pose.label.starts_with("two loops");
     let mut off = Vec::new();
     for (op_label, op, swapped, want) in runs(va, vb, vi) {
         let label = format!("{}, {op_label}", pose.label);
-        let ends = if two_loops && op_label == "A ∖ B" {
-            Ends::PartsUndecided
-        } else {
-            Ends::Sound
-        };
+        let ends = Ends::Sound;
         let (x, y) = if swapped { (&b, &a) } else { (&a, &b) };
         off.extend(at_its_volume(
             &label,
@@ -766,4 +762,123 @@ fn a_rod_through_a_ball_pairs_both_loops_alike() {
             "{op:?}: the mirror-symmetric pose pairs its loops differently"
         );
     }
+}
+
+/// **A cylinder × sphere result ∪, ∖ and ∩ a brick into the ball's
+/// outer cap**: a brick across the sphere at `ρ ≥ 0.7 > R`, which meets
+/// no face of the result but the ball's chorded cap (where a result
+/// holds it). One run per pose that holds the cap, the ball less the
+/// drum (`B ∖ A`) of poses 0 and 5, is combined with the brick by all
+/// three ops: each builds at tier 2, the volumes are additive,
+/// `V(X ∪ K) + V(X ∩ K) = V(X) + V(K)` and `V(X ∖ K) + V(X ∩ K) = V(X)`,
+/// within the measured enclosures, and the common part is the ball's part
+/// in the brick in closed form. The face door reads the cap's spline
+/// chords, so no run stops at it. One run per pose: every run of both
+/// poses (36 Booleans, each measured) ran past an hour unoptimized;
+/// this one takes about half an hour, most of it the tier certificate's
+/// side rays reading the spline chords.
+#[test]
+fn a_brick_into_the_chorded_cap_combines_with_a_result_holding_it() {
+    let tol = Tol::witness();
+    let brick = finished(
+        "the cap brick",
+        sweep::test_support::brick::<f64>((0.7, 0.9), (-0.02, 0.02), (-0.03, 0.03), tol),
+        tol,
+    );
+    let volume = |body: &AtRestBody<f64>| {
+        let m = topo::mass_properties(body, tol, topo::test_support::pinned_resolution(tol))
+            .unwrap_or_else(|e| panic!("unmeasured: {e:?}"));
+        (m.enclosure.volume, m.enclosure.volume_pad)
+    };
+    let (vk, pk) = volume(&brick);
+    // The part of the ball of radius `r` about `c` the brick holds: the
+    // brick's slab in `z` clipped to the ball's chord over each column
+    // `(x, y)`, by the midpoint rule on a 4000 × 200 grid, far finer than
+    // the slack it is held to.
+    let ball_part = |c: [f64; 3], r: f64| -> f64 {
+        let (n, m) = (4000, 200);
+        let (dx, dy) = (0.2 / f64::from(n), 0.04 / f64::from(m));
+        let mut v = 0.0;
+        for i in 0..n {
+            let x = 0.7 + (f64::from(i) + 0.5) * dx;
+            let s2 = r * r - (x - c[0]).powi(2);
+            if s2 <= 0.0 {
+                continue;
+            }
+            for j in 0..m {
+                let y = -0.02 + (f64::from(j) + 0.5) * dy;
+                let h2 = s2 - (y - c[1]).powi(2);
+                if h2 <= 0.0 {
+                    continue;
+                }
+                let h = h2.sqrt();
+                let (lo, hi) = ((c[2] - h).max(-0.03), (c[2] + h).min(0.03));
+                if hi > lo {
+                    v += (hi - lo) * dy * dx;
+                }
+            }
+        }
+        v
+    };
+    let mut off = Vec::new();
+    let mut built = 0;
+    for index in [0, 5] {
+        let pose = &poses()[index];
+        let (a, b) = pose.operands();
+        for (op_label, op, swapped, _) in runs(0.0, 0.0, 0.0) {
+            if op_label != "B ∖ A" {
+                continue;
+            }
+            let (x, y) = if swapped { (&b, &a) } else { (&a, &b) };
+            let result =
+                run(op, x, y).unwrap_or_else(|e| panic!("{}, {op_label}: {e:?}", pose.label));
+            let label = format!("{}, {op_label}", pose.label);
+            let body = result
+                .body()
+                .unwrap_or_else(|| panic!("{label}: the ball less the drum is no body"));
+            let (vx, px) = volume(&body.body);
+            let mut with = Vec::new();
+            for (name, by) in [
+                ("∪", BooleanOp::Union),
+                ("∩", BooleanOp::Intersect),
+                ("∖", BooleanOp::Subtract),
+            ] {
+                match run(by, &body.body, &brick) {
+                    Ok(r) => match r.body() {
+                        Some(got) if topo::validate_closed(&got.body).is_ok() => {
+                            with.push(Some(volume(&got.body)));
+                        }
+                        Some(_) => off.push(format!("{label} {name} the brick: not closed")),
+                        // An empty common part: no volume.
+                        None => with.push(Some((0.0, 0.0))),
+                    },
+                    Err(e) => {
+                        off.push(format!("{label} {name} the brick: {e:?}"));
+                        with.push(None);
+                    }
+                }
+            }
+            if let [Some((vu, pu)), Some((vi, pi)), Some((vd, pd))] = with[..] {
+                built += 1;
+                let claim = crate::common::differential::VOLUME_CLAIM;
+                if (vu + vi - vx - vk).abs() > 2.0 * claim + pu + pi + px + pk {
+                    off.push(format!("{label}: ∪ {vu} + ∩ {vi} ≠ {vx} + brick {vk}"));
+                }
+                if (vd + vi - vx).abs() > 2.0 * claim + pd + pi + px {
+                    off.push(format!("{label}: ∖ {vd} + ∩ {vi} ≠ {vx}"));
+                }
+                // The common part in closed form: the ball's part in the
+                // brick, which the ball less the drum holds whole.
+                let want = ball_part(pose.c, pose.big);
+                if (vi - want).abs() > 2.0 * claim + pi + 1e-6 {
+                    off.push(format!("{label}: ∩ {vi} ≠ the ball's part {want}"));
+                }
+            }
+        }
+    }
+    assert!(off.is_empty(), "{off:#?}");
+    assert_eq!(
+        built, 2,
+        "a run per pose combines with the brick by every op"
+    );
 }

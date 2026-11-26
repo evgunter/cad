@@ -79,3 +79,7 @@ hands it the reader (`contain::curved_face_placement_reading`, from
 sphere arm's `splines`. Handing it over there is this row's remaining
 step, and it moves the `PartialTorusFace` pins listed above. Row:
 `torus_region::tests::a_patch_bounded_by_spline_edges_reads_its_side`.
+
+## 2026-11-26 — not closed by PR 7801 (INSIDE orchestrator)
+
+PR 7801 lets `torus_face_region` admit `Nurbs` edges at every scalar, so `face_geo`'s torus arm now reads spline edges. But `germ_tilted_rod` still pins its stop as `"pieces on a torus face"`, and that pin stayed green on 7801's CI. So the stop this row names is unmoved. Re-measure what stops there now before building.

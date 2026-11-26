@@ -670,7 +670,7 @@ fn cast_aims<T: Decide>(
     // is cast, and the volume reads with that face as the limit.
     let mut geos = Vec::with_capacity(faces.len());
     for &face in faces {
-        match face_geo(body, face, &sel.charts, band, None) {
+        match face_geo(body, face, &sel.charts, band) {
             Ok(geo) => geos.push((face, geo)),
             Err(e) => {
                 return Ok(Rays::Unread {
@@ -898,7 +898,7 @@ pub(crate) fn each_aim_report<T: Decide>(body: &Body<T>, band: Band) -> Vec<Stri
         let geos: Vec<_> = match sel
             .faces()
             .iter()
-            .map(|&f| face_geo(body, f, &sel.charts, band, None).map(|g| (f, g)))
+            .map(|&f| face_geo(body, f, &sel.charts, band).map(|g| (f, g)))
             .collect()
         {
             Ok(geos) => geos,
@@ -1038,7 +1038,7 @@ pub(crate) fn ray_at_report<T: Decide>(
     let geos: Result<Vec<_>, _> = sel
         .faces()
         .iter()
-        .map(|&f| face_geo(body, f, &sel.charts, band, None).map(|g| (f, g)))
+        .map(|&f| face_geo(body, f, &sel.charts, band).map(|g| (f, g)))
         .collect();
     match geos {
         Ok(geos) => format!(
@@ -1071,7 +1071,7 @@ pub(crate) fn ray_counts(
     let mut geos: Vec<_> = sel
         .faces()
         .iter()
-        .map(|&f| face_geo(body, f, &sel.charts, band, None).map(|g| (f, g)))
+        .map(|&f| face_geo(body, f, &sel.charts, band).map(|g| (f, g)))
         .collect::<Result<_, _>>()
         .map_err(|e| format!("{e:?}"))?;
     if reversed {
@@ -1220,7 +1220,7 @@ mod pre_filter_tests {
             "the volume reads, limited by the spline face: {read:?}"
         );
         assert!(
-            matches!(face_geo(&body, spline, &sel.charts, band, None), Err(e) if e == want),
+            matches!(face_geo(&body, spline, &sel.charts, band), Err(e) if e == want),
             "a ray meets the same refusal"
         );
     }
