@@ -3078,11 +3078,24 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
             // **The covered arc's posture, read off its crossing
             // reading** ([`covered_posture`]): clear is no event; the
             // zero posture is the covered rung below; a crossing, which
-            // the cover rules out, the frontier; a sign in band the
-            // coincidence the cover's posture cannot call; any other
+            // the cover rules out, the frontier; a pose rung in its gap
+            // the coincidence the cover's posture cannot call; any other
             // refusal keeps the door. An uncovered arc reads no posture
             // here: the root lanes below decide it, and the pose's
             // `Apart` is their miss.
+            //
+            // A method's sign in band, gap included, is the zero posture:
+            // the cover certifies the residual one-signed, so it is a
+            // touch or a miss, never a crossing. The rung below then
+            // records no incidence a miss would not: each endpoint is read
+            // by its own side (`bool_vertex_face_side`: on the carrier its
+            // containment, off on the cover's side no event, off on the
+            // other the frontier), and an interior it cannot see is
+            // deferred to the fragments both member orders leave
+            // ([`settle_deferred`]), where a pair nothing split refuses
+            // typed. So a near miss never builds a different body; where
+            // nothing settles it, it refuses where a miss would build
+            // (`work/germ/a-covered-near-miss-no-vertex-splits-refuses-where-a-miss-builds.md`).
             let clearance = if on_carrier {
                 Some(Ok(Sign::Zero))
             } else if covered {
@@ -3491,21 +3504,24 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     // ([`Placement::undeclared_no_interior`]), over this
                     // span's one ON end.
                     //
-                    // Under `OffFace` the ON end cannot place In, OnEdge
-                    // or OnVertex on THIS face, so the two reads cannot
-                    // disagree. The end is a meeting of the span with the
-                    // carrier, so its piece never clears and it lies in a
-                    // cluster, within `ℓ + |d(m)|` of the ball's foot:
-                    // `escalate` inside the ball. Every vertex and edge
-                    // of the face was decided farther from the foot than
-                    // the ball's radius, so each is more than `escalate`
-                    // from the end, beyond the band an On answer needs.
-                    // In would contradict the same door's
-                    // (`curved_face_placement`) `Out` at the foot across a
-                    // disc of the carrier no boundary enters. The one
-                    // `Recorded` left is the face-free vertex hit, a
-                    // sibling face's incidence, which records here as it
-                    // would there.
+                    // Under `OffFace` every window `cross` refused was
+                    // read off the face ([`super::face_reading`]), and
+                    // the ON end's own meeting is read as `NoInterior`'s.
+                    // An ON end inside a window cannot place In, OnEdge or
+                    // OnVertex on THIS face, so the two reads cannot
+                    // disagree: the end is a meeting of the span with the
+                    // carrier, so no piece holding it clears, and it lies
+                    // in one of the window's clusters, within
+                    // `ℓ + |d(m)|` of that cluster's foot: `escalate`
+                    // inside its ball. Every vertex and edge of the face
+                    // was decided farther from the foot than the ball's
+                    // radius, so each is more than `escalate` from the
+                    // end, beyond the band an On answer needs. In would
+                    // contradict the same door's (`curved_face_placement`)
+                    // `Out` at the foot across a disc of the carrier no
+                    // boundary enters. The one `Recorded` left is the
+                    // face-free vertex hit, a sibling face's incidence,
+                    // which records here as it would there.
                     let mut ends = [None, None];
                     for (i, (on, w, pw, m)) in
                         [(s1 == Sign::Zero, u, pu, m1), (s2 == Sign::Zero, v, pv, m2)]
@@ -3541,11 +3557,11 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
         //   span was placed outside the trim, and each root at an end is
         //   that end's own incidence. So the ends decide, under the same rule as the
         //   mixed-sign arm ([`Placement::undeclared_no_interior`]).
-        // - **`OffFace`**: every meeting of the span with the carrier, the
-        //   ends' among them, lies off this face whether or not the edge
-        //   lies on the carrier, so the ends decide under the same rule.
-        //   Neither end can place on this face against the verdict (the
-        //   mixed-sign arm above says why).
+        // - **`OffFace`**: every window `cross` refused was read off this
+        //   face by the face reading's clusters, and every meeting it
+        //   found is an end's or was placed outside the trim, so the ends
+        //   decide under the same rule. Neither end can place on this face
+        //   against the verdict (the mixed-sign arm above says why).
         // - **`LiesOn`: a circle or ellipse arc lying on the carrier**,
         //   exactly on by the conic root doors; **`Constant`: a ruling
         //   lying on a wall**, its residual decided Zero at both ends and
@@ -5822,14 +5838,18 @@ enum CoveredPosture {
 /// arc crosses the carrier. A method reading in band, in the zero band
 /// or in its escalation gap, says only that the arc comes within the band
 /// somewhere: a touch or a clear miss, never a crossing. The zero
-/// posture's treatment is sound for both: each endpoint is read by its
-/// own side (on the carrier, its containment; off on the side the cover
-/// certifies, no event; off on the other, the frontier), and the interior
-/// is deferred to the fragments both member orders leave
-/// ([`settle_deferred`]), so a near miss read as the zero posture makes
-/// no incidence a miss would not. A pose rung in its gap stays the
-/// coincidence refusal: it reads the pair's class, not one side of it,
-/// and the cover's one-signed residual does not settle the class.
+/// posture's treatment records no incidence a miss would not, so it never
+/// builds a body a miss would not build: each endpoint is read by its own
+/// side (on the carrier, its containment; off on the side the cover
+/// certifies, no event; off on the other, the frontier), and an interior
+/// it cannot see is deferred ([`CurvedEvent::Deferred`]) to the fragments
+/// both member orders leave ([`settle_deferred`]). There a fragment that
+/// clears or records settles it, and a pair nothing split refuses typed,
+/// where a miss would have built: the cost of reading a near miss as a
+/// touch is a typed refusal, never a different body. A pose rung in its
+/// gap stays the coincidence refusal: it reads the pair's class, not one
+/// side of it, and the cover's one-signed residual does not settle the
+/// class.
 fn covered_posture<T: geom_core::Real>(
     answer: Result<geom_brep::curve_face::Crossings<T>, geom_brep::curve_face::CrossRefusal<T>>,
     line: bool,

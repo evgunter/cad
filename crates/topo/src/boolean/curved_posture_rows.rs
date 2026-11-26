@@ -387,3 +387,129 @@ fn a_refusal_is_read_by_every_window_and_its_found_crossing() {
     let got = read(&[graze, limit], Vec::new());
     assert!(matches!(got, CoveredPosture::Frontier), "{got:?}");
 }
+
+/// A prism slab `[−3, 3] × [−2.5, 2.5] × [c − 1, c]` with a disc of radius
+/// 0.3 planted in its top at `(0, 1 + 0.3 + gap, c)`, and a sheet of the
+/// unit wall about the `x` axis through `(0, 0, c)` over azimuth `[−½, ½]`
+/// about `+y` and `x ∈ [−½, ½]`, its sense set so it holds that patch: the
+/// disc's circle passes the wall at `(0, 1 + gap, c)`, `gap` outside it,
+/// in a plane holding the wall's axis direction. With the disc face
+/// covered `Off(Positive)` against both faces of the sheet, the circle's edge is swept
+/// against the wall (operand A against B) and what the sweep deferred is
+/// settled.
+fn covered_near_miss(gap: f64) -> (usize, Result<(), BooleanError>) {
+    use crate::boolean::{GluedPairs, Operand};
+    let tol = Tol::witness();
+    let c = 0.5;
+    let prism = crate::test_support_fixtures::prism_z::<f64>(
+        &[(-3.0, -2.5), (3.0, -2.5), (3.0, 2.5), (-3.0, 2.5)],
+        c - 1.0,
+        c,
+        tol,
+    );
+    let mut a = prism.body;
+    let top = a.get_face(prism.top_face).unwrap().outer;
+    let crate::entity::LoopBoundary::Cycle { first } = a.get_loop(top).unwrap().boundary else {
+        panic!("the top's loop is a cycle");
+    };
+    let disc = crate::test_support_fixtures::plant_disc_face(
+        &mut a,
+        first,
+        Point3::new(0.0, 1.3 + gap, c),
+        0.3,
+        tol,
+    );
+    let mut b = crate::Body::<f64>::new();
+    let wall = crate::test_support_fixtures::cyl_wall_sheet(
+        &mut b,
+        crate::test_support_fixtures::CylFrame {
+            origin: Point3::new(-0.5, 0.0, c),
+            axis: Vec3::unit_x(),
+            radius: 1.0,
+            u_ref: Vec3::unit_y(),
+        },
+        (-0.5, 0.5),
+        (0.0, 1.0),
+        tol,
+    );
+    crate::test_support_fixtures::set_sheet_sense(&mut b, wall, true, tol);
+    // The disc covered against both faces of the sheet (the patch and its
+    // lamina twin across the same edges).
+    let mut declared = GluedPairs::<f64>::default();
+    for (target, _) in b.faces() {
+        declared.one_sided.insert(
+            (
+                crate::boolean::tagged(Operand::A, disc.face),
+                crate::boolean::tagged(Operand::B, target),
+            ),
+            crate::boolean::CoverSide::Off(Sign::Positive),
+        );
+    }
+    let mut acc = super::ContactAcc::default();
+    let mut deferred = Vec::new();
+    let tips = crate::sector_shape::SlitTips::of(&a);
+    let swept = super::sweep_direction(
+        (&mut a, &tips),
+        &mut b,
+        Operand::A,
+        &declared,
+        &mut acc,
+        band(),
+        super::SweepStrategy::Realized,
+        &super::SweepKnobs::default(),
+        None,
+        &mut deferred,
+        &crate::separating::OperandAxes::new(crate::boxes::axis_key),
+        tol,
+    );
+    if let Err(e) = swept {
+        return (0, Err(e));
+    }
+    let count = deferred.len();
+    let settled = super::settle_deferred(
+        &mut a,
+        &mut b,
+        deferred,
+        &declared,
+        &mut acc,
+        band(),
+        [None, None],
+        tol,
+    );
+    (count, settled)
+}
+
+/// **A covered near miss read in the gap never records what a miss would
+/// not** (`covered_posture`'s argument): the disc's circle passes a wall
+/// sheet `3ε` outside it, inside `Kε`, its parent covered `Off(Positive)`
+/// against the wall, so the ladder method reads its side in the band's
+/// gap and the posture is the zero one. The sweep records nothing and
+/// refuses nothing at the arm: it defers the circle's edge against both
+/// faces of the sheet, and the settle,
+/// with no vertex splitting the edge, refuses it typed (the frontier).
+/// Moved `100·Kε` clear, the same circle defers nothing and settles
+/// clean. Neither ever records an incidence, so no different body can
+/// come of the gap reading, only a typed refusal where a miss builds
+/// (`work/germ/a-covered-near-miss-no-vertex-splits-refuses-where-a-miss-builds.md`).
+///
+/// Mutant: the method's sign in band sent to the frontier, red (the arm
+/// refuses at the sweep instead of deferring).
+#[test]
+fn a_covered_near_miss_in_the_gap_records_nothing_a_miss_would_not() {
+    let eps = band().zero();
+    let (near, near_settled) = covered_near_miss(3.0 * eps);
+    assert_eq!(
+        near, 2,
+        "the near miss's circle is deferred against both faces of the sheet: {near_settled:?}"
+    );
+    assert!(
+        matches!(
+            near_settled,
+            Err(BooleanError::CurvedPierceUnsupported { .. })
+        ),
+        "with no vertex splitting it, the settle refuses typed: {near_settled:?}"
+    );
+    let (clear, clear_settled) = covered_near_miss(100.0 * band().escalate());
+    assert_eq!(clear, 0, "the clear circle defers nothing");
+    assert!(clear_settled.is_ok(), "{clear_settled:?}");
+}

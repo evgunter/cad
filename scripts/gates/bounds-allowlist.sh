@@ -485,22 +485,26 @@ BOUNDS_ALLOWLIST=(
   # boxes.rs's two are the box builders (`face_box`, `edge_box`), each
   # its cover's bracketed box; its point read needs no `Bounds`.
   'crates/topo/src/boxes.rs 2 2026-07-29 (M5 PR 8), the driver amendment'
-  # carrier_touch.rs's two and face_reading.rs's four are the crossing
+  # carrier_touch.rs's two and face_reading.rs's five are the crossing
   # layer's touch reading (GERM U4b moved the ball rule into the face
-  # reading; the cluster reading stays for the spline composite alone):
-  # `clusters`, the subdivision driver (a piece's half-length bracket
-  # stops the bisection), and `off_face`, which carries the bound to call
-  # it and `ball_off_face`; `edge_clear_of_ball`, which prunes a boundary
+  # reading, and its window reading localizes as the cluster reading
+  # does; carrier_touch's copy stays for the spline composite alone):
+  # `clusters` and the face reading's `localize`, each the subdivision
+  # driver (a piece's half-length bracket stops the bisection at the
+  # tangency floor), and `off_face`, which carries the bound to call it
+  # and `ball_off_face`; `edge_clear_of_ball`, which prunes a boundary
   # edge by its certified box against the touch's ball before deciding a
   # distance bound (a box miss is a terminal clear, the disjointness
   # direction #571 allows); and `ball_off_face`, `window_off_face` and
-  # `face_crossings`, which carry the bound to call it and read no
-  # bracket themselves. The bound is not a certifying one: the public
+  # `face_crossings`, which carry the bound to call it and order a
+  # `Through` apex among the found meetings by their parameters'
+  # brackets' upper ends (an order of points `cross` already placed
+  # apart, read for position only). The bound is not a certifying one: the public
   # boolean builds at a dual (`crates/topo/tests/inside_out_operand.rs`),
   # where these reads prune and stop a bisection on the base scalar's
   # brackets (`real.rs`'s entry).
   'crates/topo/src/boolean/carrier_touch.rs 2 2026-07-29 (M5 PR 8), the driver amendment'
-  'crates/topo/src/boolean/face_reading.rs 4 2026-07-29 (M5 PR 8), the driver amendment'
+  'crates/topo/src/boolean/face_reading.rs 5 2026-07-29 (M5 PR 8), the driver amendment'
   # mod.rs's four are the reduction's doors: `boolean_reduce`, the
   # strategy driver it and the ops call (`boolean_reduce_declared_strategy`),
   # and the two trace doors (`sweep_traces`, `sweep_traces_with_pad`).

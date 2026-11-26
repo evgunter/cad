@@ -79,11 +79,11 @@ fn overlapping_balls_union_through_their_tilted_section() {
 
 /// **In-band clearance escalates by name** (two-tolerance, the F6
 /// discipline): the gap between the balls sits strictly inside the
-/// band, so neither "miss" nor "meet" may be asserted. The rider's
-/// enclosure escalates first and hands the pair to the circle × sphere
-/// roots, whose extreme residual — the same exact quantity — escalates
-/// in its turn, at the edge and the sphere, so the name on the refusal
-/// is the roots'.
+/// band, so neither "miss" nor "meet" may be asserted. The crossing
+/// reading's ball cull hands an in-band gap on rather than deciding it,
+/// and the circle × sphere pose's extreme rung, whose residual is the
+/// same exact quantity, escalates at the edge and the sphere, so the
+/// name on the refusal is the pose's (`curve_face_pose_extreme`).
 #[test]
 fn in_band_clearance_escalates_through_the_funnel() {
     let tol = Tol::witness().get();
@@ -97,7 +97,7 @@ fn in_band_clearance_escalates_through_the_funnel() {
             assert_eq!(
                 diag.predicate,
                 Some("curve_face_pose_extreme"),
-                "the escalation names the roots' predicate: {diag:?}"
+                "the escalation names the pose's extreme: {diag:?}"
             );
         }
         other => panic!("expected an escalation, got {other:?}"),

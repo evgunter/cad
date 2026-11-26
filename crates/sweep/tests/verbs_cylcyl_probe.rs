@@ -609,30 +609,26 @@ fn a_wall_closed_by_a_tilted_section_is_read_by_its_outline() {
     }
 }
 
-/// **The dip clamp's own row.** The blinded review found the clamp
-/// shipped unpinned: reverting `bool_line_cylinder_clearance`'s charge
-/// to the unconditional `q/8` left the whole tree green, because the
-/// bracket the clamp was written for stopped being a candidate pair
-/// once the boxes were trim-scoped. Two fixes for one defect, and each
-/// hid the other's evidence.
-///
-/// This is the bracket's shape reduced until only the clamp decides. A
-/// unit wall, and a brick whose lower edges run radially away from it
-/// starting just outside the surface at `y = 0.999`:
+/// **A radial edge starting just outside a wall clears it.** The
+/// retired line clearance's dip clamp was written for this shape; the
+/// crossing reading now decides it by the pose's discriminant, which
+/// reads the line's closest approach exactly. A unit wall, and a brick
+/// whose lower edges run radially away from it starting just outside the
+/// surface at `y = 0.999`:
 ///
 /// - the boxes DO overlap (the brick's edge starts at `x = 0.5`, inside
 ///   the wall's `x ∈ [−1, 1]`), so the pair is genuinely examined;
 /// - the line's nearest approach to the axis is its START — the
 ///   parabola's vertex sits at `x = 0`, outside the span `[0.5, 2.5]` —
-///   so the true clearance is the endpoint residual, about 0.124 m;
-/// - the endpoint gap `m ≈ 3.0` exceeds `q/2 = 2.0`, so the clamp
-///   charges EXACTLY ZERO and the clearance stands;
-/// - the unconditional `q/8 = 0.5` would swamp 0.124 and refuse.
+///   so the true clearance is the endpoint residual, about 0.124 m, and
+///   the discriminant's roots lie past the span;
+/// - a bound charging the centred-vertex dip to the whole span (the
+///   unconditional `q/8 = 0.5`, the clamp's own defect) would swamp 0.124
+///   and refuse.
 ///
-/// So this row reds — with `CurvedPierceUnsupported` — the moment the
-/// clamp is reverted, and it is the only row in the tree that does.
+/// So the union builds, the volumes adding.
 #[test]
-fn the_line_clearance_clamp_is_what_lets_a_radial_edge_clear() {
+fn a_radial_edge_starting_just_outside_a_wall_clears_it() {
     let tol = Tol::witness();
     let wall = finished("the wall", cyl(0.0, 0.0, 1.0, 0.0, 2.0), tol);
     let lp = profile::ProfileLoop::polygon([
@@ -653,8 +649,7 @@ fn the_line_clearance_clamp_is_what_lets_a_radial_edge_clear() {
     .unwrap()
     .body;
     let brick = finished("the brick", brick, tol);
-    let out = topo::union(&wall, &brick, tol)
-        .expect("the radial edge clears the wall; only the clamp proves it");
+    let out = topo::union(&wall, &brick, tol).expect("the radial edge clears the wall");
     let topo::BooleanResult::Body(bb) = out else {
         panic!("two disjoint solids union into a body");
     };

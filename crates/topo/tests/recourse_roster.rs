@@ -176,9 +176,11 @@ const EXCEPTIONS: &[(&str, &Door)] = &[
     ("cover_face_nearest_foot", &BOOLEAN),
     ("curve_carrier_clear", &BOOLEAN),
     // The face reading's piece of a window standing past its reach from
-    // the carrier (`boolean::face_reading`, named in the curve × face
-    // window's family); it hands on in band and refuses nothing.
+    // the carrier, and clear of the carrier's medial axis for its
+    // second-order bound (`boolean::face_reading`, named in the curve ×
+    // face window's family); each hands on in band and refuses nothing.
     ("curve_face_window_piece_clear", &BOOLEAN),
+    ("curve_face_window_piece_off_axis", &BOOLEAN),
     // The star's cuts and their order (`topo::star`), which both verbs
     // read; the Boolean's is the first door to raise them.
     ("germ_line", &BOOLEAN),

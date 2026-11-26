@@ -169,7 +169,7 @@ crates/sweep/src/skin.rs	1	constant	steps	the sub-arc count
 crates/sweep/src/test_support.rs	1	fixture	(core::f64::consts::FRAC_PI_2 / 4.0).tan()	a fixture arc's bulge
 crates/sweep/src/test_support.rs	4	fixture	<fn>	a fixture's f64 points lifted into T, and its placements' twelve constants admitted again at T
 crates/topo/src/boolean/carrier_touch.rs	1	constant	band.escalate()	the band's escalation width, a tolerance
-crates/topo/src/boolean/face_reading.rs	1	constant	band.escalate()	the band's escalation width, a tolerance
+crates/topo/src/boolean/face_reading.rs	2	constant	band.escalate()	the band's escalation width, a tolerance
 crates/topo/src/boolean/fate.rs	1	constant	f64::from(halves)	a loop's count of half-turn corners, read as a scalar
 crates/topo/src/boolean/join.rs	1	constant	band.zero()	the band's zero width, a tolerance
 crates/topo/src/boolean/mod.rs	1	constant	crate::boxes::sweep_pad(band)	the band's sweep pad, a tolerance

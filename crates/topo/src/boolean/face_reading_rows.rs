@@ -443,7 +443,8 @@ fn tangent_line(u: f64, off: f64) -> Curve3<f64> {
 
 /// **A line or a circle tangent to the wall just past the face's edge is
 /// read off the face, over a long window**: tangent at azimuth `½ + δ`,
-/// `δ` from 0.05 down to 0.001 past the edge, half the band outside the
+/// `δ` from 0.05 down to 0.001 past the edge (those past three of the
+/// touch's in-band runs, `√(2·escalate)`), half the band outside the
 /// wall: a line read over four metres about the touch, and a circle of
 /// radius 3 in the plane `z = ½`, tangent there from outside, read over
 /// its whole turn. The cluster about the touch is cut down to the
@@ -458,7 +459,17 @@ fn tangent_line(u: f64, off: f64) -> Curve3<f64> {
 fn a_touch_just_past_the_faces_edge_is_off_the_face_over_a_long_window() {
     let (y, face) = wall_face();
     let off = band().zero() / 2.0;
-    for delta in [0.05, 0.02, 0.01, 0.005, 0.002, 0.001] {
+    // A touch's in-band run reaches about `√(2·escalate)` either side of
+    // it, and no localizer cuts finer than that run: the rows past three
+    // runs from the edge are the ones the band can resolve (all six at
+    // the default ε and at 1e-12, the two widest at 1e-6).
+    let run = (2.0 * band().escalate()).sqrt();
+    let deltas: Vec<f64> = [0.05, 0.02, 0.01, 0.005, 0.002, 0.001]
+        .into_iter()
+        .filter(|&d| d > 3.0 * run)
+        .collect();
+    assert!(deltas.len() >= 2, "{deltas:?}");
+    for delta in deltas {
         let u = 0.5 + delta;
         let line = tangent_line(u, off);
         assert!(

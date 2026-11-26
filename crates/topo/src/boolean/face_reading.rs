@@ -163,9 +163,28 @@ pub(super) fn face_crossings<T: Decide + Bounds>(
                 on_span,
                 kind: MeetingKind::Cross,
             };
+            // Whether the meeting at `b` comes after the one at `a` along
+            // the span from its start: an end before or after every inside
+            // meeting, two inside ones by their parameters in the span's
+            // direction.
+            let (t0, t1) = span.params();
+            let after = |a: OnSpan<T>, b: OnSpan<T>| {
+                use geom_brep::curve_pair::SpanEnd::{Start, Stop};
+                match (a, b) {
+                    (_, OnSpan::End(Start)) | (OnSpan::End(Stop), _) => false,
+                    (OnSpan::End(Start), _) | (_, OnSpan::End(Stop)) => true,
+                    (OnSpan::Inside { t: ta }, OnSpan::Inside { t: tb }) => {
+                        if t1.hi() < t0.hi() {
+                            tb.hi() < ta.hi()
+                        } else {
+                            ta.hi() < tb.hi()
+                        }
+                    }
+                }
+            };
             let at = meetings
                 .iter()
-                .position(|m| after(span, apex.on_span, m.on_span))
+                .position(|m| after(apex.on_span, m.on_span))
                 .unwrap_or(meetings.len());
             meetings.insert(at, apex);
         }
@@ -215,25 +234,6 @@ pub(super) fn face_crossings<T: Decide + Bounds>(
         meetings: out,
         windowed: !windows.is_empty(),
     })
-}
-
-/// Whether the meeting at `b` comes after the one at `a` along `span`
-/// from its start: an end before or after every inside meeting, two
-/// inside ones by their parameters in the span's direction.
-fn after<T: Decide + Bounds>(span: &Span<'_, T>, a: OnSpan<T>, b: OnSpan<T>) -> bool {
-    use geom_brep::curve_pair::SpanEnd::{Start, Stop};
-    let (t0, t1) = span.params();
-    match (a, b) {
-        (_, OnSpan::End(Start)) | (OnSpan::End(Stop), _) => false,
-        (OnSpan::End(Start), _) | (_, OnSpan::End(Stop)) => true,
-        (OnSpan::Inside { t: ta }, OnSpan::Inside { t: tb }) => {
-            if t1.hi() < t0.hi() {
-                tb.hi() < ta.hi()
-            } else {
-                ta.hi() < tb.hi()
-            }
-        }
-    }
 }
 
 /// **The most clusters a window localizes into** ([`window_off_face`]):

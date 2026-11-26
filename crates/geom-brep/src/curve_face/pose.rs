@@ -381,11 +381,12 @@ pub fn pose<T: Decide>(
 /// `a_large_circle_grazing_a_wall_within_the_escalation_is_not_culled`).
 /// Asked past `Kε`, a `Positive` reading puts the computed bound at
 /// `2Kε` or more, and its rounding is bounded by the session box (D4,
-/// 1 km a coordinate): the conic's points, their midpoint, `e`, `|e × n|`
-/// or `|e|`, `g`, `L·ℓ` and the two differences take about sixteen ulps
-/// of the box's 2-km diameter (one ulp is 2.3e-13 m), 3.6e-12 m, against
-/// `Kε` = 1e-11 m at `ε` = 1e-12, the least `ε` the kernel runs. So the
-/// true bound stands past `2Kε − 3.6e-12 > Kε`, and the conic past `Kε`.
+/// 1 km a coordinate, so no length past its diagonal `2√3` km): the
+/// conic's points, their midpoint, `e`, `|e × n|` or `|e|`, `g`, `L·ℓ`
+/// and the two differences take about sixteen ulps of that diagonal (one
+/// ulp of 3.46 km is 4.5e-13 m), 7.3e-12 m, against `Kε` = 1e-11 m at
+/// `ε` = 1e-12, the least `ε` the kernel runs. So the true bound stands
+/// past `2Kε − 7.3e-12 > Kε`, and the conic past `Kε`.
 pub(super) fn culled<T: Decide>(
     span: &Span<'_, T>,
     conic: &dyn Conic<T>,
