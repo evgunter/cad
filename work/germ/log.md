@@ -2099,3 +2099,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
 - 2026-11-26 07:10 — **U4b PR 7809 opened**, frozen at `b545bef7e4`. It reports 8 deviations, a mutant table of 30 (all red), and a slow-set comparison against main.
   - **Dual review dispatched concurrently.** Both reviewers are Opus (user's ruling during the Fable outage), on one brief (sha256 `e198542fa24d`) that differs only in the lane name: `germ-review-7809-r1` and `-r2`.
   - No model-compare draws or rows (rule 12).
+- 2026-11-26 — U4b R2 report delivered (APPROVE-WITH-FIXES). Its findings are held unlogged until R1 delivers, for isolation.
