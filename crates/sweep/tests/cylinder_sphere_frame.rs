@@ -771,13 +771,18 @@ fn a_rod_through_a_ball_pairs_both_loops_alike() {
 /// **A cylinder × sphere result ∪, ∖ and ∩ a brick into the ball's
 /// outer cap**: a brick across the sphere at `ρ ≥ 0.7 > R`, which meets
 /// no face of the result but the ball's chorded cap (where a result
-/// holds it). Each of the six runs of poses 0 and 5 that builds is
-/// combined with the brick by all three ops: each builds at tier 2, and
-/// the volumes are additive, `V(X ∪ K) + V(X ∩ K) = V(X) + V(K)` and
-/// `V(X ∖ K) + V(X ∩ K) = V(X)`, within the measured enclosures. The
-/// face door reads the cap's spline chords, so no run stops at it.
+/// holds it). One run per pose that holds the cap, the ball less the
+/// drum (`B ∖ A`) of poses 0 and 5, is combined with the brick by all
+/// three ops: each builds at tier 2, the volumes are additive,
+/// `V(X ∪ K) + V(X ∩ K) = V(X) + V(K)` and `V(X ∖ K) + V(X ∩ K) = V(X)`,
+/// within the measured enclosures, and the common part is the ball's part
+/// in the brick in closed form. The face door reads the cap's spline
+/// chords, so no run stops at it. One run per pose: every run of both
+/// poses (36 Booleans, each measured) ran past an hour unoptimized;
+/// this one takes about half an hour, most of it the tier certificate's
+/// side rays reading the spline chords.
 #[test]
-fn a_brick_into_the_chorded_cap_combines_with_every_result() {
+fn a_brick_into_the_chorded_cap_combines_with_a_result_holding_it() {
     let tol = Tol::witness();
     let brick = finished(
         "the cap brick",
@@ -825,10 +830,16 @@ fn a_brick_into_the_chorded_cap_combines_with_every_result() {
         let pose = &poses()[index];
         let (a, b) = pose.operands();
         for (op_label, op, swapped, _) in runs(0.0, 0.0, 0.0) {
+            if op_label != "B ∖ A" {
+                continue;
+            }
             let (x, y) = if swapped { (&b, &a) } else { (&a, &b) };
-            let Ok(result) = run(op, x, y) else { continue };
-            let Some(body) = result.body() else { continue };
+            let result =
+                run(op, x, y).unwrap_or_else(|e| panic!("{}, {op_label}: {e:?}", pose.label));
             let label = format!("{}, {op_label}", pose.label);
+            let body = result
+                .body()
+                .unwrap_or_else(|| panic!("{label}: the ball less the drum is no body"));
             let (vx, px) = volume(&body.body);
             let mut with = Vec::new();
             for (name, by) in [
@@ -861,14 +872,8 @@ fn a_brick_into_the_chorded_cap_combines_with_every_result() {
                     off.push(format!("{label}: ∖ {vd} + ∩ {vi} ≠ {vx}"));
                 }
                 // The common part in closed form: the ball's part in the
-                // brick where the result holds the cap (the ball's own
-                // run, the union, or the ball less the drum), else none.
-                let holds_cap = matches!(op_label, "A ∪ B" | "B ∪ A" | "B ∖ A");
-                let want = if holds_cap {
-                    ball_part(pose.c, pose.big)
-                } else {
-                    0.0
-                };
+                // brick, which the ball less the drum holds whole.
+                let want = ball_part(pose.c, pose.big);
                 if (vi - want).abs() > 2.0 * claim + pi + 1e-6 {
                     off.push(format!("{label}: ∩ {vi} ≠ the ball's part {want}"));
                 }
@@ -876,5 +881,8 @@ fn a_brick_into_the_chorded_cap_combines_with_every_result() {
         }
     }
     assert!(off.is_empty(), "{off:#?}");
-    assert!(built >= 6, "the runs that build: {built}");
+    assert_eq!(
+        built, 2,
+        "a run per pose combines with the brick by every op"
+    );
 }
