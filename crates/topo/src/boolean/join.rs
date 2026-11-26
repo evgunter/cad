@@ -5658,6 +5658,14 @@ fn seam_germ_side<T: Decide>(
             let extent = d.norm() * (t1 - t0).abs();
             let n_r = match crate::face_normal::face_outward_normal_at(body, region, mid, band) {
                 Ok(Some(n_r)) => n_r.vec(),
+                // A region on a spline sheet has no normal arm at a point:
+                // a limit, as a spline holding face is.
+                Ok(None) if on_spline_sheet(body, region) => {
+                    return Rung::refused(HoldingUnread::Spline, HoldingUnread::refusal, |why| {
+                        Err(why.aborted())
+                    })
+                    .map_kept(|_| ());
+                }
                 Ok(None) => {
                     return Rung::Aborts(Err(desync(
                         "a section chord's region no longer resolves",
@@ -5781,11 +5789,48 @@ fn holding_face_normal<T: Decide>(
     let Some(held) = held else {
         return Ok(Ok(None));
     };
+    held_normal((other, other_is), held, q, band).map(|n| n.map(Some))
+}
+
+/// Whether `face` resolves to a face on a spline or spindle sheet, whose
+/// normal has no arm at a point
+/// ([`crate::face_normal::face_outward_normal_at`]): what tells a limit
+/// apart from a face that no longer resolves.
+fn on_spline_sheet<T: Decide>(body: &Body<T>, face: FaceKey) -> bool {
+    matches!(
+        body.face(face).map(|f| f.surface()),
+        Some(Ok(geom::Surface::Nurbs(_)
+            | geom::Surface::Approx(_)
+            | geom::Surface::Spindle { .. }))
+    )
+}
+
+/// **The outward normal at `q` of `held`**, the face of `other` that
+/// holds it: told apart by what the face is. A face on a spline or
+/// spindle sheet has no normal arm at a point
+/// ([`crate::face_normal::face_outward_normal_at`]), a limit, carried
+/// as [`HoldingUnread::Spline`]; a key that no longer resolves, or a
+/// face with no surface, is a kernel defect.
+///
+/// # Errors
+///
+/// [`BooleanError::JoinDesync`] where `held` does not resolve to a face
+/// on a surface.
+fn held_normal<T: Decide>(
+    (other, other_is): (&Body<T>, Operand),
+    held: FaceKey,
+    q: Point3<T>,
+    band: Band,
+) -> Result<Result<Vec3<T>, HoldingUnread>, BooleanError> {
+    let desync = || BooleanError::JoinDesync {
+        what: "the face holding a section chord no longer resolves",
+    };
+    if on_spline_sheet(other, held) {
+        return Ok(Err(HoldingUnread::Spline));
+    }
     match crate::face_normal::face_outward_normal_at(other, held, q, band) {
-        Ok(Some(n)) => Ok(Ok(Some(n.vec()))),
-        Ok(None) => Err(BooleanError::JoinDesync {
-            what: "the face holding a section chord no longer resolves",
-        }),
+        Ok(Some(n)) => Ok(Ok(n.vec())),
+        Ok(None) => Err(desync()),
         Err(why) => Ok(Err(HoldingUnread::Normal {
             operand: other_is,
             face: held,
@@ -5815,6 +5860,10 @@ enum HoldingUnread {
     },
     /// A curved face's trim the door does not read. A limit.
     Trim,
+    /// A holding face on a spline or spindle sheet, whose normal has no
+    /// arm at a point. A limit, which the chord ladder passes, so like
+    /// [`Self::Trim`] it carries only its class.
+    Spline,
     /// The holding face's normal at the point refused.
     Normal {
         /// The operand the face is of.
@@ -5842,7 +5891,7 @@ impl HoldingUnread {
                 why: PlacementError::Door(e),
                 ..
             } => e.refusal(),
-            Self::Trim => Ok(geom_brep::ladder::Refusal::Limit),
+            Self::Trim | Self::Spline => Ok(geom_brep::ladder::Refusal::Limit),
             Self::Normal { why, .. } => why.refusal(),
         }
     }
@@ -5875,7 +5924,8 @@ impl HoldingUnread {
                 why: PlacementError::OnPlane(_),
                 ..
             }
-            | Self::Trim => BooleanError::ClassificationInvariant {
+            | Self::Trim
+            | Self::Spline => BooleanError::ClassificationInvariant {
                 what: HOLDING_OFF_SURFACE,
             },
         }
@@ -5941,12 +5991,72 @@ fn loop_roles(
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::panic)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod holding_rows {
     use geom_core::{Band, Point3, Tol};
 
-    use super::{HoldingUnread, holding_face_normal};
+    use super::{HoldingUnread, held_normal, holding_face_normal};
     use crate::face_normal::NormalAtError;
+
+    /// **A holding face is told apart by what it is**: a face on a
+    /// spline sheet has no normal arm at a point, a limit
+    /// ([`HoldingUnread::Spline`]), which the chord ladder passes; a key
+    /// that resolves to no face of the operand stays a kernel defect
+    /// (`JoinDesync`). Red where a spline face is read as a desync, as it
+    /// was where both mapped `face_outward_normal_at`'s `None`.
+    #[test]
+    fn a_spline_holding_face_is_a_limit_and_a_stale_key_a_desync() {
+        use super::super::{BooleanError, Operand};
+        use crate::test_support_fixtures::half_disc_cap;
+        let tol = Tol::witness();
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let (mut body, _, _) = half_disc_cap(0.0, tol);
+        crate::fixtures::describe_pending_as(
+            &mut body,
+            &crate::fixtures::patch_spanning(
+                Point3::new(-1.0, -1.0, 0.0),
+                Point3::new(1.0, 1.0, 0.0),
+            ),
+        );
+        let spline = body
+            .faces()
+            .map(|(f, _)| f)
+            .find(|f| {
+                matches!(
+                    body.face(*f).map(|x| x.surface()),
+                    Some(Ok(geom::Surface::Nurbs(_)))
+                )
+            })
+            .expect("the lamina's back face is described as a spline patch");
+        let held = held_normal(
+            (&body, Operand::A),
+            spline,
+            Point3::new(0.0, 0.5, 0.0),
+            band,
+        );
+        assert!(
+            matches!(&held, Ok(Err(why @ HoldingUnread::Spline))
+                if why.refusal() == Ok(geom_brep::ladder::Refusal::Limit)),
+            "a spline holding face, a limit: {held:?}"
+        );
+        let block = crate::test_support_fixtures::prism_z::<f64>(
+            &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
+            0.0,
+            1.0,
+            tol,
+        );
+        let stale = block
+            .body
+            .faces()
+            .map(|(f, _)| f)
+            .find(|f| body.face(*f).is_none())
+            .expect("the block has a face key the cap does not resolve");
+        let held = held_normal((&body, Operand::A), stale, Point3::origin(), band);
+        assert!(
+            matches!(held, Err(BooleanError::JoinDesync { .. })),
+            "a key that resolves to no face, a desync: {held:?}"
+        );
+    }
 
     /// **A chord held at a cone's apex is a refusal, not a face that does
     /// not hold it**: a cone cap holds its apex inside, and the cone's

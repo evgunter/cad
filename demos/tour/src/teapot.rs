@@ -167,13 +167,12 @@
 //!    traced on the wall's chart, carried, laid off the edges as chords,
 //!    and each chord certified at rest as the sphere's and the wall's
 //!    intersection. That is the pierce the join needs, the spout's walls
-//!    entering the belly, and it is now read. The inside/outside test
-//!    sends its rays through the spout and crosses its spline walls, and
-//!    the union stops one layer later, at the result's volume: a face on
-//!    a rational spline chart reaches the trimmed quadrature lane, which
-//!    reads polynomial charts only (`VolumeUncomputable { Face {
-//!    QuadratureUnsupported } }`), at the default ε and at ε = 1e-6
-//!    (`work/quad/a-rational-spline-face-with-a-general-row-has-no-volume-lane`).
+//!    entering the belly, and it is now read. At the default ε and at
+//!    ε = 1e-6 the join then reads the section loop's sides, and a chord
+//!    held by a spout wall, a spline face with no normal arm at a point,
+//!    is a limit it passes; the loop reads no side
+//!    (`SectionLoopUndecided`;
+//!    `work/lathe/the-teapot-spouts-union-stops-at-section-loop-undecided-where-its-chords-hold-in-a-spline-wall`).
 //!    At ε = 1e-12 it stops in the join, where a chord's at-rest
 //!    certificate reads its own image of the arc on the wall a hair past
 //!    that ε (`Escalated { check: PlaneNurbsHullValue }`, 1.01e-12 m;
@@ -1760,11 +1759,9 @@ pub fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
     // boundary edge splits both edges, the spline seam at the parameter
     // the meeting read it at. The spout's walls read the belly's pierce
     // point off their trims, the join reads the section of the belly's
-    // sphere and the spout's outer wall and certifies its chords, the
-    // inside/outside test crosses the spout's walls, and the union stops
-    // at the result's volume, a rational spline face in the trimmed
-    // quadrature lane
-    // (`work/quad/a-rational-spline-face-with-a-general-row-has-no-volume-lane`).
+    // sphere and the spout's outer wall and certifies its chords, and the
+    // section loop reads no side where a spout wall holds a chord
+    // (`work/lathe/the-teapot-spouts-union-stops-at-section-loop-undecided-where-its-chords-hold-in-a-spline-wall`).
     //
     // The predicate pins the gate's one finding by its shape
     // ([`wall3_pinned`]), not by an arena key, which moves whenever the
@@ -1782,13 +1779,11 @@ pub fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
 
 /// **Wall 3's pinned refusal**, by ε.
 ///
-/// At the default ε and at ε = 1e-6 the join completes, the
-/// inside/outside test crosses the spout's spline walls, and the union
-/// stops at the result's volume: a face on a rational spline chart
-/// reaches the trimmed quadrature lane, which reads polynomial charts
-/// only (`ResultInvalid { VolumeUncomputable { Face { QuadratureUnsupported
-/// } } }`, the gate's one finding;
-/// `work/quad/a-rational-spline-face-with-a-general-row-has-no-volume-lane`).
+/// At the default ε and at ε = 1e-6 the union stops in the join: a
+/// chord of the section loop is held by a spout wall, a spline face with
+/// no normal arm at a point, which the chord ladder passes as a limit,
+/// and the loop reads no side (`Join(SectionLoopUndecided)`;
+/// `work/lathe/the-teapot-spouts-union-stops-at-section-loop-undecided-where-its-chords-hold-in-a-spline-wall`).
 ///
 /// At ε = 1e-12 the union stops in the join instead: a chord of the
 /// belly's sphere on a spout wall escalates at its at-rest certificate,
@@ -1800,9 +1795,8 @@ pub fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
 ///
 /// At an ε the wall was not measured at.
 pub fn wall3_pinned(e: &BooleanError, tol: Tol) -> bool {
-    use pncad::geom_brep::props::PropsError;
     use pncad::geom_brep::{CertCheck, CertifyError};
-    use pncad::topo::{EulerOpError, JoinError, MassPropsError, ValidationError};
+    use pncad::topo::{EulerOpError, JoinError};
     let eps = tol.eps();
     if eps == 1e-12 {
         let BooleanError::Join(join) = e else {
@@ -1823,19 +1817,10 @@ pub fn wall3_pinned(e: &BooleanError, tol: Tol) -> bool {
         eps == 1e-9 || eps == 1e-6,
         "wall 3 was measured at ε = 1e-6, 1e-9 and 1e-12, not at {eps:e}"
     );
-    let BooleanError::ResultInvalid { findings } = e else {
+    let BooleanError::Join(join) = e else {
         return false;
     };
-    matches!(
-        findings.as_slice(),
-        [ValidationError::VolumeUncomputable {
-            source: MassPropsError::Face {
-                source: PropsError::QuadratureUnsupported { what },
-                ..
-            },
-            ..
-        }] if what.starts_with("a RATIONAL chart reached the trimmed lane")
-    )
+    matches!(join.error(), JoinError::SectionLoopUndecided { .. })
 }
 
 /// The scene's recipe, built and evaluated. Both the render walk and
