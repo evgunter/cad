@@ -4129,7 +4129,6 @@ pub(super) fn ledger<T: crate::props::AtRestPolicy>(
             Incidence::of(&red.a, scaffold[0], cut[0]),
             Incidence::of(&red.b, scaffold[1], cut[1]),
         ],
-        copies: red.copies.clone(),
     })
 }
 
@@ -4225,8 +4224,6 @@ pub(super) struct Ledger {
     /// Each operand clone's faces around each vertex and edge, before
     /// the finish discards any.
     incidence: [Incidence; 2],
-    /// Each operand's null-edge copies.
-    copies: [crate::lineage::NullEdgeCopies; 2],
 }
 
 /// **The faces around each cell of an operand's clone**, read before
@@ -4249,16 +4246,11 @@ impl Incidence {
     /// The cells the division of one face into `fragments` minted in
     /// its interior: each edge between two of them (a chord) or between
     /// one and a null face (the section the cut ran along), and each
-    /// vertex no face but them bounds (where chords meet inside it), or,
-    /// with `section_vertices`, them and null faces.
-    fn chords<'a>(
-        &'a self,
-        fragments: &'a [FaceKey],
-        section_vertices: bool,
-    ) -> impl Iterator<Item = Cell> + 'a {
+    /// vertex no face but them bounds (where chords meet inside it), or
+    /// them and null faces (the section's).
+    fn chords<'a>(&'a self, fragments: &'a [FaceKey]) -> impl Iterator<Item = Cell> + 'a {
         let inside = move |c: Cell, fs: &[FaceKey]| {
-            let section =
-                self.section.contains(&c) && (matches!(c, Cell::Edge(_)) || section_vertices);
+            let section = self.section.contains(&c);
             !fs.is_empty()
                 && fs.iter().all(|f| fragments.contains(f))
                 && (fs.iter().any(|f| f != &fs[0]) || section)
@@ -4305,20 +4297,6 @@ impl Incidence {
             scaffold: scaffold.clone(),
         }
     }
-}
-
-/// The vertex `v` of operand `side`'s clone is a copy of: where a null
-/// edge minted `v` at another vertex, that vertex, read back through
-/// every null edge that hangs at a copy; `v` itself where none did. A
-/// decision's cells name the op's input, which holds no copy. Total:
-/// the copies were checked as each was recorded, so they cannot cycle
-/// ([`crate::lineage::NullEdgeCopies`]).
-fn uncopied(
-    copies: &[crate::lineage::NullEdgeCopies; 2],
-    side: Operand,
-    v: VertexKey,
-) -> VertexKey {
-    copies[side.index()].root(v)
 }
 
 /// One operand's own records re-entering an op, in its keys: the cell
@@ -4532,9 +4510,10 @@ pub(super) fn carry<T: Decide + AtRestPolicy>(
 /// in `clones`, the operand clones as the cuts left them, against every
 /// clone cell of the record's other cell. Two cells the op
 /// minted on a record's two cells that meet at a point are decided at
-/// this door: the tool has many faces, so a meeting one face did not
-/// make is a value coincidence (D10), and the landing cites the
-/// decision beside the record.
+/// this door ([`minted_meeting`]): the tool has many faces, so a
+/// meeting one face did not make is a value coincidence (D10), and the
+/// landing cites the decision beside the record, a row on the record's
+/// own two input cells.
 ///
 /// # Errors
 ///
@@ -4542,7 +4521,7 @@ pub(super) fn carry<T: Decide + AtRestPolicy>(
 /// [`BooleanError::JoinDesync`] for a cell that left the result with no
 /// row stating its removal, or a minted meeting this door has no
 /// decision for; [`BooleanError::Escalated`] (`VertexOnVertex`) where a
-/// minted meeting's margin is in band.
+/// minted meeting of two vertices is in band.
 fn carried<T: Decide + AtRestPolicy>(
     body: &Body<T>,
     ledger: &Ledger,
@@ -4626,27 +4605,8 @@ fn carried<T: Decide + AtRestPolicy>(
             let (x, y) = (clone(0)?, clone(1)?);
             let mut cites = cites.clone();
             if l.minted {
-                let (Cell::Vertex(u), Cell::Vertex(w), Cell::Vertex(ru), Cell::Vertex(rw)) =
-                    (x, y, l.at[0], l.at[1])
-                else {
-                    return Err(desync(
-                        "two cells the boolean minted on a carried record meet at a point \
-                         that is no vertex pair",
-                    ));
-                };
-                let (meet, margin) =
-                    vertices_meet(body, [ru, rw], "bool_carried_minted_meeting", band)?;
-                if !meet {
-                    return Err(desync(
-                        "the census confirms two minted vertices meeting that the door reads apart",
-                    ));
-                }
-                let fresh = decide_one(
-                    pending,
-                    (side, Cell::Vertex(uncopied(&ledger.copies, side, u))),
-                    (side, Cell::Vertex(uncopied(&ledger.copies, side, w))),
-                    margin,
-                );
+                let margin = minted_meeting(body, l.at, band)?;
+                let fresh = decide_one(pending, (side, cells[0]), (side, cells[1]), margin);
                 cites = cites.union(&Cites::decided(fresh));
             }
             out[s].push(x, y, cites);
@@ -4741,21 +4701,11 @@ fn operand_fate<T: Real>(
     back: &mut Vec<Back>,
 ) -> Result<(crate::Fate, Vec<Cell>), BooleanError> {
     let incidence = &ledger.incidence[side.index()];
-    // A carried record's cells meeting at two section vertices would
-    // need a decision between cells no input holds, so this path names
-    // the section's edges alone
-    // (`work/heldrecords/a-carried-records-section-vertices-are-not-named-in-the-booleans-division.md`).
     let CloneCells {
         pieces,
         minted,
         divided,
-    } = clone_cells(
-        desc,
-        incidence,
-        &ledger.mints,
-        (side, Keys::Input, false),
-        x,
-    );
+    } = clone_cells(desc, incidence, &ledger.mints, (side, Keys::Input), x);
     let removed = |c: Cell| stated_removed(incidence, discarded, c);
     let all: Vec<Cell> = pieces.iter().chain(&minted).copied().collect();
     let mut gone = Vec::new();
@@ -4821,13 +4771,12 @@ impl CloneCells {
 /// a vertex and its null-edge copies ([`Descendants::copies_of`]); an
 /// edge's pieces and the vertices minted between them ([`edge_pieces`]);
 /// a face's fragments and the chords and section between them
-/// ([`face_pieces`], its section vertices named where
-/// `section_vertices`).
+/// ([`face_pieces`]).
 fn clone_cells(
     desc: &Descendants,
     incidence: &Incidence,
     mints: &super::Mints,
-    (side, keys, section_vertices): (Operand, Keys, bool),
+    (side, keys): (Operand, Keys),
     x: Cell,
 ) -> CloneCells {
     let copies = |v: VertexKey| desc.copies_of(side, v).into_iter().map(Cell::Vertex);
@@ -4846,8 +4795,7 @@ fn clone_cells(
             }
         }
         Cell::Face(f) => {
-            let (pieces, minted, divided) =
-                face_pieces(desc, incidence, (side, keys), section_vertices, f);
+            let (pieces, minted, divided) = face_pieces(desc, incidence, (side, keys), f);
             CloneCells {
                 pieces,
                 minted,
@@ -4867,7 +4815,6 @@ fn face_pieces(
     desc: &Descendants,
     incidence: &Incidence,
     (side, keys): (Operand, Keys),
-    section_vertices: bool,
     f: FaceKey,
 ) -> (Vec<Cell>, Vec<Cell>, bool) {
     let mut fragments: Vec<FaceKey> = Vec::new();
@@ -4877,7 +4824,7 @@ fn face_pieces(
             fragments.push(g);
         }
     }
-    let chords = incidence.chords(&fragments, section_vertices).collect();
+    let chords = incidence.chords(&fragments).collect();
     let divided = fragments.len() > 1;
     (
         fragments.into_iter().map(Cell::Face).collect(),
@@ -5860,7 +5807,7 @@ fn place_found<'b, T: Decide + AtRestPolicy>(
         for (i, &(side, cell)) in ends.iter().enumerate() {
             let Cell::Face(f) = cell else { continue };
             let (pieces, chords, true) =
-                face_pieces(desc, &incidence[at(side)], (side, Keys::Recut), true, f)
+                face_pieces(desc, &incidence[at(side)], (side, Keys::Recut), f)
             else {
                 continue;
             };
@@ -5946,7 +5893,7 @@ fn place_found<'b, T: Decide + AtRestPolicy>(
                         desc,
                         &incidence[at(other_side)],
                         clones.mints,
-                        (other_side, Keys::Recut, true),
+                        (other_side, Keys::Recut),
                         cells[1 - i],
                     )
                     .all();
@@ -6040,6 +5987,53 @@ fn vertices_meet<T: Decide>(
         diag,
     })?;
     Ok((magnitude == geom_core::k_stats::Magnitude::Zero, margin))
+}
+
+/// **The margin two cells the boolean minted on a carried record's two
+/// cells meet by**, decided at the carry's door: two vertices by their
+/// gap ([`vertices_meet`]), a vertex inside an edge by the census's own
+/// reading of a vertex on an edge's interior
+/// ([`crate::census::on_edge_interior_margin`]).
+///
+/// # Errors
+///
+/// As [`vertices_meet`]; [`BooleanError::JoinDesync`] for a meeting
+/// that is neither, or one this reading does not put on the other cell.
+/// The carry's placement confirmed the landing by the census's reading
+/// of the pair at `band` and refused it there in band, so a vertex on an
+/// edge the door reads otherwise is a kernel defect.
+fn minted_meeting<T: Decide>(
+    body: &Body<T>,
+    at: [Cell; 2],
+    band: Band,
+) -> Result<geom_core::MarginDiag, BooleanError> {
+    let desync = |what| BooleanError::JoinDesync { what };
+    match at {
+        [Cell::Vertex(u), Cell::Vertex(w)] => {
+            match vertices_meet(body, [u, w], "bool_carried_minted_meeting", band)? {
+                (true, margin) => Ok(margin),
+                (false, _) => Err(desync(
+                    "the census confirms two minted vertices meeting that the door reads apart",
+                )),
+            }
+        }
+        [Cell::Vertex(v), Cell::Edge(e)] | [Cell::Edge(e), Cell::Vertex(v)] => {
+            let q = vertex_point(body, v).ok_or_else(|| {
+                desync("a vertex the carry or the output stage reads has no point")
+            })?;
+            match crate::census::on_edge_interior_margin(body, e, q, band) {
+                Ok(Some(margin)) => Ok(margin),
+                Ok(None) | Err(_) => Err(desync(
+                    "the census confirms a minted vertex inside a minted edge that the door \
+                     does not read on it",
+                )),
+            }
+        }
+        _ => Err(desync(
+            "two cells the boolean minted on a carried record meet at a point that is \
+             neither two vertices nor a vertex inside an edge",
+        )),
+    }
 }
 
 /// A vertex's point.
@@ -11112,7 +11106,6 @@ mod join_row_rows {
     use super::{Incidence, KeyView, Ledger, join_rows};
     use crate::boolean::edge_join::ClassZero;
     use crate::boolean::{Cell, EdgeSplit, Mints, Operand};
-    use crate::lineage::{LineageRows, Minted};
 
     fn ledger(a: &crate::Body<f64>, mints: Mints) -> Ledger {
         Ledger {
@@ -11124,7 +11117,6 @@ mod join_row_rows {
             recorded: Vec::new(),
             glued: Vec::new(),
             incidence: [Incidence::of(a, &BTreeSet::new(), a), Incidence::default()],
-            copies: Operand::BOTH.map(|o| Minted::new(LineageRows::NullEdgeCopies(o))),
         }
     }
 

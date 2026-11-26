@@ -3439,6 +3439,37 @@ fn on_edge_interior_reading<T: Decide>(
     }
 }
 
+/// **Whether `q` lies on edge `e`'s interior in `body`, by the margin
+/// that put it there**: the reading the confirm pass takes of a
+/// `(vertex, edge)` record ([`confirm_vertex_on_edge`]),
+/// [`on_edge_interior_reading`] on a line and
+/// [`curved::on_curved_interior_reading`] on any other carrier.
+/// `Ok(Some(margin))` on the interior; `Ok(None)` off it, an end
+/// included.
+///
+/// # Errors
+///
+/// The reading's first finding: its escalation where a decision is in
+/// band, or the curved lane's refusal of an edge it does not read.
+pub(crate) fn on_edge_interior_margin<T: Decide>(
+    body: &Body<T>,
+    e: EdgeKey,
+    q: Point3<T>,
+    band: Band,
+) -> Result<Option<MarginDiag>, ValidationError> {
+    let mut errors = Vec::new();
+    let reading = match edge_is_line(body, e).then(|| edge_geo(body, e)).flatten() {
+        Some(line) => on_edge_interior_reading(q, &line, band, &mut errors)
+            .map(|on| on.map(|(_, margin)| margin)),
+        None => curved::on_curved_interior_reading(body, e, q, band, &mut errors),
+    };
+    match (reading, errors.into_iter().next()) {
+        (Some(on), None) => Ok(on),
+        (_, Some(finding)) => Err(finding),
+        (None, None) => unreachable!("a reading that answers nothing pushes its finding"),
+    }
+}
+
 /// A signed residual as a trilean on-verdict: `Some(true)` on,
 /// `Some(false)` definitely off, `None` escalated (pushed).
 fn signed_is_zero_as<T: Decide>(
