@@ -4723,7 +4723,6 @@ prefix `budget/`; tag `(BUDGET orchestrator)`; ab_band `9700-9799`.
 | 67 | `baseline-census-transcription-sweep-literals-stale` | instr | open | The transcription sweep's hit list certifies a sweep whose subject has moved, and nothing schedules a re-sweep |
 | 67 | `battery-holds-the-chain-data-model-beside-the-predicates` | strut | open | battery.rs holds the chain data model, the walk and a recourse audit beside the predicates its header promises |
 | 67 | `blend-mod-recourse-docs-accumulate` | strut | open | blend: mod.rs's recourse constants and BlendError carry 200+ lines of justification prose |
-| 67 | `blend-size-gate-unmetered-under-epsilon` | verdict | open | blend size gate: a positive size under the band's zero still reaches a false-fact refusal at both doors |
 | 67 | `boundary-minted-refusal-tags-are-pinned-nowhere-and-share-the-kernel-namespace` | bind | open | pncad-py — tags minted at the boundary are outside TAG_INVENTORY's reach, so nothing pins their values or sees them collide with a kernel word |
 | 67 | `bvh-is-over-has-no-consumer` | perf | open | Bvh::is_over has no caller in the tree once the pick index keys by the memo entry |
 | 67 | `c15-is-dischargeable-now-that-a-sized-scene-carries-names` | instr | open | C15 is dischargeable: the canal is the first sized scene whose names separate its pairs |
