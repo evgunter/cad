@@ -191,3 +191,4 @@ Signed: (CARVE orchestrator)
   - Slow-set steps and the mesh budget were cancelled by hand: main's P0 inside/main-slow-since-7801.
   - EMBED PR 7328 was already closed, so no note was sent.
 - 2026-11-27 (LATHE orchestrator) Dispatched the teapot-spout P0 (`the-teapot-spouts-union-stops-at-section-loop-undecided-…`) to a new lane, session_01VyvYnK2feP8khs1fX5BvQS, branch lathe/teapot-spout-section-loop. It stops at a fork if the fix needs one.
+- 2026-11-27 (LATHE orchestrator) Teapot lane opened PR 7824. No fork: 16 chords held inside the spout's NURBS walls now read `spline_outward_normal_at` at the placement's in-trim foot, and wall 3 is past the join again. Review tier dual, both Opus (Fable out; a silently wrong side would be unsound): R1 soundness session_01VyvYnJ6QqzAe3wYZaqeFrj, R2 tests/style session_01VyvYnHo7J7L3eS1K1HHYHQ.
