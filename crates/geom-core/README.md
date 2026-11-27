@@ -570,7 +570,9 @@ session box, and its conditioning by the carriage that consumes it. A formula th
   what is held against the tolerance. It is built only from its
   sources: a read of the
   consumed extent, a curvature arm `1/κ_rel`, or the session box where
-  no geometry is in hand. Rates are not levers: they go through
+  no geometry is in hand. The read runs one way: a length that places
+  or sizes geometry is a read of that geometry, not of a lever. Rates
+  are not levers: they go through
   `levered_inv` and the metric doors. A length that is the reading
   itself (a residual, an offset, a stand-off) is the margin, and a
   tolerance is the band's: neither is an arm. A dimensionless factor
@@ -592,10 +594,20 @@ session box, and its conditioning by the carriage that consumes it. A formula th
   form (an apex, a centre) is read there, and a datum free along an
   axis is read at the middle of the extent's window along it. Its
   lever is the extent's far distance from that point; the least over
-  all points is not owed. That point is the origin of a tilt bound,
+  all points is not owed. A verdict on the turn between two directions
+  out of one point, each with its own extent, when used over the part
+  where both run, is levered at the lesser of the two extents' far
+  distances from that point, each read from below and from above. A
+  verdict used over more or less reads the extent it is used over. A
+  direction drawn between them has no extent of its own, and a verdict
+  on it reads the extent it is used over: that same part, or the face
+  the direction lies in. That point is the origin of a tilt bound,
   not a claim about the entity: any point is sound provided the datum
-  and its lever are read at the same one, so a record that verdicts
-  read from different points holds its region, not a lever.
+  and its lever are read at the same one, so a record whose verdicts
+  all read from one point over one extent may hold that extent's lever,
+  read from below and from above, and a record whose verdicts read from
+  different points, or are used over different extents, holds its
+  region, not a lever.
 - **The session box** is one predicate over the region a piece of
   geometry occupies, never a carrier's stored terms. The region is read
   from outside as its cover, and from inside off points known to lie on
