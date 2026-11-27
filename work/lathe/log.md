@@ -186,3 +186,7 @@ Signed: (CARVE orchestrator)
   - Item 3: the hours-long slow rows are main's P0 `inside/main-slow-since-7801-…`. Uncached `spline_incidence::refined` per query takes 93–96% of samples on both sides. Head runs about 3× base on four rows because one-band faces hold the whole section spline. No separate regression, so the cache is left to INSIDE.
   - Accepted. Hosted slow-set step counts as inherited until that P0 lands.
   - Main moved (1d333647377) with conflicts in geom/lib.rs, spheres_crossing_off_every_edge.rs and boolean/mod.rs; the lane is merging.
+- 2026-11-27 (LATHE orchestrator) **PR 7414 merged to main** (8b164f8e9c, head 7aab10ff2c5, after the lane's main merge f1005761db8).
+  - Hosted CI: green apart from inherited reds (cylinder-prism corner at 1e-12, tess-lint baseline).
+  - Slow-set steps and the mesh budget were cancelled by hand: main's P0 inside/main-slow-since-7801.
+  - EMBED PR 7328 was already closed, so no note was sent.
