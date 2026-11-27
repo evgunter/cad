@@ -1,7 +1,7 @@
 ---
 id: curved-presentation-reads-plane-and-cylinder-images-only
 kind: issue
-title: The curved presentation reads a harmonic image on a plane or a cylinder only, so a curved shared edge on a cone, sphere or torus chart, or a focal-section, projected or spiric image, still refuses at depth 0
+title: The curved presentation reads a harmonic image on a plane or a cylinder and a section ellipse's focal image on a cone, so a Projected image (a hyperbola or parabola section of a cone), a Villarceau circle, a non-coordinate harmonic image on a torus, and a spiric, fitted or general image still refuse at depth 0
 status: dispatched
 opened: 2026-10-29
 priority: P0
@@ -13,13 +13,15 @@ branch: embed/cone-image
 
 From CURVEDEP (`departure-presents-no-curved-shared-edge`).
 
-`present_curved` (`crates/topo/src/injective.rs`) reads a curved edge's chart curve only where its face image is a `Trig` (`Trig::of`):
-- a plane's image of a circle or ellipse carrier (`chart_curve`);
-- a cylinder's harmonic row winding the azimuth once with no linear height term.
+`present_curved` (`crates/topo/src/injective.rs`) reads a curved edge's chart curve where it has a form `Form::of` gives:
+- a plane's image of a circle or ellipse carrier (`plane_conic`), a `Trig`;
+- a cylinder's harmonic row winding the azimuth once with no linear height term, a `Trig`;
+- a cone's `FocalSection` image, a plane's section ELLIPSE (`Focal`), read as a chart curve alone (2026-11-23, below).
 
-Everything else stays `unread` (`Structural`), refusing at depth 0 as before CURVEDEP:
-- a harmonic image on a cone, sphere or torus chart that is no coordinate line;
-- a `FocalSection` image (a plane section of a cone, a Villarceau circle);
+Everything else stays `unread` (`Structural`), refusing at depth 0:
+- **a hyperbola or parabola section of a cone**: it arrives as a `Nurbs` carrier with a `Projected` image, never as `FocalSection` (2026-11-23, below; the two cone cavities);
+- a `FocalSection` image on a torus (a Villarceau circle), pinned unread by `injective::focal_rows::a_villarceau_row_on_a_torus_is_still_unread`;
+- a harmonic image on a sphere or torus chart that is no coordinate line (a cone has none: its derivations are `ConeRim`, `ConeRuling` and `FocalSection`);
 - `Projected`, `Spiric`, `Fitted`/`General` images;
 - a plane face bounded by a spiric or spline carrier.
 
@@ -29,7 +31,7 @@ The column argument does not depend on the carrier. What is carrier-specific:
 - an enclosure of the chart curve and its derivative over a parameter piece (`Harmonic::on`/`rate`);
 - a separator's value along the face's image of the curve, tight at any parameter width (`Trig::psi`). A centred form over the piece is too loose.
 
-For a cone, the image `apex + v·(cos α·axis + sin α·radial(u))` is a product of two harmonic channels, a trigonometric polynomial of degree 2. The same coefficient reading extends to it, at degree 4 under a quadric separator.
+For a cone's section ellipse the value form was not needed and is not built (2026-11-23): no separator that signs a cell beside one reads a value along the cone's image of it. The conic's own plane is zero along the arc by membership. At a ruling's corner the bisector plane through the shared ruling is zero along the RULING; the arc does not lie on it and is only decided to leave the ruling onto the face's side. And the cone's own carrier is read along the PLANE face's `Trig`. Were a pair to need a plane's value along the cone's image: the image `apex + v·(cos α·axis + sin α·radial(u))` over a focal chart curve is a trigonometric polynomial of degree 2 in the eccentric anomaly over `1 − e·cos E`.
 
 - 2026-11-02 — moved from CLEARTAIL to CLEAR when CLEARTAIL merged back into CLEAR (the budget rule now counts P0/P1 only); id and body unchanged.
 
@@ -55,7 +57,11 @@ the cone's chart) or by a Boolean through the apex, refuse at depth 0
 by `departure`'s "both stuck" exit: both faces `Structural` in their
 whole windows, both raised at `beside_curve`'s "a corner where a curved
 edge meets another at a vertex of the shared cell, which no corner
-reading reads". Traced:
+reading reads". **Corrected 2026-11-23** (`embed/cone-image`, printed): the edge the
+two faces SHARE is a ruling in every one of the 20 that are this cause;
+the curved edge at the corner is each face's own, unshared section arc,
+`pcurve=FocalSection carrier=Ellipse`; none holds a hyperbola; and 4 of
+the 24 hold no focal row at all (below). Traced:
 - `reach_cone_split::a_tilted_cone_cut_is_never_misread_by_containment`
   (faces `5v1`, `7v1`, `u` a whole turn, sharing two arcs `[0, 1]` and
   their vertices);
@@ -122,4 +128,50 @@ Why now: `embed/wedge-measure`'s final count (`work/embed/log.md`, 23 Nov) puts 
 
 **The unit takes:** the images on a CONE's chart that this row lists, measured on the 24 cone/cone census tests above and the two cone cavities (2026-11-18 section): a plane section of a cone (ellipse, hyperbola, parabola: `FocalSection`), any other harmonic image on a cone that is no coordinate line, and the corner those edges make at a shared vertex, as far as the corner is unread only because its curved edge is (`reads_curve`).
 
+**Re-scoped by the lane's measurement, the same day** (next section): on a cone "a plane section's image" is the section ELLIPSE's `FocalSection` and nothing else. A hyperbola or parabola arrives as a `Nurbs` carrier with a `Projected` image, a cone has no other non-coordinate harmonic image, and the 20 census tests of this cause refused at the corner a shared RULING makes with a face's own section arc, not along a shared section. So the unit is: a cone's chart reads a section ellipse's focal image, at the corner and along the edge; no trigonometric polynomial is built.
+
 **It leaves on this row:** a non-coordinate harmonic image on a torus chart, a Villarceau circle, `Projected`, `Spiric` and `Fitted`/`General` images, and a plane face bounded by a spiric or spline carrier (the two cone cavities' plane cap is bounded by a rational quadratic: the lane says whether they close without it). At the unit's close the lane rewrites this row's title and Finding to what is left.
+
+## 2026-11-23 — a cone's chart reads a section ellipse's focal image (`embed/cone-image`)
+
+**Re-scoped by measurement.** The unit was cut as "a cone's chart reads a plane section's image: ellipse, hyperbola, parabola". Printed on the landing branch `3e433e678` with the gate asking (`embed/cone-image-measure`, `measure/cone-image/`):
+- 20 of the 24 cone/cone census tests refused at the root pair of two halves of one cone, sharing two RULINGS, both `Structural` at the corner where a ruling meets a half's own section arc (`FocalSection`, `Ellipse`). `reading` had no line arm on a cone, and `reads_curve` was false for the arc.
+- 4 of the 24 hold no focal row: `a-cone-cell-near-two-shared-rulings-at-a-tiny-end-reads-local-at-zero-ofs-last-arm`.
+- The two cone cavities' hyperbolas print `pcurve=Projected carrier=Nurbs` on the cone and bound their plane caps as spline carriers. Nothing mints a hyperbola or parabola as `FocalSection`. They refuse as before and stay here.
+
+**What landed.**
+- `Use::curve: Option<ChartCurve>` replaces `harmonic` and `wall`; `ChartCurve::Focal(Focal)` is the focal image, a Kepler azimuth and a harmonic slant. It holds the stored row's own image and is enclosed over a span by that row's chart box (`geom_brep::Pcurve::closed_form_span_box`, read at the interval scalar: the azimuth's hull of its two end evaluations, which is its range since it is monotone for `|β| < 1`, and the slant's chord-dip box, a superset). `Focal::of` requires `|β| < 1` of `β`'s whole enclosure.
+- `Form::Focal`: `present_curved` reads the arc as a graph, alone in a cell and through a corner whose other edge is straight in the chart. Its image is read by no value (`Curved::psi` is `None`).
+- `reading`'s line arm admits a cone: a ruling or a rim's arc shared, a section arc leaving it (`present_line_corner`).
+- `cone_regular`: every one of those readings refuses a rectangle that holds `v = 0` or is a turn wide.
+- A focal row gives the face's extent its enclosure (`row_of`), as a harmonic row does: without it a cone face with a section arc has no sheet and no coordinate line of it is placed.
+
+**Measured** (f64, the 24 through the gate): 0 pass before, **12 after**, 11 of them with every ask `Embedded`. The other 12:
+- the 4 with no focal row, unchanged;
+- 5 at a curved corner at a vertex the pair shares alone, ruling or rim against a section arc (`a_needle_cone_cut_off_its_apex…`, `a_plane_moved_to_the_apex_band…`, `an_upright_cone_splits…`, the two `two_cones_through_one_apex…`): `departure-reads-no-curved-corner-off-its-shared-edge`, `a-torus-or-cone-corner-at-a-vertex-alone-reads-no-quadrant`;
+- 2 at a corner of two section arcs (`every_op_on_a_cone_wall…`, `a_cone_face_met_on_its_axis…`): the same row's second bullet;
+- `a_needle_funnel_cut_at_its_apex…` at `zero_of`'s last arm near the apex, no curved exit left;
+- `lift_probes::every_loop_of_a_door_built_curved_face…` on a torus body.
+
+**Found beside it:** `two-arcs-of-one-ellipse-stated-a-quarter-turn-apart-are-not-one-conic` (a cap cut under a generic tilt refuses on its cut cap at f64) and `an-interval-cone-cut-refuses-at-its-caps-two-arcs-and-beside-its-rulings` (the cut cone is embedded at f64 and refuses at `Interval`).
+
+**Two sightings beside the 24** (same run):
+- `mesh::all lift_probes::every_loop_of_a_door_built_curved_face_has_a_lift_that_closes` (4.7 s) passes its cone body and now refuses on a TORUS body, plane against torus across a spiric: `Uncertified { a: 2v5, b: 3v1, shared: Edge(6v7) }`, `{ 3v1, 5v5, 6v7 }`, `{ 4v1, 8v5, 21v3 }`, the torus's row on each edge `pcurve=Spiric carrier=Spiric`; exits `beside_curve`'s unread corner (1,107) and unread edge (231), `zero_of` (1,959). A spiric image and a plane bounded by a spiric carrier are on this row's list; which of the two refuses first was not separated.
+- `mesh::all reach_probes::the_unit_funnel_cut_near_its_apex_meshes_at_every_delta` passes as a test with 72 asks `Embedded` and one `Budget { stop: Pairs { max_cell_pairs: 65536 }, a: 4v1, b: 7v3 }` (the gate log prints no kinds for it): a budget stop, the walk's (EMBEDWALK), not traced.
+
+**On the landing branch once it took main (`8d34076a9e`), same day:** the bodies above refuse again at `f64`, not on the cone: main's anchored ellipse states a cap's two section arcs a half turn apart and `one_stated_conic` (now `same_content`) reads two conics, so the plane cap has no corner reading (`two-arcs-of-one-ellipse-stated-a-quarter-turn-apart-are-not-one-conic`, re-banded P0 there). The two halves of the wall hold when asked alone, in every placement. The 12-of-24 above was measured before that merge and was not re-run after it.
+
+**Re-run on the merged tree** (`embed/cone-image-measure`): **1 of 24 pass** (`near_circular_sections::a_near_square_frustum_minus_a_box_builds`); the 11 lost each refuse on a Cone/Plane pair across a section arc. The cause is not this row's: the cap's two section arcs are stated a half turn apart and `one_stated_conic` did not read them one, which `embed/conic-symmetry` widens (`two-arcs-of-one-ellipse-stated-a-quarter-turn-apart-are-not-one-conic`). On the landing tree this unit delivers the cone's side of those pairs and the wall's own corners; the 11 return when that unit lands.
+
+**After the dual review (the fix pass, same day).** No code defect; pins and one fold:
+- the focal enclosure had re-derived `geom-brep`'s closed-form chart box; it now reads it, and `Focal` holds the image it evaluates;
+- the extent's own reader is pinned (`clearance::extent_rows::a_focal_rows_extent_holds_its_arc_and_its_slants_extreme`); no body the kernel builds observes an extent drawn too small, since that takes a face sharing a cell with the wall and crossing it in the part left out;
+- the side each reading presents, and the rectangle, are asserted (`injective::focal_rows`); the far-slant speed is pinned at each of its two call sites by a tall rectangle whose near speed would grant the vertex concession;
+- a kept-apex cut is a body row (`a_cut_cone_that_keeps_its_apex_holds_between_its_halves`); 150 placements of the halves and 18 flaps at the ruling's corner are rows.
+
+Left unpinned at body level on this tree: the cone's side of a cone/cap pair (the pair refuses on the cap), and `Reading::Conic` on a cone, which goes live with `embed/conic-symmetry`.
+
+**The last pass (2026-11-24).** `Reading::Conic` is shut on a cone: no body reaches it, with or without `embed/conic-symmetry` (`a-cone-faces-corner-of-two-arcs-of-one-section-is-read-by-none`). `cone_regular` is stated defence: 18 funnels cut down to `1e-5` from the apex, the side off the apex kept, reach it in no rectangle. The duplicated closed forms left between `geom-brep` and the certificate are on PCERT (`a-chart-images-rate-and-enclosure-are-each-spelled-twice-in-geom-brep-and-in-the-injectivity-certificate`).
+
+**With `embed/conic-symmetry` in the tree (2026-11-24, the last pass's second part).** A whole cut cone is `Embedded` at `f64` in every placement pinned (`a_cut_cone_is_embedded_in_every_placement_and_its_wall_holds_alone`, with the needle, the near-flat cone and the kept-apex cut); the cap cut under a generic tilt still refuses on its cut cap, its two arcs stated a rounded quarter turn apart. At `Interval` every one refuses, pinned by what it refuses on. The admission of two arcs as one conic is pinned on bodies both ways: with the ellipse arm admitting none the embedded rows refuse; with it admitting every pair the generic-tilt cap cut and a pencil's cut cap (arcs of two different ellipses meeting on the seam circle, `a_cap_joining_arcs_of_two_ellipses_refuses_at_their_corner`) read `Embedded`. The cut-cone fixtures of the two units are one (`placed_cut`).
+

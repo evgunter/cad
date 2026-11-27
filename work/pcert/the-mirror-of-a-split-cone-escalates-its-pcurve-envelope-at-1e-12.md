@@ -37,7 +37,7 @@ edge `21v1` lies on was not read.
 
 ## Pin
 
-`self_intersection_proves_injectivity::a_split_cone_refuses_on_a_pair_holding_its_wall`
+`self_intersection_proves_injectivity::a_cut_cone_is_embedded_in_every_placement_and_its_wall_holds_alone`
 skips the `Interval` twin of these two placements at ε below 1e-11,
 matching the refusal by variant and printing `SKIPPED` with it, asks
 the `f64` body all the same, and fails on any other refusal or on this

@@ -972,3 +972,39 @@ Measured on `embed/iso-end-measure2` (`origin/embed/gate-measure` @ `ebb2e6f8e` 
 - `sweep::all review_fillet_e2_probes::a_ring_of_arcs_of_two_circles_is_metered_arc_by_arc`
 - `sweep::all ring_carry_through_by_piece::a_lens_ring_beside_a_hole_rim_builds_in_either_order`
 - `sweep::all ring_carry_through_by_piece::a_three_arc_ring_is_metered_arc_by_arc_in_every_subtraction_order`
+
+## 2026-11-23 — a cone's section arc meets these two corners (`embed/cone-image`)
+
+Once a cone's chart reads a section ellipse's focal image, seven of the
+cone/cone census tests stop at this row's corners, traced with the gate
+asking on `embed/cone-image-measure` (`measure/cone-image/after-detail.txt`):
+
+- **A pair touching at the corner's vertex alone** (first bullet): a
+  ruling or a rim's arc against a section arc, `corner_of` giving
+  `alone`, `reading` no arm. `a_plane_near_a_needle_cones_apex::a_needle_cone_cut_off_its_apex_lands_its_closed_forms`
+  (58 exits, `near_e = []`, `alone = Some(true)`),
+  `a_plane_moved_to_a_cone_apex::a_plane_moved_to_the_apex_band_plans_the_ellipse_it_cuts`
+  (176, ends `Budget(Depth)`),
+  `reach_cone_split::an_upright_cone_splits_at_every_pose_through_its_apex_faces`
+  (ruling 48, rim 32), and the two
+  `a_cone_apex_meets_a_vertex::two_cones_through_one_apex_…` (payload
+  `shared: Vertex`). `vertex_corner` leaves a focal image to
+  `a-torus-or-cone-corner-at-a-vertex-alone-reads-no-quadrant`.
+- **A corner of two curved edges** (second bullet): two section arcs of
+  two different ellipses on one cone,
+  `reach_cone_root_lane::every_op_on_a_cone_wall_answers_its_truth_or_refuses_typed`
+  (280 exits at two-arc corners) and
+  `reach_probes::a_cone_face_met_on_its_axis_meshes_at_every_delta` (126).
+
+Which row each is: the five vertex-alone corners are this row's first
+bullet AND `a-torus-or-cone-corner-at-a-vertex-alone-reads-no-quadrant`
+(the cone's quadrant reading is that row's fix); the two two-arc corners
+are this row's second bullet alone. Cheapest reproducers:
+`sweep::all a_cone_apex_meets_a_vertex::two_cones_through_one_apex_build_across_the_pose_families`
+(0.5 s) for the first, `sweep::all reach_cone_root_lane::every_op_on_a_cone_wall_answers_its_truth_or_refuses_typed`
+(20 s) for the second.
+
+## 2026-11-24 — a pencil's cut cap (`embed/cone-image`)
+
+A cylinder with a coaxial frustum on its top, one revolved profile, split by a tilted plane across the seam circle between the two walls: the cut cap is bounded by an arc of the cylinder's section ellipse and an arc of the cone's, meeting at two vertices on the seam circle. Eight such bodies (four tilts, both sides) are honest and refuse `Uncertified { Departure }` at `f64` on a pair that holds the cap: its corner of two different conics has no reading. Pinned refusing, as the negative of the one-conic reading, by `self_intersection_proves_injectivity::a_cap_joining_arcs_of_two_ellipses_refuses_at_their_corner`; the pin moves when this row's corner is read.
+
