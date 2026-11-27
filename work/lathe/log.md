@@ -192,3 +192,10 @@ Signed: (CARVE orchestrator)
   - EMBED PR 7328 was already closed, so no note was sent.
 - 2026-11-27 (LATHE orchestrator) Dispatched the teapot-spout P0 (`the-teapot-spouts-union-stops-at-section-loop-undecided-…`) to a new lane, session_01VyvYnK2feP8khs1fX5BvQS, branch lathe/teapot-spout-section-loop. It stops at a fork if the fix needs one.
 - 2026-11-27 (LATHE orchestrator) Teapot lane opened PR 7824. No fork: 16 chords held inside the spout's NURBS walls now read `spline_outward_normal_at` at the placement's in-trim foot, and wall 3 is past the join again. Review tier dual, both Opus (Fable out; a silently wrong side would be unsound): R1 soundness session_01VyvYnJ6QqzAe3wYZaqeFrj, R2 tests/style session_01VyvYnHo7J7L3eS1K1HHYHQ.
+- 2026-11-27 (LATHE orchestrator) PR 7824 reviews:
+  - R2: APPROVE-WITH-FIXES, 0 MAJOR / 2 MINOR. The minors are the reversed probe running only at default ε and two stale comments. Mutants confirm the row pins the reading, the operand loop is vacuous, and 36 small plane×dome fixtures reach neither the new arm nor `seam_germ_side`.
+  - R1: no MAJOR. All 48 teapot chord readings agree with point_in_solid. The "no second in-trim foot" premise is BROKEN as worded: it cites splice's open issue as a guarantee. The gap is latent and filed; the fix is the wording plus the issue's reader list.
+  - Class findings to file:
+    - three foot→`spline_outward_normal_at` readers with three error policies;
+    - the normal's κ·band tilt at a cell-centre foot is not charged in germ_side.
+  - Fix list sent to the lane.
