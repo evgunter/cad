@@ -221,3 +221,7 @@ Signed: (CARVE orchestrator)
   - The teapot lane is told to merge main into 7824.
 - 2026-11-27 (LATHE orchestrator) **PR 7824 merged** (c838dbb20e): the teapot P0 is closed, and wall 3 is past the join again. Hosted CI was green apart from the inherited reds (the cylinder-prism corner at 1e-12, the tess-lint baseline). The slow set and the name check were green.
 - 2026-11-27 (LATHE orchestrator) **PR 7827 merged**: the 7826 doc follow-ups plus the teapot item close. Merged on my own read; hosted CI was all green apart from the mesh budget (INSIDE's P0).
+- 2026-11-27 (LATHE orchestrator) Dispatched the P1s.
+  - One-band lane (lathe/close-cuts-total): `close-cuts-is-not-total-on-crossings-path-cut-ins`, with the cone-ball and two-curved-loop P1s where they share a cause.
+  - Teapot lane (lathe/declined-normal-readers): `other-readers-map-a-declined-face-normal-to-a-kernel-fault`, a census plus fixes.
+  - Both stop at a design fork.
