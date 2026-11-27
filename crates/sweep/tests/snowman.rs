@@ -410,16 +410,19 @@ fn the_near_tangent_family_stops_at_1e_7_at_eps_1e_12() {
     }
 }
 
-/// **The tangent pairs are the honest frontier.** Touching externally
-/// (`d = r1 + r2`) or internally (`d = r1 − r2`), the two balls meet at
-/// one pole, where a meridian of each touches the other sphere without
-/// crossing it. The circle × sphere roots read that as a tangency, which
-/// is not a crossing at any order the crossing layer sees, so every op
-/// refuses typed at the pierce door — naming a MERIDIAN (a circle edge)
-/// of one ball against a SPHERE face of the other — rather than
-/// guessing a contact.
+/// **A pole-tangent pair refuses typed, never builds.** Touching
+/// externally (`d = r1 + r2`) or internally (`d = r1 − r2`), the two
+/// balls meet at one pole, where a meridian of each touches the other
+/// sphere without crossing it: not a crossing at any order the crossing
+/// layer sees, so every op refuses typed rather than guessing a contact.
+/// Two doors refuse it. Where the touch is inside a meridian, the pierce
+/// door, naming that MERIDIAN (a circle edge) of one ball against the
+/// SPHERE face of the other. Where the touch is the meridian's own end (a
+/// pole), the crossing layer reads it as the end vertex's (§2.3 of the
+/// GERM U4 spec), and the pair is refused past it, by the curved
+/// Boolean's door on a SPHERE face of the other ball.
 #[test]
-fn a_pole_tangent_pair_refuses_at_the_pierce_door() {
+fn a_pole_tangent_pair_refuses_typed_on_the_other_balls_sphere() {
     let a = ball(R1, 0.0);
     for (label, b) in [
         ("external", ball(R2, R1 + R2)),
@@ -427,6 +430,26 @@ fn a_pole_tangent_pair_refuses_at_the_pierce_door() {
     ] {
         for op in OPS {
             let e = refusal(op, &a, &b);
+            // A meridian whose end is the touch reads it as that end's
+            // meeting (the vertex rows'), and the pair is refused typed
+            // past the crossing layer, on the sphere face.
+            if let topo::BooleanError::CurvedBooleanUnsupported {
+                operand,
+                face,
+                kind,
+            } = e
+            {
+                let face_body = match operand {
+                    topo::Operand::A => &a,
+                    topo::Operand::B => &b,
+                };
+                assert_eq!(
+                    (kind, topo::query::face_surface_kind(face_body, face)),
+                    (geom::SurfaceKind::Sphere, Some(geom::SurfaceKind::Sphere)),
+                    "{label} under {op:?}: the later door names a sphere face of its operand"
+                );
+                continue;
+            }
             let topo::BooleanError::CurvedPierceUnsupported {
                 operand,
                 edge,

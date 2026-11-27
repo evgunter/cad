@@ -311,7 +311,7 @@ use crate::geometry::SurfaceKey;
 use crate::live::proven;
 use crate::offset_restate::chart_moves;
 use crate::offset_together::{ChartMove, unmoved_in_scope, unplaced_in_scope};
-use crate::replace_face::ReplaceFaceError;
+use crate::replace_face::{ReplaceFaceError, Unmoved};
 use slotmap::SecondaryMap;
 
 /// The revolution axis every accepted surface shares, and the region
@@ -2216,7 +2216,7 @@ fn mint_carrier<T: Decide>(
         {
             let seam_frame = seam.frame();
             let (axis, u_ref) = (seam_frame.axis(), seam_frame.u_ref());
-            return Ok(latitude_circle(frame, p_start, axis, u_ref));
+            return latitude_circle(frame, p_start, axis, u_ref, band);
         }
         return match (&ca.old, old) {
             // A plane's and a cone's offsets are rigid translations, so
@@ -2262,10 +2262,8 @@ fn mint_carrier<T: Decide>(
                 let radius = circle.radius();
                 let off = cc.distance(center);
                 match decide("offset_axial_seam_concentric", Margin::of(off), band) {
-                    Ok(Sign::Zero) => Ok(Curve3::Circle(geom::Circle::new(
-                        *seam_frame,
-                        radius + ca.distance,
-                    ))),
+                    Ok(Sign::Zero) => moved_seam(seam_frame, radius + ca.distance, band)
+                        .map_err(|unmoved| unmoved.refused(edge, ca.distance)),
                     Ok(_) => Err(refuse(
                         "a sphere seam that is not a great circle about the sphere's own centre",
                     )),
@@ -2295,10 +2293,8 @@ fn mint_carrier<T: Decide>(
                 let radius = circle.radius();
                 let off = tube_centre_offset(frame, cc, center, *major_radius);
                 match decide("offset_axial_seam_meridian", Margin::of(off), band) {
-                    Ok(Sign::Zero) => Ok(Curve3::Circle(geom::Circle::new(
-                        *seam_frame,
-                        radius + ca.distance,
-                    ))),
+                    Ok(Sign::Zero) => moved_seam(seam_frame, radius + ca.distance, band)
+                        .map_err(|unmoved| unmoved.refused(edge, ca.distance)),
                     Ok(_) => Err(refuse(
                         "a torus seam that is neither a latitude circle nor a meridian circle \
                          about the tube's own centre",
@@ -2603,7 +2599,7 @@ fn mint_carrier<T: Decide>(
             if let Some(what) = latitude_posture(frame, circle.axis_line(), band)? {
                 return Err(refuse(what));
             }
-            Ok(latitude_circle(frame, p_start, axis, u_ref))
+            latitude_circle(frame, p_start, axis, u_ref, band)
         }
         _ => Err(refuse(
             "an edge between two different surfaces whose curve is neither a line nor a circle",
@@ -2842,18 +2838,40 @@ fn latitude_posture<T: Decide>(
 /// parameterization's sense — and takes the moved corner's own station
 /// and radius. The posture is [`latitude_posture`]'s to decide; this
 /// is only the mint.
-fn latitude_circle<T: Real>(
+///
+/// The radius is a norm, so only its being a finite length is open: a
+/// corner with no finite station is poison, and escalates as one.
+fn latitude_circle<T: Decide>(
     frame: &Frame<T>,
     p_start: Point3<T>,
     axis: Vec3<T>,
     u_ref: Vec3<T>,
-) -> Curve3<T> {
-    Curve3::circle(
+    band: Band,
+) -> Result<Curve3<T>, ReplaceFaceError<T>> {
+    let radius = frame.radial(p_start).norm();
+    let read = geom::conic_size_read(radius);
+    if read.is_poison() {
+        decide("offset_axial_latitude_radius", Margin::of(read), band)
+            .map_err(|source| ReplaceFaceError::Escalated { source })?;
+    }
+    Ok(Curve3::circle(
         frame.axis.foot(p_start),
         axis,
-        frame.radial(p_start).norm(),
+        radius,
         u_ref,
-    )
+    ))
+}
+
+/// A seam circle on `frame` at its moved `radius`, the radius decided
+/// first ([`crate::replace_face::moved_radius`]); [`Unmoved::Collapses`]
+/// where it is decided not positive.
+fn moved_seam<T: Decide>(
+    frame: &geom::Frame<T>,
+    radius: T,
+    band: Band,
+) -> Result<Curve3<T>, Unmoved> {
+    let radius = crate::replace_face::moved_radius(radius, band)?;
+    Ok(Curve3::Circle(geom::Circle::new(*frame, radius)))
 }
 
 /// The parameter `t` of an end of `carrier`, metered against the
@@ -4996,6 +5014,66 @@ mod frame_extent_rows {
         assert!(
             matches!(got, Err(ReplaceFaceError::TogetherNotAxial { .. })),
             "the wall whose axis stands 50·ε off the frame's at the scope is not coaxial"
+        );
+    }
+}
+
+/// **A latitude's radius past the float range escalates at every
+/// scalar.** At `Interval` the norm of a corner at `(MAX, MAX)` is
+/// `[1.3e154, ∞]`, whose own width is not poison: the mint reads it through
+/// the constructors' predicate (`geom::conic_size_read`).
+///
+/// Mutant: `conic_size_read` asking `is_finite_length` panics in
+/// `Curve3::circle` at `Interval`.
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod latitude_radius_rows {
+    use super::*;
+
+    fn latitude_at<T: Decide>(x: f64) -> Result<Curve3<T>, ReplaceFaceError<T>> {
+        let (zero, one) = (T::zero(), T::one());
+        let frame = Frame {
+            axis: geom::Line {
+                origin: Point3::new(zero, zero, zero),
+                dir: geom_core::UnitVec3::exact_z(),
+            },
+            region: ScopeRegion {
+                cover: None,
+                vertices: Vec::new(),
+            },
+        };
+        let x = T::from_f64(x);
+        let band = Band::linear(Tol::witness()).unwrap();
+        latitude_circle(
+            &frame,
+            Point3::new(x, x, one),
+            Vec3::new(zero, zero, one),
+            Vec3::new(one, zero, zero),
+            band,
+        )
+    }
+
+    #[test]
+    fn a_latitude_past_the_float_range_escalates() {
+        let max = f64::MAX;
+        assert!(
+            matches!(
+                latitude_at::<f64>(max),
+                Err(ReplaceFaceError::Escalated { .. })
+            ),
+            "f64"
+        );
+        assert!(
+            matches!(
+                latitude_at::<geom_core::Interval>(max),
+                Err(ReplaceFaceError::Escalated { .. })
+            ),
+            "Interval"
+        );
+        let control = latitude_at::<geom_core::Interval>(0.5);
+        assert!(
+            matches!(control, Ok(Curve3::Circle(_))),
+            "the control: {control:?}"
         );
     }
 }

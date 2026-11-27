@@ -109,6 +109,8 @@ mod certify_turn_rule;
 mod computed_values_enter_as_unknowns;
 #[path = "cone_pair_section.rs"]
 mod cone_pair_section;
+#[path = "conic_sizes_are_decided.rs"]
+mod conic_sizes_are_decided;
 #[path = "coplanar_ellipses_one_locus.rs"]
 mod coplanar_ellipses_one_locus;
 #[path = "curved_torus_arc_residual.rs"]

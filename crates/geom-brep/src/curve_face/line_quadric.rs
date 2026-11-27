@@ -7,7 +7,7 @@
 //! ([`line_torus_roots`]).
 //!
 //! Its older entries read the pose and then the method, deciding
-//! nothing of their own: the sweep's [`line_quadric_roots`], in the root
+//! nothing of their own: the sweep's `line_quadric_roots` (the door rows' reader), in the root
 //! doors' shape ([`super::circle_roots::CircleRoots`]), refusing in its
 //! own words ([`LineQuadricRefusal`], the arm that refused, which the
 //! caller names a decision of its own), and the point-in-solid ray's
@@ -21,7 +21,7 @@ use crate::roots::{RootRefusal, Roots, Unsettled};
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
-/// **Why [`line_quadric_roots`] refused**: the arm, and what its finder
+/// **Why `line_quadric_roots` (the door rows' reader) refused**: the arm, and what its finder
 /// refused with. The wall, sphere and cone arms only escalate; the torus
 /// arm reads [`RootRefusal`], whose fault is a kernel defect
 /// ([`DoorRefusal::Invariant`]).
@@ -54,7 +54,7 @@ impl LineQuadricRefusal {
 
 /// **The certified roots of the LINE against `surface`** over the run
 /// `(t0, t1)` of the line's parameter, in the root doors' shape: the
-/// sweep's reading until it reads [`super::cross()`]. A wrapper: the pose
+/// door rows' reading, a test reader since the sweep reads [`super::cross()`]: the pose
 /// ([`super::pose()`]), then the arm's method ([`line_method`]), mapped
 /// back. The pose's `Lies` (a ruling of a wall, a generator of a cone) is
 /// [`CircleRoots::On`]; a line parallel to a wall's axis off it, or any
@@ -67,6 +67,7 @@ impl LineQuadricRefusal {
 ///
 /// [`LineQuadricRefusal`], the arm with the pose's or the method's
 /// escalation.
+#[cfg(test)]
 pub fn line_quadric_roots<T: Decide>(
     line: geom::Line<T>,
     (t0, t1): (T, T),

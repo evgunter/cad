@@ -3,21 +3,19 @@
 //! splits its meridian edges at the section, and each fragment then
 //! ENDS on the other ball. The fragment's residual against that ball is
 //! exactly zero at that end, so its true one-sidedness margin is at most
-//! zero: the conic clearance (`bool_conic_curved_clearance`) cannot
-//! read it definitely clear, and every other answer falls through to the
-//! endpoint arms. Asking it decided nothing. What it recorded was the
-//! sampled enclosure's chord-dip charge, read as `−charge` about that
-//! zero end. On lily wall 7 that gave 36 rows per ε, from −1.5e-10 to
-//! −3.0e-6, bit-identical across ε, which the K lint read as micrometre
-//! features below its floor (rule 3) and in the ambiguity band at 1e-6
-//! (rule 1). The sweep arm now decides such an arc's endpoint sides
-//! first and does not ask its clearance
-//! (`topo::boolean::reduce::curved_face_arm`).
+//! zero. The retired sweep clearance (`bool_conic_curved_clearance`)
+//! recorded the sampled enclosure's chord-dip charge there, read as
+//! `−charge` about that zero end: on lily wall 7, 36 rows per ε, from
+//! −1.5e-10 to −3.0e-6, bit-identical across ε, which the K lint read as
+//! micrometre features below its floor (rule 3) and in the ambiguity band
+//! at 1e-6 (rule 1). The clearance is now the pose's ball cull
+//! (`curve_face_pose_clearance`, `geom_brep::curve_face::pose`), which
+//! reads `|g(m)| − ℓ` about the whole conic's ball and charges nothing:
+//! a conic meeting the surface reads it at the ball's own scale.
 //!
 //! The row: every clearance the poses below record sits at least the K
 //! lint's metre floor (`tools/k-lint`'s `BASELINE_FLOOR_MARGIN`, 4e-5)
-//! from zero, and the clearance is still asked of the arcs it can
-//! decide.
+//! from zero, and the clearance is still asked.
 //!
 //! **The nightly executes this suite; the PR gate only builds it**: it is
 //! rostered in `scripts/gates/probe-suite-census.sh` (`RUN_FLOOR`) and runs
@@ -89,13 +87,13 @@ fn a_carved_balls_meridian_fragments_record_no_clearance_charge() {
             );
             for s in samples
                 .iter()
-                .filter(|s| s.predicate == "bool_conic_curved_clearance")
+                .filter(|s| s.predicate == "curve_face_pose_clearance")
             {
                 asked += 1;
                 assert!(
                     s.margin.abs() >= METRE_FLOOR,
                     "{name} r {r} at {offset:?}: a clearance recorded {:e}, under the metre \
-                     floor: an arc ending on the carrier was asked its clearance",
+                     floor",
                     s.margin
                 );
             }

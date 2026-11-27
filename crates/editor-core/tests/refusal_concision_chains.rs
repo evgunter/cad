@@ -873,7 +873,7 @@ mod kernel {
             FaceClearance, KnifeEdge, BallDoesNotFit, SpineIrregular, ChainNotG1,
             ConvexitySignFlip, UnbuiltEnd, ObliqueMixedCorner, SpineUnsupported,
             ChamferArmUnsupported, WedgeUnsettled, Escalated, RepeatedEdge, NonpositiveSize,
-            UnsupportedChain, UnsupportedGeometry, BodyNotIntact,
+            SizeBeyondRange, UnsupportedChain, UnsupportedGeometry, BodyNotIntact,
             NotFinished, SurgeryInvariant,
             RingClearance, WhollyInside, Op, Join,
         ];
@@ -1006,7 +1006,7 @@ mod kernel {
             EmptyGroup, GroupChartsDiffer, PlaceholderSurface, ApexWindow,
             NappeStraddles, ApexWindowUnknown, NeighborPairUnroutable,
             NeighborPoseUnroutable, EdgeUncovered, FittedBoundaryUnsupported,
-            CarrierLaneUnsupported,
+            CarrierLaneUnsupported, MovedCircleCollapses,
             IsoRow, VertexDisagreement, EdgeSection, CornerSection,
             DeclaredEdgeTilted, MixedEdge, ReanchorPastCarrierEnd, ReanchorCollapse,
             ReanchorInconclusive, NurbsLaneUnsupported, TogetherNonPlanar,
@@ -3971,6 +3971,12 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
         ("RepeatedEdge", E::RepeatedEdge { edge }),
         ("NonpositiveSize", E::NonpositiveSize { size: 0.0 }),
         (
+            "SizeBeyondRange",
+            E::SizeBeyondRange {
+                size: f64::INFINITY,
+            },
+        ),
+        (
             "UnsupportedChain",
             E::UnsupportedChain {
                 edge,
@@ -6176,6 +6182,13 @@ fn replace_face() -> Vec<(String, topo::ReplaceFaceError<f64>)> {
                     edge,
                     what: "it is drawn on a fitted or cone surface, where the offset has no exact \
                            shift for it",
+                },
+            ),
+            (
+                "MovedCircleCollapses",
+                R::MovedCircleCollapses {
+                    edge,
+                    distance: -2.0,
                 },
             ),
             (

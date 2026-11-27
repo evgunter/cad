@@ -79,6 +79,7 @@ mod carrier_ladder_rows;
 pub(crate) mod carrier_pair;
 mod carrier_touch;
 pub(crate) mod combine;
+mod face_reading;
 pub use combine::{PlacedGraftError, graft_placed};
 /// **A pierce's refusal as a rung of the pierce pass's ladder**, by its
 /// own standing ([`BooleanError::refusal`]): kept by its kind, or, where
@@ -332,9 +333,9 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "curve_face_pose_plane_offset" | "curve_face_pose_plane_parallel" => {
             Coincide::EdgeOnPlane.subject()
         }
-        "bool_line_cylinder_clearance"
-        | "bool_line_face_carrier_offset"
-        | slit::RIDER_ON_CURVED => Coincide::EdgeOnCurvedFace.subject(),
+        "bool_line_face_carrier_offset" | slit::RIDER_ON_CURVED => {
+            Coincide::EdgeOnCurvedFace.subject()
+        }
         slit::RIDER_ON_PLANE => Coincide::EdgeOnPlane.subject(),
         "bool_sector_within"
         | "bool_fan_side"
@@ -3362,9 +3363,10 @@ pub enum BooleanError {
     /// frontier; the C5 table routes the SECTIONS, this is the crossing
     /// layer). The
     /// **definite** half of a two-tolerance pair: the very same
-    /// clearance margin one band-width away escalates as
-    /// [`BooleanError::Escalated`] on `bool_line_cylinder_clearance`
-    /// instead ([`Coincide::EdgeOnCurvedFace`]), and both halves end on
+    /// pose one band-width away escalates as [`BooleanError::Escalated`]
+    /// on the crossing reading's rung instead (the pair's root decision,
+    /// or [`Coincide::ArcOnCoveredFace`] on a covered arc), and both
+    /// halves end on
     /// the coincidence's levers: the declared-cover rung takes a
     /// declaration of the edge's face against the curved one, and this
     /// definite half names no tolerance.
@@ -5031,91 +5033,6 @@ pub enum BooleanErrorKind {
 }
 
 impl BooleanError {
-    /// The refusal of a curve × face root door that refuses no torus by its
-    /// shape ([`geom_brep::curve_face::circle_roots::DoorRefusal`] at its
-    /// default, with no torus arm), its in-band sign an escalation as
-    /// `decision`. The conic × quadric doors refuse so, and so does the
-    /// line × torus door: its quartic reads the radii as they stand, and
-    /// never decides the ring convention. A door that does decide it is
-    /// read by [`Self::of_torus_door_refusal`].
-    pub(in crate::boolean) fn of_door_refusal(
-        decision: BooleanDecision,
-    ) -> impl Fn(geom_brep::curve_face::circle_roots::DoorRefusal) -> Self {
-        use geom_brep::curve_face::circle_roots::DoorRefusal;
-        move |refusal| match refusal {
-            DoorRefusal::Escalated(diag) => Self::Escalated { decision, diag },
-            DoorRefusal::Invariant(what) => Self::ClassificationInvariant { what },
-        }
-    }
-
-    /// The line × quadric door's refusal
-    /// ([`geom_brep::curve_face::line_quadric::LineQuadricRefusal`]), its
-    /// in-band sign an escalation as the refusing arm's decision: the
-    /// wall's rung, the sphere's, the torus's or the cone's roots.
-    pub(in crate::boolean) fn of_line_quadric_refusal(
-        refusal: geom_brep::curve_face::line_quadric::LineQuadricRefusal,
-    ) -> Self {
-        use geom_brep::curve_face::line_quadric::LineQuadricRefusal;
-        match refusal {
-            LineQuadricRefusal::Wall(fault) => Self::Escalated {
-                decision: BooleanDecision::WallRoots(fault.rung),
-                diag: fault.diag,
-            },
-            LineQuadricRefusal::Sphere(diag) => Self::Escalated {
-                decision: BooleanDecision::SphereRoots,
-                diag,
-            },
-            LineQuadricRefusal::Torus(refusal) => {
-                Self::of_door_refusal(BooleanDecision::TorusRoots)(refusal)
-            }
-            LineQuadricRefusal::Cone(diag) => Self::Escalated {
-                decision: BooleanDecision::ConeRoots,
-                diag,
-            },
-        }
-    }
-
-    /// The conic × quadric door's refusal
-    /// ([`geom_brep::curve_face::conic_quadric::ConicQuadricRefusal`]),
-    /// its in-band sign an escalation as the refusing arm's decision: an
-    /// arc's roots on a sphere, a cylinder wall or a cone.
-    pub(in crate::boolean) fn of_conic_quadric_refusal(
-        refusal: geom_brep::curve_face::conic_quadric::ConicQuadricRefusal,
-    ) -> Self {
-        use geom_brep::curve_face::conic_quadric::ConicQuadricRefusal;
-        match refusal {
-            ConicQuadricRefusal::Sphere(diag) => Self::Escalated {
-                decision: BooleanDecision::ArcSphereRoots,
-                diag,
-            },
-            ConicQuadricRefusal::Cylinder(diag) => Self::Escalated {
-                decision: BooleanDecision::ArcCylinderRoots,
-                diag,
-            },
-            ConicQuadricRefusal::Cone(diag) => Self::Escalated {
-                decision: BooleanDecision::ArcConeRoots,
-                diag,
-            },
-            ConicQuadricRefusal::Invariant(what) => Self::ClassificationInvariant { what },
-        }
-    }
-
-    /// A conic × torus root door's refusal at the torus face `at`: the
-    /// torus outside the ring convention at its face
-    /// ([`Self::of_torus_refusal`]), every other refusal as
-    /// [`Self::of_door_refusal`] ends it.
-    pub(in crate::boolean) fn of_torus_door_refusal(
-        decision: BooleanDecision,
-        at: (Operand, FaceKey),
-    ) -> impl Fn(geom_brep::curve_face::circle_roots::DoorRefusal<geom_brep::TorusRefusal>) -> Self
-    {
-        let plain = Self::of_door_refusal(decision);
-        move |refusal| match refusal.without_torus() {
-            Ok(other) => plain(other),
-            Err(torus) => Self::of_torus_refusal(torus, at),
-        }
-    }
-
     /// **A torus face outside its ring convention**, as the convention
     /// refused it ([`geom_brep::TorusRefusal`]), at the face `at`: decided,
     /// the shape the kernel has no representation for

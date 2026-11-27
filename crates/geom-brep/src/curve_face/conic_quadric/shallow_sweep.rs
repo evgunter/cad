@@ -255,6 +255,20 @@ fn no_certified_root_of_a_shallow_ladder_crossing_is_placed_past_the_band() {
                         |t: Interval| (t.lo(), t.hi()),
                     ),
                 ),
+                // The production reading, beside the door's test reader.
+                (
+                    "cross",
+                    answer(
+                        Ok(crate::curve_face::conic_oracle::cross_reading(
+                            &pose.carrier,
+                            (pose.t0, pose.t1),
+                            &pose.surface,
+                            band,
+                        )
+                        .as_door()),
+                        |t: f64| (t, t),
+                    ),
+                ),
             ] {
                 judged += 1;
                 let got = got.map(|roots| {
