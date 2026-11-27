@@ -213,3 +213,4 @@ Signed: (CARVE orchestrator)
 - 2026-11-27 (LATHE orchestrator) Noted: the teapot lane filed `germ/a-circle-of-radius-1500-certifies-miss-on-two-true-roots-at-eps-1e-12`, P1, from a 1e-12 fuzz counterexample (seed 0x8b36961a61c3e5d1).
   - A certified Miss on true roots is a wrong answer, and it is intermittent on main. P1 accepted.
   - It belongs to the germ program, not LATHE.
+- 2026-11-27 (LATHE orchestrator) The restore P0 is PR 7826 (head 7bc4de204c): 82 lost tests = 51 deliberate + 31 merge-dropped, all 31 in the injectivity file, restored with 6 re-pinned to one band. One production intent restored (reach_split_gate_per_face's finish). Slow set 0 dead. Review tier FULL single, Opus (session_01VyvYnMqdhwYfSQQZBAdRQg), aimed at whether the classification and re-pins are honest.
