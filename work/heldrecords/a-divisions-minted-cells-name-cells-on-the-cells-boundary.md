@@ -2,7 +2,7 @@
 id: a-divisions-minted-cells-name-cells-on-the-cells-boundary
 kind: issue
 title: Since PR 7745 a boolean division's minted cells name cells on the cell's boundary, not only in its interior, and one out-of-lane pair on them refuses the whole record unread
-status: open
+status: dispatched
 opened: 2026-11-27
 priority: P1
 cost: M

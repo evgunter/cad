@@ -406,3 +406,4 @@
   - Follow-up sent to the lane:
     - a `ci` pin from the reviewer's flush-block poses;
     - a P1 row for the root, where since PR 7745 a division's `minted` names boundary cells, and `landings`' `?` refuses the whole record on any out-of-lane image pair.
+- 2026-11-27 Merged PR 7830 (5e6a0212e0). It adds three `ci` pins for PR 7825's filter (3/3 red under NOFIX) and files P1 `a-divisions-minted-cells-name-cells-on-the-cells-boundary`. I merged with every job green except the mesh-budget job, which is main's slowdown and is filed on INSIDE. Dispatched that P1 to the same lane (session_018u3gVK16A8ND9orBs4bSqb) as `heldrecords/interior-minted`: restore the interior invariant upstream, then one home for the normalisation; measure the `landings` `?` class but do not change it; single FULL review.
