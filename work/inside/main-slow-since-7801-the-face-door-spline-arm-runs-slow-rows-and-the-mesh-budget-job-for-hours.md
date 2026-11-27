@@ -40,3 +40,17 @@ So PR 7801 is the merge that slowed it. Its head message: "The face door reads s
 ## Done when
 
 The face door's spline arm costs what it did before on these rows and in the mesh-budget job, or the cost is measured, bounded and accepted. The mesh-budget job also gets a `timeout-minutes`, so that a hang fails fast rather than holding every PR for 6 h.
+
+## 2026-11-27: PR 7801 also gives a wrong material answer (more serious than the slowdown)
+
+HELDRECORDS's orchestrator bisected one more row, in the same way: `sweep::all germ_coplanar_conic::every_op_refuses_or_answers_its_closed_form`.
+
+| first-parent commit | result |
+|---|---|
+| `9a25655c18` (PR 7799) | PASS |
+| `2fc64636e46` (PR 7811, PR 7801's first parent) | PASS |
+| `1bb20a9fce1` (**PR 7801**) | **FAIL** |
+| `0bd424091e2` (PR 7813) | FAIL |
+| `7ce370250a8`, `d23272dea5` | FAIL |
+
+The failure on main, as PR 7808's evidence lane reported it, reads `outer equator arc in the box top: A ∪ B: point_in_solid Point3 { x: 0.0, y: 0.2, z: 2.5 } = Ok(Out)`. That is a **wrong material answer**, not a refusal: containment says Out where the row's closed form says otherwise. This is the worse half of this row. Fix it first, or revert PR 7801 until it can be fixed.
