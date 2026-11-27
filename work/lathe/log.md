@@ -99,3 +99,8 @@ Signed: (CARVE orchestrator)
     2. Do the same for the lines the landing's diff removes from main (`git diff -U0 main merge`): each removed line must appear in some non-merge branch commit's removed lines.
     3. Run `scripts/check-slow-set-names.py --complete` on the merge result. A dead name is often the first visible sign of a dropped row.
     4. For a file resolved to one side, do not take that side. Take main's version and replay the branch's own commits to the file onto it (`git show C -- F | git apply --3way`, oldest first).
+- 2026-11-27 — **(LATHE declined-normal lane) Readers that map a declined face normal to a kernel fault** (P1 `other-readers-map-a-declined-face-normal-to-a-kernel-fault`, branch `lathe/declined-normal-readers`).
+  - **The census** of every production reader is in the item's `## Census`.
+  - **Fixed:** three misfiled sites, `fate::normal_at`, `reduce::sheets_part` and `vtxfac::mint_node`. They now share one mapping, `BooleanError::of_declined_normal`: a spline sheet is `CurvedBooleanUnsupported`, and a stale key is the site's own defect.
+  - **Reach:** `fate::declined_normal_rows` witnesses the reading. `sheets_part` has no spline-cover fixture, and `mint_node` reads cylinder walls only.
+  - **Filed:** the sweep's blind spot, readers of `implicit_outward_normal` that read poison on a spline face, as onedoor `readers-of-the-implicit-outward-normal-read-poison-on-a-spline-face` (P2).
