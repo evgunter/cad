@@ -12,7 +12,7 @@ refs: [close-cuts-is-not-total-on-crossings-path-cut-ins]
 ## What
 
 The die's slab `[−2, 2]² × [0, 0.7]` against the `y`-poled unit ball
-(`m5_pr9c_sphere_doors::the_die_slab_cutting_the_ball_in_its_top_refuses_at_the_interior_loop_guard`).
+(`m5_pr9c_sphere_doors::the_die_slab_cutting_the_ball_in_its_top_builds_where_its_closing_reads_a_pole`).
 - The slab's top cuts the ball's one face in the interior circle `z = 0.7`, which the crossings path cuts in (PR 7440).
 - Its bottom cuts the face in the circle `z = 0`, a first-pass crossing that passes through both chart poles `(0, ±1, 0)`.
 
