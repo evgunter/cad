@@ -214,3 +214,8 @@ Signed: (CARVE orchestrator)
   - A certified Miss on true roots is a wrong answer, and it is intermittent on main. P1 accepted.
   - It belongs to the germ program, not LATHE.
 - 2026-11-27 (LATHE orchestrator) The restore P0 is PR 7826 (head 7bc4de204c): 82 lost tests = 51 deliberate + 31 merge-dropped, all 31 in the injectivity file, restored with 6 re-pinned to one band. One production intent restored (reach_split_gate_per_face's finish). Slow set 0 dead. Review tier FULL single, Opus (session_01VyvYnMqdhwYfSQQZBAdRQg), aimed at whether the classification and re-pins are honest.
+- 2026-11-27 (LATHE orchestrator) **PR 7826 merged** (516a14f0dc). Main's merge-dropped tests are restored and the slow-set names are clean.
+  - Hosted kernel and app jobs were green on every test step, the slow set and the name check included.
+  - The review found no MAJOR issue: all five claims held, the 82 were recomputed independently, and the re-pins are as tight as main's or tighter, with no widened tolerance.
+  - Doc-level follow-ups went to the one-band lane: the conic issue's stale 864/66 sentence, a dropped PR-7605 debt sentence, coincidence_door's false "two thirds" name, holds_alone reuse, and the PR body's counts.
+  - The teapot lane is told to merge main into 7824.
