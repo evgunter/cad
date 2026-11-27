@@ -599,16 +599,14 @@ fn a_revolved_ball_holds_only_after_it_splits() {
         let p = |y: f64, b: f64| (Point2::new(0.0, y).map(T::from_f64), T::from_f64(b));
         revolved_about_y_at(vec![p(-1.0, 1.0), p(1.0, 0.0)], Revolution::Full, tol())
     }
-    let (float, twin) = (
-        injective(&ball::<f64>(), None, BUDGET),
-        injective(&ball::<Interval>(), None, BUDGET),
+    let (float, interval) = (ball::<f64>(), ball::<Interval>());
+    let (report, twin) = (
+        injective(&float, None, BUDGET),
+        injective(&interval, None, BUDGET),
     );
-    same_class("the one-face ball", &float, &twin);
-    assert!(
-        matches!(float.verdict, BoundVerdict::Holds),
-        "the one-face ball is embedded: {:?}",
-        float.receipt
-    );
+    same_class("the one-face ball", &report, &twin);
+    holds_alone("the one-face ball", &report, &float);
+    holds_alone("the one-face ball at Interval", &twin, &interval);
     let mut lunes = ball::<f64>();
     crate::seam_region_common::two_lunes(&mut lunes, tol());
     let report = injective(&lunes, None, BUDGET);
@@ -920,32 +918,28 @@ fn bodies_on_a_spindle_sheet_hold_by_kind_at_both_scalars() {
     for (what, float, interval) in [
         ("the lemon", football(-0.5, 0.0), football(-0.5, 0.0)),
         ("the apple", football(0.4, 0.0), football(0.4, 0.0)),
-        ("the needle", needle::<f64>(), needle::<Interval>()),
     ] {
         let (float, interval): (Body<f64>, Body<Interval>) = (float, interval);
-        let sheets = sheet_faces(&float);
-        assert!(sheets >= 1, "{what} is built on a spindle sheet");
-        // The lemon and the apple are one face each, with no touching
-        // pair for [`holds_at_both`] to read: each scalar holds and
-        // reads the class the other does.
+        assert_eq!(sheet_faces(&float), 1, "{what} is one spindle sheet face");
         let (report, twin) = (
             injective(&float, None, BUDGET),
             injective(&interval, None, BUDGET),
         );
         same_class(what, &report, &twin);
-        for (scalar, report) in [("f64", report), ("Interval", twin)] {
-            assert!(
-                matches!(report.verdict, BoundVerdict::Holds),
-                "{what} is embedded at {scalar}: {:?}",
-                report.receipt
-            );
-            assert!(
-                report.receipt.by_kind >= sheets,
-                "{what} at {scalar}: each of its {sheets} sheet faces against itself \
-                 discharged by kind: {:?}",
-                report.receipt
-            );
-        }
+        holds_alone(what, &report, &float);
+        holds_alone(&format!("{what} at Interval"), &twin, &interval);
+    }
+    // The needle's sheet face meets its other face, so its touching pair
+    // is read too, and its sheet face against itself is discharged by kind.
+    let float = needle::<f64>();
+    let sheets = sheet_faces(&float);
+    assert_eq!(sheets, 1, "the needle is built on one spindle sheet face");
+    for report in holds_at_both("the needle", float, needle::<Interval>()) {
+        assert!(
+            report.receipt.by_kind >= sheets,
+            "the needle: its sheet face against itself discharged by kind: {:?}",
+            report.receipt
+        );
     }
 }
 
@@ -7248,7 +7242,12 @@ fn a_split_cone_refuses_on_a_pair_holding_its_wall() {
 /// the default ε; at another the walk may run out of its budget on the
 /// crossing pair first, and then refuses on it, never embedded. What it
 /// pins is that a crossing there is found, a grafted ball sharing no
-/// cell with the rod.
+/// cell with the rod. It does NOT pin `one_stated_conic`'s reading of two
+/// arcs: the section here is one ellipse, and the row is green whatever
+/// that reading answers. The body rows that go red when it admits too
+/// much are owed where a cut cone whose section is two arcs holds
+/// (`work/embed/two-arcs-of-one-ellipse-stated-a-quarter-turn-apart-are-not-one-conic.md`,
+/// with PR 7605).
 #[test]
 fn a_ball_through_a_split_cylinders_wall_and_cut_cap_at_its_section_crosses() {
     use topo::clearance::Embedding;

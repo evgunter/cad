@@ -2051,7 +2051,7 @@ fn an_unproven_row_says_why_the_replay_left_it() {
 /// published as a `Meet` of the cells it lies in and left unproven, a
 /// coincidence of values as far as the door can tell: one per pip.
 #[test]
-fn the_door_proves_two_thirds_of_the_composed_dies_joints() {
+fn the_door_proves_no_composed_die_joint_since_each_pip_rim_is_one_chain() {
     // `met`: the vertex identities the dies' booleans decide at a point
     // minted on an edge, each a `Meet` of the cells it lies in (measured:
     // a pip's meridian seam edge against a face of the die).
