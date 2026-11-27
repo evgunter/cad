@@ -5135,21 +5135,18 @@ impl BooleanError {
     /// limit, [`Self::CurvedBooleanUnsupported`] naming the kind; a key
     /// that resolves to no face on a surface is the caller's defect,
     /// `gone`.
-    pub(in crate::boolean) fn of_declined_normal<T: Decide>(
-        (body, operand): (&Body<T>, Operand),
+    pub(in crate::boolean) fn of_declined_normal(
+        operand: Operand,
         face: FaceKey,
         why: crate::face_normal::NoNormalAt,
         gone: Self,
     ) -> Self {
         use crate::face_normal::NoNormalAt;
         match why {
-            NoNormalAt::UnreadKind => match body.face(face).map(|f| f.surface()) {
-                Some(Ok(surface)) => Self::CurvedBooleanUnsupported {
-                    operand,
-                    face,
-                    kind: surface.kind(),
-                },
-                Some(Err(_)) | None => gone,
+            NoNormalAt::UnreadKind(kind) => Self::CurvedBooleanUnsupported {
+                operand,
+                face,
+                kind,
             },
             NoNormalAt::Unresolved => gone,
         }

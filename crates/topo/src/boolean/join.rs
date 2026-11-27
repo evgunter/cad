@@ -5872,7 +5872,7 @@ fn held_normal<T: Decide>(
     let desync = || BooleanError::JoinDesync { what: gone };
     match crate::face_normal::face_outward_normal_or_why(other, held, q, band) {
         Ok(Ok(n)) => Ok(Ok(n.vec())),
-        Ok(Err(NoNormalAt::UnreadKind)) => Ok(Err(HoldingUnread::Spline)),
+        Ok(Err(NoNormalAt::UnreadKind(_))) => Ok(Err(HoldingUnread::Spline)),
         Ok(Err(NoNormalAt::Unresolved)) => Err(desync()),
         Err(why) => Ok(Err(HoldingUnread::Normal {
             operand: other_is,

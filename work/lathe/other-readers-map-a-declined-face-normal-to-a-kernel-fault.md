@@ -61,23 +61,32 @@ less tests and `face_normal.rs` itself.
 
 **Misfiled, fixed.** Each now reads `face_outward_normal_or_why`, through
 `BooleanError::of_declined_normal`. A spline sheet becomes
-`CurvedBooleanUnsupported` naming the operand, face and kind, the limit;
-a key that resolves to no face stays the site's own defect.
+`CurvedBooleanUnsupported` naming the operand, the face and the kind
+`NoNormalAt::UnreadKind` carries, the limit; a key that resolves to no
+face stays the site's own defect.
 
 - `boolean/fate.rs` `normal_at`, the corner and piece-beside reading.
   Its row is `fate::declined_normal_rows`, in both operand labels, with
   the stale key.
 - `boolean/reduce.rs` `sheets_part`, the crossing on a boundary edge.
-  Same helper. No row reaches it with a spline face: it reads two
-  tangent covering sheets at a boundary-edge crossing, and no fixture
-  puts a spline face in a cover
-  (`splice/sheets-part-on-a-spline-boundary-edge-has-no-row` is the
-  boundary-edge half of the same gap).
-- `boolean/vtxfac.rs` `mint_node`. Same helper, for one spelling of the
-  class. No spline face can reach it: a node's faces are cylinder walls
-  (`node::is_wall`), so only a stale key reads no normal there, and that
-  stays `ClassificationInvariant`. A spindle face cannot reach it either,
-  for the same reason.
+  Same helper. No row reaches it with a spline face. It reads two
+  tangent covering sheets at a boundary-edge crossing.
+  - One try, on PR 7828's review: a box slab `[x0, x1] × [0.2, 0.8]`
+    whose top crosses the domed cube's boundary edge at `x = 0`, swept
+    both ways under a cover declared on every face pair, on either side
+    (`curved_lane_spline_rows::cover_all`).
+  - It sweeps clean where the slab's top sits below `z = 1`.
+  - Where the top lies at `z = 1`, the slab's edge stops first at
+    `SplineCrossingUnsettled { why: Floor }` against the dome.
+  - So `sheets_part` is not reached. A spline face in a cover is the
+    missing fixture; the boundary-edge half of the same gap is
+    `splice/sheets-part-on-a-spline-boundary-edge-has-no-row`.
+
+**At the site's invariant, not the limit.** `boolean/vtxfac.rs`
+`mint_node` keeps `ClassificationInvariant` for both `NoNormalAt` arms. A
+node's faces are cylinder walls (`node::is_wall`), which have an arm at
+every point, so any declined normal there is corrupt state, and reading
+it as a limit would under-report it.
 
 **Already right:**
 - `boolean/join.rs` `held_normal` and `spline_held_normal` (PR 7824);

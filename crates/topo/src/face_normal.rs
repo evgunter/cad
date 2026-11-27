@@ -672,7 +672,7 @@ pub(crate) fn face_outward_normal_or_why<T: Decide>(
         // [`spline_outward_normal_at`], and one without names the kind in
         // its own refusal. A spindle sheet's arm is not written yet.
         geom::Surface::Spindle { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => {
-            Ok(Err(NoNormalAt::UnreadKind))
+            Ok(Err(NoNormalAt::UnreadKind(surface.kind())))
         }
     }
 }
@@ -702,9 +702,9 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
 /// from a defect by this, not by re-deriving the kind.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum NoNormalAt {
-    /// The face is on a spline, approximating or spindle sheet, whose
-    /// normal has no arm at a point alone. A limit.
-    UnreadKind,
+    /// The face is on a spline, approximating or spindle sheet, of this
+    /// kind, whose normal has no arm at a point alone. A limit.
+    UnreadKind(geom::SurfaceKind),
     /// The key resolves to no face, or the face has no surface yet.
     Unresolved,
 }

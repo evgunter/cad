@@ -104,3 +104,8 @@ Signed: (CARVE orchestrator)
   - **Fixed:** three misfiled sites, `fate::normal_at`, `reduce::sheets_part` and `vtxfac::mint_node`. They now share one mapping, `BooleanError::of_declined_normal`: a spline sheet is `CurvedBooleanUnsupported`, and a stale key is the site's own defect.
   - **Reach:** `fate::declined_normal_rows` witnesses the reading. `sheets_part` has no spline-cover fixture, and `mint_node` reads cylinder walls only.
   - **Filed:** the sweep's blind spot, readers of `implicit_outward_normal` that read poison on a spline face, as onedoor `readers-of-the-implicit-outward-normal-read-poison-on-a-spline-face` (P2).
+  - **Review round (2026-11-27).**
+    - `mint_node` keeps `ClassificationInvariant` for both arms, since a declined normal on a cylinder wall is corrupt state, not a limit.
+    - `NoNormalAt::UnreadKind` now carries its `SurfaceKind`, so `of_declined_normal` no longer re-resolves the face.
+    - The onedoor P2 item is re-scoped: `leave_on` is gated by `splitting::classify::carrier_gate`, and five of its eleven hits are test code.
+    - One try at a `sheets_part` witness under a declared cover did not reach it; the item says so.

@@ -28,27 +28,32 @@ spline face:
   in-band escalation, where it is the reading's limit.
 - **If the reader tests for poison itself**, it decides what the poison
   means. `splitting::join::leave_on` reads it as a cone apex and
-  refuses `JoinError::SectionInvariant`, a kernel fault, for any wall
-  without a normal.
+  refuses `JoinError::SectionInvariant`. **A spline face cannot reach it**:
+  `splitting::classify::carrier_gate` refuses every `Nurbs`, `Approx`
+  and `Spindle` face before the split reads any crossing (PR 7828's
+  review).
+
+So every production hit refuses typed, as an escalation. That is
+misclassified, not silent and not a fault, which is why this is P2.
 
 ## Hit list
 
-`grep -rn "implicit_outward_normal(\|surface_outward_normal(\|chart_outward_normal(" crates/topo/src`
-outside tests and `face_normal.rs`. None of these was checked for a
-kind guard upstream:
+`grep -rn "implicit_outward_normal(\|surface_outward_normal(\|chart_outward_normal(" crates/topo/src`,
+less `face_normal.rs`. None of these was checked for a kind guard
+upstream. Each feeds a decided margin:
 
 - `boolean/reduce.rs` (≈2186): a junction's glued face, `junction_end_which`;
 - `boolean/reduce.rs` (≈2406): `face_corner_within_pi`;
 - `boolean/trace.rs` (≈527): `crossing`, through `surface_outward_normal`;
-- `boolean/contact_verify.rs` (≈1572, ≈1619);
 - `injective.rs` (≈1453): `chart_outward_normal`, from a chart normal the
   caller holds, so likely not this shape;
-- `ruled_region.rs` (≈701): a ruled region, so a quadric by
-  construction, likely not this shape;
-- `bound_side.rs` (≈1795, ≈2115, ≈2366);
-- `splitting/join.rs` (≈434): `leave_on`, the kernel-fault case above.
-  It is reached for a face with more than two crossings of the split
-  plane. Whether a spline face gets there is not known.
+- `ruled_region.rs` (≈701): a ruled region, so a quadric by construction,
+  likely not this shape;
+- `splitting/join.rs` (≈434): `leave_on`, gated as above.
+
+Five more hits are test code and are not in this item:
+`boolean/contact_verify.rs` (≈1572, ≈1619) and `bound_side.rs`
+(≈1795, ≈2115, ≈2366).
 
 ## Done when
 

@@ -838,7 +838,7 @@ fn normal_at<T: Decide>(
     match crate::face_normal::face_outward_normal_or_why(body, f, p, band) {
         Ok(Ok(n)) => Ok(n.vec()),
         Ok(Err(why)) => Err(BooleanError::of_declined_normal(
-            (body, operand),
+            operand,
             f,
             why,
             BooleanError::ClassificationInvariant { what },
