@@ -204,3 +204,12 @@ Signed: (CARVE orchestrator)
   - Worse, 82 `#[test]` fns on main before the merge are absent after it, 32 of them in self_intersection_proves_injectivity.rs (main had 270 fns, now 187). This traces to merge c609fb1cbcd ("the mechanical half") dropping about 76 main-added fns.
   - Class: a merge resolution can take the stack side wholesale. The check: compare `#[test]` sets of main^1 and the merge result (and main-side additions vs the merge base) before landing.
   - Audit, restoration and a production-code sweep handed to the one-band lane (branch lathe/restore-merge-dropped-tests).
+- 2026-11-27 (LATHE orchestrator) PR 7824's review round is pushed (909a9f833, a733cb009). Accepted: all nine items done.
+  - The spindle no-foot row was skipped: no cheap fixture exists.
+  - A nightly step now runs the reversed probe at 1e-6 and 1e-12.
+  - Filed `onedoor/three-readers-of-a-spline-foots-normal-share-no-door` and `cleavetail/a-seam-germ-read-at-a-spline-foot-charges-no-tilt`, both P3.
+  - Its reds are inherited only.
+  - The merge waits on lathe/restore-merge-dropped-tests landing first.
+- 2026-11-27 (LATHE orchestrator) Noted: the teapot lane filed `germ/a-circle-of-radius-1500-certifies-miss-on-two-true-roots-at-eps-1e-12`, P1, from a 1e-12 fuzz counterexample (seed 0x8b36961a61c3e5d1).
+  - A certified Miss on true roots is a wrong answer, and it is intermittent on main. P1 accepted.
+  - It belongs to the germ program, not LATHE.
