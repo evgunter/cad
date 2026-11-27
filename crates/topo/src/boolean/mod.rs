@@ -252,7 +252,10 @@ pub use ops::{
     union,
 };
 #[cfg(feature = "sweep-testing")]
-pub use ops::{StagePoints, arm_output_stage_points, take_output_stage_points};
+pub use ops::{
+    CarriedMinted, StagePoints, arm_carried_minted, arm_output_stage_points, take_carried_minted,
+    take_output_stage_points,
+};
 pub use overlap::{OverlapRefusal, OverlapUnread, overlap};
 pub use records::{CarryRefusal, Contact, ContactKind, ContactPairError, ContactRecords};
 pub(crate) use records::{Parting, incident};

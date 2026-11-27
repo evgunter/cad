@@ -847,21 +847,12 @@ pub(in crate::boolean) fn landings<'b, T: crate::props::AtRestPolicy>(
     for (k, &cells) in rows.iter().enumerate() {
         let record = super::reduce::index(k);
         let fates = cells.map(|c| lineage.fate(c));
-        // A minted cell an image of the cell's pieces also names (a
-        // vertex a join took into the piece's edge) is that piece.
+        // The minted cells read through the joins, those a piece also
+        // names dropped ([`crate::lineage::Division::minted_read`]).
         let minted: [Vec<Cell>; 2] = [0, 1].map(|i| {
-            let pieces: Vec<Cell> = fates[i]
-                .pieces()
-                .iter()
-                .map(|&p| lineage.joined(p))
-                .collect();
             fates[i]
                 .division()
-                .map_or(&[][..], |d| &d.minted)
-                .iter()
-                .map(|&m| lineage.joined(m))
-                .filter(|m| !pieces.contains(m))
-                .collect()
+                .map_or_else(Vec::new, |d| d.minted_read(|c| lineage.joined(c)))
         });
         let images = cells.map(|c| lineage.images(c));
         // An image that does not hold its input cell's geometry, where the

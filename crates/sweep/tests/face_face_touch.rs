@@ -1395,16 +1395,57 @@ fn rod_flush_plate(what: &str, z: (f64, f64)) {
     );
 }
 
-/// **A section the output stage merges into a face is no cell of the
-/// plate face's division** (`rod_flush_plate`, the flush block taller
-/// than the plate): the merge takes a section edge on the plate face's
-/// boundary into a face beyond its pieces, and the rod's record lands
-/// on the piece that holds the line. Red where the division names that
-/// face among its minted cells: the record refuses `Unread` on the
-/// rod's wall against it.
+/// **A section on the plate face's boundary is no cell of its
+/// division** (`rod_flush_plate`, the flush block taller than the
+/// plate): the cut's section along the face's top and bottom edges is
+/// the face's boundary, which the output stage merges into a face
+/// beyond its pieces, and the rod's record lands on the piece that
+/// holds the line. Red where the division names that section among its
+/// minted cells: the record refuses `Unread` on the rod's wall against
+/// the face the merge took it into.
 #[test]
 fn a_tall_flush_block_leaves_the_rods_touch_on_the_plates_piece() {
     rod_flush_plate("tall flush (z 0..1.5)", (0.0, 1.5));
+}
+
+/// **A division mints only cells in its cell's interior**
+/// (`topo::lineage::Division::minted`): the tall flush block's contact
+/// patch on the plate's y = 2 face runs from the face's bottom edge to
+/// its top, so the cut's section along z = 0 and z = 1 lies on the
+/// face's boundary, and the plate face's division names only the
+/// patch's two sides (x = 1, x = 1.8) between its pieces. Red where the
+/// section rule (`Incidence::chords`) counts a section cell beside the
+/// face's boundary as interior: the division names an edge along the
+/// face's bottom or top edge.
+#[test]
+fn a_tall_flush_blocks_division_names_no_edge_on_the_plate_faces_boundary() {
+    topo::arm_carried_minted();
+    rod_flush_plate("tall flush (z 0..1.5)", (0.0, 1.5));
+    let divisions = topo::take_carried_minted().expect("the row arms its thread");
+    let at = |c: &[String; 3]| c.clone().map(|x| x.parse::<f64>().expect("a coordinate"));
+    let near = |a: f64, b: f64| (a - b).abs() < 1e-9;
+    let edges: Vec<[[f64; 3]; 2]> = divisions
+        .iter()
+        .flatten()
+        .map(|[p, q]| [at(p), at(q)])
+        .collect();
+    let on_face = |[p, q]: &[[f64; 3]; 2]| near(p[1], 2.0) && near(q[1], 2.0);
+    assert!(
+        edges
+            .iter()
+            .any(|e| on_face(e) && near(e[0][0], 1.0) && near(e[1][0], 1.0)),
+        "the plate face's division names the patch's side at x = 1: {edges:?}"
+    );
+    let on_boundary = |e: &[[f64; 3]; 2]| {
+        on_face(e)
+            && [0.0, 1.0]
+                .iter()
+                .any(|&z| near(e[0][2], z) && near(e[1][2], z))
+    };
+    assert!(
+        !edges.iter().any(on_boundary),
+        "no division names an edge along the plate face's bottom or top edge: {edges:?}"
+    );
 }
 
 /// As [`a_tall_flush_block_leaves_the_rods_touch_on_the_plates_piece`],
