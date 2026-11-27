@@ -7380,7 +7380,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                     let n = normal.normalize();
                     let w = k.normalize() - n * n.dot(k.normalize());
                     let w2 = w.dot(w);
-                    let half2 = *rho * *rho - d * d / w2;
+                    let half2 = rho.powi(2) - d.powi(2) / w2;
                     if sign_as("bool_sphere_cut_meridian_crosses", Margin::of(half2 / *rho))?
                         != Sign::Positive
                     {
