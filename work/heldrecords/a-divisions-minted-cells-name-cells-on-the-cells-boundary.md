@@ -65,3 +65,44 @@ lane's follow-up.
   (`ci`) go red with the `fate_of` filter reverted.
 - A boundary-edge witness that refuses `Unread` today, if step 1 finds
   one, is this row's red.
+
+## Outcome (`heldrecords/interior-minted`)
+
+- **Step 1.** `Incidence::chords` (`crates/topo/src/boolean/ops.rs`)
+  now names a section cell only when every twin of it across the null
+  faces also bounds only the divided face's fragments. A twin is a
+  clone cell on the same point keys. A section along the face's
+  boundary has a twin on the neighbouring face, so it is none of the
+  face's cells.
+- **Steps 2 and 4.**
+  - The `fate_of` filter is gone; a debug assertion stands in its place.
+  - What the filter dropped on ci was always one of the division's own
+    pieces (a probe panicking on a dropped face outside the pieces
+    never fired). Each such face is a chord the merge took into the
+    fragment it divides.
+  - That case now falls under the shared rule below, and a face left
+    among `minted` after it is a debug-assertion failure.
+- **Step 3.**
+  - The normalisation has one home, `Division::minted_read`
+    (`crates/topo/src/lineage.rs`): a minted cell that reads as a piece
+    is that piece.
+  - `fate_of` states its divisions through it, read as they stand, and
+    `place_found` shares this through `fate_of`.
+  - `landings` reads through it, through the joins.
+- **S4.** With minted cells interior-only, four ci tests reach the
+  kept-pair `?` in `landings`. Each one pins that `Unread` as
+  expected:
+  - three are in-lane reads: two band escalations and one contradicted
+    verdict;
+  - the one out-of-lane read is the fillet's own kept face pair (a
+    conic trim with no region door, tracked by
+    `work/charttail/a-planar-face-with-a-conic-trim-has-no-region-door.md`).
+
+  No boundary image reaches it. The `?` rule is unchanged.
+- **Pin.**
+  `sweep face_face_touch::a_tall_flush_blocks_division_names_no_edge_on_the_plate_faces_boundary`
+  (`ci`) reads the carry's divisions through the `sweep-testing`
+  recorder `topo::arm_carried_minted`.
+  - It is red in main's state (the old section rule plus the face
+    filter), which names the edge (1, 2, 1)–(1.8, 2, 1).
+  - The three flush rows stay green in that state.
