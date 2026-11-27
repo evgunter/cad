@@ -233,3 +233,4 @@ Signed: (CARVE orchestrator)
   - Filed 2c: F1 stays refused.
   - Rejected for this unit: 1b and 2b, which change ORBIT's slit.rs closing and pole form.
   - Condition: the bypass-unsound ∩ must be sound or refuse typed under 1a + 2a, pinned. Review is dual Opus.
+- 2026-11-27 (LATHE orchestrator) Declined-normal readers: PR 7828 (head 5a92048c9). One mapping, `of_declined_normal`, applied at fate::normal_at and reduce::sheets_part (misfiled faults) and at vtxfac::mint_node. The census is in the item. The poison read of the implicit normal on a NURBS face is filed as onedoor P2. Review tier FULL single, Opus.
