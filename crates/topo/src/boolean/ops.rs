@@ -4802,9 +4802,16 @@ fn operand_fate<T: Real>(
 /// A cell's fate from its live pieces and minted cells and the clone
 /// cells it lost: removed where none is left, kept where it is neither
 /// divided nor lost any part, and otherwise divided, the lost cells its
-/// removed members.
+/// removed members. A minted edge or vertex the output stage's merge
+/// took into a face (its live image that face) is no cell of the
+/// division: the face holding it is one of the pieces where it holds
+/// the cell's interior, and beyond the cell otherwise.
 fn fate_of(pieces: Vec<Cell>, minted: Vec<Cell>, divided: bool, gone: Vec<Cell>) -> crate::Fate {
     use crate::lineage::Division;
+    let minted: Vec<Cell> = minted
+        .into_iter()
+        .filter(|c| !matches!(c, Cell::Face(_)))
+        .collect();
     match pieces.split_first() {
         None if minted.is_empty() => crate::Fate::Removed,
         Some((&at, copies)) if !divided && gone.is_empty() => crate::Fate::Kept {
