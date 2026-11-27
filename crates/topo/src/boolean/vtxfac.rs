@@ -1950,9 +1950,12 @@ pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
     let point = node.point;
     // Each face's outward normal at the node, which it lies on.
     let outward = |operand, body: &Body<T>, face| -> Result<Vec3<T>, BooleanError> {
-        match crate::face_normal::face_outward_normal_at(body, face, point, band) {
-            Ok(Some(n)) => Ok(n.vec()),
-            Ok(None) => Err(BooleanError::ClassificationInvariant {
+        match crate::face_normal::face_outward_normal_or_why(body, face, point, band) {
+            Ok(Ok(n)) => Ok(n.vec()),
+            // A node's faces are cylinder walls (`node::is_wall`), which
+            // have an arm at every point off the axis, so a declined normal
+            // here is a torn record whatever the reason.
+            Ok(Err(_)) => Err(BooleanError::ClassificationInvariant {
                 what: "a node's face has no outward normal",
             }),
             Err(refusal) => Err(BooleanError::of_pierced_normal(refusal, operand, face)),
