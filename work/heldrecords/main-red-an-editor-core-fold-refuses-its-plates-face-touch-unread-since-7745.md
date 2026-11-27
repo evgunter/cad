@@ -41,17 +41,19 @@ The row builds as it did on `cc90e26a7a1`, with no record dropped and no rule lo
 - **Fix.** `boolean::ops` `fate_of` drops a minted cell whose live image
   is a face: a division's minted cells are edges and vertices in the
   cell's interior. A face holding one is a piece where it holds the
-  cell's interior, and beyond the cell otherwise. A touch that lay
-  only on such a section is likely unreachable:
-  - The merge took the section edge in because the faces on both of
-    its sides were coplanar and merged, so the line it lay on is now in
-    that merged face's interior.
-  - A record whose touch lay only on that line would be a touch along
-    the merged seam, which a cut along the touch does not leave: the
-    reduction would have found it on the seam's own cells.
-
-  This is reconstructed by the follow-up lane: the PR 7825 review's
-  probes, not its text, reached the lane. No test reaches the case.
+  cell's interior, and beyond the cell otherwise. A record that the
+  filter would leave stale is likely unreachable (the PR 7825 review's
+  argument, rated likely, not proven):
+  - Chords are only edges and vertices, so a minted face arises only
+    from `Descendants::live` following a substitution.
+  - An interior section edge the merge kills has a fragment of the same
+    face on at least one side, so the merged face holds that fragment
+    and is a piece.
+  - So only a boundary section can image to a face beyond the cell. A
+    record whose touch lies only on the cell's boundary is not an
+    interior meet of that face, so it is not a record on it.
+  - In the trace, the killed edges were the patch's top and bottom
+    sides, on the plate face's boundary.
 - **Result.** The record lands on the plate's piece, as on
   `cc90e26a7a1`.
 

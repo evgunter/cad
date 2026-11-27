@@ -46,8 +46,15 @@ lane's follow-up.
 2. **Then reconsider the `fate_of` filter (S6)**: with the section rule
    interior-only it should never fire, and can become a debug assertion
    or go.
-3. **Then reconsider the two homes the PR 7825 review names for
-   normalising a division (S1)**, so one place owns it.
+3. **Then reconsider the two homes that normalise one list (S1).**
+   - `boolean::ops` `fate_of` drops minted faces by dimension.
+   - `boolean::records::landings` separately drops a minted cell whose
+     joined image a piece also names (the `minted` computation at the
+     head of its per-row loop).
+   - `place_found`'s call to `fate_of` shares the first, and nothing
+     ties it to the second.
+
+   One place should own the normalisation.
 4. **Fold in S2.** A minted face dropped by `fate_of` should lie beyond
    the pieces and be the image of a boundary cell. Assert it in debug
    builds while the filter stands, or drop the filter once step 1 holds.
