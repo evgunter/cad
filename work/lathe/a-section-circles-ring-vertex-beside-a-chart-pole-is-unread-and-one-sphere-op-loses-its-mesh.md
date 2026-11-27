@@ -63,3 +63,7 @@ Either:
 The first is the fix. The rows' wants record the ring refusal until it
 lands, and a meshed `trimmed, δ 10⁻³, a ∖ b` is the evidence it has.
 
+
+## 2026-11-27: on the one-band full revolve (PR 7414)
+
+On `lathe/full-revolve-one-band` merged with main at `1d33364737` (U4b's span-ordered meetings included), the ring reader places these rings. `a_circle_beside_a_pole_builds_though_the_mesher_refuses_it` and `a_trimmed_face_cut_beside_its_pole_builds` pass with every `10⁻³` op drawing; at `10⁻⁵` the two unions and `a ∖ b` refuse at a triangle folded over the chord beside the pole (`FoldedTriangle`, `work/tesslane/a-tilted-circle-near-a-sphere-pole-refuses-at-the-sphere-arm.md`), and the rest draw. No row there reads `DomainUnread { RingPlacementError::Undecided }`. The rows pin that reading, so the ring refusal this issue records does not reach a pinned row once PR 7414 lands.

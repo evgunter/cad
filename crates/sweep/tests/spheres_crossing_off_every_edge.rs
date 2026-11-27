@@ -28,7 +28,7 @@ use topo::{AtRestBody, BooleanError, BooleanResult};
 use crate::common::differential::outcome;
 use crate::common::oracles::{ball_lens as lens, ball_volume, cap_volume};
 
-use Want::{Budget, Draws, Folds, RingUnread};
+use Want::{Budget, Draws, Folds};
 
 /// A `y`-poled ball of radius `r` turned by `turn`, then moved to `c`.
 fn placed(r: f64, turn: Affine3<f64>, c: Vec3<f64>) -> AtRestBody<f64> {
@@ -90,12 +90,6 @@ enum Want {
     /// beside it near a chart pole
     /// (`work/tesslane/a-tilted-circle-near-a-sphere-pole-refuses-at-the-sphere-arm.md`).
     Folds,
-    /// `SOUND`, and the mesher refuses a face holding a section circle as
-    /// a ring, undecided: the ring reader cannot clear the ring's point of
-    /// an outer loop row whose chart box does not tighten, a seam's iso
-    /// arc or a tilted circle's image
-    /// (`work/lathe/an-analytic-outer-loops-whole-span-boxes-never-tighten-under-the-ring-reader.md`).
-    RingUnread,
     /// `SOUND`, and the mesher refuses at once: the tilted circle passes
     /// so near a chart pole that its uniform chord schedule asks one edge
     /// for more chords than the sphere arm's budget
@@ -129,18 +123,6 @@ fn check(
             assert!(
                 matches!(&drawn, Err(mesh::TessellateError::FoldedTriangle { .. })),
                 "{label}: the folded-triangle refusal, got {:?}",
-                drawn.map(|m| m.positions.len())
-            );
-        }
-        RingUnread => {
-            let drawn = mesh::tessellate(&bb.body, 5e-3, tol);
-            assert!(
-                matches!(
-                    &drawn,
-                    Err(mesh::TessellateError::DomainUnread { cause, .. })
-                        if matches!(**cause, topo::pcurves::RingPlacementError::Undecided { .. })
-                ),
-                "{label}: the unplaced ring's refusal, got {:?}",
                 drawn.map(|m| m.positions.len())
             );
         }
@@ -418,13 +400,9 @@ fn tilted_and_spun_charts_build() {
 /// `10⁻³` ball centred on the unit sphere (its circle passes about
 /// `5·10⁻⁷` from its own poles): each builds every op at its closed form.
 /// The cut keeps each ball's own chart, so the circle stays beside the
-/// unit ball's pole, and the mesher refuses a face holding it. At
-/// `10⁻⁵`, every face that keeps the circle as a ring is refused at its
-/// ring ([`Want::RingUnread`]). That includes the unit ball's remnant
-/// in `a ∪ b` and `a ∖ b`: its ring's one vertex is the cut meridian's
-/// crossing 10⁻⁵ from the pole, the first the crossing reading meets
-/// along the meridian. At `10⁻⁷` every face is over the sphere arm's
-/// chord budget
+/// unit ball's pole, and the mesher's sphere arm refuses a face holding
+/// it: folded beside the `10⁻⁵` circle in each union and `a ∖ b`
+/// ([`Want::Folds`]), and over its chord budget for every face at `10⁻⁷`
 /// (`work/tesslane/a-tilted-circle-near-a-sphere-pole-refuses-at-the-sphere-arm.md`).
 /// A face that keeps such a circle as a ring beside its chart pole (the
 /// small balls', whose circles pass beside their own poles, outside the
