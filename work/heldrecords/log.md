@@ -395,3 +395,8 @@
   - the gate flip.
 
   Those four rows are marked blocked on it. `a-built-sliver…` stays parked on its own blocker. Once the editor-core red lands, the program has only blocked rows left, and the sitting hands back as blocked on PR 7124.
+- 2026-11-27 The editor-core P0 fix is up as PR 7825 (head c088350de7).
+  - Cause: since PR 7745, section edges are named, and the coplanar merge substitutes faces for two of them. So the minted cells included result faces, and an out-of-lane (wall, merged face) pair refused `Unread`.
+  - Fix: `fate_of` drops a minted cell whose live image is a face.
+  - Evidence: a full default per-test run over three crates. Built→refused is empty.
+  - Single FULL review dispatched (session_018u3gVFjNGPDis7jF2MHewX).
