@@ -2211,3 +2211,8 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
 - 2026-11-26 23:55 — **`[sizes]` S1 delivered** (PR 7821, head `2c17bfe22`). Its commit carried a model-naming trailer.
   - **Re-landed** by the orchestrator as **PR 7822**, a new branch `germ/sizes-s1-clean` with a new commit `8e924be73` (same tree and parent, trailer dropped). No history was rewritten; 7821 is closed.
   - A single FULL Opus review was dispatched on 7822.
+- 2026-11-27 00:10 — **PR 7822 (`[sizes]` S1) merged** as `febdf28c1`.
+  - Review: MERGEABLE, no MAJOR; claims held under a 600k-pattern fuzz.
+  - CI: kernel, app and lint green; mesh was still running (geom-core only, low risk).
+  - **The S1 MINORs** (the refusal's Told role is always Given; the "is zero" wording for `[-1,0]`; three `size.rs` doc lines) are **carried into S2**.
+  - **S2 (H, dual) dispatched** to a fresh Opus session on `germ/sizes-s2`, with a pre-push trailer check in the brief.
