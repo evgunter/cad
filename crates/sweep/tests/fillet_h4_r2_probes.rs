@@ -85,8 +85,8 @@ fn the_band_faces_sense_bit_folds_the_stored_verdict_on_both_sides() {
 /// band is the LADDER.** The union is built through the public boolean
 /// door and validated as it stands; the boss's rim is then carved and
 /// the band's neighbours read off the body: exactly ONE plane face (the
-/// top, keeping its key) and TWO sphere faces, each ring-free — the
-/// ladder's own shape (a ring of one plane face, two half-caps) rather
+/// top, keeping its key) and ONE sphere face, ring-free — the
+/// ladder's own shape (a ring of one plane face, one ring-free cap) rather
 /// than an inference from the volume's sign.
 #[test]
 fn the_boss_union_is_valid_at_rest_and_its_band_is_the_ladder() {
@@ -109,11 +109,7 @@ fn the_boss_union_is_valid_at_rest_and_its_band_is_the_ladder() {
         })
         .map(|(k, _)| k)
         .collect();
-    assert_eq!(
-        arcs.len(),
-        2,
-        "the boss's rim is two arcs across the cap's seam"
-    );
+    assert_eq!(arcs.len(), 1, "the boss's rim is one closed edge");
     let top = boss
         .faces()
         .find(|(fk, _)| {
@@ -150,15 +146,15 @@ fn the_boss_union_is_valid_at_rest_and_its_band_is_the_ladder() {
             }
             Ok(Surface::Sphere { .. }) => {
                 spheres += 1;
-                assert!(fd.rings.is_empty(), "a half-cap is ring-free");
+                assert!(fd.rings.is_empty(), "the cap is ring-free");
             }
             other => panic!("the band's neighbours are the plane and the cap, got {other:?}"),
         }
     }
     assert_eq!(
         (planes, spheres),
-        (1, 2),
-        "the LADDER: one plane face and two half-caps around the band, got {around:?}"
+        (1, 1),
+        "the LADDER: one plane face and the cap around the band, got {around:?}"
     );
     assert!(
         !out.body.get_face(band).unwrap().sense,

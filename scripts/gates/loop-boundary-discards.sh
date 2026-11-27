@@ -147,7 +147,6 @@ REGISTER=(
   "crates/sweep/src/blend/build.rs|face_cycle||1|unaudited"
   "crates/sweep/src/blend/surgery.rs|loop_walk||1|unaudited"
   "crates/topo/src/boolean/join.rs|region_halves||1|unaudited"
-  "crates/topo/src/boolean/ops.rs|pinched_at_cone_apex|else { continue|1|audited: a lone-vertex loop holds one vertex once, so it passes no vertex twice; the at-rest gate after this scan reads it as it reads every loop"
   "crates/topo/src/boolean/ops.rs|face_boundary_meets||1|unaudited"
   "crates/topo/src/rim_wedge.rs|face_boundary_arcs||1|unaudited"
   "crates/topo/src/rim_wedge.rs|rim_edges_convex||1|audited: a lone-vertex loop holds no edge, so it has none on the rim for the certificate to read; the rim itself was found among the face's edges (shared_rim), and an edge the walk meets that carries no certified curve answers false rather than passing over"

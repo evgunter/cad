@@ -5,16 +5,15 @@
 //! edge's two traversals a period apart, the whole chart strip, rather
 //! than as one zero-width column.
 //!
-//! No door mints a wrap tip yet, so each body is a full revolve cut by
-//! Euler operators: the two meridians the revolve leaves at a pole or an
-//! apex become one by `kef`, restated as the face's wrap edge.
+//! A full revolve mints the tips: its curved wall reaches each pole or
+//! apex by one wrap edge.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
 use core::f64::consts::PI;
 use geom::Curve3;
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
-use geom_core::{Band, Point2, Point3, Tol};
+use geom_brep::EdgeCurveSpec;
+use geom_core::{Point2, Point3, Tol};
 use mesh::validate::{check_mesh, check_volume};
 use sweep::Revolution;
 use sweep::test_support::revolved_about_y;
@@ -49,30 +48,15 @@ fn leaving(body: &Body<f64>, v: VertexKey) -> Vec<HalfEdgeKey> {
         .collect()
 }
 
-/// The two meridians a full revolve leaves at `pole` made one wrap edge:
-/// the second is killed and the first restated as the merged face's wrap
-/// edge. Where `join`, the rim's two arcs are then joined back into one.
-fn one_wrap_edge(mut body: Body<f64>, pole: Point3<f64>, join: bool) -> Body<f64> {
+/// A full revolve reaches `pole` by one wrap edge: the body as built.
+fn one_wrap_edge(body: Body<f64>, pole: Point3<f64>) -> Body<f64> {
     let out = leaving(&body, vertex_at(&body, pole));
-    assert_eq!(out.len(), 2, "two meridians leave the pole");
-    let wraps = body.get_half_edge(out[0]).unwrap().edge;
-    let face = body.face_of_half_edge(out[0]).unwrap();
-    let surface = body.get_face(face).unwrap().surface;
-    body.kef_describing(
-        out[1],
-        &[(wraps, EdgeDescriptionSpec::wrap(surface))],
-        tol(),
-    )
-    .expect("the survivor restates as the face's wrap edge");
-    if join {
-        body.join_edges(Band::linear(tol()).unwrap(), tol())
-            .expect("the rim joins");
-    }
+    assert_eq!(out.len(), 1, "one wrap edge leaves the pole");
     body
 }
 
-/// The unit ball, its two pole-to-pole bands.
-fn two_band_ball() -> Body<f64> {
+/// The unit ball, one face across its one meridian.
+fn ball() -> Body<f64> {
     revolved_about_y(
         vec![(Point2::new(0.0, -1.0), 1.0), (Point2::new(0.0, 1.0), 0.0)],
         Revolution::Full,
@@ -93,7 +77,7 @@ fn two_band_ball() -> Body<f64> {
 fn the_one_face_ball_meshes_as_the_ball_or_its_void_from_either_pole() {
     let (volume, area) = BALL;
     for (name, pole) in [("north", NORTH), ("south", SOUTH)] {
-        let ball = one_wrap_edge(two_band_ball(), pole, false);
+        let ball = one_wrap_edge(ball(), pole);
         assert_eq!(
             (ball.faces().count(), ball.edges().count()),
             (1, 1),
@@ -137,7 +121,7 @@ fn a_split_wrap_edge_is_one_strip_whichever_half_the_walk_opens_on() {
     let (volume, area) = BALL;
     for (name, pole) in [("north", NORTH), ("south", SOUTH)] {
         for t in [0.05, 0.7, 1.5, 2.5, 3.1] {
-            let mut ball = one_wrap_edge(two_band_ball(), pole, false);
+            let mut ball = one_wrap_edge(ball(), pole);
             let wraps = ball.edges().map(|(e, _)| e).next().expect("the wrap edge");
             let split = ball
                 .split_edge(wraps, t, tol())
@@ -165,11 +149,10 @@ fn a_split_wrap_edge_is_one_strip_whichever_half_the_walk_opens_on() {
 
 /// **The one-face spindle meshes as its revolve.** A lemon, a spindle
 /// torus's outer sheet whose two apexes are the singular points, revolved
-/// in two bands and made one face with one wrap edge from either apex: the
-/// strip's turn round each apex is the lift's, on a chart whose singular
-/// points are sheet apexes, not a sphere's poles. It meshes watertight
-/// with its two-band revolve's volume, and reverted as its void, at three
-/// bulges.
+/// fully into one face with one wrap edge from either apex: the strip's
+/// turn round each apex is the lift's, on a chart whose singular points
+/// are sheet apexes, not a sphere's poles. It meshes watertight with its
+/// revolve's volume, and reverted as its void, at three bulges.
 #[test]
 fn the_one_face_spindle_meshes_as_its_revolve() {
     for bulge in [0.3, 0.6, 0.9] {
@@ -185,9 +168,9 @@ fn the_one_face_spindle_meshes_as_its_revolve() {
                 )
             };
             let two_bands = mesh::validate::signed_volume(
-                &mesh::tessellate(&lemon(), DELTA, tol()).expect("the two-band lemon meshes"),
+                &mesh::tessellate(&lemon(), DELTA, tol()).expect("the lemon meshes"),
             );
-            let one = one_wrap_edge(lemon(), pole, false);
+            let one = one_wrap_edge(lemon(), pole);
             let mesh = mesh::tessellate(&one, DELTA, tol())
                 .unwrap_or_else(|e| panic!("bulge {bulge} {name}: the one-face lemon: {e:?}"));
             assert_eq!(
@@ -198,7 +181,7 @@ fn the_one_face_spindle_meshes_as_its_revolve() {
             let volume = mesh::validate::signed_volume(&mesh);
             assert!(
                 (volume - two_bands).abs() < 0.05 * two_bands,
-                "bulge {bulge} {name}: volume {volume} against the two-band {two_bands}"
+                "bulge {bulge} {name}: volume {volume} against the revolve's {two_bands}"
             );
             let void = mesh::tessellate(&one.revert().expect("reverts"), DELTA, tol())
                 .unwrap_or_else(|e| panic!("bulge {bulge} {name}: the reverted lemon: {e:?}"));
@@ -211,9 +194,9 @@ fn the_one_face_spindle_meshes_as_its_revolve() {
     }
 }
 
-/// **A slit between the tips is not the strip.** The two-band ball with
-/// one meridian cut at two points, a second arc stated on that meridian
-/// between them (a slit face), and the other meridian killed. The ball
+/// **A slit between the tips is not the strip.** The one-face ball with
+/// its meridian cut at two points and a second arc stated on that
+/// meridian between them (a slit face). The ball
 /// face's loop runs pole to pole and back, its spurs ending on both
 /// poles, but its chart image keeps the slit's two arcs, so the face is
 /// not read as the strip: it is walked as any other rimless loop, its
@@ -226,7 +209,7 @@ fn the_one_face_spindle_meshes_as_its_revolve() {
 /// reading the walk takes of it.
 #[test]
 fn a_slit_between_the_tips_is_not_the_strip() {
-    let mut body = two_band_ball();
+    let mut body = ball();
     let out = leaving(&body, vertex_at(&body, NORTH));
     let cut = body.get_half_edge(out[0]).unwrap().edge;
     let p = body.split_edge(cut, 1.0, tol()).expect("cut at P");
@@ -235,8 +218,10 @@ fn a_slit_between_the_tips_is_not_the_strip() {
         point(&body, p.vertex) - Point3::origin(),
         point(&body, q.vertex) - Point3::origin(),
     );
-    let normal = pv.cross(qv) * (1.0 / pv.cross(qv).norm());
-    let meridian = Curve3::circle(Point3::origin(), normal, 1.0, pv);
+    // The new arc runs Q to P, so `mef` mints the slit face as the new
+    // face and the ball face keeps its arena slot ahead of it.
+    let normal = qv.cross(pv) * (1.0 / qv.cross(pv).norm());
+    let meridian = Curve3::circle(Point3::origin(), normal, 1.0, qv);
     let pq = body.get_edge(p.new_edge).unwrap();
     let from_p = [pq.he_plus, pq.he_minus]
         .into_iter()
@@ -245,16 +230,14 @@ fn a_slit_between_the_tips_is_not_the_strip() {
     let to_q = body.get_half_edge(from_p).unwrap().next;
     body.mef(
         MefSite::Chords {
-            he1: from_p,
-            he2: to_q,
+            he1: to_q,
+            he2: from_p,
         },
         EdgeCurveSpec::arc_of_circle(meridian, 0.0, pv.dot(qv).acos()).unwrap(),
         FaceSurface::Inherit,
         tol(),
     )
     .expect("the slit face");
-    body.kef_describing(out[1], &[], tol())
-        .expect("the bands merge into the ball face");
     let ball_face = body.face_of_half_edge(out[0]).unwrap();
     assert_eq!(body.faces().count(), 2, "the ball face and the slit face");
     assert_eq!(
@@ -317,21 +300,24 @@ fn digest(mesh: &mesh::Mesh) -> u64 {
 /// carries a rim, so its walk never reaches the wrap strip. Each cap is
 /// tier-3 valid and passes the acceptance battery, and its mesh is pinned
 /// to the bytes it had before the walk read a strip. A moved digest is a
-/// changed mesh: re-pin it with its cause, or fix the change.
+/// changed mesh: re-pin it with its cause, or fix the change. Re-pinned
+/// when the revolve came to build the cap's wall as one band (PR 7414):
+/// the body is the revolve's own rather than two bands merged by hand,
+/// so its keys and arena order moved.
 #[test]
 fn a_wrap_tip_cap_meshes_off_its_rim() {
     for (name, body, exact, pinned) in [
         (
             "hemisphere",
-            one_wrap_edge(hemisphere(), NORTH, true),
+            one_wrap_edge(hemisphere(), NORTH),
             (2.0 * PI / 3.0, 3.0 * PI),
-            0x892d_5d6f_cbc6_497f_u64,
+            0xa788_be8c_4cab_dfcc_u64,
         ),
         (
             "cone",
-            one_wrap_edge(cone(), NORTH, true),
+            one_wrap_edge(cone(), NORTH),
             (PI / 3.0, PI * (1.0 + 2.0f64.sqrt())),
-            0xc2c7_c2b9_1072_e474,
+            0xd080_9d14_121d_fcc8,
         ),
     ] {
         assert_eq!(

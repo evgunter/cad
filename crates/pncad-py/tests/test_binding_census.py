@@ -925,7 +925,7 @@ BOUND_AS = {
     # `NormalizationKind::ChartSingularityVertex`'s payload, at the same
     # spelling one attribute over: where the file put the pole or apex
     # import made a vertex, as `singularity` beside the `kind` word
-    # (`interior`, `inside_edge`, `valence_one_vertex`; `None` on every
+    # (`interior`, `inside_edge`; `None` on every
     # other arm), the way `promoted_to` carries `surface_promotion`'s.
     "SingularityFound": "StructureNormalization.singularity",
     # `NormalizationKind::Snapped`'s payload, at the same spelling: which
@@ -3510,9 +3510,9 @@ NOT_BOUND = {
     # already having a spelling; `BOUND_AS` says how, and
     # `tests/test_validate.py` is the positive form.
     # B-NAME-BUILDERS IS GONE FROM THIS ROSTER, closed at LIB-PYNAMES,
-    # and the id is gone from `FAMILIES` with it. All five names left
+    # and the id is gone from `FAMILIES` with it. All four names left
     # and none needed a `BOUND_AS`: `pncad.pyi` declares `band`,
-    # `band_pi`, `band_rim`, `meridian_vertex` and `carried` at those
+    # `band_rim`, `meridian_vertex` and `carried` at those
     # exact spellings, so rule 1 accounts them. It is B-FORMAT's case
     # with one difference worth the line: the family was chartered
     # over a door's ANSWER rather than its argument — the name TEXT

@@ -51,3 +51,61 @@ Signed: (CARVE orchestrator)
   - the certificate fix misses the full-turn torus's latitude edge, and the cause is a class across six call sites.
   Fix pass dispatched; the same pair re-reviews.
 - 2026-11-23 — **An inherited red, mis-diagnosed and corrected.** On PR 7425 I wrote that main had settled the `payload-rung-sweep` red. I had run the gate without CI's `--check`. With it, main fails the same way, and the red is held as `work/tally/main-red-payload-rung-sweep-flags-node-error-class-half-of-a-family` (P1). The correction is posted on the PR. **Lesson:** reproduce a gate with the exact invocation the workflow uses (`grep` the workflow for it) before calling a red inherited or settled.
+- 2026-11-26 — **Closed `a-full-revolves-curved-wall-carries-two-seam-meridians-nobody-wrote` (PR 7414): a full revolve's curved wall is one band**, and each pole or apex is its wrap edge's tip. Ev's rulings were on `[ev]` PRs 6014 and 6085.
+  - **The stack.** The one-band build broke ~60 kernel paths that worked on main. Each was filed P1, fixed in its own reviewed PR, and merged into the stack (the landing order logged 2026-11-22): 7484 split, 7473 mesh seam-twice, 7435 shell, 7476 one-site join, 7487 cover, 7440 interior loop, 7532 wrap-edge station, 7556 and 7752 mesh budget, 7585 pinched cone loop, 7744 census at the gate, 7575 two-curved interior loop, 7581 outline by decision, 7774 import wrap tip, 7736 flipped sphere face, 7802 and 7803.
+  - **The main merge.** It met ORBIT's closed-cut framework in `ops.rs`, and the stack's semantics were ported onto it. The crossings-path cut-in is gated on `close_cuts`' premises; its capability is P1 `close-cuts-is-not-total-on-crossings-path-cut-ins`, with seam notes to ORBIT (PRs 7796, 7810).
+  - **Reviews.** A dual (two Opus) at every round: the build and re-baselines, the re-review, the final re-review, and the port and its re-review. Both approved at the end.
+  - **Closed with it:**
+    - 18 consumer rows;
+    - the main merge's P0;
+    - the moot surviving-cut P2;
+    - IMPORTGATE's claimed wrap-tip row;
+    - the claimed SPIRICARM and TESSLANE rows (the pinched cone loop and the outer-loop boxes).
+  - **Open with it:**
+    - the cone-vs-off-axis-ball regression, re-banded P1 (loud and owned);
+    - `a-section-loop-inside-two-one-band-curved-faces-…` (P1), whose germ residue is pinned red.
+  - **Inherited reds on the landing head, all main's:**
+    - the cylinder-prism corner at 1e-12 (TESSLIE);
+    - tess-lint's baseline census (GREEN/INSTR);
+    - `a_cap_moved_off_a_frustum_wedge_apex` (INSIDE, filed in PR 7800);
+    - `cell_region_bodies` at 1e-12 (EMBEDWALK, PR 7810);
+    - the plain witness, folded oblique and footballs rows at their ε.
+  - No model-compare rows (rule 12, Fable outage).
+- 2026-11-27 — **(LATHE teapot lane) The teapot spout's section loop reads its sides at the spout's spline walls** (P0 `the-teapot-spouts-union-stops-at-section-loop-undecided-where-its-chords-hold-in-a-spline-wall`, branch `lathe/teapot-spout-section-loop`).
+  - **Which chords.** At ε 1e-9 and 1e-6, the loops that reach the chord reading are on the vessel's side: four regions and sixteen chords. Every chord is held strictly inside one of the spout's four NURBS walls, and each was passed as a limit.
+  - **The fix.** No design fork. The placement door already returned the in-trim foot, and `holding_face_normal` dropped it. It now keeps it and reads the spline normal there, as `slit::spline_floor` and `vtxfac` do. All sixteen chords decide, and wall 3 stops at the volume lane, as on main before the one-band merge.
+  - **Filed.** The region-side arm, a chord whose region is a spline face, on cleavetail's slate: `a-section-chord-on-a-spline-region-reads-no-region-normal` (P3).
+  - **End-to-end fixtures that do not reach the reading.** A post through a domed cube stops at a plane × NURBS `ImageMiss` (2e-7). A ball across a loft wall stops at `SplineCrossingUnsettled { why: Floor }`. So the both-orders row is the teapot itself, as a second document request with the spout first.
+- 2026-11-27 — **(LATHE teapot lane) PR 7824's review round** (R1 soundness, R2 tests and style; no MAJOR from either).
+  - **The foot's premise, corrected.** The placement certifies nothing about a second in-trim sheet within the band; the PR had said it did. The text now says so in `spline_held_normal`'s doc and vtxfac's pierce comment. `holding_face_normal` is listed as a reader in `splice/the-spline-placement-read-certifies-no-second-in-trim-foot`.
+  - **Tests.**
+    - The unit row's operand loop tested a label only, so it is dropped.
+    - R1's two witnesses are added: the reverted dome's flipped normal (0.29 s, so it goes in the slow set) and a point half a band off.
+    - `spline_held_normal`'s arms each get a row: `At` → `HoldingUnread::Normal`; a non-spline or stale key → `JoinDesync`.
+    - The spindle no-foot limit has no row: no spindle fixture with a placed point exists cheaply.
+    - `dome` and `domed_cube` are moved to `test_support_fixtures`.
+  - **Nightly.** A step runs `wall3_reversed_probe` at 1e-6 and 1e-12.
+  - **Filed:**
+    - onedoor `three-readers-of-a-spline-foots-normal-share-no-door` (P3);
+    - cleavetail `a-seam-germ-read-at-a-spline-foot-charges-no-tilt` (P3);
+    - R2's other-order and other-pose measurements added to partframes' dome-post row, with the pcert limb pointer.
+
+- 2026-11-27 — **A main merge resolution that takes the stack's side of a file wholesale drops main's work on it** (P0 from PR 7414's landing; restored on `lathe/restore-merge-dropped-tests`).
+  - **What happened.** Merge `c609fb1cbc` ("the mechanical half") resolved `crates/sweep/tests/self_intersection_proves_injectivity.rs` to the stack's side. That dropped 31 rows (and their helpers) that main had added since the fork, EMBEDWALK's injectivity work: the needle, the thin slabs, the notched rod, the deep keel, cones off the origin, the split cones. No stack commit ever removed them, so no review saw them go. The slow set's 28 dead names were the same class: 15 named the dropped rows, and 13 were the stack's spellings of rows main had since renamed or retired, kept where the merge resolved `.config/nextest.toml` (dropped; each successor was already listed).
+  - **The restoration.** Main's file, with the stack's six commits to it replayed by three-way apply. Six of the restored rows read one band differently; each is re-pinned to what it measures, and four whose names stated a two-arc structure are renamed.
+  - **The audit.** The landing's other 51 lost rows were each removed by a non-merge stack commit (a retirement or a rename). Production code: every line the landing removed from main traces to a stack commit, or to a ruling recorded in `the-main-merge-drops-mains-pole-form-and-pole-side-column-intents` (pole form, centroid azimuth, pole-side columns, seam-twice). The one exception was `reach_split_gate_per_face`'s completing-finish assertion, which is restored.
+  - **How to check next time**, before a main merge lands and again on the landing:
+    1. List the `#[test]` fns at main and at the merge result. Each one gone from the whole tree must have a non-merge commit on the branch that removed it: `git log --no-merges -S'fn NAME(' main..branch`. One with no such commit was dropped by a resolution.
+    2. Do the same for the lines the landing's diff removes from main (`git diff -U0 main merge`): each removed line must appear in some non-merge branch commit's removed lines.
+    3. Run `scripts/check-slow-set-names.py --complete` on the merge result. A dead name is often the first visible sign of a dropped row.
+    4. For a file resolved to one side, do not take that side. Take main's version and replay the branch's own commits to the file onto it (`git show C -- F | git apply --3way`, oldest first).
+- 2026-11-27 — **(LATHE declined-normal lane) Readers that map a declined face normal to a kernel fault** (P1 `other-readers-map-a-declined-face-normal-to-a-kernel-fault`, branch `lathe/declined-normal-readers`).
+  - **The census** of every production reader is in the item's `## Census`.
+  - **Fixed:** three misfiled sites, `fate::normal_at`, `reduce::sheets_part` and `vtxfac::mint_node`. They now share one mapping, `BooleanError::of_declined_normal`: a spline sheet is `CurvedBooleanUnsupported`, and a stale key is the site's own defect.
+  - **Reach:** `fate::declined_normal_rows` witnesses the reading. `sheets_part` has no spline-cover fixture, and `mint_node` reads cylinder walls only.
+  - **Filed:** the sweep's blind spot, readers of `implicit_outward_normal` that read poison on a spline face, as onedoor `readers-of-the-implicit-outward-normal-read-poison-on-a-spline-face` (P2).
+  - **Review round (2026-11-27).**
+    - `mint_node` keeps `ClassificationInvariant` for both arms, since a declined normal on a cylinder wall is corrupt state, not a limit.
+    - `NoNormalAt::UnreadKind` now carries its `SurfaceKind`, so `of_declined_normal` no longer re-resolves the face.
+    - The onedoor P2 item is re-scoped: `leave_on` is gated by `splitting::classify::carrier_gate`, and five of its eleven hits are test code.
+    - One try at a `sheets_part` witness under a declared cover did not reach it; the item says so.

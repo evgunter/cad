@@ -54,6 +54,8 @@
 mod common;
 mod euler_cube_support;
 
+#[path = "a_remnant_keeps_its_seam.rs"]
+mod a_remnant_keeps_its_seam;
 #[path = "budget_meter.rs"]
 mod budget_meter;
 #[path = "cert10r1_assembly_accounting.rs"]

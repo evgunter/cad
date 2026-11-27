@@ -1,18 +1,17 @@
 //! **A record on a cell a sphere cut-in divides lands on the piece that
-//! holds it.** The banded ball (the unit ball kept between `y = ±0.6`)
-//! carries a rest: a small cube's corner touching one half-band, or the
-//! rim arc that half-band meets the plane `y = 0.6` along, the cube
-//! turned so none of its faces is tangent there. A slab whose plane lies
-//! 0.985 from the centre toward latitude 10° at azimuth π/2 cuts a cap
-//! off that half-band with no edge crossing, so the op cuts the
-//! half-band in along its meridian through the circle, the plane
-//! `x = 0`, before it re-enters; the cut's ends split both rim arcs
-//! there. A cut keeps the divided cell's key on one piece and mints the
-//! other; the rest lies at azimuth 60° (`x > 0`) or 120° (`x < 0`), so
-//! one of the two poses has it on the minted piece. The carry reads the
-//! face and the arc through the cut, and the output stage then closes the
-//! cut, so in either pose the record lands once, on the half-band's face
-//! or on its rim arc.
+//! holds it.** The banded ball (the unit ball kept between `y = ±0.6`,
+//! one band reaching both rims) carries a rest: a small cube's corner
+//! touching the band, or a rim arc the band meets the plane `y = 0.6`
+//! along, the cube turned so none of its faces is tangent there. A slab
+//! whose plane lies 0.985 from the centre toward latitude 10° at azimuth
+//! π/2 cuts a cap off the band with no edge crossing, so the op cuts the
+//! band in along its meridian through the circle, the plane `x = 0`,
+//! before it re-enters; the cut's ends split both rims there. A cut keeps
+//! a divided cell's key on one piece and mints the other; the rest lies
+//! at azimuth 60° (`x > 0`) or 120° (`x < 0`), on either side of the
+//! cut. The carry reads the face and the arc through the cut, and the
+//! output stage then closes the cut, so in either pose the record lands
+//! once, on the band's face or on its rim arc.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
@@ -72,7 +71,7 @@ fn rested(what: &str, banded: &AtRestBody<f64>, cube: &AtRestBody<f64>) -> Boole
 }
 
 /// `rested` `op` `slab`, carrying `rested`'s records, which cuts the
-/// half-band in once: `rested` first, or second where `as_b`.
+/// band in once: `rested` first, or second where `as_b`.
 fn cut_by(
     what: &str,
     (op, as_b): (BooleanOp, bool),
@@ -108,7 +107,7 @@ fn cut_by(
     let once = if as_b { [0, 1] } else { [1, 0] };
     assert!(
         cuts == [once],
-        "{what}: the slab cuts the half-band in once: {cuts:?}"
+        "{what}: the slab cuts the band in once: {cuts:?}"
     );
     r
 }
@@ -165,10 +164,10 @@ fn a_rest_on_either_piece_of_a_cut_in_face_lands_on_that_piece() {
         assert_eq!(
             rested.contacts.vertex_face().count(),
             1,
-            "az {az}: the corner rests on the half-band: {:?}",
+            "az {az}: the corner rests on the band: {:?}",
             rested.contacts
         );
-        // The ball second too: whichever piece of the half-band the
+        // The ball second too: whichever piece of the band the
         // closing keeps, a record on the other lands on it through the
         // closing's row.
         for (op, as_b) in [
@@ -184,12 +183,19 @@ fn a_rest_on_either_piece_of_a_cut_in_face_lands_on_that_piece() {
             let (&[(_, face)], 1) = (&rests[..], r.contacts.len()) else {
                 panic!("{what}: the rest lands once: {:?}", r.contacts)
             };
-            // The output stage closes the cut again, so the half-band is
-            // one face across it, and the record lands on that face.
+            // The output stage closes the cut again, so the band is one
+            // face across it, the body's one sphere face, and the record
+            // lands on that face.
+            let spheres: Vec<FaceKey> = r
+                .body
+                .faces()
+                .map(|(k, _)| k)
+                .filter(|&k| matches!(r.body.face_surface(k), Ok(topo::Surface::Sphere { .. })))
+                .collect();
             assert!(
-                matches!(r.body.face_surface(face), Ok(topo::Surface::Sphere { .. }))
-                    && face_xs(&r.body, face).iter().any(|&x| x * n.x > 0.0),
-                "{what}: the record lands on the half-band's face, x {:?}",
+                spheres == [face],
+                "{what}: the record lands on the band's face, the one sphere face {spheres:?}, \
+                 at x {:?}",
                 face_xs(&r.body, face)
             );
         }

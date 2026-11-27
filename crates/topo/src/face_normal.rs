@@ -567,30 +567,31 @@ fn ring_half(
 ///
 /// [`NormalAtError`] — an in-band margin, a torus outside the ring
 /// convention, a point definitely off the surface, or a cone's apex. A
-/// face key that no longer resolves, a spline face and a face with no
-/// surface yet are `Ok(None)`.
+/// face with no normal to read is `Ok(Err(_))`, by why ([`NoNormalAt`]):
+/// a spline, approximating or spindle sheet, or a key that no longer
+/// resolves to a face on a surface.
 ///
 /// # Panics
 ///
 /// Where the surface a resolved face names does not resolve (D2 row 4).
-pub(crate) fn face_outward_normal_at<T: Decide>(
+pub(crate) fn face_outward_normal_or_why<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     p: Point3<T>,
     band: Band,
-) -> Result<Option<OutwardNormal<T>>, NormalAtError> {
+) -> Result<Result<OutwardNormal<T>, NoNormalAt>, NormalAtError> {
     let Some(f) = body.face(face) else {
-        return Ok(None);
+        return Ok(Err(NoNormalAt::Unresolved));
     };
     // A pending face has no arm at a point, as a spline chart has none:
     // a caller whose refusal names the cause reads the slot apart.
     let Ok(surface) = f.surface() else {
-        return Ok(None);
+        return Ok(Err(NoNormalAt::Unresolved));
     };
     match surface {
         geom::Surface::Plane { frame, .. } => {
             let normal = frame.axis();
-            Ok(Some(plane_outward_normal(f.record(), normal)))
+            Ok(Ok(plane_outward_normal(f.record(), normal)))
         }
         geom::Surface::Cylinder { .. }
         | geom::Surface::Sphere { .. }
@@ -623,7 +624,7 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
             let grad = geom_brep::implicit_gradient(surface, p);
             let margin = Margin::levered(grad.norm() - T::one(), arm);
             match decide("bool_pierce_normal_on_chart", margin, band) {
-                Ok(Sign::Zero) => Ok(Some(OutwardNormal::from_chart(grad, f.sense()))),
+                Ok(Sign::Zero) => Ok(Ok(OutwardNormal::from_chart(grad, f.sense()))),
                 Ok(Sign::Positive | Sign::Negative) => Err(NormalAtError::OffSurface),
                 Err(diag) => Err(NormalAtError::Escalated {
                     decision: NormalDecision::OnSurface,
@@ -658,7 +659,7 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
                 band,
             )?;
             match on {
-                Ok(_) => Ok(Some(surface_outward_normal(surface, p, f.sense()))),
+                Ok(_) => Ok(Ok(surface_outward_normal(surface, p, f.sense()))),
                 Err(diag) => Err(NormalAtError::Escalated {
                     decision: NormalDecision::OnSurface,
                     diag,
@@ -671,9 +672,41 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
         // [`spline_outward_normal_at`], and one without names the kind in
         // its own refusal. A spindle sheet's arm is not written yet.
         geom::Surface::Spindle { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => {
-            Ok(None)
+            Ok(Err(NoNormalAt::UnreadKind(surface.kind())))
         }
     }
+}
+
+/// [`face_outward_normal_or_why`] with the reason it reads no normal
+/// dropped: `Ok(None)` for a key that no longer resolves, a face with
+/// no surface yet, and a face whose kind has no arm at a point.
+///
+/// # Errors
+///
+/// As [`face_outward_normal_or_why`].
+///
+/// # Panics
+///
+/// As [`face_outward_normal_or_why`].
+pub(crate) fn face_outward_normal_at<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    p: Point3<T>,
+    band: Band,
+) -> Result<Option<OutwardNormal<T>>, NormalAtError> {
+    face_outward_normal_or_why(body, face, p, band).map(Result::ok)
+}
+
+/// **Why [`face_outward_normal_or_why`] reads no normal**: the one home
+/// of the kinds with no arm at a point, so a caller tells a limit apart
+/// from a defect by this, not by re-deriving the kind.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum NoNormalAt {
+    /// The face is on a spline, approximating or spindle sheet, of this
+    /// kind, whose normal has no arm at a point alone. A limit.
+    UnreadKind(geom::SurfaceKind),
+    /// The key resolves to no face, or the face has no surface yet.
+    Unresolved,
 }
 
 /// **The outward normal of a face's carrier at the foot of `p`**: at

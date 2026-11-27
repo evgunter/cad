@@ -130,7 +130,12 @@ fn a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim() {
         // pcurve door the mint runs, so four of these are that second
         // derivation; handing the edge's certificate to the mint
         // (`work/pcert/a-stated-spline-image-is-certified-twice-by-the-edge-certificate-and-the-mint.md`)
-        // brings the count back to 62.
+        // brings the count back to 62. Since PR 7440 the interior-loop
+        // guard's section walk (`crossings_section_pairs`) reads every
+        // pair where it stopped at the first refusing one, so the pairs
+        // after this union's first refusal certify their sections too:
+        // 34 more, measured by stopping the walk again (66)
+        // (`work/topo/the-interior-loop-guards-section-walk-reads-every-pair-past-the-first-refusal.md`).
         assert_eq!(
             read.recorded()
                 .verdicts
@@ -138,7 +143,7 @@ fn a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim() {
                 .filter(|v| v.predicate == "pcurve_iso_boundary")
                 .filter(|v| v.sign == geom_core::Sign::Zero)
                 .count(),
-            66,
+            100,
             "{what}: each arc rim's on-row checks are read once"
         );
         let err = err.expect_err(what);

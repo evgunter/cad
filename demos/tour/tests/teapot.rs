@@ -31,6 +31,11 @@ mod wall_probes_run_here {
         let (r, ev) = evaluated(Tol::witness());
         wall_probes(&ev, &r);
     }
+
+    #[test]
+    fn wall_3_stops_where_it_does_with_the_spout_first() {
+        wall3_reversed_probe(Tol::witness());
+    }
 }
 
 mod spout_belly_section_probe {

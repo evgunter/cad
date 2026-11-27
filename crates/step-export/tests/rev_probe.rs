@@ -30,7 +30,9 @@ use topo::{Body, FaceKey, ValidationError, validate_geometric};
 /// sharpens this row rather than contradicting it.
 #[test]
 fn ball_both_single_band_flips_are_laminae_with_the_curved_arm_still_silent() {
-    let body = common::ball();
+    // The ball cut into two lunes: a full revolve's ball is one face.
+    let mut body = common::ball();
+    sweep::test_support::two_lunes(&mut body, Tol::witness());
     let bands: Vec<FaceKey> = body
         .faces()
         .filter(|(fk, _)| matches!(body.face_surface(*fk), Ok(Surface::Sphere { .. })))

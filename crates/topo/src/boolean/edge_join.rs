@@ -1,7 +1,8 @@
 //! **The join**: a vertex of valence 2 whose two edges lie on one
-//! structural carrier between the same two faces is no corner, so the
-//! two edges are one edge cut for no reason (`docs/DESIGN.md`, maximal
-//! edges). The join kills the vertex and makes the two edges one.
+//! structural carrier between the same two faces, or are both the wrap
+//! edge of one face, is no corner, so the two edges are one edge cut for
+//! no reason (`docs/DESIGN.md`, maximal edges). The join kills the
+//! vertex and makes the two edges one.
 //!
 //! **The join door** ([`Body::join_edges`](crate::construction::Construct::join_edges)) is the one public spelling:
 //! every door that finishes a body ends with it (`docs/DESIGN.md`, the
@@ -26,8 +27,11 @@
 //! (`[coincidence.door]`).
 //!
 //! Joinable is one predicate ([`joinable`]), shared by the join and by
-//! [`joinable_vertices`]. The two edges' face pairs are one pair of
-//! distinct faces, and the edges lie on one carrier by structure:
+//! [`joinable_vertices`]. The two edges' face pairs are one pair: two
+//! distinct faces, or one face both edges are the wrap edge of, a
+//! station on that face's seam (DESIGN `[topology]`'s seam clause), the
+//! one loop passing the vertex twice and the kill taking both of its
+//! visits. The edges lie on one carrier by structure:
 //! - **planar**: both faces on `Plane` carriers of distinct keys, both
 //!   edges certified lines described as the `Intersection` of those
 //!   keys. Two planes that cross meet in one line; two that do not
@@ -588,7 +592,10 @@ fn joinable<T: Decide>(
         if f <= g { (f, g) } else { (g, f) }
     };
     let (f, g) = pair(s1);
-    if f == g || pair(s2) != (f, g) {
+    // One face on both sides: a station only where both pieces are its
+    // wrap edge, so the joined edge's wrap claim holds over its span.
+    let wrap_station = || crate::validate::wraps(body, e1) && crate::validate::wraps(body, e2);
+    if pair(s2) != (f, g) || (f == g && !wrap_station()) {
         return Ok(None);
     }
     let Some(he) = body.mate(*h1) else {
@@ -1207,10 +1214,11 @@ fn read_far<T: Decide>(
 
 /// The joined edge's spec: `kept`'s carrier over its interval run on
 /// through `w` to `gone`'s far end, its description restated over the
-/// new interval. The far end's parameter is `gone`'s own where `gone`
-/// lies on `kept`'s very carrier ([`carried_far`]); otherwise it is read
-/// off the carrier: a whole period where the join closes, the point's
-/// parameter ([`geom::Curve3::param_near`]) where it does not.
+/// new interval. The far end's parameter is a whole period on where the
+/// join closes on a periodic carrier; otherwise `gone`'s own where `gone`
+/// lies on `kept`'s very carrier ([`carried_far`]), or, where the join
+/// does not close, the point's parameter read off the carrier
+/// ([`read_far`]).
 fn joined_spec<T: Decide>(
     body: &Body<T>,
     w: VertexKey,
@@ -1239,81 +1247,85 @@ fn joined_spec<T: Decide>(
     let gone_from_w = body.get_half_edge(gd.record().he_plus).map(|h| h.start) == Some(w);
     let at_w = if gone_from_w { (g0, g1) } else { (g1, g0) };
     let carried = carried_far(carrier, tw, backward, gone.stored_carrier(), at_w);
-    let tx = if let Some(tx) = carried {
-        tx
-    } else if join.closed {
-        // The carrier's own period (`Curve3::period`), which a closed
-        // join runs once round: at `Interval`, τ's enclosure.
-        match carrier.period() {
-            Some(period) => {
-                if backward {
-                    t1 - period.length()
-                } else {
-                    t0 + period.length()
-                }
+    // A closed join on a periodic carrier runs once round, so its far end
+    // is a whole period on, by the carrier's own period (`Curve3::period`;
+    // at `Interval`, τ's enclosure), even where `gone` is on the very
+    // carrier: its own far end names the same point only up to rounding,
+    // and a span a unit in the last place past a turn is no view of the
+    // loop. A carrier with no period closes where `gone` does.
+    let tx = match (join.closed, carrier.period()) {
+        (true, Some(period)) => {
+            if backward {
+                t1 - period.length()
+            } else {
+                t0 + period.length()
             }
-            None => {
+        }
+        _ => match carried {
+            Some(tx) => tx,
+            None if join.closed => {
                 return Err(BooleanError::JoinCarrierUnsupported {
                     edge: join.kept,
                     carrier: carrier.kind(),
                     closed: true,
                 });
             }
-        }
-    } else {
-        let read = read_far(carrier, gone.stored_carrier(), at_w, far, tw).ok_or(
-            BooleanError::JoinCarrierUnsupported {
-                edge: join.kept,
-                carrier: carrier.kind(),
-                closed: false,
-            },
-        )?;
-        // A join that is not closed spans less than a turn of a loop. A
-        // far end read past a turn is held to the turn only where it is
-        // the kept edge's own far end, the rounding of a walk that came
-        // round to it; anything else read past a turn refuses.
-        match carrier.period() {
-            Some(period) => {
-                let (turn, past) = if backward {
-                    let turn = t1 - period.length();
-                    (turn, turn - read)
-                } else {
-                    let turn = t0 + period.length();
-                    (turn, read - turn)
-                };
-                let back_at_start = || {
-                    let start = carrier.eval(if backward { t1 } else { t0 });
-                    matches!(
-                        geom_core::k_stats::decide(
-                            "edge_join_far_a_turn_on",
-                            Margin::of((far - start).norm()),
-                            band
-                        ),
-                        Ok(geom_core::Sign::Zero)
-                    )
-                };
-                let short = matches!(
-                    geom_core::k_stats::decide(
-                        "edge_join_far_short_of_a_turn",
-                        Margin::of(past),
-                        band
-                    ),
-                    Ok(geom_core::Sign::Negative)
-                );
-                if short {
-                    read
-                } else if back_at_start() {
-                    turn
-                } else {
-                    return Err(BooleanError::JoinCarrierUnsupported {
+            None => {
+                let read = read_far(carrier, gone.stored_carrier(), at_w, far, tw).ok_or(
+                    BooleanError::JoinCarrierUnsupported {
                         edge: join.kept,
                         carrier: carrier.kind(),
                         closed: false,
-                    });
+                    },
+                )?;
+                // A join that is not closed spans less than a turn of a loop. A
+                // far end read past a turn is held to the turn only where it is
+                // the kept edge's own far end, the rounding of a walk that came
+                // round to it; anything else read past a turn refuses.
+                match carrier.period() {
+                    Some(period) => {
+                        let (turn, past) = if backward {
+                            let turn = t1 - period.length();
+                            (turn, turn - read)
+                        } else {
+                            let turn = t0 + period.length();
+                            (turn, read - turn)
+                        };
+                        let back_at_start = || {
+                            let start = carrier.eval(if backward { t1 } else { t0 });
+                            matches!(
+                                geom_core::k_stats::decide(
+                                    "edge_join_far_a_turn_on",
+                                    Margin::of((far - start).norm()),
+                                    band
+                                ),
+                                Ok(geom_core::Sign::Zero)
+                            )
+                        };
+                        let short = matches!(
+                            geom_core::k_stats::decide(
+                                "edge_join_far_short_of_a_turn",
+                                Margin::of(past),
+                                band
+                            ),
+                            Ok(geom_core::Sign::Negative)
+                        );
+                        if short {
+                            read
+                        } else if back_at_start() {
+                            turn
+                        } else {
+                            return Err(BooleanError::JoinCarrierUnsupported {
+                                edge: join.kept,
+                                carrier: carrier.kind(),
+                                closed: false,
+                            });
+                        }
+                    }
+                    None => read,
                 }
             }
-            None => read,
-        }
+        },
     };
     let (a, b) = if backward { (tx, t1) } else { (t0, tx) };
     // A declaration's parameter is affine in the carrier's, so the kept

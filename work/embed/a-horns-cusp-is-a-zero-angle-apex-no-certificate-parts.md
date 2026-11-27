@@ -47,3 +47,17 @@ What would read it: a certificate of second order at a point, the
 sheets' contact at the cusp being the meridian circle's tangency to the
 axis; the edge's analogue is `the-second-order-arm-certifies-a-declared-wedge-0-edge`.
 Pinned refused, never embedded: `sweep::all self_intersection_proves_injectivity::bodies_on_a_spindle_sheet_hold_by_kind_at_both_scalars`.
+
+## Note (2026-11-25, LATHE, PR 7414)
+
+On the one-band revolve the needle tip is one sheet face reaching the
+cusp from one side, with no meridian shared between two faces, and the
+injectivity ask **holds** at both scalars, its sheet face against itself
+discharged by kind (`topo::injective`'s premise: a horn's face meets
+itself only where it reaches the cusp from both sides, which the revolve
+refuses). The refusal this row records was the two π-bands' shared
+meridian (`arm: Departure`). The row
+`self_intersection_proves_injectivity::bodies_on_a_spindle_sheet_hold_by_kind_at_both_scalars`
+now pins the needle holding beside the lemon and the apple. The cusp
+between two faces still has no certificate; a body that puts two faces
+there is what this row is about.

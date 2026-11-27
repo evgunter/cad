@@ -551,6 +551,74 @@ pub fn try_revolved_about_y_at<T: Decide + topo::AtRestPolicy>(
     crate::revolve(&profile, axis, rev, tol).map(|r| r.body.into_body())
 }
 
+/// **A full revolve's one-face ball cut into its two lunes**, in place:
+/// a meridian from pole to pole along the azimuth opposite the face's
+/// wrap edge (`mef`), and the wrap edge, now between the two lunes,
+/// restated as a plain chart edge. The ball a half-turn pair of
+/// meridians bounds: the rows whose subject is two faces of one sphere
+/// (seam siblings, a lune flipped alone, a seam region) stand on it.
+///
+/// # Panics
+///
+/// Where `body` is not one sphere face whose loop walks one meridian
+/// pole to pole and back.
+pub fn two_lunes(body: &mut Body<f64>, tol: Tol) {
+    use topo::construction::{Construct, FaceSurface, MefSite};
+    let spheres: Vec<FaceKey> = body
+        .faces()
+        .filter(|(f, _)| matches!(body.face_surface(*f), Ok(geom::Surface::Sphere { .. })))
+        .map(|(k, _)| k)
+        .collect();
+    let [whole] = spheres[..] else {
+        panic!("a full revolve's ball is one sphere face, got {spheres:?}");
+    };
+    let Ok(&geom::Surface::Sphere { frame, radius, .. }) = body.face_surface(whole) else {
+        unreachable!("filtered on the sphere just above")
+    };
+    let (centre, pole) = (frame.origin(), frame.axis().normalize());
+    let face = body.get_face(whole).unwrap();
+    let surface = face.surface;
+    let (_, hes) =
+        topo::props::loop_edges(body.cycle_loop(face.outer).expect("a cycle loop")).unwrap();
+    let wrap = body.get_half_edge(hes[0]).unwrap().edge;
+    let c = body
+        .get_curve_geom(body.get_edge(wrap).unwrap().curve)
+        .unwrap()
+        .certified()
+        .unwrap();
+    let (t0, t1) = c.params();
+    let mid = c.carrier().eval(0.5 * (t0 + t1)) - centre;
+    let off = mid - pole * mid.dot(pole);
+    let dir = -off / off.norm();
+    let mut spec = c.restated_spec();
+    let at_point = |q: Point3<f64>| {
+        *hes.iter()
+            .find(|&&h| {
+                let v = body.get_half_edge(h).unwrap().start;
+                (*body.get_point(body.get_vertex(v).unwrap().point).unwrap() - q).norm() < 1e-9
+            })
+            .expect("a pole vertex on the loop")
+    };
+    let (he1, he2) = (
+        at_point(centre + pole * radius),
+        at_point(centre - pole * radius),
+    );
+    let circle = geom::Curve3::circle(centre, pole.cross(dir), radius, pole);
+    body.mef(
+        MefSite::Chords { he1, he2 },
+        geom_brep::EdgeCurveSpec::arc_of_circle(circle, 0.0, core::f64::consts::PI)
+            .unwrap()
+            .at_rest_in_chart(surface, false),
+        FaceSurface::Inherit,
+        tol,
+    )
+    .expect("the opposite meridian halves the ball");
+    // Between two lunes the meridian is no longer a wrap edge.
+    spec.description = geom_brep::EdgeDescriptionSpec::chart(surface);
+    body.restate_stored_edge(wrap, spec.description, tol)
+        .expect("the meridian restates as a chart edge between the lunes");
+}
+
 /// **The dome**: a sphere zone of radius `r` from the equator up 45°,
 /// on a flat base annulus, bored on-axis at `r/2` so the profile stays
 /// ANNULAR — which is what makes the full revolve mint one wall per
@@ -738,8 +806,8 @@ pub fn arcs_at<T: Bounds>(body: &Body<T>, rim_r: f64, rim_y: f64) -> Vec<EdgeKey
 /// **The waisted body**: two cones meeting at radius `0.5` —
 /// `(0,0)→(1,0)→(0.5,0.5)→(1,1)→(0,1)` revolved fully. The waist rim is
 /// CONCAVE (the void wedge at the waist vertex is 90°) and the base and
-/// top rims are convex; pole-touching, so every rim is a pair of arcs
-/// meeting at chart-seam vertices. The closed-rim suites' concave
+/// top rims are convex; pole-touching, and every rim one closed edge
+/// on the walls' seam vertex. The closed-rim suites' concave
 /// fixture, beside its own convex twins.
 ///
 /// Its rims, for [`rim_arcs_at`]: waist `(0.5, 0.5)`, base `(1, 0)`,
@@ -1105,9 +1173,8 @@ pub fn sphere_zone(bore: f64, rev: crate::Revolution<f64>, tol: Tol) -> Body<f64
 
 /// **The BLEND-1 lantern**: a pole-touching solid of revolution —
 /// base disk, unit-sphere belly to the 3-4-5 shoulder `(0.8, 0.6)`,
-/// cone to the lip `(0.2, 1.2)`, top disk — so every wall is a pair
-/// of half-bands and every latitude rim a pair of arcs meeting at
-/// chart-seam vertices.
+/// cone to the lip `(0.2, 1.2)`, top disk — every wall one band and
+/// every latitude rim one closed edge on its wall's seam vertex.
 ///
 /// Its rims, for [`rim_arcs_at`]: neck `(1, 0)`, shoulder
 /// `(0.8, 0.6)`, lip `(0.2, 1.2)`.
@@ -1439,8 +1506,8 @@ fn lofted_cylinder_sections(h: f64) -> (Vec<Section>, Vec<SketchPlane<f64>>) {
 
 /// The faces across the edges of `face`'s outer cycle, deduplicated —
 /// a band's NEIGHBOURS, which is how a door is proved rather than
-/// inferred: the ladder's band sits between one plane face and two
-/// ring-free half-caps, the annulus's between the two half-band walls.
+/// inferred: the ladder's band sits between one plane face and the
+/// ring-free cap, the annulus's between the two walls.
 pub fn faces_around<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<FaceKey> {
     let LoopBoundary::Cycle { first } = body
         .get_loop(body.get_face(face).unwrap().outer)
@@ -1718,6 +1785,16 @@ pub fn assert_promises_either_side(sentence: &str) {
     }
 }
 
+/// What a boolean built through a sphere cut-in leaves of the cut:
+/// nothing. A check of a built body, here because the `mesh` suites
+/// read it too.
+pub mod cut_trace;
+
+/// The volume a ball shares with a solid of revolution, by a 1-D
+/// integral of closed forms with its error stated: the lens a cut-in's
+/// rows check their volumes against, from the `sweep` and `mesh` suites.
+pub mod lens;
+
 /// **Pappus pieces for a meridian-plane fill or cut**: `(area, ∫x dA)`
 /// of the elementary regions a fillet's cross-section decomposes into,
 /// so a row can derive a revolved volume delta by hand as
@@ -1974,8 +2051,8 @@ pub fn plane_sphere_external_cut(big_r: f64, r: f64) -> f64 {
 /// `up` false is its DIMPLE twin, the same hemisphere dug into the top
 /// instead (bulge `−tan(π/8)`, apex `(0, 0.5)`).
 ///
-/// Pole-touching: each curved wall is minted as two half-bands, each
-/// plane wall whole, so the flat top is ONE plane ANNULUS carrying THREE
+/// Pole-touching: each wall is minted whole, so the flat top is ONE
+/// plane ANNULUS carrying THREE
 /// closed rims of three shapes at
 /// once, which is why it is the fixture: its BASE rim `(1, 0)` is a
 /// hostless annulus on a ring-free host, its TOP OUTER rim `(1, 1)` is a
@@ -2044,7 +2121,7 @@ pub fn domed_boss(a: f64, tol: Tol) -> Body<f64> {
 /// `(d, 0)` with its two vertices on the `x` axis. Extruded 1 along `z`.
 ///
 /// Its top cap is one plane face whose OUTER cycle is the top rim (a
-/// hostless annulus, mate the outer wall's two half-bands) and whose one
+/// hostless annulus, mate the outer wall's two faces) and whose one
 /// RING is the bore's top rim (a ladder rim inside a circular outer
 /// boundary). The bore's closest approach to the outer rim is its vertex
 /// at `(d + a, 0)`, and with `outer_phi` off the outer rim's own sample
@@ -2530,19 +2607,19 @@ pub fn circle_arcs_at_z(body: &Body<f64>, z: f64) -> Vec<EdgeKey> {
     rim
 }
 
-/// **A full revolve's rim is the two arcs its one seam splits it
-/// into** — the fact a suite states before carving a revolved rim,
-/// said once. Two is the fixture's shape, not the door's limit:
-/// the N-arc rims are `closed_chain_junctions`' subject.
+/// **A full revolve's rim is one closed edge** — the fact a suite
+/// states before carving a revolved rim, said once. One is the
+/// fixture's shape, not the door's limit: the N-arc rims are
+/// `closed_chain_junctions`' subject.
 ///
 /// # Panics
 ///
-/// If `arcs` is not exactly two, naming `name`.
+/// If `arcs` is not exactly one, naming `name`.
 pub fn assert_full_revolve_rim(arcs: &[EdgeKey], name: &str) {
     assert_eq!(
         arcs.len(),
-        2,
-        "{name}: the rim is the two arcs a full revolve's one seam splits it into"
+        1,
+        "{name}: a full revolve's rim is one closed edge"
     );
 }
 

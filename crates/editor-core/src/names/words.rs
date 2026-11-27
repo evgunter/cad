@@ -748,7 +748,6 @@ fn meridian(e: MeridianEnd) -> &'static str {
         MeridianEnd::Start => "start",
         MeridianEnd::End => "end",
         MeridianEnd::Seam => "seam",
-        MeridianEnd::Pi => "half-turn",
     }
 }
 
@@ -986,8 +985,6 @@ fn role<'n, 's>(
         ))),
         RoleSeg::Band(r) => one(sentence!("the band face over ", run(r, f, by))),
         RoleSeg::BandRim(v) => one(sentence!("the band rim over ", vertex(v, f, by))),
-        RoleSeg::BandRimPi(v) => one(sentence!("the second band rim over ", vertex(v, f, by))),
-        RoleSeg::BandPi(r) => one(sentence!("the second band face over ", run(r, f, by))),
         RoleSeg::Meridian(m, r) => one(sentence!(
             format_args!("the {} meridian edge over ", meridian(*m)),
             run(r, f, by)

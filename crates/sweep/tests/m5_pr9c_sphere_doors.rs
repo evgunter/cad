@@ -7,9 +7,10 @@
 //! the cylinder×sphere boolean arm stands on. The arm this unit lands
 //! covers the CLOSED sphere class: the faces sharing one sphere
 //! surface close on each other, so their union is the whole chart and
-//! no per-face chart trim is needed. That is exactly the ball the M5
-//! inventory mints (`revolve_ball`'s V2 E2 F2: two half-bands on one
-//! sphere key, joined along the seam meridian and its angle-π copy).
+//! no per-face chart trim is needed. A full revolve's ball is one face
+//! (`revolve_ball`'s V2 E1 F1, its meridian a wrap edge); the ball cut
+//! into its two lunes, or an import's half-turn pair, is the class's
+//! several-face form.
 //!
 //! Rows here:
 //!
@@ -279,12 +280,11 @@ fn curved_revert_reverts_the_ball_instead_of_refusing() {
 /// crossings path's interior-loop guard cannot certify the sphere and
 /// the top face free of a section loop interior to both, and refuses
 /// the pair typed (`CurvedPairUnsupported` at `InteriorLoopGuard`). The
-/// cause is that class, not the tangency: the slab of height 0.7 cuts
-/// the sphere in a circle inside its top face and refuses the same way,
+/// cause is the tangency: the slab of height 0.7 cuts the sphere in a
+/// circle inside its top face, which the crossings path cuts in
+/// ([`the_die_slab_cutting_the_ball_in_its_top_builds_at_its_closed_form`]),
 /// and above the ball (height 1.3) every op builds
-/// ([`the_die_slab_above_the_ball_builds_at_its_closed_form`]). The
-/// interior loop waits on
-/// `work/germ/interior-loop-cut-in.md`. (Nudge the ball off both
+/// ([`the_die_slab_above_the_ball_builds_at_its_closed_form`]). (Nudge the ball off both
 /// coincidences and the S13 lanes cut it — the pips suite.)
 #[test]
 fn the_die_pips_shape_stops_typed_at_its_tangent_top() {
@@ -336,11 +336,20 @@ fn die_slab_and_ball(h: f64) -> (topo::AtRestBody<f64>, topo::AtRestBody<f64>) {
     )
 }
 
-/// **The die pip's slab cut in a circle by its top refuses as the
-/// tangent one does**, at the interior-loop guard
-/// ([`the_die_pips_shape_stops_typed_at_its_tangent_top`]).
+/// **The die pip's slab cut in a circle by its top refuses at the
+/// interior-loop guard.** The top face meets the ball in the circle
+/// `z = 0.7`, inside the ball's one face and clear of its seam: the
+/// interior-loop guard proves it. The slab's bottom face cuts the same
+/// face in the circle `z = 0`, which crosses it through both poles, so
+/// the face carries a first-pass crossing beside the loop. The output
+/// stage would not close a cut in it (`topo::boolean::slit`'s closing
+/// rests on no first-pass crossing on the cut face), so the crossings
+/// path does not cut in, and the guard's refusal stands in every op
+/// (`work/lathe/close-cuts-is-not-total-on-crossings-path-cut-ins.md`;
+/// the six ops in both orders:
+/// `a_crossings_path_cut_in_is_made_only_where_its_closing_is_total`).
 #[test]
-fn the_die_slab_cutting_the_ball_in_its_top_refuses_at_the_interior_loop() {
+fn the_die_slab_cutting_the_ball_in_its_top_refuses_at_the_interior_loop_guard() {
     let (a, b) = die_slab_and_ball(0.7);
     for (op, r) in [
         (
@@ -362,12 +371,11 @@ fn the_die_slab_cutting_the_ball_in_its_top_refuses_at_the_interior_loop() {
                 r,
                 Err(topo::BooleanError::CurvedPairUnsupported {
                     site: topo::PairRefusalSite::InteriorLoopGuard,
-                    kind: geom::SurfaceKind::Sphere,
-                    other_kind: geom::SurfaceKind::Plane,
                     ..
                 })
             ),
-            "{op}: {r:?}"
+            "{op}: the interior-loop guard's refusal, got {:?}",
+            r.map(|_| ())
         );
     }
 }

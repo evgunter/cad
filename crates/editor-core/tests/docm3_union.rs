@@ -626,14 +626,14 @@ fn two_placements_of_one_prototype_are_two_members() {
 
 /// **The row the naming design exists for**, at the size a person
 /// actually sees: the tour's die — 21 pips fused by one
-/// `Node::Union`, cut from a cube, then twelve box edges and 42 rim
-/// arcs blended over frozen selections.
+/// `Node::Union`, cut from a cube, then twelve box edges and 21 whole
+/// rims blended over frozen selections.
 ///
 /// For the FIRST, a MIDDLE and the LAST pip: drop it with
 /// `SetMembers`, delete the orphaned placement, and re-evaluate with
 /// the previous evaluation as `prior`. Both fillets must still
-/// evaluate `Ok`, with two fewer rim arcs selected (a pip contributes
-/// two rim edges) and no `SelectResolve` anywhere.
+/// evaluate `Ok`, with one fewer rim selected (a pip contributes
+/// one closed rim edge) and no `SelectResolve` anywhere.
 ///
 /// Under the pairwise chain this replaces the row goes red for every
 /// pip but the last: a chain records join DEPTH in each name, so
@@ -697,7 +697,7 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
         }) => (*body, radius, names),
         other => panic!("the die's last node is the rim blend, got {other:?}"),
     };
-    assert_eq!(rims.len(), 42, "the die selects two rim arcs per pip");
+    assert_eq!(rims.len(), 21, "the die selects one whole rim per pip");
 
     for (label, k) in [("first", 0usize), ("middle", 10), ("last", 20)] {
         let kept: Vec<RecipeNodeId> = members
@@ -740,8 +740,8 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
             .collect();
         assert_eq!(
             doomed.len(),
-            2,
-            "the {label} pip contributes exactly its own two rim arcs"
+            1,
+            "the {label} pip contributes exactly its own rim"
         );
         // Deleting a pip is that edit plus dropping the names it took
         // with it — one committed action a user can spell because the
@@ -753,7 +753,7 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
             .filter(|n| !doomed.contains(n))
             .cloned()
             .collect();
-        assert_eq!(kept_rims.len(), rims.len() - 2);
+        assert_eq!(kept_rims.len(), rims.len() - 1);
         let edited = edited
             .apply(&DocEdit::DeleteNode { id: blends[1] }, tol)
             .expect("the rim blend is a sink")
@@ -785,11 +785,11 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
         }
         assert_eq!(
             selection_len(&edited, rim),
-            rims.len() - 2,
-            "the rim blend selects every arc but the dead pip's two"
+            rims.len() - 1,
+            "the rim blend selects every rim but the dead pip's"
         );
         // The selections are FROZEN, so they still name every edge they
-        // named — including the two rim arcs of the pip that is gone,
+        // named — including the rim of the pip that is gone,
         // which the blend now resolves against a body that no longer
         // has them. That is what `SelectResolve` would say, and
         // the assertions above are that it does not.

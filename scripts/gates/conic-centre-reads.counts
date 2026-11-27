@@ -24,12 +24,12 @@ crates/geom-brep/src/tangent.rs 1
 crates/geom/src/cover.rs 1
 crates/geom/src/curves.rs 5
 crates/geom/src/curves/on_carrier.rs 4
-crates/geom/src/pole_form.rs 1
 crates/mesh/src/sizing.rs 1
 crates/step-export/src/writer.rs 2
 crates/step-import/src/adopt.rs 1
 crates/step-import/src/build.rs 2
 crates/step-import/src/normalize.rs 3
+crates/step-import/src/normalize/singularity.rs 2
 crates/step-import/src/on_built.rs 5
 crates/sweep/src/blend/arms.rs 5
 crates/sweep/src/blend/battery.rs 2

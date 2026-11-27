@@ -64,7 +64,7 @@ fn pappus(big: f64, r: f64) -> (f64, f64) {
 /// The body revolved, its datum read, meshed closed, through tier 3, and
 /// measured against `(volume, area)`.
 fn holds(what: &str, lp: profile::ProfileLoop<f64>, sheet: f64, expected: (f64, f64)) {
-    holds_by(what, lp, Revolution::Full, (2, sheet), expected);
+    holds_by(what, lp, Revolution::Full, (1, sheet), expected);
 }
 
 /// [`holds`] revolved `by`, with `faces` sheet faces of major radius
@@ -139,10 +139,9 @@ fn lifts_close(what: &str, body: &topo::Body<f64>) {
 }
 
 /// **The football and the apple build through the revolve door** with
-/// their apexes as vertices: two sheet faces, each a π-band between the
-/// two meridians that end at both apexes (the pole form), meshed closed
-/// with a fan at each apex, through tier 3, and measuring their exact
-/// volume and area.
+/// their apexes as vertices: one sheet face, its meridian a wrap edge
+/// whose tips are the two apexes, meshed closed with a fan at each apex,
+/// through tier 3, and measuring their exact volume and area.
 #[test]
 fn the_football_and_the_apple_revolve() {
     for (what, big, r) in [
@@ -498,10 +497,10 @@ fn bodies_with_an_apex_as_a_vertex_revolve() {
 }
 
 /// **A football cavity**: a cylinder of radius 1.5 and height 3 with the
-/// football hollowed out on its axis. The sheet faces are π-bands with
-/// the material outside them, the bit clear, whose boundary encodes no
-/// side: a side read off one reading of them, as if they encoded one,
-/// is the inverted face this refuses.
+/// football hollowed out on its axis. The sheet face is one band with
+/// the material outside it, the bit clear, whose boundary encodes no
+/// side: a side read off one reading of it, as if it encoded one, is
+/// the inverted face this refuses.
 #[test]
 fn a_football_cavity_revolves() {
     for big in [-0.5_f64, 0.4] {
@@ -526,10 +525,15 @@ fn a_football_cavity_revolves() {
     }
 }
 
-/// **What a sheet face's own boundary encodes.** The football's π-bands
-/// part the closed sheet in two, so their boundary encodes no side and
-/// the bit is the face's one reading; a bullet's band and the needle's,
-/// closed by a rim, encode the side the bit states.
+/// **What a sheet face's own boundary encodes**, read as every reader
+/// takes it: the chart image, with the wrap tips it drops held. The
+/// football is the whole sheet, its loop the seam out and back, so it
+/// encodes no side and the bit is the face's one reading. A bullet's cap
+/// is closed by a rim and reaches one apex by its tip: of the rim's two
+/// caps only one holds that apex, so it encodes the side the bit states.
+/// The needle's rim parts the horn into two caps that both end at its one
+/// cusp, so the held tip tells them apart no more than the rim does, and
+/// the bit is its reading too.
 #[test]
 fn a_sheet_faces_boundary_encodes_its_side_where_a_rim_closes_it() {
     let tol = Tol::witness();
@@ -548,7 +552,7 @@ fn a_sheet_faces_boundary_encodes_its_side_where_a_rim_closes_it() {
         ("the apple", football(0.4, 1.0), false),
         ("a lemon bullet", bullet(-0.5), true),
         ("an apple bullet", bullet(0.4), true),
-        ("the needle", needle, true),
+        ("the needle", needle, false),
     ] {
         let body = revolve(&validated(vec![lp]), y_axis(), Revolution::Full, tol)
             .unwrap()
@@ -560,9 +564,24 @@ fn a_sheet_faces_boundary_encodes_its_side_where_a_rim_closes_it() {
                 continue;
             }
             sheets += 1;
-            let (edges, _) =
+            // The face's loop as every reader takes it: its chart image,
+            // the wrap tips it drops held as the side's datum.
+            let (edges, hes) =
+                topo::props::chart_image_edges(body.cycle_loop(f.outer).expect("a cycle loop"))
+                    .unwrap();
+            let (_, cycle) =
                 topo::props::loop_edges(body.cycle_loop(f.outer).expect("a cycle loop")).unwrap();
-            let got = geom_brep::props::boundary_material_sign_loops(s, &[&edges], band);
+            let held: Vec<_> = topo::surface_boundary::tips(&body, &cycle)
+                .unwrap()
+                .into_iter()
+                .map(|v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap())
+                .collect();
+            let loops: Vec<&[geom_brep::props::LoopEdge<f64>]> = if hes.is_empty() {
+                Vec::new()
+            } else {
+                vec![&edges]
+            };
+            let got = geom_brep::props::boundary_material_sign_holding(s, &loops, &held, band);
             let want = if encodes {
                 geom_brep::props::MaterialSign::Encoded(if f.sense {
                     geom_core::Sign::Positive
@@ -574,15 +593,13 @@ fn a_sheet_faces_boundary_encodes_its_side_where_a_rim_closes_it() {
             };
             assert_eq!(got, Ok(want), "{what}: sense {}", f.sense);
         }
-        assert_eq!(sheets, 2, "{what}");
+        assert_eq!(sheets, 1, "{what}: one sheet face");
     }
 }
 
-/// **A football face with its bit flipped is refused**, one face or
-/// both: the π-bands encode no side and no seam region reads a sheet
-/// (`work/spiricarm/a-sheet-face-whose-boundary-encodes-no-side-has-no-seam-region-reading.md`),
-/// so what refuses is the body: the two faces' wedge at each meridian
-/// where one is flipped, a negative volume where both are.
+/// **A football with its one sheet face's bit flipped is refused**: the
+/// face is the whole sheet, whose loop encodes no side, so the body is
+/// the sheet's inside out, a negative volume.
 #[test]
 fn a_football_with_a_sheet_faces_bit_flipped_is_refused() {
     let tol = Tol::witness();
@@ -594,27 +611,23 @@ fn a_football_with_a_sheet_faces_bit_flipped_is_refused() {
             tol,
         )
         .unwrap();
-        let sheet: Vec<_> = built.body.faces().map(|(k, _)| k).collect();
-        for keys in [vec![sheet[0]], sheet.clone()] {
-            let mut body = built.body.clone().into_body();
-            for &k in &keys {
-                body = body
-                    .flipped_face_sense_for_tests(k, geom_core::Tol::witness())
-                    .unwrap();
-            }
-            let errors = topo::finish(body, tol).expect_err("a flipped bit");
-            let refused = if keys.len() == 1 {
-                errors
-                    .iter()
-                    .all(|e| matches!(e, topo::ValidationError::LaminaWedge { .. }))
-            } else {
-                matches!(
-                    errors.as_slice(),
-                    [topo::ValidationError::NegativeVolume { .. }]
-                )
-            };
-            assert!(refused, "R {big}, {} flipped: {errors:?}", keys.len());
-        }
+        let [sheet] = built.body.faces().map(|(k, _)| k).collect::<Vec<_>>()[..] else {
+            panic!("R {big}: the football is one face");
+        };
+        let body = built
+            .body
+            .clone()
+            .into_body()
+            .flipped_face_sense_for_tests(sheet, geom_core::Tol::witness())
+            .unwrap();
+        let errors = topo::finish(body, tol).expect_err("a flipped bit");
+        assert!(
+            matches!(
+                errors.as_slice(),
+                [topo::ValidationError::NegativeVolume { .. }]
+            ),
+            "R {big}: {errors:?}"
+        );
     }
 }
 
@@ -796,6 +809,56 @@ fn a_horns_cusp_revolved_part_way_is_its_lune() {
     }
 }
 
+/// **A thin lemon never meshes as `Ok`.** At `R = −0.99999` the one
+/// band about the wrap edge is narrower than δ = `1e-2` and emits no
+/// triangle along the wrap edge's chord, so the mesh would be open
+/// there. Today the cross-face chord census refuses it by its
+/// `debug_assert` (issue 897), which runs in every profile this
+/// workspace builds (the root `Cargo.toml`'s release stanza); the row
+/// reads the outcome, not the mechanism, so it goes red if any build
+/// returns the open mesh as `Ok`
+/// (`work/tesslane/a-thin-lemons-one-band-meshes-no-triangle-along-its-wrap-edge-and-trips-the-chord-census.md`).
+/// The two coarser lemons mesh. Where the thinnest lemon's profile is
+/// already refused typed (in band for straightness at a coarse ε), it
+/// never reaches the mesher.
+#[test]
+fn a_thin_lemon_never_meshes_as_ok() {
+    let tol = Tol::witness();
+    for (big, meshes) in [(-0.999, true), (-0.9999, true), (-0.99999, false)] {
+        let profile = profile::Profile::new(profile::SketchPlane::xy(), vec![football(big, 1.0)])
+            .validate(tol);
+        // At a coarse ε the thinnest lemon's sagitta (~1e-5) is in band for
+        // straightness, and the profile door refuses it typed.
+        let profile = match profile {
+            Ok(p) => p,
+            Err(profile::ProfileError::Escalated { .. }) if !meshes => continue,
+            Err(e) => panic!("R {big}: the profile refused: {e:?}"),
+        };
+        let built = revolve(&profile, y_axis(), Revolution::Full, tol)
+            .unwrap_or_else(|e| panic!("R {big}: {e}"));
+        let mut ok = None;
+        let panicked = test_utils::panic_capture::caught(std::panic::AssertUnwindSafe(|| {
+            ok = Some(mesh::tessellate(&built.body, 1e-2, tol).is_ok());
+        }));
+        if meshes {
+            assert!(
+                panicked.is_none() && ok == Some(true),
+                "R {big}: the lemon meshes, got {ok:?}, panic {panicked:?}"
+            );
+        } else {
+            // Typed refusal, or the chord census's own stop (issue 897);
+            // any other panic is red.
+            match (ok, panicked.as_deref()) {
+                (Some(false), None) => {}
+                (_, Some(message)) if message.contains("face triangles, not two per chord") => {}
+                (ok, panicked) => panic!(
+                    "R {big}: the band narrower than δ is neither refused nor stopped by the \
+                     chord census: ok {ok:?}, panic {panicked:?}"
+                ),
+            }
+        }
+    }
+}
 /// **A horn's cusp turns on the face's side, from above and from
 /// below**: the needle's lune reaches the cusp at `v = π`, the lower
 /// needle's at `v = −π`, both revolved through `θ = 2`. The joint at the

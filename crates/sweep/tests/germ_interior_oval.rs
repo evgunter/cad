@@ -424,8 +424,14 @@ fn the_pin_alone_answers_subtract_and_intersect_in_closed_form() {
 /// the dome's crown.** On main every op answered a valid body missing
 /// the side cap: `dome ∩ bracket` came back as the crown alone, and a
 /// point inside the side cap, inside both operands, read `Out` of it.
+/// The guard proves the side circle inside both faces (R-loop), and the
+/// crossings path cuts the dome's face in through it and re-enters, so
+/// every op builds at its closed form: the two caps, of heights `0.1`
+/// (the crown) and `0.05` (the side, under the foot's near face at
+/// `0.95` along `cap_dir`), are disjoint, the side cap's highest point
+/// lying at `y = sin 48.2° < 0.9`.
 #[test]
-fn a_sphere_cap_behind_crossings_elsewhere_refuses_every_op() {
+fn a_sphere_cap_behind_crossings_elsewhere_builds_every_op() {
     let (d, c) = (dome(), dome_bracket());
     let band = geom_core::Band::linear(Tol::witness()).expect("the run's band");
     let q = Point3::origin() + cap_dir() * 0.97;
@@ -438,28 +444,55 @@ fn a_sphere_cap_behind_crossings_elsewhere_refuses_every_op() {
             "the witness point is inside the {name}"
         );
     }
-    for (op, r) in [
-        (topo::BooleanOp::Union, topo::union(&d, &c, Tol::witness())),
-        (
-            topo::BooleanOp::Intersect,
-            topo::intersect(&d, &c, Tol::witness()),
-        ),
-        (
-            topo::BooleanOp::Subtract,
-            topo::subtract(&d, &c, Tol::witness()),
-        ),
-        (
-            topo::BooleanOp::Subtract,
-            topo::subtract(&c, &d, Tol::witness()),
-        ),
-    ] {
-        refuses_as_the_interior_loop_guard(r, op, geom::SurfaceKind::Sphere, "dome and bracket");
-    }
     assert!(
         verdicts(&d, &c).iter().any(|v| v == "Err(Loop)"),
         "{:?}",
         verdicts(&d, &c)
     );
+    let cap = |h: f64| std::f64::consts::PI * h * h * (3.0 - h) / 3.0;
+    let both = cap(0.1) + cap(0.05);
+    let (vd, vc) = (2.0 * std::f64::consts::PI / 3.0, volume(&c));
+    for (what, r, want, inside) in [
+        (
+            "dome ∪ bracket",
+            topo::union(&d, &c, Tol::witness()),
+            vd + vc - both,
+            true,
+        ),
+        (
+            "dome ∩ bracket",
+            topo::intersect(&d, &c, Tol::witness()),
+            both,
+            true,
+        ),
+        (
+            "dome ∖ bracket",
+            topo::subtract(&d, &c, Tol::witness()),
+            vd - both,
+            false,
+        ),
+        (
+            "bracket ∖ dome",
+            topo::subtract(&c, &d, Tol::witness()),
+            vc - both,
+            false,
+        ),
+    ] {
+        let r = r.unwrap_or_else(|e| panic!("{what}: {e:?}"));
+        sweep::test_support::cut_trace::assert_no_cut_trace(what, &r, [&d, &c]);
+        let b = &r.body().expect("non-empty").body;
+        assert_eq!(
+            topo::validate_geometric(b, Tol::witness()),
+            Ok(()),
+            "{what}"
+        );
+        close(volume(b), want, what);
+        assert_eq!(
+            in_solid(b, q),
+            Some(inside),
+            "{what} at the side cap's witness"
+        );
+    }
 }
 
 /// **The sphere lane the guard must leave answering.** The bracket's top

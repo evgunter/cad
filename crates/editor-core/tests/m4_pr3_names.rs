@@ -9,7 +9,7 @@ use editor_core::{
     CancelToken, CapEnd, EntityKind, Entry, EvalOptions, Evaluation, LoopProgram, MeridianEnd,
     Node, ProfileDoc, ProfileEdgeRef, ProfileProgram, ProfileVertexRef, ProgramArcData,
     ProgramStep, ProgramTarget, Qualifier, RecipeNodeId, RoleSeg, Sense, SitedRef, SplitHalf, band,
-    band_rim, band_rim_pi, evaluate, meridian_vertex,
+    band_rim, evaluate, meridian_vertex,
 };
 use fixture::{ang, insert, len, len2, minted, on_frame, revolve_about, table};
 use geom_core::Tol;
@@ -372,7 +372,7 @@ fn full_holed_revolve_names_the_cavity_loop() {
 }
 
 #[test]
-fn full_wire_revolve_names_pi_band_and_poles() {
+fn full_wire_revolve_names_one_band_and_whole_rims() {
     // Cylinder: side 3 on the axis, full revolve → the wire case.
     let (doc, rev) = revolve_doc(
         vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
@@ -380,49 +380,49 @@ fn full_wire_revolve_names_pi_band_and_poles() {
     );
     let ev = run(&doc);
     let t = table(&ev, rev);
-    // π-band roles exist (the wire case's second half).
-    assert!(
-        t.iter()
-            .any(|(n, _)| matches!(n.path.first(), Some(RoleSeg::BandPi(_)))),
-        "no BandPi role minted"
-    );
-    assert!(
-        t.iter()
-            .any(|(n, _)| matches!(n.path.first(), Some(RoleSeg::Meridian(MeridianEnd::Pi, _)))),
-        "no Meridian(Pi) role minted"
-    );
-    // Each off-axis rim is two half-arcs between the seam vertices, and
-    // the builder spells the second exactly as emission minted it.
-    let mut rims_pi: Vec<_> = t
-        .iter()
-        .filter(|(n, _)| matches!(n.path.first(), Some(RoleSeg::BandRimPi(_))))
-        .map(|(n, _)| n.clone())
-        .collect();
-    rims_pi.sort();
-    let mut built = vec![
-        band_rim_pi(rev, pv(&doc, rev, 0, 1)),
-        band_rim_pi(rev, pv(&doc, rev, 0, 2)),
-    ];
-    built.sort();
-    assert_eq!(
-        rims_pi, built,
-        "the BandRimPi arcs are the two rims' builders"
-    );
-    for v in [1, 2] {
-        let whole = [
-            band_rim(rev, pv(&doc, rev, 0, v)),
-            band_rim_pi(rev, pv(&doc, rev, 0, v)),
-        ];
+    // One band face per off-axis side: the two discs and the cylinder.
+    for side in 0..3 {
         assert!(
-            whole.iter().all(|n| t.lookup(n).is_some()),
-            "rim {v} resolves at both halves"
-        );
-        assert_ne!(
-            t.lookup(&whole[0]),
-            t.lookup(&whole[1]),
-            "rim {v}'s halves are two edges"
+            t.lookup(&band(rev, pe(&doc, rev, 0, side))).is_some(),
+            "side {side}'s band"
         );
     }
+    assert!(t.lookup(&band(rev, pe(&doc, rev, 0, 3))).is_none());
+    // The cylinder's one meridian, its seam; a plane disc has none.
+    let meridians: Vec<_> = t
+        .iter()
+        .filter(|(n, _)| matches!(n.path.first(), Some(RoleSeg::Meridian(..))))
+        .map(|(n, _)| n.path[0].clone())
+        .collect();
+    assert_eq!(
+        meridians,
+        vec![RoleSeg::Meridian(
+            MeridianEnd::Seam,
+            pe(&doc, rev, 0, 1).into()
+        )],
+        "the cylinder's seam alone"
+    );
+    // Each off-axis rim is one whole circle, its one meridian vertex on
+    // it, and the two rims are two edges.
+    for v in [1, 2] {
+        assert!(
+            t.lookup(&band_rim(rev, pv(&doc, rev, 0, v))).is_some(),
+            "rim {v}"
+        );
+        assert!(
+            t.lookup(&meridian_vertex(
+                MeridianEnd::Seam,
+                rev,
+                pv(&doc, rev, 0, v)
+            ))
+            .is_some(),
+            "rim {v}'s meridian vertex"
+        );
+    }
+    assert_ne!(
+        t.lookup(&band_rim(rev, pv(&doc, rev, 0, 1))),
+        t.lookup(&band_rim(rev, pv(&doc, rev, 0, 2)))
+    );
     // No poles: both on-axis profile vertices are disc centres, and a
     // plane wall is built whole, so neither is a vertex.
     let poles = t
@@ -430,12 +430,8 @@ fn full_wire_revolve_names_pi_band_and_poles() {
         .filter(|(n, _)| matches!(n.path.first(), Some(RoleSeg::Pole(_))))
         .count();
     assert_eq!(poles, 0);
-    // The discs are plain `Band` faces: one π twin, the cylinder's.
-    let pi_bands = t
-        .iter()
-        .filter(|(n, _)| matches!(n.path.first(), Some(RoleSeg::BandPi(_))))
-        .count();
-    assert_eq!(pi_bands, 1, "only the curved wall has a π twin");
+    // 1 body + 3 bands + 1 meridian + 2 rims + 2 meridian vertices.
+    assert_eq!(t.len(), 9, "the one-band cylinder's whole table");
 }
 
 /// M9-D1: the natural ball. Every vertex of the meridian is on-axis,
@@ -446,9 +442,9 @@ fn full_revolve_of_an_all_on_axis_loop_names_both_poles() {
     let (doc, rev) = ball_doc(std::f64::consts::TAU);
     let ev = run(&doc);
     let t = table(&ev, rev);
-    // The two-band sphere patch (V2 E2 F2): 1 body + 2 bands +
-    // 2 meridians + 2 poles.
-    assert_eq!(t.len(), 7);
+    // The one-face ball (V2 E1 F1): 1 body + 1 band + 1 meridian + 2
+    // poles.
+    assert_eq!(t.len(), 5);
     // Canonical vertex 0 is the authored start — (0, −1), the south
     // pole; 1 is (0, 1). Canonical segment 0 is the arc.
     for v in 0..2 {
@@ -464,12 +460,10 @@ fn full_revolve_of_an_all_on_axis_loop_names_both_poles() {
     }
     for seg in [
         RoleSeg::Band(pe(&doc, rev, 0, 0).into()),
-        RoleSeg::BandPi(pe(&doc, rev, 0, 0).into()),
         RoleSeg::Meridian(MeridianEnd::Seam, pe(&doc, rev, 0, 0).into()),
-        RoleSeg::Meridian(MeridianEnd::Pi, pe(&doc, rev, 0, 0).into()),
     ] {
         let kind = match seg {
-            RoleSeg::Band(_) | RoleSeg::BandPi(_) => EntityKind::Face,
+            RoleSeg::Band(_) => EntityKind::Face,
             _ => EntityKind::Edge,
         };
         assert!(

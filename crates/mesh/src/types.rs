@@ -527,7 +527,7 @@ pub enum TessellateError {
     /// restates as a band bounded by two meridians on DIFFERENT columns
     /// meeting at the pole or apex — the form this lane meshes, which
     /// `mesh/tests/loops_with_no_rim.rs` pins on the rimless lune and
-    /// the ball's two bands. A cylinder or torus chart has no
+    /// a ball's two lunes. A cylinder or torus chart has no
     /// singularity for a meridian to end on, so no meridian pair bounds
     /// anything there and the face needs a RIM.
     ///
@@ -726,9 +726,6 @@ pub enum SphereTrimCause {
     /// domain (a sphere's `|v| > π/2`) mid-edge: the lane meets a row's
     /// point only at a loop vertex.
     PastPole,
-    /// The loop visits one mesh vertex at two chart locations off a
-    /// singular row (a seam traversed twice).
-    SeamTwice,
     /// A projected image comes so near a singular row that its
     /// closed-form azimuth speed bound `|p′|/ρ` is unbounded on it: no
     /// chord schedule is sized, because none is bounded.
@@ -763,7 +760,6 @@ impl SphereTrimCause {
     pub const fn name(self) -> &'static str {
         match self {
             Self::PastPole => "past_pole",
-            Self::SeamTwice => "seam_twice",
             Self::ThroughPole => "through_pole",
             Self::ChordBudget => "chord_budget",
             Self::BothNappes => "both_nappes",
@@ -838,6 +834,10 @@ impl TessellateError {
                     R::OuterEmpty => {
                         "its outer loop is one vertex with no edge, so the face has no \
                          outline and bounds no region to mesh"
+                    }
+                    R::RingEmpty { .. } => {
+                        "a ring of it is one vertex with no edge, which bounds no region \
+                         and has no place in the chart; remove the lone vertex"
                     }
                     R::NoShift { .. } => {
                         "no whole number of the chart's periods moves a ring of it inside \
@@ -1080,10 +1080,6 @@ impl TessellateError {
                     SphereTrimCause::PastPole => {
                         "an edge's image runs past a chart pole or apex mid-edge, and \
                          the trimmed lane meets one only at a loop vertex"
-                    }
-                    SphereTrimCause::SeamTwice => {
-                        "its loop visits one vertex at two chart locations off a pole or \
-                         apex (a seam traversed twice)"
                     }
                     SphereTrimCause::ThroughPole => {
                         "an edge of its boundary passes so near a chart pole or apex that \

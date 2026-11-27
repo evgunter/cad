@@ -85,7 +85,7 @@ fn rim_link(body: &Body<f64>, arcs: &[EdgeKey], r: f64) -> sweep::blend::battery
 fn the_waist_arm_rests_the_ball_on_the_void_side_at_the_hand_value() {
     let body = waisted(tol());
     let arcs = rim_arcs_at(&body, 0.5, 0.5);
-    assert_eq!(arcs.len(), 2, "the waist rim is seam-split into two arcs");
+    assert_eq!(arcs.len(), 1, "the waist rim is one closed edge");
     let link = rim_link(&body, &arcs, WAIST_R);
 
     let want_spine = 0.5 + WAIST_R * 2f64.sqrt();
@@ -306,12 +306,9 @@ fn the_fourth_quadrant_is_built_and_its_floor_rim_carves() {
             );
         }
     }
-    assert_eq!(
-        spheres, 2,
-        "the ceiling is a seam-split sphere, two half-faces"
-    );
+    assert_eq!(spheres, 1, "the ceiling is one sphere face");
     let arcs = rim_arcs_at(&body, big_r, floor);
-    assert_eq!(arcs.len(), 2, "the floor rim is seam-split into two arcs");
+    assert_eq!(arcs.len(), 1, "the floor rim is one closed edge");
 
     // The arm, against the hand values.
     let link = rim_link(&body, &arcs, r);

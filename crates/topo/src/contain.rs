@@ -905,6 +905,23 @@ pub(crate) fn face_placement<T: Decide>(
     band: Band,
     on_plane: &'static str,
 ) -> Result<CurvedPlacement, PlacementError> {
+    face_placement_charted(body, face, q, band, on_plane).map(|(at, _)| at)
+}
+
+/// [`face_placement`], with the chart point a spline face's `In`
+/// placement was decided at ([`ChartedPlacement`]'s third), `None` for
+/// every other placement and kind.
+///
+/// # Errors
+///
+/// As [`face_placement`].
+pub(crate) fn face_placement_charted<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    q: Point3<T>,
+    band: Band,
+    on_plane: &'static str,
+) -> Result<(CurvedPlacement, Option<(f64, f64)>), PlacementError> {
     if let Ok(&geom::Surface::Plane { frame, .. }) = body.proven_face(face).surface() {
         let (origin, normal) = (frame.origin(), frame.axis());
         match decide(
@@ -913,12 +930,12 @@ pub(crate) fn face_placement<T: Decide>(
             band,
         ) {
             Ok(Sign::Zero) => {}
-            Ok(Sign::Positive | Sign::Negative) => return Ok(CurvedPlacement::OffCarrier),
+            Ok(Sign::Positive | Sign::Negative) => return Ok((CurvedPlacement::OffCarrier, None)),
             Err(diag) => return Err(PlacementError::OnPlane(diag)),
         }
     }
     placement_unheld(body, face, q, band)
-        .map(|(at, _, _)| at)
+        .map(|(at, _, uv)| (at, uv))
         .map_err(PlacementError::Door)
 }
 

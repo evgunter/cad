@@ -80,12 +80,12 @@
 //!
 //! The **ANNULUS** rim (a full solid of revolution's latitude rim):
 //! ONE closed edge — or SEVERAL arcs of one rim meeting at chart-seam
-//! vertices, on a pole-touching revolve whose walls are half-bands —
-//! with no ladder to walk either way. The MATE side is a revolution
-//! WALL — a curved full-revolve wall is one face whose single cycle
-//! carries two closed latitude rims and a doubly-traversed seam
-//! meridian; a pole-touching revolve mints two half-band faces per
-//! segment, each traversing each seam once. The HOST side is such a
+//! vertices, on a body whose walls are half-bands of one surface — with
+//! no ladder to walk
+//! either way. The MATE side is a revolution WALL — a curved
+//! full-revolve wall is one face whose single cycle carries its closed
+//! latitude rims and a doubly-traversed seam meridian; a half-band wall
+//! traverses each seam once. The HOST side is such a
 //! wall too, or a PLANE: a full revolve mints each plane wall as one
 //! face with no seam, a disc or an annulus whose circles are its outer
 //! cycle and its ring. The band is minted as one more wall of the
@@ -408,8 +408,8 @@ enum RimShape {
     /// wall or a plane. The band is minted as one more wall of the
     /// same shape.
     ///
-    /// A pole-touching profile's revolve splits every wall into
-    /// half-bands, so the rim arrives as SEVERAL arcs meeting at
+    /// A body whose walls are half-bands of one surface (an import's
+    /// half-turn pair) brings the rim as SEVERAL arcs meeting at
     /// chart-seam vertices. The band is still one annulus: the surface
     /// is smooth through such a vertex (the seam is a chart artifact,
     /// and the two extra edges there are co-surface meridians whose
@@ -1576,8 +1576,10 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
         // feet IN this cycle, so an edge of it the request did not name
         // would end up inside a strip the carve excises. The recourse is
         // true at the site because its clause asks for the rim to be the
-        // host's WHOLE outer cycle. A finished host reaches it through a
-        // pinch: `fillet_h5_r2_probes::a_finished_pinched_host_refuses_at_the_hostless_gate`.
+        // host's WHOLE outer cycle. A finished host pinched at a one-edge
+        // rim refuses before it, at the one-edge rim door
+        // (`fillet_h5_r2_probes::a_finished_pinched_host_refuses_at_the_one_edge_rim_door`),
+        // so no finished fixture reaches this arm.
         if cycle != want {
             return Err(unbuilt_chain(
                 link0.edge,
@@ -1884,9 +1886,10 @@ fn rims_share_support<T: Real>(a: &RimPlan<'_, T>, b: &RimPlan<'_, T>) -> bool {
 ///   so the earlier carve leaves the later rim's plan nothing stale.
 ///   Identity is all that
 ///   moves: every decision stays the plan's (#935; the one-call result
-///   is pinned against the sequential composition, bit-equal on a
-///   shared WALL and to within a summation ulp on a shared PLANE —
-///   `blend_tworims::a_seam_split_rim_pair_on_shared_half_band_walls_composes_in_one_call`,
+///   is pinned against the sequential composition to within the
+///   integrator's summation order, on a shared WALL and on a shared
+///   PLANE —
+///   `blend_tworims::a_lantern_rim_pair_on_a_shared_wall_composes_in_one_call`,
 ///   `blend2_r2_probes::r2_p3_two_rims_sharing_a_plane_cap_compose_in_one_call`).
 /// - **A MIXED rim** carves beside a ladder or another mixed rim. Its
 ///   plan names the junction vertices and the rim arcs, which no other
@@ -1909,15 +1912,13 @@ fn rims_share_support<T: Real>(a: &RimPlan<'_, T>, b: &RimPlan<'_, T>) -> bool {
 ///   any mutation, with the sequential recourse (each call plans
 ///   against its own source, so sequence is always honest).
 ///
-///   **The mixed pair is REACHABLE and this arm is what refuses it.**
-///   A revolve whose flat top runs in to a dome, followed by
-///   `merge_coplanar_faces`, mints one plane face carrying both a RING
-///   (the dome rim, a ladder) and a revolution-wall outer cycle (the
-///   top rim, a hostless annulus); requesting the two together is a
-///   mixed pair, and each rim carves ALONE. Rowed by
-///   `ring_clearance_forms::the_bosss_two_rims_refuse_together_and_compose_sequentially`,
-///   which also follows the recourse: the two calls in sequence build
-///   the same solid at the sum of the two closed forms.
+///   No fixture reaches this arm today. The boss — a revolve whose flat
+///   top runs in to a dome, followed by `merge_coplanar_faces` — mints
+///   one plane face carrying both a RING (the dome rim) and a
+///   revolution-wall outer cycle (the top rim), but each rim there plans
+///   as an ANNULUS, so the pair is two annuli on one support and the
+///   call builds at the sum of the two closed forms
+///   (`ring_clearance_forms::the_bosss_two_rims_carve_together_and_compose_sequentially`).
 fn shared_support_gate<T: Real>(rims: &[RimPlan<'_, T>]) -> Result<(), BlendError> {
     for (i, a) in rims.iter().enumerate() {
         for b in rims.iter().skip(i + 1) {
@@ -1980,12 +1981,13 @@ struct LiveSeams {
 /// strut this phase mints, which no earlier carve can have staled. A
 /// second rim of the same call CAN rest on that host face — the host may
 /// carry rings, and a ring of it is itself a candidate rim (the boss's
-/// dome rim beside its top rim) — but such a pair is a LADDER or MIXED
-/// rim and an ANNULUS sharing a support, which [`shared_support_gate`] refuses
-/// before any plan mutates, with the sequential recourse. So nothing on
-/// the host side can have moved by the time this runs, and what such a
-/// rim can share is its MATE wall, which is exactly the side still
-/// re-read.
+/// dome rim beside its top rim). A LADDER or MIXED rim there and an
+/// ANNULUS share a support, which [`shared_support_gate`] refuses before
+/// any plan mutates, with the sequential recourse; an ANNULUS ring rim
+/// carves the plane host's ring alone, which holds no seam this rim's
+/// crossing reads. So nothing on the host side this rim reads can have
+/// moved by the time this runs, and what such a rim can share is its
+/// MATE wall, which is exactly the side still re-read.
 fn refresh_annulus_seams<T: Decide + Bounds>(
     body: &Body<T>,
     rim: &RimPlan<'_, T>,

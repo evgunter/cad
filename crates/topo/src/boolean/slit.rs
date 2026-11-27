@@ -1290,7 +1290,9 @@ fn pole_beyond<T: Decide>(
     };
     // Either pole serves: the face holds no edge of its own boundary
     // here, so its chart's seam, which joins the two poles, lies outside
-    // it, both poles beyond one loop.
+    // it, both poles beyond one loop. A crossings-path cut-in is made
+    // only where each pole lies decidedly off each circle it cuts
+    // across (`ops::interior_cuts::closing_holds`).
     let pole = frame.origin() + frame.axis() * radius;
     let Some(&first) = other.first() else {
         return Err(BooleanError::JoinDesync {
@@ -2471,14 +2473,19 @@ fn walls_inside<T: Decide>(
             },
         }),
     };
-    // A face the point door reads no normal on (a spline or an
-    // approximating face, `Ok(None)`) is an input this reading does not
-    // read; a key that no longer resolves is the parting's own desync.
+    // A face the point door reads no normal on, by its kind
+    // (`NoNormalAt::UnreadKind`, a spline, approximating or spindle
+    // sheet), is an input this reading does not read; a key that no
+    // longer resolves, or a face with no surface, is the parting's own
+    // desync.
     let normal_at =
-        |face: FaceKey| match crate::face_normal::face_outward_normal_at(body, face, mid, band) {
-            Ok(None) if body.get_face(face).is_some() => Err(refused(EdgeInFaceGap::NoNormal)),
-            Ok(None) => Err(desync()),
-            read => normal(read),
+        |face: FaceKey| match crate::face_normal::face_outward_normal_or_why(body, face, mid, band)
+        {
+            Ok(Err(crate::face_normal::NoNormalAt::UnreadKind(_))) => {
+                Err(refused(EdgeInFaceGap::NoNormal))
+            }
+            Ok(Err(crate::face_normal::NoNormalAt::Unresolved)) => Err(desync()),
+            read => normal(read.map(Result::ok)),
         };
     // The edge is read as lying on the floor's surface, or within the
     // band of it where `holding` asks whether that reading matters: the

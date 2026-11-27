@@ -1028,10 +1028,10 @@ impl PartWindows<Patches> {
 ///
 /// A rim is `NodePick::boundary_rims`' answer, `topo::query::rim_of`
 /// spoken in names: the closed chain of circle arcs between one pair of
-/// surfaces. The picture draws such a chain as one circle, and a full
-/// revolve of a profile touching the axis splits every latitude circle
-/// into its `BandRim` and `BandRimPi` halves, so without this table one
-/// click on the circle means half of it.
+/// surfaces. The picture draws such a chain as one circle, and a body
+/// whose circle a boolean or a split cut into arcs holds it as several
+/// edges, so without this table one click on the circle means part of
+/// it.
 ///
 /// An edge on no rim of two or more is absent, and stands for itself.
 /// An edge whose rim the door could not answer holds its

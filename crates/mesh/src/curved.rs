@@ -1977,9 +1977,9 @@ mod tests {
         ]
     }
 
-    /// **The ball face beside a slit meshes as the whole sphere.** The ball
-    /// with one meridian cut at two points, a second arc stated on that
-    /// meridian between them (the slit face), and the other meridian killed:
+    /// **The ball face beside a slit meshes as the whole sphere.** The
+    /// one-face ball with its meridian cut at two points and a second arc
+    /// stated on that meridian between them (the slit face):
     /// the ball face's loop runs pole to pole and back with the slit's two
     /// arcs in its chart image, so it is no wrap strip and its columns are
     /// its lift's. The lift turns the face a whole turn round each pole, so
@@ -2029,7 +2029,6 @@ mod tests {
             tol,
         )
         .unwrap();
-        body.kef_describing(out[1], &[], tol).unwrap();
         let fk = body.face_of_half_edge(out[0]).unwrap();
 
         let sizing = crate::sizing::tests::witness_tols(0.05);
@@ -2466,7 +2465,9 @@ mod tests {
     /// The #653 row's totals, measured. They are asserted so that a
     /// change in the fixture list is VISIBLE rather than silent — the
     /// row's actual guarantee is its per-fixture floor, not these.
-    const TOTAL_MESHED: usize = 244;
+    /// A full revolve's curved wall is one face, so the revolved
+    /// fixtures mesh fewer faces than they did as two half-bands.
+    const TOTAL_MESHED: usize = 238;
     /// Typed refusals in the same sweep: none. A split ruling sends its
     /// face to the trimmed lane (`walk::splits_a_straight_side`), which
     /// meshes the mirror nappe's split walls. The donut contributes none

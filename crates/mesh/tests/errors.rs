@@ -618,6 +618,11 @@ fn each_domain_unread_cause_has_its_own_sentence_and_word() {
             "ring_open",
             "a ring of it does not close",
         ),
+        (
+            R::RingEmpty { ring },
+            "ring_empty",
+            "a ring of it is one vertex",
+        ),
         (R::OuterEmpty, "outer_empty", "its outer loop is one vertex"),
         (R::NoShift { ring }, "no_shift", "no whole number"),
         (R::Shifts { ring }, "shifts", "more than one whole number"),
@@ -648,15 +653,16 @@ fn each_domain_unread_cause_has_its_own_sentence_and_word() {
         R::OuterOpen { .. } => 1,
         R::RingOpen { .. } => 2,
         R::OuterEmpty => 3,
-        R::NoShift { .. } => 4,
-        R::Shifts { .. } => 5,
-        R::Copies { .. } => 6,
-        R::Undecided { .. } => 7,
-        R::SplineTrimUnread { .. } => 8,
+        R::RingEmpty { .. } => 4,
+        R::NoShift { .. } => 5,
+        R::Shifts { .. } => 6,
+        R::Copies { .. } => 7,
+        R::Undecided { .. } => 8,
+        R::SplineTrimUnread { .. } => 9,
     };
     let mut numbered: Vec<usize> = cases.iter().map(|(c, _, _)| variant(c)).collect();
     numbered.sort_unstable();
-    assert_eq!(numbered, (0..9).collect::<Vec<_>>(), "one case per cause");
+    assert_eq!(numbered, (0..10).collect::<Vec<_>>(), "one case per cause");
     let mut sentences = Vec::new();
     for (cause, word, says) in cases {
         let text = TessellateError::DomainUnread {

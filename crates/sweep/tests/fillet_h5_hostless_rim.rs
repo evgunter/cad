@@ -163,7 +163,7 @@ fn the_plane_hosted_rim_carves_on_either_material_side() {
         let outer = loop_edges(body, fd.outer);
         assert_eq!(
             outer.len(),
-            2,
+            1,
             "{name}: the host's outer cycle is exactly the rim"
         );
         assert!(
@@ -173,7 +173,11 @@ fn the_plane_hosted_rim_carves_on_either_material_side() {
 
         for v in rim_vertices(body, &arcs) {
             let inc = body.edges_of_vertex(v).unwrap();
-            assert_eq!(inc.len(), 3, "{name}: a crossing is trivalent");
+            assert_eq!(
+                inc.len(),
+                2,
+                "{name}: the rim's vertex holds the rim and one seam"
+            );
             let seams: Vec<EdgeKey> = inc.iter().copied().filter(|e| !arcs.contains(e)).collect();
             assert_eq!(seams.len(), 1, "{name}: one seam meets a crossing");
             assert!(
@@ -261,9 +265,8 @@ fn the_plane_host_carries_both_arcs_which_is_the_half_band_gates_own_fact() {
         .collect();
     assert_eq!(
         carried.len(),
-        2,
-        "the repaired host carries BOTH rim arcs, so the half-band \
-         discipline the seam-split resolver needs does not hold of it"
+        1,
+        "the repaired host carries the rim, one closed edge"
     );
     // The MATE side does hold it: one arc per face, which is why only
     // the host side needs a new way to reach its foot.
@@ -326,8 +329,8 @@ fn a_pole_touching_revolve_builds_its_plane_walls_whole() {
         let body = boss(up, tol());
         assert_eq!(
             body.faces().count(),
-            6,
-            "{name}: base disc and flat top whole, cylinder and dome in π halves"
+            4,
+            "{name}: base disc, cylinder, flat top and dome, each one face"
         );
         let arcs = rim_arcs_at(&body, 0.5, 1.0);
         assert_full_revolve_rim(&arcs, name);
@@ -512,7 +515,7 @@ fn a_hostless_rim_composes_with_a_shared_wall_neighbour() {
 
     let mut both = rim_arcs_at(&source, neck.0, neck.1);
     both.extend(rim_arcs_at(&source, shoulder.0, shoulder.1));
-    assert_eq!(both.len(), 4, "two rims of two arcs each");
+    assert_eq!(both.len(), 2, "two rims of one edge each");
     let one_call = fillet_edges(
         &sweep::test_support::at_rest(&source, tol()),
         &both,
@@ -554,11 +557,22 @@ fn a_hostless_rim_composes_with_a_shared_wall_neighbour() {
             seq.enclosure.volume_pad, 0.0,
             "closed-form faces only, order {order:?}"
         );
+        // The same construction either way; the order its faces' terms
+        // are summed in is not part of it, so the volume agrees to the
+        // summation order, and the cells agree exactly.
         assert_eq!(
-            one.enclosure.volume.to_bits(),
-            seq.enclosure.volume.to_bits(),
-            "the one-call result IS the sequential composition, bit for bit \
+            topo::readback::euler_counts(&one_call.body),
+            topo::readback::euler_counts(&body),
+            "the one-call result IS the sequential composition, cell for cell \
              (order {order:?})"
+        );
+        assert!(
+            (one.enclosure.volume - seq.enclosure.volume).abs()
+                <= 4.0 * f64::EPSILON * one.enclosure.volume.abs(),
+            "the one-call volume is the sequential one to the summation order \
+             (order {order:?}): {} vs {}",
+            one.enclosure.volume,
+            seq.enclosure.volume
         );
     }
 }

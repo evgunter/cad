@@ -13,7 +13,7 @@ use topo::{Body, FaceKey, HalfEdgeKey, SolidKey};
 
 use crate::common::approx::band;
 use crate::common::charts::{charts_of, moves_by};
-use crate::common::shell_operands::vessel;
+use crate::common::shell_operands::{disc_drum, vessel};
 use crate::shell8_common::{beside, cap, deep_dump, faces_of, outer_and_void_of, tol, volume};
 use sweep::test_support::finished;
 
@@ -57,9 +57,11 @@ fn all_faces(body: &Body<f64>) -> Vec<FaceKey> {
 /// Red the day the subset entry drops rows a face walk cannot reach.
 #[test]
 fn r1_the_subset_pass_leaves_rows_on_half_edges_its_caller_killed() {
-    let mut body = vessel(1.0, 2.0);
-    topo::mint_pcurves(&mut body, tol()).expect("the vessel's rows mint");
-    assert!(body.pcurves().count() > 0, "the vessel carries rows");
+    // The disc drum: its two wall faces share one cylinder, so a strut
+    // between them is an edge carrying rows that `kef` kills.
+    let mut body = disc_drum(1.0, 2.0);
+    topo::mint_pcurves(&mut body, tol()).expect("the drum's rows mint");
+    assert!(body.pcurves().count() > 0, "the drum carries rows");
     assert!(dead_rows(&body).is_empty(), "a fresh mint leaves none dead");
 
     // Kill one edge that carries a row, through a public Euler door

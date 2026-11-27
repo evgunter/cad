@@ -54,8 +54,8 @@ fn pose(deg: f64, k: f64, tilt: f64, spin: f64, tol: Tol) -> (topo::SplitPlane<f
 /// **In the band of the apex, each pose refuses typed, with its lever.**
 /// At `tilt = 1.5`, `spin = 0` on the 1° cone the chord's start reads the
 /// plane within the zero band of tangent to the wall, its datum along the
-/// section, and on the 3° cone the crossing's vertex lies within the band
-/// of the axis, where the cone reads no tangent plane; at
+/// section, and so does the 3° cone's, from the section's crossing of the
+/// cone's one seam; at
 /// `tilt = 1.2`, `spin = 2` on the 1° cone the chord's certificate reads
 /// its crossing angle inside the band. Neither is a broken invariant.
 #[test]
@@ -80,22 +80,23 @@ fn a_needle_cone_cut_in_band_of_its_apex_refuses_with_its_lever() {
         assert!(text.contains(words), "{what}: names {part}: {text}");
     }
     assert!(!text.contains("paired"), "{what}: pairs nothing: {text}");
-    // On the 3° cone the crossing's vertex stands within the band of the
-    // axis, off the apex: the star reads no tangent plane there, and the
-    // split refuses it at the reduction.
+    // On the 3° cone the chord's start reads the plane in the zero band
+    // of tangent to the wall as well: the section crosses the cone's one
+    // seam a hair below the apex, and the chord leaving that crossing
+    // grazes.
     let what = "α = 3°, tilt 1.5, spin 0";
     let (plane, _) = pose(3.0, 1e3, 1.5, 0.0, tol);
     let err = split(&needle(3.0, None, tol), &plane, tol).expect_err(what);
     assert!(
         matches!(
             err,
-            SplitError::Reduce(topo::SplitReduceError::VertexNearConeAxis { .. })
+            SplitError::Join(JoinError::SectionDepartureGrazes { .. })
         ),
         "{what}: {err:?}"
     );
     let text = err.render(geom_brep::recourse::Reading::Build);
     assert!(
-        text.contains("clear of the cone's tip"),
+        text.contains("farther from its apex"),
         "{what}: names the lever: {text}"
     );
     let what = "α = 1°, tilt 1.2, spin 2";
@@ -134,8 +135,9 @@ fn a_needle_cone_cut_in_band_of_its_apex_refuses_with_its_lever() {
 /// **Off the apex the same planes land their closed forms**, both sides,
 /// each passing tiers 3 and 3′ — the refusals' lever (move the geometry)
 /// taken: the plane meets the seam a hundred times farther down. Where
-/// the ellipse's vertices sit on the seams (`spin = 0`) at `tilt = 1.5`,
-/// tier 3′ refuses as measured, a census residue filed on its own row.
+/// the ellipse's vertex sits on the cone's one seam (`spin = 0`) at
+/// `tilt = 1.5`, tier 3′ refuses as measured, a census residue filed on
+/// its own row, on both sides at both angles.
 #[test]
 fn a_needle_cone_cut_off_its_apex_lands_its_closed_forms() {
     let tol = Tol::witness();
@@ -159,7 +161,7 @@ fn a_needle_cone_cut_off_its_apex_lands_its_closed_forms() {
                 assert_eq!(topo::validate_geometric(b, tol), Ok(()), "{what}: tier 3");
                 let t3p = topo::validate_pseudomanifold(b, &ContactRecords::default(), tol);
                 if spin == 0.0 && tilt == 1.5 {
-                    // The ellipse's vertices on the seams: the census
+                    // The ellipse's vertex on the seam: the census
                     // cannot settle a ruling against the half ending on
                     // it, the meeting unread on a meter (the line ×
                     // ellipse pose's basin), filed as

@@ -1003,10 +1003,13 @@ fn washer_counts(full: bool) -> (bool, u64, u64) {
 /// offset over the radius), where a measured norm less the radius and
 /// the angle of the offset at its length left them to the numeric
 /// count: 495 / 440. The partial washer's eight are all the distance's:
-/// 477 / 600.
+/// 477 / 600. A full revolve's curved wall is one band closed on its
+/// wrap edge, which is certified once more, restated from what it stores
+/// so its certificate is a fresh run's (`revolve/upgrade.rs`,
+/// `upgrade_meridian_wrap`): the full washer reads 503 / 442.
 #[test]
 fn a_revolves_latitude_identity_is_symbolic_without_a_registration() {
-    assert_eq!(washer_counts(true), (true, 495, 440), "the full washer");
+    assert_eq!(washer_counts(true), (true, 503, 442), "the full washer");
     assert_eq!(washer_counts(false), (true, 477, 600), "the partial washer");
 }
 

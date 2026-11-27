@@ -2,11 +2,13 @@
 id: an-analytic-outer-loops-whole-span-boxes-never-tighten-under-the-ring-reader
 kind: issue
 title: the ring door's analytic reader spends its work bound and answers undecided against an outer loop row whose chart box does not tighten (IsoArc, Fitted, General, Spiric)
-status: open
+status: closed
 opened: 2026-11-14
 priority: P1
 cost: H
 refs: [a-full-revolves-curved-wall-carries-two-seam-meridians-nobody-wrote]
+closed: 2026-11-26
+pr: 7581
 ---
 
 

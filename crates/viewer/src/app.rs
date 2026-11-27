@@ -13425,9 +13425,11 @@ mod properties_pane_tests {
     /// tool open, holds the whole circle** (review of PR 6129): the
     /// click goes through the frame's own `Tools::feed` call, so the
     /// `self.picks.index()` wiring is what this row reads. The startup
-    /// plate is deleted first so nothing occludes the cylinder.
+    /// plate is deleted first so nothing occludes the cylinder. A full
+    /// revolve's wall is one band, so its rim is one closed edge, and the
+    /// whole edge the index answers is that one arc.
     #[test]
-    fn a_viewport_click_on_a_seam_split_rim_holds_the_whole_circle() {
+    fn a_viewport_click_on_a_full_revolve_rim_holds_the_whole_circle() {
         use crate::session::EdgeSelection;
         use pncad::select::RoleSeg;
         let side = 0.01;
@@ -13479,10 +13481,7 @@ mod properties_pane_tests {
             height_px: f64::from(rect.height()) * ppp,
         };
         let is_rim = |name: &pncad::prelude::StableName| {
-            matches!(
-                name.path.as_slice(),
-                [.., RoleSeg::BandRim(_) | RoleSeg::BandRimPi(_)]
-            )
+            matches!(name.path.as_slice(), [.., RoleSeg::BandRim(_)])
         };
         let aimed = {
             let index = driven.on_screen();
@@ -13512,7 +13511,11 @@ mod properties_pane_tests {
             .on_screen()
             .whole_edge(&EdgeSelection { name, node, body })
             .expect("the index answers the rim");
-        assert_eq!(whole.len(), 2, "the circle under the cursor is two arcs");
+        assert_eq!(
+            whole.len(),
+            1,
+            "the circle under the cursor is one closed arc"
+        );
         let at = egui::pos2(
             rect.min.x + (cursor[0] / ppp) as f32,
             rect.min.y + (cursor[1] / ppp) as f32,
@@ -13524,7 +13527,7 @@ mod properties_pane_tests {
         held.sort();
         let mut want = whole.clone();
         want.sort();
-        assert_eq!(held, want, "one viewport click holds both arcs");
+        assert_eq!(held, want, "one viewport click holds the whole circle");
         assert_eq!(tool.count(), 1, "and counts one pick");
     }
 

@@ -1626,9 +1626,9 @@ pub fn replace_face_offset<T: Decide + crate::props::AtRestPolicy>(
 /// [`replace_face_offset`] for a CHART: every face carrying one surface
 /// key, replaced together.
 ///
-/// A surface can be worn by more than one face — a full revolve splits
-/// its wall into two bands over one cylinder, `step-import`'s adoption
-/// shares keys outright — and such a chart cannot be replaced one face
+/// A surface can be worn by more than one face — an extrusion of a
+/// two-arc circle parts its wall into two faces over one cylinder,
+/// `step-import`'s adoption shares keys outright — and such a chart cannot be replaced one face
 /// at a time: the fresh key would leave the sharer on the old surface
 /// while their shared seam named the new one, and a `Seam` description
 /// requires ONE surface on both sides, so there is no re-description

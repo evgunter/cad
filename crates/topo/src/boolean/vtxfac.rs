@@ -794,9 +794,10 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             Ok(Some(n)) => n,
             // A spline face, read at the chart point the sweep placed the
             // pierce at (`chart`); one it placed at none refuses C5's
-            // typed refusal, naming the kind. That `p` has no second foot
-            // on another in-trim sheet within the band is the placement's
-            // claim (`work/splice/the-spline-placement-read-certifies-no-second-in-trim-foot`).
+            // typed refusal, naming the kind. The placement certifies no
+            // second in-trim sheet within the band of `p`, so this reads
+            // one sheet's normal as the face's
+            // (`work/splice/the-spline-placement-read-certifies-no-second-in-trim-foot`).
             Ok(None) => {
                 use crate::face_normal::SplineNormalError;
                 let uv = chart.ok_or_else(unbuilt)?;
@@ -1949,9 +1950,12 @@ pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
     let point = node.point;
     // Each face's outward normal at the node, which it lies on.
     let outward = |operand, body: &Body<T>, face| -> Result<Vec3<T>, BooleanError> {
-        match crate::face_normal::face_outward_normal_at(body, face, point, band) {
-            Ok(Some(n)) => Ok(n.vec()),
-            Ok(None) => Err(BooleanError::ClassificationInvariant {
+        match crate::face_normal::face_outward_normal_or_why(body, face, point, band) {
+            Ok(Ok(n)) => Ok(n.vec()),
+            // A node's faces are cylinder walls (`node::is_wall`), which
+            // have an arm at every point off the axis, so a declined normal
+            // here is a torn record whatever the reason.
+            Ok(Err(_)) => Err(BooleanError::ClassificationInvariant {
                 what: "a node's face has no outward normal",
             }),
             Err(refusal) => Err(BooleanError::of_pierced_normal(refusal, operand, face)),

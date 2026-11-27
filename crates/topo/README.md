@@ -1095,7 +1095,9 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   is a legal boolean operand; only a curved group's skip is recorded
   and shipped. Every op's output also has **maximal edges**: no
   *joinable* vertex, meaning valence 2 with two distinct edges on one
-  structural carrier between the same two faces. Two edges are on one
+  structural carrier between the same two faces, or both a wrap edge of
+  one face: a station on its seam, which the face's loop passes twice
+  and the join's kill takes at both passes. Two edges are on one
   structural carrier when both lie on one locus of the faces' surface
   pair, or on one iso family of one surface's chart, and that locus is
   one regular curve at their shared vertex: the surfaces are transverse

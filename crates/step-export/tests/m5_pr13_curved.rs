@@ -368,7 +368,7 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
     let corpus = common::fixture_corpus();
     let corpus_names: Vec<&'static str> = corpus.iter().map(|(n, _)| *n).collect();
     // Pin A and pin B count faces written `.F.` over DIFFERENT sets (the
-    // whole corpus vs the rows past the planar third): 98 and 95, the
+    // whole corpus vs the rows past the planar third): 56 and 53, the
     // kiss assembly's 3 the difference. Two counters, deliberately.
     let mut reversed_seen = 0usize;
     let mut chart_axis_checked = 0usize;
@@ -713,10 +713,10 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
     }
 
     // The corpus really does contain reversed faces, so pin A above is
-    // not vacuous: 98 = notched 1 + washer 2 + cone 1 (the
-    // original four) + die_pips 21·2 (each pip's two sense:false
-    // half-band walls, S11 discipline) + the M6 composed die's 21·2
-    // (the same half-caps, carried through the surgery) + the globe
+    // not vacuous: 56 = notched 1 + washer 2 + cone 1 (the
+    // original four) + die_pips 21 (each pip's one sense:false band,
+    // a full revolve's one face, S11 discipline) + the M6 composed
+    // die's 21 (the same bands, carried through the surgery) + the globe
     // lily's lantern 1 (its MOUTH disc: a revolve mints both cap
     // planes on the profile plane's own +y normal, so the cap facing
     // −y opposes the solid's outward normal and the one facing +y
@@ -734,11 +734,11 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
     // (each plane's chart faces into the cavity, which is the material's
     // outside) and written reversed, `.F.`, under the void's
     // ORIENTED_CLOSED_SHELL.
-    assert_eq!(reversed_seen, 98, "BOUND: the corpus's reversed faces");
+    assert_eq!(reversed_seen, 56, "BOUND: the corpus's reversed faces");
     assert_eq!(
-        chart_axis_checked, 95,
-        "CHART-AXIS: all 95 faces written `.F.` checked (4 original + die_pips' 42 + \
-         the composed die's 42 + the lily lantern's 1 + the hollow box's 6 cavity \
+        chart_axis_checked, 53,
+        "CHART-AXIS: all 53 faces written `.F.` checked (4 original + die_pips' 21 + \
+         the composed die's 21 + the lily lantern's 1 + the hollow box's 6 cavity \
          planes; loft_prism contributes 0 — every face sense-true, see pin A's \
          derivation). The kiss assembly's 3 are planar, outside the curved rows."
     );

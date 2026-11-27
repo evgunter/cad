@@ -164,7 +164,7 @@
 //! (`work/tesslane/a-needle-cone-face-meshes-thin-triangles-beside-its-rulings.md`).
 //!
 //! Near a small end the development puts points far apart in azimuth
-//! close together, and its Delaunay triangulation joins them. Two things
+//! close together, and its Delaunay triangulation joins them. Three things
 //! answer that. The certificate is the flat triangle's own deviation
 //! ([`cert::cert_cone`]): each chord at its own two radii and its own
 //! azimuth difference, no chart box, so such a triangle is charged what it
@@ -172,7 +172,11 @@
 //! their own radius ([`AnalyticRow::lattice_rows`]), so the row next to a
 //! small end stands a chord of the lattice's target from it rather than
 //! many: under rows uniform in `v` a face ending near its apex holds
-//! triangles truly past δ.
+//! triangles truly past δ. And on a face more than a quarter turn round,
+//! every gap between rows is graded to its lower radius
+//! ([`reach_graded`]), so no triangle across it reaches far round the
+//! axis: a triangle reaching past a quarter turn from two points of a
+//! small end certifies and still winds into the surface.
 //!
 //! - **Which points are one CDT vertex.** Every copy of the apex is the
 //!   origin. The development rounds, so it is not injective: the cut
@@ -616,19 +620,14 @@ pub(crate) fn tessellate_trimmed(
         };
         return walk_face(body, fk, a, &polygon, &singular, chords, shared, tol);
     }
-    // A CHART WITH SINGULAR POINTS keeps its polygon to the shape
-    // `singular_row_shape` admits, so the duplicate-id skip in the emit
-    // pass never collapses a fan at one (#678).
+    // A CHART WITH SINGULAR POINTS keeps its polygon to the shapes
+    // `singular_row_shape` admits: no point past a row that ends the
+    // chart, no face on both sides of one inside it. #678's fan is kept
+    // off the lattice by `repeat_columns`.
     if let ChartRow::Analytic(ref a) = row
         && !a.singular_points().is_empty()
     {
-        singular_row_shape(
-            fk,
-            a.singular_points(),
-            &singular,
-            &polygon,
-            a.development().is_some(),
-        )?;
+        singular_row_shape(fk, a.singular_points(), &singular, &polygon)?;
     }
 
     // The lattice, over the trim box: on an analytic chart a uniform
@@ -653,13 +652,14 @@ pub(crate) fn tessellate_trimmed(
             // and the lattice the row lays from them.
             let (hu, hv) =
                 a.lattice_steps(arm_steps(a, face_target(surface, Lane::Trimmed, tol.delta)));
-            let columns = ceil_count(u1 - u0, hu)?;
-            // The pole-side rule thins the columns a lattice lays beside a
-            // singular point; a cylinder has none, so it keeps `columns`,
-            // and lays no row ([`AnalyticRow::lattice_rows`]): its column
-            // count is read by the metric below and by nothing else.
-            let nu = pole_side_columns(&polygon, &singular, (u0, u1), columns)?;
+            let nu = repeat_columns(&polygon, (u0, u1), ceil_count(u1 - u0, hu)?)?;
             let rows = a.lattice_rows((v0, v1), (hu, hv))?;
+            let rows = match a.development() {
+                Some(sin_alpha) => {
+                    reach_graded((v0, v1), &rows, sin_alpha, u1 - u0, !singular.is_empty())?
+                }
+                None => rows,
+            };
             (
                 lattice_candidates((u0, u1), (v0, v1), nu, &rows),
                 None,
@@ -1551,14 +1551,13 @@ impl TrimmedFace<'_> {
                 // census after this loop, which re-derives the fan about each
                 // walked side's vertex. The INGREDIENT
                 // half — a repeated id with a single interior column between
-                // the entries — cannot arise on the cylinder, which lays no
-                // lattice node (`chart_table::AnalyticRow::lattice_rows`), is
-                // kept off at a singular point by `pole_side_columns`, and
-                // this emit pass also runs for NURBS, where there is no
-                // uniform column count: the candidates come from the cell
-                // grid, so the "single interior column" has no analogue to
-                // test. That arm's ingredient check is therefore still an
-                // ARGUMENT and not a check.
+                // the entries — is kept off every analytic arm's lattice by
+                // `repeat_columns`, and this emit pass also runs for
+                // NURBS, where there is no `nu`: the candidates come from
+                // the cell grid rather than a uniform division, so the
+                // "single interior column" has no analogue to test. That
+                // arm's ingredient check is therefore still an ARGUMENT
+                // and not a check.
                 //
                 // ITS EMISSION IS NOT (issue 897). The census after this
                 // loop re-derives the CONCLUSION over the emitted patch,
@@ -2395,6 +2394,84 @@ fn run_of(
     Some(Run { members, anchor })
 }
 
+/// **How many whole turns' developed width a lattice gap may span**
+/// ([`reach_graded`]): a gap above slant `a` is at most
+/// `GAP_TURNS·2π·sin α·a`, the width the development gives that many
+/// turns at its lower radius.
+///
+/// A measured choice, not a bound: a Delaunay triangle across a gap can
+/// reach about the gap's own developed height round, as well as the
+/// columns' spacing, and no lemma here turns that into an angle the fold
+/// census admits. The census reads every triangle's winding and refuses
+/// loud (`FoldedTriangle`), which is the guarantee. On needle funnels
+/// (rim radius `0.002` to `0.1` over a unit height, whole, three-quarter
+/// and half turns, cut `10⁻²` to `10⁻⁵` above the apex by planes tilted
+/// `0`, `0.3` and `1`, at three δ each, 792 cells) eight turns leaves one
+/// cell folding, four leave none, and 160 leave 52. The same funnels a
+/// quarter turn and one radian round fold nowhere ungraded (504 cells).
+const GAP_TURNS: f64 = 4.0;
+
+/// The largest ratio of a graded gap's upper slant to its lower on a
+/// cone of `sin α` ([`GAP_TURNS`]).
+fn gap_bound(sin_alpha: f64) -> f64 {
+    1.0 + geom_core::period::Period::<f64>::angle().length() * sin_alpha * GAP_TURNS
+}
+
+/// **A cone face's lattice rows with every gap graded to its lower
+/// radius**, where its span lets a triangle reach far round the axis
+/// (module docs, "The development"). `rows`, ascending inside the window
+/// `(v0, v1)` on one nappe, are [`AnalyticRow::lattice_rows`]'s. On a
+/// face whose `u` span is at most a quarter turn they are returned as
+/// they are: no triangle of it reaches past a quarter turn, where a
+/// chord triangle from two points of a small end starts to wind into
+/// the surface. Otherwise the gap from the window's end nearer the apex
+/// and each gap between rows is split geometrically into the fewest
+/// pieces whose upper slant is at most [`gap_bound`] times their lower.
+/// A window whose loop reaches the apex (`at_apex`) is not graded below
+/// its first row: the apex is one point of the development, and the
+/// window's end there is a rounding of zero. Errors as [`ceil_count`].
+fn reach_graded(
+    (v0, v1): (f64, f64),
+    rows: &[f64],
+    sin_alpha: f64,
+    span: f64,
+    at_apex: bool,
+) -> Result<Vec<f64>, TessellateError> {
+    if span <= core::f64::consts::FRAC_PI_2 {
+        return Ok(rows.to_vec());
+    }
+    let bound = gap_bound(sin_alpha);
+    let sign = if v1 <= 0.0 { -1.0 } else { 1.0 };
+    let (near, far) = (v0.abs().min(v1.abs()), v0.abs().max(v1.abs()));
+    let mut stops: Vec<f64> = rows.iter().map(|v| v.abs()).collect();
+    stops.sort_by(f64::total_cmp);
+    let mut out = Vec::with_capacity(stops.len());
+    let mut below = if at_apex { 0.0 } else { near };
+    for (k, &above) in stops.iter().chain(core::iter::once(&far)).enumerate() {
+        if below > 0.0 && above > below * bound {
+            let pieces = ceil_count((above / below).ln(), bound.ln())?;
+            #[allow(clippy::cast_precision_loss)]
+            let piece = (above / below).powf(1.0 / pieces as f64);
+            let mut at = below;
+            for _ in 1..pieces {
+                at *= piece;
+                out.push(at);
+            }
+        }
+        if k < stops.len() {
+            out.push(above);
+        }
+        below = above;
+    }
+    let mut out: Vec<f64> = out
+        .into_iter()
+        .filter(|&a| a > near && a < far)
+        .map(|a| sign * a)
+        .collect();
+    out.sort_by(f64::total_cmp);
+    Ok(out)
+}
+
 /// **The developed point of chart point `(u, v)` on the cone of
 /// half-angle `α` (`sin_alpha`), on nappe `σ`**: radius `r = σ·v` (the
 /// slant length, `geom::Surface::Cone`), angle `θ = σ·sin α·u`, at
@@ -2623,23 +2700,20 @@ fn singular_vertices(
 /// triangle on two of that side's points has two corners on the one vertex
 /// and the emit pass drops it. The triangles left there are manifold about
 /// the vertex unless exactly one lattice column lies between the side's
-/// ends (#678's shape), which [`pole_side_columns`] keeps the lattice off.
+/// ends (#678's shape), which [`repeat_columns`] keeps the lattice off.
 ///
 /// Refused typed, each a shape the lane does not mesh:
 /// - a point past a row that ends the chart's `v` domain
 ///   ([`SingularPoint::passed_by`]): an edge whose image runs through the
 ///   singular point mid-edge;
-/// - a mesh id at two chart locations that is no singular vertex (a seam
-///   traversed twice), where the CDT runs in the lattice (`developed`
-///   false): there the two copies are two columns of one lattice, and a
-///   triangle across them is the collapse #678 is about. In the cone's
-///   development (`developed` true) the seam's copies lie on the sector's
-///   two bounding rays, which the face's interior keeps apart. A
-///   triangle with a corner at each copy of one point lies outside the
-///   face when the sector is wider than a half turn; inside a narrower
-///   one it has two corners on one vertex and is dropped, as the apex
-///   row's are, and the emit pass's census of identified edges re-derives
-///   that what is left about the vertex is a fan.
+/// - points on both sides of a row inside the domain (`BothNappes`).
+///
+/// A mesh id at two chart locations off a singular vertex is admitted:
+/// off a singular point a chart point is one surface point to a whole
+/// period, so it is one vertex on the chart's cut met from both sides,
+/// a seam or a wrap edge the loop walks out and back
+/// (DESIGN `[topology]`, the seam clause). [`repeat_columns`] keeps
+/// #678's other ingredient off it, as it does off a pole side.
 ///
 /// A loop that winds about a singular point inside the face does not
 /// close in the chart, and the door refuses it before any polygon is
@@ -2662,7 +2736,6 @@ fn singular_row_shape(
     points: &[SingularPoint],
     singular: &HashSet<u32>,
     trim: &TrimPolygon,
-    developed: bool,
 ) -> Result<(), TessellateError> {
     let (polygon, edges) = (trim.points.as_slice(), trim.edges.as_slice());
     let refuse = |i: usize, cause| -> Result<(), TessellateError> {
@@ -2689,43 +2762,55 @@ fn singular_row_shape(
             return refuse(a.max(b), SphereTrimCause::BothNappes);
         }
     }
-    if developed {
-        return Ok(());
-    }
-    let apart = crate::cdt::ids_at_two_uvs(polygon.iter().copied());
-    if let Some(i) = polygon
-        .iter()
-        .position(|&(_, _, id)| apart.contains(&id) && !singular.contains(&id))
-    {
-        return refuse(i, SphereTrimCause::SeamTwice);
-    }
     Ok(())
 }
 
 /// The lattice's column count over the trim box `(u0, u1)`: `nu`, doubled
-/// until no side of `trim` at a `singular` vertex (a pole side,
-/// [`singular_row_shape`]) has exactly one lattice
-/// column strictly between its ends — the shape #678's non-manifold fan
+/// until no mesh id the polygon holds at two UV locations
+/// ([`crate::cdt::ids_at_two_uvs`]) has exactly one lattice column
+/// strictly between two of its `u`s — the shape #678's non-manifold fan
 /// needs (`curved::pole_columns` carries the argument). Doubling keeps
-/// every column it had, so a side's count never falls, but it need not
-/// rise past one at the first doubling (the new columns can land
-/// outside a short side); the loop reads the count again after each, and
-/// ends once the spacing is under half the shortest pole side, where
-/// every side holds at least two. [`ceil_count`] caps the doubling.
-fn pole_side_columns(
+/// every column it had, so a span's count never falls, but it need not
+/// rise past one at the first doubling (the new columns can land outside
+/// a short span); the loop reads the count again after each, and ends
+/// once the spacing is under half the shortest span, where every span
+/// holds at least two. [`ceil_count`] caps the doubling.
+///
+/// Those ids are of two kinds. A singular vertex's copies (a pole side,
+/// [`singular_row_shape`]) span any `u` interval, and the doubling is
+/// what keeps one column off a short one. A vertex on the chart's cut met
+/// from both sides (a seam or a wrap edge walked out and back) has copies
+/// a whole period apart, `2π`, against an `h_u` every arm caps at `π/4`
+/// (`sizing::cap_angular`), so `nu ≥ 8` and seven columns stand between
+/// them: for those the rule is the generic one, and the step cap is what
+/// holds it. Only `u` spans are read. Copies a `v` period apart (a
+/// torus's) meet rows, not columns, and are held by the same cap on
+/// `h_v` alone: `work/tesslane/a-torus-faces-v-period-copies-are-held-off-678-by-the-row-cap-alone.md`.
+fn repeat_columns(
     trim: &TrimPolygon,
-    singular: &HashSet<u32>,
     (u0, u1): (f64, f64),
     mut nu: usize,
 ) -> Result<usize, TessellateError> {
-    let polygon = &trim.points;
-    let sides: Vec<(f64, f64)> = (0..polygon.len())
-        .map(|i| (polygon[i], polygon[trim.next(i)]))
-        .filter(|&(a, b)| a.2 == b.2 && singular.contains(&a.2) && a.0 != b.0)
-        .map(|(a, b)| (a.0.min(b.0), a.0.max(b.0)))
+    let repeated = crate::cdt::ids_at_two_uvs(trim.points.iter().copied());
+    let mut us: HashMap<u32, Vec<f64>> = HashMap::new();
+    for &(u, _, id) in &trim.points {
+        if repeated.contains(&id) {
+            us.entry(id).or_default().push(u);
+        }
+    }
+    let spans: Vec<(f64, f64)> = us
+        .values()
+        .flat_map(|us| {
+            us.iter().enumerate().flat_map(move |(i, &a)| {
+                us[i + 1..]
+                    .iter()
+                    .filter(move |&&b| a != b)
+                    .map(move |&b| (a.min(b), a.max(b)))
+            })
+        })
         .collect();
     let one_between = |nu: usize| {
-        sides.iter().any(|&(a, b)| {
+        spans.iter().any(|&(a, b)| {
             (1..nu)
                 .filter(|&i| {
                     #[allow(clippy::cast_precision_loss)]
@@ -4088,6 +4173,93 @@ pub(super) mod tests {
             const { std::cell::Cell::new(None) };
     }
 
+    /// **A cone face's gaps are graded where its span lets a triangle
+    /// reach far round, and only there** (`super::reach_graded`). On cones
+    /// from a needle to near flat, over a window from `10⁻³` to `1` and its
+    /// mirror on the other nappe, with rows like the certified rule's:
+    ///
+    /// - a face a quarter turn round or less keeps its rows bit for bit;
+    /// - past that, the rows hold the given ones and ascend inside the
+    ///   window; every gap from the window's end nearer the apex outward
+    ///   is within [`super::gap_bound`]; and each given gap is split into
+    ///   the fewest pieces that are, one fewer piece being past it;
+    /// - a window whose loop reaches the apex lays no row below its first.
+    #[test]
+    fn a_cone_faces_gaps_are_graded_only_where_its_span_reaches_far_round() {
+        use core::f64::consts::{FRAC_PI_2, PI, TAU};
+        let given = [0.0125, 0.05, 0.2, 0.6];
+        let (near, far) = (1e-3, 1.0);
+        let mut split = 0usize;
+        for sin_alpha in [0.002, 0.02, 0.4, 0.99] {
+            let bound = super::gap_bound(sin_alpha);
+            for span in [1.0, FRAC_PI_2, PI, 1.5 * PI, TAU] {
+                for nappe in [1.0, -1.0] {
+                    let window = if nappe > 0.0 {
+                        (near, far)
+                    } else {
+                        (-far, -near)
+                    };
+                    let rows: Vec<f64> = if nappe > 0.0 {
+                        given.to_vec()
+                    } else {
+                        given.iter().rev().map(|v| -v).collect()
+                    };
+                    for at_apex in [false, true] {
+                        let what = format!(
+                            "sin α {sin_alpha}, span {span}, nappe {nappe}, at the apex {at_apex}"
+                        );
+                        let got =
+                            super::reach_graded(window, &rows, sin_alpha, span, at_apex).unwrap();
+                        if span <= FRAC_PI_2 {
+                            assert_eq!(got, rows, "{what}: a quarter turn keeps its rows");
+                            continue;
+                        }
+                        let slants: Vec<f64> = got.iter().map(|v| v.abs()).collect();
+                        let mut up = slants.clone();
+                        up.sort_by(f64::total_cmp);
+                        assert!(
+                            got.windows(2).all(|w| w[0] < w[1])
+                                && slants.iter().all(|&a| a > near && a < far)
+                                && given.iter().all(|g| slants.contains(g)),
+                            "{what}: the rows ascend inside the window and hold the given ones"
+                        );
+                        let first = if at_apex { given[0] } else { near };
+                        assert!(
+                            up.iter().all(|&a| a >= first),
+                            "{what}: no row below {first:e}"
+                        );
+                        let stops: Vec<f64> = core::iter::once(first)
+                            .chain(up.iter().copied().filter(|&a| a > first))
+                            .chain(core::iter::once(far))
+                            .collect();
+                        assert!(
+                            stops
+                                .windows(2)
+                                .all(|w| w[1] / w[0] <= bound * (1.0 + 1e-12)),
+                            "{what}: a gap past {bound}"
+                        );
+                        let ends: Vec<f64> = core::iter::once(first)
+                            .chain(given.iter().copied().filter(|&g| g > first))
+                            .chain(core::iter::once(far))
+                            .collect();
+                        for pair in ends.windows(2) {
+                            let (c, t) = (pair[0], pair[1]);
+                            let pieces = stops.iter().filter(|&&a| a > c && a <= t).count();
+                            #[allow(clippy::cast_precision_loss)]
+                            let fewer = (t / c).powf(1.0 / (pieces as f64 - 1.0));
+                            assert!(
+                                pieces == 1 || fewer > bound,
+                                "{what}: ({c:e}, {t:e}) in {pieces} pieces where fewer would do"
+                            );
+                            split += pieces - 1;
+                        }
+                    }
+                }
+            }
+        }
+        assert!(split > 0, "some gap is split");
+    }
+
     /// **The MAJOR-1 backstop's end-to-end guard**: a face left with a
     /// sliver above δ refuses typed [`TessellateError::CertificateExceeded`]
     /// through `crate::tessellate`, not only at `cert::verdict`. No natural
@@ -5017,9 +5189,9 @@ pub(super) mod tests {
                 }
             }
         }
-        // Three walls (one on the vessel, two on the elbow) and two cone
-        // faces a half, at three δ.
-        assert_eq!(faces, 3 * (3 + 2 * 4), "the bodies' cone and torus faces");
+        // Three walls (one on the vessel, two on the elbow) and one cone
+        // face a half (a full revolve's wall is one face), at three δ.
+        assert_eq!(faces, 3 * (3 + 4), "the bodies' cone and torus faces");
     }
 
     /// The form of a stored chart image, for a row's report.
@@ -5238,14 +5410,19 @@ pub(super) mod tests {
         );
     }
 
-    /// **`pole_side_columns` takes the lattice off #678's shape.** A
-    /// pole side over `u ∈ [0.45, 0.55]` on a box `[0, 1]` has exactly
-    /// one column strictly between its ends at `nu = 2` (at ½), and the
-    /// first doubling's new columns (¼, ¾) land outside it; the count
-    /// must keep doubling until two columns stand between, and a side
-    /// with none or two between is left as it is.
+    /// **`repeat_columns` takes the lattice off #678's shape.** A pole
+    /// side over `u ∈ [0.45, 0.55]` on a box `[0, 1]` has exactly one
+    /// column strictly between its ends at `nu = 2` (at ½), and the first
+    /// doubling's new columns (¼, ¾) land outside it; the count must keep
+    /// doubling until two columns stand between, and a side with none or
+    /// two between is left as it is.
+    ///
+    /// A seam vertex's copies a period apart, at `u = 0` and `2π` on the
+    /// box `[0, 2π]`, are read by the same rule: handed `nu = 2` (one
+    /// column, at π) it doubles; at the `nu = 8` every arm's step cap
+    /// gives that box (`h_u ≤ π/4`) it is left as it is.
     #[test]
-    fn pole_side_columns_doubles_past_one_column_between() {
+    fn repeat_columns_doubles_past_one_column_between() {
         let half_pi = core::f64::consts::FRAC_PI_2;
         let polygon = [
             (0.0, 0.0, 1u32),
@@ -5264,19 +5441,149 @@ pub(super) mod tests {
         };
         assert_eq!(between(2), 1);
         assert_eq!(between(4), 1, "the first doubling alone does not clear it");
-        let pole: HashSet<u32> = [7].into_iter().collect();
         let polygon = super::TrimPolygon::of_loops(&polygon, &[]);
-        let nu = super::pole_side_columns(&polygon, &pole, (0.0, 1.0), 2).unwrap();
+        let nu = super::repeat_columns(&polygon, (0.0, 1.0), 2).unwrap();
         assert!(between(nu) >= 2, "nu {nu} leaves {} between", between(nu));
         assert_eq!(
-            super::pole_side_columns(&polygon, &pole, (0.0, 1.0), 3).unwrap(),
-            3
+            super::repeat_columns(&polygon, (0.0, 1.0), 3).unwrap(),
+            3,
+            "none between at nu 3 is left as it is"
+        );
+
+        let tau = core::f64::consts::TAU;
+        let band = [
+            (0.0, 0.0, 1u32),
+            (tau, 0.0, 1),
+            (tau, 0.5, 2),
+            (0.0, 0.5, 2),
+        ];
+        let band = super::TrimPolygon::of_loops(&band, &[]);
+        assert_eq!(
+            super::repeat_columns(&band, (0.0, tau), 2).unwrap(),
+            4,
+            "seam copies with one column between double"
+        );
+        let cap = (tau / crate::sizing::MAX_ANGULAR_STEP).ceil();
+        assert_eq!(cap, 8.0, "the step cap's count over a whole turn");
+        assert_eq!(
+            super::repeat_columns(&band, (0.0, tau), 8).unwrap(),
+            8,
+            "at the step cap's count seam copies are left as they are"
         );
     }
 
+    /// **`repeat_columns` holds every pole side the pole-side rule read**
+    /// (`work/lathe/the-main-merge-drops-mains-pole-form-and-pole-side-column-intents.md`,
+    /// item 3). That rule doubled the column count until no side of the
+    /// polygon between two copies of one singular vertex had exactly one
+    /// column strictly between its ends. Those two copies are one mesh id
+    /// at two `u`s, so each such side is a span `repeat_columns` reads,
+    /// among the spans it reads. On pole sides narrow and wide, single and
+    /// several, at both ends of the box and beside seam copies a period
+    /// apart, from every starting count to 16: the count `repeat_columns`
+    /// answers leaves no pole side one column, and is never below the
+    /// pole-side rule's.
+    #[test]
+    fn repeat_columns_holds_every_pole_side() {
+        use core::f64::consts::{FRAC_PI_2, TAU};
+        // The pole-side rule, read here as the oracle: the sides between
+        // two copies of a singular id that sit at two `u`s.
+        let pole_sides = |p: &super::TrimPolygon, singular: &HashSet<u32>| {
+            (0..p.points.len())
+                .map(|i| (p.points[i], p.points[p.next(i)]))
+                .filter(|&(a, b)| a.2 == b.2 && singular.contains(&a.2) && a.0 != b.0)
+                .map(|(a, b)| (a.0.min(b.0), a.0.max(b.0)))
+                .collect::<Vec<_>>()
+        };
+        let between = |(u0, u1): (f64, f64), nu: usize, (a, b): (f64, f64)| {
+            (1..nu)
+                .filter(|&i| {
+                    #[allow(clippy::cast_precision_loss)]
+                    let u = u0 + (u1 - u0) * (i as f64 / nu as f64);
+                    u > a && u < b
+                })
+                .count()
+        };
+        let oracle = |sides: &[(f64, f64)], window: (f64, f64), mut nu: usize| {
+            while sides.iter().any(|&side| between(window, nu, side) == 1) {
+                nu *= 2;
+            }
+            nu
+        };
+        let pole = |u: f64, at: f64| [(u, at, 7u32)];
+        type Case = (&'static str, (f64, f64), Vec<(f64, f64, u32)>);
+        let cases: Vec<Case> = vec![
+            (
+                "one narrow pole side",
+                (0.0, 1.0),
+                [(0.0, 0.0, 1)]
+                    .into_iter()
+                    .chain(pole(0.45, FRAC_PI_2))
+                    .chain(pole(0.55, FRAC_PI_2))
+                    .chain([(1.0, 0.0, 2)])
+                    .collect(),
+            ),
+            (
+                "a pole side at each end of the box",
+                (0.0, 1.0),
+                vec![
+                    (0.0, -FRAC_PI_2, 8),
+                    (0.3, -FRAC_PI_2, 8),
+                    (0.7, 0.0, 1),
+                    (1.0, FRAC_PI_2, 7),
+                    (0.93, FRAC_PI_2, 7),
+                    (0.1, 0.0, 2),
+                ],
+            ),
+            (
+                "two pole sides of one pole",
+                (0.0, 1.0),
+                vec![
+                    (0.0, 0.0, 1),
+                    (0.2, FRAC_PI_2, 7),
+                    (0.26, FRAC_PI_2, 7),
+                    (0.5, 0.0, 3),
+                    (0.61, FRAC_PI_2, 7),
+                    (0.9, FRAC_PI_2, 7),
+                    (1.0, 0.0, 2),
+                ],
+            ),
+            (
+                "a pole side beside a seam a period apart",
+                (0.0, TAU),
+                vec![
+                    (0.0, 0.0, 1),
+                    (TAU, 0.0, 1),
+                    (TAU, 1.0, 2),
+                    (3.3, FRAC_PI_2, 7),
+                    (2.9, FRAC_PI_2, 7),
+                    (0.0, 1.0, 2),
+                ],
+            ),
+        ];
+        let singular: HashSet<u32> = [7, 8].into_iter().collect();
+        for (what, window, outer) in cases {
+            let polygon = super::TrimPolygon::of_loops(&outer, &[]);
+            let sides = pole_sides(&polygon, &singular);
+            assert!(!sides.is_empty(), "{what}: the case holds a pole side");
+            for start in 1..=16 {
+                let nu = super::repeat_columns(&polygon, window, start).unwrap();
+                assert!(
+                    sides.iter().all(|&side| between(window, nu, side) != 1),
+                    "{what}, from {start}: nu {nu} leaves a pole side one column"
+                );
+                assert!(
+                    nu >= oracle(&sides, window, start),
+                    "{what}, from {start}: nu {nu} below the pole-side rule's {}",
+                    oracle(&sides, window, start)
+                );
+            }
+        }
+    }
+
     /// **The tilted pair's faces meet their poles as polygon sides, and
-    /// the runs between the poles sit where the region is.** Each ball's
-    /// half-band remnant passes both chart poles at loop vertices
+    /// the runs between the poles sit where the region is.** A ball's
+    /// one-face remnant passes both chart poles at loop vertices
     /// (`y`-poled balls, seam meridians pole to pole), so its polygon
     /// carries two pole sides ([`super::flat_points`]) and the run
     /// between them sits where the loop's lift puts it, through the
@@ -5358,8 +5665,8 @@ pub(super) mod tests {
             }
         }
         assert!(
-            with_poles >= 2,
-            "both balls' remnants pass both poles: {with_poles}"
+            with_poles >= 1,
+            "a ball's one-face remnant passes both poles: {with_poles}"
         );
     }
 
@@ -6114,22 +6421,33 @@ pub(super) mod tests {
 
     /// **The clearance is what keeps a node off the boundary, and the
     /// lane refuses a triangle f64 cannot wind as soon as it holds one.**
-    /// The ball under a box face at `δ = 0.04`: at the shipped clearance
+    /// The ball under a box face at `δ = 0.037`: at the shipped clearance
     /// the lane meshes its sphere face. Handed a clearance of zero, a
     /// node is kept off a side only where it lies on it exactly, the node
     /// within rounding of the loop's vertex is laid, and the triangle
     /// between the two has a height far inside its allowance: the lane
     /// answers `UnresolvedWinding` itself, naming that height, and does
     /// not read the noise as a fold to cure or as outward.
+    ///
+    /// The witness is a fixed one found by a scan, not written down: a
+    /// node within rounding of a loop vertex, and not on it (on it, the
+    /// node enters at an existing vertex and refuses `Triangulation`), on
+    /// a lattice the trim box itself sizes, so moving the box to place the
+    /// vertex moves the lattice too. The scan: the box face at `x ∈ {−0.25,
+    /// 0.25, 0.3, 0.5, 0.6, 0.75}`, the ball poled `y` and `z`, `δ` from
+    /// 0.02 to 0.1 in steps of 5e-4. One cell refused at clearance zero:
+    /// `x = 0.5`, poled `y`, `δ = 0.037`. A change to the lattice or the
+    /// chord schedule can lose it; then re-run that scan.
     #[test]
     fn a_lattice_laid_without_clearance_cuts_a_triangle_the_lane_refuses() {
+        const DELTA: f64 = 0.037;
         let body = ball_under_a_box_face();
-        let shipped = lane_answers(&body, 0.04, super::BOUNDARY_CLEARANCE);
+        let shipped = lane_answers(&body, DELTA, super::BOUNDARY_CLEARANCE);
         assert!(
             !shipped.is_empty() && shipped.iter().all(|(_, answer)| answer.is_ok()),
             "at the shipped clearance every face the lane takes meshes: {shipped:?}"
         );
-        let bare = lane_answers(&body, 0.04, 0.0);
+        let bare = lane_answers(&body, DELTA, 0.0);
         let unresolved: Vec<_> = bare
             .iter()
             .filter_map(|(_, answer)| match answer {
@@ -6186,7 +6504,7 @@ pub(super) mod tests {
                 },
             ];
             let trim = super::TrimPolygon::new((poly.to_vec(), edges));
-            match super::singular_row_shape(fk, &poles, &HashSet::new(), &trim, false) {
+            match super::singular_row_shape(fk, &poles, &HashSet::new(), &trim) {
                 Err(TessellateError::SphereTrimShape { edge, cause, .. }) => Some((edge, cause)),
                 Ok(()) => None,
                 Err(other) => panic!("not a shape refusal: {other:?}"),
@@ -6201,14 +6519,13 @@ pub(super) mod tests {
             (0.0, 1.0, 4),
         ];
         assert_eq!(cause(&past), Some((e(2), SphereTrimCause::PastPole)));
-        let seam = [
-            (0.0, 0.0, 1),
-            (1.0, 0.0, 2),
-            (1.0, 1.0, 3),
-            (0.5, 0.5, 1),
-            (0.0, 1.0, 4),
-        ];
-        assert_eq!(cause(&seam), Some((e(0), SphereTrimCause::SeamTwice)));
+        let tau = core::f64::consts::TAU;
+        let seam = [(0.0, 0.0, 1), (tau, 0.0, 1), (tau, 1.0, 2), (0.0, 1.0, 2)];
+        assert_eq!(
+            cause(&seam),
+            None,
+            "a band whose loop walks its seam both ways is the arm's"
+        );
     }
 
     /// **`cdt_point` floors before it scales, and agrees with
@@ -6958,7 +7275,6 @@ pub(super) mod tests {
                 &apex,
                 &singular,
                 &super::super::TrimPolygon::new((poly.to_vec(), edges[..poly.len()].to_vec())),
-                true,
             ) {
                 Err(TessellateError::SphereTrimShape { cause, .. }) => Some(cause),
                 Ok(()) => None,
