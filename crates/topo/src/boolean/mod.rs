@@ -5146,6 +5146,30 @@ impl BooleanError {
         }
     }
 
+    /// **A face whose normal the point door declines at a point**
+    /// ([`crate::face_normal::NoNormalAt`]), in the Boolean's words: a
+    /// face of a kind with no arm at a point (a spline sheet; the boolean
+    /// admits no approximating or spindle face it reads) is that reading's
+    /// limit, [`Self::CurvedBooleanUnsupported`] naming the kind; a key
+    /// that resolves to no face on a surface is the caller's defect,
+    /// `gone`.
+    pub(in crate::boolean) fn of_declined_normal(
+        operand: Operand,
+        face: FaceKey,
+        why: crate::face_normal::NoNormalAt,
+        gone: Self,
+    ) -> Self {
+        use crate::face_normal::NoNormalAt;
+        match why {
+            NoNormalAt::UnreadKind(kind) => Self::CurvedBooleanUnsupported {
+                operand,
+                face,
+                kind,
+            },
+            NoNormalAt::Unresolved => gone,
+        }
+    }
+
     /// The refusal of a pierced face's outward normal at a pierce point
     /// (`face_normal::face_outward_normal_at`), in the Boolean's words.
     pub(crate) fn of_pierced_normal(

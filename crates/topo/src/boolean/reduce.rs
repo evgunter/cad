@@ -4358,8 +4358,10 @@ fn interior<T: crate::props::AtRestPolicy>(
 /// there needs the same parameter); a face's normal at `p` refused, in
 /// the Boolean's words ([`BooleanError::of_pierced_normal`]: in band, at
 /// a cone's apex, on a degenerate torus or a spline crease, or `p` off
-/// the face's surface); the [`Coincide::Sectors`] coincidence where the
-/// cosine is in band.
+/// the face's surface); [`BooleanError::CurvedBooleanUnsupported`] where
+/// a face is a spline sheet, which has no normal at a point
+/// ([`BooleanError::of_declined_normal`]); the [`Coincide::Sectors`]
+/// coincidence where the cosine is in band.
 fn sheets_part<T: crate::props::AtRestPolicy>(
     (x, x_is, edge): (&Body<T>, Operand, &crate::entity::Edge),
     (y, face, at): (&Body<T>, FaceKey, FaceContainment),
@@ -4409,9 +4411,14 @@ fn sheets_part<T: crate::props::AtRestPolicy>(
     };
     let tau_y = c_y.carrier().deriv(s);
     let normal = |body: &Body<T>, operand: Operand, f: FaceKey| -> Result<Vec3<T>, BooleanError> {
-        match crate::face_normal::face_outward_normal_at(body, f, p, band) {
-            Ok(Some(n)) => Ok(n.vec()),
-            Ok(None) => Err(desync("a face a crossing reads does not resolve")),
+        match crate::face_normal::face_outward_normal_or_why(body, f, p, band) {
+            Ok(Ok(n)) => Ok(n.vec()),
+            Ok(Err(why)) => Err(BooleanError::of_declined_normal(
+                operand,
+                f,
+                why,
+                desync("a face a crossing reads does not resolve"),
+            )),
             Err(why) => Err(BooleanError::of_pierced_normal(why, operand, f)),
         }
     };
