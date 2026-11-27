@@ -7,6 +7,7 @@ opened: 2026-10-29
 priority: P1
 cost: M
 refs: [5999]
+blocked_on: [a-finished-body-holds-its-contact-records-at-every-door]
 ---
 
 

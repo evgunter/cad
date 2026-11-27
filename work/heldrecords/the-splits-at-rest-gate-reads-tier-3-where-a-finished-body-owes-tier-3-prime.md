@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-19
 priority: P1
 cost: M
+blocked_on: [a-finished-body-holds-its-contact-records-at-every-door]
 ---
 
 

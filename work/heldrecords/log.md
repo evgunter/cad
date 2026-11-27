@@ -387,3 +387,11 @@
   - Closed `the-boolean-door-decides-no-minted-vertex-on-edge-meeting`.
   - Closed INSIDE's duplicate filing `main-red-the-removed-members-merge-reds-two-carried-record-rows`; both items are green.
   - The unwitnessed structure arm is noted on the re-opened section-vertices row.
+- 2026-11-27 Board after PR 7808. Only one P0 is in flight: the editor-core fold red, with lane session_018u3gVK16A8ND9orBs4bSqb. Every other open P1 waits on EMBED's PR 7124 (`a-finished-body-holds-its-contact-records-at-every-door`), which has been open and untouched since 2026-11-24 06:20Z:
+  - the split stack, 7421 → 7481 → the merged parting-division;
+  - the nested-assemble cut;
+  - the parted record;
+  - the ringed-wall re-measure;
+  - the gate flip.
+
+  Those four rows are marked blocked on it. `a-built-sliver…` stays parked on its own blocker. Once the editor-core red lands, the program has only blocked rows left, and the sitting hands back as blocked on PR 7124.

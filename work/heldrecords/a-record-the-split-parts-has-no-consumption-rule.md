@@ -7,6 +7,7 @@ priority: P1
 cost: M
 opened: 2026-11-01
 design: true
+blocked_on: [a-finished-body-holds-its-contact-records-at-every-door]
 ---
 
 
