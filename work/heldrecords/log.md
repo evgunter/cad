@@ -401,3 +401,8 @@
   - Fix: `fate_of` drops a minted cell whose live image is a face.
   - Evidence: a full default per-test run over three crates. Built→refused is empty.
   - Single FULL review dispatched (session_018u3gVFjNGPDis7jF2MHewX).
+- 2026-11-27 PR 7825 merged (412cd214f3) after a single FULL review (MERGEABLE, no MAJOR). The editor-core fold is green, so all three of PR 7745's mains reds are fixed.
+  - Coverage gap: 40 sweep slow rows were not run past 90 s, because main's slowdown since PR 7801 makes them impractical. Within what ran, built→refused is empty and the carry mutant counts are unchanged against NOFIX.
+  - Follow-up sent to the lane:
+    - a `ci` pin from the reviewer's flush-block poses;
+    - a P1 row for the root, where since PR 7745 a division's `minted` names boundary cells, and `landings`' `?` refuses the whole record on any out-of-lane image pair.
