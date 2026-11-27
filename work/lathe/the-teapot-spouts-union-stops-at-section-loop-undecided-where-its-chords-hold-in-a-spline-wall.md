@@ -2,13 +2,14 @@
 id: the-teapot-spouts-union-stops-at-section-loop-undecided-where-its-chords-hold-in-a-spline-wall
 kind: issue
 title: The teapot spout's union stops at SectionLoopUndecided where its section's chords are held by a spline wall, at ε 1e-9 and 1e-6, where main gets past the join
-status: review
+status: closed
 opened: 2026-11-26
 priority: P0
 cost: M
 refs: [curved-demo-joins-build]
 pr: 7824
 branch: lathe/teapot-spout-section-loop
+closed: 2026-11-27
 ---
 
 ## What
