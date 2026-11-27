@@ -190,3 +190,4 @@ Signed: (CARVE orchestrator)
   - Hosted CI: green apart from inherited reds (cylinder-prism corner at 1e-12, tess-lint baseline).
   - Slow-set steps and the mesh budget were cancelled by hand: main's P0 inside/main-slow-since-7801.
   - EMBED PR 7328 was already closed, so no note was sent.
+- 2026-11-27 (LATHE orchestrator) Dispatched the teapot-spout P0 (`the-teapot-spouts-union-stops-at-section-loop-undecided-…`) to a new lane, session_01VyvYnK2feP8khs1fX5BvQS, branch lathe/teapot-spout-section-loop. It stops at a fork if the fix needs one.
