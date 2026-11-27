@@ -400,6 +400,24 @@ fn holds_at_both(
     [report, twin]
 }
 
+/// **A body of one face holds**, its self-pair discharged by kind: what
+/// [`assert_holds`] reads of a body with no touching pair to examine (a
+/// full revolve's ball, one sphere face). Red if it does not hold, if a
+/// pair refuses, or if a face's self-pair is not discharged by kind.
+fn holds_alone<T: Real>(what: &str, report: &BoundReport<Witness>, body: &Body<T>) {
+    let r = report.receipt;
+    assert!(
+        matches!(report.verdict, BoundVerdict::Holds),
+        "{what} is embedded: {r:?}"
+    );
+    assert_eq!(body.faces().count(), 1, "{what} is one face");
+    assert_eq!(
+        (r.candidates, r.refused, r.by_kind),
+        (1, 0, 1),
+        "{what}: its one face against itself, discharged by kind: {r:?}"
+    );
+}
+
 // ------------------------------------------------------------ fixtures
 
 /// A helix of `turns` revolutions, radius 1, `pitch` per revolution,
@@ -5896,10 +5914,10 @@ fn cones_far_from_the_origin_hold_across_their_apexes() {
 
 /// **A ball a hundred units off the origin holds at both scalars, and
 /// balls and cones in turned frames hold**: the unit ball about
-/// `y = 101.3`; the unit ball on each of the three turned sketch planes,
-/// parted at its poles by `departure`'s plane through the pair's one
-/// shared vertex (before that arm they refused there, each seam meridian
-/// listed in a plane of its own); the
+/// `y = 101.3`, and the unit ball on each of the three turned sketch
+/// planes, each one sphere face (a full revolve's wall is one band)
+/// whose self-pair is discharged by kind, its poles its wrap edge's tips
+/// ([`holds_alone`]); the
 /// unit cone tip on each of three sketch planes turned about a generic
 /// axis and moved ([`turned_plane`]); and the slender cone (`r = 0.37`,
 /// `h = 2.3`, apex at `y = 103.6`) on all three, at `f64`. A sphere's
@@ -5907,7 +5925,7 @@ fn cones_far_from_the_origin_hold_across_their_apexes() {
 /// the body is.
 ///
 /// The unit cone holds in each frame within 400 splits, as in the plain
-/// frame's 174: its half-cones' windows end at the apex. Red where a
+/// frame's 174: its cone face's window ends at the apex. Red where a
 /// window reaches past the apex into the other nappe, as one read off
 /// the boundary's world box does in a turned frame (thousands of splits
 /// on the first plane, a `Departure` refusal on the third). A cone here
@@ -5924,20 +5942,20 @@ fn singular_points_hold_far_from_the_origin_and_in_turned_frames() {
             tol(),
         )
     }
-    for report in holds_at_both("the ball about y = 101.3", ball(101.3), ball(101.3)) {
-        assert_eq!(report.receipt.refused, 0, "{:?}", report.receipt);
-    }
+    let (float, interval): (Body<f64>, Body<Interval>) = (ball(101.3), ball(101.3));
+    let (report, twin) = (
+        injective(&float, None, BUDGET),
+        injective(&interval, None, BUDGET),
+    );
+    same_class("the ball about y = 101.3", &report, &twin);
+    holds_alone("the ball about y = 101.3", &report, &float);
+    holds_alone("the ball about y = 101.3 at Interval", &twin, &interval);
     let at = |x: f64, y: f64| Point2::new(x, y);
     for k in 1..4 {
         let (a, b, c) = (at(0.0, -1.0), at(0.0, 1.0), at(0.0, 0.0));
         let ball = revolved_on(turned_plane(k), vec![(a, bulge(a, b, c)), (b, 0.0)]);
         let report = injective(&ball, None, BUDGET);
-        assert_holds(&format!("the ball in frame {k}"), &report, &ball);
-        assert_eq!(
-            report.receipt.refused, 0,
-            "the ball in frame {k}: {:?}",
-            report.receipt
-        );
+        holds_alone(&format!("the ball in frame {k}"), &report, &ball);
     }
     let unit = || {
         vec![
@@ -6130,15 +6148,15 @@ fn every_face_window_holds_its_boundary_in_every_frame() {
     assert!(read > 100, "the coordinates read: {read}");
 }
 
-/// **A turned half-cone's window runs from its apex to its rim**: the
-/// unit cone revolved on the plain and each turned sketch plane
-/// ([`turned_plane`]), apex up and apex down. Each half-cone's boundary
-/// runs through the apex along its two rulings, so its slant window is
-/// `(−√2, 0)` with the apex up and `(0, √2)` with it down, each end to
-/// `1e-12`. Red where the window reaches past the apex into the other
+/// **A turned cone's window runs from its apex to its rim**: the unit
+/// cone revolved on the plain and each turned sketch plane
+/// ([`turned_plane`]), apex up and apex down. A full revolve's wall is
+/// one band, one cone face whose boundary runs out to the apex along its
+/// wrap edge and back, so its slant window is `(−√2, 0)` with the apex
+/// up and `(0, √2)` with it down, each end to `1e-12`. Red where the window reaches past the apex into the other
 /// nappe or past the rim, and where it falls short of either.
 #[test]
-fn a_turned_half_cones_window_runs_from_its_apex_to_its_rim() {
+fn a_turned_cones_window_runs_from_its_apex_to_its_rim() {
     let at = |x: f64, y: f64| Point2::new(x, y);
     let rim = core::f64::consts::SQRT_2;
     for k in 0..4 {
@@ -6163,7 +6181,7 @@ fn a_turned_half_cones_window_runs_from_its_apex_to_its_rim() {
             ),
         ] {
             let cone = revolved_on(turned_plane(k), verts);
-            let mut halves = 0;
+            let mut walls = 0;
             for (face, _, v) in window_rects(what, &cone) {
                 if !matches!(
                     cone.face(face).unwrap().surface().unwrap(),
@@ -6171,13 +6189,13 @@ fn a_turned_half_cones_window_runs_from_its_apex_to_its_rim() {
                 ) {
                     continue;
                 }
-                halves += 1;
+                walls += 1;
                 assert!(
                     (v.0 - want.0).abs() < 1e-12 && (v.1 - want.1).abs() < 1e-12,
                     "the cone {what} in frame {k}, face {face:?}: its slant window {v:?} is {want:?}"
                 );
             }
-            assert_eq!(halves, 2, "the cone {what} in frame {k} has two half-cones");
+            assert_eq!(walls, 1, "the cone {what} in frame {k} has one cone face");
         }
     }
 }
@@ -7064,27 +7082,27 @@ fn section_arcs(body: &Body<f64>) -> Vec<geom::Ellipse<f64>> {
         .collect()
 }
 
-/// **A cone's split states its section's two arcs as one ellipse
-/// restated a half turn on, or as two a rounding apart.** Each arc is
-/// seamed at the principal vertex nearest its own middle. The two wall
-/// cuts here leave arcs whose middles lie opposite: stated on one
-/// anchor with `u_ref` and the phase negated, one is the other's
-/// half-turned restatement ([`geom::Ellipse::restatements`]) by
-/// content, exactly, in every placement. The cap cut here leaves arcs
-/// whose middles lie in adjacent quadrants: stated a quarter turn apart
-/// with the semi-axes exchanged, through a turn that rounds, so no
-/// restatement of one is the other. Where the middles fall decides it,
-/// not whether the cut meets a cap: of two-arc cuts through a cap 26
-/// state a quarter and 40 a half, and every one of 864 cuts through the
-/// wall alone a half
-/// (`a_splits_two_section_arcs_are_stated_a_half_turn_apart_through_the_wall_and_either_way_through_a_cap`).
-/// The row pins what these three
-/// splits state, read through the same restatements the certificate
-/// reads (`injective`'s `one_stated_conic`), so it goes red when the
-/// split's statements move and not when that reading does. Asked of
-/// the `f64` body alone: a body held as enclosures stores no statement.
+/// **A cone's split states its section as one ellipse through its wall,
+/// and as two arcs a rounded quarter turn apart through its cap.** A
+/// full revolve's wall is one band, so a cut through the wall alone
+/// leaves its section one closed ellipse, one edge: there is no second
+/// arc to restate. The cap cut here leaves the wall's arc cut by the
+/// wall's wrap edge into two, seamed at the principal vertex nearest
+/// each one's middle, which lie in adjacent quadrants: stated a quarter
+/// turn apart with the semi-axes exchanged, through a turn that rounds,
+/// so no restatement of one is the other
+/// ([`geom::Ellipse::restatements`]). Counted over 1,152 splits
+/// (`a_splits_section_is_one_ellipse_through_the_wall_and_one_or_two_arcs_through_a_cap`):
+/// every cut through the wall alone states one ellipse, and through a cap
+/// two arcs state a quarter or a half by where their middles fall. The
+/// row pins what these three splits state, read through the same
+/// restatements the certificate reads (`injective`'s
+/// `one_stated_conic`), so it goes red when the split's statements move
+/// and not when that reading does. Asked of the `f64` body alone: a body
+/// held as enclosures stores no statement.
 #[test]
-fn a_cones_split_states_its_sections_arcs_a_half_turn_apart_or_a_rounded_quarter() {
+fn a_cones_split_states_one_ellipse_through_its_wall_and_two_arcs_a_rounded_quarter_apart_through_its_cap()
+ {
     let restated = |a: &geom::Ellipse<f64>, b: &geom::Ellipse<f64>| {
         a.restatements()
             .map(|r| geom::Curve3::Ellipse(r).same_content(&geom::Curve3::Ellipse(*b)))
@@ -7095,13 +7113,10 @@ fn a_cones_split_states_its_sections_arcs_a_half_turn_apart_or_a_rounded_quarter
             ("off the grid", WALL_CUT_OFF_GRID),
         ] {
             let arcs = section_arcs(&split_cone::<f64>(cut, pose));
-            let [a, b] = arcs.as_slice() else {
-                panic!("{what} {pose:?}: two section arcs: {arcs:?}")
-            };
             assert_eq!(
-                restated(a, b),
-                [false, true, false, false],
-                "{what} {pose:?}: a half turn on, and nothing else: {a:?} {b:?}"
+                arcs.len(),
+                1,
+                "{what} {pose:?}: one section ellipse: {arcs:?}"
             );
         }
         let arcs = section_arcs(&split_cone::<f64>(CAP_CUT, pose));
@@ -7121,22 +7136,18 @@ fn a_cones_split_states_its_sections_arcs_a_half_turn_apart_or_a_rounded_quarter
     }
 }
 
-/// **A split cone refuses on a pair that holds a half of its wall, at
-/// both scalars, in every placement.** A cone's own image of an edge
-/// that is no coordinate line of its chart is not read here (PR 7605,
-/// `embed/cone-image`, reads it), so the two halves refuse across a
-/// ruling, and a plane against a half across a section arc, whatever
-/// the cut cap's corner reads; the verdict door refuses `Departure` on
-/// the first. With that reading in the tree the wall cuts hold at `f64`,
-/// their caps' two arcs one conic, and the cap cut still refuses on its
-/// cut cap, its arcs two
-/// (`a_cones_split_states_its_sections_arcs_a_half_turn_apart_or_a_rounded_quarter`).
-/// At `Interval` every one still refuses there, measured as built with
-/// both in one tree: the cut toward a ruling on its cut cap against a
-/// half-cone (`5v1`, `8v3`, across `Edge(11v1)`), the cut off a ruling
-/// on another pair first (`2v1`, `5v1`, across `Edge(9v1)`), and the cap
-/// cut on a depth `Budget` (`3v1`, `4v1`). The row that lands that
-/// reading re-pins both scalars.
+/// **A split cone refuses on a pair that holds its wall where its cut
+/// meets its cap, and its wall cuts hold, at both scalars, in every
+/// placement.** A full revolve's wall is one band, so a cut through the
+/// wall alone leaves one cone face whose section is one closed ellipse:
+/// no ruling parts two halves and no two arcs meet, and both wall cuts
+/// read `Embedded` at `f64` and at `Interval`. The cap cut leaves the
+/// wall's arc cut in two by its wrap edge, stated a rounded quarter turn
+/// apart
+/// (`a_cones_split_states_one_ellipse_through_its_wall_and_two_arcs_a_rounded_quarter_apart_through_its_cap`),
+/// and the verdict door refuses `Departure` on the wall against the cut
+/// cap across one of them, at both scalars. The row that reads that
+/// corner re-pins the cap cut.
 #[test]
 fn a_split_cone_refuses_on_a_pair_holding_its_wall() {
     use topo::clearance::Embedding;
@@ -7152,6 +7163,18 @@ fn a_split_cone_refuses_on_a_pair_holding_its_wall() {
                 .any(|&f| matches!(surface(body, f), Surface::Cone { .. })),
             "{what}: the refused pair holds a cone: {a:?} {b:?}"
         );
+    }
+    // A wall cut holds; the cap cut refuses.
+    fn reads<T: Scalar + geom_core::Certifies>(wall: bool, what: &str, body: &Body<T>) {
+        if wall {
+            let verdict = door(body, DEFAULT_MAX_CELL_DEPTH, BUDGET).verdict;
+            assert!(
+                matches!(verdict, Embedding::Embedded),
+                "{what}: embedded: {verdict:?}"
+            );
+        } else {
+            refuses(what, body);
+        }
     }
     // The split cone placed, or `None` at the one build limit: below
     // 1e-11 the mirror door refuses a wall cut's `Interval` twin at its
@@ -7206,30 +7229,28 @@ fn a_split_cone_refuses_on_a_pair_holding_its_wall() {
             ("the cap cut", CAP_CUT, false),
         ] {
             if let Some(float) = placed::<f64>(what, cut, wall, pose, false) {
-                refuses(&format!("{what} {pose:?} at f64"), &float);
+                reads(wall, &format!("{what} {pose:?} at f64"), &float);
             }
             if let Some(twin) = placed::<Interval>(what, cut, wall, pose, true) {
-                refuses(&format!("{what} {pose:?} at Interval"), &twin);
+                reads(wall, &format!("{what} {pose:?} at Interval"), &twin);
             }
         }
     }
 }
 
-/// **A ball through a split cylinder's wall and cut cap, where its two
-/// section arcs meet, crosses, at both scalars.** A rod of radius 0.7
-/// split by a tilted plane states its section's two arcs held at the
-/// centre, a half turn apart (asserted), and a ball of radius 0.02
-/// centred on the vertex where they meet on a ruling passes through the
-/// wall and the cut cap there. It reads `Crosses` at the default ε; at
-/// another the walk may run out of its budget on the crossing pair
-/// first, and then refuses on it, never embedded. What it pins is that
-/// a crossing there is found. It does NOT pin the corner's reading: the
-/// row is green whatever `one_stated_conic` answers, a grafted ball
-/// sharing no cell with the rod, and on main no body's verdict rests on
-/// that reading alone. The body rows that go red when the reading
-/// admits too much are owed where a cut cone holds, with PR 7605.
+/// **A ball through a split cylinder's wall and cut cap, at its section
+/// on a ruling, crosses, at both scalars.** A rod of radius 0.7 split by
+/// a tilted plane states its section as one ellipse (asserted): a full
+/// revolve's wall is one band, so no ruling parts the
+/// section into two arcs and no corner of two arcs is there. A ball of
+/// radius 0.02 centred on the section's point on the ruling at `+x`
+/// passes through the wall and the cut cap there. It reads `Crosses` at
+/// the default ε; at another the walk may run out of its budget on the
+/// crossing pair first, and then refuses on it, never embedded. What it
+/// pins is that a crossing there is found, a grafted ball sharing no
+/// cell with the rod.
 #[test]
-fn a_ball_through_a_split_cylinders_two_arc_corner_crosses() {
+fn a_ball_through_a_split_cylinders_wall_and_cut_cap_at_its_section_crosses() {
     use topo::clearance::Embedding;
     const ROD: SplitCone = ((0.7, 0.7, 1.9), (0.93, 0.3, 0.7), true);
     fn with_ball<T: Scalar>() -> Body<T> {
@@ -7248,13 +7269,7 @@ fn a_ball_through_a_split_cylinders_two_arc_corner_crosses() {
         body
     }
     let arcs = section_arcs(&split_cone::<f64>(ROD, SplitPose::AsBuilt));
-    let [a, b] = arcs.as_slice() else {
-        panic!("two section arcs: {arcs:?}")
-    };
-    assert!(
-        geom::Curve3::Ellipse(a.restatements()[1]).same_content(&geom::Curve3::Ellipse(*b)),
-        "the arcs are stated a half turn apart: {a:?} {b:?}"
-    );
+    assert_eq!(arcs.len(), 1, "one section ellipse: {arcs:?}");
     for (scalar, verdict) in [
         (
             "f64",
@@ -7281,20 +7296,21 @@ fn a_ball_through_a_split_cylinders_two_arc_corner_crosses() {
     }
 }
 
-/// **Which restatement a split states its section's two arcs by is
-/// decided by where the arcs' middles fall, counted over 1,152 splits.**
-/// A frustum and a rod, each cut at six heights, three tilts and sixteen
-/// azimuths, either side kept. Of the splits that state two section
-/// arcs: every cut through the wall alone states one arc as the other's
-/// half-turned restatement ([`geom::Ellipse::restatements`]); a cut out
-/// through a cap states a half turn or a quarter turn with the semi-axes
-/// exchanged, by its arcs' middles and not by its meeting the cap; none
-/// states its arcs run back or both. The counts are pinned as measured,
-/// so the row goes red when the split's seaming moves, whichever way.
+/// **A split states its section as one ellipse through the wall, and
+/// through a cap as one or two arcs, counted over 1,152 splits.** A
+/// frustum and a rod, each a full revolve whose wall is one band, cut at
+/// six heights, three tilts and sixteen azimuths, either side kept.
+/// Every cut through the wall alone states one closed ellipse. A cut out
+/// through a cap states one arc, or two where the wall's wrap edge cuts
+/// it, and two arcs are stated a half turn apart
+/// ([`geom::Ellipse::restatements`]) or a quarter turn with the
+/// semi-axes exchanged, by where their middles fall; none states two
+/// arcs otherwise, and no split refuses. The counts are pinned as
+/// measured, so the row goes red when the split's seaming moves,
+/// whichever way.
 #[test]
-fn a_splits_two_section_arcs_are_stated_a_half_turn_apart_through_the_wall_and_either_way_through_a_cap()
- {
-    let (mut wall, mut cap, mut rest) = ([0usize; 2], [0usize; 3], 0usize);
+fn a_splits_section_is_one_ellipse_through_the_wall_and_one_or_two_arcs_through_a_cap() {
+    let (mut one, mut wall, mut cap, mut rest) = ([0usize; 2], [0usize; 2], [0usize; 3], 0usize);
     for shape in [(0.7, 0.31, 0.9), (0.7, 0.7, 1.9)] {
         for qi in 0..6 {
             let q = 0.2 + 0.13 * f64::from(qi);
@@ -7305,29 +7321,36 @@ fn a_splits_two_section_arcs_are_stated_a_half_turn_apart_through_the_wall_and_e
                         let cut: SplitCone = (shape, (q, phi, psi), above);
                         // A split that refuses, or one that states another
                         // count of section arcs (a side with none, a cut
-                        // through both caps), is not this row's.
+                        // through both caps), is the rest.
                         let arcs = std::panic::catch_unwind(|| {
                             section_arcs(&split_cone::<f64>(cut, SplitPose::AsBuilt))
                         });
-                        let Ok([a, b]) = arcs.as_deref() else {
-                            rest += 1;
-                            continue;
-                        };
-                        let restated = a.restatements().map(|r| {
-                            geom::Curve3::Ellipse(r).same_content(&geom::Curve3::Ellipse(*b))
-                        });
-                        let exchanged = a.semi_axes() == (b.semi_v(), b.semi_u());
+                        let (r0, r1, h) = shape;
+                        let n = (phi.sin() * psi.cos(), phi.cos(), phi.sin() * psi.sin());
                         // The plane meets the wall alone where the section's
                         // height on the wall lies inside the wall's at every
                         // azimuth.
-                        let (r0, r1, h) = shape;
-                        let n = (phi.sin() * psi.cos(), phi.cos(), phi.sin() * psi.sin());
                         let wall_alone = (0..720).all(|i| {
                             let th = TAU * f64::from(i) / 720.0;
                             let (c, slope) = (n.0 * th.cos() + n.2 * th.sin(), (r1 - r0) / h);
                             let y = (n.1 * q - c * r0) / (n.1 + c * slope);
                             y > 0.0 && y < h
                         });
+                        let (a, b) = match arcs.as_deref() {
+                            Ok([_]) => {
+                                one[usize::from(!wall_alone)] += 1;
+                                continue;
+                            }
+                            Ok([a, b]) => (a, b),
+                            _ => {
+                                rest += 1;
+                                continue;
+                            }
+                        };
+                        let restated = a.restatements().map(|r| {
+                            geom::Curve3::Ellipse(r).same_content(&geom::Curve3::Ellipse(*b))
+                        });
+                        let exchanged = a.semi_axes() == (b.semi_v(), b.semi_u());
                         let half = restated == [false, true, false, false];
                         let quarter = restated == [false; 4] && exchanged;
                         match (wall_alone, half, quarter) {
@@ -7343,8 +7366,9 @@ fn a_splits_two_section_arcs_are_stated_a_half_turn_apart_through_the_wall_and_e
         }
     }
     assert_eq!(
-        (wall, cap, rest),
-        ([864, 0], [40, 26, 0], 222),
-        "through the wall alone [half, other]; through a cap [half, quarter, other]; the rest"
+        (one, wall, cap, rest),
+        ([864, 177], [0, 0], [53, 58, 0], 0),
+        "one ellipse [through the wall alone, through a cap]; two arcs through the wall alone \
+         [half, other]; two arcs through a cap [half, quarter, other]; the rest"
     );
 }
