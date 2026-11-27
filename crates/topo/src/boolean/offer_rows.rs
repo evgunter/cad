@@ -2262,6 +2262,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::SlitLineCrossed
         | BooleanErrorKind::SlitFaceGlued
         | BooleanErrorKind::CurvedFaceClosesAcrossSlit
+        | BooleanErrorKind::CutOutlineUndecided
         | BooleanErrorKind::SlitFaceClosesMidSlit
         | BooleanErrorKind::LineWedges => Vec::new(),
     }
@@ -2703,13 +2704,13 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     (
         "ops/interior_cuts.rs",
-        "closing_holds",
+        "closing_meridians",
         "BooleanDecision::Sphere",
         1,
     ),
     (
         "ops/interior_cuts.rs",
-        "closing_holds",
+        "closing_meridians",
         "SphereQuestion::CutIn",
         1,
     ),

@@ -1011,7 +1011,10 @@ impl CutRoots {
 /// # Errors
 ///
 /// [`BooleanError::JoinDesync`] where a piece lies between faces on two
-/// surfaces, or as [`part_cut`]; [`BooleanError::JoinDesync`] where a
+/// surfaces, or as [`part_cut`], which answers
+/// [`BooleanError::CutOutlineUndecided`] where no part of a face bounded
+/// by section circles alone has its chart pole beyond it;
+/// [`BooleanError::JoinDesync`] where a
 /// piece with both ends free is its face's outline, and
 /// [`BooleanError::CurvedFaceClosesAcrossSlit`] where a piece with a free
 /// end lies in a curved face ([`crate::strut::StrutRefusal`]); the Euler operators'
@@ -1132,12 +1135,14 @@ fn half<T: geom_core::Real>(body: &Body<T>, h: HalfEdgeKey) -> &crate::entity::H
 /// # Errors
 ///
 /// [`BooleanError::Escalated`] where the pole's side of a circle is in
-/// band ([`pole_beyond`]); [`BooleanError::JoinDesync`] where the halves
-/// lie in two loops, where of the outline neither part is circles, or
-/// where both are and not one has the pole beyond it: a cut runs
-/// through the circles that crossed it to the face's boundary, so a
-/// piece left with one face on both sides joins circles to the rest;
-/// `kemr`'s refusals.
+/// band ([`pole_beyond`]); [`BooleanError::CutOutlineUndecided`] where
+/// both parts of the outline are circles and not one has the pole beyond
+/// it, so which keeps the outline is not decided (a circle through the
+/// chart's poles, `work/lathe/a-section-circle-through-both-chart-poles-leaves-a-cut-face-with-no-pole-to-read.md`);
+/// [`BooleanError::JoinDesync`] where the halves lie in two loops, or
+/// where of the outline neither part is circles: a cut runs through the
+/// circles that crossed it to the face's boundary, so a piece left with
+/// one face on both sides joins circles to the rest; `kemr`'s refusals.
 fn part_cut<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     edge: EdgeKey,
@@ -1184,12 +1189,7 @@ fn part_cut<T: Decide + crate::props::AtRestPolicy>(
         ) {
             (false, true) => (plus, minus),
             (true, false) => (minus, plus),
-            _ => {
-                return Err(BooleanError::JoinDesync {
-                    what: "of a chart cut's two circle-bounded parts, not one keeps the face's \
-                           chart pole beyond it",
-                });
-            }
+            _ => return Err(BooleanError::CutOutlineUndecided { face }),
         },
         _ => {
             return Err(BooleanError::JoinDesync {
@@ -1290,9 +1290,9 @@ fn pole_beyond<T: Decide>(
     };
     // Either pole serves: the face holds no edge of its own boundary
     // here, so its chart's seam, which joins the two poles, lies outside
-    // it, both poles beyond one loop. A crossings-path cut-in is made
-    // only where each pole lies decidedly off each circle it cuts
-    // across (`ops::interior_cuts::closing_holds`).
+    // it, both poles beyond one loop. Where neither part reads the pole
+    // beyond it, `part_cut` answers [`BooleanError::CutOutlineUndecided`],
+    // and a crossings-path cut-in leaves the op uncut.
     let pole = frame.origin() + frame.axis() * radius;
     let Some(&first) = other.first() else {
         return Err(BooleanError::JoinDesync {
