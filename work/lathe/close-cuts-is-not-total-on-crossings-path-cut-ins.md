@@ -4,7 +4,7 @@ kind: issue
 title: close_cuts is not total on crossings-path cut-ins: a sphere face carrying a first-pass crossing beside its interior loop refuses at the guard where the stack built it
 status: open
 opened: 2026-11-25
-priority: P1
+priority: P2
 cost: H
 refs: [the-main-merge-drops-mains-pole-form-and-pole-side-column-intents]
 ---
@@ -84,3 +84,12 @@ carries a seam note.
   - Premise 2 reads every partner circle on the cut face, not only those bounding the part `pole_beyond` reads.
   - Premise 1 refuses every partner kind other than a plane or a sphere (a cylinder, cone or torus on the cut face).
   - An annulus bounded only by authored rims (ball ∩ slab `z∈(0.5,0.8)` against a small ball plus a pin box) is cut in and closes soundly in all six ops at three ε. That is a premise set held, with `close_cuts` total.
+
+## 2026-11-27: the gate narrowed, the row shrunk (LATHE, `lathe/close-cuts-total`)
+
+- **Premise 1, held by the cut's meridian.** A crossings-path circle cut-in no longer refuses where a first-pass section lies in its own meridian's plane: it runs in the first plane of a fixed sequence of turns about the axis that meets the circle decidedly twice, keeps both crossings on the cut's half, and is decidedly off every first-pass partner plane (a plane, or a sphere's radical plane) and every other cut-in circle's plane on the face (`interior_cuts::closing_meridians`). Witness 3 (R1's probe) and the box half of witness 2 build sound in either order. A loop's cut keeps its own meridian. A partner on a cut face that is no plane or sphere (a cylinder, a cone, a torus) is still not read, and the op does not cut in.
+- **Premise 2, read by the closing itself.** The gate no longer reads every circle's plane against the poles. Where a cut's piece parts a face bounded by section circles alone and no part reads the pole beyond it, the closing answers `CutOutlineUndecided` (typed, not `JoinDesync`), and the crossings path drops the re-entry, so the op goes on uncut and the guard's refusal stands exactly as before. R2's lost pose builds sound in all six ops, in either order.
+- **Witness 2's intersection** (the ball ∩ the cap box ∪ the pole box) builds in either order at the volume of its two parts built alone, and tier 3′ reads it only as the census's undecidable pair of curved parts (`work/reachhold/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`). The bypass that seemed to build it unsound built this body.
+- **Witness 1 (the die's slab)** is its own row now: `a-section-circle-through-both-chart-poles-leaves-a-cut-face-with-no-pole-to-read`. Its union, and the ball less the slab, build sound. Its intersection, and the slab less the ball, refuse at the guard through `CutOutlineUndecided`.
+
+**What is left here (1b's generality).** A cut whose meridian a first-pass section runs along where no turn of the meridian clears it: a partner whose section is no plane or sphere on a cut face, and a loop's cut, whose meridian is not turned. The closing would have to read the join's chords on the cut and close across them (ORBIT's `slit.rs`). No witness measured reaches it; the op refuses at the guard there.
