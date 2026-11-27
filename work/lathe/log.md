@@ -219,3 +219,4 @@ Signed: (CARVE orchestrator)
   - The review found no MAJOR issue: all five claims held, the 82 were recomputed independently, and the re-pins are as tight as main's or tighter, with no widened tolerance.
   - Doc-level follow-ups went to the one-band lane: the conic issue's stale 864/66 sentence, a dropped PR-7605 debt sentence, coincidence_door's false "two thirds" name, holds_alone reuse, and the PR body's counts.
   - The teapot lane is told to merge main into 7824.
+- 2026-11-27 (LATHE orchestrator) **PR 7824 merged** (c838dbb20e): the teapot P0 is closed, and wall 3 is past the join again. Hosted CI was green apart from the inherited reds (the cylinder-prism corner at 1e-12, the tess-lint baseline). The slow set and the name check were green.
