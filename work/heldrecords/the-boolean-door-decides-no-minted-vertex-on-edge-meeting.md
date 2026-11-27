@@ -56,3 +56,66 @@ that found no margin amplification), for a lane after PR 7799:
 With it,
 `a_pierce_held_in_a_curved_face::a_plane_face_holding_the_pierce_over_a_cylinder_builds_in_every_op_and_order`
 builds, its meeting landing and citing the decision.
+
+## 2026-11-26 — built (`heldrecords/minted-door`)
+
+- **The door.** `boolean::ops` `minted_meeting` decides a minted
+  meeting of two vertices by their gap (`vertices_meet`), and a vertex
+  inside an edge by `census::on_edge_interior_margin`. That is the
+  confirm pass's own reading: `on_edge_interior_reading` on a line,
+  `curved::on_curved_interior_reading` on any other carrier.
+  - The carry's placement has already confirmed the landing by that
+    reading at the band, and refuses it `Unread` in band. So the door's
+    in-band or off reading of a vertex on an edge is a kernel defect,
+    `JoinDesync`.
+- **The row** is the meeting (`Relation::Meet`) of the record's own two
+  input cells, for both kinds. An `OnCarrier` row on an edge and a face
+  would read, in `editor-core` `eval::wire::in_member_space`, as a
+  carrier pair's, which panics when a cell is made of several member
+  cells. Two meetings on one record spell one row, at the worse margin
+  (amended below).
+- **Section vertices** are named on both paths.
+- **Witnesses.**
+  - `a_plane_face_holding_the_pierce_over_a_cylinder_builds_in_every_op_and_order`
+    builds, and its tier 3′ admits only its pinned kinds. Its door
+    margins run from 4.6e-16 to 1.5e-12.
+  - The stress row,
+    `a_tool_face_grazing_the_holding_face_decides_or_refuses_and_never_ships_a_wrong_body`,
+    turns the wall toward `F`. The door decides Zero, and the body is
+    sound, down to about 0.14° from tangent (margin 2.3e-13, against
+    2.2e-16 at 28°). Nearer tangent, at 0.03°, some ops refuse
+    `CarryRefused` `Unread`: the placement's confirm escalates
+    (`CensusEscalated`, an enclosure `[4.6e-13, 1.4e-3]` at
+    `curve_carrier_straddle`), not a reading in band. At 0.007° every op refuses
+    `CurvedPierceEscalated` (`WallRoots`). No op ships a wrong body.
+
+## 2026-11-26 — the review's fix pass (`heldrecords/minted-door`, PR 7808)
+
+- **Two minted vertices the reduction already decided one are not
+  decided again** (`boolean::ops` `decided_already`). Each clone vertex
+  is read back through its null-edge copies (`Ledger::copies`, restored
+  for that read alone):
+  - copies of one vertex are structure;
+  - a pending row of the reduction naming the two (a ring tie) is the
+    decision the landing cites.
+
+  So one decision is still one row. Without this,
+  `editor-core coincidence_door::a_ring_serving_two_pierces_records_their_fusion_unproven`
+  gained a second `VertexFusion` row.
+- **A record's door row keeps the worst margin** of the meetings it
+  spells (`met_at_the_door`, `MarginDiag::worst`, which keeps its
+  discharge).
+- **One census reading** serves the confirm pass and the door
+  (`census::vertex_on_edge_reading`). The door's `JoinDesync` texts say
+  which finding it was: read off, in band, or unread.
+- **The stress row pins every ε CI draws.**
+  - At 1e-12 its poses refuse
+    `measuredoor/a-wall-grazing-a-plane-face-leaves-its-volume-uncomputable-at-1e-12`
+    and
+    `topo/a-section-edge-of-a-wall-grazing-a-plane-face-is-uncertified-at-1e-12`
+    (both filed), or a `Section` escalation.
+  - At 1e-6 its poses refuse `CurvedPierce*`.
+  - It also pins tier 3′'s exact findings on each built body.
+- **The pierce row pins the door's row**: on the intersection, either
+  operand first, and on the subtraction from the held pair.
+- **Section-vertex naming is unpinned.** Its row is re-opened.

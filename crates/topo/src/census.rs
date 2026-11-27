@@ -3399,19 +3399,6 @@ fn pair_vertex_curved_edge<T: Decide>(
     );
 }
 
-/// Whether `q` lies on `e`'s interior: [`on_edge_interior_reading`]
-/// placing it on the edge. `None` where a decision escalated (pushed).
-/// Pass 2 and the confirm pass of a `(vertex, edge)` record ask this one
-/// question.
-fn on_edge_interior<T: Decide>(
-    q: Point3<T>,
-    e: &EdgeGeo<T>,
-    band: Band,
-    errors: &mut Vec<ValidationError>,
-) -> Option<bool> {
-    on_edge_interior_reading(q, e, band, errors).map(|on| on.is_some())
-}
-
 /// `q` against the span `e` (an edge's segment, or a [`Stretch`] of its
 /// line) by [`CarrierSpan::contact`], the one point-on-span reading, at
 /// its foot on the line ([`geom::Curve3::foot`]):
@@ -3436,6 +3423,55 @@ fn on_edge_interior_reading<T: Decide>(
             }
             Err(_) => unreachable!("a line's carrier reading walks no pieces"),
         },
+    }
+}
+
+/// **`q` against edge `e`'s interior**, the one reading a vertex inside
+/// an edge is confirmed by: [`on_edge_interior_reading`] on `line`, the
+/// edge's census geometry where it is a line, and
+/// [`curved::on_curved_interior_reading`] on any other carrier.
+/// `Some(Some(margin))` on the interior, by the margin that put it there;
+/// `Some(None)` off it, an end included; `None` where a decision
+/// escalated or the edge is not read (pushed).
+fn vertex_on_edge_reading<T: Decide>(
+    body: &Body<T>,
+    line: Option<&EdgeGeo<T>>,
+    e: EdgeKey,
+    q: Point3<T>,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<Option<MarginDiag>> {
+    match line {
+        Some(line) => {
+            on_edge_interior_reading(q, line, band, errors).map(|on| on.map(|(_, margin)| margin))
+        }
+        None => curved::on_curved_interior_reading(body, e, q, band, errors),
+    }
+}
+
+/// **Whether `q` lies on edge `e`'s interior in `body`, by the margin
+/// that put it there**: [`vertex_on_edge_reading`], as the confirm pass
+/// reads a `(vertex, edge)` record ([`confirm_vertex_on_edge`]).
+/// `Ok(Some(margin))` on the interior; `Ok(None)` off it, an end
+/// included.
+///
+/// # Errors
+///
+/// The reading's first finding: its escalation where a decision is in
+/// band, or the curved lane's refusal of an edge it does not read.
+pub(crate) fn on_edge_interior_margin<T: Decide>(
+    body: &Body<T>,
+    e: EdgeKey,
+    q: Point3<T>,
+    band: Band,
+) -> Result<Option<MarginDiag>, ValidationError> {
+    let mut errors = Vec::new();
+    let line = edge_is_line(body, e).then(|| edge_geo(body, e)).flatten();
+    let reading = vertex_on_edge_reading(body, line.as_ref(), e, q, band, &mut errors);
+    match (reading, errors.into_iter().next()) {
+        (Some(on), None) => Ok(on),
+        (_, Some(finding)) => Err(finding),
+        (None, None) => unreachable!("a reading that answers nothing pushes its finding"),
     }
 }
 
@@ -11585,10 +11621,8 @@ fn confirm_vertex_on_edge<T: Decide>(
         errors.push(stale);
         return;
     }
-    let meets = match geo.line_edge(edge) {
-        Some(e) => on_edge_interior(q, e, band, errors),
-        None => curved::on_curved_interior(body, edge, q, band, errors),
-    };
+    let meets = vertex_on_edge_reading(body, geo.line_edge(edge), edge, q, band, errors)
+        .map(|on| on.is_some());
     if meets == Some(false) {
         errors.push(stale);
     }

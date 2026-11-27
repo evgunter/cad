@@ -55,3 +55,10 @@ Read both raising sites against PR 7745's landing rule. Either the
 carry lands these records where the rows expect, or the rows are re-read
 and re-pinned with the reason. P1 because a red slow test is a red
 nightly.
+
+## 2026-11-26 — item 2 turns green (`heldrecords/minted-door`)
+
+The pierce row builds once the carry's door decides a minted vertex
+inside an edge
+(`the-boolean-door-decides-no-minted-vertex-on-edge-meeting`). Item 1
+is not touched there.
