@@ -71,6 +71,24 @@ Signed: (CARVE orchestrator)
     - `cell_region_bodies` at 1e-12 (EMBEDWALK, PR 7810);
     - the plain witness, folded oblique and footballs rows at their ε.
   - No model-compare rows (rule 12, Fable outage).
+- 2026-11-27 — **(LATHE teapot lane) The teapot spout's section loop reads its sides at the spout's spline walls** (P0 `the-teapot-spouts-union-stops-at-section-loop-undecided-where-its-chords-hold-in-a-spline-wall`, branch `lathe/teapot-spout-section-loop`).
+  - **Which chords.** At ε 1e-9 and 1e-6, the loops that reach the chord reading are on the vessel's side: four regions and sixteen chords. Every chord is held strictly inside one of the spout's four NURBS walls, and each was passed as a limit.
+  - **The fix.** No design fork. The placement door already returned the in-trim foot, and `holding_face_normal` dropped it. It now keeps it and reads the spline normal there, as `slit::spline_floor` and `vtxfac` do. All sixteen chords decide, and wall 3 stops at the volume lane, as on main before the one-band merge.
+  - **Filed.** The region-side arm, a chord whose region is a spline face, on cleavetail's slate: `a-section-chord-on-a-spline-region-reads-no-region-normal` (P3).
+  - **End-to-end fixtures that do not reach the reading.** A post through a domed cube stops at a plane × NURBS `ImageMiss` (2e-7). A ball across a loft wall stops at `SplineCrossingUnsettled { why: Floor }`. So the both-orders row is the teapot itself, as a second document request with the spout first.
+- 2026-11-27 — **(LATHE teapot lane) PR 7824's review round** (R1 soundness, R2 tests and style; no MAJOR from either).
+  - **The foot's premise, corrected.** The placement certifies nothing about a second in-trim sheet within the band; the PR had said it did. The text now says so in `spline_held_normal`'s doc and vtxfac's pierce comment. `holding_face_normal` is listed as a reader in `splice/the-spline-placement-read-certifies-no-second-in-trim-foot`.
+  - **Tests.**
+    - The unit row's operand loop tested a label only, so it is dropped.
+    - R1's two witnesses are added: the reverted dome's flipped normal (0.29 s, so it goes in the slow set) and a point half a band off.
+    - `spline_held_normal`'s arms each get a row: `At` → `HoldingUnread::Normal`; a non-spline or stale key → `JoinDesync`.
+    - The spindle no-foot limit has no row: no spindle fixture with a placed point exists cheaply.
+    - `dome` and `domed_cube` are moved to `test_support_fixtures`.
+  - **Nightly.** A step runs `wall3_reversed_probe` at 1e-6 and 1e-12.
+  - **Filed:**
+    - onedoor `three-readers-of-a-spline-foots-normal-share-no-door` (P3);
+    - cleavetail `a-seam-germ-read-at-a-spline-foot-charges-no-tilt` (P3);
+    - R2's other-order and other-pose measurements added to partframes' dome-post row, with the pcert limb pointer.
 
 - 2026-11-27 — **A main merge resolution that takes the stack's side of a file wholesale drops main's work on it** (P0 from PR 7414's landing; restored on `lathe/restore-merge-dropped-tests`).
   - **What happened.** Merge `c609fb1cbc` ("the mechanical half") resolved `crates/sweep/tests/self_intersection_proves_injectivity.rs` to the stack's side. That dropped 31 rows (and their helpers) that main had added since the fork, EMBEDWALK's injectivity work: the needle, the thin slabs, the notched rod, the deep keel, cones off the origin, the split cones. No stack commit ever removed them, so no review saw them go. The slow set's 28 dead names were the same class: 15 named the dropped rows, and 13 were the stack's spellings of rows main had since renamed or retired, kept where the merge resolved `.config/nextest.toml` (dropped; each successor was already listed).
