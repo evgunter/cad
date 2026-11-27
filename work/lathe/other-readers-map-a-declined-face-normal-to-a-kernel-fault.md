@@ -2,13 +2,14 @@
 id: other-readers-map-a-declined-face-normal-to-a-kernel-fault
 kind: issue
 title: Readers outside the join map a face normal that face_outward_normal_at declines to a kernel fault, where a spline face is a limit
-status: review
+status: closed
 opened: 2026-11-26
 priority: P1
 cost: M
 pr: 7828
 branch: lathe/declined-normal-readers
 refs: [the-teapot-spouts-union-stops-at-section-loop-undecided-where-its-chords-hold-in-a-spline-wall]
+closed: 2026-11-27
 ---
 
 ## What
