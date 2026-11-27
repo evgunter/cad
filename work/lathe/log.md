@@ -71,3 +71,13 @@ Signed: (CARVE orchestrator)
     - `cell_region_bodies` at 1e-12 (EMBEDWALK, PR 7810);
     - the plain witness, folded oblique and footballs rows at their ε.
   - No model-compare rows (rule 12, Fable outage).
+
+- 2026-11-27 — **A main merge resolution that takes the stack's side of a file wholesale drops main's work on it** (P0 from PR 7414's landing; restored on `lathe/restore-merge-dropped-tests`).
+  - **What happened.** Merge `c609fb1cbc` ("the mechanical half") resolved `crates/sweep/tests/self_intersection_proves_injectivity.rs` to the stack's side. That dropped 31 rows (and their helpers) that main had added since the fork, EMBEDWALK's injectivity work: the needle, the thin slabs, the notched rod, the deep keel, cones off the origin, the split cones. No stack commit ever removed them, so no review saw them go. The slow set's 28 dead names are the same loss, seen from the filter.
+  - **The restoration.** Main's file, with the stack's six commits to it replayed by three-way apply. Six of the restored rows read one band differently; each is re-pinned to what it measures, and four whose names stated a two-arc structure are renamed.
+  - **The audit.** The landing's other 51 lost rows were each removed by a non-merge stack commit (a retirement or a rename). Production code: every line the landing removed from main traces to a stack commit, or to a ruling recorded in `the-main-merge-drops-mains-pole-form-and-pole-side-column-intents` (pole form, centroid azimuth, pole-side columns, seam-twice). The one exception was `reach_split_gate_per_face`'s completing-finish assertion, which is restored.
+  - **How to check next time**, before a main merge lands and again on the landing:
+    1. List the `#[test]` fns at main and at the merge result. Each one gone from the whole tree must have a non-merge commit on the branch that removed it: `git log --no-merges -S'fn NAME(' main..branch`. One with no such commit was dropped by a resolution.
+    2. Do the same for the lines the landing's diff removes from main (`git diff -U0 main merge`): each removed line must appear in some non-merge branch commit's removed lines.
+    3. Run `scripts/check-slow-set-names.py --complete` on the merge result. A dead name is often the first visible sign of a dropped row.
+    4. For a file resolved to one side, do not take that side. Take main's version and replay the branch's own commits to the file onto it (`git show C -- F | git apply --3way`, oldest first).
