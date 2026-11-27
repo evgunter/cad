@@ -225,3 +225,11 @@ Signed: (CARVE orchestrator)
   - One-band lane (lathe/close-cuts-total): `close-cuts-is-not-total-on-crossings-path-cut-ins`, with the cone-ball and two-curved-loop P1s where they share a cause.
   - Teapot lane (lathe/declined-normal-readers): `other-readers-map-a-declined-face-normal-to-a-kernel-fault`, a census plus fixes.
   - Both stop at a design fork.
+- 2026-11-27 (LATHE orchestrator) Close-cuts fork ruled, with no designer pair: a local, reversible LATHE-side choice.
+  - The lane measured with the gate bypassed: 13 of 18 witness runs build and 1 builds unsound, so the gate must stay; R2's lost pose builds 6 of 6.
+  - F1: a section circle through both chart poles. F2: a box face in the cut's meridian plane.
+  - Chose 1a: the cut-in picks a meridian decidedly off every partner and radical plane.
+  - Chose 2a: the gate is narrowed to `part_cut`'s own circles.
+  - Filed 2c: F1 stays refused.
+  - Rejected for this unit: 1b and 2b, which change ORBIT's slit.rs closing and pole form.
+  - Condition: the bypass-unsound ∩ must be sound or refuse typed under 1a + 2a, pinned. Review is dual Opus.
