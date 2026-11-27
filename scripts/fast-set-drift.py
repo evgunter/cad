@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """The fast-set drift check: name every fast-set test that costs BAR or more
-run alone on main.
+run alone on main, scaled to the median hosted runner.
 
     fast-set-drift.py scope <shard>
         print the shard's cargo scope on a run that builds everything
@@ -26,9 +26,11 @@ WHAT IT READS. Each PR run's default-eps step uploads its parallel junit
 report. The readings of a test are its passing times in those reports, and
 its median over the window is a screen, not its cost: a test whose median is
 at least SCREEN, over at least MIN_READINGS readings, is a candidate. A
-contended reading is no faster than the same test alone, so SCREEN is BAR
-itself (the app shard's contention ratio reads as low as 1.12, so a screen
-scaled up from U10's typical 1.73 misses tests there). A candidate the `ci`
+contended reading is no faster than the same test alone on the same runner,
+but the readings come from runners of every speed class, and no class reads
+faster than FASTEST times the median one, so SCREEN is BAR times FASTEST
+(the app shard's contention ratio reads as low as 1.12, so a screen scaled
+up from U10's typical 1.73 misses tests there). A candidate the `ci`
 profile no longer runs (moved to the slow set, renamed, removed since) is
 listed and not timed. A reading of a package this shard's build does not
 hold (`test-utils`, which a closure run tests in the app shard) is the other
@@ -43,7 +45,7 @@ full-suite times are not read.
 
 WHAT FAILS IT.
 - A candidate re-timed alone (`fast_set_alone.retime`: up to RUNS passes, the
-  fastest) at BAR or more, or one that fails a pass alone. Each is named with
+  fastest, scaled by the runner's factor) at BAR or more, or one that fails a pass alone. Each is named with
   the slow-set line to add, its readings, and the run at which its readings
   stepped over the screen (`step_up`), or "throughout the window".
 - A window with no readings (the upload is broken), a `ci` listing with no
@@ -71,7 +73,7 @@ from pathlib import Path
 import fast_set_alone as alone
 
 BAR = alone.BAR
-SCREEN = BAR
+SCREEN = BAR * alone.FASTEST
 MIN_READINGS = 3
 HOURS = 72
 MAX_REPORTS = 350
@@ -269,14 +271,17 @@ def judge(
             f"{len(gone)} of {len(cands)} candidates are not in the `ci` profile's listing: "
             "the listing is misread or the scope moved",
         )
-    got = alone.retime(timed, run, lambda p: BAR) if timed else {}
+    got, factor = alone.retime(timed, run, lambda p: BAR) if timed else ({}, 1.0)
     over = []
     for p in timed:
-        cost = alone.cost(got[p])
+        cost = alone.scaled(got[p], factor)
         if cost is None or cost >= BAR:
             over.append((p, cost))
         else:
-            print(f"  under the bar alone: {p[0]} {p[1]} {cost:.3f} s (median {meds[p]:.3f} s)")
+            print(
+                f"  under the bar alone: {p[0]} {p[1]} {cost:.3f} s scaled "
+                f"({alone.show(got[p])} s alone; median {meds[p]:.3f} s)"
+            )
     over.sort(key=lambda v: -(v[1] if v[1] is not None else 99.0))
     lines = []
     for i, ((b, n), cost) in enumerate(over):
@@ -287,7 +292,7 @@ def judge(
             if at is not None
             else f"over the screen throughout the window, from run {server}{rs[0][1]}"
         )
-        shown = "failed alone" if cost is None else f"{cost:.3f} s alone"
+        shown = "failed alone" if cost is None else f"{cost:.3f} s alone, scaled"
         text = (
             f"{b} {n}: {shown} ({alone.show(got[b, n])}); median {meds[b, n]:.3f} s over "
             f"{len(rs)} PR runs ({min(t for *_, t in rs):.3f}-{max(t for *_, t in rs):.3f} s); "
@@ -300,7 +305,10 @@ def judge(
             print(f"  {text}")
     if len(over) > ANNOTATED:
         _error(f"fast-set drift [{shard}]", f"{len(over) - ANNOTATED} more: see the step summary")
-    print(f"fast-set drift [{shard}]: {len(over)} fast-set tests cost {BAR} s or more alone")
+    print(
+        f"fast-set drift [{shard}]: {len(over)} fast-set tests cost {BAR} s or more alone, "
+        f"scaled from a runner at {factor:.3f}x the median one"
+    )
     if over:
         print("The slow-set lines to add:")
         for (b, n), _ in over:
@@ -308,6 +316,7 @@ def judge(
     if over and (path := os.environ.get("GITHUB_STEP_SUMMARY")):
         with open(path, "a") as f:
             f.write(f"### Fast-set tests costing {BAR} s or more alone: {shard}\n\n")
+            f.write(f"Costs are scaled to the median runner; this runner read at {factor:.3f}x it.\n\n")
             f.writelines(f"- {t}\n" for t in lines)
             f.write("\n")
     return 1 if over or misread else 0
@@ -372,19 +381,23 @@ def gather_selftest(tmp: Path) -> None:
 def selftest() -> int:
     import tempfile
 
-    assert SCREEN == BAR, "a contended reading is no faster than the test alone: the screen is the bar"
+    assert SCREEN == BAR * alone.FASTEST == 0.1875, (
+        "a contended reading is no faster than the test alone on its runner, and no runner is "
+        "faster than FASTEST: the screen is the bar times FASTEST"
+    )
 
     def rs(*ts: float) -> list[tuple[str, int, float]]:
         return [(f"2026-11-22T{i:02}:00:00Z", 100 + i, t) for i, t in enumerate(ts)]
 
     by = {
-        ("sweep::all", "a::stepped"): rs(0.2, 0.2, 0.21, 0.9, 0.95, 0.92, 0.9),
+        ("sweep::all", "a::stepped"): rs(0.15, 0.15, 0.16, 0.9, 0.95, 0.92, 0.9),
         ("sweep::all", "a::always"): rs(0.8, 0.85, 0.9),
         ("sweep::all", "a::cheap_alone"): rs(0.5, 0.5, 0.5),
         ("sweep::all", "a::between"): rs(0.28, 0.27, 0.29),  # under a 0.324 s screen
         ("sweep::all", "a::fails_alone"): rs(0.6, 0.6, 0.6),
         ("sweep::all", "a::few_readings"): rs(2.0, 2.0),
-        ("topo", "b::under_screen"): rs(0.2, 0.24, 0.2),
+        ("topo", "b::under_screen"): rs(0.15, 0.24, 0.18),
+        ("topo", "b::over_screen_under_bar"): rs(0.2, 0.2, 0.2),  # a fast runner's 0.25 s test
         ("topo", "b::moved"): rs(1.0, 1.0, 1.0),
         ("test-utils", "c::other_shard"): rs(1.0, 1.0, 1.0),
     }
@@ -396,12 +409,18 @@ def selftest() -> int:
             ("sweep::all", "a::between"),
             ("sweep::all", "a::fails_alone"),
             ("topo", "b::moved"),
+            ("topo", "b::over_screen_under_bar"),
             ("test-utils", "c::other_shard"),
         ]
     ), candidates(by)
     assert step_up(by["sweep::all", "a::stepped"]) == 103, "the first run of the slow readings"
     assert step_up(by["sweep::all", "a::always"]) is None
-    table = {"a::stepped": 0.31, "a::always": 0.25, "a::cheap_alone": 0.2, "a::between": 0.26, "a::fails_alone": None}
+    # Each test's reading alone on the median runner, every pass.
+    table = {
+        "a::stepped": 0.31, "a::always": 0.25, "a::cheap_alone": 0.2, "a::between": 0.26,
+        "a::fails_alone": None, alone.REFERENCE[1]: alone.REFERENCE_NOMINAL,
+    }  # fmt: skip
+    speed = [1.0]  # the runner's factor: every reading times it
     with tempfile.TemporaryDirectory() as tmp:
         report = Path(tmp) / "j.xml"
         asked: list[str] = []
@@ -409,7 +428,8 @@ def selftest() -> int:
         def run(f: str) -> Path:
             asked.append(f)
             cases = "".join(
-                f'<testcase classname="sweep::all" name="{n}" time="{t or 0}">'
+                f'<testcase classname="{alone.REFERENCE[0] if n == alone.REFERENCE[1] else "sweep::all"}" '
+                f'name="{n}" time="{(t or 0) * speed[0]}">'
                 + ("<failure/>" if t is None else "")
                 + "</testcase>"
                 for n, t in table.items()
@@ -418,18 +438,39 @@ def selftest() -> int:
             report.write_text(f"<testsuites><testsuite>{cases}</testsuite></testsuites>")
             return report
 
-        runs_now = {p for p in by if p[1] not in ("b::moved", "c::other_shard")}
+        runs_now = {p for p in by if p[1] not in ("b::moved", "c::other_shard", "b::over_screen_under_bar")}
         rc, log = _quiet(lambda: judge("kernel", by, runs_now, run))
         assert rc == 1, log
         assert len(asked) == alone.RUNS and all("b::moved" not in f and "other_shard" not in f for f in asked), asked
         errors = [x for x in log.splitlines() if x.startswith("::error")]
         assert len(errors) == ANNOTATED + 1, log
         named = "\n".join(errors) + log
-        assert "a::stepped: 0.310 s alone" in named and "stepped up at run 103" in named, log
-        assert "a::always: 0.250 s alone" in named and "throughout the window" in named, log
-        assert "a::between: 0.260 s alone" in named, "a median of 0.28 s is a candidate, and 0.26 s alone is over"
+        assert "a::stepped: 0.310 s alone, scaled" in named and "stepped up at run 103" in named, log
+        assert "a::always: 0.250 s alone, scaled" in named and "throughout the window" in named, log
+        assert "a::between: 0.260 s alone, scaled" in named, "a median of 0.28 s is a candidate, and 0.26 s alone is over"
         assert "a::fails_alone: failed alone" in named, "a test that fails a pass alone is red"
-        assert "under the bar alone: sweep::all a::cheap_alone 0.200 s" in log, log
+        assert "under the bar alone: sweep::all a::cheap_alone 0.200 s scaled (0.200 s alone" in log, log
+        assert "scaled from a runner at 1.000x the median one" in log and "runner factor 1.000 on " in log, log
+        # The same window re-timed on a slow runner (1.32x) and a fast one
+        # (0.8x): the same tests are named, at the same scaled costs.
+        for f, raw in ((1.32, "0.264"), (0.8, "0.160")):
+            speed[0] = f
+            rc, slog = _quiet(lambda: judge("kernel", by, runs_now, run))
+            assert rc == 1, slog
+            assert f"under the bar alone: sweep::all a::cheap_alone 0.200 s scaled ({raw} s alone" in slog, slog
+            # (a::always sits exactly at the bar, where a scaled reading is
+            # a float rounding from either side; it is checked at 1x above.)
+            for n in ("a::stepped: 0.310 s", "a::between: 0.260 s", "a::fails_alone: failed"):
+                assert n in slog, f"named on a {f}x runner too: {slog}"
+            assert f"scaled from a runner at {f:.3f}x the median one" in slog, slog
+        speed[0] = 0.7
+        try:
+            _quiet(lambda: judge("kernel", by, runs_now, run))
+        except alone.RetimeError as e:
+            assert "under FASTEST" in str(e), e
+        else:
+            raise AssertionError("a runner faster than FASTEST is a red, never a drift list")
+        speed[0] = 1.0
         assert "  (binary_id(sweep::all) & test(=a::stepped)) |" in log, log
         assert "not timed, the `ci` profile no longer runs it: topo b::moved" in log, log
         assert "set aside the readings of packages this build does not hold: test-utils" in log, log

@@ -1,0 +1,23 @@
+[package]
+name = "speed-reference"
+publish = false
+autotests = false  # tests/all.rs is the one test target; see its header
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+# ZERO dependencies, and no kernel crate, deliberately: this is the
+# yardstick a fast-set test's alone time is scaled by
+# (scripts/fast_set_alone.py), so a kernel speed-up must not move it, and
+# a scoped PR build adds it to its re-time pass for the cost of one tiny
+# compile.
+[dependencies]
+
+[dev-dependencies]
+
+[[test]]
+name = "all"
+path = "tests/all.rs"

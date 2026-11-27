@@ -150,6 +150,7 @@ test_utils::gated_to![
     "crates/profile/src/",
     "crates/quantity/src/",
     "crates/source-scope/src/",
+    "crates/speed-reference/src/",
     "crates/step-export/src/",
     "crates/step-import/src/",
     "crates/stl/src/",
