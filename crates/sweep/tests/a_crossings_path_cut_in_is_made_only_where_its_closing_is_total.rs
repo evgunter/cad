@@ -216,7 +216,8 @@ fn a_cut_turns_off_a_first_pass_section_in_its_own_meridian_plane_and_builds() {
 /// intersection with their union is the ball's cap and a sliver beside
 /// its pole. In either order it builds, passing tier 2 and the
 /// certificate, at the volume of the ball's intersection with each box
-/// alone, summed. Tier 3′ refuses only with the census's
+/// alone, summed, each of which builds sound (the cap at its closed
+/// form). Tier 3′ refuses only with the census's
 /// `CensusUndecidable { MayOverlap }`: a curved face of one part within
 /// reach of the other, and the pair it leaves unchecked
 /// (`work/reachhold/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`).
@@ -229,8 +230,16 @@ fn the_cap_and_pole_boxes_meet_the_ball_in_two_parts_the_census_cannot_tell_apar
     let ball = ball();
     let alone =
         |b: &AtRestBody<f64>, what: &str| sound(what, &run(what, BooleanOp::Intersect, &ball, b));
-    let parts =
-        alone(&cap_box(), "the ball ∩ the cap box") + alone(&pole_box(), "the ball ∩ the pole box");
+    // The ball's cap above `z = 0.6`, at its closed form `πh²(3 − h)/3`
+    // with `h = 0.4`, and the sliver beside the pole, each built alone
+    // and sound.
+    let cap = alone(&cap_box(), "the ball ∩ the cap box");
+    same_volume(
+        "the ball's cap",
+        cap,
+        PI * 0.4f64.powi(2) * (3.0 - 0.4) / 3.0,
+    );
+    let parts = cap + alone(&pole_box(), "the ball ∩ the pole box");
     let other = cap_beside_pole();
     for (order, got) in [
         (
