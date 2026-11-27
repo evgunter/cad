@@ -596,9 +596,10 @@ fn cylinder_with_a_spline_rim() -> (Body<f64>, topo::EdgeKey) {
 /// description door's site mint does not hold. So the cylinder face is
 /// left rowless, and the finish completes it with the projected rows
 /// (`work/pcert/site-rows-derive-through-chart-pcurve-bypassing-the-routed-arm.md`).
-/// The hand split that leaves the half-ellipse is a station the gate
-/// reads too. The body is not a finished body and no split door takes
-/// it; the row reads the carrier gate past the door.
+/// The hand split that leaves the half-ellipse is a station, which the
+/// at-rest gate refuses, and it is all the finish refuses: the rows the
+/// face owes are completed. The body is not a finished body and no split
+/// door takes it, so the row reads the carrier gate past the door.
 #[test]
 fn a_spline_edge_whose_belly_crosses_the_plane_refuses() {
     let (body, edge) = cylinder_with_a_spline_rim();
@@ -606,21 +607,14 @@ fn a_spline_edge_whose_belly_crosses_the_plane_refuses() {
         assert_eq!(part, Ok(()), "the re-described body is well formed");
     }
     let errors = topo::finish(body.clone(), Tol::witness())
-        .expect_err("the face the spline bounds stores no row");
-    let rim_faces = topo::readback::edge_sides(&body, edge).unwrap().faces();
+        .expect_err("the hand split's station is refused at rest");
     assert!(
         !errors.is_empty()
-            && errors.iter().all(|e| matches!(
-                e,
-                topo::ValidationError::Pcurve {
-                    finding: topo::pcurves::PcurveMintError::Unminted { face },
-                } if face == &rim_faces.0 || face == &rim_faces.1
-            ) || matches!(
-                e,
-                topo::ValidationError::JoinableVertexAtRest { .. }
-            )),
-        "the at-rest gate reads the face the spline bounds as owed rows it lacks, and the \
-         hand split's station: {errors:?}"
+            && errors
+                .iter()
+                .all(|e| matches!(e, topo::ValidationError::JoinableVertexAtRest { .. })),
+        "the finish completes the face the spline bounds and refuses the hand split's \
+         station alone: {errors:?}"
     );
     let mut finished = body.clone();
     topo::mint_pcurves(&mut finished, Tol::witness()).expect("the closing mint");

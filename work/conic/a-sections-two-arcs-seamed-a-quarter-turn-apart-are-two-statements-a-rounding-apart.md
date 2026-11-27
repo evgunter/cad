@@ -40,7 +40,7 @@ the semi-axes exchanged and
 
 the second's `v` is one ulp off the first's `−u_ref` in all three
 components. The same holds turned, a hundred units out and mirrored
-(`self_intersection_proves_injectivity::a_cones_split_states_its_sections_arcs_a_half_turn_apart_or_a_rounded_quarter`).
+(`self_intersection_proves_injectivity::a_cones_split_states_one_ellipse_through_its_wall_and_two_arcs_a_rounded_quarter_apart_through_its_cap`).
 
 Two statements a rounding apart state two curves
 (`crates/geom-core/README.md`, "A conic is the curve its stored numbers
@@ -59,7 +59,7 @@ opposite, a half turn, exact; in adjacent quadrants, a quarter turn,
 rounded. A cut through the wall alone leaves two arcs between the two
 rulings the wall's halves meet on, their middles opposite: a half turn
 in 864 of 864 such cuts of a frustum and a rod, either side kept (a scan of 1,152 splits, first the review's, pinned as
-`self_intersection_proves_injectivity::a_splits_two_section_arcs_are_stated_a_half_turn_apart_through_the_wall_and_either_way_through_a_cap`). A cut that runs out through a
+`self_intersection_proves_injectivity::a_splits_section_is_one_ellipse_through_the_wall_and_one_or_two_arcs_through_a_cap`). A cut that runs out through a
 cap leaves two arcs that each end on the cap's rim, and whether it
 meets a cap does not decide it: of 66 two-arc cuts through a cap, 26
 state a quarter turn and 40 a half. This row first said a cap cut
