@@ -6,6 +6,7 @@ status: review
 opened: 2026-11-26
 priority: P1
 cost: M
+pr: 7828
 branch: lathe/declined-normal-readers
 refs: [the-teapot-spouts-union-stops-at-section-loop-undecided-where-its-chords-hold-in-a-spline-wall]
 ---
