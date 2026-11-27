@@ -2,10 +2,11 @@
 id: main-red-the-removed-members-merge-reds-two-carried-record-rows
 kind: issue
 title: main red since PR 7745: face_face_touch's divided-faces record refuses CarryRefused Unread, and the curved-face pierce row refuses JoinDesync on a minted carried meeting
-status: open
+status: closed
 opened: 2026-11-26
 priority: P1
 cost: E
+closed: 2026-11-27
 ---
 
 
@@ -62,3 +63,9 @@ The pierce row builds once the carry's door decides a minted vertex
 inside an edge
 (`the-boolean-door-decides-no-minted-vertex-on-edge-meeting`). Item 1
 is not touched there.
+
+## Closed 2026-11-27
+
+- Item 1 (`face_face_touch::a_record_whose_faces_the_op_divides…`) was mended by PR 7799, through the presence read.
+- Item 2 (the pierce row) was mended by PR 7808, through the door decision.
+- This is the same finding as HELDRECORDS's `main-red-removed-members-refuses-three-slow-carry-rows`, closed earlier.

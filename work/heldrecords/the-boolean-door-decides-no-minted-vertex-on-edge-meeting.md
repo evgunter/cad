@@ -2,10 +2,11 @@
 id: the-boolean-door-decides-no-minted-vertex-on-edge-meeting
 kind: issue
 title: The boolean's carry door decides no minted vertex-on-edge meeting, so a carried record reaching one refuses JoinDesync
-status: dispatched
+status: closed
 opened: 2026-11-25
 priority: P1
 cost: M
+closed: 2026-11-27
 ---
 
 
@@ -119,3 +120,15 @@ builds, its meeting landing and citing the decision.
 - **The pierce row pins the door's row**: on the intersection, either
   operand first, and on the subtraction from the held pair.
 - **Section-vertex naming is unpinned.** Its row is re-opened.
+
+## Closed 2026-11-27 by PR 7808
+
+The boolean's door decides a minted vertex-on-edge meeting with `census::vertex_on_edge_reading`, the reading the confirm already uses. It writes the decision row on the record's input cells (E, F) and keeps the worst margin. A minted vertex–vertex meeting resolves in one of three ways:
+
+- **structure**: two copies with one root, which needs no row;
+- **already decided**: it cites the reduction's pending row;
+- **neither**: the door decides it, on (E, F).
+
+The pierce row and `emit_union_borders` now build. A stress row, where the tool face grazes F, is pinned per ε.
+
+Left open, as the delta re-read's NOTE: no current row reaches the structure arm (two copies of one vertex). It is sound by D1, but nothing witnesses it. Its likeliest witness is a pinch where a record's two minted vertices are null-edge copies of one vertex. It is tracked under `a-carried-records-section-vertices-are-not-named-in-the-booleans-division` (re-opened), which owes the related section-vertex witness.

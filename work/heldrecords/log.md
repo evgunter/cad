@@ -382,3 +382,8 @@
 
 - 2026-11-27 **Another main red from PR 7745, in editor-core.** `union_fold_face_face_touch::a_piece_of_the_plates_face_still_holds_the_line` passes on cc90e26a7a1 and fails on 0ac627ec92 and on 9a25655c18 (PR 7799). It is the editor-core twin of the sweep row PR 7799 mended. My evidence bar for carry changes now includes the editor-core slow set, not only topo and sweep. Filed P0 `main-red-an-editor-core-fold-refuses-its-plates-face-touch-unread-since-7745`, sent to the 7745/7799 lane. `germ_coplanar_conic` (a wrong `Out`) passes at 7799; I'm bisecting it further.
 - 2026-11-27 Bisected `germ_coplanar_conic` (a wrong point_in_solid `Out` on main) to INSIDE's PR 7801 as well: it passes on 2fc64636e46 and fails on 1bb20a9fce1. Added to INSIDE's P0 row. PR 7782 (mine) is cleared of both the slowdown and this wrong answer.
+
+- 2026-11-27 PR 7808 (minted-door) merged as a754565f20, after a delta re-read (MERGEABLE) and a full `gate ok` on f24622b527, the mesh job included.
+  - Closed `the-boolean-door-decides-no-minted-vertex-on-edge-meeting`.
+  - Closed INSIDE's duplicate filing `main-red-the-removed-members-merge-reds-two-carried-record-rows`; both items are green.
+  - The unwitnessed structure arm is noted on the re-opened section-vertices row.
