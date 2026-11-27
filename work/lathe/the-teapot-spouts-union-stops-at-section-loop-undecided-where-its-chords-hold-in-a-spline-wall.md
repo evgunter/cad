@@ -7,6 +7,7 @@ opened: 2026-11-26
 priority: P0
 cost: M
 refs: [curved-demo-joins-build]
+pr: 7824
 branch: lathe/teapot-spout-section-loop
 ---
 
