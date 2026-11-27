@@ -23,7 +23,7 @@ use crate::common::operands::{plate6, plate6_cyl};
 use crate::mate2_common;
 use geom::SurfaceKind;
 use geom_core::Point3;
-use geom_core::{Point2, Tol, Vec2};
+use geom_core::{Point2, Tol, Vec2, Vec3};
 use mate2_common::{assert_additive, boolean_body, collar, collar_at, peg_at, volume, walls_at};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
@@ -166,6 +166,14 @@ fn shared_edges(
             let (f1, f2) = (face_of(body, e.he_plus), face_of(body, e.he_minus));
             (f1 != f2 && set.contains(&f1) && set.contains(&f2)).then_some((ek, f1, f2))
         })
+        .collect()
+}
+
+/// `body`'s faces carried by a surface of `kind`.
+fn faces_of_kind(body: &Body<f64>, kind: SurfaceKind) -> Vec<topo::FaceKey> {
+    body.faces()
+        .filter(|(f, _)| body.face_surface(*f).is_ok_and(|s| s.kind() == kind))
+        .map(|(k, _)| k)
         .collect()
 }
 
@@ -546,21 +554,6 @@ fn a_surface_with_no_live_face_glues_nothing() {
     );
 }
 
-/// A ball of radius `r` (a revolved semicircle).
-fn ball(r: f64) -> Body<f64> {
-    let lp = bulge_loop(vec![
-        (Point2::new(0.0, -r), 1.0),
-        (Point2::new(0.0, r), 0.0),
-    ]);
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    revolve(&profile, axis_y(), Revolution::Full, Tol::witness())
-        .unwrap()
-        .body
-        .into_body()
-}
-
 /// A cone frustum (a revolved trapezoid whose slant meets the axis).
 fn frustum() -> Body<f64> {
     let lp = bulge_loop(vec![
@@ -598,21 +591,6 @@ fn a_pair_of_two_kinds_never_glues_inside_or_outside_the_ladder() {
     }
 }
 
-/// A donut (a revolved circle off the axis).
-fn donut() -> Body<f64> {
-    let lp = bulge_loop(vec![
-        (Point2::new(1.0, -0.3), 1.0),
-        (Point2::new(1.0, 0.3), 1.0),
-    ]);
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    revolve(&profile, axis_y(), Revolution::Full, Tol::witness())
-        .unwrap()
-        .body
-        .into_body()
-}
-
 fn axis_y() -> RevolveAxis<f64> {
     RevolveAxis {
         origin: Point2::new(0.0, 0.0),
@@ -641,20 +619,180 @@ fn two_keys_of(body: &mut Body<f64>, kind: SurfaceKind) -> (topo::SurfaceKey, to
     distinct_keys(body, faces[0], faces[1])
 }
 
-/// **The public door on a sphere pair, a torus pair and a cone pair** on
-/// keys of their own — a ball's two faces, a donut's two, a frustum's
-/// two wall faces — are each one run closing its carrier's full period:
-/// the record is that `PeriodClosure`, naming both faces. (After the R1
-/// review probe.)
+/// A full revolve of `verts` about `y`.
+fn revolved_profile(verts: Vec<(Point2<f64>, f64)>) -> Body<f64> {
+    let profile = Profile::new(SketchPlane::xy(), vec![bulge_loop(verts)])
+        .validate(Tol::witness())
+        .unwrap();
+    revolve(&profile, axis_y(), Revolution::Full, Tol::witness())
+        .unwrap()
+        .body
+        .into_body()
+}
+
+/// `body`'s one `kind` wall halved along the meridian opposite its seam:
+/// each of its two rims split at its antipode, the opposite meridian
+/// drawn between the splits (`meridian(a, b)`, the carrier and its
+/// interval), and the seam, now between the halves, restated as a plain
+/// chart edge. A full revolve sweeps each wall as one face; this is the
+/// pair of faces on one key a half-turn pair of meridians bounds.
+fn halved(
+    mut body: Body<f64>,
+    kind: SurfaceKind,
+    meridian: impl Fn(Point3<f64>, Point3<f64>) -> (geom::Curve3<f64>, f64, f64),
+) -> Body<f64> {
+    use topo::construction::MefSite;
+    let tol = Tol::witness();
+    let [wall] = body
+        .faces()
+        .filter(|(fk, _)| body.face_surface(*fk).is_ok_and(|s| s.kind() == kind))
+        .map(|(k, _)| k)
+        .collect::<Vec<_>>()[..]
+    else {
+        panic!("{kind:?}: one wall");
+    };
+    let key = body.get_face(wall).unwrap().surface;
+    let (_, hes) = topo::props::loop_edges(
+        body.cycle_loop(body.get_face(wall).unwrap().outer)
+            .expect("a cycle loop"),
+    )
+    .unwrap();
+    let edge_of = |h| body.get_half_edge(h).unwrap().edge;
+    let seam = hes
+        .iter()
+        .map(|&h| edge_of(h))
+        .find(|&e| {
+            let ed = body.get_edge(e).unwrap();
+            body.face_of_half_edge(ed.he_plus) == body.face_of_half_edge(ed.he_minus)
+        })
+        .expect("the wall's seam");
+    let rims: Vec<_> = hes
+        .iter()
+        .map(|&h| edge_of(h))
+        .filter(|&e| e != seam && body.edge_vertices(e).is_some_and(|(a, b)| a == b))
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    assert_eq!(rims.len(), 2, "{kind:?}: two rims");
+    let split: Vec<_> = rims
+        .into_iter()
+        .map(|rim| {
+            let (t0, t1) = body
+                .get_curve_geom(body.get_edge(rim).unwrap().curve)
+                .unwrap()
+                .certified()
+                .unwrap()
+                .params();
+            body.split_edge(rim, 0.5 * (t0 + t1), tol).unwrap().vertex
+        })
+        .collect();
+    let (_, hes) = topo::props::loop_edges(
+        body.cycle_loop(body.get_face(wall).unwrap().outer)
+            .expect("a cycle loop"),
+    )
+    .unwrap();
+    let from = |v| {
+        *hes.iter()
+            .find(|&&h| body.get_half_edge(h).unwrap().start == v)
+            .unwrap()
+    };
+    let at = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+    let (carrier, t0, t1) = meridian(at(split[0]), at(split[1]));
+    let mut spec = body
+        .get_curve_geom(body.get_edge(seam).unwrap().curve)
+        .unwrap()
+        .certified()
+        .unwrap()
+        .restated_spec();
+    body.mef(
+        MefSite::Chords {
+            he1: from(split[0]),
+            he2: from(split[1]),
+        },
+        geom_brep::EdgeCurveSpec {
+            description: geom_brep::EdgeDescriptionSpec::chart(key),
+            carrier,
+            param_start: t0,
+            param_end: t1,
+        },
+        FaceSurface::Inherit,
+        tol,
+    )
+    .expect("the opposite meridian halves the wall");
+    spec.description = geom_brep::EdgeDescriptionSpec::chart(key);
+    body.restate_stored_edge(seam, spec.description, tol)
+        .expect("the seam restates as a chart edge between the halves");
+    body
+}
+
+/// **The public door on a sphere pair, a torus pair and a cone pair whose
+/// union closes its carrier's period.** A full revolve sweeps each wall as
+/// one face, so each pair is that face halved along the meridian opposite
+/// its seam: the ball's two lunes (`sweep::test_support::two_lunes`), a
+/// D-section torus and a frustum, each halved ([`halved`]), one half
+/// re-homed onto a key of its own. Each pair is one run closing its
+/// carrier's full period: the record is that `PeriodClosure`, naming both
+/// faces. (After the R1 review probe.)
+///
+/// A sphere's carrier is simply connected, so a run on it bridges
+/// (`a_sphere_zone_halved_by_two_meridians_bridge_merges`); the lunes
+/// record all the same, and for a reason the carrier's kind does not
+/// reach. Their union is the WHOLE sphere, so the last meridian the
+/// absorption leaves is a strut with both ends free — the two poles — and
+/// pruning a strut off a curved face would unbuild it (`strut`'s `Curved`
+/// refusal), leaving a sphere face with no seam at all.
 #[test]
 fn sphere_torus_and_cone_pairs_record_their_period_closure() {
+    let mut ball = revolved_profile(vec![
+        (Point2::new(0.0, -0.7), 1.0),
+        (Point2::new(0.0, 0.7), 0.0),
+    ]);
+    sweep::test_support::two_lunes(&mut ball, Tol::witness());
+    // The torus: the outer half of a tube of radius 0.3 about the circle
+    // of radius 1, closed by its chord.
+    let tube = revolved_profile(vec![
+        (Point2::new(1.0, -0.3), 1.0),
+        (Point2::new(1.0, 0.3), 0.0),
+    ]);
+    let torus = halved(tube, SurfaceKind::Torus, |a, b| {
+        // The tube circle at the azimuth of the two splits, a half turn
+        // from `a` to `b` through its outermost point.
+        let _ = b;
+        let flat = Vec3::new(a.x, 0.0, a.z);
+        let out = flat / flat.norm();
+        let centre = Point3::origin() + out;
+        let from = (a - centre) / (a - centre).norm();
+        let normal = from.cross(out);
+        (
+            geom::Curve3::circle(centre, normal, 0.3, from),
+            0.0,
+            core::f64::consts::PI,
+        )
+    });
+    let cone = halved(
+        revolved_profile(vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(1.0, 0.0), 0.0),
+            (Point2::new(0.5, 1.0), 0.0),
+            (Point2::new(0.0, 1.0), 0.0),
+        ]),
+        SurfaceKind::Cone,
+        |a, b| {
+            (
+                geom::Curve3::line(a, geom_core::UnitVec3::squared(b - a)),
+                0.0,
+                (b - a).norm(),
+            )
+        },
+    );
     for (label, mut body, kind) in [
-        ("ball", ball(0.7), SurfaceKind::Sphere),
-        ("donut", donut(), SurfaceKind::Torus),
-        ("frustum", frustum(), SurfaceKind::Cone),
+        ("ball", ball, SurfaceKind::Sphere),
+        ("tube", torus, SurfaceKind::Torus),
+        ("frustum", cone, SurfaceKind::Cone),
     ] {
         assert_eq!(validate_closed(&body), Ok(()), "{label}: tier 2");
         let (k1, k2) = two_keys_of(&mut body, kind);
+        let pair = faces_on(&body, k1, k2);
         let outcome = body
             .merge_coplanar_faces(Tol::witness())
             .unwrap_or_else(|e| panic!("{label}: {e:?}"));
@@ -667,8 +805,72 @@ fn sphere_torus_and_cone_pairs_record_their_period_closure() {
             "{label}: {:?}",
             skip.reason
         );
-        assert_eq!(sorted(skip.faces.clone()), faces_on(&body, k1, k2));
+        assert_eq!(sorted(skip.faces.clone()), pair);
     }
+}
+
+/// **Two faces on one sphere record whose union is a zone keep the
+/// meridian between them.** A sphere zone, swept as one band
+/// between its two rims, halved along the meridian opposite its seam
+/// ([`halved`]), is the bridging run PR 7440 opened on a simply connected
+/// carrier: the absorption kefs one meridian and `kemr` takes the other,
+/// which is left twice in one loop with its ends on the rims rather than
+/// free, so the pair would glue back to one face with two rings. The
+/// role pass then asks which ring is the outline, and on a zone neither
+/// closes in the chart: each rim winds a whole turn of azimuth, so each
+/// slot reads `OuterOpen`, a decided refusal in either order. With no
+/// slot placing the other rim, the run is left unmerged with a
+/// `PeriodClosure` skip naming the pair, and the meridian stays.
+#[test]
+fn a_sphere_zone_halved_by_two_meridians_keeps_the_meridian_between_them() {
+    // The unit sphere's zone |y| < 0.5, closed by the cylinder of radius
+    // cos(30 deg) through its rims: the sphere wall is one band whose arc
+    // sweeps 60 degrees, so the profile's bulge is tan(60 deg / 4).
+    let rim = (0.75_f64).sqrt();
+    let mut zone = halved(
+        revolved_profile(vec![
+            (Point2::new(rim, -0.5), (core::f64::consts::PI / 12.0).tan()),
+            (Point2::new(rim, 0.5), 0.0),
+        ]),
+        SurfaceKind::Sphere,
+        |a, b| {
+            // The sphere's own meridian through `a`: a unit circle about
+            // the centre in the plane of the axis and `a`'s azimuth,
+            // turned from `a` toward `b`.
+            let flat = Vec3::new(a.x, 0.0, a.z);
+            let out = flat / flat.norm();
+            let centre = Point3::origin();
+            let from = (a - centre) / (a - centre).norm();
+            let mut normal = out.cross(Vec3::new(0.0, 1.0, 0.0));
+            if normal.cross(from).dot(b - a) < 0.0 {
+                normal = normal * -1.0;
+            }
+            let angle = ((b - centre).dot(from) / (b - centre).norm()).acos();
+            (geom::Curve3::circle(centre, normal, 1.0, from), 0.0, angle)
+        },
+    );
+    assert_eq!(validate_closed(&zone), Ok(()), "the halved zone: tier 2");
+    let halves = faces_of_kind(&zone, SurfaceKind::Sphere);
+    assert_eq!(halves.len(), 2, "the zone is two faces: {halves:?}");
+    let outcome = zone
+        .merge_coplanar_faces(Tol::witness())
+        .unwrap_or_else(|e| panic!("the zone: {e:?}"));
+    assert!(outcome.groups.is_empty(), "{:?}", outcome.groups);
+    let [skip] = &outcome.skipped[..] else {
+        panic!("one record: {:?}", outcome.skipped);
+    };
+    assert!(
+        matches!(skip.reason, MergeCoplanarError::PeriodClosure { .. }),
+        "{:?}",
+        skip.reason
+    );
+    assert_eq!(sorted(skip.faces.clone()), sorted(halves));
+    assert_eq!(
+        faces_of_kind(&zone, SurfaceKind::Sphere).len(),
+        2,
+        "the pair is left as it arrived"
+    );
+    assert_eq!(validate_closed(&zone), Ok(()), "the zone: tier 2 after");
 }
 
 /// Scenes A and B: the floating and mid-bore pegs ship honest bodies —

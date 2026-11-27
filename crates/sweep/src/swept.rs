@@ -1209,6 +1209,36 @@ pub(crate) fn describe_wrap_edge<T: Decide + topo::AtRestPolicy>(
     Ok(())
 }
 
+/// [`describe_wrap_edge`], and then the edge restated once more from
+/// what it stores, so its stored certificate is the run a fresh
+/// re-certification mints: the wrap restatement derives the edge's
+/// chart image, and a run over a derived image can differ in the last
+/// bits from a run over the same image stated
+/// (`work/select/a-run-over-a-derived-chart-image-certifies-apart-from-the-same-image-stated.md`).
+/// A revolve's wrap edges take it (the full revolve's meridian, the
+/// full-turn torus's latitude); extrude's strut is one of that row's
+/// sites.
+///
+/// # Panics
+///
+/// As [`Body::restate_stored_edge`], on a kernel bug.
+pub(crate) fn describe_wrap_edge_fresh<T: Decide + topo::AtRestPolicy>(
+    body: &mut Body<T>,
+    edge: EdgeKey,
+    wall: SurfaceKey,
+    tol: Tol,
+) -> Result<(), EulerOpError> {
+    describe_wrap_edge(body, edge, wall, tol)?;
+    let stored = body
+        .edge(edge)
+        .and_then(topo::EdgeView::certified)
+        .unwrap_or_else(|| unreachable!("the edge was restated certified just above"))
+        .restated_spec()
+        .description;
+    body.restate_stored_edge(edge, stored, tol)?;
+    Ok(())
+}
+
 /// Decides whether two consecutive segments sweep the
 /// identical-by-construction surface (crate docs, cosurface sharing):
 /// collinear lines share one surface, same-carrier same-turn arcs

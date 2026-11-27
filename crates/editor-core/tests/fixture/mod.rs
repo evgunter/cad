@@ -4023,8 +4023,6 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::CapVertex(..)
         | RoleSeg::Band(_)
         | RoleSeg::BandRim(_)
-        | RoleSeg::BandRimPi(_)
-        | RoleSeg::BandPi(_)
         | RoleSeg::Meridian(..)
         | RoleSeg::MeridianVertex(..)
         | RoleSeg::RevolveCap(_)

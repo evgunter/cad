@@ -1272,7 +1272,7 @@ fn the_authoring_ladder_runs_on_one_dependency() {
 /// `kind` is the ratified case split. The two arms are two disjoint
 /// sets of handles rather than one shape with a label: a partial
 /// revolution has wedge CAPS and both meridian chains, a full one has
-/// no caps, one seam chain, and the wire case's second π-band. So
+/// no caps, one seam chain of wrap edges, and the wire flag. So
 /// "which faces did my revolve make" is answered by this branch and
 /// by no other, and every key type the arms carry is on the same
 /// list.
@@ -1330,18 +1330,9 @@ fn revolved_kind_is_matchable(kind: &RevolvedKind<f64>) -> &'static str {
             named::<&Vec<Vec<EdgeKey>>>(end_meridians);
             "partial"
         }
-        RevolvedKind::Full {
-            wire,
-            meridians,
-            pi_walls,
-            pi_meridians,
-            pi_rims,
-        } => {
+        RevolvedKind::Full { wire, meridians } => {
             named::<bool>(*wire);
             named::<&Vec<Vec<Option<EdgeKey>>>>(meridians);
-            named::<&Vec<Option<FaceKey>>>(pi_walls);
-            named::<&Vec<Option<EdgeKey>>>(pi_meridians);
-            named::<&Vec<Option<EdgeKey>>>(pi_rims);
             "full"
         }
     }
@@ -1529,7 +1520,6 @@ fn normalization_kind_is_readable(kind: &NormalizationKind) -> &'static str {
         NormalizationKind::ChartSingularityVertex { found } => match found {
             SingularityFound::Interior => "chart_singularity_vertex_interior",
             SingularityFound::InsideEdge => "chart_singularity_vertex_inside_edge",
-            SingularityFound::ValenceOneVertex => "chart_singularity_vertex_valence_one",
         },
         NormalizationKind::SeamlessPeriodicBand => "seamless_periodic_band",
         NormalizationKind::CollapsedSideMadeOne { moved_by } => {

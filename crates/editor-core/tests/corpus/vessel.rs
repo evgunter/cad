@@ -146,8 +146,8 @@ pub fn document() -> CorpusDoc {
 
 /// The capped vessel's cap: a sphere of radius `5/64` about `(0, −2/64)`,
 /// meeting the foot at `(4/64, 1/64)` (the 3-4-5 point again) and the
-/// axis at its pole `(0, 3/64)`, so the cap is pole-touching and the
-/// full revolve wears it on two half-faces.
+/// axis at its pole `(0, 3/64)`, so the cap is pole-touching: the full
+/// revolve wears it as one face whose seam ends at the pole.
 pub const Y_CAP_C: f64 = -2.0 / 64.0;
 /// The cap's pole.
 pub const Y_POLE: f64 = 3.0 / 64.0;
@@ -170,8 +170,8 @@ pub fn capped_meridian() -> LoopProgram<Formula> {
 }
 
 /// **The capped vessel**: [`capped_meridian`] revolved a full turn and
-/// hollowed to [`WALL`] with its cap opened, the cap named by both of
-/// the half-faces the revolve wears it on. Returns the document, the
+/// hollowed to [`WALL`] with its cap opened, the cap named by the one
+/// face the revolve wears it as. Returns the document, the
 /// shell node and the revolve node.
 pub fn capped_document() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
@@ -187,7 +187,7 @@ pub fn capped_document() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         ang(std::f64::consts::TAU),
     ));
     let cap = crate::fixture::piece(&r.doc, pot, 0, SEG_CAP as usize);
-    let open = vec![band(pot, cap), editor_core::band_pi(pot, cap)];
+    let open = vec![band(pot, cap)];
     let shell = r.insert(Node::shell(
         editor_core::Operand::output(pot, 0),
         len(WALL),

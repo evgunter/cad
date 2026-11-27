@@ -61,21 +61,10 @@ fn washer_full_revolve_is_genus_one_and_tier_valid() {
     // Meridians: the cylinder walls' carry their chart's own seam and
     // are derived; the plane walls have none (a plane annulus is one
     // face with no slit).
-    let RevolvedKind::Full {
-        meridians,
-        pi_walls,
-        pi_meridians,
-        pi_rims,
-        ..
-    } = &t.kind
-    else {
+    let RevolvedKind::Full { meridians, .. } = &t.kind else {
         panic!("full revolve");
     };
     let meridians = &meridians[0];
-    // Lamina case: one full-period band, no π-band entities.
-    assert!(pi_walls.iter().all(Option::is_none));
-    assert!(pi_meridians.iter().all(Option::is_none));
-    assert!(pi_rims.iter().all(Option::is_none));
     let mut seams = 0;
     let mut planes_unslit = 0;
     for (m, w) in meridians.iter().zip(&t.walls()[0]) {

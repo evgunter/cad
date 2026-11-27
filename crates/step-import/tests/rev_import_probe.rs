@@ -131,9 +131,10 @@ fn cone_trunc_flipped_wall_refuses() {
 /// The SLIP-BOTH adversary, executed: an obliquely-cut cylinder's wall
 /// is trimmed by an ELLIPSE (quadrature-owned boundary). Flip the wall
 /// sense in the exported text: the rider's rim collector sees no
-/// axis-aligned circle pair (skip), and the kernel's curved arm gets a
-/// PropsError from the conic boundary (exempt) while the quadrature
-/// volume is winding-derived (bit-free). Does anything refuse?
+/// axis-aligned circle pair (skip), and the kernel's curved arm's closed
+/// form refuses the conic boundary, so the arm reads the wall's side
+/// through the rotational lane, while the quadrature volume is
+/// winding-derived (bit-free). Does anything refuse?
 #[test]
 fn conic_trimmed_flip_slips_both_gates() {
     use geom_core::{Point2, Point3, Vec3};

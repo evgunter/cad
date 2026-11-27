@@ -2041,31 +2041,21 @@ fn an_unproven_row_says_why_the_replay_left_it() {
     );
 }
 
-/// **What the door proves on the tour's composed dies**: the blend
-/// joints whose `fillet3_chain_g1` margin is the zero polynomial. Both
-/// of `die_composed`'s two and 29 of `die_composed_tour`'s 42 prove as
-/// theorems, and the rest stay unproven. The angle reductions read
-/// `geom_core::period::Period::at_or_above`, and the extruded pips' caps
-/// and rims are their sketch frames turned, so the margins are forms the
-/// symbolic replay cancels within its budget; a reduction spelled
-/// `lo + (t − lo).reduce_periodic(τ)`, or a cap fitted to its corners,
-/// names the same functions in forms it does not (`Unproven`, recourse
-/// `Budget`).
-/// The tour's pips are copies
-/// placed against the die's faces; a copy placed by a frame turned off
-/// the die's own axes reaches its rim through that turn's sine and
-/// cosine, and its joints stay unproven
-/// (`work/intent/a-turn-by-the-nearest-quarter-turn-rounds.md`). The
-/// dies' booleans decide vertex identities too, each a point minted on
-/// an edge, published as a `Meet` of the cells it lies in and left
-/// unproven, a coincidence of values as far as the door can tell.
+/// **What the door proves on the tour's composed dies**: nothing, as
+/// theorems. Each pip's wall is one band (a full revolve), so its rim is
+/// one closed edge and its fillet one chain with no joint: no blend
+/// joint publishes a `fillet3_chain_g1` margin for the door to cancel
+/// (where a rim of two seam-split arcs had two joints, which proved). The
+/// dies' booleans decide vertex identities, each a point minted on an
+/// edge (a pip's meridian seam edge against a face of the die),
+/// published as a `Meet` of the cells it lies in and left unproven, a
+/// coincidence of values as far as the door can tell: one per pip.
 #[test]
 fn the_door_proves_two_thirds_of_the_composed_dies_joints() {
     // `met`: the vertex identities the dies' booleans decide at a point
     // minted on an edge, each a `Meet` of the cells it lies in (measured:
     // a pip's meridian seam edge against a face of the die).
-    for (name, proved, rows, met) in [("die_composed", 2, 4, 2), ("die_composed_tour", 29, 84, 42)]
-    {
+    for (name, proved, rows, met) in [("die_composed", 0, 1, 1), ("die_composed_tour", 0, 21, 21)] {
         let cd = crate::corpus::documents()
             .into_iter()
             .find(|cd| cd.name == name)
@@ -2785,14 +2775,9 @@ fn two_cells(row: &NamedCoincidence) -> [(VarId, &StableName); 2] {
     }
 }
 
-/// Whether `name` is a face a revolve sweeps (either half of a curved
-/// wall).
+/// Whether `name` is a face a revolve sweeps.
 fn a_band(name: &StableName) -> bool {
-    name.kind == EntityKind::Face
-        && matches!(
-            name.path.as_slice(),
-            [RoleSeg::Band(_) | RoleSeg::BandPi(_)]
-        )
+    name.kind == EntityKind::Face && matches!(name.path.as_slice(), [RoleSeg::Band(_)])
 }
 
 /// **A pin seated in a bore records no row, and the census says it
@@ -2870,7 +2855,7 @@ fn pin_in_bore_cannot_be_looked_at(cd: &crate::corpus::CorpusDoc) {
             name = of;
         }
         match name.path.as_slice() {
-            [RoleSeg::Band(run) | RoleSeg::BandPi(run)] => run
+            [RoleSeg::Band(run)] => run
                 .pieces()
                 .first()
                 .and_then(|p| p.step())
@@ -2907,9 +2892,11 @@ fn pin_in_bore_cannot_be_looked_at(cd: &crate::corpus::CorpusDoc) {
     );
     assert_eq!(
         tally,
+        // A full revolve's walls are one face each, each with one seam,
+        // so no wall touches its neighbour at a second seam.
         [
-            ("CensusUndecidable".to_owned(), 15),
-            ("UnrecordedContact".to_owned(), 11)
+            ("CensusUndecidable".to_owned(), 11),
+            ("UnrecordedContact".to_owned(), 7)
         ]
         .into_iter()
         .collect(),
@@ -2923,15 +2910,15 @@ fn pin_in_bore_cannot_be_looked_at(cd: &crate::corpus::CorpusDoc) {
 /// unproven while their radii are two variables** (INTENT stage 6,
 /// `shaft_and_bearing`). The shaft and the collar are each mated to the
 /// housing revolve's `axis` output; the union glues the shaft's wall to
-/// the bore's and to the collar's, two `SameOpposite` rows at
-/// `CarrierLadder` each (one per half of the shaft's wall), and decides
+/// the bore's and to the collar's, one `SameOpposite` row at
+/// `CarrierLadder` each (the shaft's wall one band), and decides
 /// the walls' rims and seams by vertex fusion. Every wall is a band of
 /// its revolve, so about that revolve's `axis` output, and the mates
 /// make the three outputs one: the door reads each wall pair's axes as
 /// one, `housing.axis` read twice. Each wall's radius is its own literal
 /// coordinate, so its own symbol, and the row is unproven at its radius,
 /// which the finding names. [`shaft_and_bearing::one_radius`] reads one
-/// `bore` for the three radii, and its four wall rows are proven by the
+/// `bore` for the three radii, and its two wall rows are proven by the
 /// carrier verdict, the axes as the mates state them; the seams on the
 /// walls then prove too.
 ///
@@ -2951,8 +2938,7 @@ fn two_copies_on_one_axis_glue_their_walls_on_one_axis() {
     assert_eq!(
         lines,
         [
-            walls, walls, on, on, meet, meet, meet, meet, walls, walls, meet, meet, meet, meet, on,
-            on, meet, meet, meet, meet, meet, meet, meet, meet,
+            walls, on, on, meet, meet, walls, meet, meet, on, on, meet, meet, meet, meet,
         ]
     );
     let wall_rows: Vec<&NamedCoincidence> = rows
@@ -3017,8 +3003,7 @@ fn two_copies_on_one_axis_glue_their_walls_on_one_axis() {
     assert_eq!(
         lines,
         [
-            walls, walls, on, on, meet, meet, meet, meet, walls, walls, budget, budget, budget,
-            budget, on, on, meet, meet, meet, meet, budget, budget, budget, budget,
+            walls, on, on, meet, meet, walls, budget, budget, on, on, meet, meet, budget, budget,
         ],
         "with one radius the walls are one axis and one radius"
     );
@@ -3225,13 +3210,13 @@ fn the_coaxial_stage6_unions_are_green_at_f64_on_their_coaxial_rows() {
         Scene {
             cd: crate::corpus::shaft_and_bearing::with_a_ball(),
             row: "OnCarrier CoaxialSphere unproven/Numeric/OneConstruction",
-            count: 4,
+            count: 1,
             want: 5.836_839_596_566_8,
         },
         Scene {
             cd: crate::corpus::shaft_and_bearing::rounded_mouth(),
             row: "Coaxial CoaxialCylinderTorus SameConstruction",
-            count: 2,
+            count: 1,
             want: rounded_mouth_volume(),
         },
     ] {
@@ -3728,8 +3713,8 @@ fn a_collar_placed_by_values_is_two_axes_and_the_finding_names_the_mate() {
     use coincide::Component::{Axis, Radius};
     assert_eq!(
         axes.iter().map(|a| a.left).collect::<Vec<_>>(),
-        [Radius, Radius, Axis, Axis],
-        "the bore and the shaft one axis, the shaft and the collar two"
+        [Radius, Axis],
+        "the bore and the shaft one axis, the shaft and the collar two, a row each"
     );
     // The housing, the shaft and the collar are revolved in that order,
     // and the shaft and the collar placed in that order.
@@ -3770,7 +3755,7 @@ fn a_collar_placed_by_values_is_two_axes_and_the_finding_names_the_mate() {
         .filter(|f| f.contains("the axes are two"))
         .collect();
     assert!(
-        findings.len() == 2 && findings.iter().all(|f| f.contains(&edit)),
+        findings.len() == 1 && findings.iter().all(|f| f.contains(&edit)),
         "each shaft-and-collar wall finding names the edit {edit:?}: {findings:?}"
     );
 }
@@ -3933,7 +3918,7 @@ fn a_wall_whose_two_ends_are_two_variables_is_not_one_radius() {
             Vec::<String>::new(),
             "evaluates"
         );
-        // The housing's band is the first cell of the bore's two rows.
+        // The housing's band is the first cell of the bore's row.
         let housing = cd
             .doc
             .ids()
@@ -3951,8 +3936,8 @@ fn a_wall_whose_two_ends_are_two_variables_is_not_one_radius() {
             .collect();
         assert_eq!(
             bore.len(),
-            2,
-            "bore2 at top {bore2_at_top}: the bore's two rows"
+            1,
+            "bore2 at top {bore2_at_top}: the bore's one row"
         );
         for p in &bore {
             match (bore2_at_top, p) {
@@ -4391,7 +4376,7 @@ fn a_stated_axis_proves_a_wall_pair_the_fold_does_not() {
         .collect();
     assert_eq!(
         walls,
-        vec![Proof::Structural(Rung::CarrierVerdict); 2],
+        vec![Proof::Structural(Rung::CarrierVerdict); 1],
         "the bore and the shaft: one axis by the mate, one bore, one sense"
     );
 }

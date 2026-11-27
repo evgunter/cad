@@ -54,22 +54,26 @@ use sweep::{Extrusion, Revolution, extrude, revolve};
 use topo::boolean::point_in_solid;
 use topo::{Body, FaceKey};
 
-/// The unit ball centred at the origin: two half-sphere bands on ONE
-/// sphere surface, each **rimless** (bounded by meridians only).
+/// The unit ball centred at the origin, cut into two half-sphere lunes
+/// on ONE sphere surface, each **rimless** (bounded by meridians only).
 fn ball() -> Body<f64> {
     ball_at(0.0)
 }
 
 /// The unit ball centred at `(0, cy, 0)`, revolved from the PR 9c
 /// `ball` acceptance's half-disc (a unit semicircle closed by its
-/// on-axis diameter). `cy ≠ 0` is what the anchored-versus-vector-area
-/// row needs: it makes the `c·A⃗` terms nonzero.
+/// on-axis diameter), then split along the meridian opposite its wrap
+/// edge into two lunes: the revolve's one face reads the whole sphere,
+/// whose vector area vanishes, so only a band short of the whole sphere
+/// separates the sense's flux term from the winding-derived one.
+/// `cy ≠ 0` is what the anchored-versus-vector-area row needs: it makes
+/// the `c·A⃗` terms nonzero.
 fn ball_at(cy: f64) -> Body<f64> {
     let lp = bulge_loop(vec![
         (Point2::new(0.0, cy - 1.0), 1.0),
         (Point2::new(0.0, cy + 1.0), 0.0),
     ]);
-    revolve(
+    let mut ball = revolve(
         &validated(vec![lp]),
         axis_y(),
         Revolution::Full,
@@ -77,7 +81,9 @@ fn ball_at(cy: f64) -> Body<f64> {
     )
     .unwrap()
     .body
-    .into_body()
+    .into_body();
+    crate::seam_region_common::two_lunes(&mut ball, Tol::witness());
+    ball
 }
 
 /// The first face of `body` in arena order.
@@ -127,7 +133,7 @@ fn refused_at_the_door(body: &topo::Body<f64>) {
     );
 }
 
-/// **Acceptance row (props).** The unit ball's two half-bands are the
+/// **Acceptance row (props).** The unit ball's two lunes are the
 /// one face population in the kernel whose flux sign the BOUNDARY does
 /// not encode: a rimless band has no rim to recover `s_f` from, and
 /// its two meridians are traversed identically whichever side is

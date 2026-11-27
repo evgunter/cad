@@ -196,61 +196,6 @@ fn the_cylinder_wall_offsets_at_both_signs() {
     }
 }
 
-/// The untouched wall's declared meridians' PARAMETER range follows the
-/// moved cap: the vessel's angle-0 and angle-π meridians — segments from
-/// `y = 0` to `y = 0.4`, each parting the wall's two π-bands and so
-/// each a declared image at rest (no wrap edge, D1) — now end at
-/// `y = 0.4 + d`, and their authoritative sketch data say so — the door
-/// re-states the segment rather than patching the carrier around it.
-#[test]
-fn the_untouched_walls_declared_meridian_is_re_anchored() {
-    let d = 0.05;
-    let mut body = common::shell_operands::vessel(0.5, 0.4);
-    let cap = plane_face(&body, 0.4);
-    topo::replace_face_offset(&mut body, cap, d, Tol::witness()).unwrap();
-
-    // Selected on the sketch datum the door re-states, so the span and
-    // the far endpoint are read off the SAME edges.
-    let meridians: Vec<(f64, f64)> = body
-        .edges()
-        .filter_map(|(_, e)| {
-            let c = body
-                .get_curve_geom(e.curve)
-                .and_then(CurveGeom::certified)?;
-            let geom_brep::EdgeAuthority::Declared(geom_brep::MappedCurve {
-                source:
-                    geom_brep::MappedSource::PlacedSegment {
-                        segment: geom_brep::SketchSegment::Line { a, b },
-                        ..
-                    },
-                ..
-            }) = c.authority()
-            else {
-                return None;
-            };
-            let (t0, t1) = c.params();
-            Some(((t1 - t0).abs(), a.y.max(b.y)))
-        })
-        .collect();
-    assert_eq!(
-        meridians.len(),
-        2,
-        "the wall's two declared meridians, got {meridians:?}"
-    );
-    assert!(
-        meridians
-            .iter()
-            .all(|(span, _)| (span - (0.4 + d)).abs() < 1e-15),
-        "the meridian spans the taller wall, got {meridians:?}"
-    );
-    assert!(
-        meridians
-            .iter()
-            .all(|(_, far)| (far - (0.4 + d)).abs() < 1e-15),
-        "the sketch segment's far endpoint followed the cap: {meridians:?}"
-    );
-}
-
 /// **The planar row.** A cap's plane translates by `d·n`, its two rims
 /// translate with it, and the two wall seams are re-anchored at their
 /// moved end.

@@ -36,8 +36,8 @@ fn rect(r0: f64, r1: f64, y0: f64, y1: f64, turn: Revolution<f64>) -> Body<f64> 
 }
 
 /// The unit square over `[0, h]`, revolved about `y` by `turn`: a
-/// cylinder of radius 1 and height `h`, its walls two half-bands on one
-/// key and its caps two discs, or a wedge of it.
+/// cylinder of radius 1 and height `h`, its wall one band and its caps
+/// two discs, or a wedge of it.
 fn cylinder(h: f64, turn: Revolution<f64>) -> Body<f64> {
     rect(0.0, 1.0, 0.0, h, turn)
 }
@@ -282,24 +282,20 @@ fn assert_one_same_side(label: &str, body: &Body<f64>, flush_rows: usize) -> top
 /// walls, on two keys, by the curved aligned arm.
 ///
 /// No pair of discs or of walls stays undecidable: each pair whose
-/// interiors meet is decided, and in the coincident copies the
-/// half-bands that share a seam ruling and no interior (one of each
-/// copy, a turn apart) are certified apart, two flush pairs. The spun
-/// copy's half-bands each share interior with both of the other's, so no
-/// wall pair is flush. A disc against the other copy's wall, two
+/// interiors meet is decided. Each copy's wall is one face, so the two
+/// walls share interior, coincident or spun, and no wall pair is flush. A disc against the other copy's wall, two
 /// carriers meeting along the rim, is the proximity arm's, and stays
 /// undecidable.
 ///
 /// Red if the arc-bounded disc pair goes back to the region door's
 /// refusal, the curved arm stops reading two keys, a same-side pair is
-/// still refused by the proximity arm beside its decided overlap, or the
-/// half-bands sharing a seam are not read flush.
+/// still refused by the proximity arm beside its decided overlap.
 #[test]
 fn copies_of_one_cylinder_are_one_interference() {
     let base = cylinder(1.0, Revolution::Full);
     let half = cylinder(0.5, Revolution::Full);
     for (label, b, flush) in [
-        ("coincident", placed(&base, spun(0.0)), 2),
+        ("coincident", placed(&base, spun(0.0)), 0),
         ("spun", placed(&base, spun(1.1)), 0),
         ("half height", placed(&half, spun(0.4)), 0),
     ] {
@@ -321,13 +317,13 @@ fn copies_of_one_cylinder_are_one_interference() {
 /// **Two copies of one ball fill one volume**, spun or not, and so does a
 /// ball with a cap cut off inside it: its sphere face is a proper part of
 /// the ball's. Each is one `SameSideInterference`, read off the sphere
-/// faces on two keys; the coincident copies' halves that share only a
-/// seam meridian are flush. Red if the curved arm stops reading spheres.
+/// faces on two keys; each ball is one sphere face, so no pair of them
+/// is flush. Red if the curved arm stops reading spheres.
 #[test]
 fn copies_of_one_ball_are_one_interference() {
     let ball = ball();
     for (label, b, flush) in [
-        ("coincident", placed(&ball, spun(0.0)), 2),
+        ("coincident", placed(&ball, spun(0.0)), 0),
         ("spun", placed(&ball, spun(2.3)), 0),
         ("cut", placed(&cut_ball(), spun(0.9)), 0),
     ] {
@@ -343,9 +339,8 @@ fn copies_of_one_ball_are_one_interference() {
 /// by side, each the other's half-turn: their walls share only the two
 /// seam rulings and their half-discs only a diameter. Neither is a
 /// `SameSideInterference` or any other interference, and each pair
-/// sharing boundary and no interior is a flush row: the stacked walls'
-/// half-bands over the rim, and the halves' walls and two half-disc
-/// pairs. A disc against the other copy's wall, two carriers meeting
+/// sharing boundary and no interior is a flush row: the stacked walls
+/// over the rim, and the halves' walls and two half-disc pairs. A disc against the other copy's wall, two carriers meeting
 /// along the rim, is the proximity arm's, and stays undecidable.
 ///
 /// Red if the same-side reading takes a shared rim or seam for shared
@@ -367,7 +362,7 @@ fn copies_that_abut_along_a_rim_or_a_seam_are_no_interference() {
     );
     use geom::SurfaceKind::{Cylinder, Plane};
     for (label, body, flush_kinds) in [
-        ("stacked", two(&base, &stacked), vec![Cylinder, Cylinder]),
+        ("stacked", two(&base, &stacked), vec![Cylinder]),
         ("halves", halves, vec![Plane, Plane, Cylinder]),
     ] {
         let (recorded, flush) = at_rest(&body);
@@ -562,8 +557,8 @@ fn faces_of_one_carrier_that_only_abut_are_no_interference() {
         let (n, rows, all) = same_sides(&body);
         assert_eq!(n, 0, "{label}: no interference: {all}");
         // Each face pair sharing a run of boundary on one carrier facing
-        // the same way: a hemisphere's two halves against the other's
-        // two, along the equator; the lunes' and wedges' walls along a
+        // the same way: a hemisphere's one sphere face against the
+        // other's, along the equator; the lunes' and wedges' walls along a
         // meridian or ruling, the wedges' discs along a radius; the
         // tubes' walls and bores along a rim; the rod's and the shaft's
         // end discs against the tube's end annuli, along the circle they
@@ -571,8 +566,10 @@ fn faces_of_one_carrier_that_only_abut_are_no_interference() {
         // opposed pairs (the walls about a rod or a shaft) are no flush
         // pair.
         let flush = match label {
-            "hemispheres on the equator" | "cap and cut ball" => 4,
-            "lunes side by side" | "reflex lune and its complement" => 1,
+            "hemispheres on the equator"
+            | "cap and cut ball"
+            | "lunes side by side"
+            | "reflex lune and its complement" => 1,
             "reflex wedge and its complement" | "half cylinder and its mirror" => 3,
             "tubes end to end" | "rod in a tube" | "shaft in its bore" => 2,
             _ => 0,

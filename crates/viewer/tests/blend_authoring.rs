@@ -1372,8 +1372,7 @@ fn the_freeze_note_states_the_ratified_semantics_and_no_more() {
 }
 
 /// A full revolve of a rectangle with one side on the axis: a cylinder
-/// whose two cap circles are each two arcs, `BandRim` and `BandRimPi`,
-/// meeting at two seam vertices.
+/// whose two cap circles are each one closed edge, its `BandRim`.
 fn axis_cylinder(session: &mut DocSession) -> RecipeNodeId {
     let profile = session_insert(
         session,
@@ -1396,13 +1395,12 @@ fn axis_cylinder(session: &mut DocSession) -> RecipeNodeId {
 }
 
 /// **One click on a drawn circle blends the whole circle.** On a full
-/// revolve touching the axis the cap rim is two edges, and the picture
-/// draws one circle: the index answers the circle for either arc, a
-/// click on it holds both arcs as one pick, a second click drops both,
-/// and the fillet one click commits builds a tier-3 valid body rather
-/// than refusing `UnbuiltEnd::Seam` at the seam vertex.
+/// revolve touching the axis the cap rim is one closed edge, and the
+/// picture draws one circle: the index answers the circle as that edge,
+/// a click holds it as one pick, a second click drops it, and the fillet
+/// one click commits builds a tier-3 valid body.
 #[test]
-fn a_click_on_a_seam_split_rim_blends_the_whole_rim() {
+fn a_click_on_a_revolves_rim_blends_the_whole_rim() {
     use pncad::select::RoleSeg;
     let tol = Tol::witness();
     let mut session = session(tol);
@@ -1410,41 +1408,15 @@ fn a_click_on_a_seam_split_rim_blends_the_whole_rim() {
     session.pump();
     let index = plate_index(&session);
     let drawn = drawn_edges(&session, cylinder);
-    let arc = |edge: &&EdgeSelection, pi: bool| match edge.name.path.as_slice() {
-        [.., RoleSeg::BandRim(_)] => !pi,
-        [.., RoleSeg::BandRimPi(_)] => pi,
-        _ => false,
-    };
     let rim = drawn
         .iter()
-        .find(|edge| arc(edge, false))
+        .find(|edge| matches!(edge.name.path.as_slice(), [.., RoleSeg::BandRim(_)]))
         .unwrap_or_else(|| panic!("a cap rim is drawn: {drawn:?}"));
-    let whole = index.whole_edge(rim).expect("the index answers the rim");
-    assert_eq!(whole.len(), 2, "the drawn circle is two arcs: {whole:?}");
-    let other = drawn
-        .iter()
-        .find(|edge| edge.name != rim.name && whole.contains(&edge.name))
-        .expect("the circle's other arc is drawn");
-    assert!(
-        arc(&other, true),
-        "its other arc is the BandRimPi half: {other:?}"
+    assert_eq!(
+        index.whole_edge(rim),
+        Ok(vec![rim.name.clone()]),
+        "the drawn circle is one edge"
     );
-    let mut sorted = whole.clone();
-    sorted.sort();
-    let mut from_other = index.whole_edge(other).expect("the index answers the rim");
-    from_other.sort();
-    assert_eq!(sorted, from_other, "either arc answers the same circle");
-    let straight = drawn
-        .iter()
-        .find(|edge| !whole.contains(&edge.name))
-        .map(|edge| (edge, index.whole_edge(edge)));
-    if let Some((edge, alone)) = straight {
-        assert_eq!(
-            alone,
-            Ok(vec![edge.name.clone()]),
-            "an edge on no rim is itself"
-        );
-    }
 
     let mut tools = Tools::new();
     tools.open(ToolKind::Blend);
@@ -1455,15 +1427,15 @@ fn a_click_on_a_seam_split_rim_blends_the_whole_rim() {
             &[SessionOp::Select(Selection::Edge(edge.clone()))],
         )
     };
-    assert!(click(&mut tools, other).is_empty());
-    assert_eq!(blend(&tools).count(), 1, "the circle is one pick");
-    assert_eq!(blend(&tools).selection(), sorted, "both arcs are held");
     assert!(click(&mut tools, rim).is_empty());
+    assert_eq!(blend(&tools).count(), 1, "the circle is one pick");
     assert_eq!(
-        blend(&tools).count(),
-        0,
-        "un-picking either arc drops the circle"
+        blend(&tools).selection(),
+        vec![rim.name.clone()],
+        "the circle's edge is held"
     );
+    assert!(click(&mut tools, rim).is_empty());
+    assert_eq!(blend(&tools).count(), 0, "un-picking drops the circle");
     assert_eq!(blend(&tools).target(), None);
 
     assert!(click(&mut tools, rim).is_empty());

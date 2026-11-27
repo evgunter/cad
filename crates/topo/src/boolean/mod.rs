@@ -2145,7 +2145,7 @@ pub(crate) struct VerifiedGlue<T: Real> {
         std::collections::BTreeMap<(FaceKey, FaceKey), JunctionCert<T>>,
     /// The verified tangencies whose line locus runs through both faces'
     /// interiors: the reduction's face–face rows
-    /// ([`ReductionContacts`]).
+    /// ([`OperandRecords::face_face`]).
     pub(crate) touches: Vec<GluedTouch>,
     /// The line each tangency verified along a line was decided along
     /// ([`GlueVerdict`]).
@@ -3496,21 +3496,6 @@ pub enum BooleanError {
         /// How the table disagrees.
         reading: crate::ApexSectionReading,
     },
-    /// The result has a cone face whose boundary loop passes the cone's
-    /// apex vertex twice: two lobes of the face pinched at the apex, as a
-    /// cut through the apex along two rulings leaves them. The body is
-    /// well formed, but the mass-properties closed form refuses a cone
-    /// loop that meets itself at a vertex, so the finished-body gate
-    /// cannot certify its volume
-    /// (`work/spiricarm/props-measures-a-cone-loop-pinched-at-its-apex.md`).
-    /// Refused here, before that gate, so the refusal names the shape
-    /// rather than reading as the kernel's own defect.
-    ///
-    /// A limit: a closed form for a pinched cone loop not built (row 2).
-    ResultPinchedAtConeApex {
-        /// The apex the loop passes twice.
-        apex: String,
-    },
     /// A vertex the sector walk reads, or a point the pierce pass reads a
     /// pierced face's normal at, sits within the band of a crease or an
     /// irregular point of a spline face of `operand`: a line its
@@ -4200,7 +4185,7 @@ pub enum BooleanError {
     /// **Two sites raise it, and [`PairRefusalSite`] says which.** The
     /// operand gate refuses UP FRONT, on the operands' kinds and boxes.
     /// The crossings path's interior-loop
-    /// guard (`ops::interior_loop_verdict`) refuses AFTER the pipeline
+    /// guard (`ops::guard_refusal`) refuses AFTER the pipeline
     /// would have answered: a face pair, one of them not a plane, that
     /// the section certificate cannot clear of a loop no edge event
     /// marks (the reduction saw crossings elsewhere, and the join and
@@ -4899,8 +4884,6 @@ pub enum BooleanErrorKind {
     VertexPairAtConeApex,
     /// [`BooleanError::VertexNearConeAxis`].
     VertexNearConeAxis,
-    /// [`BooleanError::ResultPinchedAtConeApex`].
-    ResultPinchedAtConeApex,
     /// [`BooleanError::ApexSection`].
     ApexSection,
     /// [`BooleanError::NormalAtSplineCrease`].
@@ -5220,7 +5203,6 @@ impl BooleanError {
             Self::NormalAtConeApex { .. } => BooleanErrorKind::NormalAtConeApex,
             Self::VertexPairAtConeApex { .. } => BooleanErrorKind::VertexPairAtConeApex,
             Self::VertexNearConeAxis { .. } => BooleanErrorKind::VertexNearConeAxis,
-            Self::ResultPinchedAtConeApex { .. } => BooleanErrorKind::ResultPinchedAtConeApex,
             Self::ApexSection { .. } => BooleanErrorKind::ApexSection,
             Self::NormalAtSplineCrease { .. } => BooleanErrorKind::NormalAtSplineCrease,
             Self::PierceLeverUnread { .. } => BooleanErrorKind::PierceLeverUnread,
@@ -5389,7 +5371,6 @@ impl BooleanError {
             | Self::JunctionEndUnread { .. }
             | Self::CurvedBooleanUnsupported { .. }
             | Self::VertexPairAtConeApex { .. }
-            | Self::ResultPinchedAtConeApex { .. }
             | Self::PierceLeverUnread { .. }
             | Self::EdgeCarrierUnsupported { .. }
             | Self::PointSplitCarrierUnsupported { .. }
@@ -5704,13 +5685,6 @@ impl BooleanError {
                  and {}. Recourse: move the parts so the face passes clear of the cone's \
                  tip, or through it clearly across the cone",
                 reading.what(),
-            ),
-            Self::ResultPinchedAtConeApex { apex } => write!(
-                f,
-                "the result has a cone face pinched at its tip {apex} into two pieces \
-                 that meet only there, and the volume of such a face cannot yet be \
-                 measured. Recourse: move the parts so the cut does not pass through the \
-                 cone's tip along two of its lines",
             ),
             Self::VertexNearConeAxis { operand, .. } => write!(
                 f,
@@ -10243,9 +10217,6 @@ mod tests {
                 face,
                 band,
             },
-            BooleanError::ResultPinchedAtConeApex {
-                apex: "(0.0, 0.0, 0.0)".into(),
-            },
             BooleanError::ApexSection {
                 operand: Operand::A,
                 face,
@@ -10564,7 +10535,6 @@ mod tests {
                 BooleanErrorKind::NormalAtConeApex => "NormalAtConeApex",
                 BooleanErrorKind::VertexPairAtConeApex => "VertexPairAtConeApex",
                 BooleanErrorKind::VertexNearConeAxis => "VertexNearConeAxis",
-                BooleanErrorKind::ResultPinchedAtConeApex => "ResultPinchedAtConeApex",
                 BooleanErrorKind::ApexSection => "ApexSection",
                 BooleanErrorKind::NormalAtSplineCrease => "NormalAtSplineCrease",
                 BooleanErrorKind::PierceLeverUnread => "PierceLeverUnread",

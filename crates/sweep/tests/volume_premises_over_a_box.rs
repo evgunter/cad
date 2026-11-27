@@ -31,7 +31,7 @@ use geom_core::{
     CertifiedBounds, Interval, ParamSymbol, Point2, Real, RigidMotion, Sym, SymBudget, Tol, Vec3,
 };
 use sweep::Revolution;
-use sweep::test_support::{ball_poled_y, revolved_about_y_at};
+use sweep::test_support::revolved_about_y_at;
 use topo::test_support::{
     Stored, closed_form_reads, restate_geometry, seamless_drum, volume_role_reading,
 };
@@ -126,8 +126,18 @@ fn fixture<T: CertifiedPolicy + CertifiedBounds>(wall: Wall, p: T, tol: Tol) -> 
                 (None, -2.0 + R, c(-2.0) + p),
             ],
         ),
+        // A half ball, its sphere face bounded by two meridians: a full
+        // revolve's ball is one face with no circle for the premise to
+        // read.
         Wall::Sphere => restated(
-            ball_poled_y::<T>(c(R), Vec3::new(c(0.0), c(A), c(0.0)), tol),
+            revolved_about_y_at::<T>(
+                vec![
+                    (Point2::new(c(0.0), c(A - R)), c(1.0)),
+                    (Point2::new(c(0.0), c(A + R)), c(0.0)),
+                ],
+                Revolution::Partial(c(core::f64::consts::PI)),
+                tol,
+            ),
             &[
                 (None, A, p),
                 (None, A + R, p + c(R)),
@@ -321,11 +331,23 @@ fn the_walks_sums_are_the_closed_form_run_again_where_both_read() {
 #[test]
 fn a_rounding_scalars_volume_is_the_closed_form_run_again() {
     let tol = Tol::witness();
+    // The whole ball, every face curved: the half ball the other rows
+    // read carries a plane face.
+    fn whole<T: CertifiedPolicy + CertifiedBounds>(wall: Wall, p: T, tol: Tol) -> Body<T> {
+        match wall {
+            Wall::Sphere => sweep::test_support::ball_poled_y::<T>(
+                T::from_f64(R),
+                Vec3::new(T::from_f64(0.0), p, T::from_f64(0.0)),
+                tol,
+            ),
+            _ => fixture::<T>(wall, p, tol).0,
+        }
+    }
     for wall in [Wall::Torus, Wall::Sphere] {
         let n = nominal(wall);
         let width = |(_, (lo, hi)): (Option<topo::ShellRole>, (f64, f64))| hi - lo;
-        let rounded = width(volume_role_reading(&fixture::<f64>(wall, n, tol).0, tol).unwrap());
-        let (body, _) = fixture::<Interval>(wall, Interval::from_f64(n), tol);
+        let rounded = width(volume_role_reading(&whole::<f64>(wall, n, tol), tol).unwrap());
+        let body = whole::<Interval>(wall, Interval::from_f64(n), tol);
         let enclosed = width(volume_role_reading(&body, tol).unwrap());
         assert!(
             enclosed > 0.0,
@@ -353,14 +375,15 @@ fn placed_drum<T: CertifiedPolicy + CertifiedBounds>(tol: Tol) -> Body<T> {
     .unwrap()
 }
 
-/// A cylinder through the revolve door: its wall is two faces bounded
-/// by rulings, one at `x = −R`.
+/// A half cylinder through the revolve door: its wall is a face bounded
+/// by rulings, the far one at `x = −R`. (A full revolve's wall is one
+/// face whose one seam sits at `x = R`, beside the rims' radius.)
 fn ruled_cylinder<T: CertifiedPolicy + CertifiedBounds>(tol: Tol) -> Body<T> {
     let c = T::from_f64;
     let at = |x: f64, y: f64| (Point2::new(c(x), c(y)), c(0.0));
     revolved_about_y_at::<T>(
         vec![at(0.0, 0.0), at(R, 0.0), at(R, 1.0), at(0.0, 1.0)],
-        Revolution::Full,
+        Revolution::Partial(c(core::f64::consts::PI)),
         tol,
     )
 }

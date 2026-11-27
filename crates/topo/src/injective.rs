@@ -1888,7 +1888,8 @@ fn singular_ends(
             let (high, low) = (held(up), held(down));
             // No built body asks a cell holding such a vertex: the revolve
             // refuses a face reaching the cusp from both sides, and a
-            // needle's two π-bands refuse at their shared meridian first.
+            // needle's one band reaches it from one side, its self-pair
+            // discharged by kind.
             if high && low {
                 return None;
             }
@@ -9232,14 +9233,14 @@ mod presentation_rows {
         }
     }
 
-    /// **A half-band stored as a revolved ball's half-band is**: a
+    /// **A half-band stored as a lune of a revolved ball is**: a
     /// cylinder face over `u ∈ [π, 2π]`, `v ∈ [0, 1]`, its loop
     /// counter-clockwise about the outward normal, its high meridian's
     /// image stored at `u = 0`, the seam's stored value. `extent` is its
     /// face's own (`[π, 2π]`) or the complement's (`[0, π]`), an extent
     /// off the face's sheet. What ties it to what the revolve door stores
-    /// is `a_revolved_ball_holds_only_after_it_splits`, on the ball
-    /// itself.
+    /// is `a_revolved_ball_holds_only_after_it_splits`, on the ball cut
+    /// into its two lunes.
     /// `edges[2]` is the `u = π` meridian.
     fn half_band(extent: (f64, f64)) -> Boundary {
         let half = core::f64::consts::PI;

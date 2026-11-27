@@ -5550,7 +5550,8 @@ pub fn loop_edges<T: Decide>(
 /// **A loop's chart image, flattened**: [`loop_edges`] over the loop's
 /// cycle with its spurs taken out ([`crate::surface_boundary::chart_image`]),
 /// its seams kept. The view every integrator and chart reader takes; empty
-/// where the loop is all spurs.
+/// where the loop is all spurs. It is [`image_with_tips`] without the tips,
+/// which a reader of the face's side must not drop.
 ///
 /// # Errors
 ///
@@ -5577,7 +5578,8 @@ pub(crate) fn image_of_cycle<T: Decide>(
 
 /// [`image_of_cycle`] with the stored point of every tip the chart image
 /// drops ([`crate::surface_boundary::tips`]), the datum of the face's
-/// side ([`geom_brep::props::boundary_material_sign_holding`]).
+/// side ([`geom_brep::props::boundary_material_sign_holding`]). A reader
+/// of the face's side reads the image with them, never without.
 ///
 /// # Errors
 ///
@@ -6621,6 +6623,16 @@ pub struct QuadLane<T: geom_core::Certifies> {
     /// A value of the walk's scalar as the interval holding it —
     /// `Interval::from_certified` (`wiring_rows` pins the pointer).
     lift: fn(T) -> Interval,
+    /// The side a cylinder or sphere face's loops encode where no
+    /// closed form reads them — `quad_lane::material_sign`
+    /// (`wiring_rows` pins the pointer).
+    material_sign: fn(
+        &Body<T>,
+        &Surface<T>,
+        &[FlatLoop<T>],
+        &[Point3<T>],
+        Band,
+    ) -> Result<geom_brep::props::MaterialSign, PropsError>,
 }
 
 impl<T: geom_core::Certifies + geom_core::CertifiedBounds> QuadLane<T> {
@@ -6637,6 +6649,7 @@ impl<T: geom_core::Certifies + geom_core::CertifiedBounds> QuadLane<T> {
             cut_face_rounds: quad_lane::cut_face_rounds::<T>,
             closed_form: quad_lane::closed_form::<T>,
             lift: Interval::from_certified::<T>,
+            material_sign: quad_lane::material_sign::<T>,
         }
     }
 }
@@ -6697,6 +6710,16 @@ pub trait QuadLaneOf<T: Decide>: crate::lane_seal::Sealed + Copy + Send + Sync {
     /// A value of the walk's scalar as the interval holding it
     /// (`Interval::from_certified`).
     fn lift(self, x: T) -> Interval;
+    /// The side a cylinder or sphere face's loops encode where no closed
+    /// form reads them (`quad_lane::material_sign`).
+    fn material_sign(
+        self,
+        body: &Body<T>,
+        surface: &Surface<T>,
+        loops: &[FlatLoop<T>],
+        held: &[Point3<T>],
+        band: Band,
+    ) -> Result<geom_brep::props::MaterialSign, PropsError>;
     /// `crate::loop_winding::enclosed_winding_with`.
     fn enclosed_winding(
         self,
@@ -6752,6 +6775,16 @@ impl<T: geom_core::Certifies> QuadLaneOf<T> for QuadLane<T> {
     fn lift(self, x: T) -> Interval {
         QuadLane::lift(self, x)
     }
+    fn material_sign(
+        self,
+        body: &Body<T>,
+        surface: &Surface<T>,
+        loops: &[FlatLoop<T>],
+        held: &[Point3<T>],
+        band: Band,
+    ) -> Result<geom_brep::props::MaterialSign, PropsError> {
+        (self.material_sign)(body, surface, loops, held, band)
+    }
     fn enclosed_winding(
         self,
         walked: &[crate::loop_winding::Step<'_, T>],
@@ -6804,6 +6837,16 @@ impl<T: Decide> QuadLaneOf<T> for geom_core::NoLane {
     }
 
     fn lift(self, _x: T) -> Interval {
+        match self {}
+    }
+    fn material_sign(
+        self,
+        _body: &Body<T>,
+        _surface: &Surface<T>,
+        _loops: &[FlatLoop<T>],
+        _held: &[Point3<T>],
+        _band: Band,
+    ) -> Result<geom_brep::props::MaterialSign, PropsError> {
         match self {}
     }
     fn enclosed_winding(
@@ -6952,7 +6995,8 @@ mod wiring_rows {
     use super::{AtRestPolicy, QuadLane, ShellDoor, quad_lane};
 
     /// `Ok(())` when the quadrature door holds
-    /// `quad_lane::cut_face_rounds` and `quad_lane::closed_form`;
+    /// `quad_lane::cut_face_rounds`, `quad_lane::closed_form` and
+    /// `quad_lane::material_sign`;
     /// otherwise the name of the field that moved.
     fn holds_the_certified_quadrature<T: geom_core::Certifies + geom_core::CertifiedBounds>()
     -> Result<(), &'static str> {
@@ -6973,6 +7017,12 @@ mod wiring_rows {
             geom_core::interval::Interval::from_certified::<T> as fn(_) -> _,
         ) {
             return Err("lift is not `Interval::from_certified`");
+        }
+        if !std::ptr::fn_addr_eq(
+            QuadLane::<T>::certified().material_sign,
+            quad_lane::material_sign::<T> as fn(_, _, _, _, _) -> _,
+        ) {
+            return Err("material_sign is not `quad_lane::material_sign`");
         }
         Ok(())
     }

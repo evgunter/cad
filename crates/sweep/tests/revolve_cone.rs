@@ -2,12 +2,11 @@
 //! revolved fully about the y-axis. Exact profile: base edge
 //! (0,0)→(1,0) (⊥ axis ⇒ plane disc), slant edge (1,0)→(0,1)
 //! (oblique ⇒ cone, apex at (0,1)), closing edge (0,1)→(0,0) ON the
-//! axis (omitted). Two-band wire structure: V4 E6 F4 R0 — the apex
-//! and the disc center (each valence 2: the angle-0 and angle-π
-//! meridians) plus the base-rim corner at angles 0 and π; the base
-//! rim is two half-period arcs (`Intersection { plane, cone }`); the
-//! angle-0 slant meridian is `Seam { cone }`, the angle-0 base
-//! meridian conventional (plane wall), the angle-π copies likewise.
+//! axis (omitted). One-band wire structure: V2 E2 F2 R0 — the apex
+//! (the slant meridian's wrap tip, valence 1) and the base-rim corner;
+//! the base rim one full-period circle (`Intersection { plane, cone }`);
+//! the slant meridian the cone's seam, a wrap edge; the base disc one
+//! face whose centre is no vertex.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -36,12 +35,11 @@ fn cone_full_revolve_has_an_apex_and_certifies() {
     let vp = validated(vec![triangle()]);
     let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
-    // The apex, the base rim's two vertices; the rim's two halves and
-    // the cone's two meridians; the cone's two bands and ONE base disc
-    // (a plane wall is built whole, its centre no vertex).
-    assert_eq!(counts(&t.body), (3, 4, 3, 0));
-    // Two surfaces total (one plane, one cone; the cone's two band
-    // faces share it).
+    // The apex and the base rim's vertex; the rim and the cone's one
+    // meridian; the cone and ONE base disc (a plane wall is built whole,
+    // its centre no vertex).
+    assert_eq!(counts(&t.body), (2, 2, 2, 0));
+    // Two surfaces total (one plane, one cone).
     assert_eq!(t.body.described_surfaces().count(), 2);
     // Walls: segment 0 (base) a plane, segment 1 (slant) a cone with
     // apex (0, 1, 0) and half-angle π/4; segment 2 (axis) omitted.
@@ -61,55 +59,51 @@ fn cone_full_revolve_has_an_apex_and_certifies() {
     assert!(apex.distance(geom_core::Point3::new(0.0, 1.0, 0.0)) < 1e-12);
     assert!((half_angle - FRAC_PI_4).abs() < 1e-12);
     assert_eq!(t.walls()[0][2], None);
-    let RevolvedKind::Full {
-        meridians, pi_rims, ..
-    } = &t.kind
-    else {
+    let RevolvedKind::Full { meridians, .. } = &t.kind else {
         panic!("full revolve");
     };
     let meridians = &meridians[0];
     // The base rim (canonical vertex 1, the profile corner (1, 0)) is
-    // two half-period Intersections; the pole/apex vertices have none.
-    let rim = t.rims[0][1].expect("base rim, first half");
+    // one full-period Intersection, a self-loop; the apex has none.
+    let rim = t.rims[0][1].expect("base rim");
     assert!(matches!(
         description(&t.body, rim),
         EdgeDescription::Intersection { .. }
     ));
-    let rim2 = pi_rims[1].expect("base rim, second half");
-    assert!(matches!(
-        description(&t.body, rim2),
-        EdgeDescription::Intersection { .. }
-    ));
+    let (a, b) = t.body.edge_vertices(rim).unwrap();
+    assert_eq!(a, b, "the full-period rim is a self-loop");
     assert_eq!(t.rims[0][0], None);
     assert_eq!(t.rims[0][2], None);
-    // **Meridians, re-expressed at PCURVE P-1b.** The pair used to be
-    // told apart by variant — `MappedCurve` on the base, `IsoCurve`
-    // (Seam) on the slant. U2 made both chart images, so the variant
-    // no longer discriminates; the two facts that DO are the seam flag
-    // and the authority record (U2 Q3), and both were always the real
-    // content of this line. The base disc has no meridian at all (a
-    // plane wall is built whole); the cone's angle-0 meridian parts its
-    // two π-bands, so it is no wrap edge (D1) but an image at rest in
-    // ITS OWN wall's chart, the profile's segment its declaring
-    // authority.
+    // **Meridians.** The base disc has no meridian at all (a plane wall
+    // is built whole); the cone's meridian has both halves in its one
+    // face, so it is the cone's seam (D1), a wrap edge whose apex end is
+    // its tip: the one edge at the apex.
     let slant_key = t.body.get_face(slant).unwrap().surface;
     assert!(meridians[0].is_none(), "a plane disc has no meridian");
-    assert_declared_image_in(&t.body, meridians[1].unwrap(), slant_key);
+    let slant_meridian = meridians[1].unwrap();
+    assert_seam_of(&t.body, slant_meridian, slant_key);
     assert!(meridians[2].is_none());
-    // Orientation oracle: interior lift points per face (the band
-    // boundaries are coplanar — see the ball suite): band 1 covers
-    // z < 0, band 2 covers z > 0, the base disc both.
-    let RevolvedKind::Full { pi_walls, .. } = &t.kind else {
-        panic!("full revolve");
-    };
-    assert!(pi_walls[0].is_none(), "a plane disc has no π twin");
-    let v = signed_volume_lifted(
-        &t.body,
-        &[
-            (base, geom_core::Point3::new(0.2, 0.0, 0.1)),
-            (slant, geom_core::Point3::new(0.0, 0.5, -0.5)),
-            (pi_walls[1].unwrap(), geom_core::Point3::new(0.0, 0.5, 0.5)),
-        ],
+    let tip = t.poles[0][2].expect("the apex is exported");
+    let at_tip = t
+        .body
+        .edges()
+        .filter(|&(e, _)| {
+            let (a, b) = t.body.edge_vertices(e).unwrap();
+            a == tip || b == tip
+        })
+        .map(|(e, _)| e)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        at_tip,
+        vec![slant_meridian],
+        "the apex is the meridian's tip"
     );
-    assert!(v > 0.0, "cone volume {v}");
+    // Orientation: the volume, signed (each face's flux under its
+    // stored sense), positive and at the closed form.
+    let v = measured_volume(&t.body);
+    let exact = core::f64::consts::PI / 3.0;
+    assert!(
+        v > 0.0 && (v - exact).abs() / exact < 1e-9,
+        "cone volume {v} vs {exact}"
+    );
 }

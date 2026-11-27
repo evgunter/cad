@@ -982,12 +982,13 @@ pub(crate) enum FaceGeo<T: geom_core::Real> {
 /// of the SAME sphere surface, so the group's union has no boundary
 /// against any other surface and therefore covers the whole sphere.
 ///
-/// This is the shape the M5 inventory actually mints: a full revolve of
-/// a pole-to-pole arc yields TWO half-sphere bands on ONE sphere key,
-/// joined along the seam meridian and its angle-π copy (the `ball`
-/// acceptance's V2 E2 F2 structure) — not one full-chart face. Asking
-/// the question of the GROUP rather than the face is what lets the
-/// whole-sphere class through without inventing a per-face chart trim.
+/// A sphere covered by several faces on ONE sphere key is the shape a
+/// ball cut into lunes arrives in: two half-sphere bands joined along
+/// two meridians, not one full-chart
+/// face (a full revolve's ball is the one face, its meridian a wrap
+/// edge). Asking the question of the GROUP rather than the face is what
+/// lets that whole-sphere class through without inventing a per-face
+/// chart trim.
 ///
 /// The scan is [`crate::surface_group`]'s, with nothing exempt: it reads
 /// arena keys and mate adjacency only, never a margin, so it has no
@@ -1381,7 +1382,7 @@ pub(crate) fn trim_window_short<T: Decide>(
 /// **A sphere face's exact chart rectangle**, for the face class the
 /// sphere chart rectangle can actually express — the rectangle the
 /// sphere arm of the face boxes bounds a face by
-/// (`boxes::sphere_window`). Point containment does not read it: a
+/// (`cover::sphere_window`). Point containment does not read it: a
 /// trimmed sphere face's region is read from its boundary arcs
 /// ([`crate::sphere_region`]).
 ///

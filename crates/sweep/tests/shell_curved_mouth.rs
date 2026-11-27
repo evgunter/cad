@@ -44,21 +44,57 @@ fn cap_volume(rho: f64, h: f64) -> f64 {
 }
 
 /// **A spherical cap opens to a seamed band.** The revolve wears the cap
-/// on two half-faces meeting along two seams at the pole; the cavity's
-/// counterpart, lifted back onto the sphere, is a smaller cap over the
-/// same pole. The rim is the band between the wall's junction and the
-/// cavity's, and it keeps the operand's own faces and seams: both
-/// half-faces survive ring-free, each seam cut short at the cavity's
-/// corner, and the pole is gone. The body is tier-3 valid, meshes, and
-/// its volume is the vessel minus a cavity that runs up to the sphere.
+/// as one face whose seam runs from the wall's junction to the pole, its
+/// tip; the cavity's counterpart, lifted back onto the sphere, is a
+/// smaller cap over the same pole. The rim is the band between the
+/// wall's junction and the cavity's, and it keeps the operand's own face
+/// and seam: the cap survives ring-free, its seam cut short at the
+/// cavity's corner, and the pole is gone. The body is tier-3 valid,
+/// meshes, and its volume is the vessel minus a cavity that runs up to
+/// the sphere.
 #[test]
 fn a_spherical_cap_opens_to_a_seamed_band() {
-    let tol = Tol::witness();
-    let (r, h, t) = (0.5, 0.6, 0.05);
+    let (r, h) = (0.5, 0.6);
     let (body, rho, centre) = capped_vessel(r, h, 60.0);
     let cap = faces_on(&body, geom::SurfaceKind::Sphere);
-    assert_eq!(cap.len(), 2, "the revolve wears the cap on two half-faces");
-    let shelled = open(&body, &cap, t).expect("the cap opens");
+    assert_eq!(cap.len(), 1, "the revolve wears the cap as one face");
+    let vessel = CappedVessel { r, h, rho, centre };
+    opens_to_a_seamed_band(&body, &cap, &vessel, 0.05);
+}
+
+/// **A cap of two branches opens to a seamed band too**: the capped
+/// vessel's cap split along its meridian at `u = π` ([`split_cap`]) is
+/// two faces whose seams meet at the pole, the form a cut along a
+/// meridian or an imported two-half sphere leaves. Both branches survive
+/// under their keys, and the rim is the one-face cap's: the same pole
+/// dies and the volume is the same closed form.
+#[test]
+fn a_cap_of_two_branches_opens_to_a_seamed_band() {
+    let (r, h) = (0.5, 0.6);
+    let (body, cap, rho, centre) = split_cap(r, h, 60.0);
+    assert_eq!(cap.len(), 2, "the cap is split in two");
+    let vessel = CappedVessel { r, h, rho, centre };
+    opens_to_a_seamed_band(&body, &cap, &vessel, 0.05);
+}
+
+/// The measures of a [`capped_vessel`] that its closed forms read: the
+/// foot's radius `r` and height `h`, and the cap sphere's radius `rho`
+/// and centre height `centre`, as `capped_vessel` returns them.
+struct CappedVessel {
+    r: f64,
+    h: f64,
+    rho: f64,
+    centre: f64,
+}
+
+/// `body`, a capped vessel measuring `vessel`, opened at `cap`, its
+/// sphere's faces, at `t`: the rim is the band between the wall's
+/// junction and the cavity's, every face of `cap` surviving ring-free
+/// under its key.
+fn opens_to_a_seamed_band(body: &Body<f64>, cap: &[FaceKey], vessel: &CappedVessel, t: f64) {
+    let tol = Tol::witness();
+    let &CappedVessel { r, h, rho, centre } = vessel;
+    let shelled = open(body, cap, t).expect("the cap opens");
     let cup = topo::test_support::finished("cup", topo::Body::clone(&shelled.body), tol);
 
     assert_eq!(topo::validate_geometric(&cup, tol), Ok(()), "tier 3");
@@ -71,7 +107,7 @@ fn a_spherical_cap_opens_to_a_seamed_band() {
     let band = faces_on(&cup, geom::SurfaceKind::Sphere);
     assert_eq!(
         band, cap,
-        "both half-faces survive as the band, under their keys"
+        "every face of the cap survives as the band, under its key"
     );
     let rim = &shelled.naming.rims[0];
     assert_eq!(
@@ -86,7 +122,6 @@ fn a_spherical_cap_opens_to_a_seamed_band() {
         rim.holes.is_empty(),
         "a band through a pole is one band, with no second band's row"
     );
-    // The pole is the one vertex both seams reached in the operand.
     let pole = body
         .vertex_points()
         .find(|(_, p)| p.x.abs() < 1e-12 && p.z.abs() < 1e-12 && p.y > h)
@@ -114,11 +149,115 @@ fn a_spherical_cap_opens_to_a_seamed_band() {
     }
 }
 
+/// `capped_vessel(r, h, deg)` with its cap SPLIT along the meridian at
+/// `u = π` into two faces whose seams meet at the pole: the body, those
+/// two faces, and the sphere's radius and centre as `capped_vessel`
+/// returns them. Built through the public Euler doors, then minted.
+fn split_cap(r: f64, h: f64, deg: f64) -> (Body<f64>, Vec<FaceKey>, f64, f64) {
+    let tol = Tol::witness();
+    let (mut body, rho, centre) = capped_vessel(r, h, deg);
+    let [cap] = faces_on(&body, geom::SurfaceKind::Sphere)[..] else {
+        panic!("the revolve wears the cap as one face")
+    };
+    let surface = body.get_face(cap).unwrap().surface;
+    let p = |b: &Body<f64>, v: topo::VertexKey| b.vertex_points().find(|(k, _)| *k == v).unwrap().1;
+    let cap_cycle = |b: &Body<f64>| {
+        let lk = b.get_face(cap).unwrap().outer;
+        let topo::LoopBoundary::Cycle { first } = b.get_loop(lk).unwrap().boundary else {
+            panic!("a cycle")
+        };
+        b.loop_cycle(first).unwrap()
+    };
+    let leaving = |b: &Body<f64>, v: topo::VertexKey| {
+        cap_cycle(b)
+            .into_iter()
+            .find(|&he| b.get_half_edge(he).unwrap().start == v)
+            .unwrap()
+    };
+    let edges: Vec<_> = cap_cycle(&body)
+        .into_iter()
+        .map(|he| body.get_half_edge(he).unwrap().edge)
+        .collect();
+    let twice = |e: &topo::EdgeKey| edges.iter().filter(|x| *x == e).count() == 2;
+    let seam = *edges.iter().find(|e| twice(e)).expect("the cap's seam");
+    let rim = *edges
+        .iter()
+        .find(|e| !twice(e))
+        .expect("the cap's boundary");
+    let (seam_start, pole) = body.edge_vertices(seam).unwrap();
+    let (foot, pole) = if p(&body, pole).y > p(&body, seam_start).y {
+        (seam_start, pole)
+    } else {
+        (pole, seam_start)
+    };
+    // The boundary's point a half turn from the seam's foot.
+    let opposite = {
+        let f = p(&body, foot);
+        geom_core::Point3::new(-f.x, f.y, -f.z)
+    };
+    let rim_curve = body.get_edge(rim).unwrap().curve;
+    let circle = body.get_curve_geom(rim_curve).unwrap().certified().unwrap();
+    let (t0, t1) = circle.params();
+    let at = circle
+        .carrier()
+        .param_near(opposite, 0.5 * (t0 + t1))
+        .unwrap();
+    let mid = body.split_edge(rim, at, tol).unwrap().vertex;
+    let seam_curve = body.get_edge(seam).unwrap().curve;
+    let seam_geom = body
+        .get_curve_geom(seam_curve)
+        .unwrap()
+        .certified()
+        .unwrap();
+    let (s0, s1) = seam_geom.params();
+    let carrier = seam_geom.carrier().clone();
+    // The seam's half turn about the y axis: the other meridian of the
+    // two-lune form this row builds by hand. Spelled here because no door
+    // mints that pair any more (a pole is reached by one wrap edge), so
+    // the kernel keeps no helper for it.
+    let turn = |w: geom_core::Vec3<f64>| geom_core::Vec3::new(-w.x, w.y, -w.z);
+    let geom::Curve3::Circle(c) = carrier else {
+        panic!("the seam is a meridian circle: {carrier:?}")
+    };
+    let o = c.frame().origin();
+    let turned = geom::Curve3::circle(
+        geom_core::Point3::new(-o.x, o.y, -o.z),
+        turn(c.frame().axis()),
+        c.radius(),
+        turn(c.frame().u_ref()),
+    );
+    // The turned meridian runs from the opposite point to the pole as the
+    // seam runs from its foot to the pole, or both the other way.
+    let seam_plus = body.get_edge(seam).unwrap().he_plus;
+    let (he1, he2) = if body.get_half_edge(seam_plus).unwrap().start == foot {
+        (leaving(&body, mid), leaving(&body, pole))
+    } else {
+        (leaving(&body, pole), leaving(&body, mid))
+    };
+    let chart = |carrier: geom::Curve3<f64>| geom_brep::EdgeCurveSpec {
+        description: geom_brep::EdgeDescriptionSpec::chart(surface),
+        carrier,
+        param_start: s0,
+        param_end: s1,
+    };
+    body.mef(
+        topo::construction::MefSite::Chords { he1, he2 },
+        chart(turned),
+        topo::construction::FaceSurface::Inherit,
+        tol,
+    )
+    .unwrap();
+    // The seam now parts two faces, so it is no longer a wrap edge.
+    body.set_edge_curve(seam, chart(carrier), tol).unwrap();
+    topo::mint_pcurves(&mut body, tol).unwrap();
+    let cap = faces_on(&body, geom::SurfaceKind::Sphere);
+    (body, cap, rho, centre)
+}
+
 /// **A void's cap opens to a seamed band too, with the roles swapped.**
 /// The hollow capped vessel's void is the vessel eroded by `0.2`, so it
-/// has a pole-touching cap of two half-faces. Designated, the void's
-/// own faces and seams die and its dilated twin survives as the band —
-/// both twin half-faces live, ring-free. The outer wall keeps its
+/// has a pole-touching cap of one face. Designated, the void's own face
+/// and seam die and its dilated twin survives as the band, ring-free. The outer wall keeps its
 /// cavity; the void's wall becomes a cup opening into the gap. Its
 /// volume is the outer wall's plus that cup, each a difference of two
 /// vessels `w(a, b, ρ)`: a foot of radius `a` standing at `b` under a
@@ -127,7 +266,7 @@ fn a_spherical_cap_opens_to_a_seamed_band() {
 fn a_voids_cap_opens_to_a_seamed_band_of_its_twin() {
     let tol = Tol::witness();
     let (hollow, cap, rho) = hollow_capped_vessel();
-    assert_eq!(cap.len(), 2, "the void's cap is two half-faces");
+    assert_eq!(cap.len(), 1, "the void's cap is one face");
     let t = 0.05;
     let shelled = open(&hollow, &cap, t).expect("the void's cap opens");
     let body = topo::test_support::finished("body", topo::Body::clone(&shelled.body), tol);
@@ -137,7 +276,7 @@ fn a_voids_cap_opens_to_a_seamed_band_of_its_twin() {
     for &face in &cap {
         assert!(body.get_face(face).is_none(), "a designated void face dies");
         let twin = shelled.naming.inner_of(face).expect("its twin");
-        let data = body.get_face(twin).expect("the twin survives as a branch");
+        let data = body.get_face(twin).expect("the twin survives as the band");
         assert!(data.rings.is_empty(), "a seamed band carries no ring");
     }
     assert_eq!(rings_of(&body), 0, "no ring anywhere");
@@ -170,7 +309,16 @@ fn a_bulging_cap_whose_cavity_meets_the_sphere_below_the_wall_refuses_typed() {
     let (body, _, _) = capped_vessel(0.5, 0.6, 120.0);
     let cap = faces_on(&body, geom::SurfaceKind::Sphere);
     match open(&body, &cap, 0.05) {
-        Err(ShellError::OpenFaceRimNotExpressible { face, .. }) => assert_eq!(face, cap[0]),
+        Err(ShellError::OpenFaceRimNotExpressible { face, what }) => {
+            assert_eq!(face, cap[0]);
+            assert!(
+                what.starts_with(
+                    "the cavity counterpart's corner does not project onto the designated \
+                     chart's seam between its boundary and the pole"
+                ),
+                "the refusal is the seam projection's, got {what:?}"
+            );
+        }
         other => panic!("expected the rim's shape refusal, got {other:?}"),
     }
 }
@@ -252,8 +400,8 @@ fn vertex_at(body: &Body<f64>, rho: f64, y: f64) -> Option<topo::VertexKey> {
 /// moved apex, slid `t / sin α` along the axis into the material.
 /// Opened through the cone, the cavity's counterpart cone is lifted
 /// back onto the designated one by the nappe-turned distance
-/// (`shell::lift_to`'s cone arm), and the cone keeps both half-faces as
-/// a seamed band through its apex: the cavity wall's corner lands on
+/// (`shell::lift_to`'s cone arm), and the cone, one face whose seam ends
+/// at the apex, is kept as a seamed band: the cavity wall's corner lands on
 /// the operand's cone at radius `r − t`, and the apex dies. Opened
 /// through the flat cap instead, the cavity runs out through it. Each
 /// row is tier-3 valid and its volume is the closed form.
@@ -285,7 +433,7 @@ fn a_cone_tip_shells_through_its_apex_on_either_nappe() {
         ),
     ] {
         let cone = faces_on(&body, geom::SurfaceKind::Cone);
-        assert_eq!(cone.len(), 2, "{what}: the revolve wears two half-faces");
+        assert_eq!(cone.len(), 1, "{what}: the revolve wears one face");
         for &f in &cone {
             assert_eq!(
                 topo::face_nappe(&body, f, crate::common::approx::band()).expect("a nappe"),
@@ -342,7 +490,7 @@ fn a_cone_tip_shells_through_its_apex_on_either_nappe() {
         assert_eq!(
             faces_on(cup, geom::SurfaceKind::Cone),
             cone,
-            "{what}: both half-faces survive as the band, under their keys"
+            "{what}: the cone survives as the band, under its key"
         );
         for &f in &cone {
             let surface = cup.face_surface(f);

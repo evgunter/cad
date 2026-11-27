@@ -2116,7 +2116,7 @@ fn plane_chart_at_y(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
 /// **The AXIS-TOUCHING cap: one rim annulus, and it meshes.**
 ///
 /// A full revolve of an axis-touching meridian wears its cap on one disc
-/// face whose rim is two half-circles, and the cavity counterpart's
+/// face whose rim is one closed circle, and the cavity counterpart's
 /// boundary is the same shape one wall in. Gluing that counterpart on
 /// as a ring would put it ON the designated boundary — the #1082
 /// class. The rim is instead built on the chart as ONE region, so the

@@ -37,6 +37,12 @@ chart that the chord pass can read, as the sphere row needs on a sphere
 chart (`a-projected-spline-images-speed-bound-on-a-sphere-is-eleven-orders-loose`
 measures how loose today's is there).
 
+(LATHE, 2026-11-23, PR for `lathe/mesh-budget-one-band`) The row is renamed
+`a_rod_through_a_donut_builds_and_a_ball_against_it_refuses_its_interior_loop`:
+with every full revolve one face round its axis, the ball and the donut refuse
+upstream of the mesh at every op
+(`work/lathe/a-section-loop-inside-two-one-band-curved-faces-refuses-at-the-section-certificate.md`),
+so only the donut and the rod still reach the torus face's projected image here.
 ## Re-banded P0 (2026-11-25)
 
 The teapot's handle union builds, and the joined pot does not mesh: the

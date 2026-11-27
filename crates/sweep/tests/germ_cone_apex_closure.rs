@@ -258,8 +258,8 @@ fn the_three_quarter_cone_face_holds_its_window() {
     }
 }
 
-/// **W2 on apex-closed faces.** The preview cone's merged face, each
-/// half-band of the unmerged full cone, and the partial sectors at
+/// **W2 on apex-closed faces.** The preview cone's merged face, the
+/// unmerged full cone's one face, and the partial sectors at
 /// every width lift to one sheet: each has one loop through the apex,
 /// every other loop winds nothing, and its corners lie on one nappe.
 #[test]
@@ -269,7 +269,7 @@ fn apex_closed_faces_describe() {
         bodies.push(("partial cone", cone(Some(theta))));
     }
     bodies.push((
-        "full cone, two half-bands",
+        "full cone, unmerged",
         revolve(
             &validated(vec![triangle()]),
             axis_y(),
@@ -294,9 +294,8 @@ fn apex_closed_faces_describe() {
 
 /// **A cone face that wraps the azimuth ALONE answers face
 /// containment by its slant window, whatever other face wears its
-/// chart.** The full cone's two half-bands joined into one face
-/// (`kef` on their non-seam join, leaving the seam traversed twice and
-/// one strut vertex on the base circle), and a frustum further down the
+/// chart.** The full cone's one face, its seam traversed twice, and a
+/// frustum further down the
 /// same cone grafted beside it and re-charted onto its key, every edge
 /// naming the frustum's old key restated on the shared one. The face's
 /// own question is scoped to the face, so the frustum's wearers do not
@@ -306,26 +305,8 @@ fn apex_closed_faces_describe() {
 fn a_cone_face_that_wraps_alone_holds_its_slant_window_beside_a_shared_chart() {
     let tol = Tol::witness();
     let mut body = cone(None);
-    let halves = cone_faces(&body);
-    assert_eq!(halves.len(), 2, "the full cone's two half-bands");
-    let join = body
-        .edges()
-        .find_map(|(_, e)| {
-            let (a, b) = (
-                body.face_of_half_edge(e.he_plus).unwrap(),
-                body.face_of_half_edge(e.he_minus).unwrap(),
-            );
-            let c = body.get_curve_geom(e.curve)?.certified()?;
-            let geom_brep::EdgeDescription::Chart(chart) = c.description() else {
-                return None;
-            };
-            (a != b && halves.contains(&a) && halves.contains(&b) && !chart.wrap)
-                .then_some(e.he_plus)
-        })
-        .expect("the half-bands' non-seam join");
-    body.kef(join).expect("the join dies");
     let [tip] = cone_faces(&body)[..] else {
-        panic!("one cone face after the join dies");
+        panic!("a full revolve sweeps its cone wall as one face");
     };
     let key = body.get_face(tip).unwrap().surface;
 
@@ -394,11 +375,16 @@ fn a_cone_face_that_wraps_alone_holds_its_slant_window_beside_a_shared_chart() {
         "nothing wears the old key"
     );
     let errors = topo::validate_geometric(&body, tol).unwrap_err();
+    // The restated edges carry no chart image, so the moved faces'
+    // pcurves are unminted: the fixture's only tier-3 finding.
     assert!(
-        errors
-            .iter()
-            .all(|e| matches!(e, topo::ValidationError::ScaffoldingStrutVertex { .. })),
-        "the join's strut is the fixture's only tier-3 finding: {errors:?}"
+        errors.iter().all(|e| matches!(
+            e,
+            topo::ValidationError::Pcurve {
+                finding: topo::pcurves::PcurveMintError::Unminted { .. }
+            }
+        )),
+        "the moved faces' unminted pcurves are the fixture's only tier-3 finding: {errors:?}"
     );
 
     let contain = |y: f64, phi: f64| {

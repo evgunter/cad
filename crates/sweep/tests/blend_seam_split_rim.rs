@@ -1,36 +1,27 @@
-//! **The seam-split closed rim's band: ONE annulus over several arcs.**
+//! **A pole-touching revolve's closed rim's band: ONE annulus over its
+//! one edge.**
 //!
-//! A full revolve of a POLE-TOUCHING profile splits every curved wall
-//! into two half-bands, so every latitude rim beside one arrives as two
-//! arcs meeting at two chart-seam vertices. A chain that STOPS at such a vertex is refused
-//! `UnbuiltEnd::Seam`, whose recourse names the request that describes what
-//! the caller wants: ask for the rim WHOLE. These rows are what makes
-//! that recourse true.
+//! A full revolve of a POLE-TOUCHING profile sweeps every wall in one
+//! band, so every latitude rim is one closed edge standing on its
+//! supports' seam vertex. These rows carve such rims WHOLE.
 //!
 //! The fixture is a LANTERN: a pole-touching solid of revolution whose
-//! three latitude rims are the three support pairs the seam splits —
-//! plane×sphere at its base (issue 319's own case), sphere×cone at its
-//! shoulder, cone×plane at its lip. Every number below is derived from
-//! the profile by the rolling ball's own two equations, never read back
-//! from the arm.
+//! three latitude rims are three support pairs — plane×sphere at its
+//! base (issue 319's own case), sphere×cone at its shoulder, cone×plane
+//! at its lip. Every number below is derived from the profile by the
+//! rolling ball's own two equations, never read back from the arm.
 //!
 //! What makes each row go red:
 //!
 //! - **Each rim carves to its own closed form** — the band's torus is
 //!   centred where `|c − O| = R − r` and `dist(c, support) = r` put the
-//!   ball, to 1e-12, and the result is tier-3 valid (which re-derives
-//!   both trim circles' tangential-contact descriptions and the slit's
-//!   seam description at rest).
-//! - **The band is ONE annulus wall** over both arcs: one boundary
-//!   cycle, no ring, two trim arcs per side and one doubly-traversed
-//!   slit — red if the carve ever leaves a sector wall behind.
-//! - **A curved support is several FACES of one SURFACE**, which is
-//!   the resolution this door rests on; a plane support is one face
-//!   carrying both arcs.
-//! - **The seam-split carve removes exactly what a ONE-EDGE carve of
-//!   the same rim removes**: the same profile bored on-axis has the
-//!   same three rims as single closed edges, and both doors take the
-//!   same material out of the same solid region.
+//!   ball, to 1e-12, and the result is tier-3 valid.
+//! - **The band is ONE annulus wall**: one boundary cycle, no ring, one
+//!   trim circle per side and one doubly-traversed slit, its seam.
+//! - **Each support is one face** of its surface.
+//! - **The carve removes exactly what the bored twin's carve
+//!   removes**: the same profile bored on-axis has the same three rims,
+//!   and both take the same material out of the same solid region.
 //! - **The three rims compose in sequence** — one call each, each on
 //!   the last one's result, to a tier-3-valid solid carrying three
 //!   bands.
@@ -40,13 +31,10 @@
 //!   — a concave rim's band adds material through the same walk — and
 //!   the concave rows live in `fillet_h4_concave_rim`, on the waisted
 //!   body, beside this suite's convex ones.
-//! - **The naming totality**: every output entity of a seam-split band
-//!   — edges AND vertices — is a recorded mint or a survivor, and every
-//!   retirement names a SOURCE key. The vertex direction is the one a
-//!   seam-split band adds sites to: each crossing mints a foot on each
-//!   side, so dropping the rows for any crossing but the first leaves
-//!   an output vertex unaccounted for here (and would silently lose a
-//!   document name downstream, since `emit_fillet` consumes them).
+//! - **The naming totality**: every output entity of the band — edges
+//!   AND vertices — is a recorded mint or a survivor, and every
+//!   retirement names a SOURCE key; the rim's crossing of its supports'
+//!   seam mints a foot on each side.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -95,8 +83,9 @@ const BORE: f64 = 0.1;
 /// `(0,0) → (1,0)` is radial, so it revolves to the base DISK;
 /// `(1,0) → (0.8,0.6)` is the unit-sphere arc; `(0.8,0.6) → (0.2,1.2)`
 /// is straight, so it revolves to a CONE; `(0.2,1.2) → (0,1.2)` is
-/// radial again, the top DISK. Both ends touch the axis, which is what
-/// makes every wall a pair of half-bands and every rim a pair of arcs.
+/// radial again, the top DISK. Both ends touch the axis, and the full
+/// revolve sweeps every wall as one band and every rim as one closed
+/// edge.
 fn lantern() -> Body<f64> {
     sweep::test_support::lantern(tol())
 }
@@ -293,10 +282,8 @@ fn every_lantern_rim_carves_whole_to_its_closed_form() {
 /// **The band is one more revolution wall, over BOTH arcs.**
 ///
 /// One boundary cycle, no ring (a curved face must be ring-free), and
-/// the cycle carries two trim arcs on each support plus ONE slit walked
-/// twice. Two trim arcs per side rather than one closed circle is the
-/// whole structural difference from a one-edge rim's band: the trim
-/// circle is cut where the supports' seam meridians reach it.
+/// the cycle carries one trim circle on each support plus ONE slit
+/// walked twice, the band's own seam.
 #[test]
 fn the_band_over_two_arcs_is_one_annulus_wall() {
     let source = lantern();
@@ -319,10 +306,10 @@ fn the_band_over_two_arcs_is_one_annulus_wall() {
         .iter()
         .map(|he| out.body.get_half_edge(*he).unwrap().edge)
         .collect();
-    assert_eq!(edges.len(), 6, "four trim arcs and one slit walked twice");
+    assert_eq!(edges.len(), 4, "two trim circles and one slit walked twice");
     edges.sort_unstable();
     edges.dedup();
-    assert_eq!(edges.len(), 5, "five distinct edges, one of them the slit");
+    assert_eq!(edges.len(), 3, "three distinct edges, one of them the slit");
     // The slit is the one the cycle walks twice, and it is the only
     // edge of the band whose two sides are the band itself.
     let slits: Vec<EdgeKey> = edges
@@ -336,47 +323,29 @@ fn the_band_over_two_arcs_is_one_annulus_wall() {
     assert_eq!(slits.len(), 1, "exactly one slit");
 }
 
-/// **A curved support is several FACES of one SURFACE.** That is the
-/// resolution the door rests on: a pole-touching revolve splits every
-/// CURVED wall into two half-bands, so a curved support of a rim's two
-/// arcs is two different faces of one surface. A PLANE support is one
-/// face carrying both arcs: the revolve builds a plane wall whole
-/// (`crates/sweep/README.md`, "Walls: one per run").
+/// **Each support of a rim is one face**: a pole-touching revolve sweeps
+/// every wall in one band, so the rim, one closed edge, parts one face
+/// of each support.
 #[test]
-fn each_curved_side_of_a_seam_split_rim_is_two_faces_of_one_surface() {
+fn each_side_of_a_revolved_rim_is_one_face() {
     let source = lantern();
     for (name, rim_r, rim_y, _) in rims() {
         let arcs = rim_arcs_at(&source, rim_r, rim_y);
         assert_full_revolve_rim(&arcs, name);
-        let (a0, b0) = faces_of(&source, arcs[0]);
-        let (a1, b1) = faces_of(&source, arcs[1]);
-        assert_eq!(
-            [surface_of(&source, a0), surface_of(&source, b0)],
-            [surface_of(&source, a1), surface_of(&source, b1)],
-            "{name}: the rim arrives and leaves on ONE support pair"
+        let (a, b) = faces_of(&source, arcs[0]);
+        assert_ne!(
+            surface_of(&source, a),
+            surface_of(&source, b),
+            "{name}: the rim parts two supports"
         );
-        let is_plane = |f| {
-            matches!(
-                source.get_surface(surface_of(&source, f)),
-                Ok(geom::Surface::Plane { .. })
-            )
-        };
-        for (x, y) in [(a0, a1), (b0, b1)] {
-            assert_eq!(
-                x == y,
-                is_plane(x),
-                "{name}: a plane side is ONE face, a curved side TWO"
-            );
-        }
     }
 }
 
-/// **The seam-split carve removes exactly what the one-edge carve
-/// removes.** The bored twin is the same solid outside its bore, and
-/// every trim circle below sits well outside it, so filleting the same
-/// rim takes the same material out of the same region — through the
-/// door that was already there in the twin's case, and through this
-/// unit's in the lantern's.
+/// **The pole-touching carve removes exactly what the bored twin's
+/// carve removes.** The bored twin is the same solid outside its bore,
+/// and every trim circle below sits well outside it, so filleting the
+/// same rim takes the same material out of the same region, whether its
+/// supports reach the axis or a bore.
 #[test]
 fn a_seam_split_rim_removes_what_its_one_edge_twin_removes() {
     let r = 0.05;
@@ -384,7 +353,7 @@ fn a_seam_split_rim_removes_what_its_one_edge_twin_removes() {
     let (v_lantern, v_bored) = (volume(&lantern), volume(&bored));
     for (name, rim_r, rim_y, _) in rims() {
         let split = rim_arcs_at(&lantern, rim_r, rim_y);
-        assert_eq!(split.len(), 2, "{name} is seam-split on the lantern");
+        assert_eq!(split.len(), 1, "{name} is ONE edge on the lantern");
         let whole = rim_arcs_at(&bored, rim_r, rim_y);
         assert_eq!(whole.len(), 1, "{name} is ONE edge on the bored twin");
 
@@ -433,11 +402,7 @@ fn the_three_rims_fillet_in_sequence_to_one_valid_solid() {
     let mut bands = 0;
     for (name, rim_r, rim_y, _) in rims() {
         let arcs = rim_arcs_at(&body, rim_r, rim_y);
-        assert_eq!(
-            arcs.len(),
-            2,
-            "{name} is still its seam's two arcs before its carve"
-        );
+        assert_eq!(arcs.len(), 1, "{name} is still one edge before its carve");
         let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, r, tol())
             .unwrap_or_else(|e| panic!("{name} fillets on the running result, got {e:?}"));
         bands += out.band_faces.len();
@@ -582,16 +547,15 @@ fn the_lanterns_arms_fold_both_sense_bits() {
     }
 }
 
-/// **The naming totality, on a seam-split band**, in all three
+/// **The naming totality, on a revolved rim's band**, in all three
 /// directions through the shared walk (`test_support::assert_naming_totality`),
-/// plus this fixture's counts — and the count that is this rim's own
-/// lesson: each crossing mints a foot on EACH side, so the rows are
-/// per-crossing and not per-band. Dropping the rows for every crossing
-/// but the first leaves that crossing's host foot unaccounted for — and
-/// `emit_fillet` consumes `rim_feet`, so the same drop would silently
-/// lose a document name.
+/// plus this fixture's counts: the rim crosses its supports' one seam
+/// once, so one crossing mints a foot on EACH side, and the rows are
+/// per-crossing. Dropping a crossing's rows leaves its host foot
+/// unaccounted for — and `emit_fillet` consumes `rim_feet`, so the same
+/// drop would silently lose a document name.
 #[test]
-fn a_seam_split_band_records_every_birth_and_every_death() {
+fn a_revolved_rims_band_records_every_birth_and_every_death() {
     let source = lantern();
     let arcs = rim_arcs_at(&source, SHOULDER.0, SHOULDER.1);
     let out = fillet_edges(
@@ -605,19 +569,18 @@ fn a_seam_split_band_records_every_birth_and_every_death() {
     let rec = out.naming.as_ref().expect("recorded");
     assert_eq!(
         rec.rim_feet.len(),
-        2,
-        "one host foot per crossing, and this rim has two"
+        1,
+        "one host foot per crossing, and this rim has one"
     );
     assert_eq!(
         rec.meridian_splits.len(),
-        2,
-        "one mate foot per crossing, and this rim has two"
+        1,
+        "one mate foot per crossing, and this rim has one"
     );
-    // The two seam vertices are exactly what this rim retired, beside
-    // its two arcs.
+    // The seam vertex is exactly what this rim retired, beside its edge.
     assert_eq!(
         rec.dead.vertices.len(),
-        2,
-        "both seam vertices are retired, and nothing else is"
+        1,
+        "the seam vertex is retired, and nothing else is"
     );
 }

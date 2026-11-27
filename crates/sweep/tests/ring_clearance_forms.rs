@@ -58,7 +58,11 @@ fn carve(name: &str, body: &Body<f64>, rims: &[(f64, f64)], r: f64) -> (f64, Bod
     let mut arcs = Vec::new();
     for (rr, ry) in rims {
         let a = rim_arcs_at(body, *rr, *ry);
-        assert_eq!(a.len(), 2, "{name}: the ({rr}, {ry}) rim is two arcs");
+        assert_eq!(
+            a.len(),
+            1,
+            "{name}: the ({rr}, {ry}) rim is one closed edge"
+        );
         arcs.extend(a);
     }
     let before = topo::mass_properties(
@@ -130,11 +134,10 @@ fn the_bosss_dome_rim_carves_inside_its_hosts_circular_boundary() {
     for (up, adds) in [(true, true), (false, false)] {
         let name = if up { "boss dome rim" } else { "dimple rim" };
         let body = repaired(up);
-        assert_eq!(census(&body), (7, 10, 6), "{name}: the repaired census");
+        assert_eq!(census(&body), (4, 5, 4), "{name}: the repaired census");
         let (measured, out) = carve(name, &body, &[(0.5, 1.0)], 0.1);
-        // (7, 10, 6) + the two-crossing band's (1, 2, 1): its host
-        // trimlines join at the foot the slit does not reach.
-        assert_eq!(census(&out), (8, 12, 7), "{name}: the band's census delta");
+        // (4, 5, 4) + the one-crossing band's (1, 2, 1).
+        assert_eq!(census(&out), (5, 7, 5), "{name}: the band's census delta");
         agrees(name, measured, if adds { form } else { -form });
     }
 }
@@ -179,8 +182,8 @@ fn the_bosss_top_outer_rim_carves_on_a_ringed_host() {
             "{name}: the host is an annulus"
         );
         let (measured, out) = carve(name, &body, &[(1.0, 1.0)], 0.1);
-        // The two-crossing band's (1, 2, 1), its host trimlines joined.
-        assert_eq!(census(&out), (8, 12, 7), "{name}: the band's census delta");
+        // The one-crossing band's (1, 2, 1).
+        assert_eq!(census(&out), (5, 7, 5), "{name}: the band's census delta");
         assert_eq!(
             body.get_face(host).unwrap().rings.len(),
             out.get_face(host).map_or(0, |fd| fd.rings.len()),
@@ -190,49 +193,52 @@ fn the_bosss_top_outer_rim_carves_on_a_ringed_host() {
     }
 }
 
-/// **The two rims of one host, together and in sequence.** Requesting
-/// the dome rim (a LADDER) and the top outer rim (an ANNULUS) in ONE
-/// call reaches `shared_support_gate`'s mixed arm — an annulus carve
-/// consumes structure of the shared face beyond its own rim — and takes
-/// that arm's SEQUENTIAL recourse. Following the recourse builds: the
-/// two calls in order give one tier-3-valid solid whose volume delta is
-/// the SUM of the two closed forms, on both material sides.
+/// **The two rims of one host, together and in sequence.** The dome
+/// rim and the top outer rim each plan as an ANNULUS on the merged flat
+/// top: the dome cap is one face across its seam, so its rim's crossing
+/// is the cap's one seam and the plan walks the ring as a one-edge
+/// annulus. Two annuli on a shared support are what the shared-support
+/// gate admits, so ONE call builds one tier-3-valid solid whose volume
+/// delta is the SUM of the two closed forms, on both material sides, and
+/// the two calls in order build the same cells at the same sum.
 #[test]
-fn the_bosss_two_rims_refuse_together_and_compose_sequentially() {
+fn the_bosss_two_rims_carve_together_and_compose_sequentially() {
     let ladder = plane_sphere_external_cut(0.5, 0.1);
     let annulus = wedge_fill((1.0, 1.0), (-1.0, 0.0), (0.0, -1.0), 0.1);
     for up in [true, false] {
         let name = if up { "boss" } else { "dimple" };
         let body = topo::test_support::finished("body", repaired(up), tol());
+        let before = topo::test_support::pinned_volume("the measured body", &body, tol()).volume;
+        let want = if up { ladder } else { -ladder } - annulus;
+        let measure = |out: &Body<f64>| {
+            topo::test_support::pinned_volume(
+                "the measured body",
+                &topo::test_support::finished("the measured body", Body::clone(out), tol()),
+                tol(),
+            )
+            .volume
+                - before
+        };
         let mut both = rim_arcs_at(&body, 0.5, 1.0);
         both.extend(rim_arcs_at(&body, 1.0, 1.0));
-        match fillet_edges(
+        let one_call = fillet_edges(
             &sweep::test_support::at_rest(&body, tol()),
             &both,
             0.1,
             tol(),
         )
-        .map_err(|e| e.error)
-        {
-            Err(BlendError::UnsupportedChain { detail, .. }) => assert!(
-                detail.contains("SEQUENTIAL calls"),
-                "{name}: the mixed ladder/annulus arm and its recourse: {detail}"
-            ),
-            other => panic!("{name}: expected the mixed shared-support arm, got {other:?}"),
-        }
-        let before = topo::test_support::pinned_volume("the measured body", &body, tol()).volume;
+        .unwrap_or_else(|e| panic!("{name}: the two rims carve in one call, got {e:?}"));
+        let one_call = one_call.body.into_body();
+        assert_eq!(census(&one_call), (6, 9, 6), "{name}: two bands' census");
+        agrees(name, measure(&one_call), want);
         let (_, after_ladder) = carve(name, &body, &[(0.5, 1.0)], 0.1);
         let (_, out) = carve(name, &after_ladder, &[(1.0, 1.0)], 0.1);
-        // Each band's host trimlines joined: one vertex and one edge fewer apiece.
-        assert_eq!(census(&out), (9, 14, 8), "{name}: two bands' census");
-        let measured = topo::test_support::pinned_volume(
-            "the measured body",
-            &topo::test_support::finished("the measured body", topo::Body::clone(&out), tol()),
-            tol(),
-        )
-        .volume
-            - before;
-        agrees(name, measured, if up { ladder } else { -ladder } - annulus);
+        assert_eq!(
+            census(&out),
+            (6, 9, 6),
+            "{name}: two bands' census, in sequence"
+        );
+        agrees(name, measure(&out), want);
     }
 }
 

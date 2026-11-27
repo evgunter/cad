@@ -155,7 +155,7 @@ fn a_rim_in_the_caps_chart_is_restated_as_the_section_with_the_minted_wall() {
 /// A declaration riding the image does not change what the door
 /// stores: the rule's reading, the section, whose description carries
 /// no declaration. The declaration is the rim's own revolve trajectory:
-/// the profile's top corner turned half a revolution about `y`.
+/// the profile's top corner turned a whole revolution about `y`.
 #[test]
 fn a_declared_rim_in_the_caps_chart_is_restated_as_the_section_too() {
     let (mut body, wall, rim, cap) =
@@ -166,7 +166,7 @@ fn a_declared_rim_in_the_caps_chart_is_restated_as_the_section_too() {
                 origin: Point3::new(0.0, 0.0, 0.0),
                 dir: geom_core::UnitVec3::exact_y(),
             },
-            angle: std::f64::consts::PI,
+            angle: std::f64::consts::TAU,
         })));
     let minted = offset_the_wall(&mut body, wall);
     topo::test_support::validate_completed(&body, Tol::witness())

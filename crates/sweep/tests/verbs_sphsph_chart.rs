@@ -278,7 +278,7 @@ fn a_probe_a_hair_past_a_near_polar_rim_is_decided_where_an_axial_lever_cannot()
         );
         let body = ball_with_a_near_polar_rim(u_r);
         let faces = sphere_faces(&body);
-        assert_eq!(faces.len(), 2, "a full revolve mints two half-bands");
+        assert_eq!(faces.len(), 1, "a full revolve mints one face");
         let rim_polar = core::f64::consts::PI - u_r;
         for az in [0.7_f64, 2.4, 3.8, 5.5] {
             // Inside the rim (nearer the north pole): exactly one band
@@ -410,15 +410,14 @@ fn boundary_edges(body: &Body<f64>, face: FaceKey, meridian: bool) -> Vec<topo::
         .collect()
 }
 
-/// The whole ball's two half-bands are the same class — meridian-bounded
-/// lunes, half a period each — and the face door now answers on them
-/// too, each for its own half. Exactly one band contains any given
-/// off-seam point.
+/// The whole ball is one face, its meridian walked out and back, and the
+/// face door answers on it as on a lune: it contains every off-seam
+/// point, so exactly one sphere face contains any given one.
 #[test]
 fn the_balls_two_bands_each_answer_for_their_own_half() {
     let body = lune(Revolution::Full);
     let faces = sphere_faces(&body);
-    assert_eq!(faces.len(), 2, "a full revolve mints two half-bands");
+    assert_eq!(faces.len(), 1, "a full revolve mints one face");
     let b = band();
     for az in [0.3_f64, 1.9, 2.9, 4.1, 5.7] {
         let verdicts: Vec<_> = faces

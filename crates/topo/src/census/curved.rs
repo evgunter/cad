@@ -22,12 +22,13 @@
 //! are no meeting of their own.
 
 use geom::Curve3;
-use geom_brep::curve_pair::{Hit, MeetFault, MeetKind, MeetUnread, Meeting, Span, meet};
+use geom_brep::curve_pair::{Hit, MeetFault, MeetKind, MeetUnread, Meeting, Span, SpanEnd, meet};
 use geom_core::{Band, Decide, Margin, MarginDiag, Point3, Real, Sign};
 
 use super::{CensusSubject, CensusUnsupportedCause, ValidationError};
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId};
+use crate::geometry::PointKey;
 use crate::validate::Departure;
 
 /// An edge's certified curve as these lanes read it.
@@ -35,6 +36,23 @@ struct Read<T: Real> {
     edge: EdgeKey,
     curve: Curve3<T>,
     span: (T, T),
+    /// Its two ends as the body stores them ([`stored_ends`]); `None`
+    /// only for a fixture's span no body holds (`Read::unheld`, a test fixture).
+    ends: Option<[StoredEnd<T>; 2]>,
+}
+
+impl<T: Real> Read<T> {
+    /// **A fixture's span no body holds**: `curve` over `span`, with no
+    /// stored ends, so it joins nothing ([`joined`]).
+    #[cfg(test)]
+    fn unheld(curve: Curve3<T>, span: (T, T)) -> Self {
+        Self {
+            edge: EdgeKey::default(),
+            curve,
+            span,
+            ends: None,
+        }
+    }
 }
 
 /// Pushes `edge`'s reading refused for `why`, the reason carried whole,
@@ -112,6 +130,7 @@ fn read<T: Decide>(
         edge,
         curve: carrier,
         span,
+        ends: Some(stored_ends(body, edge)),
     })
 }
 
@@ -370,15 +389,43 @@ impl<T: Decide> EdgeSpan<T> {
         if self.endless { span.endless() } else { span }
     }
 
-    /// A span of `curve` with its ends, owned by no edge.
+    /// Its span and `other`'s, joined where the two edges end on one
+    /// stored point ([`joined`]): what a reading of the two spans'
+    /// meetings takes.
+    pub(crate) fn joined_with<'s>(
+        &'s self,
+        other: &'s Self,
+        band: Band,
+    ) -> (Span<'s, T>, Span<'s, T>) {
+        joined(
+            (self.span(), self.read.ends),
+            (other.span(), other.read.ends),
+            band,
+        )
+    }
+
+    /// Its span, each end on the stored point `key` named that point
+    /// ([`Span::joined`]): a stored vertex read against the edge reads
+    /// as the edge's end where it is one, with no band between them.
+    pub(crate) fn span_on(&self, key: Option<PointKey>, band: Band) -> Span<'_, T> {
+        let mut span = self.span();
+        for (which, (k, p)) in [SpanEnd::Start, SpanEnd::Stop]
+            .into_iter()
+            .zip(self.read.ends.into_iter().flatten())
+        {
+            if super::on_one_point_key(Some(k), key) {
+                span = span.joined(which, p, band);
+            }
+        }
+        span
+    }
+
+    /// A span of `curve` with its ends, owned by no edge
+    /// ([`Read::unheld`]).
     #[cfg(test)]
     pub(crate) fn of(curve: Curve3<T>, span: (T, T)) -> Self {
         Self {
-            read: Read {
-                edge: EdgeKey::default(),
-                curve,
-                span,
-            },
+            read: Read::unheld(curve, span),
             endless: false,
         }
     }
@@ -416,6 +463,52 @@ fn span<'r, T: Decide>(body: &Body<T>, r: &'r Read<T>) -> Span<'r, T> {
     } else {
         span
     }
+}
+
+/// One end of a span as the body stores it: the point key its vertex
+/// sits on, and that point.
+pub(super) type StoredEnd<T> = (PointKey, Point3<T>);
+
+/// **`edge`'s two ends as the body stores them**, start then stop, in
+/// `he_plus`-forward order: the order of its curve's parameters, which
+/// tier 3's carrier re-certification holds each carrier to
+/// (`validate.rs`, check 2, its `edge_endpoints`: the `he_plus` start
+/// at the first parameter). `edge` is a live edge the census reached; a
+/// miss is a kernel bug and panics ([`crate::query::edge_ends`]).
+pub(super) fn stored_ends<T: Real>(body: &Body<T>, edge: EdgeKey) -> [StoredEnd<T>; 2] {
+    let (start, stop) = crate::query::edge_ends(body, edge);
+    [start, stop].map(|v| {
+        let vertex = crate::live::proven(&body.vertices, v, EntityId::Vertex);
+        (vertex.point, body.point_of(v, vertex))
+    })
+}
+
+/// **Two spans joined where their edges are**: each end of `a` and each
+/// of `b` on one stored point ([`super::on_one_point_key`]) is that
+/// point on both spans ([`Span::joined`]). The two ends are one point by
+/// topology (`[verdicts.closeness]`), so their meeting there is not read
+/// again from the carriers' own ends: each edge certifies its vertex
+/// within the band's zero of its carrier's end, so two carriers' ends at
+/// one vertex can lie up to twice that apart, in the band of each other.
+/// A span with no stored ends (`None`, a fixture's) joins nothing.
+pub(super) fn joined<'s, T: Decide>(
+    (mut a, a_ends): (Span<'s, T>, Option<[StoredEnd<T>; 2]>),
+    (mut b, b_ends): (Span<'s, T>, Option<[StoredEnd<T>; 2]>),
+    band: Band,
+) -> (Span<'s, T>, Span<'s, T>) {
+    const WHICH: [SpanEnd; 2] = [SpanEnd::Start, SpanEnd::Stop];
+    let (Some(a_ends), Some(b_ends)) = (a_ends, b_ends) else {
+        return (a, b);
+    };
+    for (wa, (ka, p)) in WHICH.into_iter().zip(a_ends) {
+        for (wb, (kb, _)) in WHICH.into_iter().zip(b_ends) {
+            if super::on_one_point_key(Some(ka), Some(kb)) {
+                a = a.joined(wa, p, band);
+                b = b.joined(wb, p, band);
+            }
+        }
+    }
+    (a, b)
 }
 
 /// Whether `r`'s edge starts at a conventional vertex: a closed edge's
@@ -488,7 +581,8 @@ fn interior_meeting<T: Decide>(
             _ => None,
         })
     };
-    let refusal = match meet(&span(body, ra), &span(body, rb), band) {
+    let (a, b) = joined((span(body, ra), ra.ends), (span(body, rb), rb.ends), band);
+    let refusal = match meet(&a, &b, band) {
         Ok(met) => return Some(interior(&met.points, met.shared)),
         Err(refusal) => match interior(&refusal.found, refusal.shared) {
             Some(found) => return Some(Some(found)),
@@ -809,12 +903,133 @@ mod tests {
         }
     }
 
-    fn read(curve: Curve3<f64>, span: (f64, f64)) -> Read<f64> {
-        Read {
-            edge: EdgeKey::default(),
-            curve,
-            span,
+    /// **Two edges joined at a vertex meet there, and nowhere near it**,
+    /// whatever their carriers leave between their own ends: a quarter
+    /// of the unit circle in `xy` and a quarter of the unit circle in
+    /// `xz`, joined at `v = (1, 0.9ε, 0)`. Each carrier's end lies `0.9ε`
+    /// from `v`, which the edge's endpoint certificate reads Zero, so they
+    /// lie `1.8ε` apart, in the band of each other, and the
+    /// carriers cross at the `xz` one's end. Red where the meeting at `v`
+    /// is read again from the carriers' ends, which escalates
+    /// `curve_pair_span_end_chord`.
+    #[test]
+    fn two_arcs_joined_at_a_vertex_meet_only_there() {
+        let tol = Tol::witness();
+        let flat = Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.0, Vec3::unit_x());
+        let up = Curve3::circle(Point3::origin(), -Vec3::unit_y(), 1.0, Vec3::unit_x());
+        let (quarter, turn) = (core::f64::consts::FRAC_PI_2, 1.8 * tol.eps());
+        let v = Point3::new(1.0, 0.9 * tol.eps(), 0.0);
+        let mut body = Body::<f64>::new();
+        let born = body.mvfs(v, true).unwrap();
+        let a = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: born.r#loop,
+                },
+                flat.eval(quarter),
+                EdgeCurveSpec::arc_of_circle(flat.clone(), turn, quarter).unwrap(),
+                tol,
+            )
+            .unwrap()
+            .edge;
+        let at_v = body.get_edge(a).unwrap().he_plus;
+        let b = body
+            .mev(
+                MevSite::Fan {
+                    he1: at_v,
+                    he2: at_v,
+                },
+                up.eval(quarter),
+                EdgeCurveSpec::arc_of_circle(up.clone(), 0.0, quarter).unwrap(),
+                tol,
+            )
+            .unwrap()
+            .edge;
+        let apart = (up.eval(0.0) - flat.eval(turn)).norm();
+        assert!(
+            apart > 1.5 * tol.eps() && apart < 2.0 * tol.eps(),
+            "the carriers' ends at v lie in the band of each other: {apart:e}"
+        );
+        let mut errors = Vec::new();
+        let met = super::interiors_meeting(&body, a, b, band(), &mut errors);
+        assert!(errors.is_empty(), "no reading escalates: {errors:?}");
+        assert!(
+            matches!(met, Some(None)),
+            "no meeting on both interiors: {:?}",
+            met.map(|m| m.map(|m| m.point))
+        );
+    }
+
+    /// **An end on another edge's interior, on its own point key, is no
+    /// joint**: a quarter of the unit circle in `xy` from `(1, 0, 0)`, and
+    /// an arc of the unit circle in `xz` from −45° to 45°, whose interior
+    /// passes through `(1, 0, 0)`, each its own lamina with its own
+    /// vertices. Nothing joins, and the meeting reads at the first arc's
+    /// start and on the second's interior. Red where ends are joined on
+    /// anything but one stored point.
+    #[test]
+    fn an_end_on_another_edges_interior_is_no_joint() {
+        use geom_brep::curve_pair::{Hit, SpanEnd, meet};
+        let tol = Tol::witness();
+        let flat = Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.0, Vec3::unit_x());
+        let up = Curve3::circle(Point3::origin(), -Vec3::unit_y(), 1.0, Vec3::unit_x());
+        let quarter = core::f64::consts::FRAC_PI_2;
+        let mut body = Body::<f64>::new();
+        let mut arc = |c: &Curve3<f64>, (t0, t1): (f64, f64)| {
+            let born = body.mvfs(c.eval(t0), true).unwrap();
+            body.mev(
+                MevSite::Lone {
+                    r#loop: born.r#loop,
+                },
+                c.eval(t1),
+                EdgeCurveSpec::arc_of_circle(c.clone(), t0, t1).unwrap(),
+                tol,
+            )
+            .unwrap()
+            .edge
+        };
+        let a = arc(&flat, (0.0, quarter));
+        let b = arc(&up, (-0.5 * quarter, 0.5 * quarter));
+        let mut errors = Vec::new();
+        let ra = super::read(&body, a, band(), &mut errors).unwrap();
+        let rb = super::read(&body, b, band(), &mut errors).unwrap();
+        let (x, y) = super::joined(
+            (super::span(&body, &ra), ra.ends),
+            (super::span(&body, &rb), rb.ends),
+            band(),
+        );
+        for (span, r) in [(&x, &ra), (&y, &rb)] {
+            let carrier = [r.curve.eval(r.span.0), r.curve.eval(r.span.1)];
+            assert!(
+                span.ends().count() == 2
+                    && span
+                        .ends()
+                        .zip(carrier)
+                        .all(|((_, p), q)| p.equals_exactly(q)),
+                "no end is joined: {:?}",
+                span.ends().collect::<Vec<_>>()
+            );
         }
+        let met = meet(&x, &y, band()).expect("the spans meet");
+        assert!(
+            met.points
+                .iter()
+                .any(|m| matches!((m.on_a, m.on_b), (Hit::End(SpanEnd::Start), Hit::On { .. }))),
+            "the meeting at the first arc's start, on the second's interior: {:?}",
+            met.points
+        );
+        assert!(
+            matches!(
+                super::interior_meeting(&body, &ra, &rb, band(), &mut errors),
+                Some(None)
+            ),
+            "no meeting on both interiors"
+        );
+        assert!(errors.is_empty(), "nothing escalates: {errors:?}");
+    }
+
+    fn read(curve: Curve3<f64>, span: (f64, f64)) -> Read<f64> {
+        Read::unheld(curve, span)
     }
 
     fn band() -> Band {

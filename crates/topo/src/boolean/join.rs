@@ -175,7 +175,7 @@ use crate::chord_join::{
     ChordJoiner, CutOutcome, Datum, JoinError, JoinLane, JoinPlan, Leave, SegmentCurve, SegmentEdge,
 };
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
-use crate::face_normal::{NormalAtError, face_outward_normal};
+use crate::face_normal::{NoNormalAt, NormalAtError, face_outward_normal};
 use crate::loop_winding::{RunClosing, RunMissesEnd, Unwound};
 use crate::null::NullFacePair;
 use crate::ring_path::LoopSplit;
@@ -927,32 +927,10 @@ fn germ_site<T: crate::props::AtRestPolicy>(
 /// one site holds both of its germs, one each way round it, on one pair
 /// record. The loop is one segment, from that site round the whole loop
 /// back to it ([`crate::chord_join`]'s self-loop chord): its two ends are
-/// the record's two slots. Two shapes close at one site
-/// ([`closes_at_its_site`]):
-///
-/// - **a transverse section of a one-face closed wall** that crosses the
-///   wall's wrap edge (both its halves bound that face) once, piercing
-///   a face of the partner there, or meeting a vertex of its boundary,
-///   where the loop only touches that boundary (a wall tangent to a
-///   hole's along the wrap edge);
-/// - **a closed edge lying in the partner** (a one-segment circle or
-///   ellipse, both of whose ends are its one vertex): the loop is that
-///   edge, and the
-///   site is its vertex. The partner holds it inside a face, whose
-///   interior the site pierces; inside a planar
-///   face whose boundary passes through the site, where the loop only
-///   touches that boundary (two rims tangent at their vertices); on a
-///   one-face closed wall's wrap edge; or along a closed edge of its own
-///   through the same site.
-///
-/// Read from the records [`matched_records`]' quiescence left. Every
-/// other [`one_site`] record is left for the
-/// [`JoinError::SingleSiteSectionLoop`] refusal: a pierce or a boundary
-/// vertex of a face the joiner sides no closed loop in
-/// (`crate::chord_join::reads_loop_side`), a site on both operands' wrap
-/// edges, a site where a pierce meets an edge of another face, a closed
-/// edge meeting one in a curved face, and a closed edge on a carrier the
-/// joiner does not copy whole (`crate::chord_join::copies_closed_edge`).
+/// the record's two slots. Which records close at one site, and which
+/// are left for the [`JoinError::SingleSiteSectionLoop`] refusal, is
+/// [`closes_at_its_site`]'s table, stated there alone; this reads the
+/// records [`matched_records`]' quiescence left.
 ///
 /// A record is read on its section's frame where the pair has one, and
 /// otherwise on the component of its carried section both germs stand
@@ -1087,28 +1065,44 @@ fn one_site_segments<T: crate::props::AtRestPolicy>(
 }
 
 /// **Whether a one-site record's loop closes at its site**
-/// ([`one_site_segments`]), read from what the site is in the germ's cell
-/// on each operand ([`site_cell`]): a wrap edge or a closed circle or
-/// ellipse against a pierce of a face, or a wrap edge against a vertex of
-/// its boundary, where the face is one the chord joiner sides a closed
-/// loop in ([`crate::chord_join::reads_loop_side`]); a closed circle or
-/// ellipse against a vertex on the boundary of a planar face it stands on
-/// from the other side ([`stands_on`]), against a wrap edge, or against
-/// another closed circle or ellipse. Against a wrap edge the closed
-/// edge's side copies it whole and the wall's side runs from the site
-/// round the wall back to it, as a transverse section's does, whatever
-/// the wall's kind: that holds for a loop that winds round the wall,
-/// crossing its wrap edge at the site. A loop that only touches the wrap
-/// edge there, winding round nothing, never reaches this table: the
-/// crossing layer escalates the tangent touch first. At a boundary
-/// vertex the germ's cell is the face, so
-/// the loop leaves the vertex into the face and returns to it; the joiner
-/// mints it in that face as one chord from the vertex round to itself,
-/// dividing the face (`crate::chord_join::ChordJoiner`'s null strut). A
-/// closed edge of any other carrier has no copy, and its loop is refused.
-/// A pierce is joined in its face as a ring of its own
-/// ([`crate::chord_join::ChordJoiner`]'s lone ring), sided by
-/// [`crate::chord_join::loop_holds_outer`].
+/// ([`one_site_segments`]): the one statement of which one-site loops
+/// the join builds. Read from what the site is in the germ's cell on
+/// each operand ([`site_cell`]); [`SiteCell::Wrap`] is a site every real
+/// edge at which has both its halves on the cell's face, a wrap edge (or
+/// its tip). The loop closes as one self-loop chord per operand
+/// (`crate::chord_join`):
+///
+/// - **a wrap edge against a pierce** of a face the chord joiner sides a
+///   closed loop in ([`crate::chord_join::reads_loop_side`]), or against
+///   a vertex of such a face's boundary: a transverse section of a
+///   one-face closed wall crossing its wrap edge once, the wall's side
+///   running from the site round the wall back to it; the pierce is
+///   joined as a ring of its face ([`crate::chord_join::ChordJoiner`]'s
+///   lone ring, sided by [`crate::chord_join::loop_holds_outer`]), and at
+///   a boundary vertex, where the germ's cell is the face, as one chord
+///   from the vertex round to itself dividing the face (its null strut);
+/// - **a wrap edge against a wrap edge**: each operand's side runs from
+///   the site round its own wall, as above (two coaxial revolved walls
+///   carry their wrap edges in one half-plane, so their section circle
+///   meets both at one site);
+/// - **a closed circle or ellipse** (a one-segment edge, both of whose
+///   ends are the site) that the joiner copies whole
+///   (`crate::chord_join::copies_closed_edge`), the loop being that
+///   edge: against a pierce of a face the joiner sides a loop in; against
+///   a vertex on the boundary of a planar face it stands on from the
+///   other side ([`stands_on`]); against a wrap edge, whose wall's side
+///   runs round as above; or against another such closed edge.
+///
+/// Every other pair is left for the refusal: a pierce or a boundary
+/// vertex of a face the joiner sides no loop in, a pierce meeting an
+/// edge of another face, a closed edge meeting one in a curved face, and
+/// a closed edge on a carrier the joiner does not copy.
+///
+/// A wall's side running round from its wrap edge rests on the loop
+/// winding round the wall, crossing the wrap edge at the site, whatever
+/// the wall's kind. A loop that only touches the wrap edge there,
+/// winding round nothing, never reaches this table: the crossing layer
+/// escalates the tangent touch first.
 fn closes_at_its_site<T: crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     g0: &HalfGerm<T>,
@@ -1129,9 +1123,10 @@ fn closes_at_its_site<T: crate::props::AtRestPolicy>(
         (SiteCell::Wrap, SiteCell::Other(f)) => reads(&red.b, f),
         (SiteCell::Pierce(f), SiteCell::Wrap | SiteCell::Closed(Some(_))) => reads(&red.a, f),
         (SiteCell::Other(f), SiteCell::Wrap) => reads(&red.a, f),
-        (SiteCell::Closed(Some(_)), SiteCell::Closed(Some(_))) => true,
-        (SiteCell::Closed(Some(_)), SiteCell::Wrap) => true,
-        (SiteCell::Wrap, SiteCell::Closed(Some(_))) => true,
+        (
+            SiteCell::Wrap | SiteCell::Closed(Some(_)),
+            SiteCell::Wrap | SiteCell::Closed(Some(_)),
+        ) => true,
         (SiteCell::Closed(Some(e)), SiteCell::Other(f)) => {
             planar(&red.b, f) && stands_on(red, (Operand::A, e), f, band)?
         }
@@ -5660,19 +5655,26 @@ fn seam_germ_side<T: Decide>(
             // circle: the lever its germ is read at. A closed chord, its two
             // ends one point, reads by it as any other.
             let extent = d.norm() * (t1 - t0).abs();
-            let n_r = match crate::face_normal::face_outward_normal_at(body, region, mid, band) {
-                Ok(Some(n_r)) => n_r.vec(),
-                Ok(None) => {
-                    return Rung::Aborts(Err(desync(
-                        "a section chord's region no longer resolves",
-                    )));
+            let n_r = match held_normal((body, other_is.other()), region, mid, band, REGION_GONE) {
+                Ok(Ok(n_r)) => n_r,
+                // A region on a spline sheet has no normal arm at a point:
+                // a limit, as a spline holding face is.
+                Ok(Err(why @ HoldingUnread::Spline)) => {
+                    return Rung::refused(why, HoldingUnread::refusal, |why| Err(why.aborted()))
+                        .map_kept(|_| ());
                 }
+                Ok(Err(HoldingUnread::Placement { .. } | HoldingUnread::Trim)) => {
+                    return Rung::Aborts(Err(BooleanError::ClassificationInvariant {
+                        what: "a region's normal reading answered as a placement",
+                    }));
+                }
+                Err(e) => return Rung::Aborts(Err(e)),
                 // A normal refused in band or at a limit is kept; an abort
                 // is answered by its own row. No row is assumed away:
                 // a horn or spindle torus here is the operand's invalid
                 // input, not a kernel fault, whichever door it came
                 // through (`Replay`'s "A tier-3 premise at a dual").
-                Err(why) => {
+                Ok(Err(HoldingUnread::Normal { why, .. })) => {
                     return match why.standing() {
                         Ok(standing) => standing.rung(why),
                         Err(abort) => Rung::Aborts(Err(BooleanError::of_aborted_normal(
@@ -5785,11 +5787,38 @@ fn holding_face_normal<T: Decide>(
     let Some(held) = held else {
         return Ok(Ok(None));
     };
-    match crate::face_normal::face_outward_normal_at(other, held, q, band) {
-        Ok(Some(n)) => Ok(Ok(Some(n.vec()))),
-        Ok(None) => Err(BooleanError::JoinDesync {
-            what: "the face holding a section chord no longer resolves",
-        }),
+    held_normal((other, other_is), held, q, band, HOLDER_GONE).map(|n| n.map(Some))
+}
+
+/// [`held_normal`]'s desync where a holding face does not resolve.
+const HOLDER_GONE: &str = "the face holding a section chord no longer resolves";
+/// [`held_normal`]'s desync where a chord's region does not resolve.
+const REGION_GONE: &str = "a section chord's region no longer resolves";
+
+/// **The outward normal at `q` of `held`**, a face of `other`: the face
+/// holding a chord's point, or the region a chord bounds. Where it does
+/// not read, it is told apart by why ([`NoNormalAt`]): a face on a
+/// spline or spindle sheet has no normal arm at a point
+/// ([`crate::face_normal::face_outward_normal_or_why`]), a limit, carried
+/// as [`HoldingUnread::Spline`]; a key that no longer resolves, or a
+/// face with no surface, is a kernel defect.
+///
+/// # Errors
+///
+/// [`BooleanError::JoinDesync`], saying `gone`, where `held` does not
+/// resolve to a face on a surface.
+fn held_normal<T: Decide>(
+    (other, other_is): (&Body<T>, Operand),
+    held: FaceKey,
+    q: Point3<T>,
+    band: Band,
+    gone: &'static str,
+) -> Result<Result<Vec3<T>, HoldingUnread>, BooleanError> {
+    let desync = || BooleanError::JoinDesync { what: gone };
+    match crate::face_normal::face_outward_normal_or_why(other, held, q, band) {
+        Ok(Ok(n)) => Ok(Ok(n.vec())),
+        Ok(Err(NoNormalAt::UnreadKind)) => Ok(Err(HoldingUnread::Spline)),
+        Ok(Err(NoNormalAt::Unresolved)) => Err(desync()),
         Err(why) => Ok(Err(HoldingUnread::Normal {
             operand: other_is,
             face: held,
@@ -5819,6 +5848,10 @@ enum HoldingUnread {
     },
     /// A curved face's trim the door does not read. A limit.
     Trim,
+    /// A holding face on a spline or spindle sheet, whose normal has no
+    /// arm at a point. A limit, which the chord ladder passes, so like
+    /// [`Self::Trim`] it carries only its class.
+    Spline,
     /// The holding face's normal at the point refused.
     Normal {
         /// The operand the face is of.
@@ -5846,7 +5879,7 @@ impl HoldingUnread {
                 why: PlacementError::Door(e),
                 ..
             } => e.refusal(),
-            Self::Trim => Ok(geom_brep::ladder::Refusal::Limit),
+            Self::Trim | Self::Spline => Ok(geom_brep::ladder::Refusal::Limit),
             Self::Normal { why, .. } => why.refusal(),
         }
     }
@@ -5879,7 +5912,8 @@ impl HoldingUnread {
                 why: PlacementError::OnPlane(_),
                 ..
             }
-            | Self::Trim => BooleanError::ClassificationInvariant {
+            | Self::Trim
+            | Self::Spline => BooleanError::ClassificationInvariant {
                 what: HOLDING_OFF_SURFACE,
             },
         }
@@ -5945,12 +5979,86 @@ fn loop_roles(
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::panic)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod holding_rows {
     use geom_core::{Band, Point3, Tol};
 
-    use super::{HoldingUnread, holding_face_normal};
+    use super::{HoldingUnread, held_normal, holding_face_normal};
     use crate::face_normal::NormalAtError;
+
+    /// **A face whose normal does not read is told apart by why**
+    /// ([`super::held_normal`], over [`crate::face_normal::NoNormalAt`]):
+    /// - a face on a spline sheet, as a chord's holding face and as the
+    ///   region a chord bounds: no normal arm at a point, a limit
+    ///   ([`HoldingUnread::Spline`]) the chord ladder passes;
+    /// - a face with no surface yet, and a key that resolves to no face
+    ///   of the operand: a kernel defect (`JoinDesync`), saying which.
+    ///
+    /// Red where a spline face is read as a desync, as it was where both
+    /// readings mapped `face_outward_normal_at`'s `None`, or where a
+    /// pending or stale face is read as a limit.
+    #[test]
+    fn a_spline_face_is_a_limit_and_a_pending_face_or_a_stale_key_a_desync() {
+        use super::super::{BooleanError, Operand};
+        use super::{HOLDER_GONE, REGION_GONE};
+        use crate::test_support_fixtures::half_disc_cap;
+        let tol = Tol::witness();
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let q = Point3::new(0.0, 0.5, 0.0);
+        // The fixture leaves the lamina's back face pending.
+        let (pending_body, _, _) = half_disc_cap(0.0, tol);
+        let pending = pending_body
+            .faces()
+            .map(|(f, _)| f)
+            .find(|f| pending_body.face(*f).is_some_and(|x| x.surface().is_err()))
+            .expect("the lamina's back face is pending");
+        for gone in [HOLDER_GONE, REGION_GONE] {
+            let held = held_normal((&pending_body, Operand::A), pending, q, band, gone);
+            assert!(
+                matches!(held, Err(BooleanError::JoinDesync { what }) if what == gone),
+                "a face with no surface, a desync saying {gone:?}: {held:?}"
+            );
+        }
+        let mut body = pending_body.clone();
+        crate::fixtures::describe_pending_as(
+            &mut body,
+            &crate::fixtures::patch_spanning(
+                Point3::new(-1.0, -1.0, 0.0),
+                Point3::new(1.0, 1.0, 0.0),
+            ),
+        );
+        for gone in [HOLDER_GONE, REGION_GONE] {
+            let held = held_normal((&body, Operand::A), pending, q, band, gone);
+            assert!(
+                matches!(&held, Ok(Err(why @ HoldingUnread::Spline))
+                    if why.refusal() == Ok(geom_core::ladder::Refusal::Limit)),
+                "a spline face, a limit: {held:?}"
+            );
+        }
+        let block = crate::test_support_fixtures::prism_z::<f64>(
+            &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
+            0.0,
+            1.0,
+            tol,
+        );
+        let stale = block
+            .body
+            .faces()
+            .map(|(f, _)| f)
+            .find(|f| body.face(*f).is_none())
+            .expect("the block has a face key the cap does not resolve");
+        let held = held_normal(
+            (&body, Operand::A),
+            stale,
+            Point3::origin(),
+            band,
+            HOLDER_GONE,
+        );
+        assert!(
+            matches!(held, Err(BooleanError::JoinDesync { what }) if what == HOLDER_GONE),
+            "a key that resolves to no face, a desync: {held:?}"
+        );
+    }
 
     /// **A chord held at a cone's apex is a refusal, not a face that does
     /// not hold it**: a cone cap holds its apex inside, and the cone's

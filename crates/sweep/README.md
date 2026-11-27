@@ -556,8 +556,9 @@ the crescent its tangent faces open, and a rim's rolls in a wedge.
 
 **A3-2 — a valence-4 seam vertex is not a corner.** Where a chart seam
 (the `u = 0` meridian of a revolved wall) crosses an otherwise smooth
-latitude rim, the vertex has valence four: two rim arcs carrying one
-support pair and two co-surface seam meridians with dihedral zero. The
+latitude rim, the vertex has valence four: the rim's two ends there
+(one closed edge's, or two arcs') carrying one support pair, and two
+co-surface seam meridians with dihedral zero. The
 surface is smooth through it, with no wedge and no ball-rest
 configuration, so no end rule applies. A chain ending there refuses
 `BlendError::UnbuiltEnd(UnbuiltEnd::Seam { vertex })`, whose recourse is
@@ -1077,13 +1078,15 @@ that is the boolean's ground, not the band's.
 
 ## Conventions every sweep keeps
 
-Moved from DESIGN `[topology]` on 2026-10-17, verbatim. Bracketed ids (`[topology]`, `[coincidence]` …) are `docs/DESIGN.md`'s clauses.
+Moved from DESIGN `[topology]` on 2026-10-17. Bracketed ids (`[topology]`, `[coincidence]` …) are `docs/DESIGN.md`'s clauses.
 
-- **The minimal sphere at rest is V2/E2/F2**: tier 2's valence-1 ban
-  makes a one-band wire sweep unrepresentable, so axis-touching full
-  revolves sweep two π-bands and poles have valence 2. The split is
-  owed only by CURVED walls, whose pole or apex must keep valence 2. A
-  full revolve emits each PLANAR wall as one face: a disc's centre is
+- **The minimal sphere at rest is V2/E1/F1**: one face, one meridian,
+  two pole vertices. A full revolve sweeps every wall in one band, so a
+  CURVED wall's meridian is its seam, a wrap edge, and where that wall
+  reaches the axis its pole or apex is the edge's tip, of valence 1,
+  the loop walking the edge out and back (`docs/DESIGN.md`
+  [topology], the seam clause and tiers 2 and 3). A full revolve emits
+  each PLANAR wall as one face with no meridian: a disc's centre is
   interior to the face, not a vertex, and no revolve returns two
   adjacent faces on one plane.
 - **A sweep's carriers come from its frames** (`docs/DESIGN.md`

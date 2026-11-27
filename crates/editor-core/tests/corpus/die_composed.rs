@@ -22,8 +22,8 @@
 //! M6-5 says it. The node grew a `selection` of stable names, the
 //! composition surgery grew per-entity birth records, and the naming
 //! emitter that reads them turns the result into a full name table.
-//! The selection below is fourteen names — every edge of the target
-//! except the two co-surface meridians — so the refusal is EXCLUDED
+//! The selection below is thirteen names — every edge of the target
+//! except the co-surface meridian — so the refusal is EXCLUDED
 //! rather than loosened, and it is still executed as such in
 //! `m6_composed_node.rs`, which now pins the flip instead of the
 //! blocker.
@@ -72,34 +72,34 @@ pub const R: f64 = 0.05;
 /// `die_pips` geometry, verbatim).
 const PIP_C: f64 = DIE_L + (PIP_R - PIP_H);
 
-/// **The selection: fourteen names, each with its provenance.**
+/// **The selection: thirteen names, each with its provenance.**
 ///
 /// The target is the pipped cube (`Node::Subtract`), whose
-/// edge table has exactly sixteen rows. The selection is fourteen of
-/// them — everything except the two cavity meridians:
+/// edge table has exactly fourteen rows. The selection is thirteen of
+/// them — everything except the cavity's meridian:
 ///
 /// | count | name | what it is |
 /// |---|---|---|
 /// | 8 | `From(cube, RimEdge(Top\|Bottom, seg))` | the cube's cap–wall rims, surviving the subtraction |
 /// | 4 | `From(cube, LateralEdge(vertex))` | the cube's four vertical struts |
-/// | 2 | `Seam { From(cube, Cap(End)), From(pip, Placed(Band(0) \| BandPi(0))) }` | the PIP RIM — the two arcs the zip minted where the cube's end cap crosses the ball's lower band (a full revolve's band is two half-faces, split at the seam meridians, so the rim is two arcs, not one circle) |
-/// | *2 excluded* | `From(ball, Meridian(Seam\|Pi, 0))` | the cavity's meridian seams |
+/// | 1 | `Seam { From(cube, Cap(End)), From(pip, Placed(Band(0))) }` | the PIP RIM — the circle the zip minted where the cube's end cap crosses the ball's one band |
+/// | *1 excluded* | `From(ball, Meridian(Seam, 0))` | the cavity's meridian seam |
 ///
-/// **Why the meridians are excluded, and why this document exists.**
-/// The two half-cap faces of the cavity share ONE sphere surface, so a
-/// meridian between them has no dihedral wedge — nothing to roll a
+/// **Why the meridian is excluded, and why this document exists.**
+/// The cavity's cap face lies on both sides of its seam, so the seam
+/// has no dihedral wedge — nothing to roll a
 /// ball into; `fillet_edges` reads it smooth at margin exactly zero, at
 /// any radius, and now leaves it as it is. Its refusal then is what
 /// kept this document out of the registry while `Node::Fillet` meant
 /// "every edge" (`m6_composed_node.rs`, now flipped): the composed die
-/// was not INEXPRESSIBLE, it was unnameable. Fourteen names later it
+/// was not INEXPRESSIBLE, it was unnameable. Thirteen names later it
 /// is neither.
 ///
 /// **This list is now the ORACLE, not the source** (LIB-U7). The
 /// document below no longer hand-authors its selection: it evaluates
 /// the target and materializes [`selector`] against the target's own
 /// name table, which is what a document author can do too. The
-/// fourteen names spelled out here stay because they are the
+/// thirteen names spelled out here stay because they are the
 /// independent statement of what the selector must produce — the
 /// equivalence is pinned in `lib_u7_select.rs`, and a drift in
 /// either the boolean emitter or the selector fails loudly against
@@ -152,24 +152,22 @@ pub fn selection(
         node: pipped,
         path: vec![RoleSeg::From { read, of: f.into() }],
     };
-    for band in [RoleSeg::Band(lower.into()), RoleSeg::BandPi(lower.into())] {
-        let (x, y) = (
-            carried(from.read, cap_top.clone()),
-            carried(
-                tool.reads().next().expect("a subtract with one tool").read,
-                ball_face(band),
-            ),
-        );
-        let (a, b) = if y < x { (y, x) } else { (x, y) };
-        out.push(at(RoleSeg::Seam {
-            a: a.into(),
-            b: b.into(),
-        }));
-    }
+    let (x, y) = (
+        carried(from.read, cap_top),
+        carried(
+            tool.reads().next().expect("a subtract with one tool").read,
+            ball_face(RoleSeg::Band(lower.into())),
+        ),
+    );
+    let (a, b) = if y < x { (y, x) } else { (x, y) };
+    out.push(at(RoleSeg::Seam {
+        a: a.into(),
+        b: b.into(),
+    }));
     out
 }
 
-/// **The same fourteen names, said STRUCTURALLY** (LIB-U7): a
+/// **The same thirteen names, said STRUCTURALLY** (LIB-U7): a
 /// selector over role-path shape, materialized against the target's
 /// table. It takes no node ids at all — the shape of the names IS the
 /// description.
@@ -181,18 +179,15 @@ pub fn selection(
 ///    four struts). Saying "a box edge carried through" is exactly the
 ///    intent; enumerating twelve `RimEdge`/`LateralEdge` names was the
 ///    P10 relocation.
-/// 2. `Seam { a: From(Cap(End)), b: From(Placed(Band | BandPi)) }` —
-///    the pip rim, the two arcs the zip minted where the cube's end cap
-///    crosses the ball's lower band, which the pip's placement copies
-///    with its names as they are, each side carried in through its
-///    read. A full
-///    revolve's band is two half-faces split at the seam meridians, so
-///    the rim is two arcs and the band role has two variants; the union
-///    says both. A seam's sides are a set, so the pattern holds
-///    whichever side names first.
+/// 2. `Seam { a: From(Cap(End)), b: From(Placed(Band)) }` — the pip
+///    rim, the circle the zip minted where the cube's end cap crosses
+///    the ball's one band, which the pip's placement copies with its
+///    names as they are, each side carried in through its read. A
+///    seam's sides are a set, so the pattern holds whichever side names
+///    first.
 ///
-/// What is NOT selected falls out of the shapes: the cavity meridians
-/// are `From(Meridian(..))`, and neither alternative admits a carried
+/// What is NOT selected falls out of the shapes: the cavity meridian
+/// is `From(Meridian(..))`, and neither alternative admits a carried
 /// meridian. The co-surface refusal stays EXCLUDED by description
 /// rather than by a hand-maintained omission.
 ///
@@ -217,15 +212,13 @@ pub fn selector() -> Selector {
         carried(SegTag::RimEdge),
         carried(SegTag::LateralEdge),
         pip_rim(SegTag::Band),
-        pip_rim(SegTag::BandPi),
     ])
 }
 
-/// The two cavity meridians — the names the selection deliberately
-/// LEAVES OUT (the co-surface seams). Named here so the pin that
-/// checks the exclusion reads the same list the docs above describe.
-/// The cube's face cuts each, so the target publishes each as its one
-/// piece, named by its ends (N2): read off `ev`'s table at `pipped`.
+/// The cavity meridian — the name the selection deliberately LEAVES
+/// OUT (the co-surface seam). Named here so the pin that checks the
+/// exclusion reads the same list the docs above describe. The cube's
+/// face cuts it, so the target publishes it as its one piece, named by its ends (N2): read off `ev`'s table at `pipped`.
 /// `ball` is the revolve whose names the pip's placement carries as
 /// they are; the carry is keyed by the subtract's TOOL read (the pip's
 /// output), not by the ball's own.
@@ -241,7 +234,7 @@ pub fn excluded_meridians(
         }
         other => panic!("{pipped} is the die's subtract, got {other:?}"),
     };
-    [MeridianEnd::Seam, MeridianEnd::Pi]
+    [MeridianEnd::Seam]
         .into_iter()
         .map(|end| {
             let meridian = StableName {
@@ -320,8 +313,8 @@ pub fn document() -> CorpusDoc {
         from: cube.into(),
         tool: pip.into(),
     });
-    // The fourteen selected edges — twelve box edges and the pip
-    // rim's two arcs; the cavity meridians are NOT in the set (see
+    // The thirteen selected edges — twelve box edges and the pip
+    // rim's circle; the cavity meridian is NOT in the set (see
     // `selection`'s table). One node, one call: the F-e measurement
     // (M6-5 §0) established that a single `fillet_edges` takes the
     // twelve open chains and the closed rim together.
@@ -330,7 +323,7 @@ pub fn document() -> CorpusDoc {
     // the structural `selector()` over its name table, store the
     // result. This is the whole authoring loop a document author has
     // (the `all_edges` precedent, `names/mod.rs`), and it is why the
-    // fourteen names below are no longer spelled by hand here. The
+    // thirteen names below are no longer spelled by hand here. The
     // stored set is frozen from this point exactly as before.
     let ev = super::eval::<f64>(&r.doc);
     let composed = r.insert(Node::fillet(

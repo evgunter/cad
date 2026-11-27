@@ -712,21 +712,25 @@ pub(crate) const SPHERE_SEAM_UNIT: &str = "cover_sphere_seam_unit";
 /// the azimuth window of its boundary walk, as the chart patch
 /// ([`Cover::patch`], `R = 0`) of the rectangle or the latitude zone.
 ///
-/// The trim reads the window off the boundary, and the boundary of a
-/// rectangle is also the boundary of its complement. The rectangle is
-/// therefore taken only when the side the outer loop encodes
-/// (`boundary_material_sign`: the side of the loop that holds no chart
-/// pole, the reading tier 3's curved sense check runs) agrees with the
-/// face's `sense`, which places the face on the rectangle's side of its
-/// boundary. The trim's class then holds no pole inside the face, so
-/// the face lies in the rectangle its boundary spans. The side is read
-/// without the tips the chart image drops: a wrap-tip cap holds the
-/// pole at its tip, outside that class, and its rim alone encodes no
-/// side. A face whose side is unencoded, refused, or in disagreement,
-/// one whose outer loop is a lone vertex or carries null scaffolding,
-/// one outside the trim's class, one whose trim escalates, one whose
-/// axis is not decided unit, and one whose radius is not positive (the
-/// patch's premise) read no window. A face that wraps the azimuth
+/// The trim reads the window off the boundary, and a boundary bounds
+/// the face and its complement alike. So the window is taken only when
+/// the side the face's outer loop encodes agrees with its `sense`
+/// (`boundary_material_sign_holding`, the reading tier 3's curved
+/// sense check runs). That side is read with the tips the loop's chart
+/// image drops ([`crate::props::image_with_tips`]), which the face
+/// holds. A one-loop face lies on the side of its loop that holds its
+/// own tips at chart poles and no other pole. A wrap-tip cap's image is
+/// its rim alone, which bounds a cap on either side, and the pole at its
+/// tip says which. With the two in agreement, every pole the face holds
+/// is a vertex of it, which the trim folds in as a level the face
+/// reaches, so the face lies in the rectangle or zone the trim
+/// spans.
+///
+/// These faces read no window: one whose side is unencoded, refused or
+/// in disagreement; one whose outer loop is a lone vertex or carries
+/// null scaffolding; one outside the trim's class; one whose trim
+/// escalates; one whose axis is not decided unit; and one whose radius
+/// is not positive (the patch's premise). A face that wraps the azimuth
 /// alone, or whose seam direction is not decided a unit normal of the
 /// axis, reads its latitude zone.
 ///
@@ -755,9 +759,9 @@ fn sphere_window<T: Decide>(
     let Ok(area) = f.area_loops() else {
         return None;
     };
-    let outer = match crate::props::chart_image_edges(area.outer()) {
-        Ok((outer, _)) if outer.is_empty() => return None,
-        Ok((outer, _)) => outer,
+    let ((outer, _), held) = match crate::props::image_with_tips(body, &area.outer().cycle()) {
+        Ok(((outer, _), _)) if outer.is_empty() => return None,
+        Ok(image) => image,
         Err(LoopEdgesError::NullScaffoldEdge { .. }) => return None,
         Err(refusal @ LoopEdgesError::Corrupt { .. }) => torn_outer_loop(body, f, refusal),
     };
@@ -767,7 +771,7 @@ fn sphere_window<T: Decide>(
         Sign::Negative
     };
     let (trim, unit) = constraint(|| {
-        if geom_brep::props::boundary_material_sign(surface, &outer, band).ok()
+        if geom_brep::props::boundary_material_sign_holding(surface, &[&outer], &held, band).ok()
             != Some(geom_brep::props::MaterialSign::Encoded(side))
         {
             return Err(());

@@ -51,3 +51,23 @@ Signed: (CARVE orchestrator)
   - the certificate fix misses the full-turn torus's latitude edge, and the cause is a class across six call sites.
   Fix pass dispatched; the same pair re-reviews.
 - 2026-11-23 — **An inherited red, mis-diagnosed and corrected.** On PR 7425 I wrote that main had settled the `payload-rung-sweep` red. I had run the gate without CI's `--check`. With it, main fails the same way, and the red is held as `work/tally/main-red-payload-rung-sweep-flags-node-error-class-half-of-a-family` (P1). The correction is posted on the PR. **Lesson:** reproduce a gate with the exact invocation the workflow uses (`grep` the workflow for it) before calling a red inherited or settled.
+- 2026-11-26 — **Closed `a-full-revolves-curved-wall-carries-two-seam-meridians-nobody-wrote` (PR 7414): a full revolve's curved wall is one band**, and each pole or apex is its wrap edge's tip. Ev's rulings were on `[ev]` PRs 6014 and 6085.
+  - **The stack.** The one-band build broke ~60 kernel paths that worked on main. Each was filed P1, fixed in its own reviewed PR, and merged into the stack (the landing order logged 2026-11-22): 7484 split, 7473 mesh seam-twice, 7435 shell, 7476 one-site join, 7487 cover, 7440 interior loop, 7532 wrap-edge station, 7556 and 7752 mesh budget, 7585 pinched cone loop, 7744 census at the gate, 7575 two-curved interior loop, 7581 outline by decision, 7774 import wrap tip, 7736 flipped sphere face, 7802 and 7803.
+  - **The main merge.** It met ORBIT's closed-cut framework in `ops.rs`, and the stack's semantics were ported onto it. The crossings-path cut-in is gated on `close_cuts`' premises; its capability is P1 `close-cuts-is-not-total-on-crossings-path-cut-ins`, with seam notes to ORBIT (PRs 7796, 7810).
+  - **Reviews.** A dual (two Opus) at every round: the build and re-baselines, the re-review, the final re-review, and the port and its re-review. Both approved at the end.
+  - **Closed with it:**
+    - 18 consumer rows;
+    - the main merge's P0;
+    - the moot surviving-cut P2;
+    - IMPORTGATE's claimed wrap-tip row;
+    - the claimed SPIRICARM and TESSLANE rows (the pinched cone loop and the outer-loop boxes).
+  - **Open with it:**
+    - the cone-vs-off-axis-ball regression, re-banded P1 (loud and owned);
+    - `a-section-loop-inside-two-one-band-curved-faces-…` (P1), whose germ residue is pinned red.
+  - **Inherited reds on the landing head, all main's:**
+    - the cylinder-prism corner at 1e-12 (TESSLIE);
+    - tess-lint's baseline census (GREEN/INSTR);
+    - `a_cap_moved_off_a_frustum_wedge_apex` (INSIDE, filed in PR 7800);
+    - `cell_region_bodies` at 1e-12 (EMBEDWALK, PR 7810);
+    - the plain witness, folded oblique and footballs rows at their ε.
+  - No model-compare rows (rule 12, Fable outage).

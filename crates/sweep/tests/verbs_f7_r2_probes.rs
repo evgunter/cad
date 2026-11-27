@@ -103,7 +103,7 @@ fn planar_same_key(b: &Body<f64>) -> usize {
 #[test]
 fn r2_cone_carries_its_cap_whole() {
     let c = cone();
-    assert_eq!(counts(&c), (3, 4, 3, 0));
+    assert_eq!(counts(&c), (2, 2, 2, 0));
     assert_eq!(planar_same_key(&c), 0, "no pole-split cap");
     dump_poles(&c, "cone");
     let c = sweep::test_support::finished("the cone", c, Tol::witness());

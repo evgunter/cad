@@ -3060,7 +3060,6 @@ fn import_report_row_tags_are_stable() {
     for (found, word) in [
         (SingularityFound::Interior, "interior"),
         (SingularityFound::InsideEdge, "inside_edge"),
-        (SingularityFound::ValenceOneVertex, "valence_one_vertex"),
     ] {
         assert_eq!(
             normalization_kind_tag(&NormalizationKind::ChartSingularityVertex { found }),
@@ -4548,7 +4547,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "point_split_carrier_unsupported",
             "poisoned_carrier_datum",
             "result_invalid",
-            "result_pinched_at_cone_apex",
             "revert",
             "rim_cusp_arm_unbuilt",
             "seam_orientation",
@@ -5934,7 +5932,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "singularity_found_tag",
-        values: &["inside_edge", "interior", "valence_one_vertex"],
+        values: &["inside_edge", "interior"],
         delegates: &[],
     },
     TagEntry {

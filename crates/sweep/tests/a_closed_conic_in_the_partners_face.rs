@@ -67,7 +67,7 @@ use topo::{
 };
 
 use crate::common::differential::{
-    VOLUME_PAD_BUDGET, every_op_both_orders, judged_within, outcome,
+    VOLUME_CLAIM, VOLUME_PAD_BUDGET, Verdict, every_op_both_orders, judged, judged_within, outcome,
 };
 use crate::common::oracles::{ball_volume, cap_volume};
 use crate::common::poses::torax_pose;
@@ -1070,6 +1070,11 @@ fn a_boss_over_two_holes_tangent_outside_with_no_vertex_at_either_touch() {
 ///   (`B ∖ A`), the op may refuse `EdgeInFaceGap::CurvedFace` rather
 ///   than carry the ruling as one edge lying in the partner's wall where
 ///   the crescent's two cusps owe two ([`one_shell_or_gap_at`]).
+/// - With both vertices at the touch, `B ∖ A` joins `B`'s seam whole
+///   through `A`'s floor rim vertex, which rests inside it, and tier 3′
+///   reads that self-touch undecided
+///   (`work/atrest/a-vertex-inside-an-edge-its-face-is-tangent-along-reads-unreadable.md`,
+///   [`sound_or_unread_self_touch`]).
 ///
 /// With `A`'s vertex elsewhere the sweep splits its rim at `B`'s
 /// vertex, and the cut along it in `B`'s dropped top ends at that
@@ -1102,6 +1107,8 @@ fn a_rim_flush_in_its_partners_top_tangent_inside_builds_or_meets_a_pinned_limit
                         "{row}: {:?}",
                         r.map(|_| ())
                     );
+                } else if a_az == 0.0 && b_az == 0.0 && op == "B ∖ A" {
+                    sound_or_unread_self_touch(&row, r, want);
                 } else {
                     let seam = a_az == 0.0 || (b_az == 0.0 && op == "B ∖ A");
                     one_shell_or_gap_at(&row, r, want, seam);
@@ -1109,6 +1116,58 @@ fn a_rim_flush_in_its_partners_top_tangent_inside_builds_or_meets_a_pinned_limit
             }
         }
     }
+}
+
+/// `r` holds its closed form `want` in one shell, sound
+/// ([`judged`]), or meets the self-touch limit: tier 3′'s one finding is
+/// the self-touch at a vertex resting inside an edge read `Unreadable`
+/// (`work/atrest/a-vertex-inside-an-edge-its-face-is-tangent-along-reads-unreadable.md`),
+/// and every other check passes: tier 2, the geometric certificate, the
+/// body as an operand, and a certified volume enclosure that holds the
+/// closed form within the sound line's claim and budget.
+fn sound_or_unread_self_touch(row: &str, r: Result<BooleanResult<f64>, BooleanError>, want: f64) {
+    let Ok(BooleanResult::Body(b)) = &r else {
+        panic!("{row}: a body, got {:?}", r.as_ref().map(|_| ()));
+    };
+    assert_eq!(b.body.shells().count(), 1, "{row}: shells");
+    let findings = topo::validate_pseudomanifold(&b.body, &b.contacts, tol()).err();
+    let t2 = topo::validate_closed(&b.body);
+    let cert = topo::validate_geometric_certificate(&b.body, tol()).map(|_| ());
+    let far = fin(
+        "the far brick",
+        brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol()),
+    );
+    let operand = topo::union(&b.body, &far, tol()).map(|_| ());
+    let judgement = judged(r, Some(want), tol());
+    if findings.is_none() {
+        assert_eq!(
+            judgement.verdict,
+            Verdict::Sound,
+            "{row}: {}",
+            judgement.line
+        );
+        return;
+    }
+    assert!(
+        matches!(
+            findings.as_deref(),
+            Some([ValidationError::BoundaryCrossesItselfUndecided {
+                why: topo::TouchUnread::Curved(topo::CurvedUnread::Unreadable),
+                ..
+            }])
+        ),
+        "{row}: the self-touch alone, got {findings:?}"
+    );
+    assert!(t2.is_ok(), "{row}: tier 2: {t2:?}");
+    assert!(cert.is_ok(), "{row}: the certificate: {cert:?}");
+    assert!(operand.is_ok(), "{row}: an operand: {operand:?}");
+    let (Some(v), Some(pad)) = (judgement.volume, judgement.pad) else {
+        panic!("{row}: the volume measures: {}", judgement.line);
+    };
+    assert!(
+        pad <= VOLUME_PAD_BUDGET && (v - want).abs() <= VOLUME_CLAIM,
+        "{row}: the certified enclosure {v} ± {pad} holds the closed form {want}"
+    );
 }
 
 /// `r` holds its closed form `want` (`differential::outcome`) in one
@@ -2250,8 +2309,8 @@ fn a_tube_through_a_balls_centre_closes_both_sections_at_its_wrap_edge() {
 /// (`cylinder_sphere_frame::at_its_volume`): tiers 2 and 3′, the
 /// certificate, the volume against [`disc_through_ball`], and a legal
 /// operand, its union with a far brick built. `tube ∖ ball` cuts the tube
-/// in two, whose curved faces tier 3′'s census cannot tell apart
-/// (`Ends::PartsUndecided`).
+/// in two and passes tier 3′ too: the census tells the two parts' curved
+/// faces apart, the face door reading their spline chords.
 #[test]
 fn a_tube_through_a_ball_across_its_wrap_edge_builds_every_op() {
     use crate::cylinder_sphere_frame::{Ends, at_its_volume, pad_ceiling};
@@ -2270,16 +2329,11 @@ fn a_tube_through_a_ball_across_its_wrap_edge_builds_every_op() {
         .unwrap();
         let tube = fin("the tube", tube);
         for (op, got, want) in every_op_both_orders(&tube, &ball, (va, vb, vi), tol()) {
-            let ends = if op == "A ∖ B" {
-                Ends::PartsUndecided
-            } else {
-                Ends::Sound
-            };
             off.extend(at_its_volume(
                 &format!("azimuth {az}: {op}"),
                 got,
                 want,
-                ends,
+                Ends::Sound,
                 ceiling,
                 &[],
             ));

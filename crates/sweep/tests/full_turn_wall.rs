@@ -238,23 +238,24 @@ fn a_near_full_revolves_gap_is_out_at_both_doors() {
 }
 
 /// **A sphere face that reads a whole turn but does not wrap alone is
-/// not served as one.** A unit ball (one arc, revolved, two π-bands)
-/// cut by hand at ±30° into south cap, zone and north cap is six
-/// half-faces — the revolve builds an arc run whole, so the latitude
-/// rims are cut through the Euler door
-/// ([`crate::common::latitude_seam::ring_on_wall_at`]). `kef_minting` merges the
-/// zone's two halves across their seam, then merges the zone with ONE
-/// north-cap half across their rim arc. That face's walk reads the whole
-/// turn and the latitudes from −30° to the pole, but north of +30° it
-/// holds only half the azimuths: the other north half bounds it along
-/// two meridians, mated to a face that is not itself.
+/// not served as one.** A unit ball (one arc, revolved, one face) cut by
+/// hand at ±30° into south cap, zone and north cap, each one face
+/// across the one seam — the revolve builds an arc run whole, so the
+/// latitude rims are cut through the Euler door
+/// ([`crate::common::latitude_seam::ring_on_wall_at`]). The north cap is
+/// halved along the meridian opposite the seam, its rim split there, and
+/// `kef_minting` merges the zone with ONE north-cap half across their
+/// rim arc. That face's walk reads the whole turn and the latitudes from
+/// −30° to the pole, but north of +30° it holds only half the azimuths:
+/// the other north half bounds it along two meridians, mated to a face
+/// that is not itself.
 ///
-/// The body is not a valid one — tier 3 reports a pcurve
-/// `LoopDiscontinuity` on the merged loop — and the row says so: its
-/// subject is that the face door does not answer `In` for such a face
-/// at a point another face holds. `kef_minting` is the only door this
-/// suite found that mints the shape; the merge-cosurface doors were not
-/// checked.
+/// The body passes tier 3: the merged face is a region of the sphere
+/// bounded by the south rim, the other half's rim arc and the two
+/// meridians. The row's subject is that the face door does not answer
+/// `In` for such a face at a point another face holds. `kef_minting` is
+/// the only door this suite found that mints the shape; the
+/// merge-cosurface doors were not checked.
 #[test]
 fn a_zone_merged_with_half_a_cap_is_not_a_full_turn() {
     let b = band();
@@ -325,13 +326,76 @@ fn a_zone_merged_with_half_a_cap_is_not_a_full_turn() {
             })
             .expect("an edge between the two faces")
     };
-    // The zone's two halves, across their seam meridian.
-    let (z1, z2) = (
-        holder(&body, on_sphere(1.6, 1.0)),
-        holder(&body, on_sphere(1.6, 4.0)),
-    );
-    let seam = between(&body, z1, z2, false);
-    body.kef_minting(seam, Tol::witness()).unwrap();
+    // The north cap halved: its rim split opposite the seam, and a
+    // meridian from the pole to the split; the seam, now between the two
+    // halves, restates as a plain chart edge.
+    let cap = holder(&body, on_sphere(0.4, 1.0));
+    let zone = holder(&body, on_sphere(1.6, 1.0));
+    let rim = body
+        .get_half_edge(between(&body, cap, zone, true))
+        .unwrap()
+        .edge;
+    let (t0, t1) = body
+        .get_curve_geom(body.get_edge(rim).unwrap().curve)
+        .and_then(topo::null::CurveGeom::certified)
+        .unwrap()
+        .params();
+    body.split_edge(rim, 0.5 * (t0 + t1), Tol::witness())
+        .expect("the north rim splits opposite the seam");
+    let (_, hes) = topo::props::loop_edges(
+        body.cycle_loop(body.get_face(cap).unwrap().outer)
+            .expect("a cycle loop"),
+    )
+    .unwrap();
+    let at = |body: &Body<f64>, h| {
+        *body
+            .get_point(
+                body.get_vertex(body.get_half_edge(h).unwrap().start)
+                    .unwrap()
+                    .point,
+            )
+            .unwrap()
+    };
+    let up = Vec3::new(0.0, 1.0, 0.0);
+    let pole = *hes
+        .iter()
+        .find(|&&h| (at(&body, h) - Point3::new(0.0, 1.0, 0.0)).norm() < 1e-9)
+        .unwrap();
+    let seam = body.get_half_edge(pole).unwrap().edge;
+    let foot_of_seam = at(&body, body.mate(pole).unwrap());
+    let split = *hes
+        .iter()
+        .find(|&&h| {
+            let p = at(&body, h);
+            (p.y - s30).abs() < 1e-9 && (p - foot_of_seam).norm() > 1e-6
+        })
+        .expect("the rim's split vertex");
+    let dir = {
+        let p = at(&body, split) - Point3::origin();
+        let h = Vec3::new(p.x, 0.0, p.z);
+        h / h.norm()
+    };
+    let meridian = geom::Curve3::circle(Point3::origin(), up.cross(dir), 1.0, up);
+    body.mef(
+        topo::construction::MefSite::Chords {
+            he1: pole,
+            he2: split,
+        },
+        geom_brep::EdgeCurveSpec::arc_of_circle(meridian, 0.0, s30.acos())
+            .unwrap()
+            .at_rest_in_chart(sphere, false),
+        topo::construction::FaceSurface::Inherit,
+        Tol::witness(),
+    )
+    .expect("the meridian halves the north cap");
+    let mut spec = body
+        .get_curve_geom(body.get_edge(seam).unwrap().curve)
+        .and_then(topo::null::CurveGeom::certified)
+        .unwrap()
+        .restated_spec();
+    spec.description = geom_brep::EdgeDescriptionSpec::chart(sphere);
+    body.set_edge_curve(seam, spec, Tol::witness())
+        .expect("the seam between the halves restates as a chart edge");
     // The zone and the north half that holds azimuth 1.0; the merge
     // kills the face on the half-edge's side and keeps the zone.
     let zone = holder(&body, on_sphere(1.6, 1.0));
@@ -339,9 +403,10 @@ fn a_zone_merged_with_half_a_cap_is_not_a_full_turn() {
     let rim = between(&body, north, zone, true);
     let killed = body.kef_minting(rim, Tol::witness()).unwrap().killed_face;
     assert_eq!(killed, north, "the north half merges into the zone");
-    assert!(
-        topo::validate_geometric(&body, Tol::witness()).is_err(),
-        "the merged body is not tier-3 valid (see the row's doc)"
+    assert_eq!(
+        topo::validate_geometric(&body, Tol::witness()),
+        Ok(()),
+        "the merged face bounds a region of the sphere, and tier 3 holds"
     );
     let merged = zone;
     // North of +30° at azimuth 4.0 is the OTHER north half's.

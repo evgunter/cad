@@ -4,10 +4,15 @@
 //! chain starts is gauge), so on a chart closed in a channel a ring can
 //! be stored whole periods from the region its outer loop's lift bounds.
 //! A ring is moved by the one deck translation — a whole number of
-//! periods per closed channel — that puts its first point in that
+//! periods per closed channel — that puts its reference point in that
 //! region, decided against the outer loop alone, in the chart's cover
 //! ([`place_ring`]). One point decides the whole ring: a ring meets no
 //! edge of its face, so its lift crosses no row of the outer loop's.
+//! The point is no vertex but one of the points inside the ring's rows,
+//! the one farthest from a chart singularity by the azimuth's lever
+//! ([`reference_point`]): a vertex may sit on a singularity (a sphere's
+//! pole), where the lever is zero and no window round the point has arms
+//! to read it by.
 //!
 //! The rule is one, and so is the ray parity that reads a point against
 //! the outer loop ([`ray_parity_as`]); each chart family supplies its
@@ -21,14 +26,18 @@
 //! rather than read on a side.
 //! The work bounds below are the one home of both readers' bounds.
 //!
-//! **A row whose box does not tighten.** An `IsoArc`'s box is its whole
-//! segment's, a `Fitted` or `General` image's its whole net's, and a
-//! `Spiric` image's its whole period's ([`Pcurve::chart_box`]), so
-//! halving such a piece never clears it of a point inside that box: the
-//! reading spends [`PIECE_VISITS`] and answers `Near`, so the ring
-//! answers [`RingPlacementError::Undecided`]. The measured outer loops
-//! are all `Harmonic`
-//! (`work/tesslane/an-analytic-outer-loops-whole-span-boxes-never-tighten-under-the-ring-reader.md`).
+//! **Every row's box tightens.** Halving a piece clears it of a point
+//! only where the piece's box over the half shrinks with the half: every
+//! image form's [`Pcurve::chart_box`] is read over the span asked
+//! (a projected image per piece clipped to the span, an `IsoArc` by its
+//! two ends' images, a `Fitted` or `General` image by its restriction's
+//! Bézier controls, a `Spiric` by `f` and `sin t` over the span). A box
+//! read over the whole row instead never clears a point inside it, and
+//! the reading would spend [`PIECE_VISITS`] and answer `Near`
+//! (`work/lathe/an-analytic-outer-loops-whole-span-boxes-never-tighten-under-the-ring-reader.md`).
+//! A point within the band of the outer loop, or a ring whose every
+//! point lies at a chart singularity's lever (a cone ring at its apex),
+//! is still undecided: that is the reading, not a box.
 
 use geom::Surface;
 use geom_brep::{ChartWindow, Pcurve};
@@ -151,8 +160,15 @@ pub enum RingPlacementError {
     /// The outer loop is one vertex: the face has no outline
     /// ([`crate::NoOutline`]), so no region to lift.
     OuterEmpty,
-    /// No whole-period shift puts the ring's first point in the outer
-    /// loop's region.
+    /// A ring is one vertex (`LoopBoundary::Empty`): it has no edge, so
+    /// no lift and no place in the chart, and it bounds no region of the
+    /// face. Tier 2 admits one at rest, as a lone vertex inside a face.
+    RingEmpty {
+        /// The ring.
+        ring: LoopKey,
+    },
+    /// No whole-period shift puts the ring's reference point in the
+    /// outer loop's region.
     NoShift {
         /// The ring.
         ring: LoopKey,
@@ -201,6 +217,7 @@ impl RingPlacementError {
             Self::OuterOpen { .. } => "outer_open",
             Self::RingOpen { .. } => "ring_open",
             Self::OuterEmpty => "outer_empty",
+            Self::RingEmpty { .. } => "ring_empty",
             Self::NoShift { .. } => "no_shift",
             Self::Shifts { .. } => "shifts",
             Self::Copies { .. } => "copies",
@@ -285,8 +302,8 @@ pub(crate) struct Shift {
     pub(crate) offset: [f64; 2],
 }
 
-/// **The ring rule**: the one shift that places a ring whose first point
-/// is `at`, against an outer loop whose chart hull is `reach`, on a chart
+/// **The ring rule**: the one shift that places a ring whose reference
+/// point ([`reference_point`]) is `at`, against an outer loop whose chart hull is `reach`, on a chart
 /// whose closed channels have `periods`. On each closed channel the
 /// candidates are the whole numbers of periods that bring `at` within
 /// `reach`; each candidate is read by `side`, in order, and the first
@@ -359,15 +376,36 @@ pub(crate) fn face_lift<T: Decide>(
     face: FaceKey,
     band: Band,
 ) -> Result<FaceLift<T>, RingPlacementError> {
-    let view = body.proven_face(face);
     // A lone ring bounds no area, so it has no lift and no place; a
     // face with no outline has no region to lift.
-    let area = view
+    let area = body
+        .proven_face(face)
         .area_loops()
         .map_err(|_| RingPlacementError::OuterEmpty)?;
     let outer_loop = area.outer().key();
     let rings: Vec<LoopKey> = area.rings().map(|(_, ring)| ring.key()).collect();
+    face_lift_as(body, face, outer_loop, rings, band)
+}
+
+/// [`face_lift`] with the roles given rather than read off the face's
+/// area: `outer_loop` in the outline's role and `rings` in the rings',
+/// each a loop of `face`. The output merge asks which of a merged face's
+/// loops is its outline this way, each in that role in turn
+/// (`crate::merge_faces`, the curved role pass), before it sets the
+/// record's roles. A loop given here may be one vertex, which no area
+/// reading would hand over, so each is read for it.
+pub(crate) fn face_lift_as<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    outer_loop: LoopKey,
+    rings: Vec<LoopKey>,
+    band: Band,
+) -> Result<FaceLift<T>, RingPlacementError> {
+    let view = body.proven_face(face);
     let outer = Lift::read(body, outer_loop).map_err(RingPlacementError::Gap)?;
+    if outer.is_empty() && !rings.is_empty() {
+        return Err(RingPlacementError::OuterEmpty);
+    }
     let winding = outer
         .winding()
         .unwrap_or_else(|| unreachable!("a read lift is a whole loop"));
@@ -377,6 +415,9 @@ pub(crate) fn face_lift<T: Decide>(
     let mut read = Vec::with_capacity(rings.len());
     for &ring in &rings {
         let lift = Lift::read(body, ring).map_err(RingPlacementError::Gap)?;
+        if lift.is_empty() {
+            return Err(RingPlacementError::RingEmpty { ring });
+        }
         let winding = lift
             .winding()
             .unwrap_or_else(|| unreachable!("a read lift is a whole loop"));
@@ -400,7 +441,7 @@ pub(crate) fn face_lift<T: Decide>(
         let lengths = [periods.u(), periods.v()].map(|p| p.map(|p| p.length().value_channel()));
         let mut decks = Vec::with_capacity(rings.len());
         for (&ring, lift) in rings.iter().zip(&read) {
-            let at = first_point(lift);
+            let at = reference_point(lift, &reader, band);
             let shift = place_ring(
                 lengths,
                 reader.reach,
@@ -446,12 +487,61 @@ pub(crate) fn face_lift<T: Decide>(
     Ok(FaceLift { outer, rings })
 }
 
-/// The point a lift's chain starts at: its first row's entry.
-fn first_point<T: Decide>(lift: &Lift<T>) -> Point2<T> {
-    let Some(row) = lift.rows().first() else {
+/// How many points of each row [`reference_point`] ranks: the middles
+/// of that many equal parts of the row's span, none of them its ends.
+/// Eight puts a sample within `π/8` of a whole-circle ring's far side
+/// from a pole, so the pick reaches at least `cos(π/8)` of the ring's
+/// width past its centre (`reference_point`'s rows pin it).
+const REFERENCE_SAMPLES: usize = 8;
+
+/// **The point a ring is placed by**: of its rows' images at the middles
+/// of [`REFERENCE_SAMPLES`] equal parts of each row's span, the one where
+/// the chart's azimuth lever reads greatest ([`Outer::lever`], the
+/// lever's certified lower end, so the ranking is one at every scalar).
+/// No such point is a vertex of the loop, so none lies on a chart
+/// singularity a vertex may sit on (a sphere's pole), and of them the
+/// one farthest from a singularity is the one whose window round it
+/// gates arms soonest ([`Outer::side`]); a ring beside a pole is read
+/// where it is widest of it, a ring of one row (a whole circle)
+/// included. Every point of the ring is placed by the same shift, so the
+/// choice decides only whether the reading settles, never what it
+/// answers.
+///
+/// **Ties** keep the first in row order, the first sample of the first
+/// row among them. On a chart whose lever is one number everywhere (a
+/// cylinder's, a torus's, a plane's) every point ties, and any is as
+/// good: the window round each gates the same arms.
+fn reference_point<T: Decide>(lift: &Lift<T>, reader: &Outer<'_, T>, band: Band) -> Point2<T> {
+    pick_reference(
+        lift.rows()
+            .iter()
+            .map(|row| (&row.pcurve, row.entry_exit())),
+        |q| reader.lever(q, band),
+    )
+}
+
+/// [`reference_point`]'s rule over `rows`, each a pcurve and its span in
+/// the loop's order, ranked by `lever`.
+fn pick_reference<'a, T: Decide + 'a>(
+    rows: impl IntoIterator<Item = (&'a Pcurve<T>, (T, T))>,
+    lever: impl Fn(Point2<T>) -> f64,
+) -> Point2<T> {
+    let mut best: Option<(f64, Point2<T>)> = None;
+    for (pcurve, (entry, exit)) in rows {
+        for j in 0..REFERENCE_SAMPLES {
+            #[allow(clippy::cast_precision_loss)] // a handful of samples
+            let s = (2.0 * j as f64 + 1.0) / (2.0 * REFERENCE_SAMPLES as f64);
+            let at = pcurve.eval(entry + (exit - entry) * T::from_f64(s));
+            let lever = lever(at);
+            if best.as_ref().is_none_or(|(b, _)| lever > *b) {
+                best = Some((lever, at));
+            }
+        }
+    }
+    let Some((_, at)) = best else {
         unreachable!("a ring's loop holds a half-edge")
     };
-    row.pcurve.eval(row.entry_exit().0)
+    at
 }
 
 /// One piece of an outer loop's chain: a span of a lifted row's image,
@@ -617,15 +707,8 @@ impl<'a, T: Decide> Outer<'a, T> {
     /// translation is an isometry of the chart.
     fn side(&self, q: Point2<T>, band: Band) -> Side {
         let size = self.reach.map(|(lo, hi)| hi - lo);
-        let v = match self.v_period {
-            None => q.y,
-            Some(p) => {
-                let length = p.length().value_channel();
-                let Some(k) = whole((q.y.value_channel() / length + 0.5).floor()) else {
-                    return Side::Near(None);
-                };
-                q.y - p.times(k)
-            }
+        let Some(v) = self.sheet_v(q) else {
+            return Side::Near(None);
         };
         let mut pending = None;
         for halving in 0..HALVINGS {
@@ -651,6 +734,39 @@ impl<'a, T: Decide> Outer<'a, T> {
             return ray_parity_as(RING_PLACE_CLEAR, &self.pieces, q, arms, PIECE_VISITS, band);
         }
         Side::Near(pending)
+    }
+
+    /// `q`'s second coordinate at its copy within half a `v` period of 0,
+    /// where the chart is closed in `v` (a deck translation is an
+    /// isometry of the chart). The copy is counted from the middle of
+    /// `v`'s bracket, which every scalar has: which copy is read is
+    /// gauge, not a decision. `None` where the count of periods has no
+    /// `i32` or `v` has no bracket.
+    fn sheet_v(&self, q: Point2<T>) -> Option<T> {
+        Some(match self.v_period {
+            None => q.y,
+            Some(p) => {
+                let mid = |x: T| {
+                    x.structure_bracket()
+                        .map(|(lo, hi)| geom_core::mid_param(lo, hi))
+                };
+                let (v, length) = (mid(q.y)?, mid(p.length())?);
+                q.y - p.times(whole((v / length + 0.5).floor())?)
+            }
+        })
+    }
+
+    /// The azimuth's lever at `q`, as a number to rank points by: the
+    /// arm [`Self::arms`] reads at `q`'s copy ([`Self::sheet_v`]) and that
+    /// one latitude, by its certified lower end, which every scalar has
+    /// (an `f64`'s is itself, an interval's its lower bound); a point
+    /// whose arm does not gate positive ranks lowest. Not a decision: a
+    /// point that ranks highest is read as any other is.
+    fn lever(&self, q: Point2<T>, band: Band) -> f64 {
+        self.sheet_v(q)
+            .and_then(|v| self.arms(v, v, band).ok())
+            .and_then(|(u, _)| u.get().structure_bracket())
+            .map_or(f64::NEG_INFINITY, |(lo, _)| lo)
     }
 
     /// The chart's inf-side arms over the `v` window `[v_lo, v_hi]`, each
@@ -698,7 +814,9 @@ mod tests {
     use geom_core::predicate::Band;
     use geom_core::{Point2, Point3, Tol, Vec3};
 
-    use super::{Outer, Piece, RingMiss, Shift, Side, place_ring, whole};
+    use super::{
+        Outer, Piece, REFERENCE_SAMPLES, RingMiss, Shift, Side, pick_reference, place_ring, whole,
+    };
 
     /// The rule over a scripted reading: the shifts it tries and what it
     /// answers.
@@ -1102,6 +1220,157 @@ mod tests {
             (out, tried),
             (Ok([0, 0]), vec![[0, 0]]),
             "one candidate, read"
+        );
+    }
+
+    /// A unit sphere poled on `z` at the scalar `T`.
+    fn sphere_at<T: geom_core::Decide>() -> Surface<T> {
+        let x = |v: f64| T::from_f64(v);
+        Surface::Sphere {
+            frame: geom::Frame::new(
+                Point3::new(x(0.0), x(0.0), x(0.0)),
+                Vec3::new(x(0.0), x(0.0), x(1.0)),
+                Vec3::new(x(1.0), x(0.0), x(0.0)),
+            ),
+            radius: x(1.0),
+        }
+    }
+
+    /// The chart circle about `(cu, cv)` of radius `r`, over `t ∈ [0, 2π]`,
+    /// its start `t = 0` at `(cu, cv + r)`.
+    fn chart_circle<T: geom_core::Decide>(cu: f64, cv: f64, r: f64) -> geom_brep::Pcurve<T> {
+        let x = |v: f64| T::from_f64(v);
+        let free = |c: f64, a: f64, b: f64| geom_brep::Channel::Free {
+            c: x(c),
+            a: x(a),
+            b: x(b),
+            l: x(0.0),
+        };
+        geom_brep::Pcurve::Harmonic {
+            u: free(cu, 0.0, r),
+            v: free(cv, r, 0.0),
+        }
+    }
+
+    /// The chart segment `p → q` over `t ∈ [0, 1]`.
+    fn chart_segment<T: geom_core::Decide>(p: (f64, f64), q: (f64, f64)) -> geom_brep::Pcurve<T> {
+        let x = |v: f64| T::from_f64(v);
+        let line = |c: f64, l: f64| geom_brep::Channel::Free {
+            c: x(c),
+            a: x(0.0),
+            b: x(0.0),
+            l: x(l),
+        };
+        geom_brep::Pcurve::Harmonic {
+            u: line(p.0, q.0 - p.0),
+            v: line(p.1, q.1 - p.1),
+        }
+    }
+
+    /// The point a ring of the rows `rows` (each over `span`) is placed
+    /// by on the unit sphere's chart at the scalar `T`, as `(u, v)`.
+    fn picked_on_sphere<T: geom_core::Decide>(
+        rows: &[geom_brep::Pcurve<T>],
+        span: (f64, f64),
+    ) -> (f64, f64) {
+        let sphere = sphere_at::<T>();
+        let reader = Outer::from_pieces(
+            Vec::new(),
+            &sphere,
+            Some(Period::new(T::pi() * T::from_f64(2.0))),
+        );
+        let at = pick_reference(
+            rows.iter()
+                .map(|p| (p, (T::from_f64(span.0), T::from_f64(span.1)))),
+            |q| reader.lever(q, Band::linear(Tol::witness()).unwrap()),
+        );
+        let mid = |x: T| {
+            x.structure_bracket()
+                .map_or(f64::NAN, |(lo, hi)| geom_core::mid_param(lo, hi))
+        };
+        (mid(at.x), mid(at.y))
+    }
+
+    /// **A one-row ring beside a pole is placed by its far side.** The
+    /// chart circle of radius `0.01` whose nearest point is `10⁻³` from
+    /// the pole `v = π/2`, starting there: its row's middle is that
+    /// nearest point. The pick reaches at least 95% of the ring's
+    /// greatest lever `sin 0.021`, which eight samples meet
+    /// (`cos(π/8)` of the radius past the centre) and two, four or six
+    /// do not; at the interval scalar the pick is the same point, not
+    /// the row's first sample.
+    #[test]
+    fn a_one_row_ring_beside_a_pole_is_placed_by_its_far_side() {
+        let (cu, cv, r) = (1.0, FRAC_PI_2 - 0.011, 0.01);
+        let far = 0.021f64.sin();
+        let (u, v) = picked_on_sphere::<f64>(&[chart_circle(cu, cv, r)], (0.0, TAU));
+        assert!(
+            v.cos() >= 0.95 * far,
+            "the pick ({u}, {v}) reads lever {} against the ring's {far}",
+            v.cos()
+        );
+        let at = picked_on_sphere::<geom_core::Interval>(&[chart_circle(cu, cv, r)], (0.0, TAU));
+        assert!(
+            (at.0 - u).abs() <= 1e-12 && (at.1 - v).abs() <= 1e-12,
+            "the interval scalar picks ({}, {}) where f64 picks ({u}, {v})",
+            at.0,
+            at.1
+        );
+        let first = (cu + r * (TAU / 16.0).sin(), cv + r * (TAU / 16.0).cos());
+        assert!(
+            (at.1 - first.1).abs() > 1e-6,
+            "the interval scalar picked the row's first sample {first:?}"
+        );
+    }
+
+    /// **A ring whose first row hugs a pole is placed by a later row.**
+    /// The chart rectangle `u ∈ [0.5, 1.5]`, `v ∈ [π/2 − 0.2, π/2 − 10⁻⁴]`,
+    /// its first row the side `10⁻⁴` from the pole: the pick lies on the
+    /// far side, at both scalars.
+    #[test]
+    fn a_ring_whose_first_row_hugs_a_pole_is_placed_by_a_later_row() {
+        let (top, bottom) = (FRAC_PI_2 - 1e-4, FRAC_PI_2 - 0.2);
+        let corners = [(0.5, top), (1.5, top), (1.5, bottom), (0.5, bottom)];
+        fn rows<T: geom_core::Decide>(c: &[(f64, f64); 4]) -> Vec<geom_brep::Pcurve<T>> {
+            (0..4)
+                .map(|i| chart_segment(c[i], c[(i + 1) % 4]))
+                .collect()
+        }
+        let (_, v) = picked_on_sphere::<f64>(&rows(&corners), (0.0, 1.0));
+        let (_, vi) = picked_on_sphere::<geom_core::Interval>(&rows(&corners), (0.0, 1.0));
+        for (what, v) in [("f64", v), ("interval", vi)] {
+            assert!(
+                (v - bottom).abs() <= 1e-12,
+                "{what}: the pick's v {v} is not the far side's {bottom}"
+            );
+        }
+    }
+
+    /// **On a chart whose lever is one number every point ties**, and the
+    /// first sample of the first row is the pick: a torus's azimuth lever
+    /// is `R − r` at every latitude, so the window round any point gates
+    /// the same arms.
+    #[test]
+    fn on_a_torus_every_point_ties_and_the_first_sample_is_picked() {
+        let torus = Surface::Torus {
+            frame: geom::Frame::new(
+                Point3::origin(),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
+            major_radius: 2.0,
+            minor_radius: 0.5,
+        };
+        let reader = Outer::from_pieces(Vec::new(), &torus, Some(Period::new(TAU)));
+        let ring = chart_circle::<f64>(1.0, 0.3, 0.1);
+        let band = Band::linear(Tol::witness()).unwrap();
+        let at = pick_reference([(&ring, (0.0, TAU))], |q| reader.lever(q, band));
+        #[allow(clippy::cast_precision_loss)] // a handful of samples
+        let first = ring.eval(TAU / (2.0 * REFERENCE_SAMPLES as f64));
+        assert_eq!(
+            (at.x, at.y),
+            (first.x, first.y),
+            "the first sample of the first row"
         );
     }
 }

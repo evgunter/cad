@@ -382,11 +382,11 @@ fn probe_two_nonparallel_escapes_build_both_caps_under_every_op() {
     let caps = cap(r, cz + r - 1.0) + cap(r, r - cx);
     let ball = 4.0 / 3.0 * PI * r.powi(3);
     for strat in [SweepStrategy::Realized, SweepStrategy::Idealized] {
-        for (op, x, y, want, solids) in [
-            (BooleanOp::Union, &slab, &b, 16.0 + caps, 1),
-            (BooleanOp::Intersect, &slab, &b, ball - caps, 1),
-            (BooleanOp::Subtract, &slab, &b, 16.0 - (ball - caps), 1),
-            (BooleanOp::Subtract, &b, &slab, caps, 2),
+        for (op, x, y, want, solids, pieces) in [
+            (BooleanOp::Union, &slab, &b, 16.0 + caps, 1, 2),
+            (BooleanOp::Intersect, &slab, &b, ball - caps, 1, 1),
+            (BooleanOp::Subtract, &slab, &b, 16.0 - (ball - caps), 1, 1),
+            (BooleanOp::Subtract, &b, &slab, caps, 2, 2),
         ] {
             let what = format!("{strat:?}, {op:?}");
             let out = boolean_op_with(
@@ -405,20 +405,14 @@ fn probe_two_nonparallel_escapes_build_both_caps_under_every_op() {
                 "{what}: the result passes tier 3"
             );
             assert_eq!(body.solids().count(), solids, "{what}: its solids");
-            // Both cuts are closed again: the ball's part of each solid is
-            // connected, so it holds no more faces than the ball brought,
-            // and each further solid one more.
-            let on_sphere = |x: &topo::Body<f64>| {
-                x.faces()
-                    .filter(|&(f, _)| matches!(x.face_surface(f), Ok(topo::Surface::Sphere { .. })))
-                    .count()
-            };
-            assert!(
-                on_sphere(body) < on_sphere(&b) + solids,
-                "{what}: sphere faces {} against the ball's {}",
-                on_sphere(body),
-                on_sphere(&b)
-            );
+            // Both cuts are closed again: the ball's one band leaves one
+            // face for each connected piece of its surface the result
+            // keeps (the two caps, or the ball less both).
+            let on_sphere = body
+                .faces()
+                .filter(|&(f, _)| matches!(body.face_surface(f), Ok(topo::Surface::Sphere { .. })))
+                .count();
+            assert_eq!(on_sphere, pieces, "{what}: its sphere faces");
             assert!(
                 (vol(body) - want).abs() < slack(),
                 "{what}: volume {}, closed form {want}",
@@ -446,8 +440,8 @@ fn sphere_frame(body: &Body<f64>) -> (Point3<f64>, Vec3<f64>, Vec3<f64>) {
         .expect("a ball has a sphere face")
 }
 
-/// Whether the ball's seam (the revolve's two meridians, pole to pole
-/// through `u_ref` and back through `−u_ref`: one great circle) passes
+/// Whether the ball's seam (its one wrap edge, the meridian from pole to
+/// pole through `u_ref`) passes
 /// from one side to the other of any of `planes` (a point and a normal
 /// each): sampled densely, which is enough to tell a crossing these
 /// poses make from none.
@@ -455,7 +449,7 @@ fn seam_crosses(body: &Body<f64>, r: f64, planes: &[(Point3<f64>, Vec3<f64>)]) -
     let (c, axis, u) = sphere_frame(body);
     planes.iter().any(|&(o, n)| {
         let side = |k: u32| {
-            let phi = 2.0 * PI * f64::from(k) / 8192.0;
+            let phi = PI * f64::from(k) / 8192.0;
             let p = c + (u * phi.sin() + axis * phi.cos()) * r;
             (p - o).dot(n) > 0.0
         };
@@ -528,10 +522,11 @@ fn every_op_or_the_guard(what: &str, ball: &Body<f64>, r: f64, caps: f64, cuts: 
 /// three-plane pose's side circles lie on one meridian of the ball, so
 /// the second cut finds its circle across the first cut and takes none
 /// of its own (`apply_cut_ins`). Every spin of each builds every op at
-/// its closed form or refuses at the interior-loop guard; every spin
-/// whose seam crosses no escape face builds. Red on a wrong volume, an
-/// invalid body, another refusal, or a seam-clear spin that does not
-/// build.
+/// its closed form: the ball's one wrap edge crosses an escape face at
+/// some spins, and the crossings path cuts that circle in. The extent
+/// scan cuts in both circles where the seam is clear and one where it
+/// crosses. Red on a wrong volume, an invalid body, a refusal, or another
+/// count of cuts.
 #[test]
 fn every_spin_of_the_nonparallel_escapes_builds_or_meets_the_guard() {
     let two = {
@@ -566,14 +561,15 @@ fn every_spin_of_the_nonparallel_escapes_builds_or_meets_the_guard() {
             let spin = f64::from(k) * PI / 6.0;
             let spun = spun_about(&ball, pivot, axis, spin);
             let what = format!("{pose}, spin {}°", 30 * k);
-            let built = every_op_or_the_guard(&what, &spun, r, caps, cuts);
-            if !seam_crosses(&spun, r, &planes) {
-                clear += 1;
-                assert!(
-                    built,
-                    "{what}: its seam crosses no escape face, so every op builds"
-                );
-            }
+            // A circle the seam crosses is met by the crossings path, its
+            // cut-in taken there: the extent scan cuts in one circle.
+            let crossed = seam_crosses(&spun, r, &planes);
+            clear += usize::from(!crossed);
+            let cuts = if crossed { 1 } else { cuts };
+            assert!(
+                every_op_or_the_guard(&what, &spun, r, caps, cuts),
+                "{what}: every op builds"
+            );
         }
         assert!(
             clear > 0,

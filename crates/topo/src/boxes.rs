@@ -4463,14 +4463,19 @@ pub(crate) mod sphere_rect_rows {
     /// not a bound on it, and the face reaches the pole `z = 1`. Read
     /// as a level, the strut's tip would end the latitude window at
     /// `z = 0.3`. Every lane's box reaches the pole, under every sense.
-    /// A strut's tip is a cusp of the face's loop, which the sphere's
-    /// side reader refuses (`props_sphere_loop_cusp`), so no lane reads
-    /// a latitude window off this face at all: every box is the ball's.
+    /// A tip off a pole is no chart singularity of the face, so the
+    /// sphere's side reader places the face on neither side of its rim
+    /// (`boundary_material_sign_holding`), and no lane reads a latitude
+    /// window off this face at all: every box is the ball's.
     ///
-    /// A strut whose tip is the pole itself turns there on the face's
-    /// side, so the cap's bit has to agree with its winding: stated the
-    /// other way the strut is outside the face, the turn is the
-    /// complement's, and the mint refuses the loop as not closed.
+    /// A strut whose tip is the pole itself is the cap's wrap edge, a
+    /// full revolve's seam: the pole it holds at that tip is the datum
+    /// of its side, so every lane reads the zone from the rim to that
+    /// pole, `z ∈ [−0.5, 1]`, the ball's in `x` and `y`. It turns at the
+    /// pole on the face's side, so the cap's bit has to agree with its
+    /// winding: stated the other way the strut is outside the face, the
+    /// turn is the complement's, and the mint refuses the loop as not
+    /// closed.
     #[test]
     fn a_caps_strut_does_not_bound_its_latitude_window() {
         let band = Band::linear(Tol::witness()).unwrap();
@@ -4497,10 +4502,12 @@ pub(crate) mod sphere_rect_rows {
                     .box_in(&BoxAxes::World);
                 let boxed = face_box(&body, north, 0.0, band);
                 let (clo, chi) = crate::census::face_reach(&body, north, band).unwrap();
-                // Every extreme is the ball's: a window read off either
-                // side of the rim `z = −0.5` stops short of one pole,
+                // Every extreme is the ball's but the pole-tip cap's
+                // floor, its rim: a window read off the wrong side of
+                // the rim `z = −0.5` stops short of the pole `z = 1`,
                 // and a seam's azimuth window short of `x = −1` or of
                 // `y = ±1`.
+                let floor = if hc == 1.0 { -0.5 } else { -1.0 };
                 for (lane, lo, hi) in [
                     ("face_cover", [lo.x, lo.y, lo.z], [hi.x, hi.y, hi.z]),
                     (
@@ -4515,9 +4522,11 @@ pub(crate) mod sphere_rect_rows {
                     ),
                 ] {
                     assert!(
-                        lo.iter().all(|&l| l <= -1.0) && hi.iter().all(|&h| h >= 1.0),
+                        lo[..2].iter().all(|&l| l <= -1.0)
+                            && (floor - 1e-12..=floor).contains(&lo[2])
+                            && hi.iter().all(|&h| h >= 1.0),
                         "strut tip z = {hc}, senses {senses:?}: {lane}'s box {lo:?}..{hi:?} \
-                         is not the ball's"
+                         is not the face's zone over z = {floor}"
                     );
                 }
             }

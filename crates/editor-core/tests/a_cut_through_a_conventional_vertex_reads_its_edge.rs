@@ -18,8 +18,11 @@ use geom_core::Tol;
 
 /// The ball's turn about its own axis: its seam stays below the
 /// blocks' top, and member order leaves the circle's vertex at more
-/// than one point.
-const SPIN: f64 = 0.7;
+/// than one point. A full revolve's ball is one band whose wrap edge
+/// meets the circle at one point in every order at most turns (0 to
+/// 3.3 rad); at 4 rad the orders `[0, 1, 2]` and `[1, 0, 2]` leave the
+/// vertex at x ≈ 0.870 and the others on the blocks' shared face, x = 1.
+const SPIN: f64 = 4.0;
 
 /// `emit_union_conventional_vertex_orders`' cap on two flush blocks,
 /// the ball turned [`SPIN`] about its axis, in `order`; and, where

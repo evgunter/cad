@@ -378,7 +378,7 @@ mod rings;
 pub use rings::{FaceLift, PlacedRing, RingPlacementError, SplineTrimGap};
 pub(crate) use rings::{
     HALVINGS, PIECE_DEPTH, PIECE_VISITS, RingMiss, SHIFTS, Shift, Side, WINDOW_SHARE, face_lift,
-    place_ring,
+    face_lift_as, place_ring,
 };
 
 #[cfg(test)]

@@ -197,6 +197,12 @@ pub(crate) fn split_at_meridian(body: &mut Body<f64>, key: FaceKey, dir: Vec3<f6
     .unwrap();
 }
 
+/// Splits a full revolve's one-face ball into its two lunes
+/// ([`sweep::test_support::two_lunes`]).
+pub(crate) fn two_lunes(body: &mut Body<f64>, tol: Tol) {
+    sweep::test_support::two_lunes(body, tol);
+}
+
 // Splits of the review of PR 5516 (R2), lifted into rows.
 
 /// `body`'s volume through the typed door, or `None` where tier 3 refuses

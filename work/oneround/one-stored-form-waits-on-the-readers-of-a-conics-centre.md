@@ -101,7 +101,7 @@ be held on its arc.
   `crates/geom-brep/src/curve_pair/on_surface.rs`, and `crates/sweep/src/swept.rs`
   (`circle_at`, to evaluate).
 - Moved, or another curve: `crates/geom/src/pole_form.rs`
-  (`half_turn_curve`, which also re-squares the frame),
+  (`half_turn_curve`, retired with import's two-half pole form),
   `crates/sweep/src/blend/junction.rs`,
   `crates/sweep/src/blend/open/end_face.rs`.
 - From an ellipse's derived centre frame, a different conic:

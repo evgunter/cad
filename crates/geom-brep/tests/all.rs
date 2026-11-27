@@ -60,6 +60,8 @@ mod a_plane_against_a_torus_routes_as_its_pose_reads;
 mod a_plane_torus_closed_form_serves_its_circles_within_the_band_at_any_lever;
 #[path = "a_shared_row_is_certified_per_wall.rs"]
 mod a_shared_row_is_certified_per_wall;
+#[path = "a_thin_lemons_volume_keeps_its_digits.rs"]
+mod a_thin_lemons_volume_keeps_its_digits;
 #[path = "an_iso_family_reads_the_edges_span.rs"]
 mod an_iso_family_reads_the_edges_span;
 #[path = "an_iso_image_holds_its_line.rs"]

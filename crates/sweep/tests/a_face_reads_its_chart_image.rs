@@ -161,8 +161,8 @@ fn seamed_walls_keep_their_seams_and_read_pappus() {
     }
 }
 
-/// The unit ball revolved from a half circle: two lunes between two
-/// meridians.
+/// The unit ball revolved from a half circle: one face whose loop walks
+/// its one meridian pole to pole and back.
 fn ball() -> Body<f64> {
     revolved_about_y(
         vec![(Point2::new(0.0, -1.0), 1.0), (Point2::new(0.0, 1.0), 0.0)],
@@ -171,15 +171,13 @@ fn ball() -> Body<f64> {
     )
 }
 
-/// **The one-face ball reads the whole sphere.** Killing one of the
-/// ball's two meridians leaves one face whose loop walks the other pole
-/// to pole and straight back: a spur both ways round, so its chart image
-/// is empty, and an empty image on a closed surface is the whole surface.
+/// **The one-face ball reads the whole sphere.** The full revolve's
+/// ball is one face whose loop walks its meridian pole to pole and
+/// straight back: a spur both ways round, so its chart image is empty,
+/// and an empty image on a closed surface is the whole surface.
 #[test]
 fn the_one_face_ball_reads_the_whole_sphere() {
-    let mut body = ball();
-    let meridian = body.edges().next().map(|(_, e)| e.he_plus).unwrap();
-    body.kef(meridian).expect("one meridian kills");
+    let body = ball();
     let face = wall(&body);
     let (full, image) = counts(&body, face);
     assert_eq!(full, vec![2], "the loop walks one meridian up and back");
@@ -268,8 +266,9 @@ fn a_lone_strut_plane_face_is_degenerate() {
     );
 }
 
-/// **A spur built by `mev` is out of the face's chart image.** A
-/// meridian arc from the north pole a radian into a lune, spliced into
+/// **A spur built by `mev` is out of the face's chart image.** On the
+/// ball split into two lunes, a meridian arc from the north pole a
+/// radian into a lune, spliced into
 /// the lune's loop as an edge walked out and straight back: the lune
 /// still reads its own closed form (half the sphere's area, and the
 /// ball's volume across both lunes), its two corners and two arcs
@@ -277,6 +276,7 @@ fn a_lone_strut_plane_face_is_degenerate() {
 #[test]
 fn a_built_spur_is_out_of_the_chart_image() {
     let mut body = ball();
+    crate::seam_region_common::two_lunes(&mut body, tol());
     let north = Point3::new(0.0, 1.0, 0.0);
     let at_north = |b: &Body<f64>, h: topo::HalfEdgeKey| {
         let v = b.get_half_edge(h).unwrap().start;
