@@ -1365,3 +1365,59 @@ fn contacthold_m2_a_restated_tangency_carries_the_first_of_two_verdicts_margins(
 fn face_face(records: topo::OperandRecords) -> topo::OperandRecords {
     records.face_face().map(|(c, ..)| *c).collect()
 }
+
+/// The n-ary union of a full-height rod tangent to the plate's y = 2
+/// face along x = 0 (radius 0.5 about (0, 2.5), z 0..1, its cap circles
+/// on the face's top and bottom edges), a block flush on that face beside
+/// the line (x 1..1.8, y 2..2.6) over `z`, and the plate, in that order:
+/// the plate joins last, so the step reads the line against the plate's
+/// face, which the flush block's contact divides. Asserts the union
+/// builds, with the one face–face record of the rod's touch.
+fn rod_flush_plate(what: &str, z: (f64, f64)) {
+    let plate = finished(
+        "plate",
+        brick::<f64>((-2.0, 2.0), (-2.0, 2.0), (0.0, 1.0), tol()),
+        tol(),
+    );
+    let rod = ext("rod", vec![circle(0.0, 2.5, 0.5, 0.0)], 0.0, 1.0);
+    let flush = finished(
+        "flush",
+        brick::<f64>((1.0, 1.8), (2.0, 2.6), z, tol()),
+        tol(),
+    );
+    let built = nary_union(what, &[&rod, &flush, &plate]);
+    let last = &built.steps.last().expect("a step").body;
+    assert_eq!(
+        last.contacts.face_face().count(),
+        1,
+        "{what}: the rod's touch on the plate's face is one face–face record: {:?}",
+        last.contacts
+    );
+}
+
+/// **A section the output stage merges into a face is no cell of the
+/// plate face's division** (`rod_flush_plate`, the flush block taller
+/// than the plate): the merge takes a section edge on the plate face's
+/// boundary into a face beyond its pieces, and the rod's record lands
+/// on the piece that holds the line. Red where the division names that
+/// face among its minted cells: the record refuses `Unread` on the
+/// rod's wall against it.
+#[test]
+fn a_tall_flush_block_leaves_the_rods_touch_on_the_plates_piece() {
+    rod_flush_plate("tall flush (z 0..1.5)", (0.0, 1.5));
+}
+
+/// As [`a_tall_flush_block_leaves_the_rods_touch_on_the_plates_piece`],
+/// the flush block standing below the plate, its top flush with the
+/// plate's (z −0.5..1).
+#[test]
+fn a_deep_flush_block_leaves_the_rods_touch_on_the_plates_piece() {
+    rod_flush_plate("deep flush (z −0.5..1)", (-0.5, 1.0));
+}
+
+/// As [`a_tall_flush_block_leaves_the_rods_touch_on_the_plates_piece`],
+/// the flush block shorter than the plate (z 0..0.5).
+#[test]
+fn a_short_flush_block_leaves_the_rods_touch_on_the_plates_piece() {
+    rod_flush_plate("short flush (z 0..0.5)", (0.0, 0.5));
+}

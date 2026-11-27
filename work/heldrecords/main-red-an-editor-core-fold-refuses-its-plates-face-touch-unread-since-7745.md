@@ -41,7 +41,36 @@ The row builds as it did on `cc90e26a7a1`, with no record dropped and no rule lo
 - **Fix.** `boolean::ops` `fate_of` drops a minted cell whose live image
   is a face: a division's minted cells are edges and vertices in the
   cell's interior. A face holding one is a piece where it holds the
-  cell's interior, and beyond the cell otherwise. A touch that lay only
-  on such a section would refuse `Stale`, loud, rather than drop.
+  cell's interior, and beyond the cell otherwise. A touch that lay
+  only on such a section is likely unreachable:
+  - The merge took the section edge in because the faces on both of
+    its sides were coplanar and merged, so the line it lay on is now in
+    that merged face's interior.
+  - A record whose touch lay only on that line would be a touch along
+    the merged seam, which a cut along the touch does not leave: the
+    reduction would have found it on the seam's own cells.
+
+  This is reconstructed by the follow-up lane: the PR 7825 review's
+  probes, not its text, reached the lane. No test reaches the case.
 - **Result.** The record lands on the plate's piece, as on
   `cc90e26a7a1`.
+
+## 2026-11-27 — the per-test evidence (PR 7825)
+
+- **The comparison.** The full default profile of topo, sweep and
+  editor-core (12388 tests, slow set included), `--cargo-profile
+  release` with debug assertions on, run on origin/main `febdf28c` and
+  on the fix `10d639f8`, compared per test.
+- **Built → refused: none.** The only differences:
+  - this row's witness: FAIL → PASS;
+  - `topo section_cert::square_search::the_square_wall_arm_agrees_with_the_traced_section`:
+    PASS → FAIL. It is a seeded fuzzer with a new seed per run, in
+    section certification, which PR 7825 does not touch, and it failed
+    on `cc90e26a` in an earlier comparison too.
+- **Not compared:**
+  `sweep reach_cone_root_lane::every_op_on_a_cone_wall_answers_its_truth_or_refuses_typed`
+  ran past 72 minutes on both sides and was stopped at the same point
+  on each.
+- **The rest.** The other 24 failures fail on both sides.
+- **The root** is filed as
+  `a-divisions-minted-cells-name-cells-on-the-cells-boundary` (P1).
