@@ -347,3 +347,35 @@
   - The reviewer showed the three loft/NURBS containment reds are main's, from INSIDE's PR 7798 (`33191a617a`). Filed P1 `work/inside/main-red-three-loft-rows-expect-point-containment-to-refuse-a-spline-face`.
   - Dispatched lane `heldrecords/minted-door` (session_018u3gVFsPxLJDhJLgrGLPTt), single FULL review.
   - one-list told to merge main and re-diff.
+
+- 2026-11-26 PR 7782 (one-list) merged main (head e60352af27). The per-test verdict diff against ffc8c37d4c, slow set included, is empty. Main has 10 reds, the same on both sides: the pierce row (minted-door), three loft/NURBS rows (INSIDE), and six that were already red before PR 7745 (recourse_roster on ORBIT, square_search fuzzer on GERM, review_cleave_nurbs ×2, shell_general_door, an_aimed_ray). Single FULL review dispatched (session_018u3gVFebXNVvDBVxhHuhAN).
+
+- 2026-11-26 minted-door finished as PR 7808 (head 46186823d1, `gate ok` green).
+  - The boolean's door decides vertex-on-edge meetings by the confirm pass's own reading. The row is a `Meet` on (E, F).
+  - Section vertices are named on the carried path. `uncopied` and `copies` are deleted.
+  - The pierce row builds at three ε.
+  - The stress row (the wall grazes F): the margin is amplified about 1000× down to 0.14° and stays Zero. It refuses typed at 0.03° and 0.007°.
+  - Diff is per test, slow set included. Built → refused is empty.
+  - One departure, accepted pending review: in band at the door is `JoinDesync`, because `landings` has already confirmed the pair with the same reading.
+  - Single FULL review dispatched (session_018u3gVJNJL47PChxC7YURth).
+
+- 2026-11-26 PR 7782 (one-list) merged as d23272dea5, on local evidence after a single FULL review (MERGEABLE, no MAJOR) and its fix pass.
+  - The fix pass made `ReductionContacts` construction crate-private, gave `OperandRecords::face_face()` and `lower()` to five hand-written filters, and added the encoder round-trip rows.
+  - Two kind-order tables stay; the lane's reason is that neither derives from the other without reordering output.
+  - Per-test diff: none at either ε.
+  - The reviewer did not run sweep's whole slow set (about 10 hours on its box); it ran the touched sweep files with the slow set included instead.
+  - Row closed. PR 7808 (minted-door) will need main merged after its review: the carry moved under it.
+
+- 2026-11-26 PR 7808 review: NOT MERGEABLE.
+  - MAJOR: with `uncopied` deleted, the vertex–vertex door writes a fresh `Meet {E1, E2}` row at margin 0 for two copies of one ring vertex. editor-core `coincidence_door::a_ring_serving_two_pierces…` went PASS→FAIL. The lane's evidence ran topo and sweep but not editor-core.
+  - Ruling: copies of one vertex are structure. The landing cites the reduction's existing decision, and no fresh row is written.
+  - MINORs:
+    - section-vertex naming is unpinned;
+    - `pend` keeps the first margin, not the worst;
+    - the stress row's other-ε arm accepts any `Err`;
+    - the `place_found` sibling has no witness search.
+  - Fix pass sent. The full comparison now includes editor-core.
+
+- 2026-11-26 Checked whether PR 7782 (one-list, mine) caused the 10–20× slow sweep rows the minted-door lane filed. `cylinder_sphere_frame::a_ball_across_a_cylinder_wall_wider_than_the_wall`, same build on both sides, is >2100 s and killed both on 7782's merge d23272dea5 and on its first parent 7ce370250a. So 7782 is not the cause; the slowdown is earlier. The row `main-slow-sweep-rows-run-ten-to-twenty-times-longer-since-ffc8c37d4` stays open; candidates are INSIDE's 7801/7813/7814.
+
+- 2026-11-26 Bisected main's slowdown to INSIDE's PR 7801 (`1bb20a9fce1`, the face door's spline arm). The ball-across-cylinder row takes 374 s on its first parent and > 900 s on the merge; ffc8c37d4c gives 378 s and 7807 gives 383 s. Filed P0 `work/inside/main-slow-since-7801-…`: it holds every PR's `gate ok`, because the mesh-budget job hangs. Told the minted-door lane to point its heldrecords copy there rather than land a duplicate.
