@@ -251,12 +251,15 @@ fn review3_where_the_escalations_stand() {
     }
 }
 
-/// **Review 3 (PR 5993): the seamed Steinmetz pair keeps the frontier,
-/// located or not.** [`review_r1_a_seam_touch_is_not_the_users_lever`]
+/// **Review 3 (PR 5993): the seamed Steinmetz pair's seam touch is no
+/// user's lever, located or not.** [`review_r1_a_seam_touch_is_not_the_users_lever`]
 /// rejects only `Escalated`, but the head routes every span-path door
 /// escalation through `CurvedPierceEscalated`, so a seam touch read in
 /// the gap would pass it. Its seam ruling is exactly tangent to the
-/// partner wall, a decided Zero, which under A2 is the frontier.
+/// partner wall at a node of the pair's section, where it crosses both
+/// bisector planes at one point: the factored read refuses it at the node
+/// (`NodeUnbuilt`, `NodeWhy::GermOnNode`; C5), a limit that offers no
+/// lever, where the quadric door's frontier stood before.
 #[test]
 fn review3_the_seam_touch_keeps_the_frontier() {
     let tol = Tol::witness();
@@ -266,8 +269,14 @@ fn review3_the_seam_touch_keeps_the_frontier() {
         tol,
     );
     assert!(
-        matches!(seamed, Err(BooleanError::CurvedPierceUnsupported { .. })),
-        "the seam's decided touch keeps the frontier: {}",
+        matches!(
+            seamed,
+            Err(BooleanError::NodeUnbuilt {
+                why: topo::NodeWhy::GermOnNode,
+                ..
+            })
+        ),
+        "the seam through the node refuses at the node: {}",
         kind(&seamed)
     );
 }

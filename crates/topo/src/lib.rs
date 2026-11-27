@@ -1722,7 +1722,6 @@ pub use finish::{
     finish, session_box_at, take,
 };
 pub use geom_brep::curve_face::CrossWhy;
-pub use geom_brep::curve_face::plane_crossing::ConicRootFault;
 pub use geom_brep::edge_crossing::CrossingDecision;
 pub use mirror::{Reflection, mirror_body};
 pub use pieces::PieceSortError;

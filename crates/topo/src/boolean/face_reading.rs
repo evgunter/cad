@@ -1,10 +1,12 @@
 //! **The face reading** (C5's curve × face clause; GERM U4 §2.3): the
 //! crossing reading `curve_face::cross` answers for a span against a
-//! face's carrier, read through the face's trim, once, for every lane that
-//! reads a curved face.
+//! face's carrier, read through the face's trim, once, for both of the
+//! sweep's lanes, a plane face's and a curved face's ([`place_meeting`]).
 //!
-//! - **A found meeting** strictly inside the span is placed in the trim
-//!   (`reduce::place_crossing`: a cone's far nappe told off first, then
+//! - **A found meeting** strictly inside the span is placed in the trim:
+//!   on a plane by the planar door (`contain::contfp_decided`, its
+//!   refusals carried typed with the face), and on a curved face by
+//!   `reduce::place_crossing` (a cone's far nappe told off first, then
 //!   `contain::placement_on_carrier`). One at an end of the span is that
 //!   end's: the vertex rows own it.
 //! - **A window** holds no point of the face when none of its meetings
@@ -28,10 +30,13 @@
 //!   ([`BooleanError::ClassificationInvariant`]) and is never set aside.
 //! - **A touch** is one meeting, its in-band arc: read as a window, and
 //!   off the face it is no meeting here. On the face it is the lane's
-//!   touch treatment (a curved face's typed frontier). A touch at an end
+//!   touch treatment. A touch at an end
 //!   of the span is the end vertex's at its point, but its arc's stretch
 //!   inside the span is the span's: that stretch is read as an inside
-//!   touch's arc is, and only then is the meeting the vertex's.
+//!   touch's arc is, and only then is the meeting the vertex's. A touch the
+//!   face may hold carries its point to the lane's touch treatment: on a
+//!   plane it is split there (the graze net), on a curved face it is the
+//!   typed frontier.
 //!
 //! ρ is the carrier's reach, the distance from it to its medial axis: a
 //! sphere's or a cylinder's radius, a ring torus's `min(r, R − r)`, and no
@@ -91,8 +96,10 @@ pub(super) enum FaceMeeting<T: Real> {
         /// Where it stands against the face.
         placed: super::reduce::Placed,
     },
-    /// A touch whose in-band arc's ball the face may hold.
-    TouchOnFace,
+    /// A touch whose in-band arc's ball the face may hold: at its
+    /// parameter and point where it is strictly inside the span, `None`
+    /// at an end of it.
+    TouchOnFace(Option<(T, Point3<T>)>),
 }
 
 /// **The face reading of `cross`'s answer for `span` against `face`**
@@ -103,7 +110,7 @@ pub(super) enum FaceMeeting<T: Real> {
 /// [`BooleanError::ClassificationInvariant`] for a window whose why is a
 /// fault; a placement's or a ball's escalation; a stale face.
 pub(super) fn face_crossings<T: Decide + Bounds>(
-    y: &Body<T>,
+    (y, face_is): (&Body<T>, super::Operand),
     face: FaceKey,
     surface: &geom::Surface<T>,
     span: &Span<'_, T>,
@@ -211,19 +218,19 @@ pub(super) fn face_crossings<T: Decide + Bounds>(
                 if inside.0.hi() < inside.1.hi()
                     && !window_off_face(y, face, surface, carrier, inside, band)?
                 {
-                    out.push(FaceMeeting::TouchOnFace);
+                    out.push(FaceMeeting::TouchOnFace(None));
                     break;
                 }
                 out.push(FaceMeeting::End);
             }
-            (OnSpan::Inside { .. }, MeetingKind::Touch { arc }) => {
+            (OnSpan::Inside { t }, MeetingKind::Touch { arc }) => {
                 if !window_off_face(y, face, surface, carrier, arc, band)? {
-                    out.push(FaceMeeting::TouchOnFace);
+                    out.push(FaceMeeting::TouchOnFace(Some((t, m.point))));
                     break;
                 }
             }
             (OnSpan::Inside { t }, MeetingKind::Cross) => {
-                let placed = super::reduce::place_crossing(y, face, m.point, nappe, band)?;
+                let placed = place_meeting(y, face_is, face, surface, m.point, nappe, band)?;
                 let decisive = matches!(
                     placed,
                     super::reduce::Placed::At(..)
@@ -244,6 +251,34 @@ pub(super) fn face_crossings<T: Decide + Bounds>(
     Ok(FaceCrossings::Met {
         meetings: out,
         windowed: !windows.is_empty(),
+    })
+}
+
+/// **Where a meeting at `p` stands against `face`**, a face of
+/// `face_is`: on a plane by the planar door ([`crate::contain::contfp_decided`],
+/// its refusals carried typed with the face, [`super::reduce::esc`]), on
+/// any other carrier by [`super::reduce::place_crossing`].
+///
+/// # Errors
+///
+/// The planar door's refusal, or [`super::reduce::place_crossing`]'s.
+pub(super) fn place_meeting<T: Decide>(
+    y: &Body<T>,
+    face_is: super::Operand,
+    face: FaceKey,
+    surface: &geom::Surface<T>,
+    p: Point3<T>,
+    nappe: Option<super::reduce::ConeNappe<T>>,
+    band: Band,
+) -> Result<super::reduce::Placed, BooleanError> {
+    let &geom::Surface::Plane { frame, .. } = surface else {
+        return super::reduce::place_crossing(y, face, p, nappe, band);
+    };
+    let (at, on) = crate::contain::contfp_decided(y, face, frame.axis(), p, band)
+        .map_err(|e| super::reduce::esc(e, face_is, face))?;
+    Ok(match at {
+        FaceContainment::Out => super::reduce::Placed::Out,
+        at => super::reduce::Placed::At(at, on),
     })
 }
 

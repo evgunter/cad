@@ -556,7 +556,6 @@ fn window_at_an_end<T: Decide>(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use geom_brep::curve_face::plane_crossing::ConicRootFault;
     use geom_brep::curve_face::{CrossWhy, PoseRefusal, PoseRung, cross};
     use geom_brep::curve_pair::Span;
     use geom_core::{Band, Point3, Vec3};
@@ -892,10 +891,7 @@ mod tests {
                     "{label}: the split's lever: {split}"
                 );
                 let boolean = crate::BooleanError::Escalated {
-                    decision: BooleanDecision::of_conic_root(
-                        ConicRootFault::BellyGraze(diag),
-                        DeclarationRead::Moot,
-                    ),
+                    decision: BooleanDecision::of_plane_coincidence(DeclarationRead::Moot),
                     diag,
                 }
                 .render(geom_brep::recourse::Reading::Build);

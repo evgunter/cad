@@ -1000,7 +1000,7 @@ where one crosses the other's plane, through the curve × face arm for
 that curve against that plane (`curve_face::cross`), at a root on the
 curve's own section of that plane, read through the surface's chart:
 the co-surface arm (`curve_pair::on_surface`), whose plane door
-(`curve_face::plane_crossing`) shares `meet`'s transverse harmonic
+(the pose's plane arm, `curve_face::pose`) shares `meet`'s transverse harmonic
 (`pose::height`). Which curve crosses which plane is fixed per pair of
 curve families, at write time, by one table in the arm, its *direction
 table*, on the transversality rule: the plane is that of a curve whose
@@ -1380,7 +1380,8 @@ local leaves the whole span as one window, and no arm refuses whole by
 kind. A door takes typed operands. The plane door has one entry point;
 dropping a root at an end of the span is the consumer's choice on the
 answer's end hit, not the door's. Every door is here (DESIGN's
-Layering row): `plane_crossing`, `line_quadric`, `conic_quadric`,
+Layering row): the plane door (the pose's plane arm, its rows in
+`plane_crossing`), `line_quadric`, `conic_quadric`,
 `circle_torus`, `ellipse_torus`, `spiric_plane`, `composite` and
 `spline_face`. The spiric × plane door reads a spiric span by its
 *section reduction*: the span is one oval of its torus cut by the
@@ -1399,9 +1400,16 @@ cutting plane; there it refuses too.
 A span
 on one of two cylinders of equal radii whose axes meet is read against
 the other through their bisector planes (`factored_crossing`), reached
-only where the surface-pair pose decides that pose; where it declines
-(at a node, or for a conic in a bisector plane) it refuses typed and
-never hands the span back to the quadric door. Every consumer of where
+only where the surface-pair pose decides that pose. On its own wall, the
+partner's residual is the product of the span's distances from the two
+planes. So the span crosses the partner where it crosses a plane, and
+lies on the partner where it lies in one: decided on the partner, as the
+conic's farthest offset from the plane times the lever 2|â₁·n̂|
+(2cos(θ/2) on one plane, 2sin(θ/2) on the other), and answered as the
+curved lane's lying-on. Where the read cannot
+decide, it refuses typed: two crossings within the band of each other
+(a node), or a conic whose plane is within the band of a bisector
+plane's. It never hands the span back to the quadric door. Every consumer of where
 a curve meets a surface reads `pose` or `cross` (the boolean's sweep,
 the plane split, the slit, the sketch trace, the point-in-solid ray,
 the co-surface arm, the ring path's plane roots through the co-surface
@@ -1476,8 +1484,8 @@ solution in that box of the state lies within the band of the end, a
 tangent touch and an end on a crease included, and the walk does not
 read past that end. A spiric
 span against a spline face is unbuilt. Of the analytic arms, the
-plane-crossing door (`curve_face::plane_crossing`: a line's endpoints,
-a conic's roots against the plane), the line × quadric door
+plane-crossing door (the pose's plane arm: a line's root, a conic's
+roots against the plane), the line × quadric door
 (`curve_face::line_quadric`), the conic × quadric door
 (`curve_face::conic_quadric`), the conic × torus doors
 (`curve_face::circle_torus`, `curve_face::ellipse_torus`, over the
@@ -1521,7 +1529,7 @@ budget or first cut) are one window over the whole span. A window that
 misses the span is dropped with the meetings it could hold; windows
 that overlap or touch within the band are one, a fault's why ahead of
 any other; a found meeting lies in no window. The doors' older
-entries (`plane_crossing_lane`, and the ray lane's `line_wall_roots`,
+entries (the ray lane's `line_wall_roots`,
 `line_sphere_roots`, `line_cone_roots`) read the pose and then the
 method, and decide nothing of their own, for the readers that do not yet
 read `cross`: each answers the first window that meets the span as its

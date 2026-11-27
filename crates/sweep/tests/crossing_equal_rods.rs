@@ -57,9 +57,15 @@ fn rod(spin: f64, (z0, z1): (f64, f64)) -> AtRestBody<f64> {
 
 /// `A`: [`rod`] over `z ∈ [−3, 3]` less the half-space under `z = x`.
 fn mitred(spin: f64) -> AtRestBody<f64> {
+    mitred_off(spin, 0.0, 0.0)
+}
+
+/// [`mitred`] with its cutting plane turned `eta` about the `y` axis off
+/// `z = x` and moved `shift` along its own normal.
+fn mitred_off(spin: f64, eta: f64, shift: f64) -> AtRestBody<f64> {
     let tol = Tol::witness();
-    let tilt = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), -PI / 4.0);
-    let slab = brick((-50.0, 50.0), (-50.0, 50.0), (-100.0, 0.0), tol);
+    let tilt = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), -PI / 4.0 + eta);
+    let slab = brick((-50.0, 50.0), (-50.0, 50.0), (-100.0, shift), tol);
     let under = finished(
         "the half-space under z = x",
         topo::transform_rigid(&slab, &geom_core::test_support::rigid(&tilt, tol)).unwrap(),
@@ -326,5 +332,161 @@ fn offsetting_the_mitred_wall_refuses_typed() {
     assert!(
         matches!(got, Err(topo::ReplaceFaceError::VertexDisagreement { .. })),
         "{got:?}"
+    );
+}
+
+/// **The mitred rim lies on the crossing rod's wall, read through the
+/// bisector plane** (C5): `A`'s rim is the ellipse `z = x`, which lies in
+/// a bisector plane of the two walls, so on `B`'s wall. The factored read
+/// answers it as lying on that wall, as the curved lane answers an arc
+/// lying on a face's carrier, and `A ∪ B` at spins `(0, 0)` builds. Both
+/// routes build here, so the row reads the decisions the op took: the
+/// bisector plane's offset (`curve_face_pose_plane_offset`), and none of
+/// the conic × cylinder pose's rungs (`curve_face_pose_coaxial`), which
+/// only the quadric door reads.
+///
+/// Red where the read hands a conic lying in a bisector plane back to the
+/// quadric door: `curve_face_pose_coaxial` is decided.
+#[test]
+fn the_mitred_rim_lies_on_the_crossing_wall_through_its_bisector_plane() {
+    let tol = Tol::witness();
+    let (a, b) = (mitred(0.0), crossing(0.0, 0.5));
+    let (r, rec) = geom_core::k_stats::detached(|| topo::union(&a, &b, tol));
+    assert!(
+        matches!(r, Ok(BooleanResult::Body(_))),
+        "A ∪ B builds: {r:?}"
+    );
+    let decided = |name: &str| rec.recorded().verdicts.iter().any(|v| v.predicate == name);
+    assert!(
+        decided("curve_face_pose_plane_offset"),
+        "the bisector plane's offset is decided"
+    );
+    assert!(
+        !decided("curve_face_pose_coaxial"),
+        "no conic × cylinder pose is read: the rim is not handed to the quadric door"
+    );
+}
+
+/// The run's band.
+fn zero() -> f64 {
+    geom_core::Band::linear(Tol::witness()).unwrap().zero()
+}
+
+/// **A rim whose plane stands in the band's gap off the bisector plane
+/// escalates** (C5): `A`'s cutting plane moved `3ζ` off `z = x` along its
+/// normal. The factored read cannot tell whether the rim lies in the
+/// bisector plane, so on the partner wall: its pose's offset rung reads in
+/// the gap, and the op escalates on the edge's coincidence with the
+/// partner's face, neither handing the rim back to the quadric door nor
+/// refusing it as a node.
+///
+/// Red where the gap is read as the rim lying in the plane, or handed
+/// back to the quadric door.
+#[test]
+fn a_rim_in_the_gap_off_the_bisector_plane_escalates() {
+    let tol = Tol::witness();
+    let (a, b) = (mitred_off(0.0, 0.0, 3.0 * zero()), crossing(0.0, 0.5));
+    let r = topo::union(&a, &b, tol);
+    assert!(
+        matches!(
+            r,
+            Err(BooleanError::Escalated {
+                decision: topo::BooleanDecision::Coincidence(
+                    topo::Coincide::EdgeOnCurvedFace | topo::Coincide::VertexOnCurvedFace,
+                    _
+                ),
+                ..
+            })
+        ),
+        "A ∪ B: the rim's coincidence with the partner's face escalates, got {r:?}"
+    );
+    // The other order asks a containment of the rim's neighbourhood first;
+    // it escalates too, never building or refusing as a node.
+    let r = topo::union(&b, &a, tol);
+    assert!(
+        matches!(r, Err(BooleanError::Escalated { .. })),
+        "B ∪ A escalates, got {r:?}"
+    );
+}
+
+/// **A rim lying in the bisector plane within the band of the partner wall
+/// builds** (C5; the ends taken from the span's verdict): `A`'s cutting
+/// plane moved `0.3ζ` off `z = x` and turned so its tilt over the rim's
+/// reach is `0.3ζ` more. The rim's farthest point stands `0.6ζ` off the
+/// plane, `0.85ζ` off the partner wall (the plane's lever at a right angle
+/// between the axes, `2cos 45° = √2`): in the zero band. The read answers
+/// the rim lying on the partner wall, its ends on the plane by that
+/// verdict, and `A ∪ B` builds.
+#[test]
+fn a_rim_lying_in_the_bisector_plane_within_the_band_of_the_partner_builds() {
+    let tol = Tol::witness();
+    let z = zero();
+    let (a, b) = (
+        mitred_off(0.0, 0.3 * z / 2f64.sqrt(), 0.3 * z),
+        crossing(0.0, 0.5),
+    );
+    let r = topo::union(&a, &b, tol);
+    assert!(
+        matches!(r, Ok(BooleanResult::Body(_))),
+        "A ∪ B builds: {r:?}"
+    );
+}
+
+/// **A rim within the band of the bisector plane but in the gap off the
+/// partner wall escalates** (the lever): `A`'s cutting plane moved `0.45ζ`
+/// off `z = x` and turned `0.45ζ` more over the rim's reach. The plane's own
+/// pose reads the rim lying in the plane (its farthest point `0.9ζ` off),
+/// but that point stands `√2 · 0.9ζ = 1.27ζ` off the partner wall, in the
+/// gap: the read decides "in the plane" on the partner, in metres
+/// (`bool_factored_in_bisector`), and escalates the edge's coincidence with
+/// the partner's face.
+///
+/// Red where "in the plane" is the plane's pose alone, unlevered: the rim
+/// is answered lying on the partner wall with ends `1.27ζ` off it, and the
+/// arc's own reading refuses those points on the face's carrier.
+#[test]
+fn a_rim_in_the_band_of_the_bisector_plane_but_off_the_partner_escalates() {
+    let tol = Tol::witness();
+    let z = zero();
+    let (a, b) = (
+        mitred_off(0.0, 0.45 * z / 2f64.sqrt(), 0.45 * z),
+        crossing(0.0, 0.5),
+    );
+    let r = topo::union(&a, &b, tol);
+    assert!(
+        matches!(
+            r,
+            Err(BooleanError::Escalated {
+                decision: topo::BooleanDecision::Coincidence(topo::Coincide::EdgeOnCurvedFace, _),
+                diag,
+            }) if diag.predicate == Some("bool_factored_in_bisector")
+        ),
+        "A ∪ B: the rim off the partner wall escalates on the lever, got {r:?}"
+    );
+}
+
+/// **A rim lying on the partner wall that ends at a node refuses at the
+/// node** (C5): `A` spun a quarter turn, so its seams, and the rim's
+/// vertices, stand at `(0, ±1, 0)`, the section's nodes, where the walls are
+/// tangent; `B` reaching back to `x = −½` holds them. The read answers the
+/// rim lying on the partner wall, but an end on both bisector planes is a
+/// node, which the node pass reads: `NodeUnbuilt`, on the boundary.
+///
+/// Red where a lying span's ends are taken on the plane with no reading
+/// of the other plane: the rim is recorded through the node.
+#[test]
+fn a_rim_lying_on_the_partner_that_ends_at_a_node_refuses_at_the_node() {
+    let tol = Tol::witness();
+    let (a, b) = (mitred(FRAC_PI_2), crossing(0.0, -0.5));
+    let r = topo::union(&a, &b, tol);
+    assert!(
+        matches!(
+            r,
+            Err(BooleanError::NodeUnbuilt {
+                why: topo::NodeWhy::OnBoundary(_),
+                ..
+            })
+        ),
+        "the rim's end at the node refuses there, got {r:?}"
     );
 }

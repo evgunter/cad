@@ -44,7 +44,6 @@ use crate::contact::GlueClass;
 use crate::face_normal::NormalDecision;
 use geom_brep::PlaneRung;
 pub use geom_brep::curve_face::line_quadric::WallRung;
-use geom_brep::curve_face::plane_crossing::ConicRootFault;
 pub use geom_brep::edge_crossing::CrossingDecision;
 pub use geom_brep::sector_shape::SectorRung;
 pub use geom_brep::{SectionRadius, TorusConvention};
@@ -1269,15 +1268,12 @@ impl BooleanDecision {
         }
     }
 
-    /// The decision a conic root lane's escalation came from: a
-    /// crossing decision as the fault routes it, and otherwise a
-    /// coincidence between the plane and the conic, with what the door
-    /// read of the declaration ahead of it.
-    pub(crate) fn of_conic_root(fault: ConicRootFault, read: DeclarationRead) -> Self {
-        fault.decision().map_or(
-            Self::Coincidence(Coincide::EdgeOnPlane, read),
-            Self::Crossing,
-        )
+    /// The decision the planar lane escalates a curved edge's coincidence
+    /// with a face's plane on (a pose rung read in band against the plane:
+    /// its plane parallel to the face's at an offset in band, its belly
+    /// grazing it), with what the door read of the declaration ahead of it.
+    pub(crate) const fn of_plane_coincidence(read: DeclarationRead) -> Self {
+        Self::Coincidence(Coincide::EdgeOnPlane, read)
     }
 
     /// The decision a lever-armed reading escalated on at `gate`: its arm
@@ -2849,8 +2845,8 @@ pub(in crate::boolean) mod tests {
         }
     }
 
-    /// **The conic root lane ends alike at the split and the Boolean**,
-    /// rung by rung, through the one routing ([`ConicRootFault::decision`]):
+    /// **The planar lane ends alike at the split and the Boolean**, rung
+    /// by rung, through its one map ([`crate::boolean::reduce::plane_refused`]):
     /// a crossing rung renders the same sentence at both doors, its
     /// subject and its decision's ending; a rung that asks whether the
     /// plane coincides with the conic states its own subject at the split,
@@ -2870,36 +2866,42 @@ pub(in crate::boolean) mod tests {
         );
         let faults = [
             (
-                ConicRootFault::PlaneParallel(diag),
                 pose(PoseRung::PlaneParallel),
                 "whether a curved edge's plane is parallel to the plane that cuts it",
+                false,
             ),
             (
-                ConicRootFault::BellyGraze(diag),
                 pose(PoseRung::BellyGraze),
                 "whether a plane cuts a curved edge, grazes it or misses it",
+                false,
             ),
             (
-                ConicRootFault::CrossingInterior(diag),
                 method(MeetFault::Escalated(diag)),
                 "whether a crossing lands strictly inside its edge",
+                true,
             ),
             (
-                ConicRootFault::RootOrder(diag),
                 method(MeetFault::Touch(diag)),
                 "which of two crossings on an edge comes first",
+                true,
             ),
         ];
-        for (fault, why, subject) in faults {
+        for (why, subject, crossing) in faults {
+            let fault = why;
             let split = SplitReduceError::CrossingEscalated {
                 edge: EdgeKey::default(),
                 fault: why,
             }
             .render(geom_brep::recourse::Reading::Build);
-            let boolean = BooleanError::Escalated {
-                decision: BooleanDecision::of_conic_root(fault, DeclarationRead::Moot),
-                diag,
-            }
+            let boolean = crate::boolean::reduce::plane_refused::<f64>(
+                why,
+                |diag| BooleanError::Escalated {
+                    decision: BooleanDecision::of_plane_coincidence(DeclarationRead::Moot),
+                    diag,
+                },
+                || panic!("{why:?}: a plane window with a margin reads as the frontier"),
+            )
+            .expect_err("the map refuses every window")
             .render(geom_brep::recourse::Reading::Build);
             for text in [&split, &boolean] {
                 let problems = short_of_the_guard(text, &[]);
@@ -2909,9 +2911,9 @@ pub(in crate::boolean) mod tests {
                 split.starts_with(&format!("{subject} is undecided: {}. ", diag.payload())),
                 "{fault:?}: {split}"
             );
-            match fault.decision() {
-                Some(_) => assert_eq!(split, boolean, "{fault:?}"),
-                None => {
+            match crossing {
+                true => assert_eq!(split, boolean, "{fault:?}"),
+                false => {
                     assert!(
                         split.ends_with(&format!("Recourse: {}", geom_core::SPLIT_PLANE_RECOURSE))
                             && !split.contains("declare"),

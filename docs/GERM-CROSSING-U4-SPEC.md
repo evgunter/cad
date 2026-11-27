@@ -358,8 +358,11 @@ whose rescues must each be shown kept. Dual: the face reading is the rule every 
   sampled `Variety` arms go from `slit`. A spline or spiric against a curved face keeps
   `clears_plane`/`spiric_on_curved` until U4d.
 - `factored_crossing` reads `cross` against `Surface::Plane` built from each bisector. Its line root
-  comes from that `cross`. Every decline that is not "no such pair" refuses typed: a node is
-  `NodeUnbuilt`, and a conic in a bisector plane names the plane (C5).
+  comes from that `cross`. A conic lying in a bisector plane lies on the partner wall, decided there in
+  metres (its farthest point from the plane times the plane's lever), and is answered as the curved
+  lane's lying-on (C5, as amended by this stage's `[ev]` question). Where the read cannot decide it
+  refuses typed: a node is `NodeUnbuilt`, a conic whose plane is in band of a bisector plane's
+  escalates, and a carrier with no plane lane refuses at the frontier.
 - `offer_rows`' probe reads `cross`.
 
 **Retires**: `plane_crossing_lane`, `PlaneCrossingLane`, `ConicPlaneMeet`, `ConicRootFault` and its
@@ -369,8 +372,11 @@ whose rescues must each be shown kept. Dual: the face reading is the rule every 
 the parent row's "dispatch is an Option gate, not a match".
 
 **Claims a reviewer must falsify.**
-- The line's crossing is placed where the plane crosses the carrier, at a far frame and a small tilt,
-  as well as the interpolation placed it or better.
+- The line's crossing is placed where the plane crosses the carrier, at a far frame and a small tilt:
+  on the plane within the zero band, and along the line within the crossing's own conditioning of the
+  double-double crossing (an offset rounded at the edge's length `L` moves it `δ/θ` along the line,
+  so `64·ε_f64·L/θ`), at least as well as the interpolation placed it. Along the line no `f64` reading
+  holds it to the zero band at a tilt of `10⁻⁶`, the interpolation's included.
 - `slit` reads `Lies` where the samples did, and reads `Lies` nowhere the pose does not.
 - A `factored_crossing` decline never reaches the quadric door.
 - The one event function changes no curved-lane answer U4b fixed.
@@ -381,10 +387,10 @@ the parent row's "dispatch is an Option gate, not a match".
 
 | Row | Mutant that reds it |
 |---|---|
-| a line 1e6 m from the origin crossing a plane at 1e-6 rad, split within the band of the double-double crossing | the interpolation restored |
+| a line 1e6 m from the origin crossing a plane at 1e-6 rad, split on the plane within the zero band and along the line within the crossing's conditioning of the double-double crossing, its end vertex points half a band off the carrier | the interpolation restored |
 | two conic roots within the band of each other in the face's trim refuse (C5's window), where the planar lane used to insert one | `Together` inserted once |
 | a planar graze in the trim is split at the touch point, as before | the planar touch treated as the curved frontier |
-| a conic in a bisector plane refuses typed | the decline returns `Ok(None)` |
+| a conic in a bisector plane builds through its `Lies`, read by the decisions the op took, and one in the band's gap off the plane, or off the partner past its band by the lever, escalates | the decline returns `Ok(None)`; the plane's pose read unlevered |
 | `slit` reads a circle on a sphere, a ruling on a wall and a generator on a cone as on, and a circle near (in band of) a torus escalates | `slit` reads its own samples |
 | a spiric pose refusal other than in band is a typed refusal in `slit` | the `unreachable!` restored |
 

@@ -36,8 +36,8 @@ use crate::curve_pair::{Hit, MeetFault, MeetKind, Meetings, Span, meet};
 /// boundary has left the span undecided.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Door {
-    /// A line or a conic against a plane: the plane-crossing lane
-    /// ([`plane_crossing`]).
+    /// A line or a conic against a plane: the pose's plane arm and its
+    /// closed-form roots (`plane_crossing`'s rows).
     PlaneCrossing,
     /// A line against a cylinder, a cone, a sphere or a torus: the
     /// certified roots of the surface's residual along the line
@@ -730,7 +730,8 @@ pub mod end_root;
 mod line_clearance_fuzz;
 pub mod line_patch;
 pub mod line_quadric;
-pub mod plane_crossing;
+#[cfg(test)]
+mod plane_crossing;
 pub mod pose;
 #[cfg(test)]
 mod pose_rows;
