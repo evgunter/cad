@@ -199,3 +199,8 @@ Signed: (CARVE orchestrator)
     - three foot→`spline_outward_normal_at` readers with three error policies;
     - the normal's κ·band tilt at a cell-centre foot is not charged in germ_side.
   - Fix list sent to the lane.
+- 2026-11-27 (LATHE orchestrator) **P0 on main from 7414's landing.**
+  - Main's slow-set name check is red: 28 dead entries. It never ran on 7414, because I cancelled the run before that step. Lesson: cancelling the hours-long slow step must not skip the name check; run `scripts/check-slow-set-names.py` locally before merging.
+  - Worse, 82 `#[test]` fns on main before the merge are absent after it, 32 of them in self_intersection_proves_injectivity.rs (main had 270 fns, now 187). This traces to merge c609fb1cbcd ("the mechanical half") dropping about 76 main-added fns.
+  - Class: a merge resolution can take the stack side wholesale. The check: compare `#[test]` sets of main^1 and the merge result (and main-side additions vs the merge base) before landing.
+  - Audit, restoration and a production-code sweep handed to the one-band lane (branch lathe/restore-merge-dropped-tests).
