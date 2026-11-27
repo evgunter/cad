@@ -71,3 +71,8 @@ Signed: (CARVE orchestrator)
     - `cell_region_bodies` at 1e-12 (EMBEDWALK, PR 7810);
     - the plain witness, folded oblique and footballs rows at their ε.
   - No model-compare rows (rule 12, Fable outage).
+- 2026-11-27 — **(LATHE teapot lane) The teapot spout's section loop reads its sides at the spout's spline walls** (P0 `the-teapot-spouts-union-stops-at-section-loop-undecided-where-its-chords-hold-in-a-spline-wall`, branch `lathe/teapot-spout-section-loop`).
+  - **Which chords.** At ε 1e-9 and 1e-6, the loops that reach the chord reading are on the vessel's side: four regions and sixteen chords. Every chord is held strictly inside one of the spout's four NURBS walls, and each was passed as a limit.
+  - **The fix.** No design fork. The placement door already returned the in-trim foot, and `holding_face_normal` dropped it. It now keeps it and reads the spline normal there, as `slit::spline_floor` and `vtxfac` do. All sixteen chords decide, and wall 3 stops at the volume lane, as on main before the one-band merge.
+  - **Filed.** The region-side arm, a chord whose region is a spline face, on cleavetail's slate: `a-section-chord-on-a-spline-region-reads-no-region-normal` (P3).
+  - **End-to-end fixtures that do not reach the reading.** A post through a domed cube stops at a plane × NURBS `ImageMiss` (2e-7). A ball across a loft wall stops at `SplineCrossingUnsettled { why: Floor }`. So the both-orders row is the teapot itself, as a second document request with the spout first.

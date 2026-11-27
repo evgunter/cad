@@ -242,7 +242,7 @@ fn a_pierce_on_a_crease_of_the_pierced_chart_refuses_by_name() {
 /// The biquadratic net over the unit square (`x = u`, `y = v`) with its
 /// boundary rows flat at `z = 1` and its centre control point raised to
 /// `1.4`, so the cube's top edges lie on it.
-fn dome() -> geom::NurbsSurface<f64> {
+pub(in crate::boolean) fn dome() -> geom::NurbsSurface<f64> {
     use geom_core::spline::KnotVector;
     let k = || KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
     let control: Vec<_> = [0.0, 0.5, 1.0]
@@ -258,7 +258,7 @@ fn dome() -> geom::NurbsSurface<f64> {
 }
 
 /// The unit cube with its top on [`dome`], minted, and the top face.
-fn domed_cube() -> (Body<f64>, FaceKey) {
+pub(in crate::boolean) fn domed_cube() -> (Body<f64>, FaceKey) {
     let cube = crate::test_support_fixtures::prism::<f64>(
         &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
         1.0,

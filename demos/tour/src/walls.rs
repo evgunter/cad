@@ -137,14 +137,14 @@ pub const CURVED_JOIN_STOPS: &[JoinStop] = &[
             "a-torus-face-bounded-by-a-projected-spline-image-has-no-chord-bound",
         ],
     },
-    // At ε 1e-6 and 1e-9 the union stops in the join, its section loop
-    // undecided where a spout wall holds a chord; at 1e-12, at the
-    // at-rest arc image (`teapot::wall3_pinned`).
+    // At ε 1e-6 and 1e-9 the union stops at the result's volume, a
+    // rational spline face in the trimmed lane; at 1e-12, in the join
+    // (`teapot::wall3_pinned`).
     JoinStop {
         scene: "teapot",
         wall: 3,
         rows: &[
-            "the-teapot-spouts-union-stops-at-section-loop-undecided-where-its-chords-hold-in-a-spline-wall",
+            "a-rational-spline-face-with-a-general-row-has-no-volume-lane",
             "a-curved-partners-arc-is-imaged-at-rest-no-finer-than-the-mints-finest-rung",
         ],
     },
