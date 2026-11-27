@@ -2,11 +2,12 @@
 id: close-cuts-is-not-total-on-crossings-path-cut-ins
 kind: issue
 title: close_cuts is not total on crossings-path cut-ins: a sphere face carrying a first-pass crossing beside its interior loop refuses at the guard where the stack built it
-status: open
+status: closed
 opened: 2026-11-25
+closed: 2026-11-27
 priority: P2
 cost: H
-refs: [the-main-merge-drops-mains-pole-form-and-pole-side-column-intents]
+refs: [the-main-merge-drops-mains-pole-form-and-pole-side-column-intents, a-cut-meridian-no-turn-clears-is-not-closed-across-the-joins-chords, a-section-circle-through-both-chart-poles-leaves-a-cut-face-with-no-pole-to-read]
 ---
 
 ## What
@@ -92,4 +93,4 @@ carries a seam note.
 - **Witness 2's intersection** (the ball ∩ the cap box ∪ the pole box) builds in either order at the volume of its two parts built alone, and tier 3′ reads it only as the census's undecidable pair of curved parts (`work/reachhold/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`). It is census-undecidable, not unsound: the bypassed gate built this same correct body, which tier 3′'s census cannot separate.
 - **Witness 1 (the die's slab)** is its own row now: `a-section-circle-through-both-chart-poles-leaves-a-cut-face-with-no-pole-to-read`. Its union, and the ball less the slab, build sound. Its intersection, and the slab less the ball, refuse at the guard through `CutOutlineUndecided`.
 
-**What is left here (1b's generality).** A cut whose meridian a first-pass section runs along where no turn of the meridian clears it: a partner whose section is no plane or sphere on a cut face, and a loop's cut, whose meridian is not turned. The closing would have to read the join's chords on the cut and close across them (ORBIT's `slit.rs`). No witness measured reaches it; the op refuses at the guard there.
+**What is left (1b's generality)** moves to `a-cut-meridian-no-turn-clears-is-not-closed-across-the-joins-chords`, and this item closes. A cut whose meridian a first-pass section runs along where no turn of the meridian clears it: a partner whose section is no plane or sphere on a cut face, and a loop's cut, whose meridian is not turned. The closing would have to read the join's chords on the cut and close across them (ORBIT's `slit.rs`). No witness measured reaches it; the op refuses at the guard there.
