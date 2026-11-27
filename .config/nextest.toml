@@ -939,3 +939,16 @@ filter = '''(binary_id(sweep::all) & (
   test(=verbs_germarms2::the_fenced_poses_keep_their_own_outcomes)
 ))'''
 priority = 100
+
+# REVIEW PROBE: a capped default profile for this container.
+[profile.cap]
+fail-fast = false
+slow-timeout = { period = "120s", terminate-after = 3 }
+
+[profile.cap90]
+fail-fast = false
+slow-timeout = { period = "30s", terminate-after = 3 }
+
+[profile.cap600]
+fail-fast = false
+slow-timeout = { period = "120s", terminate-after = 5 }

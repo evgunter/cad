@@ -12,6 +12,9 @@
 //! census.
 
 use std::collections::BTreeMap;
+thread_local! { pub(crate) static GAPPED: core::cell::RefCell<std::collections::BTreeSet<Cell>> = Default::default(); }
+fn pv(k: &str) -> bool { std::env::var(k).is_ok() }
+fn probe_consume(path: &str, cells: [Cell; 2]) { if GAPPED.with(|g| cells.iter().any(|c| g.borrow().contains(c))) { eprintln!("SILENT_DROP path={path} cells={cells:?}"); if pv("PROBE_PANIC") { panic!("SILENT_DROP path={path}"); } } }
 
 use geom_core::Real;
 
@@ -936,8 +939,10 @@ pub(in crate::boolean) fn landings<'b, T: crate::props::AtRestPolicy>(
                             // touch as structure, which needs no record
                             // (D1). An image merely incident to an image of
                             // the other cell holds nothing.
-                            on_structure |=
-                                lineage.glues() && matches!(error, ContactPairError::OneCell(_));
+                            on_structure |= lineage.glues()
+                                && (matches!(error, ContactPairError::OneCell(_))
+                                    || pv("PROBE_ANYINC")
+                                    || (pv("PROBE_LOOSEINC") && !a_minted && !b_minted));
                             structure.get_or_insert(error);
                             continue;
                         }
@@ -947,10 +952,10 @@ pub(in crate::boolean) fn landings<'b, T: crate::props::AtRestPolicy>(
                         let confirm = confirm.get_or_insert_with(|| {
                             crate::census::RecordConfirm::of(body, band, region)
                         });
-                        if !confirm.meets(pair).map_err(|_| CarryRefusal::Unread {
+                        if !confirm.meets(pair).map_err(|e| { if pv("PROBE_UNREADLOG") { eprintln!("UNREADLOG record={record} pair={:?} err={e:?}", pair.cells()); } CarryRefusal::Unread {
                             record,
                             cells: pair.cells(),
-                        })? {
+                        }})? {
                             continue;
                         }
                     }
@@ -965,6 +970,7 @@ pub(in crate::boolean) fn landings<'b, T: crate::props::AtRestPolicy>(
                 }
             }
         }
+        if !landed && on_structure { probe_consume("structure", cells); }
         if landed || on_structure {
             continue;
         }
@@ -974,7 +980,7 @@ pub(in crate::boolean) fn landings<'b, T: crate::props::AtRestPolicy>(
         // unmapped or removed whole, below).
         let mut on_removed = false;
         let mut removed_read = false;
-        'members: for i in (0..2).filter(|_| held_by == [true, true]) {
+        'members: for i in (0..2).filter(|_| held_by == [true, true] && !pv("PROBE_IGNREM")) {
             for &r in fates[i].division().map_or(&[][..], |d| &d.removed) {
                 let Some(removed) = removed else {
                     return Err(CarryRefusal::Unread {
@@ -1005,9 +1011,10 @@ pub(in crate::boolean) fn landings<'b, T: crate::props::AtRestPolicy>(
                     // them, not as the result's sides and senses, so the
                     // touch is read for its presence alone.
                     let touch = match pair.cells() {
-                        [Cell::Face(a), Cell::Face(b)] => confirm.faces_touch(a, b),
+                        [Cell::Face(a), Cell::Face(b)] if !pv("PROBE_NOPRES") => confirm.faces_touch(a, b),
                         _ => confirm.meets(pair),
                     };
+                    let touch = if pv("PROBE_CONTRAANY") { Ok(touch.unwrap_or(true)) } else { touch };
                     if touch.map_err(|_| CarryRefusal::Unread {
                         record,
                         cells: pair.cells(),
@@ -1019,13 +1026,16 @@ pub(in crate::boolean) fn landings<'b, T: crate::props::AtRestPolicy>(
             }
         }
         if on_removed {
+            probe_consume("removed", cells);
             continue;
         }
         let whole = fates.iter().any(crate::Fate::removes);
         if read {
             // A touch on a cell the op removed whole, or on one it moved
             // whole, went with it.
-            if whole || moved_whole {
+            let anyrem = pv("PROBE_ANYREM") && fates.iter().any(|f| f.division().is_some_and(|d| !d.removed.is_empty()));
+            if whole || moved_whole || anyrem {
+                probe_consume(if anyrem && !whole && !moved_whole {"anyrem"} else {"whole"}, cells);
                 continue;
             }
             return Err(CarryRefusal::Stale { record });
@@ -1036,6 +1046,7 @@ pub(in crate::boolean) fn landings<'b, T: crate::props::AtRestPolicy>(
             // Structure needs no record (D1): two vertices made one, or
             // cells an op glued ([`crate::Lineage::glued`]).
             if fused || lineage.glues() {
+                probe_consume("allstructure", cells);
                 continue;
             }
             return Err(CarryRefusal::Pair { record, error });
