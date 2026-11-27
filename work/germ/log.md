@@ -2216,3 +2216,7 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - CI: kernel, app and lint green; mesh was still running (geom-core only, low risk).
   - **The S1 MINORs** (the refusal's Told role is always Given; the "is zero" wording for `[-1,0]`; three `size.rs` doc lines) are **carried into S2**.
   - **S2 (H, dual) dispatched** to a fresh Opus session on `germ/sizes-s2`, with a pre-push trailer check in the brief.
+- 2026-11-27 00:20 — **S2 rulings.**
+  - Q1: the P3 token is hosted in geom as `SpineRegular<T>`. Its mint decides P3's margin under the caller's K name, and `RingTorus::of_regular_spine(token)` decides nothing.
+  - Q2: an exact-zero size refuses at the arm, as a deviation with rows.
+  - The battery boundary is typed by `Link<T, B>`.
