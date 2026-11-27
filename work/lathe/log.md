@@ -180,3 +180,9 @@ Signed: (CARVE orchestrator)
   - One port reviewer checks the fix alone before the merge.
 
 - 2026-11-26 (LATHE orchestrator) PR 7414 hosted CI at 60b506a0f87: the kernel job was cancelled at the 6 h cap. Inherited (red on nightly 45761344079): on_carrier foot-seed rows, the step-import tier gate, the cylinder-prism corner at 1e-12, the tess-lint baseline. Ours, handed to the one-band lane: 16 touched fast-set tests over the 0.25 s bar; tube-through-ball A∖B now certifies where the test expects PartsUndecided; slow-set rows taking hours under PR CI against 114–160 s on the nightly (base-vs-head timing asked for).
+- 2026-11-27 (LATHE orchestrator) One-band lane on PR 7414:
+  - Item 1: 16 rows moved to the slow set (51df872ad5).
+  - Item 2: tube-through-ball A∖B is red on main too since INSIDE's PR 7801. A∖B now passes tier 3′, and the pin goes to Sound (5b091c0cdd).
+  - Item 3: the hours-long slow rows are main's P0 `inside/main-slow-since-7801-…`. Uncached `spline_incidence::refined` per query takes 93–96% of samples on both sides. Head runs about 3× base on four rows because one-band faces hold the whole section spline. No separate regression, so the cache is left to INSIDE.
+  - Accepted. Hosted slow-set step counts as inherited until that P0 lands.
+  - Main moved (1d333647377) with conflicts in geom/lib.rs, spheres_crossing_off_every_edge.rs and boolean/mod.rs; the lane is merging.
