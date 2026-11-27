@@ -5657,8 +5657,10 @@ fn seam_germ_side<T: Decide>(
             let extent = d.norm() * (t1 - t0).abs();
             let n_r = match held_normal((body, other_is.other()), region, mid, band, REGION_GONE) {
                 Ok(Ok(n_r)) => n_r,
-                // A region on a spline sheet has no normal arm at a point:
-                // a limit, as a spline holding face is.
+                // A region on a spline sheet has no normal arm at a point,
+                // and the chord lies on its boundary, where a placement
+                // finds no in-trim foot: a limit
+                // (`work/cleavetail/a-section-chord-on-a-spline-region-reads-no-region-normal`).
                 Ok(Err(why @ HoldingUnread::Spline)) => {
                     return Rung::refused(why, HoldingUnread::refusal, |why| Err(why.aborted()))
                         .map_kept(|_| ());
@@ -5748,12 +5750,14 @@ const SEAM_GERM_ON_PLANE: &str = "bool_join_seam_germ_on_plane";
 ///
 /// # Errors
 ///
-/// [`BooleanError::JoinDesync`] where the holding face no longer
-/// resolves.
+/// [`BooleanError::JoinDesync`] where the holding face, placed, no
+/// longer resolves when its normal is read ([`held_normal`],
+/// [`spline_held_normal`]).
 ///
 /// # Panics
 ///
-/// On a stale face, as [`super::ops::place_witness`] does.
+/// Where the placement door answers that a face of `other` it walks is
+/// stale, as [`super::ops::place_witness`] does.
 fn holding_face_normal<T: Decide>(
     (other, other_is): (&Body<T>, Operand),
     q: Point3<T>,
@@ -5807,9 +5811,10 @@ fn holding_face_normal<T: Decide>(
 
 /// **A spline holding face's outward normal at the in-trim foot `uv`
 /// its placement read `q` at**
-/// ([`crate::face_normal::spline_outward_normal_at`]); that `q` has no
-/// second foot on another in-trim sheet within the band is the
-/// placement's claim
+/// ([`crate::face_normal::spline_outward_normal_at`]). The placement
+/// returns the first in-trim cell it decides and certifies nothing
+/// about a second in-trim sheet within the band of `q`, so this reads
+/// that one sheet's normal as the face's
 /// (`work/splice/the-spline-placement-read-certifies-no-second-in-trim-foot`).
 ///
 /// # Errors
@@ -5900,7 +5905,8 @@ enum HoldingUnread {
     Trim,
     /// A face on a spline or spindle sheet whose normal has no arm at a
     /// point, with no chart point to read it at: a chord's region, or a
-    /// holding face whose placement found no in-trim foot. A limit, which
+    /// holding face whose placement found no in-trim foot (a spindle
+    /// sheet's, whose placement returns none). A limit, which
     /// the chord ladder passes, so like [`Self::Trim`] it carries only
     /// its class.
     Spline,
@@ -6040,9 +6046,11 @@ mod holding_rows {
 
     /// **A face whose normal does not read is told apart by why**
     /// ([`super::held_normal`], over [`crate::face_normal::NoNormalAt`]):
-    /// - a face on a spline sheet, as a chord's holding face and as the
-    ///   region a chord bounds: no normal arm at a point, a limit
-    ///   ([`HoldingUnread::Spline`]) the chord ladder passes;
+    /// - a face on a spline sheet, read at a point with no chart point
+    ///   (the region a chord bounds, under either `gone`): no normal arm,
+    ///   a limit ([`HoldingUnread::Spline`]) the chord ladder passes. A
+    ///   holding face is read at its placement's foot instead
+    ///   ([`super::holding_face_normal`], the rows below);
     /// - a face with no surface yet, and a key that resolves to no face
     ///   of the operand: a kernel defect (`JoinDesync`), saying which.
     ///
@@ -6115,9 +6123,9 @@ mod holding_rows {
     /// **A chord held strictly inside a spline face reads that face's
     /// outward normal at the in-trim foot its placement read**
     /// ([`super::holding_face_normal`], over
-    /// [`crate::face_normal::spline_outward_normal_at`]), whichever
-    /// operand holds it: the dome's chart normal at `(¼, ½)`, square to
-    /// both chart tangents there and leaning `−x`, away from the crown.
+    /// [`crate::face_normal::spline_outward_normal_at`]): the dome's chart
+    /// normal at `(¼, ½)`, square to both chart tangents there and leaning
+    /// `−x`, away from the crown.
     ///
     /// Red where the holding read drops the foot and passes the chord as
     /// a limit ([`HoldingUnread::Spline`]), or reads the normal at
@@ -6125,7 +6133,7 @@ mod holding_rows {
     #[test]
     fn a_chord_held_inside_a_spline_face_reads_its_normal_at_the_foot() {
         use super::super::Operand;
-        use super::super::vtxfac::vtxfac_spline_rows::{dome, domed_cube};
+        use crate::test_support_fixtures::{dome, domed_cube};
         let band = Band::linear(Tol::witness()).unwrap();
         let (body, _) = domed_cube();
         let (u, v) = (0.25, 0.5);
@@ -6134,18 +6142,121 @@ mod holding_rows {
         let tangent = |a: Point3<f64>, b: Point3<f64>| (b - a) / (2.0 * h);
         let s_u = tangent(dome().eval(u - h, v), dome().eval(u + h, v));
         let s_v = tangent(dome().eval(u, v - h), dome().eval(u, v + h));
-        for operand in [Operand::A, Operand::B] {
-            let held = holding_face_normal((&body, operand), q, band);
-            let Ok(Ok(Some(n))) = held else {
-                panic!("{operand:?}: a chord inside the dome reads its normal: {held:?}");
+        let held = holding_face_normal((&body, Operand::A), q, band);
+        let Ok(Ok(Some(n))) = held else {
+            panic!("a chord inside the dome reads its normal: {held:?}");
+        };
+        assert!(
+            n.dot(s_u).abs() < 1e-6 && n.dot(s_v).abs() < 1e-6,
+            "square to the chart at the foot: {n:?}"
+        );
+        assert!(
+            n.z > 0.0 && n.x < 0.0,
+            "outward, leaning away from the crown: {n:?}"
+        );
+    }
+
+    /// **The reverted dome holds each chord with its normal flipped**:
+    /// the face's sense is folded into the normal read at the foot, at the
+    /// interior, near a chart edge, at the crown and near a corner.
+    ///
+    /// Red where the spline arm reads the chart normal without the face's
+    /// sense.
+    #[test]
+    fn the_reverted_dome_holds_its_chords_with_the_normal_flipped() {
+        use super::super::Operand;
+        use crate::test_support_fixtures::{dome, domed_cube};
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (body, top) = domed_cube();
+        let reverted = body.revert().unwrap();
+        assert!(
+            !reverted.get_face(top).unwrap().sense,
+            "the dome is reverted"
+        );
+        for (u, v) in [(0.25, 0.5), (1e-4, 0.5), (0.5, 0.5), (0.999, 0.001)] {
+            let q = dome().eval(u, v);
+            let fwd = holding_face_normal((&body, Operand::A), q, band);
+            let rev = holding_face_normal((&reverted, Operand::A), q, band);
+            let (Ok(Ok(Some(a))), Ok(Ok(Some(b)))) = (&fwd, &rev) else {
+                panic!("({u}, {v}): {fwd:?} / {rev:?}");
             };
             assert!(
-                n.dot(s_u).abs() < 1e-6 && n.dot(s_v).abs() < 1e-6,
-                "{operand:?}: square to the chart at the foot: {n:?}"
+                (*a + *b).norm() < 1e-9,
+                "({u}, {v}): flipped: {a:?} vs {b:?}"
             );
+            assert!(a.z > 0.0, "({u}, {v}): outward up: {a:?}");
+        }
+    }
+
+    /// **A chord point half a band off the dome still reads its normal**:
+    /// the placement holds it in the face, and the normal is read at the
+    /// foot it found.
+    ///
+    /// Red where the spline arm demands the point on the chart exactly.
+    #[test]
+    fn a_point_half_a_band_off_the_dome_reads_its_normal() {
+        use super::super::Operand;
+        use crate::test_support_fixtures::{dome, domed_cube};
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (body, _) = domed_cube();
+        let q = dome().eval(0.3, 0.7) + geom_core::Vec3::new(0.0, 0.0, band.zero() * 0.5);
+        let held = holding_face_normal((&body, Operand::A), q, band);
+        assert!(matches!(held, Ok(Ok(Some(n))) if n.z > 0.0), "{held:?}");
+    }
+
+    /// **A spline holding face's normal is told apart by why**
+    /// ([`super::spline_held_normal`]):
+    /// - a point the chart reads off at the foot: the normal's own
+    ///   refusal, carried ([`HoldingUnread::Normal`], `OffSurface`);
+    /// - a key that is not a spline face, or resolves to none: a kernel
+    ///   defect (`JoinDesync`), since its placement just read a chart
+    ///   point on one.
+    ///
+    /// Red where either is read as the other, or as a limit.
+    #[test]
+    fn a_spline_holders_normal_refusal_is_its_own_and_a_lost_face_a_desync() {
+        use super::super::{BooleanError, Operand};
+        use super::{HOLDER_GONE, spline_held_normal};
+        use crate::test_support_fixtures::{dome, domed_cube};
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (body, top) = domed_cube();
+        let uv = (0.25, 0.5);
+        let off = dome().eval(uv.0, uv.1) + geom_core::Vec3::new(0.0, 0.0, 1e-3);
+        let held = spline_held_normal((&body, Operand::B), top, uv, off, band);
+        assert!(
+            matches!(
+                &held,
+                Ok(Err(HoldingUnread::Normal { operand: Operand::B, face, why: NormalAtError::OffSurface }))
+                    if *face == top
+            ),
+            "a point off the chart at its foot, the normal's refusal: {held:?}"
+        );
+        let plane = body
+            .faces()
+            .map(|(f, _)| f)
+            .find(|f| *f != top)
+            .expect("the cube has a planar side");
+        let q = dome().eval(uv.0, uv.1);
+        // Ten faces against the cube's six, so one key resolves to none.
+        let octagon: Vec<(f64, f64)> = (0..8)
+            .map(|k| {
+                let t = f64::from(k) * core::f64::consts::FRAC_PI_4;
+                (t.cos(), t.sin())
+            })
+            .collect();
+        let block =
+            crate::test_support_fixtures::prism_z::<f64>(&octagon, 0.0, 1.0, Tol::witness());
+        let stale = block
+            .body
+            .faces()
+            .map(|(f, _)| f)
+            .find(|f| body.face(*f).is_none())
+            .expect("the prism has a face key the cube does not resolve");
+        for (what, face) in [("a planar face", plane), ("a stale key", stale)] {
+            let held = spline_held_normal((&body, Operand::A), face, uv, q, band);
             assert!(
-                n.z > 0.0 && n.x < 0.0,
-                "{operand:?}: outward, leaning away from the crown: {n:?}"
+                matches!(held, Err(BooleanError::JoinDesync { what }) if what == HOLDER_GONE),
+                "{what}, a desync: {held:?}"
             );
         }
     }

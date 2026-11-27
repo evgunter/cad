@@ -794,9 +794,10 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             Ok(Some(n)) => n,
             // A spline face, read at the chart point the sweep placed the
             // pierce at (`chart`); one it placed at none refuses C5's
-            // typed refusal, naming the kind. That `p` has no second foot
-            // on another in-trim sheet within the band is the placement's
-            // claim (`work/splice/the-spline-placement-read-certifies-no-second-in-trim-foot`).
+            // typed refusal, naming the kind. The placement certifies no
+            // second in-trim sheet within the band of `p`, so this reads
+            // one sheet's normal as the face's
+            // (`work/splice/the-spline-placement-read-certifies-no-second-in-trim-foot`).
             Ok(None) => {
                 use crate::face_normal::SplineNormalError;
                 let uv = chart.ok_or_else(unbuilt)?;
@@ -4654,7 +4655,7 @@ mod tests {
 
 #[cfg(test)]
 #[path = "vtxfac_spline_rows.rs"]
-pub(super) mod vtxfac_spline_rows;
+mod vtxfac_spline_rows;
 
 #[cfg(test)]
 #[path = "vtxfac_review_rows.rs"]

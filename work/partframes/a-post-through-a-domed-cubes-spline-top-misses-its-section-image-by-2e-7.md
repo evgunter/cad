@@ -14,7 +14,7 @@ cost: M
 Found by the LATHE teapot lane while it looked for a small join fixture
 (2026-11-27, `lathe/teapot-spout-section-loop`). Take the unit cube with
 its top on the biquadratic dome
-(`topo::boolean::vtxfac::vtxfac_spline_rows` `domed_cube`: the centre
+(`topo::test_support_fixtures::domed_cube`: the centre
 control point raised to `z = 1.4`, crown `z = 1.1`). Union it with the box
 post `[0.4, 0.6] × [0.3, 0.7] × [0.5, 2]`
 (`test_support_fixtures::prism_z`) through
@@ -32,3 +32,20 @@ Which one is not yet known.
 Add to `join::holding_rows`:
 `super::super::through_the_join(BooleanOp::Union, &domed_cube().0, &post, Tol::witness())`
 (cube first; the other order was not run).
+
+## The other order, and other posts
+
+PR 7824's reviewer R2 ran the post first and got the same 1.97e-7
+margin. Every plane × dome post R2 tried misses at rest by 2e-7 to
+1e-6. So this is general to a plane meeting this dome, not one pose.
+
+## Where it may belong
+
+The miss is a limb's `ImageMiss` on a plane × NURBS section edge.
+pcert's limb work found such misses on a curved foot path before: a
+degree-1 chart image's chord error
+(`pcert/a-limb-two-refusal-of-an-exact-closed-form-reads-as-an-off-surface-carrier`,
+closed, `edge_nurbs::PXN_IMAGE_DEGREE`). If the minted edge's image is
+that coarse image, the row belongs on pcert's slate with that limb
+work, not here. Which image the minted edge carries is the first thing
+to read.

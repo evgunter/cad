@@ -53,8 +53,9 @@ the in-trim foot a spline face's `In` placement was decided at, and
 there (`join::spline_held_normal`, over
 `face_normal::spline_outward_normal_at`). This is the same reading
 `slit::spline_floor` and `vtxfac`'s pierced spline face already take,
-under the same premise: the placement certifies that no second
-in-trim foot lies within the band
+and shares their open gap: the placement certifies nothing about a
+second in-trim sheet within the band of the point, so the reading is
+of one sheet
 (`work/splice/the-spline-placement-read-certifies-no-second-in-trim-foot`).
 Where that normal refuses, the refusal is the normal's own
 (`HoldingUnread::Normal`). Where the placement read no foot (a spindle
@@ -75,6 +76,9 @@ point lies on that region's boundary, so its placement there is
 
 `wall3_pinned` pins the volume lane's `QuadratureUnsupported` at
 ε 1e-9 and 1e-6. `walls::CURVED_JOIN_STOPS` names that row for teapot
-wall 3. `join::holding_rows`
-`a_chord_held_inside_a_spline_face_reads_its_normal_at_the_foot` pins
-the reading in both operands.
+wall 3. `teapot::wall3_reversed_probe` holds the same stop with the
+spout first; the tour suite runs it at the default ε, and the nightly
+at 1e-6 and 1e-12. `join::holding_rows` pins the reading:
+`a_chord_held_inside_a_spline_face_reads_its_normal_at_the_foot`, the
+reverted dome's flipped normal, a point half a band off the dome, and
+`spline_held_normal`'s refusals.

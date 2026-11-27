@@ -551,6 +551,7 @@ not (
   (binary_id(topo::all) & (test(=review_m3_pr55::e_eight_collinear_sites) | test(=union_flush_onto_edge_contact::every_order_folds_a_flush_partner_onto_the_edge_contact) | test(=union_flush_onto_edge_contact::two_dangling_null_edges_meeting_on_the_pinch_line_build_in_every_op) | test(=union_flush_onto_edge_contact::a_dangling_null_edge_holding_another_pairs_cut_builds_in_every_op) | test(=union_flush_onto_edge_contact::three_crossings_at_one_corner_build_in_every_op) | test(=union_flush_onto_edge_contact::three_pieces_two_of_whose_cuts_tie_build_in_every_op))) |
   (binary_id(sweep::all) & test(=review_approx_through_a_motion::an_approximated_cap_read_through_its_motion_sweeps_as_the_moved_cap)) |
   (binary_id(topo) & test(=solid_contain::volume_read_key_rows::a_second_band_racing_the_first_is_read_afresh)) |
+  (binary_id(topo) & test(=boolean::join::holding_rows::the_reverted_dome_holds_its_chords_with_the_normal_flipped)) |
   (binary_id(topo) & (test(=pcurves::staleness_posture::no_production_code_in_any_crate_calls_the_minting_pass) | test(=finish::tests::no_at_rest_policy_impl_writes_its_own_finish_or_leaf))) |
   (binary_id(sweep::all) & test(=completion_refuses_a_stale_row::a_fill_matches_the_whole_derivation)) |
   (binary_id(geom-brep) & (test(=pcurve_cache::envelope_lemma_fuzz::projected::a_carrier_on_its_chart_images_exactly_at_f64_and_interval) | test(=pcurve_cache::envelope_lemma_fuzz::projected::a_carrier_on_its_chart_pinned_where_the_frame_cost_refuses))) |
