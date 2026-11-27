@@ -2309,8 +2309,8 @@ fn a_tube_through_a_balls_centre_closes_both_sections_at_its_wrap_edge() {
 /// (`cylinder_sphere_frame::at_its_volume`): tiers 2 and 3′, the
 /// certificate, the volume against [`disc_through_ball`], and a legal
 /// operand, its union with a far brick built. `tube ∖ ball` cuts the tube
-/// in two, whose curved faces tier 3′'s census cannot tell apart
-/// (`Ends::PartsUndecided`).
+/// in two and passes tier 3′ too: the census tells the two parts' curved
+/// faces apart, the face door reading their spline chords.
 #[test]
 fn a_tube_through_a_ball_across_its_wrap_edge_builds_every_op() {
     use crate::cylinder_sphere_frame::{Ends, at_its_volume, pad_ceiling};
@@ -2329,16 +2329,11 @@ fn a_tube_through_a_ball_across_its_wrap_edge_builds_every_op() {
         .unwrap();
         let tube = fin("the tube", tube);
         for (op, got, want) in every_op_both_orders(&tube, &ball, (va, vb, vi), tol()) {
-            let ends = if op == "A ∖ B" {
-                Ends::PartsUndecided
-            } else {
-                Ends::Sound
-            };
             off.extend(at_its_volume(
                 &format!("azimuth {az}: {op}"),
                 got,
                 want,
-                ends,
+                Ends::Sound,
                 ceiling,
                 &[],
             ));

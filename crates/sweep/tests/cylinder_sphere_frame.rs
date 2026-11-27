@@ -329,13 +329,6 @@ pub(crate) fn door(e: &BooleanError) -> Option<Door> {
 pub(crate) enum Ends {
     /// It passes.
     Sound,
-    /// Its census cannot tell curved faces of two of its parts apart,
-    /// and refuses with that alone (`CensusUndecidable`, `MayOverlap`, the
-    /// census's curved-within-reach cause, and its two parts' pair left
-    /// unchecked by it:
-    /// `work/reachhold/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`):
-    /// a difference that cuts its first operand in two.
-    PartsUndecided,
 }
 
 /// **Whether run `got` is a body at its volume that ends as `ends`
@@ -368,23 +361,8 @@ pub(crate) fn at_its_volume(
         },
     };
     let t2 = topo::validate_closed(&body.body).is_ok();
-    let t3 = match (
-        topo::validate_pseudomanifold(&body.body, &body.contacts, tol),
-        ends,
-    ) {
-        (Ok(()), Ends::Sound) => true,
-        (Err(findings), Ends::PartsUndecided) => findings.iter().all(|f| {
-            matches!(
-                f,
-                topo::ValidationError::CensusUndecidable {
-                    reason: topo::Undecidable::MayOverlap,
-                    what,
-                    ..
-                } if what.starts_with("a curved face of one is within reach of the other")
-                    || what.starts_with("another finding left their boundaries unchecked")
-            )
-        }),
-        _ => false,
+    let t3 = match ends {
+        Ends::Sound => topo::validate_pseudomanifold(&body.body, &body.contacts, tol).is_ok(),
     };
     let cert = topo::validate_geometric_certificate(&body.body, tol).is_ok();
     let operand = far_union(&body.body);
@@ -478,7 +456,7 @@ const MEASURED_PAD: [f64; 9] = [
 /// times the pose's [`MEASURED_PAD`]. Each passes tier 3′, the two-loop
 /// poses' `A ∖ B` too, which cuts the drum in two: the census tells the
 /// two parts' curved faces apart now that the face door reads their
-/// spline chords (it read [`Ends::PartsUndecided`] before).
+/// spline chords.
 fn builds_at_its_volume_or_refuses_at_its_door(index: usize) {
     let pose = &poses()[index];
     let (a, b) = pose.operands();
