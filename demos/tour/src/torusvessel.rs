@@ -68,9 +68,9 @@
 //!    the revolve's seam cut every latitude annulus in half — and
 //!    `merge_coplanar_faces` repaired them, 25 → 19 faces. A full
 //!    revolve now sweeps a planar wall whole (BAND, one wall per run),
-//!    so the cup ARRIVES at the census the merge used to produce, and
-//!    the merge, still run, finds no coplanar pair to join: only its
-//!    six period-closure skips, the curved runs it declines by design.
+//!    and each curved wall is one face too (LATHE, one band), so the
+//!    cup arrives at 13 faces and the merge, still run, finds nothing
+//!    to join and no full-period run to decline.
 //! 4. **A SECTIONED vessel hollows, measures and meshes.** Revolve this
 //!    same meridian a quarter turn — a cutaway, the display model a
 //!    potter's catalogue wants — and the moved meridian cap cuts the
@@ -406,7 +406,11 @@ pub const SCENE_DELTA: f64 = DELTA;
 
 pub fn stops(tol: Tol) -> Vec<TourStop> {
     let body = pncad::topo::finish(bellied(tol), tol).expect("the operand: tier 3");
-    assert_eq!(census(&body), (12, 18, 10), "the vessel's operand census");
+    assert_eq!(
+        census(&body),
+        (6, 9, 7),
+        "the vessel's operand census: each wall one face"
+    );
     assert_eq!(euler_counts(&body).h(), Ok(0), "a vessel is a ball");
     let props =
         pncad::topo::mass_properties(&body, tol, crate::printed()).expect("the operand's props");
@@ -440,8 +444,8 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     assert_eq!(sealed.shells().count(), 2, "outer boundary + cavity");
     assert_eq!(
         census(&sealed),
-        (24, 36, 20),
-        "the operand's 12/18/10 twice — the cavity is that same boundary offset inward \
+        (12, 18, 14),
+        "the operand's 6/9/7 twice — the cavity is that same boundary offset inward \
          and inserted whole through the shared void door"
     );
     assert_eq!(
@@ -528,7 +532,11 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
 
     // ---- THE SENSE TWIN: the same stations, the other centre ----
     let twin = pncad::topo::finish(waisted(tol), tol).expect("the twin is a finished body");
-    assert_eq!(census(&twin), (12, 18, 10), "the twin's operand census");
+    assert_eq!(
+        census(&twin),
+        (6, 9, 7),
+        "the twin's operand census: each wall one face"
+    );
     let twin_hollow = pncad::topo::shell(&twin, WALL, tol)
         .expect("the waisted twin hollows through the same arm")
         .body;
@@ -622,7 +630,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
          is, and the cavity fused into the boundary"
     );
     let cup_census = census(&cup);
-    assert_eq!(cup_census, (24, 36, 19), "the cup's census");
+    assert_eq!(cup_census, (12, 18, 13), "the cup's census");
     let props_c =
         pncad::topo::mass_properties(&crate::booleans::at_rest(&cup, tol), tol, crate::printed())
             .expect("the cup's props");
@@ -639,11 +647,10 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
 
     // The coda, retired at its source. The revolve's seam used to cut
     // every latitude annulus in half, and `merge_coplanar_faces` put
-    // them back, 25 -> 19 faces. A full revolve sweeps a planar wall
-    // whole now, so the cup arrives at 19 and the merge, still run,
-    // joins nothing: what it reports is only the six period-closure
-    // skips — a curved run that would close its chart's full period is
-    // a seam the merge declines by design.
+    // them back, 25 -> 19 faces. A full revolve sweeps every wall
+    // whole now, so the cup arrives at 13 and the merge, still run,
+    // joins nothing, and each curved wall is one face, so no run that
+    // would close its chart's full period is left for it to decline.
     let merged = cup
         .clone()
         .into_body()
@@ -661,8 +668,8 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
         .count();
     assert_eq!(
         (merged.groups.len(), closures),
-        (0, 6),
-        "no coplanar pair to join, six period-closure skips"
+        (0, 0),
+        "no coplanar pair to join, no period-closure skip"
     );
 
     let (sv, se, sf) = census(&sealed);
@@ -691,7 +698,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
             delta: DELTA,
             note: Some(format!(
                 "{sv} vertices, {se} edges, {sf} faces over TWO shells in one solid — \
-                 the operand's 12/18/10 twice, since the cavity is that same boundary \
+                 the operand's 6/9/7 twice, since the cavity is that same boundary \
                  offset inward and inserted whole through the shared void door. Genus \
                  0, tier 3. THE BAND IS A REAL TORUS: R = {R_BELLIED} m, r = {R_TUBE} \
                  m, its arc the 3-4-5 twice over about ({R_BELLIED}, {H_TUBE}), so both \
@@ -788,9 +795,9 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
                  the two shoulders and their cavity twins — each swept whole. THE 1031B \
                  CODA IS RETIRED AT ITS SOURCE: the revolve's seam used to cut every \
                  latitude annulus in half and `merge_coplanar_faces` put them back, \
-                 25 → 19 faces; a full revolve now sweeps a planar wall whole, so the cup \
-                 arrives at 19 and the merge, still run, joins nothing — it reports only \
-                 six PeriodClosure skips, the curved runs it declines by design. \
+                 25 → 19 faces; a full revolve now sweeps every wall whole, so the cup \
+                 arrives at 13 and the merge, still run, joins nothing and declines \
+                 nothing. \
                  V = {:.9} m³ against the sealed wall's closed form less the plug the \
                  lift opens (a cylinder of the cavity's neck radius, one wall tall). \
                  A = {:.9} m². The cup leaves as STEP like the sealed panel next door, as \

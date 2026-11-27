@@ -337,8 +337,9 @@ fn the_vessel_opens_its_mouth_into_one_rim() {
     let body = body_of(&ev, shell);
     assert_eq!(topo::validate(&body), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(&body), Ok(()), "closed");
-    // Outer: base, foot ×2, belly ×2; the rim; cavity: the same five.
-    assert_eq!(body.faces().count(), 11, "5 outer + 1 rim + 5 cavity");
+    // Outer: base, foot, belly, each one face; the rim; cavity: the
+    // same three.
+    assert_eq!(body.faces().count(), 7, "3 outer + 1 rim + 3 cavity");
     let pot = d.doc.upstream(shell)[0];
     let table = ev.table_at(shell).expect("evaluated");
     let rim = shelled(
@@ -358,11 +359,11 @@ fn the_vessel_opens_its_mouth_into_one_rim() {
 }
 
 /// **A pole-touching cap opens from a document into a seamed band.**
-/// The revolve wears the cap on two half-faces and the document names
-/// both; the kernel keeps both as the band's branches, and the name
-/// table names each for its own designation — the first through the
-/// record's `rim`, the second as a live branch — with no face left
-/// unnamed. Tier 3 holds on the evaluated body.
+/// The revolve wears the cap as one face whose seam ends at the pole,
+/// and the document names it; the kernel keeps it as the band, its seam
+/// cut short at the cavity's corner, and the name table names it through
+/// the record's `rim`, with no face left unnamed. Tier 3 holds on the
+/// evaluated body.
 #[test]
 fn the_capped_vessel_opens_its_cap_into_a_seamed_band() {
     let (doc, shell, pot) = vessel::capped_document();
@@ -375,18 +376,35 @@ fn the_capped_vessel_opens_its_cap_into_a_seamed_band() {
         Ok(()),
         "tier 3"
     );
-    // Outer: base, foot ×2; the band ×2; cavity: base, foot ×2.
-    assert_eq!(body.faces().count(), 8, "3 outer + 2 band + 3 cavity");
+    // Outer: base, foot; the band; cavity: base, foot.
+    assert_eq!(body.faces().count(), 5, "2 outer + the band + 2 cavity");
     let table = ev.table_at(shell).expect("evaluated");
     let cap = fixture::piece(&doc, pot, 0, vessel::SEG_CAP as usize);
-    for (which, name) in [
-        ("the u = 0 half", editor_core::band(pot, cap)),
-        ("the u = π half", editor_core::band_pi(pot, cap)),
-    ] {
-        let rim = shelled(shell, EntityKind::Face, RoleSeg::Rim(name.into()));
+    let rim = shelled(
+        shell,
+        EntityKind::Face,
+        RoleSeg::Rim(editor_core::band(pot, cap).into()),
+    );
+    let Some(editor_core::Entry::Unique(named)) = table.lookup(&rim) else {
+        panic!("the cap is named as the band, got {:?}", table.lookup(&rim))
+    };
+    let editor_core::EntityKey::Face(band) = named.key else {
+        panic!("the band's name resolves to a face, got {named:?}")
+    };
+    assert!(
+        matches!(body.face_surface(band), Ok(geom::Surface::Sphere { .. })),
+        "the band is the cap's sphere face, got {:?}",
+        body.face_surface(band)
+    );
+    for (face, _) in body.faces() {
+        let entity = editor_core::EntityRef {
+            body: named.body,
+            key: editor_core::EntityKey::Face(face),
+        };
         assert!(
-            matches!(table.lookup(&rim), Some(editor_core::Entry::Unique(_))),
-            "{which} of the cap is named as a branch of the band"
+            table.name_of(&entity).is_some(),
+            "{face:?} is named ({:?})",
+            body.face_surface(face)
         );
     }
 }
@@ -429,39 +447,6 @@ fn a_planar_void_designation_opens_and_its_rim_is_named_for_it() {
 // ---------------------------------------------------------------
 // 3. The refusal families
 // ---------------------------------------------------------------
-
-/// The vessel's pot hollowed with `open` designated, standing nowhere:
-/// a shell the kernel refuses has no copy to place.
-fn unplaced_vessel(
-    open: fn(&ProfileDoc, RecipeNodeId) -> Vec<StableName>,
-) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, profile) = fixture::insert(
-        ProfileDoc::empty_derived("lib_g17_unplaced_vessel", Tol::witness()),
-        Node::Profile(editor_core::ProfileProgram {
-            loops: vec![vessel::meridian()],
-            ids: Vec::new(),
-            on: None,
-        }),
-    );
-    let (doc, pot) = fixture::insert(
-        doc,
-        fixture::revolve_about(
-            profile,
-            (0.0, 0.0),
-            fixture::along_y(),
-            fixture::ang(std::f64::consts::TAU),
-        ),
-    );
-    let open = open(&doc, pot);
-    fixture::insert(
-        doc,
-        Node::shell(
-            editor_core::Operand::output(pot, 0),
-            fixture::len(vessel::WALL),
-            open,
-        ),
-    )
-}
 
 /// The typed refusal a shell node produced at `f64`.
 fn refusal(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> NodeErrorKind {
@@ -548,20 +533,42 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
          positive. Recourse: supply a positive thickness"
     );
 
-    // (d) half a chart: the belly is a sphere zone the revolve builds
-    // as two bands on one surface, and its piece names one of them, so
-    // the kernel's `OpenFaceChartPartial` names the band left behind.
-    let (doc, shell) = unplaced_vessel(|doc, pot| {
-        vec![
-            editor_core::band(pot, vessel::mouth(doc, pot)),
-            editor_core::band(pot, fixture::piece(doc, pot, 0, vessel::SEG_BELLY as usize)),
-        ]
-    });
+    // (d) half a chart: an extruded circle drawn as two arcs wears one
+    // cylinder on two lateral faces, and the designation names one of
+    // them, so the kernel's `OpenFaceChartPartial` names the face left
+    // behind. (A full revolve's wall is one face, the whole chart.)
+    let (doc, profile) = fixture::insert(
+        ProfileDoc::empty_derived("lib_g17_half_chart", Tol::witness()),
+        Node::Profile(editor_core::ProfileProgram {
+            loops: vec![editor_core::LoopProgram::circle(0.0, 0.0, 1.0).expect("a finite circle")],
+            ids: Vec::new(),
+            on: None,
+        }),
+    );
+    let (doc, drum) = fixture::insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: fixture::len(1.0),
+        },
+    );
+    let wall = fixture::fname(
+        drum,
+        RoleSeg::Lateral(fixture::piece(&doc, drum, 0, 0).into()),
+    );
+    let (doc, shell) = fixture::insert(
+        doc,
+        Node::shell(
+            editor_core::Operand::output(drum, 0),
+            fixture::len(0.1),
+            vec![wall],
+        ),
+    );
     let e = refusal(&doc, shell);
     match &e {
         NodeErrorKind::Shell(inner) => match **inner {
             ShellError::OpenFaceChartPartial { .. } => {}
-            ref other => panic!("expected the half-chart gate on the belly, got {other:?}"),
+            ref other => panic!("expected the half-chart gate on the drum's wall, got {other:?}"),
         },
         other => panic!("expected the shell op's refusal, got {other:?}"),
     }

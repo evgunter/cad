@@ -109,3 +109,5 @@ three more, `R` from `21.5` to `96.6`, `top` between `6.8·10⁻¹⁰` and
 `2.1·10⁻⁹`, the same row.
 
 **Another seed (2026-11-25, INSIDE's `inside-quartic-disc` lane).** `CAD_FUZZ_SEED=0x0ce22f7fb46f30e4 CAD_FUZZ_EFFORT=1` gives 2 mismatches on a clean `origin/main` at `133ca95e0` (the lane's diff stashed), both a strip crossing at a tube circle's top read `Tangent("section_torus_square_wall_fold_half")`: `R 0.1754, r 0.05796, (e, z0, rc) (-0.1788, -0.05236, 0.006557)`, tilt 2.1e-12, `Degeneracy { tangent: 1.07e-3, top: 3.19e-9 }`; and `R 0.05041, r 0.03782, (e, z0, rc) (0.02939, -0.05816, 0.02925)`, tilt 0, `Degeneracy { tangent: 5.23e-3, top: 4.19e-9 }`.
+
+**Another seed (2026-11-26, HELDRECORDS' `minted-door` lane).** `CAD_FUZZ_SEED=0xf7b9a2eb1057630d CAD_FUZZ_EFFORT=1` gives 1 mismatch on that lane's merge base `ffc8c37d4` (release profile), the same row: `R 0.02047, r 0.01755, (e, z0, rc) (-0.01942, -0.01756, 0.001044)`, tilt 0, `Degeneracy { tangent: 1.007e-3, top: 1.11e-9 }`.

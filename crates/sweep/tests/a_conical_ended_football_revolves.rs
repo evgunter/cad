@@ -517,7 +517,7 @@ fn the_near_horn_ladder_reads_its_band() {
         .unwrap_or_else(|e| panic!("{what} (d = {d:e}): {e}"));
         let k = kinds(&built.body);
         assert!(
-            k.iter().filter(|s| s.starts_with(kind)).count() == 2,
+            k.iter().filter(|s| s.starts_with(kind)).count() == 1,
             "{what} (d = {d:e}): {k:?}"
         );
         holds_exact(what, built.body, b.exact(), 1e-10);
@@ -547,12 +547,12 @@ fn the_near_horn_ladder_reads_its_band() {
 /// **The band pair of the near-horn ladder is embedded within a small
 /// budget**, on each carrier the ladder builds near the horn: a ring
 /// torus past the escalate, the horn-class sheet a hair past `R = r`,
-/// and the sheet just inside it. The two π-bands share one carrier and
-/// both meridians, each ending on a rim corner with a cone. Each band's
-/// window is its boundary's chart rectangle, so neither reaches the
-/// carrier's inner rows near the axis, where cells off both faces are
-/// neither decided outside nor apart. Red if a band's window is the
-/// whole tube or sheet again: the pair then refuses its budget.
+/// and the sheet just inside it. The band is one face whose wrap edge
+/// runs from rim corner to rim corner, each corner with a cone. Its
+/// window is its boundary's chart rectangle, so it does not reach the
+/// carrier's inner rows near the axis, where cells off the face are
+/// neither decided outside nor apart. Red if the band's window is the
+/// whole tube or sheet again: the body then refuses its budget.
 #[test]
 fn the_near_horn_band_pair_is_embedded_within_a_small_budget() {
     let tol = Tol::witness();
@@ -583,8 +583,8 @@ fn the_near_horn_band_pair_is_embedded_within_a_small_budget() {
         .unwrap_or_else(|e| panic!("{what} (d = {d:e}): {e}"));
         let body: &topo::Body<f64> = &built.body;
         assert!(
-            kinds(body).iter().filter(|s| s.starts_with(kind)).count() == 2,
-            "{what} (d = {d:e}): two {kind} bands: {:?}",
+            kinds(body).iter().filter(|s| s.starts_with(kind)).count() == 1,
+            "{what} (d = {d:e}): one {kind} band: {:?}",
             kinds(body)
         );
         let side = topo::clearance::Side {
@@ -639,7 +639,7 @@ fn a_torus_band_copy_crossing_beside_its_rim_reads_its_crossing_there() {
         .map(|(k, _)| k)
         .filter(|&k| matches!(body.face_surface(k), Ok(geom::Surface::Torus { .. })))
         .collect();
-    assert_eq!(faces.len(), 4, "two torus bands on each body");
+    assert_eq!(faces.len(), 2, "one torus band on each body");
     let side = topo::clearance::Side { body: &body, faces };
     let budgets = topo::clearance::Budgets {
         max_cell_depth: topo::clearance::DEFAULT_MAX_CELL_DEPTH,

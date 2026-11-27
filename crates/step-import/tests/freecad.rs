@@ -81,18 +81,20 @@ fn expect(name: &str) -> Expect {
             ..plain((1, 1, 3, 3, 2), PI * (1.0 + 0.5 + 0.25) / 3.0)
         },
         // makeCone(1, 0, 1): a full cone, V = π R² h / 3. Its lateral
-        // face is re-minted (the apex is a valence-1 vertex as stated),
-        // so the census is the kernel's 2 lateral halves + 1 cap.
+        // face walks its seam generator out to the apex and back, a
+        // valence-1 vertex: the wrap tip, adopted as stated — the
+        // lateral face and its cap, the seam and the rim, apex and rim
+        // vertex.
         "cone_apex" => Expect {
             dialect_rel: 1.0e-12,
-            normalizations: 1,
-            ..plain((1, 1, 3, 4, 3), PI / 3.0)
+            ..plain((1, 1, 2, 2, 2), PI / 3.0)
         },
         // makeSphere(1): one edge-free face in the file; the kernel's
-        // canonical ball splitting after normalization. V = 4π r³ / 3.
+        // own ball after normalization, one face reaching each pole by
+        // one wrap edge. V = 4π r³ / 3.
         "sphere" => Expect {
             normalizations: 1,
-            ..plain((1, 1, 2, 2, 2), 4.0 * PI / 3.0)
+            ..plain((1, 1, 1, 1, 2), 4.0 * PI / 3.0)
         },
         // makeTorus(1, 0.25): one fundamental-polygon face, adopted as
         // stated — one face, its two wrap edges, one vertex (D1).
@@ -130,7 +132,7 @@ fn expect(name: &str) -> Expect {
         // reached through the assembly layer (identity transforms).
         "compound_two" | "twobody_importexport" => Expect {
             normalizations: 1,
-            ..plain((2, 2, 8, 14, 10), 1.0 + 4.0 * PI * 0.125 / 3.0)
+            ..plain((2, 2, 7, 13, 10), 1.0 + 4.0 * PI * 0.125 / 3.0)
         },
         other => panic!("no expectations stated for fixture {other}"),
     }
@@ -449,39 +451,32 @@ fn structure_normalizations_are_reported_with_their_census_mapping() {
     if !corpus_scale_gate("structure_normalizations") {
         return;
     }
-    use step_import::{FaceCensus, NormalizationKind, SingularityFound};
+    use step_import::{FaceCensus, NormalizationKind};
+    // cone_apex.step's lateral face, its seam generator ending at a
+    // valence-1 apex, is the wrap tip as stated: it imports with no
+    // record (its `expect` row).
     let cases = [
         // sphere.step #17: ADVANCED_FACE over the whole sphere, its
-        // only bound a VERTEX_LOOP — 1 face, 0 edges, 1 vertex.
+        // only bound a VERTEX_LOOP — 1 face, 0 edges, 1 vertex; the
+        // kernel's ball is 1 face, 1 wrap edge, 2 poles.
         (
             "sphere",
             NormalizationKind::EdgeFreeSphere,
             (1, 0, 1),
-            (2, 2, 2),
+            (1, 1, 2),
         ),
         // compound_two.step #167 and twobody's sphere: the same shape.
         (
             "compound_two",
             NormalizationKind::EdgeFreeSphere,
             (1, 0, 1),
-            (2, 2, 2),
+            (1, 1, 2),
         ),
         (
             "twobody_importexport",
             NormalizationKind::EdgeFreeSphere,
             (1, 0, 1),
-            (2, 2, 2),
-        ),
-        // cone_apex.step #17: the lateral face, its seam generator
-        // ending at a valence-1 apex — 1 face, 2 edges, 2 vertices;
-        // the pole form completes it with the seam's half-turn twin.
-        (
-            "cone_apex",
-            NormalizationKind::ChartSingularityVertex {
-                found: SingularityFound::ValenceOneVertex,
-            },
-            (1, 2, 2),
-            (2, 4, 3),
+            (1, 1, 2),
         ),
     ];
     let cens = |(faces, edges, vertices)| FaceCensus {

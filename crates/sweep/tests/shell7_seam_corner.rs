@@ -616,11 +616,7 @@ fn a_sphere_from_an_arc_run_hollows_to_its_closed_form() {
             ]),
             Revolution::Full,
         );
-        assert_eq!(
-            body.faces().count(),
-            2,
-            "station {v}: one wall in two π-bands"
-        );
+        assert_eq!(body.faces().count(), 1, "station {v}: one wall, one face");
         let mut cavity = body.clone();
         let band = geom_core::Band::linear(tol()).expect("band");
         topo::offset_charts_together(&mut cavity, &hollow_moves(&body, t), band, tol())

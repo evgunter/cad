@@ -59,43 +59,19 @@ pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
     Ok(across.one_carrier)
 }
 
-/// Re-describes a full-revolve meridian as its wall's wrap edge (D1)
-/// when both its halves bound one face on a periodic wall surface — a
-/// lamina wall, closed on itself across it. Otherwise it rests where
-/// [`topo::Body::describe_at_rest`] reads it resting (`topo::rest_locus`):
-/// a plane wall's meridian (module docs — a plane's chart closes in no
-/// direction, and one surface on both sides determines no locus, so D2's
-/// conventional split applies), and a wire wall's angle-0 meridian,
-/// which parts its two π-bands rather than closing either. Carrier and
-/// interval kept verbatim either way.
+/// Re-describes a full-revolve meridian as its wall's wrap edge (D1):
+/// both its halves bound its one curved wall, which closes on itself
+/// across it. A plane wall's meridian is a slit the revolve kills before
+/// this, so none reaches here; the restatement refuses an edge whose
+/// halves bound two faces. Carrier and interval kept verbatim, and the
+/// stored certificate the one a fresh run mints
+/// ([`crate::swept::describe_wrap_edge_fresh`]).
 pub(super) fn upgrade_meridian_wrap<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     edge: EdgeKey,
     wall: SurfaceKey,
     tol: Tol,
 ) -> Result<(), RevolveError> {
-    let is_plane = matches!(
-        body.get_surface(wall).unwrap_or_else(|miss| {
-            unreachable!(
-                "wall surface {wall:?} was read off a live, classified wall face of this \
-                 revolve: {miss}"
-            )
-        }),
-        geom::Surface::Plane { .. }
-    );
-    let (f_plus, f_minus) = topo::readback::edge_sides(body, edge)
-        .unwrap_or_else(|_| {
-            unreachable!("meridian {edge:?} was minted by this revolve and is live")
-        })
-        .faces();
-    if is_plane || f_plus != f_minus {
-        // The meridian is at rest, and the scaffolding door it was
-        // minted through is for edges whose surfaces do not exist yet
-        // (D3's transience fence). So it is described where it rests
-        // (`Body::describe_at_rest`, which asks the rule over a pair).
-        body.describe_at_rest(edge, tol)?;
-        return Ok(());
-    }
-    crate::swept::describe_wrap_edge(body, edge, wall, tol)?;
+    crate::swept::describe_wrap_edge_fresh(body, edge, wall, tol)?;
     Ok(())
 }

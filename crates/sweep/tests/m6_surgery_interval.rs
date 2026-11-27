@@ -183,7 +183,7 @@ mod certified {
             })
             .map(|(k, _)| k)
             .collect();
-        assert_eq!(rims.len(), 2, "one rim of two arcs");
+        assert_eq!(rims.len(), 1, "one rim of one closed edge");
         let out = fillet_edges(
             &sweep::test_support::at_rest(&blanked, Tol::witness()),
             &rims,

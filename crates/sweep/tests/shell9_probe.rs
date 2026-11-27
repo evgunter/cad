@@ -33,13 +33,13 @@ use super::shell7_common::*;
 use sweep::test_support::finished;
 
 /// **Drum, stage by stage.** The door's cavity re-certifies edge for
-/// edge, and so does its `revert()`: the two half-circles of the
-/// latitude ring — the only `Chart` images on the PLANE with a
-/// non-zero `v` channel, and the two edges that refused `ChartResidual`
-/// at sample 1 while the reversal left them unmirrored — carry the
-/// mirrored image now, and the void door, which carries each
-/// certificate through the graft verbatim, takes the cavity. The plane
-/// edges are four: the two radial lines and the ring's two halves.
+/// edge, and so does its `revert()`: the latitude ring — the only
+/// `Chart` image on the PLANE, its `v` channel non-zero, the edge that
+/// refused `ChartResidual` at sample 1 while the reversal left it
+/// unmirrored — carries the mirrored image now, and the void door, which
+/// carries each certificate through the graft verbatim, takes the
+/// cavity. A full revolve's plane wall is one face with no radial seam,
+/// so the ring is the plane's one image.
 #[test]
 fn drum_reverted_cavity_re_certifies_and_the_void_door_takes_it() {
     let t = 0.05;
@@ -67,12 +67,8 @@ fn drum_reverted_cavity_re_certifies_and_the_void_door_takes_it() {
             matches!(c.carrier(), geom::Curve3::Circle(..))
         })
         .count();
-    assert_eq!(circles, 2, "the two half-circles of the latitude ring");
-    assert_eq!(
-        on_plane.len(),
-        4,
-        "two radial lines and the ring's two halves"
-    );
+    assert_eq!(circles, 1, "the latitude ring's one circle");
+    assert_eq!(on_plane.len(), 1, "the ring is the plane's one image");
     // The same insertion `shell` runs, by hand: taken.
     let mut out = body.clone();
     let solids: Vec<_> = body.solids().map(|(k, _)| k).collect();
@@ -191,7 +187,7 @@ fn drum_reverted_plane_circle_image_is_the_one_a_fresh_derivation_gives() {
             );
         }
     }
-    assert_eq!(circles, 2, "the latitude ring's two half-circles");
+    assert_eq!(circles, 1, "the latitude ring's one circle");
 }
 
 /// **Sphere, the carried rows against a hand re-mint.** The grafted

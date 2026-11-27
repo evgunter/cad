@@ -595,21 +595,16 @@ fn cone_tangent(r0: f64, slope: f64, u: (f64, f64), s: f64) -> SplitPlane<f64> {
 /// frustum's rims where the plane touches them, and the side the
 /// frustum lands on joins those pieces back. The rows are pinned whole,
 /// in arena keys, at each azimuth class of [`THETAS`]: none where the
-/// ruling is the seam's or opposite it, two where the join kills both
-/// rims' cut pieces, one where it kills one rim's original edge (which
-/// holds no record) and the other's cut piece. Red if the split drops a
-/// row, adds one, or records a parent other than the killed edge's
-/// record. On this fixture every row's parent is also the edge the join
+/// ruling is the seam's, and elsewhere two, the join killing both rims'
+/// cut pieces (each rim is one closed edge, cut once at the touch). Red
+/// if the split drops a row, adds one, or records a parent other than
+/// the killed edge's record. On this fixture every row's parent is also the edge the join
 /// kept; the topo pin `a_child_killed_before_its_parent_is_recorded_with_it`
 /// holds rows where the two differ.
 #[test]
 fn a_cone_graze_records_each_rejoined_piece_with_the_edge_it_was_split_from() {
-    let both: &[&str] = &[
-        "EdgeKey(3v3) ← EdgeKey(9v1)",
-        "EdgeKey(8v3) ← EdgeKey(10v1)",
-    ];
-    let one: &[&str] = &["EdgeKey(3v3) ← EdgeKey(4v1)"];
-    let want: [&[&str]; 10] = [&[], both, &[], one, both, both, both, both, one, one];
+    let both: &[&str] = &["EdgeKey(1v3) ← EdgeKey(5v1)", "EdgeKey(3v3) ← EdgeKey(4v1)"];
+    let want: [&[&str]; 10] = [&[], both, both, both, both, both, both, both, both, both];
     for (name, body, r0, slope) in [
         (
             "narrowing",

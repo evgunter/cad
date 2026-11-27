@@ -28,7 +28,7 @@ use topo::{AtRestBody, BooleanError, BooleanResult};
 use crate::common::differential::outcome;
 use crate::common::oracles::{ball_lens as lens, ball_volume, cap_volume};
 
-use Want::{Budget, Draws, RingUnread};
+use Want::{Budget, Draws, Folds};
 
 /// A `y`-poled ball of radius `r` turned by `turn`, then moved to `c`.
 fn placed(r: f64, turn: Affine3<f64>, c: Vec3<f64>) -> AtRestBody<f64> {
@@ -86,17 +86,15 @@ fn unit() -> AtRestBody<f64> {
 enum Want {
     /// `SOUND`, and the body meshes and checks.
     Draws,
+    /// `SOUND`, and the mesher refuses a triangle folded over the chord
+    /// beside it near a chart pole
+    /// (`work/tesslane/a-tilted-circle-near-a-sphere-pole-refuses-at-the-sphere-arm.md`).
+    Folds,
     /// `SOUND`, and the mesher refuses at once: the tilted circle passes
     /// so near a chart pole that its uniform chord schedule asks one edge
     /// for more chords than the sphere arm's budget
     /// (`SphereTrimShape { ChordBudget }`).
     Budget,
-    /// `SOUND`, and the mesher refuses a face holding a section circle as
-    /// a ring, undecided: the ring reader cannot clear the ring's point of
-    /// an outer loop row whose chart box does not tighten, a seam's iso
-    /// arc or a tilted circle's image
-    /// (`work/lathe/an-analytic-outer-loops-whole-span-boxes-never-tighten-under-the-ring-reader.md`).
-    RingUnread,
 }
 
 /// One op's `out` against `want`, its volume against `volume` to
@@ -120,15 +118,11 @@ fn check(
             mesh::validate::check_mesh(&m).unwrap_or_else(|e| panic!("{label}: the mesh: {e:?}"));
             crate::common::differential::assert_meshed_geometry(label, &bb.body, &m, 5e-3);
         }
-        RingUnread => {
+        Folds => {
             let drawn = mesh::tessellate(&bb.body, 5e-3, tol);
             assert!(
-                matches!(
-                    &drawn,
-                    Err(mesh::TessellateError::DomainUnread { cause, .. })
-                        if matches!(**cause, topo::pcurves::RingPlacementError::Undecided { .. })
-                ),
-                "{label}: the unplaced ring's refusal, got {:?}",
+                matches!(&drawn, Err(mesh::TessellateError::FoldedTriangle { .. })),
+                "{label}: the folded-triangle refusal, got {:?}",
                 drawn.map(|m| m.positions.len())
             );
         }
@@ -406,17 +400,13 @@ fn tilted_and_spun_charts_build() {
 /// `10⁻³` ball centred on the unit sphere (its circle passes about
 /// `5·10⁻⁷` from its own poles): each builds every op at its closed form.
 /// The cut keeps each ball's own chart, so the circle stays beside the
-/// unit ball's pole, and the mesher refuses a face holding it. At
-/// `10⁻⁵`, every face that keeps the circle as a ring is refused at its
-/// ring ([`Want::RingUnread`]). That includes the unit ball's remnant
-/// in `a ∪ b` and `a ∖ b`: its ring's one vertex is the cut meridian's
-/// crossing 10⁻⁵ from the pole, the first the crossing reading meets
-/// along the meridian. At `10⁻⁷` every face is over the sphere arm's
-/// chord budget
+/// unit ball's pole, and the mesher's sphere arm refuses a face holding
+/// it: folded beside the `10⁻⁵` circle in each union and `a ∖ b`
+/// ([`Want::Folds`]), and over its chord budget for every face at `10⁻⁷`
 /// (`work/tesslane/a-tilted-circle-near-a-sphere-pole-refuses-at-the-sphere-arm.md`).
-/// The small balls' circles pass beside their own poles, outside the unit
-/// ball, and refuse at their ring the same way
-/// (`work/lathe/a-section-circles-ring-vertex-beside-a-chart-pole-is-unread-and-one-sphere-op-loses-its-mesh.md`).
+/// A face that keeps such a circle as a ring beside its chart pole (the
+/// small balls', whose circles pass beside their own poles, outside the
+/// unit ball) has its ring placed by the ring reader, and draws.
 /// The distances are band-relative
 /// (at `ε = 10⁻⁶` the `10⁻⁷` circle is inside the band, and at `10⁻¹²`
 /// the `10⁻³` ball meets the f64 placement frontier,
@@ -434,10 +424,7 @@ fn a_circle_beside_a_pole_builds_though_the_mesher_refuses_it() {
     let r = 0.01f64;
     let theta = (1.0 - r * r / 2.0).acos();
     for (delta, wants) in [
-        (
-            1e-5,
-            [RingUnread, RingUnread, RingUnread, RingUnread, Draws, Draws],
-        ),
+        (1e-5, [Folds, Folds, Folds, Draws, Draws, Draws]),
         (1e-7, [Budget; 6]),
     ] {
         let a = theta + delta;
@@ -445,13 +432,7 @@ fn a_circle_beside_a_pole_builds_though_the_mesher_refuses_it() {
         against_the_unit_ball(&format!("δ {delta:e}"), &small, r, 1.0, wants);
     }
     let tiny = toward(1e-3, 1.0, Vec3::new(0.0, 0.0, 1.0), 0.0);
-    against_the_unit_ball(
-        "r 1e-3 on the sphere",
-        &tiny,
-        1e-3,
-        1.0,
-        [RingUnread, RingUnread, Draws, RingUnread, Draws, Draws],
-    );
+    against_the_unit_ball("r 1e-3 on the sphere", &tiny, 1e-3, 1.0, [Draws; 6]);
 }
 
 /// Both spheres trimmed, each by a box across its own seam and clear of
@@ -491,14 +472,11 @@ fn two_trimmed_spheres_build() {
 /// `δ` builds, `10⁻⁷` included: the arc's pcurve beside the pole is the
 /// projected image (C4), whose sector pieces refine toward the pole and
 /// certify while the arc stays clear of it, and every op's volume holds.
-/// At `10⁻³` and `10⁻⁵` the mesher draws the two intersections, where no
-/// face keeps the circle as a ring, and refuses the ring in the other
-/// four ops ([`Want::RingUnread`]). The unit ball's remnant keeps its
-/// ring vertex at the cut meridian's crossing `δ` from the pole, the
-/// first the crossing reading meets along the meridian, and the ring
-/// reader does not clear a ring point there
-/// (`work/lathe/a-section-circles-ring-vertex-beside-a-chart-pole-is-unread-and-one-sphere-op-loses-its-mesh.md`).
-/// At
+/// At `10⁻³` the mesher draws every op, the ring reader placing the
+/// circle where a face keeps it as a ring. At `10⁻⁵` the uniform chord
+/// schedule the circle asks near the pole folds a triangle over the
+/// chord beside the pole in each union and `a ∖ b`, which refuses typed
+/// ([`Want::Folds`]); the others draw. At
 /// `10⁻⁷` the schedule asks one edge for more chords than the sphere
 /// arm's budget, and the mesher refuses at once ([`Want::Budget`]).
 /// The distances are band-relative (at `ε = 10⁻⁶` the `10⁻⁵` circle's
@@ -533,8 +511,10 @@ fn a_trimmed_face_cut_beside_its_pole_builds() {
                 ball_volume(r),
                 lens(1.0, r, 1.0),
             ),
-            if delta > 1e-6 {
-                [RingUnread, RingUnread, RingUnread, RingUnread, Draws, Draws]
+            if delta > 1e-4 {
+                [Draws; 6]
+            } else if delta > 1e-6 {
+                [Folds, Folds, Folds, Draws, Draws, Draws]
             } else {
                 [Budget; 6]
             },
@@ -651,7 +631,8 @@ fn a_ball_escaping_through_a_plane_and_a_sphere() {
 /// The two lens-shaped differences build. The
 /// intersection builds a sliver `2·10⁻⁶` thick, sound: its two caps
 /// are small regions the sphere arm reads by the fan form, so its
-/// volume lands within about `1e-9` of the lens in either order (it
+/// volume lands within a few roundings of its flux's cancelling
+/// `R·Area` of the lens in either order (it
 /// read `−54%` and `−86%` before) and its at-infinity side decides, so
 /// it is a legal operand (`work/heldrecords/a-built-sliver-is-not-a-legal-operand.md`).
 #[test]
@@ -705,13 +686,18 @@ fn a_large_ball_near_external_tangency_is_pinned() {
     }
     // `outcome`'s volume test is absolute (`1e-7`), which a lens of
     // `1.2e-11` passes whatever it reads, so the sliver's volume is held
-    // here RELATIVE to the exact lens, per order and per gap. Measured at
-    // most `4.0e-9` (`a ∩ b` at a `3e-6` gap, an error of 1.1e-19 m³),
-    // with each face read about its shell's own vertex; `2.9e-9` when
-    // every face was read about the world origin, the unit ball's
-    // centre, where its cap's flux has no lever to cancel. The `b ∩ a` sliver at a `1e-5` gap reads `2.5e-3`
-    // off: that is the flux's own `R·Area` against `c·A⃗` cancellation,
-    // FLUXTAIL's `a-sphere-faces-flux-cancels-r-times-its-area-against-its-vector-area`
+    // here RELATIVE to the exact lens, per order and per gap, to what the
+    // flux form can resolve. A sphere face's flux is `R·Area` against
+    // `c·A⃗` (FLUXTAIL's
+    // `a-sphere-faces-flux-cancels-r-times-its-area-against-its-vector-area`):
+    // the big ball's cap carries `R·Area = 50·2π·50·h₂` (`6.2e-4` m³ at a
+    // `2e-6` gap, `h₂` its cap height), which cancels down to a lens of
+    // `1.2e-11`, so one rounding of that term is already `8.8e-9` of the
+    // lens. The bound is four such roundings, `4ε·R·Area / V`: `4.4e-8`
+    // at `2e-6`, `8.9e-9` at `1e-5`. Measured inside it in either order
+    // (`7.7e-9` at `a ∩ b`, `2e-6`). The `b ∩ a` sliver at a `1e-5` gap
+    // reads `2.5e-3` off, far past rounding: that is the same cancellation
+    // with the face read about a vertex `51` from the big ball's centre
     // (`work/heldrecords/a-built-sliver-is-not-a-legal-operand.md` has the
     // table), held at its measured size so it cannot grow unseen.
     for gap in [2e-6, 3e-6, 5e-6, 1e-5] {
@@ -728,10 +714,15 @@ fn a_large_ball_near_external_tangency_is_pinned() {
                 .unwrap_or_else(|| panic!("gap {gap:e}, {op}: the sliver builds"));
             let v = topo::test_support::pinned_volume("the measured body", &body, tol).volume;
             let rel = (v - want).abs() / want;
+            // The big ball's cap: its height above the radical plane,
+            // and the `R·Area` its flux cancels.
+            let a1 = (d * d + 1.0 - 50.0 * 50.0) / (2.0 * d);
+            let h2 = 50.0 - (d - a1);
+            let flux = 50.0 * core::f64::consts::TAU * 50.0 * h2;
             let bound = if gap == 1e-5 && op == "b ∩ a" {
                 3e-3
             } else {
-                5e-9
+                4.0 * f64::EPSILON * flux / want
             };
             assert!(
                 rel <= bound,
@@ -748,12 +739,9 @@ fn a_large_ball_near_external_tangency_is_pinned() {
 /// in the intersection the band keeps no edge of the ball's own: the
 /// last piece of the cut parts two circles, and the one the chart's pole
 /// lies beyond is the outline (`topo::boolean::slit`, closing a cut).
-/// Every op builds maximal at its closed form. Where the band is kept,
-/// its outline is the tilted circle, whose chart rows the ring reader
-/// cannot clear, so the mesher refuses the ring undecided
-/// ([`Want::RingUnread`]); with the two roles swapped it would refuse
-/// `NoShift` instead, the ring outside its outline, and the roles are
-/// read off the loops before that. The other ops mesh.
+/// Every op builds maximal at its closed form, and every op meshes: where
+/// the band is kept, its outline is the tilted circle, and the ring
+/// reader places the other circle inside it.
 #[test]
 fn a_band_between_two_circles_builds_under_every_boolean() {
     let (lo, hi) = (0.4f64, 0.7f64);
@@ -805,6 +793,6 @@ fn a_band_between_two_circles_builds_under_every_boolean() {
         &unit(),
         &slab,
         (ball_volume(1.0), slab_volume, band(lo, hi)),
-        [Draws, Draws, Draws, RingUnread, RingUnread, RingUnread],
+        [Draws; 6],
     );
 }

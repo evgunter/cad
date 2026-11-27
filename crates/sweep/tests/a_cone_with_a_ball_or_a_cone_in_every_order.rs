@@ -16,8 +16,11 @@
 //! Each run's outcome is pinned at the default ε, `built` or the refusal
 //! whole (its operand, face and kind), so the row goes red the day either
 //! changes; the nightly reads the same pins at 1e-6 and 1e-12. Every run
-//! of both builds, the section loop a ring on `K`'s face that the
-//! carried chords close, each body valid at tier 3; where an order's
+//! of the two cones builds, the section loop a ring on `K`'s face that
+//! the carried chords close, each body valid at tier 3. Every run of the
+//! ball refuses: the ball's one wrap edge reads no point of the loop, so
+//! it is interior to both faces, and the loop is not cut in on the cone
+//! ([`BALL_PINNED`]). Where an order's
 //! three runs all build, the volumes close as the operations must:
 //! `|A ∪ B| + |A ∩ B| = |A| + |B|` and `|A ∖ B| = |A| − |A ∩ B|`, within
 //! the measured pads. A desync or a broken invariant is red whatever the
@@ -68,9 +71,36 @@ fn crossing_cone(tol: Tol) -> AtRestBody<f64> {
     cone(to * turn, tol)
 }
 
+/// The refusal of a loop interior to the cone's face and the ball's,
+/// the cone being `operand`.
+macro_rules! cone_refused {
+    ($operand:literal) => {
+        concat!(
+            "FallbackExtentUnsupported { operand: ",
+            $operand,
+            ", face: FaceKey(2v1), what: \"a curved face meets a face of the other solid in a \
+             closed loop interior to both faces, which no edge event and no vertex probe can \
+             see; the loop is certified, and cutting it in is not built\" }"
+        )
+    };
+}
+
 /// Each run's outcome, ∪, ∩, ∖ with the cone first, then with the other
 /// first.
 const PINNED: [&str; 6] = ["built"; 6];
+
+/// The ball's six runs: the loop on the cone's side is read by no edge
+/// of the ball's one band, and the no-crossings path does not cut it in
+/// on the cone's face, so each run refuses typed, naming the cone. Filed
+/// as work/lathe/a-cone-and-a-one-band-ball-meet-in-a-loop-inside-both-faces-and-refuse-its-cut-in.md.
+const BALL_PINNED: [&str; 6] = [
+    cone_refused!("A"),
+    cone_refused!("A"),
+    cone_refused!("A"),
+    cone_refused!("B"),
+    cone_refused!("B"),
+    cone_refused!("B"),
+];
 
 /// The widest pad a measured volume may carry, relative to the volume:
 /// the closures below are read within the pads, so a pad past it would
@@ -178,13 +208,13 @@ fn every_order(
 }
 
 #[test]
-fn a_cone_and_a_ball_off_its_axis_build_in_every_order() {
+fn a_cone_and_a_ball_off_its_axis_refuse_their_loop_in_every_order() {
     let tol = Tol::witness();
     every_order(
         "the ball",
         (&cone(Affine3::identity(), tol), &ball(tol)),
         4.0 * PI * 0.4f64.powi(3) / 3.0,
-        PINNED,
+        BALL_PINNED,
         tol,
     );
 }

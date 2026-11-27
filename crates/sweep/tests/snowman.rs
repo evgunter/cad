@@ -1,9 +1,8 @@
 //! **The snowman**: two balls of revolution on distinct centres along
 //! one axis, meeting in a real circle, under every boolean.
 //!
-//! Each ball is the canonical full revolve of a semicircle: two
-//! half-bands on one sphere key, their seam meridians crossing the
-//! partner sphere. The section is the radical-plane circle, and the
+//! Each ball is the canonical full revolve of a semicircle: one sphere
+//! face, its seam meridian a wrap edge crossing the partner sphere. The section is the radical-plane circle, and the
 //! rows reach it through the crossing layer's circle × sphere roots and
 //! the sphere pair's join. Every body is held to all three validation
 //! tiers and to its volume against the two spherical caps the radical
@@ -12,8 +11,8 @@
 //! **The seams need not be coplanar.** Both balls are revolved from the
 //! same seam, so each seam meridian pierces the other sphere on the
 //! other's seam meridian and every chord runs seam to seam. Spin one
-//! ball about the shared axis and the pierce lands inside a half-band
-//! instead, a pierce ring, which joins: that pose builds too.
+//! ball about the shared axis and the pierce lands inside the sphere face
+//! off its seam instead, a pierce ring, which joins: that pose builds too.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -56,24 +55,6 @@ fn assert_body(label: &str, body: &Body<f64>, expected: f64) {
         "{label}: a closed manifold mesh"
     );
     crate::common::differential::assert_meshed_geometry(label, body, &m, 1e-3);
-    assert_solid(label, body, expected);
-}
-
-/// [`assert_solid`], and the mesher refuses the body at a ring it cannot
-/// place: a sphere face holding a section circle as a ring, whose outer
-/// row's chart box does not tighten under the ring reader
-/// (`work/lathe/an-analytic-outer-loops-whole-span-boxes-never-tighten-under-the-ring-reader.md`).
-fn assert_ring_unread(label: &str, body: &Body<f64>, expected: f64) {
-    let drawn = mesh::tessellate(body, 1e-3, Tol::witness());
-    assert!(
-        matches!(
-            &drawn,
-            Err(mesh::TessellateError::DomainUnread { cause, .. })
-                if matches!(**cause, topo::pcurves::RingPlacementError::Undecided { .. })
-        ),
-        "{label}: the unplaced ring's refusal, got {:?}",
-        drawn.map(|m| m.positions.len())
-    );
     assert_solid(label, body, expected);
 }
 
@@ -145,6 +126,105 @@ fn the_snowman_builds_under_every_boolean() {
     ] {
         assert_body(label, &run(op, x, y), expected);
     }
+}
+
+/// The same six ops on a coaxial pair other than two balls: each meets
+/// the ball in two section circles, each crossing both walls' seams at
+/// one site, since every full revolve about `y` carries its seam in one
+/// half-plane.
+fn assert_coaxial_pair(pose: &str, wall: &AtRestBody<f64>, v_wall: f64, shared: f64) {
+    let ball = ball(1.0, 0.0);
+    let v_ball = ball_volume(1.0);
+    for (label, op, x, y, expected) in [
+        (
+            "W ∪ ball",
+            BooleanOp::Union,
+            wall,
+            &ball,
+            v_wall + v_ball - shared,
+        ),
+        (
+            "ball ∪ W",
+            BooleanOp::Union,
+            &ball,
+            wall,
+            v_wall + v_ball - shared,
+        ),
+        ("W ∩ ball", BooleanOp::Intersect, wall, &ball, shared),
+        ("ball ∩ W", BooleanOp::Intersect, &ball, wall, shared),
+        (
+            "W ∖ ball",
+            BooleanOp::Subtract,
+            wall,
+            &ball,
+            v_wall - shared,
+        ),
+        (
+            "ball ∖ W",
+            BooleanOp::Subtract,
+            &ball,
+            wall,
+            v_ball - shared,
+        ),
+    ] {
+        assert_body(&format!("{pose}, {label}"), &run(op, x, y), expected);
+    }
+}
+
+/// **A coaxial rod through the ball**: radius `a = 0.5`, `y ∈ [−2, 2]`,
+/// one band. The ball holds `(4π/3)(1 − (1 − a²)^{3/2})` of it, the ball
+/// less its napkin ring.
+#[test]
+fn a_coaxial_rod_through_the_ball_builds_under_every_boolean() {
+    let a = 0.5;
+    let rod = finished(
+        "the rod",
+        revolved_about_y(
+            vec![
+                (Point2::new(0.0, -2.0), 0.0),
+                (Point2::new(a, -2.0), 0.0),
+                (Point2::new(a, 2.0), 0.0),
+                (Point2::new(0.0, 2.0), 0.0),
+            ],
+            Revolution::Full,
+            Tol::witness(),
+        ),
+        Tol::witness(),
+    );
+    let shared = 4.0 * PI / 3.0 * (1.0 - (1.0 - a * a).powf(1.5));
+    assert_coaxial_pair("rod", &rod, PI * a * a * 4.0, shared);
+}
+
+/// **A coaxial torus across the ball's surface**: tube radius `r = 0.3`
+/// about the circle of radius 1 in `y = 0`, one band. Their meridian
+/// sections are two discs, `ρ² + y² ≤ 1` and `(ρ − 1)² + y² ≤ r²`, which
+/// meet across the chord `ρ = ρ₀ = (2 − r²)/2`; the shared volume is
+/// Pappus's `2π ∫ ρ dA` over the two circular segments it cuts off.
+#[test]
+fn a_coaxial_torus_across_the_ball_builds_under_every_boolean() {
+    let r: f64 = 0.3;
+    let torus = finished(
+        "the torus",
+        revolved_about_y(
+            vec![
+                (Point2::new(1.0 - r, 0.0), 1.0),
+                (Point2::new(1.0 + r, 0.0), 1.0),
+            ],
+            Revolution::Full,
+            Tol::witness(),
+        ),
+        Tol::witness(),
+    );
+    let rho0 = (2.0 - r * r) / 2.0;
+    // The unit disc's segment beyond the chord, its moment about the axis.
+    let m_ball = 2.0 / 3.0 * (1.0 - rho0 * rho0).powf(1.5);
+    // The tube's segment inside it, the chord `h` from the tube's centre.
+    let h = 1.0 - rho0;
+    let half = (r * r - h * h).sqrt();
+    let area = r * r * (h / r).acos() - h * half;
+    let m_tube = area - 2.0 / 3.0 * half.powi(3);
+    let shared = 2.0 * PI * (m_ball + m_tube);
+    assert_coaxial_pair("torus", &torus, 2.0 * PI * PI * r * r, shared);
 }
 
 /// The boolean's refusal; a body fails with the op named.
@@ -276,6 +356,9 @@ fn the_near_tangent_family_builds_to_1e_6_at_the_finer_bands() {
 /// `h = δ(2r2 − δ)/2d`, the circle's radius `√(h(2r1 − h))`, every
 /// factor free of cancellation, and `δ = (r1 − d) + r2` exact. The
 /// volume cannot see a misplaced pierce on a lens this thin; this can.
+/// Both balls carry their seam in one half-plane (`z = 0`, `x > 0`), so
+/// the circle meets the two seams at one site there, the only vertex off
+/// the axis.
 fn assert_pierces_on_the_section(label: &str, body: &Body<f64>, d: f64) {
     let eps = Tol::witness().get().eps;
     let delta = (R1 - d) + R2;
@@ -288,13 +371,17 @@ fn assert_pierces_on_the_section(label: &str, body: &Body<f64>, d: f64) {
             continue;
         }
         pierces += 1;
+        assert!(
+            p.z.abs() <= eps && p.x > 0.0,
+            "{label}: vertex {p:?} is off the seams' half-plane z = 0, x > 0"
+        );
         let off = (p.y - y_star).hypot(off_axis - a);
         assert!(
             off <= eps,
             "{label}: vertex {p:?} is {off:e} off the section circle (y {y_star}, radius {a})"
         );
     }
-    assert!(pierces >= 2, "{label}: the section's pierce vertices exist");
+    assert_eq!(pierces, 1, "{label}: the section's one pierce vertex");
 }
 
 /// **Where the near-tangent family stops at ε = 1e-12.** At `δ = 1e-7`
@@ -624,8 +711,8 @@ fn a_hemisphere_against_a_ball_crossing_its_cap_and_dome_builds() {
 }
 
 /// **The snowman builds spun, too.** Spin B about the shared axis by any
-/// angle off `0` and `π` and A's seam meridian pierces B's sphere at a
-/// point INSIDE B's half-band rather than on B's seam: that pierced face
+/// angle off `0` and A's seam meridian pierces B's sphere at a point
+/// INSIDE B's sphere face rather than on B's seam: that pierced face
 /// carries a pierce ring, and its chords take the arc the pierce germs'
 /// directions name. The spin moves no volume, so every op meets the
 /// coplanar pose's closed form.
@@ -945,36 +1032,16 @@ fn assert_every_op(
     (y, vy): (&AtRestBody<f64>, f64),
     meet: f64,
 ) {
-    assert_every_op_but(label, (x, vx), (y, vy), meet, [false; 6]);
-}
-
-/// [`assert_every_op`], where op `i` (in its order: `x ∪ y`, `y ∪ x`,
-/// `x ∩ y`, `y ∩ x`, `x ∖ y`, `y ∖ x`) is held to [`assert_ring_unread`]
-/// where `unread[i]`.
-fn assert_every_op_but(
-    label: &str,
-    (x, vx): (&AtRestBody<f64>, f64),
-    (y, vy): (&AtRestBody<f64>, f64),
-    meet: f64,
-    unread: [bool; 6],
-) {
-    for ((op, p, q, want), unread) in [
+    for (op, p, q, want) in [
         (BooleanOp::Union, x, y, vx + vy - meet),
         (BooleanOp::Union, y, x, vx + vy - meet),
         (BooleanOp::Intersect, x, y, meet),
         (BooleanOp::Intersect, y, x, meet),
         (BooleanOp::Subtract, x, y, vx - meet),
         (BooleanOp::Subtract, y, x, vy - meet),
-    ]
-    .into_iter()
-    .zip(unread)
-    {
+    ] {
         let name = format!("{label}, ε {}: {op:?}", Tol::witness().eps());
-        if unread {
-            assert_ring_unread(&name, &run(op, p, q), want);
-        } else {
-            assert_body(&name, &run(op, p, q), want);
-        }
+        assert_body(&name, &run(op, p, q), want);
     }
 }
 
@@ -1084,9 +1151,9 @@ fn a_slab_tilted_across_the_lens_seams_builds() {
 }
 
 /// **A cap off a banded ball**: the unit ball kept between the planes
-/// `y = ±0.6`, a trimmed group whose two half-bands run rim to rim, cut
+/// `y = ±0.6`, a trimmed group whose one sphere face runs rim to rim, cut
 /// by a slab whose plane lies 0.985 from the centre toward latitude 10°
-/// at azimuth π/2. The circle lies inside one half-band, and the
+/// at azimuth π/2. The circle lies inside that face, and the
 /// meridian cut through it runs from the lower rim to the upper, so both
 /// of its ends split a rim. Every op builds against the band's
 /// `π(2·0.6 − 2·0.6³/3)` and the cap of height 0.015.
@@ -1134,20 +1201,15 @@ fn a_slab_cutting_a_cap_off_a_pole_strut_carve_builds() {
     let carve = run(BooleanOp::Subtract, &ball, &cutter);
     let v_carve = ball_volume(0.5) - (ball_volume(0.5) - cap_volume(0.5, 0.25)) / 2.0;
     let t = 10f64.to_radians();
-    // Toward (0.866, 0.1, −0.5) the carve keeps the circle as a ring of
-    // its face under both unions and the carve less the slab, and the
-    // mesher cannot place it ([`assert_ring_unread`]).
-    let ring = [true, true, false, false, true, false];
-    for (n, unread) in [
-        (Vec3::new(0.0, t.sin(), t.cos()), [false; 6]),
-        (Vec3::new(0.866, 0.1, -0.5), ring),
+    for n in [
+        Vec3::new(0.0, t.sin(), t.cos()),
+        Vec3::new(0.866, 0.1, -0.5),
     ] {
-        assert_every_op_but(
+        assert_every_op(
             &format!("pole strut, slab toward {n:?}"),
             (&carve, v_carve),
             (&brick_toward(n, 0.4925, 3.0, 1.0), 36.0),
             cap_volume(0.5, 0.0075),
-            unread,
         );
     }
     // PR 5920's first review saw triangles folded over the chord beside
@@ -1215,7 +1277,7 @@ fn a_pole_to_pole_cut_of_a_ball_wedge_builds() {
 ///   operand in both orders.
 /// - The banded ball against a cube of half-side 0.985 turned 45° and
 ///   135° about y: the same point set, whose four side faces cut four
-///   caps, two on each half-band, met in different orders.
+///   caps on its one sphere face, met in different orders.
 ///
 /// Every op builds against the closed forms.
 #[test]
@@ -1274,7 +1336,7 @@ fn two_cut_ins_on_one_face_build_in_either_order() {
 /// latitudes 20° and −20°: at azimuth 90° for both, the second circle's
 /// crossings lie on the first cut's meridian, which the crossing layer
 /// meets as a seam, so it takes no cut of its own; at 90° and 92°, on
-/// the piece of the half-band the first cut left it. Every op builds
+/// the piece of the sphere face the first cut left it. Every op builds
 /// against the closed forms.
 #[test]
 fn a_circle_across_an_earlier_cut_takes_none_of_its_own() {
@@ -1316,19 +1378,12 @@ fn a_cut_ends_at_the_nearest_of_several_boundary_hits() {
         Tol::witness(),
     );
     let carve = run(BooleanOp::Subtract, &ball(1.0, 0.0), &box_);
-    // Toward latitude −60° the carve keeps the circle as a ring of its
-    // face under both unions and the carve less the slab, and the mesher
-    // cannot place it ([`assert_ring_unread`]).
-    for (lat, unread) in [
-        (60.0, [false; 6]),
-        (-60.0, [true, true, false, false, true, false]),
-    ] {
-        assert_every_op_but(
+    for lat in [60.0, -60.0] {
+        assert_every_op(
             &format!("ball less a box, slab toward lat {lat} az 30"),
             (&carve, ball_volume(1.0) - cap_volume(1.0, 0.5)),
             (&brick_toward(dir(lat, 30.0), 0.999, 3.0, 1.0), 36.0),
             cap_volume(1.0, 0.001),
-            unread,
         );
         // THE SHARED EAR (PR 5920's review, B4). The cap of height 0.001
         // is one sphere face and one plane face on one circle, and its

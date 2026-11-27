@@ -74,3 +74,5 @@ release-profile corrupt-input job the same way
 a branch that does not touch the pcurve sites.
 A second seed on the next head: `CAD_FUZZ_SEED=0xccd85e4535544fc8`, the same panic.
 A third, 2026-11-26 (PR 7801 at `d98cd3bf6`): `CAD_FUZZ_SEED=0xc8c4a2645bb07846`, the same panic (`HalfEdgeKey(4v1)`).
+
+- 2026-11-26 — **another seed, from HELDRECORDS' PR 7808** (its diff touches no file under `pcurves/`, `splitting/` or `review_d18.rs`): the same job drew `0xa39f3a69499ffbda` and panicked on `HalfEdgeKey(4v1)` at `crates/topo/src/pcurves/site.rs:395`. Not replayed on main by this lane.

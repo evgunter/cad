@@ -107,18 +107,12 @@
 //!
 //! A **self-loop chord** (both ends one vertex) is a one-site section
 //! loop's: a one-face closed wall cut across its one wrap edge, in the
-//! split or the boolean, and in the boolean also a face of the partner
-//! [`reads_loop_side`] reads, whose interior that edge pierces
-//! ([`ChordJoiner::join_lone_ring`]) or whose boundary it meets at a
-//! vertex, where the null edge hangs from that vertex into the face as a
-//! strut ([`Lone`], [`ChordJoiner::place_strut`]); and in the
-//! boolean a closed edge
-//! (one vertex, both its ends) lying in the other operand, which copies
-//! that edge whole on its own side ([`closed_edge_spec`]) and is the
-//! section loop in a face of the partner [`reads_loop_side`] reads, or on
-//! the wrap edge of the partner's one-face wall, which the loop winds
-//! round from that edge back to it. There the chord is the whole section
-//! loop, from the vertex round to itself.
+//! split or the boolean, the chord being the whole section loop from the
+//! vertex round to itself. Which one-site loops the boolean closes, and
+//! as what (a lone ring [`ChordJoiner::join_lone_ring`], a null strut
+//! [`Lone`] placed by [`ChordJoiner::place_strut`], a closed edge's copy
+//! [`closed_edge_spec`]), is stated once, at
+//! `boolean::join::closes_at_its_site`.
 //! A chord between two copies of one site, which the null edges tie
 //! ([`same_site`]), runs round the same way: a section loop that meets
 //! a face's boundary at one site alone reaches it under whichever of
@@ -331,12 +325,8 @@ pub enum JoinError {
     },
     /// A closed section loop has ONE site that the join does not close
     /// a loop at: the one vertex on the loop holds both its ends, and
-    /// the join closes a loop on itself only at a wrap edge or a closed
-    /// edge piercing a face [`reads_loop_side`] reads, a wrap edge meeting
-    /// a vertex of such a face's boundary, or a closed edge on a one-face
-    /// wall's wrap edge or along another closed edge
-    /// (`boolean::join::one_site_segments`). Any other is refused typed,
-    /// before the loose ends are counted.
+    /// the site is none of the shapes `boolean::join::closes_at_its_site`
+    /// states. Refused typed, before the loose ends are counted.
     SingleSiteSectionLoop {
         /// How many such loops.
         count: usize,
@@ -827,10 +817,8 @@ impl JoinError {
             ),
             Self::SingleSiteSectionLoop { count } => write!(
                 f,
-                "{count} section loop(s) close through a single vertex, which the join closes \
-                 only where a wrap edge or a closed edge pierces or touches a face it sides a \
-                 loop in, or a closed edge runs on a wrap edge or along another closed edge; \
-                 this one is not built. {}",
+                "{count} section loop(s) close through a single vertex at a site the join \
+                 does not close a loop at; this one is not built. {}",
                 geom_core::NOT_YET_ENDING
             ),
             Self::SectionLoopUndecided { .. } => write!(

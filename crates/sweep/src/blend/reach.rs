@@ -3583,9 +3583,8 @@ mod tests {
         }
     }
 
-    /// The unit ball's cap above `y = ½`, revolved about `y`, and one of
-    /// its sphere faces, which holds the pole `+y`. The full revolve mints
-    /// the cap's sphere as two half-turn faces; this is the first.
+    /// The unit ball's cap above `y = ½`, revolved about `y`, and its one
+    /// sphere face, which holds the pole `+y` at its meridian's tip.
     #[allow(clippy::expect_used)]
     fn cap<T: topo::AtRestPolicy>() -> (topo::Body<T>, topo::FaceKey) {
         use geom_core::{Point2, Tol};

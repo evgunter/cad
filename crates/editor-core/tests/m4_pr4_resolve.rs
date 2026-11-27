@@ -952,8 +952,6 @@ fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
         | RoleSeg::CapVertex(..)
         | RoleSeg::Band(_)
         | RoleSeg::BandRim(_)
-        | RoleSeg::BandRimPi(_)
-        | RoleSeg::BandPi(_)
         | RoleSeg::Meridian(..)
         | RoleSeg::MeridianVertex(..)
         | RoleSeg::RevolveCap(_)

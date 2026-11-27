@@ -1632,7 +1632,6 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::NormalAtConeApex => "normal_at_cone_apex",
         BooleanErrorKind::VertexPairAtConeApex => "vertex_pair_at_cone_apex",
         BooleanErrorKind::VertexNearConeAxis => "vertex_near_cone_axis",
-        BooleanErrorKind::ResultPinchedAtConeApex => "result_pinched_at_cone_apex",
         BooleanErrorKind::ApexSection => "apex_section",
         BooleanErrorKind::NormalAtSplineCrease => "normal_at_spline_crease",
         BooleanErrorKind::PierceLeverUnread => "pierce_lever_unread",
@@ -2401,13 +2400,12 @@ pub fn snap_relation_tag(relation: &SnapRelation) -> &'static str {
 /// payload, which crosses at `singularity` beside the record's `kind`
 /// word rather than folded into it, as `surface_promotion`'s does.
 ///
-/// The match is exhaustive, so a fourth disposition stops this crate
-/// compiling instead of arriving under one of these three words.
+/// The match is exhaustive, so a third disposition stops this crate
+/// compiling instead of arriving under one of these two words.
 pub fn singularity_found_tag(found: &SingularityFound) -> &'static str {
     match found {
         SingularityFound::Interior => "interior",
         SingularityFound::InsideEdge => "inside_edge",
-        SingularityFound::ValenceOneVertex => "valence_one_vertex",
     }
 }
 

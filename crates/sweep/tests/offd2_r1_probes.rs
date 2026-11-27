@@ -6,7 +6,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::operands;
-use crate::common::shell_operands::{hollow_box, vessel};
+use crate::common::shell_operands::{disc_drum, hollow_box, vessel};
 use crate::common::torus_walls::klein_elbow;
 use geom_core::{Point2, Tol};
 use profile::test_support::bulge_loop;
@@ -570,21 +570,20 @@ fn probe_stale_designation_refuses_typed() {
 // bit-untouched-on-Err contract, checked on whole-body Debug.
 // ---------------------------------------------------------------------
 
-/// Replacing only ONE of the two faces wearing the vessel's cylinder
+/// Replacing only ONE of the two faces wearing the disc drum's cylinder
 /// chart must still refuse `SharedSurfaceKey`, and the body must be
-/// bit-untouched across the Err.
+/// bit-untouched across the Err. (A full revolve's wall is one face, so
+/// the drum, extruded from two half arcs, is the body whose curved
+/// chart two faces wear.)
 #[test]
 fn probe_partial_group_refuses_and_leaves_body_untouched() {
-    let v = vessel(1.0, 2.0);
+    let v = disc_drum(1.0, 2.0);
     let cyl: Vec<FaceKey> = v
         .faces()
         .filter(|(fk, _)| matches!(v.face_surface(*fk), Ok(geom::Surface::Cylinder { .. })))
         .map(|(k, _)| k)
         .collect();
-    assert!(
-        cyl.len() >= 2,
-        "the full revolve wears one cylinder on two faces"
-    );
+    assert_eq!(cyl.len(), 2, "the drum wears one cylinder on two faces");
 
     let mut work = v.clone();
     let before = format!("{work:?}");

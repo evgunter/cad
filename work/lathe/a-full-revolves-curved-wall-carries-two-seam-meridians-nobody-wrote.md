@@ -2,10 +2,12 @@
 id: a-full-revolves-curved-wall-carries-two-seam-meridians-nobody-wrote
 kind: issue
 title: A full revolve's curved wall is built as two π-bands joined by two seam meridians the author did not write, against DESIGN's 'a wall keeps the cuts its author wrote'
-status: open
+status: closed
 opened: 2026-10-28
 priority: P1
 cost: M
+closed: 2026-11-26
+pr: 7414
 ---
 
 
@@ -45,3 +47,7 @@ Re-parked on `sphere-faces-take-a-per-face-chart-or-pole-vertices` (a ruling ope
 ## Released (2026-10-31)
 
 Ev ruled on `[ev]` PR 6085, decision 3 (fork-log row 222): keep the wrap tip. A tip is any valence-1 end of a wrap edge, and the wrap edge is the face's seam kept to its end. A chart reader reads a tip as the seam, through the lift's reset at the singular vertex. A chart-free reader drops it, keeping the singular vertex as the side's datum. The hold is lifted. (RESTCURVE orchestrator)
+
+## Closed
+
+2026-11-26, PR 7414 (LATHE orchestrator). A full revolve's curved wall is one band, and each pole or apex is that band's wrap edge's tip (Ev on `[ev]` PRs 6014 and 6085). Every consumer the change broke is fixed in the stack, each by its own reviewed PR: 7484, 7473, 7435, 7476, 7487, 7440, 7532, 7556, 7752, 7585, 7744, 7575, 7581, 7774, 7736, 7802 and 7803. The stack carries main through `41b8b180fc`. Its `ops.rs` port onto ORBIT's closed cut was dual-reviewed. The crossings-path cut-in is gated on `close_cuts`' premises, and its capability is `close-cuts-is-not-total-on-crossings-path-cut-ins` (P1). Reviews: a dual at every round (two Opus, Fable outage), both approving at the end.

@@ -493,8 +493,8 @@ fn roll_the_mouth<S: Scalar>(
         .collect();
     assert_eq!(
         mouth.len(),
-        2,
-        "the lantern's mouth is one circle, two half-arcs either side of the seam"
+        1,
+        "the lantern's mouth is one circle, one closed edge"
     );
     fillet_edges(
         &finished("the sharp lantern", sharp.clone(), tol),
@@ -1994,9 +1994,9 @@ fn meridian_residuals(circle: Circle, torus: TorusCarrier) -> (f64, f64, f64) {
 /// than a transverse SSI curve nobody has a closed form for.
 ///
 /// Stated as a MEASUREMENT, not a search. The lantern's cones offer
-/// EIGHT station circles at the tube's minor radius — two conical
-/// WALLS, each halved at the full revolve's seam, each half-band
-/// offering both nappes; the best of them must satisfy the torus's
+/// FOUR station circles at the tube's minor radius — two conical
+/// WALLS, each one face offering both nappes; the best of them must
+/// satisfy the torus's
 /// meridian membership, the nearest DISTINCT one must miss by a
 /// distance no tolerance could confuse with zero, and the winner must
 /// sit on the tube's END — the frame `sweep::revolved_caps` reports —
@@ -2020,13 +2020,12 @@ pub fn weld_circle<S: Scalar>(
 ) -> (pncad::topo::FaceKey, Circle, (f64, f64, f64), f64) {
     let torus = torus_carrier(arch);
     let candidates = cone_station_circles(lantern, torus.small_r);
-    // Two conical WALLS, each halved at the full revolve's seam, each
-    // half-band offering its carrier's two nappes.
+    // Two conical WALLS, each one face offering its carrier's two
+    // nappes.
     assert!(
-        candidates.len() == 8,
-        "the lantern carries two cones — a neck and a pucker — halved at the \
-         revolve seam, so eight station circles at the tube's minor radius; \
-         got {}",
+        candidates.len() == 4,
+        "the lantern carries two cones — a neck and a pucker — each one \
+         face, so four station circles at the tube's minor radius; got {}",
         candidates.len()
     );
     let score = |c: &Circle| {
@@ -2059,9 +2058,8 @@ pub fn weld_circle<S: Scalar>(
          one at its END station — the flower is threaded on the tube, not \
          welded to its rim"
     );
-    // The neck's two half-bands offer the SAME circle, so the miss
-    // that matters is the nearest DISTINCT station circle — the neck's
-    // other nappe, or either of the pucker's.
+    // The miss that matters is the nearest DISTINCT station circle —
+    // the neck's other nappe, or either of the pucker's.
     let runner_up = ranked
         .iter()
         .filter(|(_, c)| (c.c - best.c).norm() > 1e-9)
@@ -2334,7 +2332,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    of the lantern at once. A seam meridian, an edge with the same
     //    sphere on both sides, is a smooth seam the fillet leaves as it
     //    is, so that request rolls every rim; the rim itself, asked for
-    //    by both of its half-arcs, rolls too. The scene
+    //    by name, rolls too. The scene
     //    now rolls it ([`roll_the_mouth`], r = [`FLOWER_MOUTH_ROLL`]),
     //    and what stays live is that the lantern the scene ships carries
     //    the band: one torus face, coaxial with the flower.
@@ -2354,8 +2352,8 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    frustum (measured in this module's `verbs_gate_r1_probes`). The
     //    three seams are the same ball turned a third of a turn about the
     //    lantern's axis ([`seamed_lantern`]); the seam a third of a turn
-    //    round meets neither of the zone's seam meridians, so its section
-    //    is a ring of one half-band, and the trimmed lane meshes that
+    //    round misses the zone's seam meridian, so its section is a
+    //    ring of the zone's one face, and the trimmed lane meshes that
     //    face's outer loop less the ring. The scene's lanterns do not
     //    carry the seams yet
     //    (`work/tesslane/the-lily-lanterns-can-take-their-three-tepal-seams.md`).

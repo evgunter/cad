@@ -314,7 +314,7 @@ fn p3_one_and_two_pip_ladders_and_tight_pair() {
         .expect("box")
         .body;
         let rims = rim_edges(&blanked);
-        assert_eq!(rims.len(), 2);
+        assert_eq!(rims.len(), 1);
         let out = fillet_edges(
             &sweep::test_support::at_rest(&blanked, Tol::witness()),
             &rims,
@@ -329,11 +329,10 @@ fn p3_one_and_two_pip_ladders_and_tight_pair() {
             Ok(()),
             "tier 3"
         );
-        // `m6_surgery`'s per-pip 5 / 7 / 3, less the closing join of the
-        // plane-trim foot the slit does not reach.
-        assert_eq!(die.vertices().count(), 24 + 4);
-        assert_eq!(die.edges().count(), 48 + 6);
-        assert_eq!(die.faces().count(), 26 + 3);
+        // The one pip's band adds 3 vertices, 4 edges and 2 faces.
+        assert_eq!(die.vertices().count(), 24 + 3);
+        assert_eq!(die.edges().count(), 48 + 4);
+        assert_eq!(die.faces().count(), 26 + 2);
         // The band: ring-free, and its outer cycle traverses the slit TWICE.
         let bf = out.band_faces[0];
         let fd = die.get_face(bf).unwrap();
@@ -348,7 +347,7 @@ fn p3_one_and_two_pip_ladders_and_tight_pair() {
             .collect();
         // The two plane trims (ta) meet at the plane-trim foot the slit
         // does not reach, and the closing join makes them one.
-        assert_eq!(edges.len(), 5, "1 joined ta + 2 tb + slit twice");
+        assert_eq!(edges.len(), 4, "1 ta + 1 tb + slit twice");
         edges.sort_unstable();
         let mut doubled = 0;
         let mut i = 0;
@@ -403,7 +402,7 @@ fn p3_one_and_two_pip_ladders_and_tight_pair() {
         .expect("box")
         .body;
         let rims = rim_edges(&blanked);
-        assert_eq!(rims.len(), 4);
+        assert_eq!(rims.len(), 2);
         println!(
             "P3: two-pip spacing 0.22, ring-ring margin = {}",
             0.22 - 2.0 * s
@@ -610,7 +609,7 @@ fn p6_reversed_pip_walls_carry_through() {
         .filter(|(fk, _)| matches!(pipped.face_surface(*fk), Ok(Surface::Sphere { .. })))
         .map(|(k, f)| (k, f.sense))
         .collect();
-    assert_eq!(sphere_senses.len(), 2, "two half-caps");
+    assert_eq!(sphere_senses.len(), 1, "one cap face");
     println!("P6: pip wall senses pre-surgery: {sphere_senses:?}");
     let blanked = fillet_edges(
         &sweep::test_support::at_rest(&pipped, Tol::witness()),
@@ -662,7 +661,7 @@ fn p7_dev1_radius_sweep_margin_is_structurally_zero() {
         })
         .collect();
     meridians.sort_unstable();
-    assert_eq!(meridians.len(), 2, "the cap's two meridians");
+    assert_eq!(meridians.len(), 1, "the cap's one meridian");
     for r in [1e-4, 5e-3, RIM_R, 0.05, DIE_R] {
         for &m in &meridians {
             let margin = sweep::test_support::smooth_reading(&pipped, m, r, Tol::witness());

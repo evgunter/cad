@@ -393,8 +393,10 @@ fn every_fixture_shell_is_edge_use_coherent() {
         // loop the two uses come from, which is exactly right — and its
         // two plane annuli carry no seam.
         ("washer", &[6]),
-        ("ball", &[2]),
-        ("cone", &[4]),
+        // The ball and the cone's curved wall are each one band, its
+        // wrap meridian used twice inside the band's one loop.
+        ("ball", &[1]),
+        ("cone", &[2]),
         ("donut", &[4]),
     ];
     for (name, counts) in expect {
@@ -441,19 +443,34 @@ fn negative_control_double_composed_face_is_incoherent() {
 }
 
 /// **Negative control 2: a single inverted face.** Flip every
-/// `ORIENTED_EDGE` flag of one face of the ball — the curved analogue
-/// of the planar whole-shell inversion control above, but scoped to
-/// ONE face so the result is not merely a globally reversed (and
-/// therefore still coherent) shell.
+/// `ORIENTED_EDGE` flag of one face of the cone, its conical band — the
+/// curved analogue of the planar whole-shell inversion control above,
+/// but scoped to ONE face so the result is not merely a globally
+/// reversed (and therefore still coherent) shell. The band's base
+/// circle then runs the same way as the base disc's use of it.
 #[test]
 fn negative_control_one_inverted_curved_face_is_incoherent() {
-    let text = fixture("ball");
-    // The ball's second face is the one whose EDGE_LOOP comes last.
-    let loop_line = text
-        .lines()
-        .rfind(|l| l.contains("= EDGE_LOOP("))
-        .expect("two edge loops");
-    let oriented: Vec<u64> = refs(loop_line.split_once(" = ").expect("record").1);
+    let text = fixture("cone");
+    // The band is the one face whose surface is the CONICAL_SURFACE: its
+    // bound's EDGE_LOOP lists the oriented edges to flip.
+    let records = parse(&text);
+    let mut bands = records.values().filter(|r| {
+        r.keyword == "ADVANCED_FACE"
+            && refs(&r.args)
+                .last()
+                .is_some_and(|s| records[s].keyword == "CONICAL_SURFACE")
+    });
+    let band = bands.next().expect("the cone's conical band");
+    assert!(bands.next().is_none(), "the cone has one conical band");
+    let [bound, _surface] = refs(&band.args)[..] else {
+        panic!("the band has one bound and its surface: {}", band.args)
+    };
+    let edge_loop = &records[&refs(&records[&bound].args)[0]];
+    assert_eq!(
+        edge_loop.keyword, "EDGE_LOOP",
+        "the band's bound is an edge loop"
+    );
+    let oriented: Vec<u64> = refs(&edge_loop.args);
     let flipped: String = text
         .lines()
         .map(|line| {

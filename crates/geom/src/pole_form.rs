@@ -1,81 +1,22 @@
-//! **The pole form**: how a face meets a chart singularity of its
-//! surface, a sphere's pole or a cone's apex.
+//! **The pole form, the wrap tip**: how a face meets a chart singularity
+//! of its surface, a sphere's pole or a cone's apex.
 //!
-//! A chart singularity in a face's closure is a vertex of it, and the
-//! kernel's form for that vertex is two **half-turn meridians**: the
-//! singular point is an end of two meridian edges whose azimuths about
-//! the surface axis are `d` and `−d`, each the other's half turn about
-//! the axis, and a face that reaches the point reaches it between the
-//! two. A full revolve sweeps its wire in two π-bands, so each pole it
-//! makes ends the angle-0 and angle-π meridians (`sweep`'s
-//! `revolve::full::build_wire`); import mints the same pair wherever a
-//! file states the singularity some other way (`step-import`'s
+//! A chart singularity in a face's closure is a vertex of it. Where no
+//! edge a construction or a file states reaches it, it is the tip of
+//! one **wrap edge**: an edge on the surface's own meridian, which the
+//! face's loop walks out to the singular point and back (DESIGN
+//! `[topology]`'s seam clause). A full revolve's wall seam already is
+//! that edge (`sweep`'s `revolve::full::build_wire`); `step-import`
+//! mints it where a file states the point some other way (its
 //! edge-free sphere and its `normalize` pass).
 //!
-//! This module is the description those doors share: the azimuth pair
-//! ([`azimuths`]), the half turn that carries one meridian onto the
-//! other ([`half_turn`], [`half_turn_curve`]), and the meridian
+//! This module is the description those doors share: the meridian
 //! carriers ([`sphere_meridian`], [`cone_generator`]). It says what the
-//! cut is, not where a door makes it.
+//! wrap edge's carrier is, not where a door places it round the axis.
 
 use geom_core::{Point3, Real, RigidMotion, Vec3};
 
 use crate::Curve3;
-
-/// The pole form's two azimuths from one of them: `d` and its
-/// [`half_turn`] about the axis. For `d` perpendicular to the axis, the
-/// premise here, the half turn is exactly `−d`, which this spells with
-/// nothing to round: `half_turn`'s `2(d·â)â − d` reads the rounding of
-/// `d·â` into the result. One operation, two spellings, because the
-/// meridian carriers take an azimuth and must state it bit for bit.
-pub fn azimuths<T: Real>(d: Vec3<T>) -> [Vec3<T>; 2] {
-    [d, -d]
-}
-
-/// `w` turned a half turn about the unit direction `axis`: the f64
-/// identity `2(w·â)â − w`, with no trigonometry to round.
-pub fn half_turn<T: Real>(w: Vec3<T>, axis: Vec3<T>) -> Vec3<T> {
-    axis * (T::from_f64(2.0) * w.dot(axis)) - w
-}
-
-/// `carrier` turned a half turn about the line through `origin` along
-/// `axis`: the other meridian of the pair, given one. `entry` is applied
-/// to each placed coordinate after the turn, for a caller that states
-/// one representative of what it mints (a signed zero folded), and must
-/// keep each entry's value. Only a line or a circle has a pole-form
-/// twin; anything else answers `None`.
-#[expect(
-    clippy::disallowed_methods,
-    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
-)]
-pub fn half_turn_curve<T: Real>(
-    carrier: &Curve3<T>,
-    axis: crate::Line<T>,
-    entry: impl Fn(T) -> T,
-) -> Option<Curve3<T>> {
-    let crate::Line { origin, dir: axis } = axis;
-    let vector = |w: Vec3<T>| Vec3::new(entry(w.x), entry(w.y), entry(w.z));
-    let place = |p: Point3<T>| {
-        let q = origin + half_turn(p - origin, axis.get());
-        Point3::new(entry(q.x), entry(q.y), entry(q.z))
-    };
-    let turn = |w: Vec3<T>| vector(half_turn(w, axis.get()));
-    match *carrier {
-        // A half turn is rigid: the direction's own door
-        // ([`UnitVec3::half_turned`]), its entries folded in their kind.
-        Curve3::Line(crate::Line { origin: o, dir }) => Some(Curve3::line(
-            place(o),
-            dir.half_turned(axis).map_scalar(&entry),
-        )),
-        Curve3::Circle(c) => Some(Curve3::circle(
-            place(c.frame().origin()),
-            turn(c.axis()),
-            c.radius(),
-            turn(c.u_ref()),
-        )),
-        _ => None,
-    }
-}
 
 /// The sphere's meridian at azimuth `d` (a unit direction perpendicular
 /// to `axis`): the circle through both poles with normal `axis × d` and
@@ -111,8 +52,7 @@ mod tests {
     use crate::Surface;
 
     /// Each carrier runs on its surface through the singular point, at
-    /// the azimuth it names, and the half turn carries one meridian of
-    /// the pair onto the other.
+    /// the azimuth it names.
     #[test]
     fn the_meridian_carriers_run_through_the_singularity_at_their_azimuth() {
         let (center, radius) = (Point3::new(1.0, -2.0, 0.5), 3.0);
@@ -122,55 +62,35 @@ mod tests {
             frame: crate::Frame::new(center, axis, u_ref),
             radius,
         };
-        for (k, d) in azimuths(u_ref).into_iter().enumerate() {
+        for (u, d) in [(0.0, u_ref), (core::f64::consts::PI, -u_ref)] {
             let m = sphere_meridian(center, radius, axis, d);
             assert!(
                 (m.eval(0.0) - (center + axis * radius)).norm() < 1e-15,
-                "{k}: θ = 0"
+                "{u}: θ = 0"
             );
             let at = m.eval(core::f64::consts::FRAC_PI_2);
-            assert!((at - (center + d * radius)).norm() < 1e-14, "{k}: θ = π/2");
+            assert!((at - (center + d * radius)).norm() < 1e-14, "{u}: θ = π/2");
             assert!(
                 (m.eval(core::f64::consts::PI) - (center - axis * radius)).norm() < 1e-14,
-                "{k}: θ = π"
+                "{u}: θ = π"
             );
-            let u = if k == 0 { 0.0 } else { core::f64::consts::PI };
-            assert!((sphere.eval(u, 0.0) - at).norm() < 1e-14, "{k}: azimuth");
-        }
-        let twin = half_turn_curve(
-            &sphere_meridian(center, radius, axis, u_ref),
-            crate::Line {
-                origin: center,
-                dir: crate::stated_direction(axis),
-            },
-            |x| x,
-        )
-        .unwrap();
-        let other = sphere_meridian(center, radius, axis, -u_ref);
-        for t in [0.3, 1.1, 2.9] {
-            assert!(
-                (twin.eval(t) - other.eval(t)).norm() < 1e-14,
-                "the twin at {t}"
-            );
+            assert!((sphere.eval(u, 0.0) - at).norm() < 1e-14, "{u}: azimuth");
         }
 
         let (apex, alpha) = (Point3::new(0.0, 0.0, 2.0), 0.4);
+        let axis = Vec3::new(0.0, 0.0, -1.0);
+        let frame = crate::Frame::new(apex, axis, u_ref);
         let cone = Surface::Cone {
-            frame: crate::Frame::new(apex, Vec3::new(0.0, 0.0, -1.0), u_ref),
+            frame,
             half_angle: alpha,
         };
-        let Surface::Cone { frame, .. } = cone else {
-            unreachable!()
-        };
-        let _ca = frame.axis();
-        for (k, d) in azimuths(u_ref).into_iter().enumerate() {
+        for (u, d) in [(0.0, u_ref), (core::f64::consts::PI, -u_ref)] {
             let g = cone_generator(
-                RigidMotion::squared_about(apex, frame.axis_unit(), d),
+                geom_core::RigidMotion::squared_about(apex, frame.axis_unit(), d),
                 alpha,
             );
-            let u = if k == 0 { 0.0 } else { core::f64::consts::PI };
             for v in [-1.5, 0.0, 0.7] {
-                assert!((g.eval(v) - cone.eval(u, v)).norm() < 1e-14, "{k}: v = {v}");
+                assert!((g.eval(v) - cone.eval(u, v)).norm() < 1e-14, "{u}: v = {v}");
             }
         }
     }

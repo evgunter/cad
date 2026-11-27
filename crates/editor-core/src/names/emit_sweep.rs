@@ -754,85 +754,30 @@ pub(crate) fn name_revolve<T: topo::AtRestPolicy + Decide>(
                 }
             }
         }
-        sweep::RevolvedKind::Full {
-            wire,
-            meridians,
-            pi_walls,
-            pi_meridians,
-            pi_rims,
-        } => {
+        sweep::RevolvedKind::Full { meridians, .. } => {
             for (l, lr) in runs.iter().enumerate() {
                 for (first, run) in lr {
                     if let Some(e) = meridians[l][*first] {
                         insert_edge(&mut t, RoleSeg::Meridian(MeridianEnd::Seam, run.clone()), e)?;
                     }
-                    if l > 0 {
+                }
+            }
+            // Every rim is a full-period self-loop whose (doubled)
+            // endpoint IS the meridian vertex; a wire's tip on the axis
+            // is its pole. A station has no rim and no entity.
+            for l in 0..built.rims.len() {
+                for (v, r) in built.rims[l].iter().enumerate() {
+                    if let Some(p) = built.poles[l][v] {
+                        insert_vertex(&mut t, RoleSeg::Pole(pv(l, v)), p)?;
                         continue;
                     }
-                    if let Some(f) = pi_walls[*first] {
-                        insert_face(&mut t, RoleSeg::BandPi(run.clone()), f)?;
-                    }
-                    if let Some(e) = pi_meridians[*first] {
-                        insert_edge(&mut t, RoleSeg::Meridian(MeridianEnd::Pi, run.clone()), e)?;
-                    }
-                }
-            }
-            for (v, r) in pi_rims.iter().enumerate() {
-                if let Some(e) = r {
-                    insert_edge(&mut t, RoleSeg::BandRimPi(pv(0, v)), *e)?;
-                }
-            }
-            let rims = &built.rims[0];
-            if *wire {
-                // A half-period rim runs from its seam copy (angle 0) to
-                // its π copy; the seam end is the one an angle-0
-                // meridian beside it shares — a plane wall has none, but
-                // a wire vertex is never between two plane walls (they
-                // would be one run).
-                let n = rims.len();
-                let seam_chain = &meridians[0];
-                for v in 0..n {
-                    if let Some(rim) = rims[v] {
-                        let ends = edge_ends(body, rim);
-                        let beside = [seam_chain[(v + n - 1) % n], seam_chain[v]];
-                        let Some(seam) = beside
-                            .iter()
-                            .flatten()
-                            .find_map(|m| common_vertex(ends, edge_ends(body, *m)))
-                        else {
-                            unresolved(rim, 0, v)
-                        };
-                        let pi = if ends.0 == seam { ends.1 } else { ends.0 };
-                        insert_vertex(
-                            &mut t,
-                            RoleSeg::MeridianVertex(MeridianEnd::Seam, pv(0, v)),
-                            seam,
-                        )?;
-                        insert_vertex(
-                            &mut t,
-                            RoleSeg::MeridianVertex(MeridianEnd::Pi, pv(0, v)),
-                            pi,
-                        )?;
-                    } else if let Some(p) = built.poles[0][v] {
-                        insert_vertex(&mut t, RoleSeg::Pole(pv(0, v)), p)?;
-                    }
-                }
-            }
-            // Lamina rims (the outer loop off the axis, and every hole
-            // loop of a holed full revolve — its cavity shells, off-axis
-            // by validated containment): full-period self-loops whose
-            // (doubled) endpoint IS the meridian vertex. A station has
-            // no rim and no entity.
-            let lamina = if *wire { 1 } else { 0 };
-            for l in lamina..built.rims.len() {
-                for (v, r) in built.rims[l].iter().enumerate() {
                     let Some(e) = r else { continue };
                     let (a, b) = edge_ends(body, *e);
                     if a != b {
                         unreachable!(
-                            "lamina full revolve rim {e:?} at loop {l}, vertex {v} runs from \
-                             {a:?} to {b:?}, though a full-period rim off the axis is minted as \
-                             a self-loop"
+                            "full revolve rim {e:?} at loop {l}, vertex {v} runs from {a:?} to \
+                             {b:?}, though a full-period rim off the axis is minted as a \
+                             self-loop"
                         );
                     }
                     insert_vertex(

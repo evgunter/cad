@@ -67,13 +67,27 @@ fn curved_face(body: &Body<f64>) -> (FaceKey, Vec<HalfEdgeKey>) {
         .expect("a curved face with two rows")
 }
 
+/// Of `hes`, the first and the first after it on another edge: a wrap
+/// edge's two half-edges carry the same row bit for bit, so a swap of
+/// them changes nothing.
+fn on_two_edges(body: &Body<f64>, hes: &[HalfEdgeKey]) -> (HalfEdgeKey, HalfEdgeKey) {
+    let edge = |h| body.get_half_edge(h).unwrap().edge;
+    let a = hes[0];
+    let c = hes
+        .iter()
+        .copied()
+        .find(|&c| edge(c) != edge(a))
+        .expect("rows on two edges");
+    (a, c)
+}
+
 /// Two rows of one face swapped (each a row of the wrong
 /// half-edge), nothing missing.
 #[test]
 fn swapped_rows_are_refused() {
     let mut b = vessel(1.0, 2.0);
     let (_, hes) = curved_face(&b);
-    let (a, c) = (hes[0], hes[1]);
+    let (a, c) = on_two_edges(&b, &hes);
     let ra = b.pcurve(a).unwrap().clone();
     let rc = b.pcurve(c).unwrap().clone();
     b.attach_pcurve(a, rc);
@@ -86,7 +100,7 @@ fn swapped_rows_are_refused() {
 fn a_wrong_row_beside_a_gap_is_refused() {
     let mut b = vessel(1.0, 2.0);
     let (_, hes) = curved_face(&b);
-    let (a, c) = (hes[0], hes[1]);
+    let (a, c) = on_two_edges(&b, &hes);
     let rc = b.pcurve(c).unwrap().clone();
     b.attach_pcurve(a, rc);
     b.detach_pcurve(c);

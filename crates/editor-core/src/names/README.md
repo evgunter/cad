@@ -346,7 +346,7 @@ walls"):
   is not a merge and never `Merged`.
   Covers and offers (N3) read one constituents view shared by every row
   that holds a set of names — a `Merged` face, and a run held by
-  `Lateral`, `RimEdge(end, ·)`, `Band`, `BandPi`, `Meridian(end, ·)` or
+  `Lateral`, `RimEdge(end, ·)`, `Band`, `Meridian(end, ·)` or
   `AxisEdge`: `Lateral([p0, p1])` covers `Lateral([p0])`, so a selection made before a station was inserted
   is offered the run wall, and an edit that breaks a run offers its pieces'
   walls. A `LoftWall` holds one locator per section of ONE wall, not a set

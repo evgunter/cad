@@ -69,3 +69,12 @@ stop and the receipt at each; they do not show a body can read them.
   reads, not a named refusal: `Structural` is that refusal's class (no
   depth reads it), and a new variant would be one more site no body
   reaches. (lane `embedwalk-spindle`)
+
+## Note (2026-11-25, LATHE, PR 7414)
+
+On the one-band revolve the needle tip has one sheet face and no shared
+meridian, and its ask holds at both scalars
+(`self_intersection_proves_injectivity::bodies_on_a_spindle_sheet_hold_by_kind_at_both_scalars`):
+no cell holding the cusp vertex refuses `Structural` there either, so
+the sheet arm of `singular_ends` stays reached by no built body that
+the rows build.

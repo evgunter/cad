@@ -670,11 +670,11 @@ fn a_cone_face_bounded_by_a_section_ellipse_meshes_on_the_cone_row() {
 /// **A cone face through its apex meshes on the cone row.** The funnel
 /// (apex at the origin, rim of radius 1 at `y = 1`) split by the tilted
 /// plane of [`a_cone_face_bounded_by_a_section_ellipse_meshes_on_the_cone_row`]:
-/// below the cut each half face's loop runs up one ruling from the apex,
-/// along the section ellipse, and down the other ruling back to it, so its
-/// polygon meets the apex row at two azimuths and keeps the apex there
-/// twice (`crate::chart_table`'s singular-row rule). Both halves mesh at
-/// every δ, and the mesh is the body's ([`geometry`]).
+/// below the cut the one cone face's loop runs up its seam ruling from
+/// the apex, round the section ellipse, and down the same ruling back to
+/// it, so its polygon meets the apex row at the seam's azimuth a whole
+/// turn apart (`crate::chart_table`'s singular-row rule). Both halves
+/// mesh at every δ, and the mesh is the body's ([`geometry`]).
 #[test]
 fn a_cone_face_through_its_apex_meshes_on_the_cone_row() {
     let plane = topo::test_support::split_plane(
@@ -702,20 +702,22 @@ fn a_cone_face_through_its_apex_meshes_on_the_cone_row() {
             .iter()
             .filter(|l| !l.contains(&CurveKind::Circle))
             .count();
+        // The wall is one face, its seam ruling walked out and back: to
+        // the apex below the cut, to the rim above it.
         assert!(
-            loops.len() == 2
+            loops.len() == 1
                 && loops.iter().all(|l| {
                     l.contains(&CurveKind::Ellipse)
                         && l.iter().filter(|c| **c == CurveKind::Line).count() == rulings
                 })
-                && apex_loops == if side == "below" { 2 } else { 0 },
-            "{what}: two half faces, each an ellipse and two rulings, through the apex \
+                && apex_loops == if side == "below" { 1 } else { 0 },
+            "{what}: one face, an ellipse and its seam ruling both ways, through the apex \
              below the cut and to the rim above it: {loops:?}"
         );
         assert_eq!(
             nappes(half),
-            vec![1.0; 2],
-            "{what}: both faces on the v > 0 nappe"
+            vec![1.0],
+            "{what}: the face on the v > 0 nappe"
         );
         assert_at_every(&what, half, &[2e-2, 1.5e-2, 5e-3, 1e-3, 2e-4], &Got::Meshed);
     }
@@ -770,8 +772,8 @@ fn nappes(body: &Body<f64>) -> Vec<f64> {
 ///   `2·10⁻⁴`, whose triangles are the lattice's thinnest;
 /// - a shifted funnel, `(0, 133.3)`, `(612.3, 911.1)`, `(0, 911.1)`, at
 ///   `δ = 0.18`, cut at `y = 533`;
-/// - two funnels apex to apex, unioned: the lower one's faces lie on
-///   their surface's `v < 0` nappe and run through its apex.
+/// - two funnels apex to apex, unioned: the lower one's face lies on
+///   its surface's `v < 0` nappe and runs through its apex.
 #[test]
 fn a_cone_face_through_its_apex_meshes_at_every_scale_and_pose() {
     let n = Vec3::new(0.3f64.sin(), 0.3f64.cos(), 0.0);
@@ -879,8 +881,8 @@ fn a_cone_face_through_its_apex_meshes_at_every_scale_and_pose() {
     on.sort_by(f64::total_cmp);
     assert_eq!(
         on,
-        vec![-1.0, -1.0, 1.0, 1.0],
-        "two faces on each nappe, none on both"
+        vec![-1.0, 1.0],
+        "one face on each nappe, each funnel's whole turn, none on both"
     );
     assert_at_every(
         "the funnels apex to apex",
@@ -906,9 +908,8 @@ fn a_cone_face_through_its_apex_meshes_at_every_scale_and_pose() {
 /// `v`, `h = 3·10⁻³` and `10⁻³` at `δ = 5·10⁻⁵` are truly past δ
 /// (`1.63δ`, `1.23δ`) and refuse.
 ///
-/// It is this family's property and no cone's in general: a needle
-/// funnel cut `10⁻⁵` above its apex refuses
-/// ([`a_needle_funnel_cut_at_its_apex_refuses_typed`]).
+/// A needle funnel cut as near its apex meshes too
+/// ([`a_needle_funnel_cut_at_its_apex_meshes_at_every_delta`]).
 ///
 /// A cut within a thousand ε of the apex is within the band's reach of
 /// it: the split may refuse (at ε `10⁻⁶`, `h = 10⁻⁴` refuses
@@ -961,7 +962,8 @@ fn the_unit_funnel_cut_near_its_apex_meshes_at_every_delta() {
 /// **A ball across a cylinder's wall refuses in the chord pass.** The
 /// first pose of `sweep`'s `cylinder_sphere_frame` rows: the section is
 /// one closed fitted loop, a periodic cubic, on a cylinder face and a
-/// sphere face that store its edges' `Pcurve::Projected` images. The
+/// sphere face that store its edges' `Pcurve::Projected` images (the
+/// union's one-band ball face holds it as a ring). The
 /// sphere face is the trimmed lane's sphere row's, and the first section
 /// edge the chord pass reaches refuses there: the chord pass bounds a
 /// projected image's speed for a conic's image only
@@ -991,9 +993,11 @@ fn a_sphere_face_bounded_by_a_spline_section_refuses_in_the_chord_pass() {
         let body = &built.body().unwrap_or_else(|| panic!("{op}: a body")).body;
         let spline_faces: Vec<(SurfaceKind, Vec<Option<&str>>)> = body
             .faces()
-            .filter_map(|(fk, face)| {
-                let images: Vec<_> = loop_forms(body, face.outer)
-                    .into_iter()
+            .filter_map(|(fk, _)| {
+                let images: Vec<_> = body
+                    .face(fk)?
+                    .loops()
+                    .flat_map(|(lk, _, _)| loop_forms(body, lk))
                     .filter(|(carrier, _)| *carrier == CurveKind::Nurbs)
                     .map(|(_, image)| image)
                     .collect();
@@ -1059,7 +1063,7 @@ fn a_torus_wall_holding_a_spiric_ring_meshes_on_the_torus_row() {
 
 /// **A ball face holed by a tilted tube's rim meshes on the sphere
 /// row.** `sweep`'s `a_tube_ending_on_a_ball` pose "tilted 1.2": the rim
-/// crosses neither seam meridian and stays a ring of one half-band. Both
+/// misses the seam meridian and stays a ring of the one sphere face. Both
 /// unions and ball ∖ tube mesh it as a ring. On ball ∖ tube the ring is
 /// one whole projected circle stored a `u` period below its outer loop
 /// (`lift_probes`), and the lane meshes it where `Body::face_lift` moves
@@ -1311,28 +1315,34 @@ fn a_notched_sphere_face_meshes_on_the_sphere_row() {
     }
 }
 
-/// **A needle funnel cut `10⁻⁵` above its apex refuses typed: this row
-/// pins a gap**
-/// (`work/tesslane/a-needle-funnel-cut-at-its-apex-refuses-folded.md`).
-/// The funnel of rim radius `0.02` cut by the tilted plane of
+/// **A needle funnel cut near its apex meshes at every δ.** The funnel
+/// of rim radius `0.02` cut by the tilted plane of
 /// [`the_unit_funnel_cut_near_its_apex_meshes_at_every_delta`] through
-/// `(0, 10⁻⁵, 0)`: the half above refuses `FoldedTriangle` at δ `10⁻³`
-/// and `3·10⁻⁵` and `UnclearedSharedSide` at `2·10⁻⁴`, the half below meshes, and
-/// a cut at `10⁻³` meshes both halves. No mesh is returned where it
-/// refuses. Off the default ε a split that refuses or leaves no half is
-/// printed and skipped, and each cell's answer is printed, not held.
+/// `(0, h, 0)`, `h` of `10⁻³` and `10⁻⁵`: the half above is one cone
+/// face a whole turn round whose small end is `h` from the apex. Both
+/// halves mesh at δ `10⁻³`, `2·10⁻⁴` and `3·10⁻⁵`, each mesh is the
+/// body's ([`geometry`]), and the two halves' volumes sum to the cone's
+/// within the mesh's chord loss. It holds because the trimmed lane
+/// grades every gap of a cone face more than a quarter turn round to its
+/// lower radius (`trimmed::reach_graded`): with no row inside the radius
+/// where every chord certifies, the triangulation joined the small end
+/// to the first row across most of a turn, and a triangle reaching past
+/// a quarter turn winds into the surface (`FoldedTriangle`).
+///
+/// Off the default ε a split that refuses or leaves no half is printed
+/// and skipped.
 #[test]
-fn a_needle_funnel_cut_at_its_apex_refuses_typed() {
-    use mesh::TessellateError as E;
+fn a_needle_funnel_cut_at_its_apex_meshes_at_every_delta() {
     let n = Vec3::new(0.3f64.sin(), 0.3f64.cos(), 0.0);
-    let deltas = [1e-3, 2e-4, 3e-5];
-    // The half above the cut at `h = 10⁻⁵`, at each δ.
-    let refused = ["FoldedTriangle", "UnclearedSharedSide", "FoldedTriangle"];
+    let (rim, height) = (0.02_f64, 1.0);
+    let whole = core::f64::consts::PI * rim * rim * height / 3.0;
+    // The lateral area, a loose bound on what the chords cut off.
+    let side = core::f64::consts::PI * rim * rim.hypot(height);
     let exact = tol().eps() == geom_core::tolerance::DEFAULT_EPS;
     for h in [1e-3, 1e-5] {
         let body = finished(
             "the needle funnel",
-            revolved(&[(0.0, 0.0), (0.02, 1.0), (0.0, 1.0)]),
+            revolved(&[(0.0, 0.0), (rim, height), (0.0, height)]),
             tol(),
         );
         let plane = topo::test_support::split_plane(Point3::new(0.0, h, 0.0), n, tol());
@@ -1347,36 +1357,86 @@ fn a_needle_funnel_cut_at_its_apex_refuses_typed() {
                 continue;
             }
         };
-        for (side, part) in [("above", &split.above), ("below", &split.below)] {
-            let what = format!("the needle funnel cut at h = {h:e}, {side}");
-            let Some(half) = part.body() else {
-                assert!(!exact, "{what}: a body");
-                eprintln!("{what}: no body at ε {:e}", tol().eps());
-                continue;
-            };
-            for delta in deltas {
-                let refusal = match mesh::tessellate(half, delta, tol()) {
-                    Ok(_) => None,
-                    Err(E::FoldedTriangle { .. }) => Some("FoldedTriangle"),
-                    Err(E::UnclearedSharedSide { .. }) => Some("UnclearedSharedSide"),
-                    Err(e) => panic!("{what}, δ = {delta:e}: {e:?}"),
-                };
-                let want = if h > 1e-5 || side != "above" {
-                    None
-                } else {
-                    let at = deltas.iter().position(|&d| d == delta);
-                    Some(refused[at.expect("a δ of the table")])
-                };
-                if exact {
-                    assert_eq!(refusal, want, "{what}, δ = {delta:e}");
-                } else {
-                    eprintln!("{what}, δ = {delta:e}, ε {:e}: {refusal:?}", tol().eps());
-                }
-                if refusal.is_none() {
-                    assert_eq!(got(half, delta), Got::Meshed, "{what}, δ = {delta:e}");
-                }
+        let (Some(above), Some(below)) = (split.above.body(), split.below.body()) else {
+            assert!(!exact, "the needle funnel cut at {h:e}: two halves");
+            eprintln!(
+                "the needle funnel cut at {h:e}: a half empty at ε {:e}",
+                tol().eps()
+            );
+            continue;
+        };
+        for delta in [1e-3, 2e-4, 3e-5] {
+            let mut sum = 0.0;
+            for (side_name, half) in [("above", above), ("below", below)] {
+                let what =
+                    format!("the needle funnel cut at h = {h:e}, {side_name}, δ = {delta:e}");
+                assert_eq!(got(half, delta), Got::Meshed, "{what}");
+                sum += meshed_volume(&what, half, delta);
             }
+            assert!(
+                sum <= whole * (1.0 + 1e-9) && whole - sum <= side * delta,
+                "the needle funnel cut at h = {h:e}, δ = {delta:e}: the halves hold {sum:e} \
+                 of the cone's {whole:e}"
+            );
         }
+    }
+}
+
+/// **A needle funnel a quarter turn round meshes as its lattice lays it,
+/// ungraded.** The funnel of
+/// [`a_needle_funnel_cut_at_its_apex_meshes_at_every_delta`] revolved a
+/// quarter turn and cut at `h = 10⁻³` by the same plane: its cone faces
+/// span a quarter turn, where no triangle reaches past one, so the
+/// trimmed lane grades none of their gaps (`trimmed::reach_graded`), and
+/// each half meshes to the triangle count it had before the grading
+/// existed. The count is held at the default ε; off it each half meshes,
+/// and a split that refuses is printed and skipped.
+#[test]
+fn a_quarter_turn_needle_funnel_keeps_its_ungraded_lattice() {
+    let n = Vec3::new(0.3f64.sin(), 0.3f64.cos(), 0.0);
+    let lp = ProfileLoop::polygon(
+        [(0.0, 0.0), (0.02, 1.0), (0.0, 1.0)]
+            .iter()
+            .map(|&(x, y)| Point2::new(x, y)),
+    );
+    let quarter = revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Partial(FRAC_PI_2),
+        tol(),
+    )
+    .expect("the quarter funnel revolves")
+    .body
+    .into_body();
+    let body = finished("the quarter funnel", quarter, tol());
+    let plane = topo::test_support::split_plane(Point3::new(0.0, 1e-3, 0.0), n, tol());
+    let exact = tol().eps() == geom_core::tolerance::DEFAULT_EPS;
+    let split = match topo::splitting::split(&body, &plane, tol()) {
+        Ok(split) => split,
+        Err(e) => {
+            assert!(!exact, "the quarter funnel splits, got {e:?}");
+            eprintln!(
+                "the quarter funnel: the split refuses at ε {:e}: {e:?}",
+                tol().eps()
+            );
+            return;
+        }
+    };
+    let mut counts = Vec::new();
+    for (side, part) in [("above", &split.above), ("below", &split.below)] {
+        let half = part.body().unwrap_or_else(|| panic!("{side}: a body"));
+        let m = mesh::tessellate(half, 1e-3, tol())
+            .unwrap_or_else(|e| panic!("the quarter funnel, {side}: meshes, got {e:?}"));
+        mesh::validate::check_mesh(&m).expect("a closed mesh");
+        assert_eq!(got(half, 1e-3), Got::Meshed, "the quarter funnel, {side}");
+        counts.push(m.patches.iter().map(|p| p.triangles.len()).sum::<usize>());
+    }
+    if tol().eps() == geom_core::tolerance::DEFAULT_EPS {
+        assert_eq!(
+            counts,
+            vec![1226, 420],
+            "the halves' triangles, above and below"
+        );
     }
 }
 
@@ -1889,9 +1949,9 @@ fn a_ring_stored_a_period_away_meshes_where_the_door_moves_it() {
 }
 
 /// **Ringed curved faces that still refuse, by cause.** Each pose is a
-/// ring the lane reads and a face it cannot yet mesh; the ringed ops
+/// ring the lane reads and a face it could not mesh; the ringed ops
 /// (both unions and the difference that keeps the ring) answer by the
-/// variant the cause raises.
+/// variant the cause raises, or mesh where the cause is gone.
 ///
 /// - **A cone face whose ring is nearest its apex**: T1's box moved
 ///   toward the apex ([`t1_toward_the_apex`]) keeps the cone face's
@@ -1903,11 +1963,13 @@ fn a_ring_stored_a_period_away_meshes_where_the_door_moves_it() {
 ///   `Undecided { cause: None }`: no in-band decision stopped it, so the
 ///   reading of the outer loop ran past its work bounds or found no
 ///   window with lever arms round the ring's point.
-/// - **A torus outer loop the ring reader cannot read**
-///   (`work/tesslane/an-analytic-outer-loops-whole-span-boxes-never-tighten-under-the-ring-reader.md`):
-///   the donut less a slab has spirics on its torus faces' outer loops,
-///   and a stub turned 0.33 about `y` rings one of them; the spiric
-///   image's box never tightens, so the door answers `undecided`.
+/// - **A torus outer loop with spirics, which meshes**: the donut less a
+///   slab has spirics on its torus faces' outer loops, and a stub turned
+///   0.33 about `y` rings one of them. The spiric image's box is read
+///   over the span, so it tightens as the ring reader halves it, and the
+///   ring places and the face meshes at every δ; it answered
+///   `undecided` while the box was the whole period's
+///   (`work/lathe/an-analytic-outer-loops-whole-span-boxes-never-tighten-under-the-ring-reader.md`).
 /// - **A sphere ring passing near a pole**
 ///   (`work/tesslane/a-tilted-circle-near-a-sphere-pole-refuses-at-the-sphere-arm.md`):
 ///   a tube of radius 0.3 tilted 0.22 about `x` and turned 3 about `z`
@@ -1974,9 +2036,7 @@ fn ringed_curved_faces_that_still_refuse_answer_by_cause() {
         &holed,
         &stub,
         refused_at(&[(1e-6, "Escalated")]),
-        &ringed(core::array::from_fn(|_| {
-            Got::Unread(SurfaceKind::Torus, "undecided")
-        })),
+        &ringed(meshed()),
     );
     let tube = posed(
         "the tube",

@@ -1497,8 +1497,8 @@ fn a_split_across_a_ringed_wall_mints_each_segment_on_one_curve() {
     let (lower, upper) = (ellipse_arcs(&below), ellipse_arcs(&above));
     assert_eq!(
         (lower.len(), upper.len()),
-        (3, 3),
-        "the section crosses the wall in three arcs: seam to seam, seam to mouth, mouth to seam"
+        (2, 2),
+        "the section crosses the wall in two arcs: seam to mouth, mouth to seam"
     );
     for (carrier, (t0, t1), back) in &lower {
         let back = back.as_ref().expect("an ellipse runs back");

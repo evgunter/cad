@@ -280,10 +280,10 @@ fn the_selector_materializes_exactly_the_authored_die_composed_selection() {
     authored.sort();
     authored.dedup();
 
-    assert_eq!(authored.len(), 14, "the document's own count");
+    assert_eq!(authored.len(), 13, "the document's own count");
     assert_eq!(
         materialized, authored,
-        "the structural selector and the authored fourteen must be the same names"
+        "the structural selector and the authored thirteen must be the same names"
     );
 }
 
@@ -306,8 +306,8 @@ fn the_stored_selection_is_the_materialized_set() {
     assert_eq!(stored, authored);
 }
 
-/// **The exclusion is now a consequence, not an omission.** The two
-/// co-surface cavity meridians are `From(Meridian(..))` names, carried
+/// **The exclusion is now a consequence, not an omission.** The
+/// cavity's seam meridian is `From(Meridian(..))` names, carried
 /// from the tool's read, and no alternative of the selector admits a
 /// `From` over a meridian — so the
 /// refusal `die_composed` exists to document stays excluded BY
@@ -319,7 +319,7 @@ fn the_selector_excludes_the_cavity_meridians_by_shape() {
     let (_, ball, pipped) = composed_ids(&doc.doc);
     let selected = editor_core::select(&ev, pipped, &die_composed::selector());
     let all = editor_core::all_edges(&ev, pipped);
-    assert_eq!(all.len(), 16, "the target's edge table");
+    assert_eq!(all.len(), 14, "the target's edge table");
     for meridian in die_composed::excluded_meridians(&doc.doc, &ev, ball, pipped) {
         assert!(all.contains(&meridian), "the meridian is a live edge");
         assert!(
@@ -348,12 +348,10 @@ fn a_seam_pattern_may_constrain_either_side_in_either_order() {
         NamePat::of_kind(EntityKind::Edge).seg(SegPat::tag(SegTag::Seam).of(sides))
     };
     let bands = |sides: &dyn Fn(NamePat) -> Vec<NamePat>| {
-        Selector::any_of(
-            [SegTag::Band, SegTag::BandPi].map(|t| seam(sides(carried(SegPat::tag(t))))),
-        )
+        Selector::of(seam(sides(carried(SegPat::tag(SegTag::Band)))))
     };
     let rim = editor_core::select(&ev, pipped, &bands(&|band| vec![cap(), band]));
-    assert_eq!(rim.len(), 2, "the pip rim is two arcs");
+    assert_eq!(rim.len(), 1, "the pip rim is one circle");
     for (what, sel) in [
         ("the cap's side alone", Selector::of(seam(vec![cap()]))),
         ("the band's side alone", bands(&|band| vec![band])),

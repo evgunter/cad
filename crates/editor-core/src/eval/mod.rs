@@ -7759,8 +7759,6 @@ fn seg_content_tag(tag: SegTag) -> u8 {
         S::SubArcJoint => 61,
         S::Band => 7,
         S::BandRim => 8,
-        S::BandRimPi => 9,
-        S::BandPi => 10,
         S::Meridian => 11,
         S::MeridianVertex => 12,
         S::RevolveCap => 13,
@@ -7816,7 +7814,6 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
         MeridianEnd::Start => 1u8,
         MeridianEnd::End => 2,
         MeridianEnd::Seam => 3,
-        MeridianEnd::Pi => 4,
     };
     let rim = |s: crate::names::RimSupport| match s {
         crate::names::RimSupport::Host => 1u8,
@@ -7947,12 +7944,6 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
         }
         RoleSeg::BandRim(v) => {
             pv(h, *v);
-        }
-        RoleSeg::BandRimPi(v) => {
-            pv(h, *v);
-        }
-        RoleSeg::BandPi(r) => {
-            run(h, r);
         }
         RoleSeg::Meridian(m, r) => {
             h.write_tag(mer(*m));
