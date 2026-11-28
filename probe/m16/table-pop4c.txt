@@ -1,0 +1,26 @@
+== - asks not signed by the value: 143
+  today: {'undecided': 3, 'value-zero-in-band': 12, 'ladder-zero': 128}
+  -- UNDECIDED today 3
+     zero plain form: 0
+     plain: {'straddles': 1, 'Negative': 1, 'Positive': 1}
+     early (where plain did not decide): {'straddles': 1}
+     reading (plain, else early): {'none': 1, 'plain:Negative': 1, 'plain:Positive': 1}
+     plain build 0.2 ms total, 55.7 us/ask; ladder (after plain) 0.2 ms, 60.4 us/ask; early build where taken 0.0 ms
+  -- value zero-in-band today 12
+     zero plain form: 0
+     plain: {'declines:unbracketed-indet': 8, 'Zero': 4}
+     early (where plain did not decide): {'declines:atom:Cos': 8}
+     reading (plain, else early): {'none': 8, 'plain:Zero': 4}
+     plain build 0.2 ms total, 18.1 us/ask; ladder (after plain) 0.4 ms, 31.6 us/ask; early build where taken 0.0 ms
+  -- ladder-zero today 128
+     zero plain form: 65
+     plain: {'Zero': 67, 'declines:unbracketed-indet': 52, 'declines:depth': 8, 'declines:atom:Select': 1}
+     early (where plain did not decide): {'Zero': 61}
+     reading (plain, else early): {'plain:Zero': 67, 'early:Zero': 61}
+     plain build 14.1 ms total, 109.9 us/ask; ladder (after plain) 16.3 ms, 127.4 us/ask; early build where taken 0.0 ms
+  -- by predicate (undecided today), top 10
+     props_rim_fit                          2  {'straddles/sliver': 1, 'plain:Negative': 1}
+     props_cylinder_circle_off_axis         1  {'plain:Positive': 1}
+  EMPTY intersections: 0
+  soundness: sampled 126 asks x5 members; differing 0 ; not evaluable 8
+    DIFF kinds: {}

@@ -211,6 +211,37 @@ fn member(sess: &Session, node: SymId, f: f64) -> Result<f64, String> {
         .ok_or_else(|| blocked.unwrap_or_else(|| "no-value".to_owned()))
 }
 
+/// What in the margin's graph an enclosure walk cannot bracket.
+fn dag_flags(sess: &Session, node: SymId) -> String {
+    let (mut frozen, mut bare, mut opaque, mut hull, mut free, mut unknown) =
+        (0u32, 0u32, 0u32, 0u32, 0u32, 0u32);
+    let mut seen: HashMap<SymId, ()> = HashMap::new();
+    let mut stack = vec![node];
+    while let Some(id) = stack.pop() {
+        if seen.insert(id, ()).is_some() {
+            continue;
+        }
+        if sess.budget_frozen.contains_key(&id) {
+            frozen += 1;
+        }
+        let Some(n) = sess.node_of(id) else {
+            unknown += 1;
+            continue;
+        };
+        match n.op {
+            SymOp::Param if !sess.params.contains_key(&super::indet_param(n.payload)) => bare += 1,
+            SymOp::Opaque => opaque += 1,
+            SymOp::Hull => hull += 1,
+            SymOp::Free => free += 1,
+            _ => {}
+        }
+        stack.extend(n.kids().iter().copied());
+    }
+    format!(
+        "frozen={frozen},bare-param={bare},opaque={opaque},hull={hull},free={free},unknown={unknown}"
+    )
+}
+
 /// Records the reading; `Some(sign)` only when the reading is switched on
 /// as the answer and decides where today's path did not prove zero.
 pub(super) fn probe(
@@ -252,6 +283,11 @@ pub(super) fn probe(
             (None, 0)
         };
         let sign = p.sign.or(e.as_ref().and_then(|e| e.sign));
+        let flags = if sign.is_none() && today == "undecided" {
+            dag_flags(sess, node)
+        } else {
+            "-".to_owned()
+        };
         let members = match sign {
             Some(_) if SAMPLED.with(|m| {
                 let mut m = m.borrow_mut();
@@ -285,7 +321,7 @@ pub(super) fn probe(
                 p.class,
                 size.0,
                 size.1,
-                "-",
+                flags,
                 p.lo,
                 p.hi,
                 e.as_ref().map_or("-", |e| e.class.as_str()),

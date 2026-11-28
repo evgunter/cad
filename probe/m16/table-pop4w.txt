@@ -1,0 +1,26 @@
+== pop4w asks not signed by the value: 6660
+  today: {'ladder-zero': 6582, 'undecided': 78}
+  -- UNDECIDED today 78
+     zero plain form: 0
+     plain: {'declines:unbracketed-indet': 22, 'Positive': 20, 'declines:depth': 20, 'declines:atom:Select': 16}
+     early (where plain did not decide): {'declines:depth': 39, 'Positive': 16, 'Negative': 3}
+     reading (plain, else early): {'none': 39, 'plain:Positive': 20, 'early:Positive': 16, 'early:Negative': 3}
+     plain build 39.3 ms total, 503.5 us/ask; ladder (after plain) 95.5 ms, 1224.5 us/ask; early build where taken 0.0 ms
+  -- ladder-zero today 6582
+     zero plain form: 6582
+     plain: {'Zero': 6582}
+     early (where plain did not decide): {}
+     reading (plain, else early): {'plain:Zero': 6582}
+     plain build 49.1 ms total, 7.5 us/ask; ladder (after plain) 1.1 ms, 0.2 us/ask; early build where taken 0.0 ms
+  -- by predicate (undecided today), top 10
+     side_at_infinity_edge                 26  {'declines': 26}
+     bool_ring_run_winding                 20  {'plain:Positive': 20}
+     side_at_infinity_edge_span            10  {'declines': 10}
+     side_at_infinity_order                 9  {'early:Positive': 6, 'early:Negative': 3}
+     positive_volume                        5  {'early:Positive': 5}
+     positive_volume_enclosure              5  {'early:Positive': 5}
+     side_at_infinity_advance               2  {'declines': 2}
+     side_at_infinity_winding               1  {'declines': 1}
+  EMPTY intersections: 0
+  soundness: sampled 49 asks x5 members; differing 0 ; not evaluable 0
+    DIFF kinds: {}

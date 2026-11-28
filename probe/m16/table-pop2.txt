@@ -1,0 +1,20 @@
+== pop2 asks not signed by the value: 1844
+  today: {'ladder-zero': 1836, 'undecided': 8}
+  -- UNDECIDED today 8
+     zero plain form: 0
+     plain: {'declines:unbracketed-indet': 8}
+     early (where plain did not decide): {'declines:atom:Cos': 6, 'declines:atom:Sin': 2}
+     reading (plain, else early): {'none': 8}
+     plain build 0.1 ms total, 14.4 us/ask; ladder (after plain) 0.8 ms, 94.7 us/ask; early build where taken 0.0 ms
+  -- ladder-zero today 1836
+     zero plain form: 1476
+     plain: {'declines:unbracketed-indet': 924, 'declines:atom:Cos': 540, 'Zero': 372}
+     early (where plain did not decide): {'Zero': 1464}
+     reading (plain, else early): {'early:Zero': 1464, 'plain:Zero': 372}
+     plain build 30.6 ms total, 16.7 us/ask; ladder (after plain) 41.6 ms, 22.7 us/ask; early build where taken 16.1 ms
+  -- by predicate (undecided today), top 10
+     bool_join_nearest                      6  {'declines': 6}
+     curve_pair_span_end_chord              2  {'declines': 2}
+  EMPTY intersections: 0
+  soundness: sampled 384 asks x5 members; differing 0 ; not evaluable 40
+    DIFF kinds: {}

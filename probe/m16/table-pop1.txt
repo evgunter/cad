@@ -1,0 +1,38 @@
+== pop1 asks not signed by the value: 16628
+  today: {'ladder-zero': 16230, 'undecided': 342, 'value-zero-in-band': 56}
+  -- UNDECIDED today 342
+     zero plain form: 0
+     plain: {'Positive': 140, 'Zero': 120, 'declines:depth': 32, 'declines:unbracketed-indet': 20, 'Negative': 13, 'declines:poison:sum': 9, 'straddles': 7, 'declines:atom:Select': 1}
+     early (where plain did not decide): {'Zero': 24, 'declines:unbracketed-indet': 18, 'Positive': 17, 'declines:poison:sum': 9, 'Negative': 1}
+     reading (plain, else early): {'plain:Positive': 140, 'plain:Zero': 120, 'none': 27, 'early:Zero': 24, 'early:Positive': 17, 'plain:Negative': 13, 'early:Negative': 1}
+     plain build 21.4 ms total, 62.4 us/ask; ladder (after plain) 49.3 ms, 144.1 us/ask; early build where taken 0.0 ms
+  -- value zero-in-band today 56
+     zero plain form: 0
+     plain: {'Zero': 56}
+     early (where plain did not decide): {}
+     reading (plain, else early): {'plain:Zero': 56}
+     plain build 1.9 ms total, 33.5 us/ask; ladder (after plain) 3.2 ms, 58.0 us/ask; early build where taken 0.0 ms
+  -- ladder-zero today 16230
+     zero plain form: 16217
+     plain: {'Zero': 16230}
+     early (where plain did not decide): {}
+     reading (plain, else early): {'plain:Zero': 16230}
+     plain build 137.9 ms total, 8.5 us/ask; ladder (after plain) 2.8 ms, 0.2 us/ask; early build where taken 0.0 ms
+  -- by predicate (undecided today), top 10
+     carrier_endpoint_end                  64  {'plain:Zero': 64}
+     pcurve_line_chart_incident            32  {'plain:Zero': 32}
+     curve_carrier_gap                     27  {'plain:Positive': 24, 'early:Positive': 3}
+     pm_census_ee_span                     25  {'plain:Positive': 24, 'plain:Negative': 1}
+     pm_census_ef_residual                 24  {'plain:Zero': 24}
+     pm_census_ef_residual_side            24  {'plain:Positive': 12, 'plain:Negative': 12}
+     pcurve_point_chart_incident           24  {'early:Zero': 24}
+     bool_ring_run_winding                 19  {'plain:Positive': 19}
+     bool_contact_vertex                   18  {'declines': 18}
+     curve_carrier_clear                   14  {'plain:Positive': 12, 'early:Positive': 2}
+  EMPTY intersections: 0
+  soundness: sampled 984 asks x5 members; differing 17 ; not evaluable 40
+    DIFF ('pop1|tilt(0.3,0.2)|0.05|census', 'pm_census_ef_residual_side', 'undecided', 'plain:Positive', ('6.581305680031509e-19', '6.581305680031541e-19'), 'Positive:5.551115123125783e-17,Negative:-5.551115123125783e-17,Positive:5.551115123125783e-17,Positive:5.551115123125783e-17,Positive:5.551115123125783e-17')
+    DIFF ('pop1|tilt(0.3,0.2)|0.05|census', 'pm_census_ef_residual_side', 'undecided', 'plain:Positive', ('1.3162611360063017e-18', '1.3162611360063083e-18'), 'Positive:1.1102230246251565e-16,Negative:-9.71445146547012e-17,Positive:1.1102230246251565e-16,Positive:1.1102230246251565e-16,Positive:1.1102230246251565e-16')
+    DIFF ('pop1|tilt(-0.45,0.6)|0.05|census', 'pm_census_ef_residual_side', 'undecided', 'plain:Negative', ('-2.6645352591003808e-17', '-2.6645352591003688e-17'), 'Positive:5.551115123125783e-17,Zero:0e0,Negative:-1.1102230246251565e-16,Negative:-1.1102230246251565e-16,Positive:5.551115123125783e-17')
+    DIFF ('pop1|tilt(-0.45,0.6)|0.05|census', 'pm_census_ef_residual_side', 'undecided', 'plain:Negative', ('-6.883382752675987e-17', '-6.883382752675951e-17'), 'Positive:1.1102230246251565e-16,Negative:-1.1102230246251565e-16,Negative:-1.1102230246251565e-16,Negative:-1.1102230246251565e-16,Positive:1.1102230246251565e-16')
+    DIFF kinds: {('pm_census_ef_residual_side', 'plain:Positive'): 8, ('pm_census_ef_residual_side', 'plain:Negative'): 9}

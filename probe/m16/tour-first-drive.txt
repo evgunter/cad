@@ -1,0 +1,27 @@
+== tour\|d0\| asks not signed by the value: 1873068
+  today: {'ladder-zero': 1835774, 'undecided': 37294}
+  -- UNDECIDED today 37294
+     zero plain form: 0
+     plain: {'declines:unbracketed-indet': 13620, 'declines:atom:Select': 9904, 'declines:atom:Atan2': 3511, 'declines:atom:Sin': 3214, 'declines:atom:Atan': 2970, 'declines:atom:Cos': 1812, 'declines:depth': 1451, 'straddles': 812}
+     early (where plain did not decide): {'declines:unbracketed-indet': 15200, 'declines:atom:Select': 7897, 'declines:atom:Sin': 5078, 'declines:atom:Atan': 2850, 'declines:atom:Atan2': 2829, 'declines:atom:Cos': 2436, 'straddles': 812, 'declines:depth': 192}
+     reading (plain, else early): {'none': 37294}
+     plain build 445.0 ms total, 11.9 us/ask; ladder (after plain) 1056976.3 ms, 28341.7 us/ask; early build where taken 20.8 ms
+  -- ladder-zero today 1835774
+     zero plain form: 1282274
+     plain: {'Zero': 1282274, 'declines:atom:Cos': 194750, 'straddles': 118900, 'declines:atom:Sin': 108650, 'declines:atom:Atan2': 69700, 'declines:atom:Select': 32800, 'declines:depth': 24600, 'declines:unbracketed-indet': 4100}
+     early (where plain did not decide): {'Zero': 553500}
+     reading (plain, else early): {'plain:Zero': 1282274, 'early:Zero': 553500}
+     plain build 1800.5 ms total, 1.0 us/ask; ladder (after plain) 87963.4 ms, 47.9 us/ask; early build where taken 82.9 ms
+  -- by predicate (undecided today), top 10
+     curve_carrier_clear                12560  {'declines': 12560}
+     azimuth_near_cut_side               5480  {'declines': 5480}
+     period_near_mark                    5454  {'declines': 5454}
+     curve_carrier_gap                   4822  {'declines': 4822}
+     curve_pair_span_end_side            3048  {'declines': 3048}
+     side_at_infinity_winding            2954  {'declines': 2954}
+     curve_face_pose_disc                1516  {'declines': 1516}
+     assert_bound                         812  {'straddles/sliver': 812}
+     bool_ruled_region_frame              648  {'declines': 648}
+  EMPTY intersections: 0
+  soundness: sampled 6204 asks x5 members; differing 0 ; not evaluable 200
+    DIFF kinds: {}
