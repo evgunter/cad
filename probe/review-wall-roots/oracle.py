@@ -184,7 +184,7 @@ def check_b(path):
 
 
 if __name__ == "__main__":
-    if sys.argv[1] not in ("C", "C2", "W2"):
+    if sys.argv[1] not in ("C", "C2", "W2", "BW"):
         {"Q": check_q, "W": check_w, "B": check_b}[sys.argv[1]](sys.argv[2])
 
 
@@ -301,3 +301,39 @@ def check_w2(path):
 
 if __name__ == "__main__" and sys.argv[1] == "W2":
     check_w2(sys.argv[2])
+
+
+def check_bw(path):
+    """Over each box: is the held c (or b) wider than the base's?"""
+    import math
+    rows = {"b": [0, 0, 0, 1.0], "c": [0, 0, 0, 1.0]}  # wider, narrower, same, worst ratio
+    byfam = {}
+    for line in open(path):
+        if not line.startswith("B "):
+            continue
+        p = line.split()
+        fam = int(p[1])
+        nb, nc, ob, oc = (fx(p[10]), fx(p[11])), (fx(p[12]), fx(p[13])), (fx(p[14]), fx(p[15])), (fx(p[16]), fx(p[17]))
+        for k, (n, o) in (("b", (nb, ob)), ("c", (nc, oc))):
+            wn, wo = n[1] - n[0], o[1] - o[0]
+            if not (math.isfinite(wn) and math.isfinite(wo)):
+                continue
+            r = rows[k]
+            if wn > wo * (1 + 1e-9) + 1e-300:
+                r[0] += 1
+                ratio = wn / wo if wo > 0 else math.inf
+                if ratio > r[3]:
+                    r[3] = ratio
+                byfam.setdefault((k, fam), 0)
+                byfam[(k, fam)] += 1
+            elif wn < wo * (1 - 1e-9):
+                r[1] += 1
+            else:
+                r[2] += 1
+    for k, r in rows.items():
+        print(f"{k}: new wider in {r[0]} boxes (worst x{r[3]:.3g}), narrower in {r[1]}, same in {r[2]}")
+    print("wider by family:", byfam)
+
+
+if __name__ == "__main__" and sys.argv[1] == "BW":
+    check_bw(sys.argv[2])
