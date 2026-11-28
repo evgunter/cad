@@ -59,3 +59,38 @@ question, weighed by designers before a lane builds it.
 It holds the cost row
 (`tier-3-at-every-box-replay-leaf-multiplies-the-decisions`).
 (BOXFINISH orchestrator)
+
+## Weighed (2026-11-24)
+
+Two designers, independently, on one statement of the problem; they
+agreed at first report (their reports are on `boxfinish/briefs`,
+`probe/briefs/fork-the-climb/`).
+
+**The question as asked has no answer inside the tier.** A ladder exit
+means only "not shown under these rules": a residual form that is not
+the zero polynomial proves nothing, because its atoms are unknown
+functions that may still cancel. So the tier cannot say "no", and every
+rule set must be tried before it gives up. What is missing is a
+refuter, not a cheaper ladder.
+
+**The agreed final state.** Where a decision's value reads no definite
+sign over the box at an exact-witness symbolic scalar, the margin's
+expression graph is enclosed once more with each parameter at one
+fixed point of the leaf's box (off the centre and the corners, where a
+document's designed coincidences sit). A zero form is zero at every
+point of the box, so an enclosure that excludes 0 there proves the
+margin is no identity: the tier is asked nothing, and the decision
+stays undecided exactly as today. Where the point reading holds 0 the
+ladder climbs as today. No verdict changes; a "no" lives per leaf (it
+depends on the box) and nothing negative is kept per drive; the
+structural question (`Expression::proves_zero`) is untouched, since
+E12 makes it a function of the graph alone.
+
+**Measure first** (both designers): over the tour's first drive with
+the box arm off, for every undecided ask, count the margins the point
+reading refutes, those that straddle at the point, and those whose
+graph reaches a value with no expression (an opaque, a hull, a free
+variable). The two designers differ on that last class (the reading
+declines; or any one point of the value's own enclosure is admissible,
+if the form treats it as a free unknown), and the count says whether
+the difference matters.
