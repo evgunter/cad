@@ -61,3 +61,9 @@ Two stops, each traced:
 The cut-in also reaches `germ_sphere_no_crossings::a_ball_against_a_cone_face_is_the_section_passs`, whose small ball (radius `0.05`) on the quarter cone's lateral face refused at the section pass before. It now asks for one cut-in.
 - At ε 1e-9 and 1e-12, every op builds in either order, at the slice integral of the ball's part (`sweep::test_support::lens`) and the closed forms with it.
 - At ε 1e-6, every op escalates, typed, at the pierce curvature: a margin of `1.26e-6` read in the band `[1e-6, 1e-5]`.
+
+PR 7839's review tightened both rows.
+- **The pad ceiling is per ε:** `1e-6` of the volume, and `5e-6` at ε 1e-6, as measured.
+- **Each comparison reads its own pads** and the oracle's error estimate, with no fixed slack.
+- **The lateral ball's ops** are each held relative to their own volume against the oracle's integral. Its escalation at ε 1e-6 is pinned by decision, margin and band.
+- **The pole verdict is the one each hit is made with** (`bool_sphere_cut_pole`), so no reading is added for hits off the axis.

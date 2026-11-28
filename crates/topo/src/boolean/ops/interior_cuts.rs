@@ -18,9 +18,10 @@
 //! the cut runs along the meridian through the sum of its carrier's net's
 //! points about the sphere's centre, where the cut-in reads the loop off
 //! its tube ([`super::CutSection::Loop`]). A pair with no
-//! sphere face (two tori, a torus and a cylinder) takes no cut: a torus,
-//! cylinder or cone face is not simply connected, so a cut of it need not
-//! glue back, and the refusal stands.
+//! sphere face (two tori, a torus and a cylinder) takes no cut: a torus or
+//! cylinder face is not simply connected, so a cut of it need not glue
+//! back, and the cut-in reads only a sphere's meridians, so it cuts no
+//! cone face either; the refusal stands.
 //!
 //! A refusing pair of any other kind, or of any other refusal, keeps its
 //! refusal for the whole op, and so does a cut-in that cannot be made:
@@ -107,9 +108,9 @@ fn cut_in<T: Decide + AtRestPolicy>(
             super::plane_cut_of_sphere((operand, face), center, radius, plane, band)?
         }
         geom::Surface::Sphere { .. } => Some(super::sphere_pair_cut((operand, face), x, y, band)?),
-        // The sphere face is the one cut, so a cone partner, whose face is
-        // not simply connected, takes the cut-in as a torus or a cylinder
-        // does: its loop is read off its march
+        // The sphere face is the one cut, and the partner's face is not, so
+        // its topology does not matter: a cone partner takes the cut-in as a
+        // torus or a cylinder does, its loop read off its march
         // (`a_cone_with_a_ball_or_a_cone_in_every_order`).
         geom::Surface::Torus { .. }
         | geom::Surface::Cylinder { .. }

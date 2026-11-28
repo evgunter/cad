@@ -289,7 +289,8 @@ fn quarter_cone() -> Body<f64> {
 /// `1.26e-6` read in the band `[1e-6, 1e-5]` on a ball of radius `0.05`.
 /// Measured. Before the cone's cut-in, every op refused at the section
 /// pass at every ε.
-const LATERAL_COARSE: [&str; 8] = ["escalated PierceCurvature"; 8];
+const LATERAL_COARSE: [&str; 8] = ["escalated PierceCurvature at 1.260e-6 in Band { zero: 1e-6, escalate: 9.999999999999999e-6 }";
+    8];
 
 /// **A ball strictly inside the cone, and one meeting its lateral face
 /// in a loop with no crossing.** Both boxes meet the cone face's, so the
@@ -366,7 +367,12 @@ fn a_ball_against_a_cone_face_is_the_section_passs() {
         ),
         2000,
     );
-    let claim = 1e-6 * (vc + vb);
+    // Each volume is read against its own size: within its pad, the
+    // oracle's error estimate and `1e-9` of itself, so a cut-in losing a
+    // part in a million of the ball's part reds. Each pad is held under
+    // `1e-6` of its volume (the widest measured is `3.4e-7`, ∩ at ε 1e-12).
+    let near =
+        |v: f64, pad: f64, want: f64| (v - want).abs() <= pad + 10.0 * error + 1e-9 * want.abs();
     let mut got = Vec::new();
     for (x, y, (vx, vy), order) in [
         (&cone, &lateral, (vc, vb), "the cone first"),
@@ -392,6 +398,12 @@ fn a_ball_against_a_cone_face_is_the_section_passs() {
                     )
                     .unwrap_or_else(|e| panic!("{label}: the body does not measure: {e:?}"))
                     .enclosure;
+                    assert!(
+                        m.volume_pad <= 1e-6 * m.volume.abs(),
+                        "{label}: the volume {} carries a pad {} past its ceiling",
+                        m.volume,
+                        m.volume_pad
+                    );
                     (label, Some((m.volume, m.volume_pad)), "built".to_owned())
                 }
                 Err(
@@ -400,8 +412,21 @@ fn a_ball_against_a_cone_face_is_the_section_passs() {
                 ) => {
                     panic!("{label}: a defect: {e:?}")
                 }
-                Err(BooleanError::Escalated { decision, .. }) => {
-                    (label, None, format!("escalated {decision:?}"))
+                // An escalation by its decision, its margin to three
+                // figures, and its band.
+                Err(BooleanError::Escalated { decision, diag }) => {
+                    let shown = format!("{:?}", diag.margin);
+                    let margin: f64 = shown
+                        .split("Value(")
+                        .nth(1)
+                        .and_then(|rest| rest.split([',', ')']).next())
+                        .and_then(|v| v.trim().parse().ok())
+                        .unwrap_or_else(|| panic!("{label}: a margin with a value: {shown}"));
+                    (
+                        label,
+                        None,
+                        format!("escalated {decision:?} at {margin:.3e} in {:?}", diag.band),
+                    )
                 }
                 Err(e) => (label, None, format!("{e:?}")),
             }
@@ -416,19 +441,15 @@ fn a_ball_against_a_cone_face_is_the_section_passs() {
             println!("[lateral] {label}: {outcome} {v:?}");
             got.push(outcome.clone());
         }
-        let Some((l, lpad)) = runs[0].1 else {
-            continue;
-        };
-        assert!(
-            (l - integral).abs() <= claim + lpad + 10.0 * error,
-            "{}: the ball's part {l} ± {lpad:e} against its integral {integral} ± {error}",
-            runs[0].0
-        );
-        for ((label, v, _), want) in runs[1..].iter().zip([vc + vb - l, vx - l, vy - l]) {
-            if let Some((v, pad)) = v {
+        // Every op against the oracle's integral of the ball's part, `I`:
+        // ∩ is `I`, ∪ is `|cone| + |ball| − I`, each difference its first
+        // operand less `I`.
+        let wants = [integral, vc + vb - integral, vx - integral, vy - integral];
+        for ((label, v, _), want) in runs.iter().zip(wants) {
+            if let Some((v, pad)) = *v {
                 assert!(
-                    (v - want).abs() <= claim + pad + lpad,
-                    "{label}: {v} ± {pad:e} against the closed forms with the ball's part, {want}"
+                    near(v, pad, want),
+                    "{label}: {v} ± {pad:e} against {want} (the ball's part {integral} ± {error:e})"
                 );
             }
         }

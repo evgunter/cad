@@ -78,22 +78,26 @@ fn crossing_cone(tol: Tol) -> AtRestBody<f64> {
 /// first.
 const PINNED: [&str; 6] = ["built"; 6];
 
-/// The widest pad a measured volume may carry, relative to the volume or
-/// to a unit volume, whichever is larger: the closures below are read
-/// within the pads, so a pad past it would let a degrading enclosure pass
-/// them. The operands are of unit scale, and a small result's pad is set
-/// by the measurement's resolution over its area (`1024ε` of boundary
-/// displacement), not by its volume: the ball's part of the cone,
-/// `0.043`, carries `1e-7` at ε `1e-6`.
-const PAD_CEILING: f64 = 1e-6;
+/// The widest pad a measured volume may carry, relative to the volume:
+/// the closures below are read within the pads, so a pad past it would
+/// let a degrading enclosure pass them. `1e-6` at ε 1e-9 and 1e-12, where
+/// every pad clears it (the ball's part of the cone, the smallest body,
+/// carries `4.1e-11` on `0.043` at ε 1e-9, `9.5e-10` of it). At ε 1e-6 the
+/// measurement's resolution (`1024ε` of boundary displacement over the
+/// body's area) sets a small body's pad wider: the ball's part of the cone
+/// carries `9.98e-8` on `0.0434`, `2.3e-6` of it, so that leg's ceiling is
+/// `5e-6`.
+fn pad_ceiling(tol: Tol) -> f64 {
+    if tol.eps() >= 1e-6 { 5e-6 } else { 1e-6 }
+}
 
-/// A body's measured volume and pad, the pad within [`PAD_CEILING`].
+/// A body's measured volume and pad, the pad within [`pad_ceiling`].
 fn volume(body: &AtRestBody<f64>, tol: Tol) -> (f64, f64) {
     let m = topo::mass_properties(body, tol, topo::test_support::pinned_resolution(tol))
         .unwrap_or_else(|e| panic!("the body does not measure: {e:?}"))
         .enclosure;
     assert!(
-        m.volume_pad <= PAD_CEILING * m.volume.abs().max(1.0),
+        m.volume_pad <= pad_ceiling(tol) * m.volume.abs(),
         "the volume {} carries a pad {} past its ceiling",
         m.volume,
         m.volume_pad
@@ -190,7 +194,8 @@ fn every_order(
 /// **The cone and the ball off its axis build every op in either
 /// order.** Each body passes tier 3, tier 3′ and the certificate, the
 /// volumes close as the ops must, and the intersection, in either order,
-/// the slice-by-slice integral of the ball's part within its pad and `1e-7`. Main before the one
+/// the slice-by-slice integral of the ball's part within its pad and ten
+/// times the integral's error estimate (`sweep::test_support::lens`). Main before the one
 /// band built this pose on the ball's two lune seams; the one-band ball
 /// cuts its face in instead
 /// (`work/lathe/a-cone-and-a-one-band-ball-meet-in-a-loop-inside-both-faces-and-refuse-its-cut-in.md`).
@@ -243,7 +248,7 @@ fn a_cone_and_a_ball_off_its_axis_build_in_every_order() {
                     v - want
                 );
                 assert!(
-                    (v - want).abs() <= pad + 1e-7 + 10.0 * error,
+                    (v - want).abs() <= pad + 10.0 * error,
                     "{name}: |K ∩ ball| = {v} ± {pad:e}, the slices give {want}"
                 );
             }
