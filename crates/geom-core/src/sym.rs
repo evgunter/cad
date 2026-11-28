@@ -5860,6 +5860,32 @@ impl<T: Decide> Sym<T> {
             discharge_checked(self.node, self.value.enclosure_probe())
         };
         count_decision(answered.is_some());
+        if let Some(level) = std::env::var("BOXFINISH_M15").ok() {
+            let name = crate::k_stats::current_predicate();
+            let wanted = std::env::var("BOXFINISH_M15_NAMES")
+                .map_or(true, |n| n.split(',').any(|x| x == name));
+            if wanted && (answered.is_none() || level == "2") {
+                let text = report::render_node(self.node);
+                let cut = |t: &str| t.chars().take(1500).collect::<String>();
+                println!(
+                    "M15 decide {name} numeric={} enc={:?} asked={} answered={answered:?} sizes={:?} plain=<{}> early=<{}> explain=<{}>",
+                    match &numeric {
+                        Ok(d) => format!("{:?}", d.sign),
+                        Err(_) => "Undecided".to_owned(),
+                    },
+                    self.value.enclosure_probe(),
+                    !domain_violation,
+                    text.as_ref().map(|t| t.sizes),
+                    text.as_ref().map_or(String::new(), |t| cut(&t.plain)),
+                    text.as_ref()
+                        .and_then(|t| t.early.as_ref())
+                        .map_or(String::new(), |t| cut(t)),
+                    text.as_ref()
+                        .and_then(|t| t.explain.as_ref())
+                        .map_or(String::new(), |t| t.chars().take(6000).collect::<String>()),
+                );
+            }
+        }
         if answered.is_some() {
             #[cfg(feature = "probe")]
             crate::k_stats::retag_at(mark, crate::k_stats::SampleOutcome::Symbolic);

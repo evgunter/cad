@@ -449,3 +449,90 @@ fn m14_probe() {
         }
     }
 }
+
+// ---- probe (M15): why the census is undecided on the tilted cap ----
+
+fn m15_census<T: Decide + crate::props::AtRestPolicy + geom_core::Bounds>(
+    what: &str,
+    body: &Body<T>,
+    band: Band,
+    tol: Tol,
+) {
+    println!("M15 CASE {what}");
+    for (f, _) in body.faces() {
+        println!("M15 key {f:?} = {}", m14_label(body, f));
+    }
+    let errors = crate::census::census_and_certify(
+        body,
+        &crate::boolean::ContactRecords::default(),
+        band,
+        tol,
+        None,
+    );
+    println!("M15 END {what}: {} findings", errors.len());
+    for e in errors {
+        let cut: String = format!("{e:?}").chars().take(400).collect();
+        println!("M15 finding | {cut}");
+    }
+}
+
+/// Probe: prints only, under `BOXFINISH_M15=1|2`.
+#[test]
+#[ignore = "probe: BOXFINISH_M15=1 cargo nextest run -p topo m15_probe --run-ignored all --no-capture"]
+fn m15_probe() {
+    let tol = Tol::witness();
+    let band = Band::linear(tol).expect("the witness band");
+    let budget = SymBudget {
+        max_terms: 64,
+        max_degree: 8,
+    };
+    let sym = |name: &str, w: f64, build: &dyn Fn(Boxed) -> Body<Boxed>| {
+        let (_, counts) = geom_core::sym::with_session(budget, || {
+            let top = Sym::param_over(
+                ParamSymbol::new(test_utils::symbol_id("m15_top")),
+                Interval::from_bounds(1.0 - w, 1.0 + w),
+                1.0 - w,
+                1.0 + w,
+            );
+            m15_census(name, &build(top), band, tol);
+        });
+        println!("M15 COUNTS {name}: {counts:?}");
+    };
+    let tilt = TILTS[1];
+    geom_core::sym::report::explain_depth(
+        std::env::var("BOXFINISH_M15_EXPLAIN").map_or(0, |v| v.parse().unwrap()),
+    );
+    sym("steep sym w=0.25", 0.25, &|top| {
+        tilted(top, TILTS[2], false, tol)
+    });
+    sym("tilt sym w=0.05", 0.05, &|top| {
+        tilted(top, tilt, false, tol)
+    });
+    sym("tilt sym w=0", 0.0, &|top| tilted(top, tilt, false, tol));
+    sym("tilt sym w=0.25", 0.25, &|top| {
+        tilted(top, tilt, false, tol)
+    });
+    sym("square(tilted 0,0) sym w=0.05", 0.05, &|top| {
+        tilted(top, TILTS[0], false, tol)
+    });
+    sym("lined sym w=0.05", 0.05, &|top| lined_brick(top, tol));
+    for f in [-1.0, -0.5, 0.0, 0.5, 1.0] {
+        let top = 1.0 + f * 0.05;
+        m15_census(
+            &format!("tilt f64 member {top}"),
+            &tilted::<f64>(top, tilt, false, tol),
+            band,
+            tol,
+        );
+    }
+    let built = std::panic::catch_unwind(|| {
+        tilted::<Interval>(Interval::from_bounds(1.0, 1.0), tilt, false, tol)
+    });
+    match built {
+        Ok(body) => m15_census("tilt iv w=0", &body, band, tol),
+        Err(e) => println!(
+            "M15 CASE tilt iv w=0 construction refuses | {}",
+            e.downcast_ref::<String>().map_or("?", |s| s.as_str())
+        ),
+    }
+}
