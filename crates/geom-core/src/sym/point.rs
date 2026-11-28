@@ -702,7 +702,10 @@ mod tests {
     /// of `[-1, 1e-12]`, refuted; over `[0.25, 1]` it is an identity. The
     /// node is one node under both brackets, so a reading kept across the
     /// move refutes the identity. Red under the mutant that clears the
-    /// memo only on a parameter's first bracket.
+    /// memo only on a parameter's first bracket. (It also needs the first
+    /// ask refuted: a climb under the first bracket would leave an early
+    /// form the second bracket reads, which is no session a drive opens,
+    /// since a leaf's brackets do not move.)
     #[test]
     fn a_moved_bracket_clears_the_readings() {
         let m = |x: S| x.max(-x) - x;
@@ -882,6 +885,35 @@ mod tests {
         });
         assert_eq!(sign, Some(Sign::Zero), "{counts:?}");
         assert_eq!(counts.symbolic, 1, "{counts:?}");
+    }
+
+    /// **No reading where it cannot refute**: a root whose plain form a
+    /// memo already holds as the zero form is asked of the tier without
+    /// a reading (its first rung answers from that memo), and a session
+    /// at a zero-term budget reads nothing. Red under the mutant that
+    /// drops the memo check, and under the one that drops the budget
+    /// check.
+    #[test]
+    fn an_ask_that_no_reading_can_change_reads_nothing() {
+        let ((sign, unread), counts) = shipped(|| {
+            let x = param("x", -1.0, 1.0);
+            let m = (x + lit(1.0)) * (x - lit(1.0)) - (x * x - lit(1.0));
+            SESSION.with(|s| {
+                let mut s = s.borrow_mut();
+                super::super::plain_form(s.as_mut().expect("a session"), m.node())
+            });
+            let (sign, _) = asked(m);
+            (sign, memo_of(m.node()))
+        });
+        assert_eq!(sign, Some(Sign::Zero), "{counts:?}");
+        assert!(unread.is_none(), "a memo held it zero: not read");
+        let (unread, counts) = with_session_rules(SymBudget::none(), SymRules::shipped(), || {
+            let x = param("x", -1.0, 1.0);
+            let m = x * x - lit(0.01);
+            let _ = asked(m);
+            memo_of(m.node())
+        });
+        assert!(unread.is_none(), "a zero budget reads nothing: {counts:?}");
     }
 
     /// **The instrument**: refuted asks climbed anyway prove no zero, and
