@@ -1703,7 +1703,8 @@ pub(crate) fn classify(
                 let m9_eval = std::time::Instant::now();
                 let leaf: Evaluation<Sym<Interval>> = evaluate(doc, None, &stop.cancel, &opts, tol);
                 if geom_core::k_stats::probe_tally::m11() {
-                    static LEAVES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+                    static LEAVES: std::sync::atomic::AtomicU64 =
+                        std::sync::atomic::AtomicU64::new(0);
                     let n = LEAVES.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
                     let (nodes, forms, atoms) = geom_core::sym::probe_session_sizes();
                     let spans: Vec<String> = box_
@@ -1712,11 +1713,21 @@ pub(crate) fn classify(
                         .filter_map(|n| Some((n, box_.get(*n)?)))
                         .map(|(n, axis)| {
                             let (lo, hi) = axis.span();
-                            format!("{}=[{lo:e},{hi:e}]", n.full().to_string().chars().take(4).collect::<String>())
+                            format!(
+                                "{}=[{lo:e},{hi:e}]",
+                                n.full().to_string().chars().take(4).collect::<String>()
+                            )
                         })
                         .collect();
                     let first = leaf.order.iter().find_map(|id| match leaf.result(*id) {
-                        Some(NodeResult::Failed(e)) => Some(format!("node {} {}", id.0, format!("{:?}", e.kind).chars().take(500).collect::<String>())),
+                        Some(NodeResult::Failed(e)) => Some(format!(
+                            "node {} {}",
+                            id.0,
+                            format!("{:?}", e.kind)
+                                .chars()
+                                .take(500)
+                                .collect::<String>()
+                        )),
                         _ => None,
                     });
                     eprintln!(
@@ -1788,7 +1799,8 @@ pub(crate) fn classify(
                         if let (Some(text), Some(k)) = (&recorded, key) {
                             let stripped = pt::strip_nodes(text);
                             let diff = pt::first_difference(format!("{name}/{k:032x}"), text);
-                            let diff_c = pt::first_difference(format!("counts/{name}/{k:032x}"), counts);
+                            let diff_c =
+                                pt::first_difference(format!("counts/{name}/{k:032x}"), counts);
                             eprintln!(
                                 "[m9-node] rid={rid:016x} node={name} state={state} key={k:032x} pre_ms={:.3} rec={:016x} rec_no_ids={:016x} rec_len={} counts={counts}",
                                 t9.map_or(0.0, |t| t.1),
@@ -1818,7 +1830,10 @@ pub(crate) fn classify(
                             pt::hash_ids(&opaque),
                         );
                     }
-                    eprintln!("[m9-probe] rid={rid:016x} probe_ms={:.2}", m9_probe.elapsed().as_secs_f64() * 1e3);
+                    eprintln!(
+                        "[m9-probe] rid={rid:016x} probe_ms={:.2}",
+                        m9_probe.elapsed().as_secs_f64() * 1e3
+                    );
                 }
                 leaf
             },
@@ -1842,7 +1857,9 @@ pub(crate) fn classify(
                 "[m9-leaf] leaf_ms={:.2} session_setup_ms={setup:.3} session_teardown_ms={teardown:.3} classify_ms={:.3} frozen={} sym={} num={}",
                 started.elapsed().as_secs_f64() * 1e3,
                 m9_classify.elapsed().as_secs_f64() * 1e3,
-                counts.frozen, counts.symbolic, counts.numeric,
+                counts.frozen,
+                counts.symbolic,
+                counts.numeric,
             );
         }
         if probe {
