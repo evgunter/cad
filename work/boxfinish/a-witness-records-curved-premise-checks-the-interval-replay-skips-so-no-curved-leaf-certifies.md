@@ -2,11 +2,12 @@
 id: a-witness-records-curved-premise-checks-the-interval-replay-skips-so-no-curved-leaf-certifies
 kind: issue
 title: the f64 witness records a curved face's props premise checks that the interval leaf replay skips, so the drive refuses every curved leaf as a FlipCrossing with empty evidence
-status: dispatched
+status: review
 opened: 2026-11-23
 priority: P0
 cost: M
 branch: boxfinish/witness-premises
+pr: 7716
 ---
 
 

@@ -2,11 +2,12 @@
 id: the-one-plane-reading-multiplies-a-normal-by-a-decided-sign
 kind: unit
 title: The reading that decides two planes are one plane multiplies the second normal by the decided orientation sign, so two walls that are one plane prove identical only when both normals happen to carry the same sign spelling
-status: dispatched
+status: review
 opened: 2026-11-24
 priority: P1
 cost: M
 branch: boxfinish/one-plane
+pr: 7710
 ---
 
 
