@@ -69,3 +69,11 @@ Round-3 replies (both in by 16:28 UTC 11-28; raw on `boxfinish/briefs` `probe/br
 ## Round 4 (dispatched 16:33 UTC 11-28 to both; statement `probe/briefs/fork-side-reading/round-4.md` at `811922ea192`)
 
 Each shown the other's round-3 reply and the two mechanisms side by side, and asked to settle three points of fact in the tree: whether the policy's door limits who can make a place; whether #990's letter forbids a second projection; how a dual gets its place under each. Then the recommendation, or the two-sentence choice for Ev.
+
+Round-4 replies (both in by 16:30 UTC 11-28; raw on `boxfinish/briefs` `probe/briefs/fork-side-reading/{A,B}-round-4.md`): **agreed: D, the door through the at-rest policy; #990 unchanged.**
+- **A moved back to D.** It had moved to the projection on the letter of #990 and withdrew that reading: "the one projection" sits in the bullet on a derived quantity leaving a door outside the seams. It holds D for where the bracket read is spelled, not for limiting who can make a place (any policy-bounded code in `topo` can obtain the door).
+- **B held D**, conceding the same point of fact, and adding that D's product is a LINE's place (a point and a direction, taken only by the ray), a narrower grant than a projection of any scalar.
+- Both: the ledger entry carries the admission test (what is decided at the place is the same at every place it could have been); a dual is the same problem under either mechanism (a ray of duals cannot be built from a place; the reader would run on the body's values, which needs a value view of a whole body that neither found); the reach numbers want one row re-taken with the real private step at `Sym`.
+- Left as a detail, both unsure: at a dual, a value-view body (one reader) or the riding ray kept until that view exists.
+
+**Reconciliation ends agreed after four rounds.** It adds one sentence to the `geom-core` README's DL5.2 and one `Bounds` ledger entry, both ratified ground, so it goes to Ev as an `[ev]` PR and is a row of `docs/DESIGN-FORK-LOG.md` (two-designer table). Mapping for the row's second half: A = Opus 5.5, B = Fable 5.2 (bytes 185, 252).
