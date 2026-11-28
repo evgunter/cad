@@ -100,21 +100,6 @@ fn outcome(got: &Result<topo::BooleanResult<f64>, BooleanError>) -> String {
 /// (`work/spiricarm/the-general-pose-torus-germ-unions-that-build-have-no-volume-truth.md`).
 #[test]
 fn a_ball_against_a_donut_carries_onto_the_torus_and_builds() {
-    // Pinned red at every ε: the spline edge's placement, a section loop
-    // inside the one-band ball and the one-band donut, refuses
-    // `RingHomingAmbiguous` once its cut-in is built
-    // (`work/lathe/a-section-loop-inside-two-one-band-curved-faces-refuses-at-the-section-certificate.md`).
-    // The other three placements are read first, so they still run.
-    test_utils::pinned_red::row(
-        Tol::witness().eps(),
-        &test_utils::pinned_red::EVERY_ROW,
-        "a ball against a donut at four placements",
-        &["a spline edge in a torus ring's run", "RingHomingAmbiguous"],
-        placements_build,
-    );
-}
-
-fn placements_build() {
     let tol = Tol::witness();
     let origin = Vec3::new(0.0, 0.0, 0.0);
     let (ball0, donut0) = (
@@ -122,12 +107,6 @@ fn placements_build() {
         placed(&donut(), Vec3::unit_x(), 0.0, origin),
     );
     let ring = placed(&donut(), Vec3::unit_x(), 0.7, Vec3::new(0.1, 0.35, 0.2));
-    let moved = placed(
-        &ball(),
-        Vec3::new(0.3, 1.0, 0.2),
-        1.1,
-        Vec3::new(0.42, -0.15, 0.3),
-    );
     let about = placed(
         &donut(),
         Vec3::new(1.0, 1.0, 0.0),
@@ -140,7 +119,11 @@ fn placements_build() {
             &ball0,
             &ring,
         ),
-        ("a spline edge in a torus ring's run", &donut0, &moved),
+        (
+            "a spline edge in a torus ring's run",
+            &donut0,
+            &moved_ball(),
+        ),
         ("two curves about the axis, ball ∪ donut", &ball0, &about),
         ("two curves about the axis, donut ∪ ball", &about, &ball0),
     ]
@@ -154,15 +137,144 @@ fn placements_build() {
         )
     })
     .collect();
-    // The spline edge's placement last, so a stop there leaves every
-    // other placement read.
-    let spline = "a spline edge in a torus ring's run";
-    let ordered = got
-        .iter()
-        .filter(|g| g.0 != spline)
-        .chain(got.iter().filter(|g| g.0 == spline));
-    for (what, end, floor) in ordered {
+    for (what, end, floor) in &got {
         assert_eq!(end, "builds", "{what}: {got:#?}");
         assert!(floor.is_none(), "{what}: {floor:?}");
     }
+}
+
+/// The spline edge's placement: the ball turned 1.1 rad about
+/// `(0.3, 1, 0.2)` and moved to `(0.42, −0.15, 0.3)`, against the donut at
+/// the origin.
+fn moved_ball() -> AtRestBody<f64> {
+    placed(
+        &ball(),
+        Vec3::new(0.3, 1.0, 0.2),
+        1.1,
+        Vec3::new(0.42, -0.15, 0.3),
+    )
+}
+
+/// The certified enclosure at the pinned resolution, its bracket
+/// carried: at ε 1e-6 a body here stops at the floor short of a met
+/// number, and inclusion–exclusion reads the bracket either way.
+fn bracket(what: &str, body: &AtRestBody<f64>) -> (f64, f64) {
+    let tol = Tol::witness();
+    let v = topo::mass_properties(body, tol, topo::test_support::pinned_resolution(tol))
+        .unwrap_or_else(|e| panic!("{what}: the volume: {e:?}"))
+        .enclosure;
+    (v.volume, v.volume_pad)
+}
+
+/// Each op builds a body that passes tier 3′ (or leaves only pairs the
+/// census cannot decide), and the ops agree on one `V(O ∩ B)` within
+/// `[0, min(V(donut), V(ball))]` by inclusion–exclusion against the
+/// operands' certified volumes
+/// ([`crate::common::op_census::assert_one_meet`]). The pose has no
+/// independent volume, so the agreement is the oracle.
+fn every_op_meets_once(
+    ops: &[(
+        &'static str,
+        crate::common::op_census::Keep,
+        Result<topo::BooleanResult<f64>, BooleanError>,
+    )],
+    o: &AtRestBody<f64>,
+    b: &AtRestBody<f64>,
+) {
+    use crate::common::op_census::assert_one_meet;
+    use topo::{BooleanResult, ValidationError};
+    let tol = Tol::witness();
+    let (vo, pad_o) = bracket("the donut", o);
+    let (vb, pad_b) = bracket("the ball", b);
+    let mut implied = Vec::new();
+    for (op, keep, got) in ops {
+        let r = got
+            .as_ref()
+            .unwrap_or_else(|e| panic!("{op}: builds: {e:?}"));
+        let BooleanResult::Body(body) = r else {
+            panic!("{op}: an empty result where the operands overlap");
+        };
+        let (v, pad) = bracket(op, &body.body);
+        implied.push((*op, keep.meet(vo, vb, v), pad));
+        let t3p = topo::validate_pseudomanifold(&body.body, &body.contacts, tol);
+        let held = t3p.as_ref().map_or_else(
+            |es| {
+                es.iter()
+                    .all(|e| matches!(e, ValidationError::CensusUndecidable { .. }))
+            },
+            |()| true,
+        );
+        assert!(held, "{op}: tier 3′ {t3p:?}");
+    }
+    assert_one_meet(
+        "the moved ball and the donut",
+        &implied,
+        vo,
+        pad_o + pad_b,
+        vb,
+    );
+}
+
+/// **The spline edge's placement, under every op**: a section loop lies
+/// inside the one-band ball and the one-band donut, and its cut-in leaves
+/// strut rings on the donut's torus face that no path places. Each is
+/// read by its pierce point in the new face (`chord_join::strut_in_run`).
+///
+/// - **Donut first, ∪, ∩ and ∖** — the item's stop
+///   (`work/lathe/a-section-loop-inside-two-one-band-curved-faces-refuses-at-the-section-certificate.md`):
+///   on main each refuses `RingHomingAmbiguous` at the torus face's strut
+///   ring 6v1.
+/// - **Ball first, ∪, ∩ and ∖** — a regression guard: these build on main
+///   too, to the same volumes. At ε 1e-12 they run past 300 s each, on
+///   main as here, so they are a row of their own, ignored
+///   ([`the_spline_edge_placement_ball_first_ops`]).
+///
+/// All six are held to tier 3′ and to one `V(O ∩ B)` by
+/// inclusion–exclusion, so the donut-first bodies are checked against the
+/// ball-first ones.
+#[test]
+fn the_spline_edge_placement_under_every_op() {
+    use crate::common::op_census::Keep;
+    let tol = Tol::witness();
+    let o = placed(&donut(), Vec3::unit_x(), 0.0, Vec3::new(0.0, 0.0, 0.0));
+    let b = moved_ball();
+    let mut ops = vec![
+        ("O∪B", Keep::Union, topo::union(&o, &b, tol)),
+        ("O∩B", Keep::Meet, topo::intersect(&o, &b, tol)),
+        ("O∖B", Keep::OLessB, topo::subtract(&o, &b, tol)),
+    ];
+    if tol.eps() != 1e-12 {
+        ops.extend(ball_first(&o, &b));
+    }
+    every_op_meets_once(&ops, &o, &b);
+}
+
+fn ball_first(
+    o: &AtRestBody<f64>,
+    b: &AtRestBody<f64>,
+) -> [(
+    &'static str,
+    crate::common::op_census::Keep,
+    Result<topo::BooleanResult<f64>, BooleanError>,
+); 3] {
+    use crate::common::op_census::Keep;
+    let tol = Tol::witness();
+    [
+        ("B∪O", Keep::Union, topo::union(b, o, tol)),
+        ("B∩O", Keep::Meet, topo::intersect(b, o, tol)),
+        ("B∖O", Keep::BLessO, topo::subtract(b, o, tol)),
+    ]
+}
+
+/// **The ball-first ops at ε 1e-12**, where
+/// [`the_spline_edge_placement_under_every_op`] holds only the donut-first
+/// three: each runs past 300 s, on main as here
+/// (`work/lathe/the-ball-first-ops-of-the-ball-donut-spline-placement-run-for-minutes-at-1e-12.md`).
+/// At the other ε it adds nothing to that row, which reads all six.
+#[test]
+#[ignore = "past 300 s per op at ε 1e-12, on main too: work/lathe/the-ball-first-ops-of-the-ball-donut-spline-placement-run-for-minutes-at-1e-12.md"]
+fn the_spline_edge_placement_ball_first_ops() {
+    let o = placed(&donut(), Vec3::unit_x(), 0.0, Vec3::new(0.0, 0.0, 0.0));
+    let b = moved_ball();
+    every_op_meets_once(&ball_first(&o, &b), &o, &b);
 }

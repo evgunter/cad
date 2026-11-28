@@ -114,3 +114,12 @@ Signed: (CARVE orchestrator)
   - **The nightly never ran the row.** The 11-27 nightly's full-suite shards were skipped when its build-once job failed.
   - **Fixed:** the resolver now types `ident.field`, through a `Box`. That decides the three `ContainError` sites, and also `OffsetFitError`'s two, whose roster line is removed.
   - **Rostered:** `distance` is named with its siblings' `Real`-scalar reason.
+- 2026-11-28 — **(LATHE strut-ring lane) A strut ring no path places is read by its point in the new face** (`a-section-loop-inside-two-one-band-curved-faces-…`, closed; branch `lathe/strut-ring-homing`, PR 7840).
+  - **How it was decided.** Three readings were weighed. Deferring the ring was built first and dropped: its premise (the ring's point lies outside the new face or on its edge) was false, since the placement door reads both rings strictly In or Out. The orchestrator ruled for the face door, decided or refused.
+  - `rehome_rings` reads a pierce ring on a curved face that reads `Undecided` by `contain::placement_on_carrier` on the new face, the door `boolean::fate::rehome` trusts (`chord_join::strut_in_run`): In moves it, Out leaves it, anything else refuses `RingHomingAmbiguous`. A spline face refuses, since its placement speaks for one in-trim sheet.
+  - **Why no path settles.** Rings 6v1 and 7v1 have their pierce points on the torus's extreme parallels `y = ±0.2`, where the tangent plane is `y = const`: every one of the ten paths offered reads its parity in band.
+  - **The ball-donut spline placement:** the donut-first ∪, ∩ and ∖ build. All six ops agree on one `V(O ∩ B)` by inclusion–exclusion, against V(donut) 0.4737 and V(ball) 0.5236. The ball-first three built on main already: they are a regression guard.
+  - The plane lane's deferral of an `OnRun` strut is unchanged. It now holds a checked invariant: a pending ring a later run reads In is a `SectionInvariant`.
+  - **Filed:**
+    - `a-strut-rings-side-is-read-from-its-own-germ` (P3): the germ reading, for what the door cannot read, with its plumbing.
+    - `the-ball-first-ops-of-the-ball-donut-spline-placement-run-for-minutes-at-1e-12` (P2): past 300 s on main too; an ignored row of their own.
