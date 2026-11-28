@@ -230,3 +230,24 @@ fn carrying_the_members_verdicts_does_not_certify_them_apart() {
         "two copies standing in one place are not certified apart: {census:?}"
     );
 }
+
+/// Reviewer row: the between-members row above passes on ANY refusal of
+/// the census (`!matches!(Ok(empty))`), and reads plain `Interval`, where
+/// the census escalates over the turned box. At `f64` (the joint at its
+/// value) two copies in one place must be FOUND: an `Ok` census naming
+/// a finding, not an `Err`.
+#[test]
+fn review_two_copies_in_one_place_are_found_overlapping_at_f64() {
+    let tol = Tol::witness();
+    let (doc, _) = product(true, 0.03);
+    let ev: Evaluation<f64> = evaluate(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
+    let census = editor_core::product_recorded(&doc, &ev, tol).map(|p| p.census);
+    eprintln!("REVIEW f64 census: {census:?}");
+    let ev: Evaluation<Interval> = evaluate(&doc, None, &CancelToken::new(), &over_the_box(&doc), tol);
+    let boxed = editor_core::product_recorded(&doc, &ev, tol).map(|p| p.census);
+    eprintln!("REVIEW Interval census: {boxed:?}");
+    assert!(
+        matches!(&census, Ok(found) if !found.is_empty()),
+        "f64: the census finds the two copies overlapping: {census:?}"
+    );
+}
