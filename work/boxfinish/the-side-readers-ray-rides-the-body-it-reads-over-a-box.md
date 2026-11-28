@@ -135,3 +135,54 @@ middle of their enclosures and nothing else changed, at
   re-poses. It is re-asked on the built unit, not decided on the
   collapse.
 (BOXFINISH orchestrator)
+
+## How the place is read (weighed 2026-11-28, four more rounds)
+
+The final state above says the ray is a place "read off the middle of
+the aim's enclosure", and both designers first said that changes no
+ratified text. It does: the reader is generic over `T: Decide`, which
+grants no read of a value's bracket; the read is `Bounds`, whose users
+are a ledger with one entry per ratification. The unit's implementer
+found this before building. After four rounds the two designers agree:
+
+- **The place of a line is made by one constructor**, in `geom`'s place
+  module beside the existing place evaluators and their pinned private
+  step, **bounded on the bracket read alone**. It takes a point and a
+  direction held at `T` and reads the middle of their enclosures. The
+  only evaluator that takes it is the ray.
+- **The side reader reaches it as a door its scalar supplies through
+  the at-rest policy**, as the shell door is supplied today, the bound
+  spelled on the door type's constructor. No bound climbs the reader's
+  three call chains, and no method is added to any scalar.
+- **The `Bounds` ledger gains one entry** for the reader's aim, stating
+  that it is necessary (the ray must be one line for every member, and
+  only values at `T` say where the face is), that it decides nothing (a
+  place has no accessor; every branch is a named predicate on what is
+  evaluated there), and the admission test: what is decided at the
+  place is the same at every place it could have been (any line from
+  outside a region reads the same side; where a selection bounds no
+  region, the first ray's side, as `[ev]` PR 6592 ruled).
+- **`geom-core`'s README, DL5.2, gains one sentence** saying a place may
+  be read off a value this way.
+- **The #990 ruling is unchanged**: its "one projection" is how a
+  derived quantity leaves a door outside the seams; a place is made
+  inside a ledgered seam and leaves no door.
+
+**Rejected:** a `place()` projection on every deciding scalar (it is a
+bracket reader on every scalar, callable from every crate, and needs
+#990's text amended); `Decide + Bounds` on the reader (the bound climbs
+to every public door); the driver handing down its `f64` build (a
+finish could then not be asked without a driver).
+
+**A dual.** No ray of duals can be built from a place (the private
+step is bounded on a tangent-free scalar, and DL5.2 says a place is
+never a `T`). Until a whole body can be read on its values, the reader
+at a dual keeps today's ray; at `Dual<f64>` that ray is already one
+line. A value view of a body is its own row, not this unit's.
+
+**Also from the rounds:** the turn read along the ray is not shipped as
+a uniform rule until the lined brick's bottom cap is explained; the
+reach numbers are re-taken with the real private step at `Sym` (which
+mints unknowns, so no identity is proved through the ray).
+(BOXFINISH orchestrator)
+
