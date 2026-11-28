@@ -283,6 +283,11 @@ fn quarter_cone() -> Body<f64> {
     .into_body()
 }
 
+/// The lateral ball's eight ops at ε 1e-6 (∩, ∪ and both differences,
+/// the cone first, then the ball first): where its face's pierce by the
+/// cone's is read in band, the op escalates, typed.
+const LATERAL_COARSE: [&str; 8] = ["built"; 8];
+
 /// **A ball strictly inside the cone, and one meeting its lateral face
 /// in a loop with no crossing.** Both boxes meet the cone face's, so the
 /// pass takes both up. The ball inside meets the double cone nowhere
@@ -358,41 +363,80 @@ fn a_ball_against_a_cone_face_is_the_section_passs() {
         2000,
     );
     let claim = 1e-6 * (vc + vb);
+    let mut got = Vec::new();
     for (x, y, (vx, vy), order) in [
         (&cone, &lateral, (vc, vb), "the cone first"),
         (&lateral, &cone, (vb, vc), "the ball first"),
     ] {
-        let built = |op: BooleanOp, r: Result<topo::BooleanResult<f64>, BooleanError>| {
-            let label = format!("{order}, {op:?}");
-            let r = r.unwrap_or_else(|e| panic!("{label}: the op builds, got {e:?}"));
-            sweep::test_support::cut_trace::assert_no_cut_trace(&label, &r, [x, y]);
-            (label, volume(&r.body().expect("a body").body))
+        // Each op's volume as its certified bracket, `(volume, pad)` (a
+        // ball this small does not meet the pinned resolution at a fine
+        // ε), or its refusal by kind.
+        let run = |op: &str, r: Result<topo::BooleanResult<f64>, BooleanError>| {
+            let label = format!("{order}, {op}");
+            match r {
+                Ok(r) => {
+                    sweep::test_support::cut_trace::assert_no_cut_trace(&label, &r, [x, y]);
+                    let body = finished(
+                        "the measured body",
+                        r.body().expect("a body").body.clone(),
+                        Tol::witness(),
+                    );
+                    let m = topo::mass_properties(
+                        &body,
+                        Tol::witness(),
+                        topo::test_support::pinned_resolution(Tol::witness()),
+                    )
+                    .unwrap_or_else(|e| panic!("{label}: the body does not measure: {e:?}"))
+                    .enclosure;
+                    (label, Some((m.volume, m.volume_pad)), "built".to_owned())
+                }
+                Err(
+                    e @ (BooleanError::JoinDesync { .. }
+                    | BooleanError::ClassificationInvariant { .. }),
+                ) => {
+                    panic!("{label}: a defect: {e:?}")
+                }
+                Err(BooleanError::Escalated { decision, .. }) => {
+                    (label, None, format!("escalated {decision:?}"))
+                }
+                Err(e) => (label, None, format!("{e:?}")),
+            }
         };
-        let lens = built(BooleanOp::Intersect, topo::intersect(x, y, Tol::witness()));
-        let l = lens.1;
+        let runs = [
+            run("∩", topo::intersect(x, y, Tol::witness())),
+            run("∪", topo::union(x, y, Tol::witness())),
+            run("x ∖ y", topo::subtract(x, y, Tol::witness())),
+            run("y ∖ x", topo::subtract(y, x, Tol::witness())),
+        ];
+        for (label, v, outcome) in &runs {
+            println!("[lateral] {label}: {outcome} {v:?}");
+            got.push(outcome.clone());
+        }
+        let Some((l, lpad)) = runs[0].1 else {
+            continue;
+        };
         assert!(
-            (l - integral).abs() <= claim + 10.0 * error,
-            "{}: the ball's part {l} against its integral {integral} ± {error}",
-            lens.0
+            (l - integral).abs() <= claim + lpad + 10.0 * error,
+            "{}: the ball's part {l} ± {lpad:e} against its integral {integral} ± {error}",
+            runs[0].0
         );
-        for ((label, v), want) in [
-            (
-                built(BooleanOp::Union, topo::union(x, y, Tol::witness())),
-                vc + vb - l,
-            ),
-            (
-                built(BooleanOp::Subtract, topo::subtract(x, y, Tol::witness())),
-                vx - l,
-            ),
-            (
-                built(BooleanOp::Subtract, topo::subtract(y, x, Tol::witness())),
-                vy - l,
-            ),
-        ] {
-            assert!(
-                (v - want).abs() <= claim,
-                "{label}: {v} against the closed forms with the ball's part, {want}"
-            );
+        for ((label, v, _), want) in runs[1..].iter().zip([vc + vb - l, vx - l, vy - l]) {
+            if let Some((v, pad)) = v {
+                assert!(
+                    (v - want).abs() <= claim + pad + lpad,
+                    "{label}: {v} ± {pad:e} against the closed forms with the ball's part, {want}"
+                );
+            }
         }
     }
+    // Every op builds, but at ε 1e-6, where the ball (a twentieth across)
+    // is read against a band a tenth of its curvature's lever: there the
+    // pierce of its face by the cone's is read in band, and those ops
+    // escalate, typed ([`LATERAL_COARSE`]).
+    let want: Vec<String> = if Tol::witness().eps() >= 1e-6 {
+        LATERAL_COARSE.iter().map(|s| (*s).to_owned()).collect()
+    } else {
+        vec!["built".to_owned(); 8]
+    };
+    assert_eq!(got, want, "the ball on the lateral face: each op's outcome");
 }
