@@ -1,0 +1,36 @@
+suite-base-kfast.log:      Summary [ 109.647s] 10559 tests run: 10559 passed, 2051 skipped
+suite-base-kslow.log:      Summary [  24.348s] 72 tests run: 72 passed, 12538 skipped
+suite-head-kfast.log:      Summary [ 139.082s] 10559 tests run: 10559 passed, 2051 skipped
+suite-head-kslow.log:      Summary [  14.420s] 72 tests run: 72 passed, 12538 skipped
+suite-base-e12.log:      Summary [  39.347s] 3191 tests run: 3191 passed, 660 skipped
+suite-base-e6.log:      Summary [  37.042s] 3191 tests run: 3191 passed, 660 skipped
+suite-base-eslow.log:      Summary [  60.881s] 18 tests run: 17 passed, 1 failed, 3833 skipped
+suite-head-e12.log:      Summary [  43.621s] 3191 tests run: 3191 passed, 660 skipped
+suite-head-e6.log:      Summary [  71.054s] 3191 tests run: 3191 passed, 660 skipped
+suite-head-eslow.log:      Summary [  66.105s] 18 tests run: 17 passed, 1 failed, 3833 skipped
+
+eslow rows head-s base-s:
+7.675s   contradiction_corpus::the_measured_documents_contradict_nothing_at_sym_interval 8.554s
+5.549s   contradiction_corpus::the_slabs_drives_contradict_nothing_leaf_by_leaf 4.652s
+5.396s   m10_9_pins_interval::m10_9_no_registrant_lies_on_any_measured_document 4.739s
+0.048s   m10_9_pins_interval::m10_9_the_door_is_inert_on_straight_geometry 0.041s
+2.581s   m10_9_pins_interval::m10_9_the_pad_at_both_rule_f_dials 2.345s
+0.078s   m10_9_pins_interval::m10_9_the_rim_registrant_discharges_the_plates_endpoint_identity 0.068s
+0.008s   m10_9_pins_interval::m10_9_the_shipped_set_carries_the_door 0.008s
+0.768s   m10_9_pins_interval::m10_9_the_value_channel_is_untouched_on_a_certifying_box 0.754s
+7.952s   m10_9_pins_interval::m10_9_what_the_registry_buys 6.890s
+7.952s   m10_9_pins_interval::m10_9_what_the_registry_buys 6.890s
+0.011s   m10_sym_drive_memo_interval::a_drive_memo_refuses_a_leaf_it_was_not_made_for 0.008s
+7.878s   m10_sym_drive_memo_interval::a_freezing_drive_is_identical_across_schedules_and_the_dial 7.425s
+7.986s   m10_sym_drive_memo_interval::every_leaf_reports_one_column_under_every_schedule_and_both_dials 7.012s
+42.313s  m10_sym_drive_memo_interval::the_plain_memo_moves_no_decision 37.539s
+2.360s   m10_sym_profile_interval::the_plains_ledger_lines_are_the_same_under_every_dial_set 1.804s
+1.051s   m10_sym_profile_interval::the_plates_largest_form_is_under_the_growth_guard 0.937s
+0.111s   m10_sym_profile_interval::the_slabs_walks_build_one_ledger_and_freeze_nothing 0.079s
+34.187s  sym_9_retry_interval::sym_9_the_drive_writes_the_ladders_receipt 31.053s
+4.735s   sym_9_retry_interval::sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured 4.957s
+
+acceptance (probe tree + frozen head, box arm off, demo-tour certified, killed after the first drive printed):
+     drive over 3 axis/axes: 211 certified, 301 refused (511 splits; receipt holds)
+       1832193 of 4374109 decisions were proven zero by the symbolic tier (41.9%); 634 form(s) frozen
+trace tally: curve_carrier_clear Sym<Interval>: 28,344 undecided, 3,344 climbed, 4.0 s; curve_carrier_gap: 10,244 undecided, 3,504 climbed, 55.7 s
