@@ -5977,9 +5977,17 @@ impl<T: Decide> Sym<T> {
         ) {
             count_decision(false);
             report::record(&numeric, false, None, self.value.enclosure_probe());
+            if m16::on() {
+                if let Some(enc) = self.value.enclosure_probe() {
+                    m16::definite(self.node, enc);
+                }
+            }
             return numeric;
         }
         let domain_violation = matches!(&numeric, Err(e) if e.margin.is_invalid());
+        if domain_violation && m16::on() {
+            m16::invalid(numeric.is_err());
+        }
         // PROBE (M11): an indeterminate pose-disc asks the tier nothing.
         if crate::k_stats::probe_tally::skip_disc()
             && numeric.is_err()
