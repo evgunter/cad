@@ -4952,7 +4952,7 @@ fn any_indet(sess: &Session, form: &Form, mut hit: impl FnMut(u128) -> bool) -> 
 
 /// PROBE (M9): the installed session's running counts.
 pub fn probe_counts() -> Option<SymCounts> {
-    SESSION.with(|s| s.borrow().as_ref().map(|sess| sess.counts))
+    SESSION.with(|s| s.borrow().as_ref().map(|sess| sess.node.counts))
 }
 
 /// PROBE (M8): which of `ids` are `Opaque` nodes of the installed session.

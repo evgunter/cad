@@ -10754,7 +10754,7 @@ impl<T: crate::props::AtRestPolicy> AtRestBody<T> {
                     text.push_str(&format!("{p:?}"));
                 }
                 for (f, _) in body.faces() {
-                    if let Some(s) = body.face_surface(f) {
+                    if let Ok(s) = body.face_surface(f) {
                         text.push_str(&format!("{s:?}"));
                     }
                 }
@@ -10794,7 +10794,7 @@ impl<T: crate::props::AtRestPolicy> AtRestBody<T> {
                 || std::env::var("BOXFINISH_TRACE").is_ok_and(|v| v == "2"))
         {
             for (f, _) in body.faces() {
-                if let Some(s) = body.face_surface(f) {
+                if let Ok(s) = body.face_surface(f) {
                     eprintln!("[bf-datum] face {f:?} {s:?}");
                 }
             }
