@@ -256,3 +256,4 @@ Signed: (CARVE orchestrator)
   - R1's witnesses pass at three ε.
   - Ruled: keep the other-cut-in-plane check as decided defence. The exact argument doesn't cover band-edge coincidence.
 - 2026-11-28 (LATHE orchestrator) Main red: the pncad-py prose census can't decide 4 sites (ContainError ×3, ReplaceFaceError.distance). It passed the 11-27 nightly and is red on main; it's a slow-set row main pushes don't run. Handed to the teapot lane (lathe/prose-census-red) to bisect and fix.
+- 2026-11-28 (LATHE orchestrator) **PR 7833 merged**: the prose-census main red came from PR 7748 (ContainError) and PR 7658 (ReplaceFaceError.distance), not the LATHE stack. The census now types named and Boxed fields, decides two more sites, and is not loosened. CI green. Note: the 11-27 nightly never ran that row, because its build-once job failed and skipped the slow shards.
