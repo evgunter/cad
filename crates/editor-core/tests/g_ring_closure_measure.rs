@@ -613,3 +613,135 @@ fn review2_a_seat_on_one_long_side_shared_by_both_walls() {
         println!("REVIEW2 span of {terms} terms: {seats:?}");
     }
 }
+
+/// Review probe (PR 7710): two table polygons side by side, unioned.
+/// Their tops (and bottoms) are flush on one plane and both top sides
+/// run the same way along ONE length `span`, a sum of `terms`
+/// variables, so both walls' normals carry one sign factor. Every
+/// plane-ladder row of the union with the door's proof of it.
+fn review2_flush_tops_on_one_long_side(terms: usize, sloped: bool) -> Vec<String> {
+    let mut doc = ProfileDoc::empty_derived("g-review2-flush-tops", Tol::witness());
+    let mut params = BTreeMap::new();
+    let mut names = vec![("h".to_string(), 1.0), ("w".to_string(), 0.25)];
+    names.extend((0..terms).map(|i| (format!("s{i}"), 0.1 + 0.01 * i as f64)));
+    for (name, value) in &names {
+        doc = declare(doc, name, Dimension::Length, *value);
+        params.insert(VarName::new(name).unwrap(), Dimension::Length);
+    }
+    let span = (0..terms)
+        .map(|i| format!("s{i}"))
+        .collect::<Vec<_>>()
+        .join(" + ");
+    let twice = format!("{span} + {span}");
+    let f = |text: &str| editor_core::parse_formula(text, &params).unwrap();
+    let zero = || Formula::zero(Dimension::Length);
+    // The top runs from `(x0, y0)` up to `(x1, y1)`; level where `sloped`
+    // is off, else rising `w` over each span along one line.
+    let quad = |x0: Formula, x1: Formula, y0: &str, y1: &str| {
+        LoopProgram::Chain(vec![
+            ProgramStep::At([x0.clone(), zero()]),
+            ProgramStep::LineTo(ProgramTarget::Point([x1.clone(), zero()])),
+            ProgramStep::LineTo(ProgramTarget::Point([x1, f(y1)])),
+            ProgramStep::LineTo(ProgramTarget::Point([x0, f(y0)])),
+            ProgramStep::LineTo(ProgramTarget::Start),
+        ])
+    };
+    let loops = if sloped {
+        [
+            quad(zero(), f(&span), "h", "h + w"),
+            quad(f(&span), f(&twice), "h + w", "h + w + w"),
+        ]
+    } else {
+        [
+            quad(zero(), f(&span), "h", "h"),
+            quad(f(&span), f(&twice), "h", "h"),
+        ]
+    };
+    let mut blocks = Vec::new();
+    for loop_ in loops {
+        let (d, profile) = insert(
+            doc,
+            Node::Profile(ProfileProgram {
+                loops: vec![loop_],
+                ids: Vec::new(),
+                on: None,
+            }),
+        );
+        let (d, block) = insert(
+            d,
+            Node::Extrude {
+                profile: profile.into(),
+                distance: len(1.0),
+            },
+        );
+        let body = d.output(block, 0).unwrap();
+        let placed = editor_core::Placed::of(
+            &d,
+            Vec::new(),
+            vec![(
+                Coord::Spin(Some(TargetAxis::Z)),
+                Formula::zero(Dimension::Angle),
+            )],
+        );
+        let node = fixture::place_node(
+            &d,
+            editor_core::BodyRead::plain(Operand::Var(body)),
+            placed.bundle(),
+        );
+        let (d, p) = insert(d, node);
+        doc = d;
+        blocks.push(p);
+    }
+    let (doc, both) = insert(
+        doc,
+        Node::Union {
+            members: editor_core::Bodies::spelled(blocks.iter().map(|&c| c.into()).collect()),
+        },
+    );
+    let ev = fixture::run(&doc, &Default::default());
+    let Some(value) = ev.value(both) else {
+        return vec![format!(
+            "the union did not evaluate: {:?}",
+            ev.usable(both).err().map(|e| format!("{e:?}"))
+        )];
+    };
+    let rows = value.coincidences.to_vec();
+    let proofs = editor_core::coincide::prove(
+        &doc,
+        &[(both, &rows[..])],
+        None,
+        Tol::witness(),
+        &editor_core::Stop::default(),
+    )
+    .expect("door");
+    rows.iter()
+        .zip(&proofs[0])
+        .map(|(row, proof)| {
+            let proof = match proof {
+                editor_core::Proof::Structural(rung) => format!("{rung:?}"),
+                editor_core::Proof::Unproven { residual, recourse } => {
+                    format!("unproven/{:?}/{recourse:?}", residual.replay)
+                }
+            };
+            format!("{:?} {:?} {proof}", row.relation, row.site)
+        })
+        .collect()
+}
+
+/// Review probe (PR 7710): prints, per span size, the union's rows and
+/// their proofs. Run on the head and on the merge base's sources.
+#[test]
+#[ignore = "review probe: run by name"]
+fn review2_flush_tops_whose_sides_share_one_long_span() {
+    for sloped in [false, true] {
+        for terms in [1, 2, 4, 6, 8, 10, 12, 16, 24] {
+            let rows = review2_flush_tops_on_one_long_side(terms, sloped);
+            let ladder: Vec<&str> = rows
+                .iter()
+                .filter(|r| r.contains("PlaneLadder"))
+                .map(|r| r.rsplit(' ').next().unwrap())
+                .collect();
+            println!("REVIEW2F sloped {sloped} span of {terms} terms: plane rows {ladder:?}");
+        }
+    }
+}
