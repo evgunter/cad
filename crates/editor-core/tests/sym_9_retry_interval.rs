@@ -388,11 +388,13 @@ fn sym_9_what_each_retry_recovers() {
 /// moves exactly one of them from `numeric` to `symbolic`; nothing else
 /// moves. A row that moved any other way is a defect in the ladder.
 ///
-/// The ladder must recover something somewhere among the five (the
-/// filleted bracket, where rule G under H costs
+/// The ladder must recover something somewhere among them, or the
+/// claim above is about a ladder that is never asked. It recovers on
+/// the rounded pad. On the filleted bracket, where rule G under H cost
 /// `carrier_matches_mapped_source` decisions on the first attempt and
-/// the ladder recovers them — the DECIDE-3 trade PR 5954 rules), or the
-/// claim above is about a ladder that is never asked.
+/// the ladder recovered them (the DECIDE-3 trade PR 5954 rules), it is
+/// asked nothing with the arcs' radii stored as decided
+/// (`work/sym/the-bracket-proves-fewer-and-freezes-more-with-the-radius-stored-as-decided.md`).
 #[test]
 fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     let tol = Tol::witness();
@@ -403,6 +405,7 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
         "r1_segment_boss",
         "r2_filleted_bracket",
         "r2_link",
+        "r2_rounded_pad",
     ];
     let mut wrong: Vec<String> = Vec::new();
     let mut recovered = 0;
@@ -523,13 +526,17 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     // never proved (the least turn's pole verdicts took it 1801 -> 1803).
     // `symbolic` fell 1390 -> 1381 when validation stopped reading an
     // adjacent line pair's shared vertex (PROFILE, `dbc608ffba`): decisions
-    // no longer asked. 1381 -> 1410 with the arcs' radii stored as
-    // decided and the rim read as the rationalized gap: twenty-nine
+    // no longer asked. It fell 1381 -> 1369 with the profile's direction
+    // mint asking the chord's expression whether it is zero
+    // (`geom_core::Expression::proves_zero`, no decision): eleven axes'
+    // proved-Zero readings and one door-only radial's leave the count.
+    // 1369 -> 1398 with the arcs' radii stored as decided and a vertex's
+    // gap from its rim read through `geom_core::radius_gap`: twenty-nine
     // decisions out of `numeric`, twenty-two through the ladder.
     // Once that row closes, this pin narrows to the general form above.
     assert_eq!(
-        d.symbolic, 1410,
-        "the shipped ladder's leaf proves 1410 theorems: {d:?}"
+        d.symbolic, 1398,
+        "the shipped ladder's leaf proves 1398 theorems: {d:?}"
     );
     let retried = d.retried > 0;
     assert_eq!(

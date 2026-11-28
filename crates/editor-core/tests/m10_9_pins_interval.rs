@@ -149,8 +149,10 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // `centre ≡ t1 + σ·r·n̂₁`, not an identity of the offset
             // centre's algebra, so its `dihedral_wedge` decisions, and the
             // tangent certificate's gap rows on the fillet's contact
-            // edges, are registered rather than proved.
-            door: Door::Buys(79),
+            // edges, are registered rather than proved. Fifty on this
+            // tree: fewer of the bracket's decisions reach the door at
+            // all (`work/sym/the-bracket-proves-fewer-and-freezes-more-with-the-radius-stored-as-decided.md`).
+            door: Door::Buys(50),
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {

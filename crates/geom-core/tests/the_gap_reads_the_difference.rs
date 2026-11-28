@@ -66,3 +66,40 @@ fn at_interval_the_gap_is_within_the_boxs_relative_width_of_the_difference() {
         }
     }
 }
+
+/// **Over a wide box the gap is an enclosure wherever the radius's box
+/// is positive, and no bounded one where it reaches zero** (the whole
+/// line, uncertified: a decision on it reads an invalid margin). A norm is
+/// never negative, so `norm + radius` holds zero only where the
+/// radius's enclosure does (with a norm whose enclosure reaches zero
+/// too): there the quotient is invalid, where the direct difference
+/// still reads an enclosure. A door that admits a radius decides it
+/// positive first; a reader handed a box that wide refuses on the
+/// invalid margin.
+#[test]
+fn over_a_wide_box_the_gap_is_invalid_only_where_the_radius_reaches_zero() {
+    let (s, c) = 0.4_f64.sin_cos();
+    let at = |lo: f64, hi: f64| {
+        let r = Interval::from_bounds(lo, hi);
+        let w = Vec2::new(Interval::from_f64(c) * r, Interval::from_f64(s) * r);
+        (w.radius_gap(r), w.norm() - r)
+    };
+    for (lo, hi) in [(0.1, 0.5), (1.0e-6, 1.0e3), (0.3, 30.0)] {
+        let (gap, direct) = at(lo, hi);
+        assert!(
+            gap.lo() <= direct.lo() && direct.hi() <= gap.hi(),
+            "[{lo}, {hi}]: {gap:?} encloses {direct:?}"
+        );
+    }
+    for (lo, hi) in [(0.0, 0.5), (-0.1, 0.5)] {
+        let (gap, direct) = at(lo, hi);
+        assert!(
+            direct.lo().is_finite() && direct.hi().is_finite(),
+            "{direct:?}"
+        );
+        assert!(
+            !(gap.lo().is_finite() && gap.hi().is_finite()),
+            "[{lo}, {hi}]: {gap:?}"
+        );
+    }
+}

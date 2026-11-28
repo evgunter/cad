@@ -67,12 +67,21 @@ use crate::m10_9_pins_interval::measured_studies;
 /// each a reading no longer taken. The link's and the pad's frozen
 /// ceilings fell with the arcs after an axis hop departing along the
 /// literal axis: 2175 → 1501 and 1303 → 127.
+///
+/// With the arcs' radii stored as their constructions decided them and
+/// a vertex's gap from its rim read through `geom_core::radius_gap`:
+/// the link 785 → 805 and the pad 1455 → 1471, their frozen ceilings
+/// 1501 → 656 and 127 → 59. **The bracket went the other way**, 1329 →
+/// 1310 with 53 → 374 frozen: theorems gone numeric and forms newly
+/// frozen, which is what these columns exist to red on. It is pinned
+/// where it is measured and owed an account
+/// (`work/sym/the-bracket-proves-fewer-and-freezes-more-with-the-radius-stored-as-decided.md`).
 const PAST_THE_CEILING: [(&str, Option<&str>, u64, u64); 5] = [
     ("two_hole_plate", None, 951, 36),
     ("r1_annulus", None, 511, 36),
-    ("r2_link", Some("mapped-source residual"), 313, 128),
-    ("r2_filleted_bracket", None, 1337, 57),
-    ("r2_rounded_pad", None, 1487, 2863),
+    ("r2_link", None, 805, 656),
+    ("r2_filleted_bracket", None, 1310, 374),
+    ("r2_rounded_pad", None, 1471, 59),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal

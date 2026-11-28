@@ -411,7 +411,7 @@ fn the_interval_corpus_holds_sectcones_move_unjudged() {
     println!("m10-p fence interval id-free: {got:016x?}");
     assert_eq!(
         got,
-        (0x11ce_58a0_e1df_9bd9, 0x25b7_ae51_ef1e_4b8d),
+        (0x2117_b45f_75c9_f3a9, 0x7136_869f_d6e7_95bd),
         "the corpus's Interval geometry moved"
     );
 }

@@ -140,7 +140,7 @@ fn decide_3_no_predicate_loses_a_decision() {
             // are numeric with it on.
             let pinned: Option<([u64; 2], [u64; 2])> = match (*name, *p) {
                 ("r2_link", "carrier_on_surface_1" | "carrier_on_surface_2") => {
-                    Some(([98, 10], [98, 10]))
+                    Some(([103, 5], [103, 5]))
                 }
                 ("r2_link", "carrier_matches_mapped_source") => Some(([160, 20], [160, 20])),
                 // **The one decision rule G trades, against rule H**: on

@@ -1144,7 +1144,7 @@ fn wide_box() -> f64 {
 /// Each arc verb, what its slab does over a box validation decides
 /// ([`vertex_box`]) and what it does over a wide one ([`wide_box`]): a
 /// stage and a word its refusal carries.
-const VERB_SLABS: [(&str, [&str; 2], [&str; 2]); 12] = [
+const VERB_SLABS: [(&str, [&str; 2], [&str; 2]); 15] = [
     ("circle", ["finished", ""], ["finish", "VolumeUncomputable"]),
     ("split circle", ["finished", ""], ["door", "MappedSource"]),
     ("bulge", ["finished", ""], ["validation", "gate: ArcSpan"]),
@@ -1181,17 +1181,35 @@ const VERB_SLABS: [(&str, [&str; 2], [&str; 2]); 12] = [
         ["validation", "gate: CanonicalOrderX"],
         ["validation", "gate: LineSpan"],
     ),
+    (
+        "arc len",
+        ["finished", ""],
+        ["validation", "gate: LineSpan"],
+    ),
+    (
+        "arc len cw",
+        ["finished", ""],
+        ["validation", "gate: LineSpan"],
+    ),
+    (
+        "radius",
+        ["validation", "gate: ArcSpan"],
+        ["validation", "gate: ArcStartOnCarrier"],
+    ),
 ];
 
 /// **Each arc verb's slab over a box on the quantity that fixes its
 /// arc's radius.** Over a box validation decides, the door builds the
 /// slab and its consumer finishes it: every cylinder wall's `u_ref` and
 /// every rim circle's is a unit through the tier (its squared length
-/// less one decides zero), and every member's `f64` build lies in the
-/// stored enclosures. Two fixtures stop short there: the clockwise
-/// bulge's mapped-source residual reads a hair over the band at the
-/// door, and the fillet's four-fold loop ties its canonical order over
-/// any box.
+/// less one is the zero form, a theorem and not an enclosure inside the
+/// band), and every member's `f64` build lies in the stored enclosures.
+/// Three fixtures stop short there: the clockwise bulge's mapped-source
+/// residual reads a hair over the band at the door, the fillet's
+/// four-fold loop ties its canonical order over any box, and the
+/// `Radius` arrival's fillet leaves a tangent point validation's span
+/// reader cannot place
+/// (`work/boxfinish/the-fillet-reads-two-signs-off-numbers-into-what-it-stores.md`).
 ///
 /// Over a wide box the circle alone passes the door, and its
 /// finish stops at the volume reading's rim premise
@@ -1216,12 +1234,15 @@ const VERB_SLABS: [(&str, [&str; 2], [&str; 2]); 12] = [
 #[test]
 fn each_arc_verbs_slab_over_a_box_reaches_its_pinned_stage() {
     let band = geom_core::Band::linear(tol()).unwrap();
+    // A unit as a theorem: the squared length less one is the zero
+    // form. An enclosure inside the band reads Zero too, and is not one.
     let unit = |what: &str, u: Vec3<S>| {
         let miss = u.norm_squared() - lit(1.0);
+        let read = miss.sign_within(band).ok();
         assert_eq!(
-            miss.sign_within(band).map(|d| d.sign).ok(),
-            Some(geom_core::Sign::Zero),
-            "{what} is a unit through the tier"
+            read.map(|d| (d.sign, d.margin.proven())),
+            Some((geom_core::Sign::Zero, true)),
+            "{what} is a unit through the tier, as a theorem"
         );
     };
     let mut moved = Vec::new();
@@ -1348,6 +1369,74 @@ fn a_tables_stretched_radial_is_squared_at_the_frame_door() {
     }
 }
 
+/// **At an enclosure scalar a table's stretched radial is refused,
+/// typed.** The same table at `Interval` and at `Sym<Interval>`: the
+/// frame mint keeps an enclosure's bits, so a radial `0.1·ε` or `0.4·ε`
+/// too long gives a frame that is no rotation, poisoned, and the door
+/// refuses at the carrier's start (`EndpointStart`, an invalid margin).
+/// Unstretched it builds.
+///
+/// Red where a stretched radial builds a body at an enclosure scalar.
+#[test]
+fn a_tables_stretched_radial_is_refused_typed_at_the_enclosure_scalars() {
+    fn door<T: Decide + topo::AtRestPolicy>(stretch: f64) -> Result<(), String> {
+        let l = T::from_f64;
+        let half = geom_core::Arc2 {
+            centre: Point2::new(l(0.0), l(0.0)),
+            radius: l(1.0),
+            sweep: l(core::f64::consts::PI),
+        };
+        let lp: ProfileLoop<T> = RawLoop::new_directed([
+            (
+                Point2::new(l(1.0), l(0.0)),
+                profile::Segment::Arc(half),
+                Some(profile::SegmentDirections::Arc {
+                    start: Vec2::new(l(1.0 + stretch), l(0.0)),
+                    end: Vec2::new(l(-1.0), l(0.0)),
+                }),
+            ),
+            (
+                Point2::new(l(-1.0), l(0.0)),
+                profile::Segment::Arc(half),
+                None,
+            ),
+        ]);
+        let profile = Profile::new(SketchPlane::xy(), vec![lp])
+            .validate(tol())
+            .map_err(|e| format!("validation: {e:?}"))?;
+        let side = ExtrudeSide::Along;
+        extrude(
+            &profile,
+            Extrusion::Distance {
+                depth: l(1.0),
+                side,
+            },
+            tol(),
+        )
+        .map(|_| ())
+        .map_err(|e| format!("door: {e:?}"))
+    }
+    for part in [0.0, 0.1, 0.4] {
+        let stretch = part * tol().eps();
+        let mut at_sym = Ok(());
+        in_session(|| at_sym = door::<S>(stretch));
+        for (lane, got) in [
+            ("Interval", door::<Interval>(stretch)),
+            ("Sym<Interval>", at_sym),
+        ] {
+            if part == 0.0 {
+                assert_eq!(got, Ok(()), "{lane}: the unstretched table builds");
+            } else {
+                let refusal = got.expect_err("a stretched radial builds nowhere");
+                assert!(
+                    refusal.starts_with("door:") && refusal.contains("EndpointStart"),
+                    "{lane}, stretch {stretch:e}: {refusal}"
+                );
+            }
+        }
+    }
+}
+
 /// A three-arc circle of radius `r` about the origin, its first vertex
 /// a quarter of a radian round: radials that are rounded sines and
 /// cosines, a unit to rounding.
@@ -1409,6 +1498,14 @@ fn a_loft_of_arc_sections_at_interval_turns_its_rims_onto_enclosed_units() {
         assert!(
             width(u.x) > 0.0 || width(u.y) > 0.0,
             "rim {edge:?}: the u_ref is an enclosure, not the f64 radial's point: {u:?}"
+        );
+        // And a tight one: a normalization's rounding, not a width the
+        // lift made up.
+        assert!(
+            n.hi() - n.lo() <= ROUNDING,
+            "rim {edge:?}: the u_ref's length is one to rounding: [{}, {}]",
+            n.lo(),
+            n.hi()
         );
     }
     assert!(rims > 0, "the loft's caps have circle rims");

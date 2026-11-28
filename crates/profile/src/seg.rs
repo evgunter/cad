@@ -1714,9 +1714,13 @@ pub(crate) fn joint_tangency<T: Decide>(
 /// **`carrier_line_circle`'s margin, in one place**: the clearance
 /// `r − |h|` between a line's carrier and a circle's, where `h` is the
 /// centre's signed offset from the line, [`Line2::side`], read through
-/// [`geom_core::radius_gap`] at the offset's magnitude: the same real,
-/// with a numerator that is the zero form where the construction made
-/// the line tangent, whichever side the centre lies on. Returned with the SCALE its arithmetic passes through — the
+/// [`geom_core::radius_gap`] at the offset's magnitude, spelled as the
+/// root of its square (`√(h²)`, which is `|h|` to the bit at `f64`): the
+/// gap's numerator is then `h² − r²`, the zero form where the
+/// construction made the line tangent, whichever side the centre lies
+/// on, where an `abs` is an atom whose square the tier does not reduce
+/// (the fillet verb over a box stops here with it, at
+/// `carrier_line_circle`). Returned with the SCALE its arithmetic passes through — the
 /// radius and the two points' own coordinate magnitudes — because both
 /// the subtraction and the `C − a` inside `h` cancel first-order in
 /// that magnitude, and the clearance therefore resolves only to about
@@ -1731,7 +1735,7 @@ pub(crate) fn joint_tangency<T: Decide>(
 pub(crate) fn carrier_line_circle_margin<T: Real>(line: Line2<T>, g: &ArcGeom<T>) -> (T, T) {
     let h = line.side(g.arc.centre);
     (
-        -geom_core::radius_gap(h.abs(), g.arc.radius),
+        -geom_core::radius_gap(h.powi(2).sqrt(), g.arc.radius),
         g.arc
             .radius
             .max(reach(g.arc.centre))

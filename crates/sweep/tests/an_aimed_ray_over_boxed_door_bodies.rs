@@ -891,11 +891,23 @@ fn the_circle_verbs_disc_of_boxed_radius_is_admitted_and_read() {
             "±{half:e}: a wrong side: {readings:?}"
         );
         println!("±{half:e}: {}", tally(&readings));
-        assert!(
-            half > 1e-3 || kinds.contains(&"out"),
-            "±{half:e}: no aim reads a side: {}",
-            tally(&readings)
-        );
+        // Up to `1e-4` some own aim reads a side. From `1e-2` every own
+        // aim crosses the wall that moves with the radius and is set
+        // aside, so no guard that one reads a side can hold there: what
+        // is pinned instead is that none does, either way.
+        if half < 1e-3 {
+            assert!(
+                kinds.contains(&"out"),
+                "±{half:e}: no aim reads a side: {}",
+                tally(&readings)
+            );
+        } else {
+            assert!(
+                !kinds.contains(&"out"),
+                "±{half:e}: an own aim reads a side through the moving wall: {}",
+                tally(&readings)
+            );
+        }
         let draws = draws_about(&mut rng, &shape, lo, hi, test_utils::fuzz::scaled(40));
         let drawn = over_within(budget, &shape, lo, hi, |body, band| {
             let face = body.faces().next().expect("a body has faces").0;
