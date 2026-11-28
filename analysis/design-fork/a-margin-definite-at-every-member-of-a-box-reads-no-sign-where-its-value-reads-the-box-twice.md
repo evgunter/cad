@@ -74,3 +74,10 @@ Both moved, to the same place on all but one point.
 - **B (new this round):** a hold-back. The form's answer stands only where the point reading at one member, through the same band, gives the same answer; else the value's reading stands. B withdrew its round-1 stop ("any contradiction of a member") as worded too bluntly.
 
 **Positions moved and did not meet on the hold-back.** Round 3 dispatched 18:51 UTC to both: each to answer the other's argument (the witness-match argument traced for a decision on the witness's path; the hold-back's dependence on one sampled member; the proven `Zero` at the least band as the same gap; what an exact comparison is for).
+
+### Round 3 replies (both in by 18:53 UTC 2026-11-28): the positions crossed
+
+- **B withdrew the hold-back.** Where witness and reading disagree the leaf is refused either way, so the rule certified nothing more; it is not monotone under bisection; it is paid on every decided ask; and it finds no principled difference from a proven `Zero` at the least band, which E12 ratified. Kept as a test-only instrument. States what the owner gives up: a member's `f64` build may differ at a tolerance-band margin within rounding of the band's edge (new) and at an exact comparison finer than its rounding (already true of every proven `Zero`).
+- **A adopted the hold-back**, with a terminal marking added: today a definite value enclosure contains every member's rounded value, so the leaf's claim has in practice covered every member's build and the unheld reading would take that away; a flip label on a margin zero to rounding names the wrong cause; a proven `Zero` is exempt as a theorem whatever the literals' rounding.
+
+Both moved; neither met. **Round 4 dispatched 18:56 UTC**: the question beneath both (what a certified leaf promises about an `f64` build at a member that is not the witness, from the ratified text), whether today's value channel keeps that promise, the twin on that footing, the non-monotone child; and, if it is the owner's, the split in two sentences. M16b gained a hold-back column and a check that the leaf's value enclosure contains a member's `f64` margin.
