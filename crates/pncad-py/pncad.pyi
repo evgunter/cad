@@ -603,7 +603,7 @@ class StepImportError(PncadError):
     `unbanded_uncertainty`,
     `malformed_real`, `topology`,
     `assembly`, `adoption`, `not_yet_supported`, `build_escalated`,
-    `wall_column_structure`, `recognition_ambiguous`, `pcurves`,
+    `wall_column_structure`, `recognition_ambiguous`,
     `join`, `singularity_undecided`, `singularity_side_undecided`,
     `singularity_meet_unread`, `interpretation`, `placement`,
     `instance`, `c0_knot_unsplit` or `tier_invalid` — or `wireframe`, which is not a refusal at all:
@@ -794,7 +794,7 @@ class ReadbackError(PncadError):
     node ladder `node_not_evaluated` / `node_failed` /
     `node_poisoned`); the GEOMETRY half reads the carrier and arrives
     under its OWN tags rather than a wrapper tag (`dangling_entity`,
-    `no_canonical_frame`, `no_carrier`). `dangling_entity` is a stale
+    `no_canonical_frame`, `no_carrier`, `pending_surface`). `dangling_entity` is a stale
     or foreign handle.
 
     `ambiguous` is the one to read twice: a tie is a naming success
@@ -4905,10 +4905,10 @@ class SegTag:
     LoftSeam: Final[SegTag]
     LoftSectionEdge: Final[SegTag]
     LoftSectionVertex: Final[SegTag]
+    SubArc: Final[SegTag]
+    SubArcJoint: Final[SegTag]
     Band: Final[SegTag]
     BandRim: Final[SegTag]
-    BandRimPi: Final[SegTag]
-    BandPi: Final[SegTag]
     Meridian: Final[SegTag]
     MeridianVertex: Final[SegTag]
     RevolveCap: Final[SegTag]
@@ -4944,6 +4944,7 @@ class SegTag:
     HoleRim: Final[SegTag]
     Member: Final[SegTag]
     HostFoot: Final[SegTag]
+    ConventionalVertex: Final[SegTag]
 
 class OpGroup:
     """The op group a role segment belongs to (`SegPat.group`).
@@ -4977,7 +4978,6 @@ class MeridianEnd:
     Start: Final[MeridianEnd]
     End: Final[MeridianEnd]
     Seam: Final[MeridianEnd]
-    Pi: Final[MeridianEnd]
 
 class RimSupport:
     """Which support of a rim blend, by its ROLE in the carve
@@ -5119,7 +5119,7 @@ class GeomPred:
         writes one refuses here: `EvalError`, `unlowered_name`."""
 
 
-# Minting a revolve's role name: the six doors that ANSWER a name
+# Minting a revolve's role name: the four doors that ANSWER a name
 # rather than selecting one. `select` answers names FROM an
 # evaluation; a selection that is AUTHORED — `Node.fillet`'s frozen
 # selection, `Node.shell`'s open list — is written before any
@@ -5130,8 +5130,8 @@ class GeomPred:
 # composes by naming a ROLE, never by assembling the serialization.
 
 def band(node: NodeId, piece: Piece) -> str:
-    """The `[0, pi)` band face swept from the profile piece `piece` on
-    the revolve at `node`.
+    """The band face swept from the profile piece `piece` on the revolve
+    at `node`: on a full revolve, the whole turn's one face.
 
     `piece` is a `Piece`, from `Doc.piece`: the step that drew a
     segment, by its minted id, and its role in that step's list — so
@@ -5140,24 +5140,10 @@ def band(node: NodeId, piece: Piece) -> str:
     the field a hand-written name gets wrong silently until emission
     refuses it."""
 
-def band_pi(node: NodeId, piece: Piece) -> str:
-    """The `[pi, 2pi)` band face swept from the profile piece `piece` —
-    `band`'s twin, where a full revolve emits a CURVED segment as two
-    faces. A planar segment sweeps whole, one face, its `band`, and has
-    no `band_pi`. A face, as `band` is."""
-
 def band_rim(node: NodeId, piece: Piece) -> str:
     """The latitude rim at the vertex the profile piece `piece` starts
     at — the edge between the band of the piece ending there and the
     piece's own. An edge."""
-
-def band_rim_pi(node: NodeId, piece: Piece) -> str:
-    """The `[pi, 2pi)` latitude rim at the vertex the profile piece
-    `piece` starts at — `band_rim`'s twin, where a full revolve of a
-    profile touching the axis emits each rim as two half-arcs between
-    the seam vertices, so a blend over the whole rim names both. An
-    annular profile's rim is one edge, its `band_rim`. An edge, as
-    `band_rim` is."""
 
 def meridian_vertex(end: MeridianEnd, node: NodeId, piece: Piece) -> str:
     """The meridian vertex at `end`: the copy of the vertex the profile
@@ -5358,7 +5344,7 @@ class StructureNormalization:
     `curve_promoted`'s (whose `face` is the curve's entity id), `kept`
     and `joined` are `one_record`'s (the surface record kept and the one
     its faces left), `singularity` is `chart_singularity_vertex`'s
-    (`interior`, `inside_edge` or `valence_one_vertex`), and `transform`
+    (`interior` or `inside_edge`), and `transform`
     and `moved_by` are `placement_re_minted`'s (the placement whose
     frames the import built by their axes, and the farthest a point of
     the session box moved, in metres; `moved_by` also `one_record`'s,
@@ -5806,8 +5792,11 @@ class PickHit:
         of the closed triangle. The interval is always centred on the
         point the kernel answers, which is always on the triangle.
 
-        The parameter is the parameter of the ray you passed. A hit
-        carried across a transform converts all three or none."""
+        The parameter is the parameter of the ray you passed. An
+        affine map carries a ray's parameter with it: a ray mapped
+        into another frame is at `t` where the ray it came from is at
+        `t`, mapped, so a hit found on the mapped ray is at the same
+        `t`, `t_lo` and `t_hi` on the original."""
 
     @property
     def t_hi(self) -> float:
@@ -6688,7 +6677,7 @@ class MateFault:
     @property
     def inner_variant(self) -> Optional[str]:
         """The nested refusal's own word: the lever refusal's
-        (`part_unresolved`, `face_unbounded`,
+        (`part_unresolved`, `face_unbounded`, `face_pending`,
         `malformed_body`, `no_extent`, `no_finite_bound`, with the
         instance it is about as `instance` or the copied shape as
         `shape`, or `out_of_range` and `below_zero_band`, about the

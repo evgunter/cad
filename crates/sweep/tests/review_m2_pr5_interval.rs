@@ -1,6 +1,6 @@
 //! Adversarial review suite for M2 PR 5, interval lane: the
 //! reviewer's shapes that go beyond the shipped
-//! four-acceptance set — a multi-segment two-band wire (dome), the
+//! four-acceptance set — a multi-segment full-revolve wire (dome), the
 //! wrap-run donut, and a NEGATIVE-angle non-dyadic wedge. Refusals
 //! here are defects, not honesty (the lane is fully live post-B1).
 
@@ -36,7 +36,7 @@ fn assert_tiers(body: &topo::Body<Interval>) {
 #[test]
 fn survives_interval_dome_two_band_wire() {
     // Four wire segments (plane, cylinder, cone, plane) + axis run:
-    // the richest two-band wire, at the certified scalar.
+    // the richest full-revolve wire, at the certified scalar.
     let lp = ProfileLoop::polygon([
         p2(0.0, 0.0),
         p2(1.0, 0.0),
@@ -52,12 +52,13 @@ fn survives_interval_dome_two_band_wire() {
     )
     .unwrap();
     assert_tiers(&t.body);
-    // The two plane discs are built whole: no poles, no meridians, no
-    // π twins.
-    assert_eq!(t.body.vertices().count(), 6);
-    assert_eq!(t.body.edges().count(), 10);
-    assert_eq!(t.body.faces().count(), 6);
-    assert_eq!(t.body.surfaces().count(), 4);
+    // The two plane discs are built whole: no poles, no meridians. One
+    // vertex per interior wire vertex, its rim and the curved walls'
+    // seams.
+    assert_eq!(t.body.vertices().count(), 3);
+    assert_eq!(t.body.edges().count(), 5);
+    assert_eq!(t.body.faces().count(), 4);
+    assert_eq!(t.body.described_surfaces().count(), 4);
 }
 
 #[test]
@@ -76,7 +77,7 @@ fn survives_interval_donut_wrap_run() {
     )
     .unwrap();
     assert_tiers(&t.body);
-    assert_eq!(t.body.surfaces().count(), 1);
+    assert_eq!(t.body.described_surfaces().count(), 1);
     assert_eq!(t.body.edges().count(), 4);
 }
 

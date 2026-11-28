@@ -287,10 +287,6 @@ pub(crate) enum Door {
     /// so no run here stops at it; the rows beside these that pin it
     /// read it here.
     Sphere,
-    /// The result's piece sort, whose point-in-solid walk cannot read a
-    /// sphere face bounded by a spline chord (`PartialSphereFace`,
-    /// `work/inside/point-in-solid-refuses-a-sphere-face-bounded-by-a-spline-chord.md`).
-    Pieces,
     /// The edge join on a spline carrier beside another carrier
     /// (`work/splice/a-spline-join-beside-another-carrier-has-no-far-parameter.md`),
     /// which no pose here reaches.
@@ -302,7 +298,7 @@ pub(crate) enum Door {
 pub(crate) fn door(e: &BooleanError) -> Option<Door> {
     let on_sphere = topo::boolean::refused_face_kind(e) == Some(geom::SurfaceKind::Sphere);
     use geom_brep::PropsError;
-    use topo::{MassPropsError, PieceSortError, PointInSolidError, ValidationError};
+    use topo::{MassPropsError, ValidationError};
     match e {
         BooleanError::ResultInvalid { findings: errors } => match errors.as_slice() {
             [ValidationError::VolumeUncomputable { source, .. }] => match source {
@@ -319,10 +315,6 @@ pub(crate) fn door(e: &BooleanError) -> Option<Door> {
             },
             _ => None,
         },
-        BooleanError::Pieces(PieceSortError::Probe {
-            source: PointInSolidError::PartialSphereFace { .. },
-            ..
-        }) => Some(Door::Pieces),
         BooleanError::JoinCarrierUnsupported {
             carrier: geom::CurveKind::Nurbs,
             closed: false,
@@ -332,34 +324,25 @@ pub(crate) fn door(e: &BooleanError) -> Option<Door> {
     }
 }
 
-/// How a run is pinned to end: a body at its volume, or the piece sort's
-/// refusal ([`Door::Pieces`]).
+/// How a run's body is pinned to read at tier 3′.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Ends {
-    /// A body, at its volume.
-    Builds,
-    /// The result's piece sort refuses on a chorded sphere face.
-    Pieces,
+    /// It passes.
+    Sound,
 }
 
-/// **Whether run `got` ends as `ends` says**, `None` if so and else what
-/// is off. A body passes tiers 2 and 3′ and the at-rest certificate, and
-/// holds `want` within `VOLUME_CLAIM` of its certified enclosure, no
-/// wider than `ceiling`; its union with a far brick builds (SOUND) or
-/// refuses `Containment(PartialSphereFace)` and nothing else
-/// ([`far_union`]). A refusal is the piece sort's
-/// ([`Door::Pieces`]) where `ends` says so, and nothing else is.
-/// `guards` are regression guards on the enclosure's half-width, not
+/// **Whether run `got` is a body at its volume that ends as `ends`
+/// says**, `None` if so and else what is off. A body passes tier 2 and
+/// the at-rest certificate, reads at tier 3′ as `ends` says, holds `want`
+/// within `VOLUME_CLAIM` of its certified enclosure, no wider than
+/// `ceiling`, and is a legal operand: its union with a far brick builds
+/// ([`far_union`]). A refusal is off, named by its [`door`]. `guards` are regression guards on the enclosure's half-width, not
 /// soundness bounds, each `(ε, width)` read only at that ε: a run at an
 /// ε with no measured width is held to `ceiling` alone. A run that
 /// stopped short of the resolution is held to `ceiling` as well, on
 /// purpose: the ceiling's derivation ([`pad_ceiling`]) covers a met
 /// run, and a stopped-short one under it still pins its volume as
 /// tightly. The run's line, its stop included, is printed.
-///
-/// Not `common::differential::judged_at_resolution`: its verdict reads
-/// a body whose far union refuses at the chorded sphere face as `BAD`,
-/// and every body here does (`Operand::AtTheSphere`).
 pub(crate) fn at_its_volume(
     label: &str,
     got: Result<topo::BooleanResult<f64>, BooleanError>,
@@ -370,29 +353,25 @@ pub(crate) fn at_its_volume(
 ) -> Option<String> {
     use crate::common::differential::VOLUME_CLAIM;
     let tol = Tol::witness();
-    let body = match (&got, ends) {
-        (Err(e), Ends::Pieces) if door(e) == Some(Door::Pieces) => {
-            println!("{label}: refused at the piece sort");
-            return None;
-        }
-        (Err(e), _) => return Some(format!("{label}: refused at {:?}: {e:?}", door(e))),
-        (Ok(_), Ends::Pieces) => {
-            return Some(format!("{label}: built where the piece sort was pinned"));
-        }
-        (Ok(r), Ends::Builds) => match r.body() {
+    let body = match &got {
+        Err(e) => return Some(format!("{label}: refused at {:?}: {e:?}", door(e))),
+        Ok(r) => match r.body() {
             Some(bb) => bb,
             None => return Some(format!("{label}: an empty result")),
         },
     };
     let t2 = topo::validate_closed(&body.body).is_ok();
-    let t3 = topo::validate_pseudomanifold(&body.body, &body.contacts, tol).is_ok();
+    let t3 = match ends {
+        Ends::Sound => topo::validate_pseudomanifold(&body.body, &body.contacts, tol).is_ok(),
+    };
     let cert = topo::validate_geometric_certificate(&body.body, tol).is_ok();
     let operand = far_union(&body.body);
     let measured =
         topo::mass_properties(&body.body, tol, topo::test_support::pinned_resolution(tol))
             .map(|m| (m.enclosure.volume, m.enclosure.volume_pad, m.stop));
     println!(
-        "{label}: t2={t2} t3p={t3} cert={cert} operand={operand:?} volume={measured:?} want={want}"
+        "{label}: t2={t2} t3p as {ends:?}={t3} cert={cert} operand={operand:?} \
+         volume={measured:?} want={want}"
     );
     let Ok((v, pad, _stop)) = measured else {
         return Some(format!("{label}: unmeasured {measured:?}"));
@@ -403,24 +382,22 @@ pub(crate) fn at_its_volume(
     let held = t2
         && t3
         && cert
-        && matches!(operand, Operand::Legal | Operand::AtTheSphere)
+        && matches!(operand, Operand::Legal)
         && (v - want).abs() <= VOLUME_CLAIM + pad
         && pad <= ceiling
         && guarded;
     (!held).then(|| {
         format!(
-            "{label}: t2={t2} t3p={t3} cert={cert} operand={operand:?} v={v} pad={pad} \
+            "{label}: t2={t2} t3p as {ends:?}={t3} cert={cert} operand={operand:?} v={v} pad={pad} \
              want={want} ceiling={ceiling} guard={guard:?}"
         )
     })
 }
 
-/// What a body's union with a far brick reads: legal, refused only at
-/// point-in-solid's chorded sphere face, or refused otherwise.
+/// What a body's union with a far brick reads: legal, or refused.
 #[derive(Debug)]
 pub(crate) enum Operand {
     Legal,
-    AtTheSphere,
     /// The refusal, printed with the run's line.
     Refused(#[allow(dead_code)] String),
 }
@@ -436,9 +413,6 @@ pub(crate) fn far_union(body: &topo::AtRestBody<f64>) -> Operand {
     );
     match topo::union(body, &far, tol) {
         Ok(_) => Operand::Legal,
-        Err(BooleanError::Containment(topo::PointInSolidError::PartialSphereFace { .. })) => {
-            Operand::AtTheSphere
-        }
         Err(e) => Operand::Refused(format!("{e:?}")),
     }
 }
@@ -476,11 +450,13 @@ const MEASURED_PAD: [f64; 9] = [
     9.1e-11, 1.8e-10, 2.4e-11, 5.3e-10, 7.1e-10, 3.9e-10, 8.0e-10, 7.6e-7, 1.2e-7,
 ];
 
-/// **Every run of pose `index` ends as pinned** ([`at_its_volume`]): the
-/// two-loop poses' `A ∖ B` at the piece sort, every other run a body at
-/// its volume, its enclosure no wider than the pinned resolution admits
-/// on the operands' area and guarded at four times the pose's
-/// [`MEASURED_PAD`].
+/// **Every run of pose `index` is a body at its volume**
+/// ([`at_its_volume`]), a legal operand, its enclosure no wider than the
+/// pinned resolution admits on the operands' area and guarded at four
+/// times the pose's [`MEASURED_PAD`]. Each passes tier 3′, the two-loop
+/// poses' `A ∖ B` too, which cuts the drum in two: the census tells the
+/// two parts' curved faces apart now that the face door reads their
+/// spline chords.
 fn builds_at_its_volume_or_refuses_at_its_door(index: usize) {
     let pose = &poses()[index];
     let (a, b) = pose.operands();
@@ -488,15 +464,10 @@ fn builds_at_its_volume_or_refuses_at_its_door(index: usize) {
     let drum_area = 2.0 * PI * R * (pose.drum.z1 - pose.drum.z0) + 2.0 * PI * R * R / TILT.cos();
     let area = drum_area + 4.0 * PI * pose.big.powi(2);
     let ceiling = pad_ceiling(area);
-    let two_loops = pose.label.starts_with("two loops");
     let mut off = Vec::new();
     for (op_label, op, swapped, want) in runs(va, vb, vi) {
         let label = format!("{}, {op_label}", pose.label);
-        let ends = if two_loops && op_label == "A ∖ B" {
-            Ends::Pieces
-        } else {
-            Ends::Builds
-        };
+        let ends = Ends::Sound;
         let (x, y) = if swapped { (&b, &a) } else { (&a, &b) };
         off.extend(at_its_volume(
             &label,
@@ -520,11 +491,6 @@ macro_rules! pose_rows {
     )*};
 }
 
-// Every run builds at [`oracle`]'s volume, but the two-loop poses' A ∖ B,
-// which refuse at the result's piece sort; no body is a legal operand,
-// since point_in_solid cannot read a chorded sphere face
-// (work/inside/point-in-solid-refuses-a-sphere-face-bounded-by-a-spline-chord.md).
-// When it can, every run that builds is held SOUND.
 pose_rows! {
     a_ball_across_a_cylinder_wall_centre_on_the_wall: 0;
     a_ball_across_a_cylinder_wall_centre_inside: 1;
@@ -532,7 +498,6 @@ pose_rows! {
     a_ball_across_a_cylinder_wall_turned_chart: 3;
     a_ball_across_a_cylinder_wall_in_two_loops: 5;
     a_ball_across_a_cylinder_wall_in_two_loops_turned: 6;
-    a_ball_across_a_cylinder_wall_r_0_2_across_the_rim: 7;
 }
 
 /// Pinned at every ε to main's one stop, B ∖ A refused at the slit's
@@ -554,9 +519,29 @@ fn a_ball_across_a_cylinder_wall_r_0_1_across_the_rim() {
         "the r 0.1 rim pose",
         &[
             "[\n    \"the row's ball r 0.1 across the rim, B ∖ A: refused at None: \
-           EdgeInFace { edge: EdgeKey(16v1), face: FaceKey(4v5), gap: CarrierUnread }\",\n]",
+           EdgeInFace { edge: EdgeKey(15v1), face: FaceKey(3v5), gap: CarrierUnread }\",\n]",
         ],
         || builds_at_its_volume_or_refuses_at_its_door(8),
+    );
+}
+
+/// The r 0.2 rim pose, pinned to the same stop as r 0.1 ([`a_ball_across_a_cylinder_wall_r_0_1_across_the_rim`]),
+/// B ∖ A refused at the slit's unread carrier, under the same fix row
+/// (`work/sectarms/a-rim-ball-refuses-b-minus-a-at-the-slits-unread-carrier-since-the-periodic-loop.md`).
+/// With the ball's wall one band (a full revolve, PR 7414) its slit
+/// meets the rim as r 0.1's does, where two half-bands built B ∖ A at
+/// its volume; the other five runs still build at their volumes.
+#[test]
+fn a_ball_across_a_cylinder_wall_r_0_2_across_the_rim() {
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &test_utils::pinned_red::EVERY_ROW,
+        "the r 0.2 rim pose",
+        &[
+            "[\n    \"the row's ball r 0.2 across the rim, B ∖ A: refused at None: \
+           EdgeInFace { edge: EdgeKey(8v1), face: FaceKey(5v1), gap: CarrierUnread }\",\n]",
+        ],
+        || builds_at_its_volume_or_refuses_at_its_door(7),
     );
 }
 
@@ -774,4 +759,123 @@ fn a_rod_through_a_ball_pairs_both_loops_alike() {
             "{op:?}: the mirror-symmetric pose pairs its loops differently"
         );
     }
+}
+
+/// **A cylinder × sphere result ∪, ∖ and ∩ a brick into the ball's
+/// outer cap**: a brick across the sphere at `ρ ≥ 0.7 > R`, which meets
+/// no face of the result but the ball's chorded cap (where a result
+/// holds it). One run per pose that holds the cap, the ball less the
+/// drum (`B ∖ A`) of poses 0 and 5, is combined with the brick by all
+/// three ops: each builds at tier 2, the volumes are additive,
+/// `V(X ∪ K) + V(X ∩ K) = V(X) + V(K)` and `V(X ∖ K) + V(X ∩ K) = V(X)`,
+/// within the measured enclosures, and the common part is the ball's part
+/// in the brick in closed form. The face door reads the cap's spline
+/// chords, so no run stops at it. One run per pose: every run of both
+/// poses (36 Booleans, each measured) ran past an hour unoptimized;
+/// this one takes about half an hour, most of it the tier certificate's
+/// side rays reading the spline chords.
+#[test]
+fn a_brick_into_the_chorded_cap_combines_with_a_result_holding_it() {
+    let tol = Tol::witness();
+    let brick = finished(
+        "the cap brick",
+        sweep::test_support::brick::<f64>((0.7, 0.9), (-0.02, 0.02), (-0.03, 0.03), tol),
+        tol,
+    );
+    let volume = |body: &AtRestBody<f64>| {
+        let m = topo::mass_properties(body, tol, topo::test_support::pinned_resolution(tol))
+            .unwrap_or_else(|e| panic!("unmeasured: {e:?}"));
+        (m.enclosure.volume, m.enclosure.volume_pad)
+    };
+    let (vk, pk) = volume(&brick);
+    // The part of the ball of radius `r` about `c` the brick holds: the
+    // brick's slab in `z` clipped to the ball's chord over each column
+    // `(x, y)`, by the midpoint rule on a 4000 × 200 grid, far finer than
+    // the slack it is held to.
+    let ball_part = |c: [f64; 3], r: f64| -> f64 {
+        let (n, m) = (4000, 200);
+        let (dx, dy) = (0.2 / f64::from(n), 0.04 / f64::from(m));
+        let mut v = 0.0;
+        for i in 0..n {
+            let x = 0.7 + (f64::from(i) + 0.5) * dx;
+            let s2 = r * r - (x - c[0]).powi(2);
+            if s2 <= 0.0 {
+                continue;
+            }
+            for j in 0..m {
+                let y = -0.02 + (f64::from(j) + 0.5) * dy;
+                let h2 = s2 - (y - c[1]).powi(2);
+                if h2 <= 0.0 {
+                    continue;
+                }
+                let h = h2.sqrt();
+                let (lo, hi) = ((c[2] - h).max(-0.03), (c[2] + h).min(0.03));
+                if hi > lo {
+                    v += (hi - lo) * dy * dx;
+                }
+            }
+        }
+        v
+    };
+    let mut off = Vec::new();
+    let mut built = 0;
+    for index in [0, 5] {
+        let pose = &poses()[index];
+        let (a, b) = pose.operands();
+        for (op_label, op, swapped, _) in runs(0.0, 0.0, 0.0) {
+            if op_label != "B ∖ A" {
+                continue;
+            }
+            let (x, y) = if swapped { (&b, &a) } else { (&a, &b) };
+            let result =
+                run(op, x, y).unwrap_or_else(|e| panic!("{}, {op_label}: {e:?}", pose.label));
+            let label = format!("{}, {op_label}", pose.label);
+            let body = result
+                .body()
+                .unwrap_or_else(|| panic!("{label}: the ball less the drum is no body"));
+            let (vx, px) = volume(&body.body);
+            let mut with = Vec::new();
+            for (name, by) in [
+                ("∪", BooleanOp::Union),
+                ("∩", BooleanOp::Intersect),
+                ("∖", BooleanOp::Subtract),
+            ] {
+                match run(by, &body.body, &brick) {
+                    Ok(r) => match r.body() {
+                        Some(got) if topo::validate_closed(&got.body).is_ok() => {
+                            with.push(Some(volume(&got.body)));
+                        }
+                        Some(_) => off.push(format!("{label} {name} the brick: not closed")),
+                        // An empty common part: no volume.
+                        None => with.push(Some((0.0, 0.0))),
+                    },
+                    Err(e) => {
+                        off.push(format!("{label} {name} the brick: {e:?}"));
+                        with.push(None);
+                    }
+                }
+            }
+            if let [Some((vu, pu)), Some((vi, pi)), Some((vd, pd))] = with[..] {
+                built += 1;
+                let claim = crate::common::differential::VOLUME_CLAIM;
+                if (vu + vi - vx - vk).abs() > 2.0 * claim + pu + pi + px + pk {
+                    off.push(format!("{label}: ∪ {vu} + ∩ {vi} ≠ {vx} + brick {vk}"));
+                }
+                if (vd + vi - vx).abs() > 2.0 * claim + pd + pi + px {
+                    off.push(format!("{label}: ∖ {vd} + ∩ {vi} ≠ {vx}"));
+                }
+                // The common part in closed form: the ball's part in the
+                // brick, which the ball less the drum holds whole.
+                let want = ball_part(pose.c, pose.big);
+                if (vi - want).abs() > 2.0 * claim + pi + 1e-6 {
+                    off.push(format!("{label}: ∩ {vi} ≠ the ball's part {want}"));
+                }
+            }
+        }
+    }
+    assert!(off.is_empty(), "{off:#?}");
+    assert_eq!(
+        built, 2,
+        "a run per pose combines with the brick by every op"
+    );
 }

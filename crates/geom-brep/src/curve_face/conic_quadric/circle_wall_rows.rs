@@ -409,16 +409,25 @@ fn a_tangent_circle_square_to_the_axis_is_uncertain() {
 }
 
 /// **The first-harmonic arm's meter refuses an unreadable reading.** A
-/// unit circle square to a unit wall 2000 m off: a definite miss
-/// whose harmonics are built from terms of order 2000², whose
-/// rounding lies in the default band's escalation gap.
+/// circle of radius 2000 m square to a unit wall whose axis stands
+/// `2000 − 3` m off its centre: a definite miss (the circle passes 2 m
+/// outside the wall) the ball cull hands on (its ball holds the wall's
+/// axis there), whose harmonics are built from terms of order 2000², whose
+/// rounding lies in the default band's escalation gap. A unit circle
+/// 2000 m off a unit wall is as noisy in closed form, and the cull
+/// answers it first: a `Miss` (`curve_face_pose_clearance`).
 #[test]
 fn the_first_harmonic_noise_meter_refuses_a_reading_in_the_band_gap() {
     if !default_band() {
         return;
     }
-    let got = door(flat(0.0, 0.0, 0.0, 1.0), -1.0, 1.0, [2001.0, 0.0, 1.0]);
+    let got = door(flat(0.0, 0.0, 0.0, 2000.0), -1.0, 1.0, [1997.0, 0.0, 1.0]);
     assert!(got.is_err(), "the noise meter refuses, got {got:?}");
+    let got = door(flat(0.0, 0.0, 0.0, 1.0), -1.0, 1.0, [2001.0, 0.0, 1.0]);
+    assert!(
+        matches!(got, Ok(CircleRoots::Miss)),
+        "the cull's miss, got {got:?}"
+    );
 }
 
 /// The interval lane, in both arms: every certified root enclosure

@@ -66,7 +66,7 @@ use crate::rows::{SpiricReader, SpiricRegimeSites};
 use std::sync::Arc;
 
 pub use compose::{ComposeError, SeamSide, compose_chain};
-pub use conic::{Circle, Conic, Ellipse, MajorFrame};
+pub use conic::{Circle, Conic, Ellipse, MajorFrame, conic_size_read};
 pub use fit::{Collocation, FIT_REMOVAL_BUDGET, FitError, FitOutcome, RefitSkip};
 use geom_core::period::Period;
 use geom_core::spline::SpanLocate;
@@ -1742,17 +1742,45 @@ pub(crate) fn spiric_rectangle<T: Real>(
     offset: T,
     window: crate::cover::ParamWindow<T>,
 ) -> Option<crate::cover::Cover<T>> {
-    let arc = boxes::ArcWindow::new(window.lo, window.hi);
-    let (cos_lo, cos_hi) = arc.extent(T::zero(), T::one(), T::zero());
-    let (sin_lo, sin_hi) = arc.extent(T::zero(), T::zero(), T::one());
-    let f = |c: T| spiric_radicand(major, minor * c, offset).sqrt();
+    let SpiricWindow { f, sin } = spiric_window(major, minor, offset, (window.lo, window.hi));
     let m = axis.cross(u_ref);
     let base = center + u_ref * offset;
-    let corners = [f(cos_lo), f(cos_hi)]
+    let corners = [f.0, f.1]
         .into_iter()
-        .flat_map(|f| [sin_lo, sin_hi].map(|s| base + m * f + axis * (minor * s)))
+        .flat_map(|f| [sin.0, sin.1].map(|s| base + m * f + axis * (minor * s)))
         .collect();
     crate::cover::Cover::net(corners)
+}
+
+/// **A spiric's two channels over a parameter window**: `f = √(ρ² − d²)`
+/// at the two ends of `cos v`'s range there (`f` is monotone in
+/// `ρ = R + r·cos v`), and `sin v`'s range, each a harmonic of `v`
+/// ([`ArcWindow::extent`](boxes::ArcWindow::extent)); `f` read through
+/// the precise radicand ([`spiric_radicand`]). The one home of the
+/// spiric's window reading: the cover's rectangle ([`spiric_rectangle`])
+/// and a chart image's box over a span (`geom-brep`'s
+/// `Pcurve::chart_box`) are both built from it. Over a whole period the
+/// ranges are `[−1, 1]` and `f`'s ends are [`spiric_f_range`]'s.
+/// Off-regime data roots at poison.
+pub fn spiric_window<T: Real>(major: T, minor: T, offset: T, (lo, hi): (T, T)) -> SpiricWindow<T> {
+    let arc = boxes::ArcWindow::new(lo, hi);
+    let (cos_lo, cos_hi) = arc.extent(T::zero(), T::one(), T::zero());
+    let sin = arc.extent(T::zero(), T::zero(), T::one());
+    let f = |c: T| spiric_radicand(major, minor * c, offset).sqrt();
+    SpiricWindow {
+        f: (f(cos_lo), f(cos_hi)),
+        sin,
+    }
+}
+
+/// [`spiric_window`]'s reading.
+#[derive(Clone, Copy, Debug)]
+pub struct SpiricWindow<T> {
+    /// `f` at `cos v`'s lower and upper ends over the window: its range,
+    /// in that order where the minor radius is positive.
+    pub f: (T, T),
+    /// `sin v`'s range over the window, `(lo, hi)`.
+    pub sin: (T, T),
 }
 
 /// **Bounds on a spiric's speed and acceleration over a stretch of the

@@ -54,6 +54,12 @@ One of these:
   second meridian, and with it this row, may go. Re-measure the snowman
   at `Interval` when that lands.
 
+- 2026-11-23 (LATHE one-band lane, PR 7414): a full revolve now sweeps
+  the ball as one band, so it stores ONE seam meridian, and there is no
+  second meridian for a plane to list. `self_intersection_proves_injectivity::a_two_ball_union_holds_with_its_poles_read`
+  holds at `Interval` as at `f64`, where the small ball's pole refused
+  `Departure`; the row re-pins it to `Holds` at both scalars. Measured on
+  `lathe/full-revolve-one-band` (`8f7fc183cd` plus the fix pass).
 ## At `f64` too, in a turned frame, since the carrier frames landed (EMBED, lane pole, PR 7115, 2026-11-21)
 
 Measured by lane pole while merging main into PR 7115.

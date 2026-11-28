@@ -64,10 +64,9 @@ fn open_arc_at(body: &Body<f64>, rim_r: f64, rim_y: f64) -> EdgeKey {
 
 /// A neck-and-flare ring: a cylinder wall meeting a cone wall at a
 /// 30° dihedral on a latitude rim of radius 1. The profile stays OFF
-/// the axis: an on-axis profile revolves into two half-bands whose
-/// latitude rims are open semicircles, while this annular profile —
-/// the same authoring shape as a shell wall — is what mints the
-/// CLOSED rims these rows are about.
+/// the axis, the same authoring shape as a shell wall: an annular
+/// profile mints the CLOSED rims these rows are about with no pole or
+/// apex beside them.
 fn neck_flare(rev: Revolution<f64>) -> Body<f64> {
     let t30 = (30.0f64).to_radians().tan();
     revolved(

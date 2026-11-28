@@ -13,9 +13,10 @@
 //! passes through zero at two points of each rim, are no second-order
 //! question there. An edge of either body that ends on a rim, tangent to
 //! the other's wall there, has that end's root factored by the crossing
-//! layer (`geom_brep::curve_face::end_root`), so the four poses that bend
-//! away from the pipe pass it and stop at the finish, where the seams'
-//! edges still carry a construction's stand-in description. The four that
+//! layer (`geom_brep::curve_face::end_root`), and the seam the zip leaves
+//! carries the rim edge's own description, its bend under-determined, so
+//! the four poses that bend away from the pipe union at the closed form,
+//! sound at tier 3 and 3′. The four that
 //! bend back into the pipe are no junction (their walls leave the rim on
 //! one side) and refuse their rims at the glue door
 //! (`work/tang/an-elbow-bent-back-into-its-pipe-meets-it-along-a-rim-and-a-crossing.md`).
@@ -116,6 +117,17 @@ fn join(hollow: bool, end: CapEnd, off: OffCap) -> Joined {
 
 /// [`join`], the pipe `length` long.
 fn join_at(hollow: bool, length: f64, end: CapEnd, off: OffCap) -> Joined {
+    join_drawn(hollow, length, end, off, loops(hollow))
+}
+
+/// [`join_at`], drawing `drawn` on the cap for the elbow's profile.
+fn join_drawn(
+    hollow: bool,
+    length: f64,
+    end: CapEnd,
+    off: OffCap,
+    drawn: Vec<LoopProgram<Formula>>,
+) -> Joined {
     let doc = ProfileDoc::empty_derived("a_pipe_and_its_elbow", Tol::witness());
     let (doc, section) = insert(
         doc,
@@ -141,7 +153,7 @@ fn join_at(hollow: bool, length: f64, end: CapEnd, off: OffCap) -> Joined {
         &doc,
         BodyRead::plain(Operand::output(pipe, 0)),
         cap,
-        loops(hollow),
+        drawn,
         OnFace::nearest(),
         &EvalOptions::default(),
         &CancelToken::new(),
@@ -239,18 +251,36 @@ fn refusal<'j>(j: &'j Joined, what: &str) -> &'j topo::BooleanError {
     }
 }
 
-/// A pose bent away passes the crossing layer and stops at the finish,
-/// on the seams' descriptions: a construction's stand-in left on them, or
-/// (off the neutral alignment) one the tangency lane does not certify.
+/// A pose bent away builds one solid at `want`, sound at tier 3 and 3′.
 #[track_caller]
-fn stops_at_the_finish(j: &Joined, what: &str) {
-    let e = refusal(j, what);
-    let said = format!("{e:?}");
+fn builds_at(j: &Joined, want: f64, what: &str) {
+    let built = built(j);
+    assert_eq!(built.solids, 1, "{what}: one solid");
+    assert!(built.tier3.is_ok(), "{what}: tier 3: {:?}", built.tier3);
     assert!(
-        matches!(e, topo::BooleanError::ResultInvalid { .. }) && said.contains("ScaffoldAtRest")
-            || matches!(e, topo::BooleanError::EdgeUndescribed { .. }),
-        "{what}: past the crossing layer, at the finish's seam descriptions: {said}"
+        built.tier3_prime.is_ok(),
+        "{what}: tier 3′: {:?}",
+        built.tier3_prime
     );
+    assert!(
+        (built.volume - want).abs() <= 1e-12 * want,
+        "{what}: volume {} against the closed form {want}",
+        built.volume
+    );
+}
+
+/// An elbow bent away about the line through `(BEND, 0)` turned `δ` about
+/// the cap's normal: its bend's radius is `BEND·cos δ`, and the union's
+/// closed form for the pipe (`hollow`) or the rod.
+fn turned(hollow: bool, delta: f64) -> (OffCap, f64) {
+    let off = OffCap::Elbow {
+        axis_x: BEND,
+        axis_y: 0.0,
+        heading: -FRAC_PI_2 + delta,
+        angle: -FRAC_PI_2,
+    };
+    let a = section(hollow);
+    (off, a * LENGTH + a * BEND * delta.cos() * FRAC_PI_2)
 }
 
 /// **The four elbows bent away from the pipe glue a junction on both
@@ -259,7 +289,7 @@ fn stops_at_the_finish(j: &Joined, what: &str) {
 /// opposite sides and each body's own rim edge convex, and no other pair
 /// glues. The union then passes the crossing layer, where an edge of one
 /// body ending on the rim tangent to the other's wall has that end's root
-/// factored, and stops at the finish.
+/// factored, and builds at the closed form.
 #[test]
 fn an_elbow_bent_away_from_its_pipe_glues_a_junction_on_both_rims() {
     for (end, off) in the_eight_poses()
@@ -269,7 +299,7 @@ fn an_elbow_bent_away_from_its_pipe_glues_a_junction_on_both_rims() {
         let what = format!("pipe, {end:?} cap, {off:?}");
         let j = join(true, end, off);
         glues_its_walls_a_junction(&j, 8, &what);
-        stops_at_the_finish(&j, &what);
+        builds_at(&j, closed_form(true, off), &what);
     }
 }
 
@@ -315,24 +345,40 @@ fn a_rod_and_its_elbow_glue_one_junction() {
     assert!(bends_away(off));
     let j = join(false, end, off);
     glues_its_walls_a_junction(&j, 4, "rod");
-    stops_at_the_finish(&j, "rod");
+    builds_at(&j, closed_form(false, off), "rod");
 }
 
 /// The neutral points moved off the routing's stations: the axis turned
-/// two ε about the cap's normal, an outward pose.
+/// two ε and a thousand ε about the cap's normal, an outward pose:
+/// the seam is no jet-determinate one, described where it rests.
 #[test]
 fn an_elbow_whose_neutral_points_sit_between_the_stations_glues_a_junction() {
     for k in [2.0, 1e3] {
-        let off = OffCap::Elbow {
-            axis_x: BEND,
-            axis_y: 0.0,
-            heading: -FRAC_PI_2 + k * Tol::witness().eps(),
-            angle: -FRAC_PI_2,
-        };
+        let (off, want) = turned(true, k * Tol::witness().eps());
         let what = format!("turned {k}ε");
         let j = join(true, CapEnd::End, off);
         glues_its_walls_a_junction(&j, 8, &what);
-        stops_at_the_finish(&j, &what);
+        builds_at(&j, want, &what);
+    }
+}
+
+/// **The neutral points in the end gaps of the rims' halves**: the axis
+/// turned far enough that each half of each rim, split at the elbow's
+/// ends, holds a neutral point between its end and its first or last
+/// station, where every station reads one sign of `κ_rel`. Not certified
+/// along the half, the seam is described where it rests, and the pipe
+/// and the rod each union at the closed form.
+#[test]
+fn an_elbow_whose_neutral_points_sit_in_the_end_gaps_unions() {
+    for delta in [1.15, 1.18, 1.21, -1.21] {
+        for hollow in [true, false] {
+            let (off, want) = turned(hollow, delta);
+            builds_at(
+                &join(hollow, CapEnd::End, off),
+                want,
+                &format!("turned {delta}, hollow {hollow}"),
+            );
+        }
     }
 }
 
@@ -343,9 +389,12 @@ fn an_elbow_whose_neutral_points_sit_between_the_stations_glues_a_junction() {
 /// junction, then comes back round into the pipe's wall away from the
 /// rim. The arcs ending on the rim turn past a quarter turn, so their
 /// windows are not the whole span and the crossing is the root doors'.
-/// The union passes the crossing layer and stops at the finish (the
-/// seams' descriptions); once the finish builds, the row owes a typed
-/// refusal or the hand-checked body, never a wrong one.
+/// The union builds the hand-checked body: in the bend's plane a point of
+/// the swept tube below the cap (`z < 2`) has its bend angle in
+/// `(π, 3π/2]`, so it lies at `x > 1.5`, outside the pipe; the angle is
+/// read off `(x, z)` alone, so the same holds off that plane. The two meet
+/// only on the
+/// cap, so the union is the section times `LENGTH + 1.5·|angle|`.
 #[test]
 fn a_hooked_elbow_that_comes_back_into_its_pipe_is_never_a_wrong_body() {
     use topo::boolean::RimDoor;
@@ -368,7 +417,8 @@ fn a_hooked_elbow_that_comes_back_into_its_pipe_is_never_a_wrong_body() {
                 rest.iter().all(|d| *d == RimDoor::NotTangent),
                 "{what}: every other pair meets at a corner: {rest:?}"
             );
-            stops_at_the_finish(&j, &what);
+            let want = section(hollow) * (LENGTH + 1.5 * angle.abs());
+            builds_at(&j, want, &what);
         }
     }
 }
@@ -489,18 +539,23 @@ fn neutral_off_the_seam(delta: f64) -> OffCap {
 /// through the union):
 ///
 /// - on it, the end's root is of order four, read past, and the union
-///   stops at the finish;
+///   builds at the closed form;
 /// - `ε` off it, the quadratic term reads in band: the end's order
 ///   escalates (`JunctionEndOrder`);
-/// - `√ε/3` off it (`1e-5` at `ε = 1e-9`), the quadratic term decides but
-///   no window holds its spread: the end is unread (`JunctionEndUnread`,
-///   `Window`), the belt
-///   `work/heldrecords/the-junction-end-window-refuses-in-a-belt-around-a-neutral-point.md`
-///   files.
+/// - `30ε`, `√ε/3` (`1e-5` at `ε = 1e-9`) and `3√ε` off it, the quadratic
+///   term decides, the ruling meets the bend's carrier again `√(12δ)`
+///   below the rim and stands at most `δ²/2` off it before that, so no
+///   window short of that root clears the band: the window pivots on the
+///   quartic, its spread holds the near root, which lies on the pipe's
+///   side of the rim, and the union builds at the closed form.
 #[test]
 fn an_edge_ending_near_a_neutral_point_stops_where_its_distance_says() {
     let on = join(true, CapEnd::End, neutral_off_the_seam(0.0));
-    stops_at_the_finish(&on, "on the neutral point");
+    builds_at(
+        &on,
+        closed_form(true, neutral_off_the_seam(0.0)),
+        "on the neutral point",
+    );
     let eps = Tol::witness().eps();
     let near = join(true, CapEnd::End, neutral_off_the_seam(eps));
     let e = refusal(&near, "ε off it");
@@ -514,18 +569,115 @@ fn an_edge_ending_near_a_neutral_point_stops_where_its_distance_says() {
         ),
         "ε off it, the order in band: {e:?}"
     );
-    let belt = join(true, CapEnd::End, neutral_off_the_seam(eps.sqrt() / 3.0));
-    let e = refusal(&belt, "√ε/3 off it");
-    assert!(
-        matches!(
-            e,
-            topo::BooleanError::JunctionEndUnread {
-                gap: topo::JunctionEndGap::Window,
-                ..
-            }
-        ),
-        "√ε/3 off it, no window: {e:?}"
+    for (delta, what) in [
+        (30.0 * eps, "30ε off it"),
+        (eps.sqrt() / 3.0, "√ε/3 off it"),
+        (3.0 * eps.sqrt(), "3√ε off it"),
+    ] {
+        let belt = join(true, CapEnd::End, neutral_off_the_seam(delta));
+        builds_at(&belt, closed_form(true, neutral_off_the_seam(delta)), what);
+    }
+}
+
+/// [`neutral_off_the_seam`], swept through `angle` rather than a quarter
+/// turn.
+fn short_off_the_seam(delta: f64, angle: f64) -> OffCap {
+    match neutral_off_the_seam(delta) {
+        OffCap::Elbow {
+            axis_x,
+            axis_y,
+            heading,
+            ..
+        } => OffCap::Elbow {
+            axis_x,
+            axis_y,
+            heading,
+            angle: -angle,
+        },
+        other => other,
+    }
+}
+
+/// **A short elbow near a neutral point refuses near its far rim.** At
+/// `3√ε` off the neutral point the window past the pipe's seam ruling's end
+/// is read past the order's own term, its spread `σ ≈ 8.8·ε^¼` holding
+/// roots on the bend's carrier, and those are read off the bend only where
+/// nothing but the rim bounds the bend within `σ` of the end. An elbow
+/// swept so short that its far cap's rim lies `0.4σ` or `0.8σ` along the
+/// bend from the end refuses `NearBoundary` (so do 5° and 2° at
+/// `ε = 1e-6`, measured); swept `3σ`, it builds at the closed form.
+#[test]
+fn a_short_elbow_near_a_neutral_point_refuses_near_its_far_rim() {
+    let eps = Tol::witness().eps();
+    let delta = 3.0 * eps.sqrt();
+    let spread = 8.8 * eps.powf(0.25);
+    for share in [0.4, 0.8] {
+        let what = format!("swept {share}σ");
+        let j = join(
+            true,
+            CapEnd::End,
+            short_off_the_seam(delta, share * spread / BEND),
+        );
+        let e = refusal(&j, &what);
+        assert!(
+            matches!(
+                e,
+                topo::BooleanError::JunctionEndUnread {
+                    gap: topo::JunctionEndGap::NearBoundary,
+                    ..
+                }
+            ),
+            "{what}: the far rim within the spread: {e:?}"
+        );
+    }
+    let off = short_off_the_seam(delta, 3.0 * spread / BEND);
+    builds_at(
+        &join(true, CapEnd::End, off),
+        closed_form(true, off),
+        "swept 3σ",
     );
+}
+
+/// **A short elbow off its neutral point refuses near its far rim, at the
+/// order's own term.** `0.2` round the rim from the neutral point the
+/// window past the pipe's seam ruling's end is read at its order, two,
+/// its spread measured `σ ≤ 3.6·√(ε/δ)`, and the side reading places the
+/// roots in it off the bend only where nothing but the rim bounds the bend
+/// within `σ` of the end. Swept so short that its far cap's rim lies
+/// `0.4σ` or `0.8σ` along the bend from the end, the elbow refuses
+/// `NearBoundary`; swept `3σ`, or the quarter turn, it builds at the
+/// closed form.
+#[test]
+fn a_short_elbow_off_its_neutral_point_refuses_near_its_far_rim() {
+    let eps = Tol::witness().eps();
+    let delta = 0.2;
+    let spread = 3.6 * (eps / delta).sqrt();
+    for share in [0.4, 0.8] {
+        let what = format!("swept {share}σ");
+        let j = join(
+            true,
+            CapEnd::End,
+            short_off_the_seam(delta, share * spread / BEND),
+        );
+        let e = refusal(&j, &what);
+        assert!(
+            matches!(
+                e,
+                topo::BooleanError::JunctionEndUnread {
+                    gap: topo::JunctionEndGap::NearBoundary,
+                    ..
+                }
+            ),
+            "{what}: the far rim within the spread: {e:?}"
+        );
+    }
+    for (angle, what) in [
+        (3.0 * spread / BEND, "swept 3σ"),
+        (FRAC_PI_2, "a quarter turn"),
+    ] {
+        let off = short_off_the_seam(delta, angle);
+        builds_at(&join(true, CapEnd::End, off), closed_form(true, off), what);
+    }
 }
 
 /// **A root of the rest of the span is found, not covered.** A pipe 4
@@ -537,5 +689,100 @@ fn an_edge_ending_near_a_neutral_point_stops_where_its_distance_says() {
 fn a_long_pipe_whose_ruling_meets_the_bends_carrier_again_passes_the_crossing_layer() {
     let (end, off) = the_eight_poses()[1];
     assert!(bends_away(off));
-    stops_at_the_finish(&join_at(true, 4.0, end, off), "a pipe 4 long");
+    let a = section(true);
+    builds_at(
+        &join_at(true, 4.0, end, off),
+        a * 4.0 + a * BEND * FRAC_PI_2,
+        "a pipe 4 long",
+    );
+}
+
+/// **A neutral point in band of a routing station is an undecided bend,
+/// not an undecided seam**: the wedge is a decided π at every station,
+/// and only the bend's sagitta lands in the band at one, so the rim
+/// routes a seam, glues a junction, and the seam is described where it
+/// rests. Off the seam ruling by `δ` = 10ε, 30ε and 100ε
+/// (`neutral_off_the_seam`), the
+/// neutral point sits at a rim vertex the routing reads: the junction
+/// glues, and the union reaches the crossing layer, where the edge ending
+/// there stops on its end's order in band at `10ε` and is read past at
+/// `30ε` and `100ε`
+/// (`an_edge_ending_near_a_neutral_point_stops_where_its_distance_says`).
+/// The axis turned `20ε` puts the neutral point in band of a seam edge's
+/// station: the junction glues, and the seam's description, which its
+/// bend decides, refuses typed on the bend.
+#[test]
+fn an_elbow_whose_neutral_point_sits_in_band_of_a_station_glues_a_junction() {
+    // 1e-8, 3e-8 and 1e-7 at ε = 1e-9, where the station's margin `≈ δ/6`
+    // lands in band for the first two; the same multiples of ε at every ε.
+    let eps = Tol::witness().eps();
+    for delta in [10.0 * eps, 30.0 * eps, 100.0 * eps] {
+        let off = neutral_off_the_seam(delta);
+        let what = format!("δ {delta:e} off the seam");
+        let j = join(true, CapEnd::End, off);
+        glues_its_walls_a_junction(&j, 8, &what);
+        if delta < 20.0 * eps {
+            let e = refusal(&j, &what);
+            assert!(
+                matches!(
+                    e,
+                    topo::BooleanError::CurvedPierceEscalated {
+                        decision: topo::BooleanDecision::JunctionEndOrder,
+                        ..
+                    }
+                ),
+                "{what}: past the glue door, the end's order in band: {e:?}"
+            );
+        } else {
+            builds_at(&j, closed_form(true, off), &what);
+        }
+    }
+    let (off, _) = turned(true, 20.0 * Tol::witness().eps());
+    let j = join(true, CapEnd::End, off);
+    glues_its_walls_a_junction(&j, 8, "turned 20ε");
+    let e = refusal(&j, "turned 20ε");
+    assert!(
+        matches!(
+            e,
+            topo::BooleanError::Escalated {
+                decision: topo::BooleanDecision::SeamJet,
+                ..
+            }
+        ),
+        "turned 20ε: the seam's description, on its bend in band: {e:?}"
+    );
+}
+
+/// The ring split in two with its first vertex `phase` round from `+x`.
+fn split_loops(hollow: bool, phase: f64) -> Vec<LoopProgram<Formula>> {
+    let split = |r: f64| LoopProgram::CircleSplit {
+        centre: [len(0.0), len(0.0)],
+        radius: len(r),
+        n: 2,
+        phase: ang(phase),
+    };
+    if hollow {
+        vec![split(OUTER), split(INNER)]
+    } else {
+        vec![split(OUTER)]
+    }
+}
+
+/// **An elbow whose rim vertices sit off the pipe's**: its profile is
+/// the ring drawn as two half arcs whose first vertex is `phase` round
+/// from the pipe's, so each of its rim vertices lies inside a rim edge of
+/// the pipe. The pipe and the rod each union at the closed form.
+#[test]
+fn an_elbow_drawn_with_its_rim_vertices_off_the_pipes_unions() {
+    let (end, off) = the_eight_poses()[1];
+    for phase in [0.3, 1.0] {
+        for hollow in [true, false] {
+            let j = join_drawn(hollow, LENGTH, end, off, split_loops(hollow, phase));
+            builds_at(
+                &j,
+                closed_form(hollow, off),
+                &format!("phase {phase}, hollow {hollow}"),
+            );
+        }
+    }
 }

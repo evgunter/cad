@@ -196,6 +196,37 @@ impl<'a> CurveCertData<'a> {
         self.coords.len()
     }
 
+    /// **Each span's enclosure of coordinate `d`**, over the Bernstein
+    /// form's breaks (its own knots and the extras): on a span the
+    /// coordinate is `Σ Bₖ·Nₖ / Σ Bₖ·Wₖ`, a convex combination of the
+    /// ratios `Nₖ / Wₖ` where every `Wₖ > 0`, so their hull encloses it
+    /// (the rational convex-hull property). A span whose weight
+    /// coefficient an enclosure does not hold positive is refused.
+    /// Caller guarantees `d < dims()`.
+    #[must_use]
+    pub fn coordinate_spans(&self, d: usize) -> (Vec<f64>, Vec<Interval>) {
+        use crate::real::Bounds;
+        let (num, den) = (self.weighted_channel(d), self.weight_channel());
+        let hulls = num
+            .spans()
+            .iter()
+            .zip(den.spans())
+            .map(|(n, w)| {
+                n.iter()
+                    .zip(w)
+                    .try_fold(None, |acc: Option<Interval>, (n, w)| {
+                        (w.lo() > 0.0).then(|| {
+                            let ratio = *n / *w;
+                            Some(acc.map_or(ratio, |a| Interval::hull(a, ratio)))
+                        })
+                    })
+                    .flatten()
+                    .unwrap_or_else(Interval::refused)
+            })
+            .collect();
+        (num.breaks().to_vec(), hulls)
+    }
+
     /// The weight channel `W_i = w_i`, Bézier-decomposed.
     fn weight_channel(&self) -> BernsteinSpans {
         self.kv.with_coeffs_from_fn(
@@ -1082,34 +1113,34 @@ pub fn linear_composite(
 /// takes exact `f64` structure). The curve composed with it is the
 /// carrier's net already written in that frame.
 #[derive(Clone, Copy, Debug)]
-pub enum CanonicalSurface {
+pub enum CanonicalSurface<S = Interval> {
     /// `f = z` (metres): the plane `z = 0`.
     Plane,
     /// `f = x² + y² − R²` (metres²).
     Cylinder {
         /// The radius `R`.
-        radius: Interval,
+        radius: S,
     },
     /// `f = x² + y² + z² − r²` (metres²).
     Sphere {
         /// The radius `r`.
-        radius: Interval,
+        radius: S,
     },
     /// `f = cos²α·(x² + y²) − sin²α·z²` (metres²): the double cone of
     /// half-angle `α` about the third axis, apex at the origin.
     Cone {
         /// `cos²α`.
-        cos2: Interval,
+        cos2: S,
         /// `sin²α`.
-        sin2: Interval,
+        sin2: S,
     },
     /// `f = (x² + y² + z² + R² − r²)² − 4R²·(x² + y²)` (metres⁴), which
     /// factors as `((ρ − R)² + z² − r²)·((ρ + R)² + z² − r²)`.
     Torus {
         /// The major radius `R`.
-        major: Interval,
+        major: S,
         /// The minor radius `r`.
-        minor: Interval,
+        minor: S,
     },
 }
 

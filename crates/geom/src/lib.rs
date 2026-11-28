@@ -98,53 +98,23 @@
 //! # Totality and poison (geom-core's policy, inherited)
 //!
 //! Every evaluator is **total**: no panic, no `Result`. Out-of-domain
-//! and undescribed cases produce the scalar's poison value (NaN at
-//! `f64`, NaI/empty at the interval scalar) which flows through values
-//! and is caught at the predicate/certification layer — in particular,
-//! evaluating the [`Surface::nurbs_placeholder`] "no description yet"
-//! state yields an all-poison point (representable ≠ described; the
-//! poison fails every downstream certification loudly, per D4 ¶2).
+//! cases produce the scalar's poison value (NaN at `f64`, NaI/empty at
+//! the interval scalar) which flows through values and is caught at the
+//! predicate/certification layer (D4 ¶2).
 //!
-//! **There are THREE states, and telling them apart is one rule with
-//! one spelling.** The discriminator is the control net's poison. A
-//! placeholder's every control point is poison in **every channel** by
-//! construction; a described net of finite data carries none; and
-//! between them sits corrupt *described* geometry — a net with a
-//! poisoned CHANNEL of a point, which is not the placeholder (`all`,
-//! not `any`, and all over the channels as well as over the points)
-//! and which must fail loudly as such at every consumer's described
-//! arm (certification, +V, export), never masquerade as the benign
-//! placeholder. [`NetState`] names the three and is the one place they
-//! are defined; [`NurbsSurface::net_state`] is the door that answers
-//! it, and a consumer that must tell all three apart matches on that
-//! rather than composing predicates or re-deriving the test inline.
-//! [`NurbsSurface::is_placeholder`] answers the placeholder question
-//! alone, for the consumers that only ask it.
-//!
-//! **Which poison, per scalar, because the sets differ in extension.**
-//! The rule is spelled once, over [`geom_core::Real::is_poison`], and
-//! that predicate answers a different question at each instantiation:
-//! at `f64` exactly NaN (so `+∞` — which a STEP file can spell — is
-//! **not** poison and a net of infinities is described data); at the
-//! interval scalar NaI **or** the empty interval, so an all-empty net
-//! reads as the placeholder there and would not at `f64`; at `Dual`
-//! the **value channel only**, so a poisoned value over a finite
-//! derivative counts. The state is therefore preserved by a lift
-//! (`from_f64(NaN)` is each scalar's own poison) but is not the same
-//! SET of nets at every scalar, and a consumer reasoning about which
-//! nets reach its placeholder arm has to reason at its own scalar.
-//!
-//! **What a BOX asks instead.** A box is a claim about where the locus
-//! is, not about which state a payload is in, so the box constructors
-//! screen on poison ANYWHERE rather than everywhere — a net with one
-//! poisoned bracket bounds its locus on no axis. That door and its
-//! reason are `net::any_poison`'s.
-//!
-//! Only the surface payload carries the state at all: no curve has a
-//! placeholder, so a curve's net is described, and a poisoned one
-//! reaches its consumer's described arm. Not every such arm fails on
-//! it yet: `topo`'s rigid map moves a poisoned carrier net (SHELL's
-//! `transform-rigid-maps-a-poisoned-net-into-the-placeholder`).
+//! **A NURBS net describes something.** A curve or surface value is
+//! always a description: "this face has no surface yet" is a fact about
+//! a body mid-construction and lives on the body's surface slot in
+//! `topo`, never in a net. So poison in a net is only ever corruption,
+//! and the one question asked of a net is whether every control point
+//! is a finite number at the scalar's own finiteness
+//! ([`NurbsSurface::is_finite`], [`NurbsCurve3::is_finite`]: NaN and
+//! `±∞` at `f64`, an enclosure reaching `±∞` or empty at `Interval`).
+//! A net that is not finite fails loudly at every consumer that
+//! evaluates it, and the at-rest validator refuses it by name. The box
+//! constructors screen on the same question: a net with one
+//! non-finite coordinate bounds its locus on no axis, so it yields the
+//! poison box, which overlaps everything.
 //!
 //! # Evaluation-code discipline
 //!
@@ -202,9 +172,9 @@ pub use curves::{
     NurbsCurve3, OnCarrier, PERIODIC_DEGREE, PERIODIC_MIN_KNOTS, ParamSide, PeriodicError,
     PeriodicNurbs3, PeriodicViewError, PieceRead, PieceStep, PieceWalkRefusal, Projection2,
     Projection3, ProjectionInconclusive, Ray, RefitSkip, SeamSide, SpiricInvalid, SpiricRegime,
-    compose_chain, conic_period, ellipse_level_clearance, spiric_curvature_sup, spiric_f_range,
-    spiric_period, spiric_period_rate_bounds, spiric_radial, spiric_rate_bounds, spiric_regime,
-    spiric_window_rate_bounds,
+    SpiricWindow, compose_chain, conic_period, conic_size_read, ellipse_level_clearance,
+    spiric_curvature_sup, spiric_f_range, spiric_period, spiric_period_rate_bounds, spiric_radial,
+    spiric_rate_bounds, spiric_regime, spiric_window, spiric_window_rate_bounds,
 };
 pub use datum::{AnalyticData, DatumValue};
 pub use frame::{Frame, plane_offset, plane_offset_rounded};
@@ -218,10 +188,10 @@ pub use projection_policy::{
     PROJECT_EPS_COSINE, PROJECT_EPS_POINT, PROJECT_MAX_ITERS, PROJECT_SEEDS_PER_SPAN,
 };
 pub use surfaces::{
-    AnalyticPairs, AnglePeriods, ApproxSurface, ApproxWindow, NetState, NotARing, NurbsSurface,
-    OffsetCertificate, PLACEHOLDER_SURFACE, RingTorus, RunSide, SheetApex, SpanBeside, SpindleEnd,
-    SpindleMiss, Surface, SurfaceData, SurfaceDatum, SurfaceDescription, SurfaceJet, SurfaceJet3,
-    SurfaceKind, SurfacePairing, SurfaceProjection, SurfaceProjectionInconclusive, SurfaceSpec,
-    SurfaceWindow, is_ring_torus, meridian_side, require_ring_torus, ring_torus, sheet_apex,
+    AnalyticPairs, AnglePeriods, ApproxSurface, ApproxWindow, NotARing, NurbsSurface,
+    OffsetCertificate, RingTorus, RunSide, SheetApex, SpanBeside, SpindleEnd, SpindleMiss, Surface,
+    SurfaceData, SurfaceDatum, SurfaceDescription, SurfaceJet, SurfaceJet3, SurfaceKind,
+    SurfacePairing, SurfaceProjection, SurfaceProjectionInconclusive, SurfaceSpec, SurfaceWindow,
+    is_ring_torus, meridian_side, require_ring_torus, ring_torus, sheet_apex, sheet_distance,
     spindle_sheet, torus_tube,
 };

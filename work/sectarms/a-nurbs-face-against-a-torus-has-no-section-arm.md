@@ -7,7 +7,7 @@ opened: 2026-10-29
 priority: P0
 cost: H
 refs: [a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm, a-spline-span-against-a-curved-face-is-not-dispatched-to-the-composite]
-blocked_on: [c5-plane-torus-cone-cylinder-arms, the-chart-accounting-clears-a-thin-torus-only-in-sub-millimetre-cells]
+blocked_on: [c5-plane-torus-cone-cylinder-arms, lily-wall-8s-leaf-wall-lifts-no-closed-trim-at-the-pierce-pass]
 ---
 
 
@@ -73,3 +73,32 @@ section: SSIARITH's
 `the-chart-accounting-clears-a-thin-torus-only-in-sub-millimetre-cells`,
 now a blocker of this row beside the plane × torus arm, which still
 stands behind it in the join.
+
+## Re-measured on the plane × torus one-lever branch (ORBIT, 2026-11-24)
+
+On `orbit/plane-torus-one-lever` (PR 7713, which retires
+`GermSectionSpiric`), at ε 1e-9 and at the tour's own scalar, lily
+wall 8 stops at this row's pair:
+
+`GermSectionUnbuilt { a_face: 3v1, a_kind: Torus, b_face: 3v1, b_kind:
+Nurbs, why: Refused(Unaccounted { cause: "ssi: the exhaustiveness
+subdivision exceeded its 200000-cell budget — refused rather than
+truncated" }) }`
+
+That is the pin in `demos/tour/src/lily.rs`, and the 2026-11-12 entry
+above. The 2026-11-02 correction's `GermSectionSpiric` stop is gone
+with that refusal. Past this pair, the leaf's tilted lower cap against
+the tube is the section value's carried section, not a frame refusal.
+
+## The arm's section is accounted (2026-11-25, SSIARITH)
+
+`ssiarith/thin-torus-exclusion` reads the torus's quartic over a box in
+its factored form, so the accounting clears a cell at the cell's own
+distance from the tube (`work/ssiarith/the-chart-accounting-clears-a-thin-torus-only-in-sub-millimetre-cells.md`,
+closed). At ε 1e-9 and the tour's own scalar, lily wall 8's torus ×
+spline sections now build, and the union stops later, at the pierce
+pass: the leaf's other NURBS wall cannot say whether it holds the
+pierce point (`HeldPierceUnbuilt`, `placed: false`). This row is
+re-parked on that stop,
+`work/splice/lily-wall-8s-leaf-wall-lifts-no-closed-trim-at-the-pierce-pass.md`.
+At the K sweep's scalar the pin still reads `NoMarch`. — (SSIARITH orchestrator)

@@ -117,7 +117,7 @@ fn span_meter_sample(
         spec,
         start,
         end,
-        |k| arena.get(k).cloned(),
+        |k| arena.get(k).cloned().ok_or(geom_brep::SurfaceMiss::Stale),
         geom_core::test_support::fixture_lever(Probe(1.0)),
         band(),
         NurbsLane::certified(),

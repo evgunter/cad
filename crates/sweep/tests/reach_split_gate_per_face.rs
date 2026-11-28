@@ -163,6 +163,147 @@ fn a_plane_clear_of_a_sphere_or_torus_face_splits_the_body() {
     }
 }
 
+/// A full revolve's sphere face is one face whose seam runs from its rim
+/// to the pole at its tip and back, and its cover reads the latitude
+/// zone between the rim and that pole, not the ball: the cap's reaches
+/// `y ∈ [1, 1.5]` (its tip the `+y` pole), the truncated ball's
+/// `y ∈ [−1, 1]` (its tip the `−y` pole, past a hemisphere). The ball
+/// is `y ∈ [−1, 1.5]`, so each zone's far end off its tip is the rim,
+/// which a tip-blind reading of the face's side misses: the rim alone
+/// bounds a cap either way.
+#[test]
+fn a_one_band_sphere_faces_cover_is_its_zone_not_the_ball() {
+    let band = Band::linear(Tol::witness()).unwrap();
+    let pad = 1e-9;
+    for (name, body, (lo, hi)) in [
+        ("sphere cap", capped_cylinder(), (1.0, 1.5)),
+        ("truncated ball", truncated_ball(), (-1.0, 1.0)),
+    ] {
+        let spheres: Vec<_> = body
+            .faces()
+            .filter(|(_, f)| body.get_surface(f.surface).unwrap().kind() == SurfaceKind::Sphere)
+            .map(|(k, _)| k)
+            .collect();
+        let [face] = spheres.as_slice() else {
+            panic!("{name}: one sphere face, got {}", spheres.len());
+        };
+        let cover = body.face_cover(*face, band).unwrap_or_else(|e| {
+            panic!("{name}: the sphere face has a cover: {e:?}");
+        });
+        let (below, above) = cover.range_along(Vec3::new(0.0, 1.0, 0.0));
+        assert!(
+            (lo - pad..=lo + pad).contains(&below) && (hi - pad..=hi + pad).contains(&above),
+            "{name}: the face reads y ∈ [{below}, {above}], its zone is [{lo}, {hi}]"
+        );
+    }
+}
+
+/// The sphere face of a full revolve of `chain`: its key and cover.
+fn one_sphere_face(name: &str, body: &AtRestBody<f64>) -> geom::cover::Cover<f64> {
+    let band = Band::linear(Tol::witness()).unwrap();
+    let spheres: Vec<_> = body
+        .faces()
+        .filter(|(_, f)| body.get_surface(f.surface).unwrap().kind() == SurfaceKind::Sphere)
+        .map(|(k, _)| k)
+        .collect();
+    let [face] = spheres.as_slice() else {
+        panic!("{name}: one sphere face, got {}", spheres.len());
+    };
+    body.face_cover(*face, band)
+        .unwrap_or_else(|e| panic!("{name}: the sphere face has a cover: {e:?}"))
+}
+
+/// A one-band sphere face's cover holds the face and is its zone: every
+/// sampled point of the face (the profile arc from `rim` to the pole at
+/// its tip, swept a full turn about `y`) lies within the cover's range
+/// along each of 64 directions spread over the sphere, and the range
+/// along `y` is the zone, not the ball. A concave face (a dimple, the
+/// material outside its sphere, so its sense is negative) and a cap
+/// whose rim is 3° from its pole read the same way as a convex cap.
+#[test]
+fn a_one_band_sphere_faces_cover_holds_the_face_at_either_sense_and_near_its_pole() {
+    // A dimple of radius √0.72 about (0, 1.6) in the top of the unit
+    // cylinder: the arc (0.6, 1) → (0, 1.6 − √0.72) runs clockwise.
+    let dimple_r = 0.72f64.sqrt();
+    let dimple_c = Point2::new(0.0, 1.6);
+    let dimple_pole = Point2::new(0.0, 1.6 - dimple_r);
+    let dimple = {
+        let (a, b) = (Point2::new(0.6, 1.0), dimple_pole);
+        let bulge = bulge_from_center(a, b, dimple_c, ArcSweep::Cw);
+        revolved(vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(1.0, 0.0), 0.0),
+            (Point2::new(1.0, 1.0), 0.0),
+            (a, bulge),
+            (b, 0.0),
+        ])
+    };
+    // A thin rod of radius 0.05 under a unit sphere's cap: its rim is
+    // asin(0.05) ≈ 2.9° from the pole.
+    let rod_c = Point2::new(0.0, 1.0 - (1.0f64 - 0.0025).sqrt());
+    let rod_pole = Point2::new(0.0, rod_c.y + 1.0);
+    let rod = {
+        let (a, b) = (Point2::new(0.05, 1.0), rod_pole);
+        let bulge = bulge_from_center(a, b, rod_c, ArcSweep::Ccw);
+        revolved(vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(0.05, 0.0), 0.0),
+            (a, bulge),
+            (b, 0.0),
+        ])
+    };
+    let pad = 1e-9;
+    let golden = PI * (3.0 - 5f64.sqrt());
+    let dirs: Vec<Vec3<f64>> = (0..64)
+        .map(|i| {
+            let y = 1.0 - 2.0 * (f64::from(i) + 0.5) / 64.0;
+            let rho = (1.0 - y * y).sqrt();
+            let phi = golden * f64::from(i);
+            Vec3::new(rho * phi.cos(), y, rho * phi.sin())
+        })
+        .collect();
+    for (name, body, center, radius, rim, pole) in [
+        (
+            "dimple",
+            dimple,
+            dimple_c,
+            dimple_r,
+            Point2::new(0.6, 1.0),
+            dimple_pole,
+        ),
+        ("rod cap", rod, rod_c, 1.0, Point2::new(0.05, 1.0), rod_pole),
+    ] {
+        let cover = one_sphere_face(name, &body);
+        let (below, above) = cover.range_along(Vec3::new(0.0, 1.0, 0.0));
+        let (lo, hi) = (rim.y.min(pole.y), rim.y.max(pole.y));
+        assert!(
+            (lo - pad..=lo + pad).contains(&below) && (hi - pad..=hi + pad).contains(&above),
+            "{name}: the face reads y ∈ [{below}, {above}], its zone is [{lo}, {hi}]"
+        );
+        let (a0, a1) = (
+            (rim.y - center.y).atan2(rim.x),
+            (pole.y - center.y).atan2(pole.x),
+        );
+        let ranges: Vec<_> = dirs.iter().map(|&d| (d, cover.range_along(d))).collect();
+        for i in 0..=16 {
+            let a = a0 + (a1 - a0) * f64::from(i) / 16.0;
+            let (rho, y) = (radius * a.cos(), center.y + radius * a.sin());
+            for k in 0..24 {
+                let theta = 2.0 * PI * f64::from(k) / 24.0;
+                let p = Vec3::new(rho * theta.cos(), y, rho * theta.sin());
+                for &(d, (lo, hi)) in &ranges {
+                    let s = p.dot(d);
+                    assert!(
+                        lo - pad <= s && s <= hi + pad,
+                        "{name}: the face point {p:?} reads {s} along {d:?}, outside the \
+                         cover's [{lo}, {hi}]"
+                    );
+                }
+            }
+        }
+    }
+}
+
 /// The plane taking a small dome off the cap near its pole, on the
 /// `−z` side: its normal is the cap's radial direction 15° from the pole
 /// toward `−z`, at 1.23 from the sphere's centre, so it meets the cap in a
@@ -316,10 +457,11 @@ fn conic_arc_segments(
 }
 
 /// The unit cylinder cut by the plane `y = 0.5 + 0.3·z`, its lower half:
-/// a planar elliptic top bounded by two half-ellipses that meet at the
-/// seam points `(±1, 0.5, 0)`, and the half on `z < 0`, which dips to
-/// `y = 0.2` between them: an edge between a plane face and a cylinder
-/// face, both armed.
+/// a planar elliptic top bounded by one ellipse through the wall's seam
+/// at `(1, 0.5, 0)`, split by hand at its antipode `(−1, 0.5, 0)` into
+/// two half-ellipses (construction state), and the half on `z < 0`,
+/// which dips to `y = 0.2` between them: an edge between a plane face
+/// and a cylinder face, both armed.
 fn tilted_cut_rim() -> (Body<f64>, Rim) {
     let cyl = revolved(vec![
         (Point2::new(0.0, 0.0), 0.0),
@@ -334,6 +476,18 @@ fn tilted_cut_rim() -> (Body<f64>, Rim) {
     let SplitPart::Body(body) = split(&cyl, &tilt, Tol::witness()).unwrap().below else {
         panic!("the tilted cut leaves material below");
     };
+    // The section is one closed ellipse through the wall's seam at
+    // `(1, 0.5, 0)`; split at its antipode it is the two half-ellipses.
+    let mut body = body.into_body();
+    let (whole, (t0, t1)) = body
+        .edges()
+        .find_map(|(k, e)| {
+            let c = body.get_curve_geom(e.curve)?.certified()?;
+            matches!(c.carrier(), geom::Curve3::Ellipse(..)).then(|| (k, c.params()))
+        })
+        .expect("the tilted section is one ellipse");
+    body.split_edge(whole, 0.5 * (t0 + t1), Tol::witness())
+        .expect("the ellipse splits at its antipode");
     let rim = body
         .edges()
         .find_map(|(k, e)| {
@@ -355,7 +509,7 @@ fn tilted_cut_rim() -> (Body<f64>, Rim) {
             })
         })
         .expect("the tilted section has a half-ellipse on z < 0");
-    (body.into_body(), rim)
+    (body, rim)
 }
 
 /// [`tilted_cut_rim`]'s half-ellipse: its edge, carrier, interval and
@@ -440,11 +594,12 @@ fn cylinder_with_a_spline_rim() -> (Body<f64>, topo::EdgeKey) {
 /// faces the rim bounds. The spline's image on the cylinder is its
 /// projected one, whose hull terms read the fitted door, which the
 /// description door's site mint does not hold. So the cylinder face is
-/// left rowless for a closing mint, and the at-rest gate reads it
-/// `Unminted`; the mint stores its projected rows
+/// left rowless, and the finish completes it with the projected rows
 /// (`work/pcert/site-rows-derive-through-chart-pcurve-bypassing-the-routed-arm.md`).
-/// The body is not a finished body and no split door takes it; the row
-/// reads the carrier gate past the door.
+/// The hand split that leaves the half-ellipse is a station, which the
+/// at-rest gate refuses, and it is all the finish refuses: the rows the
+/// face owes are completed. The body is not a finished body and no split
+/// door takes it, so the row reads the carrier gate past the door.
 #[test]
 fn a_spline_edge_whose_belly_crosses_the_plane_refuses() {
     let (body, edge) = cylinder_with_a_spline_rim();
@@ -452,35 +607,23 @@ fn a_spline_edge_whose_belly_crosses_the_plane_refuses() {
         assert_eq!(part, Ok(()), "the re-described body is well formed");
     }
     let errors = topo::finish(body.clone(), Tol::witness())
-        .expect_err("the face the spline bounds stores no row");
-    let rim_faces = topo::readback::edge_sides(&body, edge).unwrap().faces();
+        .expect_err("the hand split's station is refused at rest");
     assert!(
         !errors.is_empty()
-            && errors.iter().all(|e| matches!(
-                e,
-                topo::ValidationError::Pcurve {
-                    finding: topo::pcurves::PcurveMintError::Unminted { face },
-                } if face == &rim_faces.0 || face == &rim_faces.1
-            )),
-        "the at-rest gate reads the face the spline bounds as owed rows it lacks: {errors:?}"
+            && errors
+                .iter()
+                .all(|e| matches!(e, topo::ValidationError::JoinableVertexAtRest { .. })),
+        "the finish completes the face the spline bounds and refuses the hand split's \
+         station alone: {errors:?}"
     );
-    let mut minted = body.clone();
-    topo::mint_pcurves(&mut minted, Tol::witness()).expect("the closing mint");
-    let sides = topo::readback::edge_sides(&minted, edge).unwrap();
+    let mut finished = body.clone();
+    topo::mint_pcurves(&mut finished, Tol::witness()).expect("the closing mint");
+    let sides = topo::readback::edge_sides(&finished, edge).unwrap();
     let projected = [sides.plus.half_edge, sides.minus.half_edge]
         .into_iter()
-        .filter_map(|h| minted.pcurve(h))
+        .filter_map(|h| finished.pcurve(h))
         .any(|c| matches!(c.pcurve(), geom_brep::Pcurve::Projected(_)));
-    assert!(
-        projected,
-        "the closing mint stores the spline's projected row"
-    );
-    let band = geom_core::Band::linear(Tol::witness()).unwrap();
-    let findings = topo::pcurves::validate_pcurves(&minted, band);
-    assert!(
-        findings.is_empty(),
-        "the minted body reads clean: {findings:?}"
-    );
+    assert!(projected, "the finish stores the spline's projected row");
     match topo::test_support::split_carrier_gate(&body, &plane(0.0, 0.4), Tol::witness()) {
         Err(SplitReduceError::CurvedEdgeUnsupported { edge: e }) => {
             assert_eq!(e, edge, "the refusal names the spline edge");
@@ -579,7 +722,7 @@ fn a_sphere_face_whose_side_is_not_certified_keeps_the_ball() {
     let (zone, surface, sense) = reverted
         .faces()
         .find_map(|(k, f)| {
-            let s = reverted.face_surface(k)?;
+            let s = reverted.face_surface(k).ok()?;
             matches!(s, geom::Surface::Sphere { .. }).then(|| (k, s.clone(), f.sense))
         })
         .expect("the wedge has a sphere face");

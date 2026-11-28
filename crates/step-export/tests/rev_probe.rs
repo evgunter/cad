@@ -30,10 +30,12 @@ use topo::{Body, FaceKey, ValidationError, validate_geometric};
 /// sharpens this row rather than contradicting it.
 #[test]
 fn ball_both_single_band_flips_are_laminae_with_the_curved_arm_still_silent() {
-    let body = common::ball();
+    // The ball cut into two lunes: a full revolve's ball is one face.
+    let mut body = common::ball();
+    sweep::test_support::two_lunes(&mut body, Tol::witness());
     let bands: Vec<FaceKey> = body
         .faces()
-        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Sphere { .. })))
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Ok(Surface::Sphere { .. })))
         .map(|(k, _)| k)
         .collect();
     assert_eq!(bands.len(), 2);
@@ -117,7 +119,7 @@ fn nappe_adversaries() {
         let cones: Vec<(FaceKey, bool, Point3<f64>, Vec3<f64>)> = body
             .faces()
             .filter_map(|(k, f)| match body.face_surface(k) {
-                Some(&Surface::Cone { frame, .. }) => {
+                Ok(&Surface::Cone { frame, .. }) => {
                     let (apex, axis) = (frame.origin(), frame.axis());
                     Some((k, f.sense, apex, axis))
                 }
@@ -175,7 +177,7 @@ fn conic_trimmed_wall_flip_probe() {
     let walls: Vec<(FaceKey, bool)> = body
         .faces()
         .filter_map(|(k, f)| {
-            matches!(body.face_surface(k), Some(Surface::Cylinder { .. })).then_some((k, f.sense))
+            matches!(body.face_surface(k), Ok(Surface::Cylinder { .. })).then_some((k, f.sense))
         })
         .collect();
     println!("CONIC walls={walls:?}");

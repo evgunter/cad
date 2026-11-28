@@ -255,13 +255,11 @@ fn the_curved_dumbbell_waits_on_the_offset_door_at_interval() {
 /// **The box with a cylindrical void refuses at both scalars before
 /// the cavity gate**: its dilated void crosses the cavity's planar
 /// `x = 3.9` wall at an angle the planar `moved_walls_cross` reads, so
-/// `f64` refuses `OffsetsCross`. At `Interval` the walls' crossings along
-/// the cut line are ordered first (`shell_moved_wall_order`), and two of
-/// them read as an enclosure 1.5 m wide straddling the band's edge: the
-/// order escalates there, one read before the overlap
-/// (`shell_moved_walls_overlap`) would. The fold that ordered them kept
-/// its walk order over that straddle, a silent guess; the decided argmin
-/// refuses it (`work/onecopy/an-argmin-by-decided-comparison-is-spelled-three-ways.md`).
+/// both scalars refuse `OffsetsCross`. At `Interval` the walls'
+/// crossings along the cut line are ordered first
+/// (`shell_moved_wall_order`). The void's wall is one face, so no
+/// crossing straddles a band's edge: the order decides, and the overlap
+/// refuses as at `f64`.
 #[test]
 fn the_box_with_a_cylindrical_void_refuses_at_the_moved_walls_read() {
     let at_f64 = shell(box_with_void::<f64>(), 0.1);
@@ -270,11 +268,12 @@ fn the_box_with_a_cylindrical_void_refuses_at_the_moved_walls_read() {
         "at f64: {:?}",
         at_f64.err()
     );
-    match shell(box_with_void::<Interval>(), 0.1) {
-        Err(ShellError::Escalated { source })
-            if source.predicate == Some("shell_moved_wall_order") => {}
-        other => panic!("at Interval: {:?}", other.map(|_| ())),
-    }
+    let at_interval = shell(box_with_void::<Interval>(), 0.1);
+    assert!(
+        matches!(at_interval, Err(ShellError::OffsetsCross { .. })),
+        "at Interval: {:?}",
+        at_interval.map(|_| ())
+    );
 }
 
 /// **The planar dumbbell still refuses at the planar gate**, which

@@ -375,12 +375,12 @@ const GOLDEN: &[(&str, [u64; 2])] = &[
         "rounded_prism",
         [0x0d7a_8827_002b_0ba9, 0x0d7a_8827_002b_0ba9],
     ),
-    ("ball", [0x2b6c_6bff_a4ee_cfff, 0xc18b_5c43_8a0d_64ab]),
+    ("ball", [0x60cf_9cee_b0c8_d8c8, 0x5059_5c4f_3eaf_df7b]),
     (
         "sphere_wedge",
         [0xc0e4_3c76_081e_10f3, 0xd0e1_7c1a_5ff9_9fee],
     ),
-    ("cone", [0x9ec9_51c3_d7a6_353c, 0x5db8_4478_29ca_bfdf]),
+    ("cone", [0x02da_2b2a_7dcc_89d2, 0x1309_6cd8_f2fa_66cc]),
     ("cone_wedge", [0x71ec_6787_8f4c_ac2d, 0x71ec_6787_8f4c_ac2d]),
     ("donut", [0xacba_ea8e_c424_d559, 0x0a73_f71a_a4fa_1618]),
     ("washer", [0x965c_cafc_821b_7545, 0x569e_8f0f_f9a7_3ad5]),
@@ -394,7 +394,7 @@ const GOLDEN: &[(&str, [u64; 2])] = &[
     ),
     (
         "notched_wall",
-        [0xd6d3_dbb7_1e3f_5f8f, 0xe61d_4386_75ed_2af5],
+        [0x6988_b803_171a_6101, 0x00da_6b92_e639_8a64],
     ),
     ("holed_wall", [0xc6e1_d324_8da0_118f, 0xcbed_4748_98f9_7e0e]),
     ("keyway", [0xe457_7191_dbec_3540, 0xe457_7191_dbec_3540]),

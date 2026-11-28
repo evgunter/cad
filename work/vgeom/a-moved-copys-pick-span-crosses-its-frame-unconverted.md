@@ -1,64 +1,108 @@
 ---
 id: a-moved-copys-pick-span-crosses-its-frame-unconverted
 kind: issue
-title: A moved copy's pick hit converts its point across the display frame and carries t, t_lo and t_hi over unconverted
+title: Two copies' crossings are ordered by spans each certified on the ray carried into its own frame, which is the caller's only to within that carry's rounding
 status: open
 opened: 2026-10-22
 priority: P1
-cost: E
+cost: M
+design: true
 ---
 
 
-Split out of `pickindex-merges-parts-on-a-rounded-t-it-never-converts`
-(its §1) on 2026-10-22, when FIT checked its slate against the D10
-hold. The finding is unchanged; the reason it is parked is new.
+First written (2026-10-22, split out of
+`pickindex-merges-parts-on-a-rounded-t-it-never-converts`) as "the
+span crosses the frame unconverted"; `vgeom/project-refuses` found
+that premise false and narrowed the row (2026-11-25);
+`vgeom/moved-copy-witness` (PR 7792) built the witness, which
+flipped, fixed the self-occlusion half and narrowed the row to the
+cross-copy ordering left.
 
 ## Finding
 
-`crates/viewer/src/pickindex.rs`, `PickIndex::pick_for`, the loop over
-`DisplayView::moved_placements`: the ray is carried into a moved copy's
-display-local space through `frame.affine()`'s inverse, and the hit is
-lifted back as
+A part drawn under a display map (`DisplayView::display_map`: a
+space's free-move frame composed with the placement editor's carry)
+or a body frame (`[placement.frame]`) is picked on the caller's ray
+carried back through those maps: `PickIndex::pick_for` carries it
+through the display map's inverse, then `pick_face` reads it into each
+target's frame (`PickTarget::ray_in_frame`). The parameter carries
+exactly (an affine map keeps it); the CERTIFICATE is the carried
+ray's as rounded, which is the caller's only to the carry's rounding.
+Spans of different copies are then ordered against each other as if
+certified on one ray:
 
-```rust
-candidates.push(PickHit {
-    point: map.transform_point(hit.point),
-    ..hit
-});
-```
+- `crates/viewer/src/pickindex.rs`, `PickIndex::pick_for`: the
+  cross-group merge (`TSpan::survivors`, `answer_of`) over the unmoved
+  batches (one per space) and each moved body's group.
+- `crates/editor-core/src/resolve/pick.rs`, `pick_face`: the
+  survivors taken over every target of one call, each target's spans
+  certified on the ray read into its own frame.
+- The viewer's merge of unmoved batches of different spaces, which
+  carry body frames only;
+  `pick3_acceptance::the_door_answers_the_exhaustive_walk_and_keeps_every_aimed_vertex`
+  pins those spans bit for bit against `FlatReference`, which carries
+  the same frames.
+- `PickIndex::near`'s outline arm: a profile outline's span is read on
+  the caller's ray against its world-drawn points
+  (`ray_segment_point(&ray, candidate.ends, s)`), while the face it
+  lies on is certified on the ray carried through that face's display
+  map and body frame, so under a large free move an outline can read
+  as behind its own face. It is not repaired alongside the edge's
+  reading because an outline holds no part frame: it knows its space
+  and the copy that carries it (`DisplayView::outline`), not the body
+  whose face it lies on, and that body's frame is a second carry the
+  outline's space coordinates do not share — so "the face it lies on"
+  is a second drawing, ordered across frames like any two copies.
 
-`..hit` carries `t`, `t_lo` and `t_hi` verbatim. They are parameters of
-the LOCAL ray (`inverse.transform_vec(ray.dir)`), not of the caller's.
-The site argues this is safe because the display layer admits only
-rigid probe frames, so `|dir|` is kept and `t` means the same world
-distance. The kernel's own statement at `PickHit::t` is *"a hit carried
-across a transform converts all three or none"*, and since the
-cross-group merge runs `TSpan::survivors` over every group's spans,
-these unconverted spans are compared against world ones directly.
+Two P3 rows filed on PR 7792's branch covered the kernel's merge and
+the cross-space merge above; they never reached main, and are folded
+in here as one class.
 
-Repair shape: convert the span through the same map (a no-op for a
-rigid map, the correction for any other), or refuse a non-rigid frame
-by name at the door that admits it. The comment at the site cites this
-finding by its old path under `work/vgeom/`; the lane that lands the
-fix points it here.
+**The witness.** A copy posed by an exact frame (a dyadic translation
+up to the session box, a half turn or not) and free-moved back onto
+its twin by the exact inverse is drawn on the twin's own points; a
+ray onto that face should refuse with both. On main 11–39 of 180 such
+rays per seed answered one copy alone: the move's translation cancels
+the pose's, and the carried ray keeps none of its origin's bits below
+that coordinate's rounding, some two hundred times the width a
+crossing near the origin certifies. The fuzzer and a pinned ray
+(pose half turn + `[-423.0, 395.375, 177.0]`) are on branch
+`vgeom/moved-copy-twin-witness` (`crates/viewer/tests/moved_copy_pick.rs`:
+`a_moved_copy_drawn_on_its_twin_ties_with_it`,
+`a_copy_moved_back_far_onto_its_twin_ties_with_it`), to land with the
+fix. **Take only those two rows** (and the helpers they call) from
+that branch: at b94591be3b it also carries the margined repair PR 7792
+took out — in `pickindex.rs`, editor-core's `pick.rs`, `gpu.rs` and
+pncad-py's `pick.rs` — and the two issue files folded in here.
 
-## Parked on the D10 hold (2026-10-22)
+**Not here any more.** The edge lane's own-face reading: an edge of a
+moved or posed copy read as hidden by its own face (130 of 554 hovers
+on the pinned row before the fix, and one silhouette edge of a copy
+merely posed). `own_crossing` now reads the chord on the ray the
+part's faces were certified on, against the mesh's own corners, so a
+face that is one of the chord's triangles is the same crossing bit for
+bit (PR 7792; guarded by `moved_copy_pick.rs`).
 
-`moved_placements` is the viewer's free-move over loose copies' spaces.
-Stage 3 D′ (`work/intent/a-placement-pins-by-written-values-without-a-mate.md`,
-`[ev]` PR 5494) retires loose spaces and moves free-move onto shown
-spaces, drawn through one composing door shared with export. That
-rewrites the map this site reads, and possibly the site itself, so
-fixing it now would fix code D′ is about to replace. When D′ lands,
-re-read this site: if the composing door already converts the span, or
-picks through world coordinates, the row closes as overtaken.
+**What a margined repair cannot be.** Growing a carried span by a
+bound on the carry's rounding (the row's first repair shape) is a
+rounding charge, which `[simple.conditioned]` forbids
+(`scripts/gates/bare-rounding-allowlist.sh` reds it); PR 7792 tried it
+and took it out.
 
-## Moved (2026-10-26)
+## Next step
 
-FIT folded back into VGEOM (Ev, in chat, 2026-10-26): FIT was cut from
-VGEOM on 2026-09-20 to run in parallel, a reason that is gone at FIT's
-size. Id and body unchanged.
+The band verdict, `[ev]` pending on PR 7793: two designers agree the pick should
+order crossings by a margined band verdict at ε (no certificate
+widths), with editor-core owning the one merge and each target handed
+in under its drawn map. Land the twin witness with that fix.
 
-## Released (INTENT, 2026-10-26)
+## History
 
-This row was parked on the stage-3 placement pivot (`a-placement-pins-by-written-values-without-a-mate`). All three of its PRs are merged: D′1 (PR 5592), D′2 (PR 5613) and D′3 (PR 5636, `29110056e8`). Re-check this row against main, then fix, narrow or close it. That is the owning track's call.
+Parked 2026-10-22 on the stage-3 placement pivot (D′,
+`work/intent/a-placement-pins-by-written-values-without-a-mate.md`);
+moved from FIT into VGEOM 2026-10-26; released by INTENT 2026-10-26
+when D′1–D′3 (PRs 5592, 5613, 5636) merged. A re-read after D′ said
+"nothing picks through world coordinates, so D′ did not overtake it",
+which was false: the edge lane's `own_crossing` and `Candidate`'s
+chord ends were placed in the world, which is what the self-occlusion
+half was. PR 7792 moved the chord's reading into the part's frame.

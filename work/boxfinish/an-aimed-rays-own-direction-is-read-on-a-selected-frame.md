@@ -6,6 +6,7 @@ status: open
 opened: 2026-11-23
 priority: P2
 cost: M
+refs: [the-side-readers-ray-rides-the-body-it-reads-over-a-box]
 ---
 
 

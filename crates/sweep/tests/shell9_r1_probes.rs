@@ -96,7 +96,7 @@ fn cap_at_y(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
         .filter(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(geom::Surface::Plane { frame, .. })
+                Ok(geom::Surface::Plane { frame, .. })
                     if (frame.origin().y - y).abs() < 1e-9 && frame.axis().x.abs() < 1e-9 && frame.axis().z.abs() < 1e-9
             )
         })
@@ -301,7 +301,7 @@ fn check_result(what: &str, body: &Body<f64>, want: f64, tol_abs: f64) {
 /// beside a (hollow) vessel, opened on the vessel's void ceiling.
 #[test]
 fn r1_end_to_end() {
-    // 1. The pole-touching ball: one wall in two π-bands, no seam ring.
+    // 1. The pole-touching ball: one wall in one band, no seam ring.
     let (r, t): (f64, f64) = (1.0, 0.05);
     let sphere = unit_ball();
     let out = topo::shell(&finished("the operand", sphere.clone(), tol()), t, tol())
@@ -455,7 +455,14 @@ fn r1_hunt_the_pcurve_arm() {
             ),
         }
         assert!(
-            !matches!(out, Err(ShellError::Pcurve { .. })),
+            !matches!(
+                &out,
+                Err(ShellError::NotValid { findings })
+                    if findings
+                        .as_slice()
+                        .iter()
+                        .any(|f| matches!(f, topo::ValidationError::Pcurve { .. }))
+            ),
             "{name}: the arm is reached"
         );
     }

@@ -3,18 +3,17 @@
 //! normal to it, under every boolean.
 //!
 //! Each ball is the canonical full revolve of a semicircle about `y`
-//! (two half-bands on one sphere key), moved off the origin. The pair's
-//! section is the radical-plane circle, handed to both sides' wall
-//! lanes; offset along `x` (or anywhere in
-//! the seam plane `z = c_z`) that circle is tilted against both charts'
-//! polar axis, so its azimuth doubles back; the join takes each chord's
-//! arc from the germs it pairs, which reads no chart. The faces it leaves are
-//! bounded by circles that are neither rims nor meridians, and the
-//! sphere flux arm measures them by Gauss–Bonnet
-//! (`props::curved::sphere_face`). Every body is held to all
-//! three validation tiers and to its volume against the lens the two
-//! spheres share, computed here from the radii and the centre distance
-//! alone.
+//! (one band, its seam the wrap edge from pole to pole), moved off the
+//! origin. The pair's section is the radical-plane circle, handed to
+//! both sides' wall lanes; offset along `x` (or anywhere in the seam
+//! plane `z = c_z`) that circle is tilted against both charts' polar
+//! axis; the join takes each chord's arc from the germs it pairs, which
+//! reads no chart. The faces it leaves are bounded by circles that are
+//! neither rims nor meridians, and the sphere flux arm measures them by
+//! Gauss–Bonnet (`props::curved::sphere_face`). Every body is held to
+//! all three validation tiers and to its volume against the lens the
+//! two spheres share, computed here from the radii and the centre
+//! distance alone.
 //!
 //! A pierce ring off the seam plane and a plane tilted against the ball's
 //! chart build too; the rows a tilted section does not yet reach are
@@ -142,7 +141,7 @@ const BASE: Vec3<f64> = Vec3::new(2.0, 2.0, 0.5);
 /// **Sphere pairs offset in the seam plane** build under every op: the
 /// radical plane is tilted against both charts, from a pair of equal
 /// balls whose section is a great-circle-sized cut to a small ball
-/// whose section lies wholly inside one half-band. Each pose is the
+/// mostly inside the unit one. Each pose is the
 /// `y`-poled unit ball at [`BASE`] against a ball of radius `r` at
 /// `BASE + offset`.
 #[test]
@@ -235,8 +234,8 @@ fn a_tilted_sphere_pair_builds_at_the_interval_scalar() {
 }
 
 /// **A pierce ring builds.** An offset with a component off the seam
-/// plane drives B's boundary through the interior of one of A's
-/// half-bands, where the section lands as a ring of that face, joined
+/// plane drives B's boundary through the interior of A's sphere face,
+/// clear of its seam, where the section lands as a ring of that face, joined
 /// to its outer loop by `mekr`. Its chord co-bounds no run, and takes
 /// the arc the pierce germs' directions name: an equal ball off the seam
 /// plane, and a smaller one off every axis.
@@ -374,7 +373,7 @@ fn a_flipped_tilted_face_is_refused_by_name() {
         for (k, _) in body.faces() {
             let on_b = matches!(
                 body.face_surface(k),
-                Some(geom::Surface::Sphere { frame, .. })
+                Ok(geom::Surface::Sphere { frame, .. })
                     if (frame.origin() - geom_core::Point3::new(b_centre.x, b_centre.y, b_centre.z)).norm() < 1e-12
             );
             if on_b_only && !on_b {
@@ -415,6 +414,95 @@ fn a_flipped_tilted_face_is_refused_by_name() {
         }
         assert!(flipped > 0, "{label}: a tilted face to flip");
     }
+}
+
+/// `a ∪ b` and `b ∪ a`, `a ∩ b` and `b ∩ a`, `a ∖ b` and `b ∖ a`, each a
+/// valid solid of its closed form ([`assert_solid`]), unmeshed: these
+/// are the join's rows, and a remnant sphere face that keeps its seam is
+/// the trimmed sphere lane's question
+/// (`work/lathe/a-sphere-remnant-that-keeps-its-seam-refuses-to-mesh-as-seam-twice.md`).
+fn assert_every_op_joins(
+    pose: &str,
+    (a, b): (&AtRestBody<f64>, &AtRestBody<f64>),
+    (va, vb): (f64, f64),
+    shared: f64,
+) {
+    for (label, op, x, y, expected) in [
+        ("A ∪ B", BooleanOp::Union, a, b, va + vb - shared),
+        ("B ∪ A", BooleanOp::Union, b, a, va + vb - shared),
+        ("A ∩ B", BooleanOp::Intersect, a, b, shared),
+        ("B ∩ A", BooleanOp::Intersect, b, a, shared),
+        ("A ∖ B", BooleanOp::Subtract, a, b, va - shared),
+        ("B ∖ A", BooleanOp::Subtract, b, a, vb - shared),
+    ] {
+        let label = format!("{pose}, {label}");
+        let out = run(op, x, y).unwrap_or_else(|e| panic!("{label} refused: {e:?}"));
+        let body = &out
+            .body()
+            .unwrap_or_else(|| panic!("{label} came back empty"))
+            .body;
+        assert_solid(&label, body, expected);
+    }
+}
+
+/// **The pair the flipped-remnant row reads joins under every op**: B
+/// offset `(0.6, 1.2)` from A swallows A's north pole, and their section
+/// circle meets the two balls' seams, which lie in one half-plane, at
+/// one site.
+#[test]
+fn the_pair_swallowing_a_pole_joins_under_every_op() {
+    let offset = Vec3::new(0.6, 1.2, 0.0);
+    assert_every_op_joins(
+        "B swallowing A's north pole",
+        (&ball(1.0, BASE), &ball(1.0, BASE + offset)),
+        (ball_volume(1.0), ball_volume(1.0)),
+        lens_volume(1.0, 1.0, offset.norm()),
+    );
+}
+
+/// **A one-site section through a pole**: B's sphere passes through A's
+/// north pole, its centre `1.2·(cos 120°, sin 120°, 0)` from A's, so the
+/// section circle runs through the pole, the tip of A's wrap edge, whose
+/// site cell is that edge's. The mirror, B's centre below the equator,
+/// runs it through the south pole.
+#[test]
+fn a_section_through_a_pole_joins_under_every_op() {
+    let (cos, sin) = (-0.5, 0.75f64.sqrt());
+    for (pose, c, pole) in [
+        (
+            "through the north pole",
+            Vec3::new(1.2 * cos, 1.2 * sin, 0.0),
+            1.0,
+        ),
+        (
+            "through the south pole",
+            Vec3::new(1.2 * cos, -1.2 * sin, 0.0),
+            -1.0,
+        ),
+    ] {
+        let r = (c - Vec3::new(0.0, pole, 0.0)).norm();
+        assert_every_op_joins(
+            pose,
+            (&ball(1.0, BASE), &ball(r, BASE + c)),
+            (ball_volume(1.0), ball_volume(r)),
+            lens_volume(1.0, r, c.norm()),
+        );
+    }
+}
+
+/// **One ball's tip on the other's seam**: B, radius 0.8 at
+/// `(−0.5, 1 − √0.39, 0)` from A, passes through A's north pole, which
+/// lies on B's seam inside its span, so the section meets A at the tip
+/// of its wrap edge and B inside its own.
+#[test]
+fn a_tip_on_the_partners_seam_joins_under_every_op() {
+    let c = Vec3::new(-0.5, 1.0 - 0.39f64.sqrt(), 0.0);
+    assert_every_op_joins(
+        "A's pole on B's seam",
+        (&ball(1.0, BASE), &ball(0.8, BASE + c)),
+        (ball_volume(1.0), ball_volume(0.8)),
+        lens_volume(1.0, 0.8, c.norm()),
+    );
 }
 
 /// **A remnant face that keeps one pole and loses the other encodes its
@@ -539,38 +627,51 @@ fn a_tilted_split_of_a_sphere_body_refuses_at_the_reduce() {
 /// is not meshed here.
 #[test]
 fn a_section_passing_near_a_pole_or_through_it_builds() {
-    let c = Vec3::new(2.0, 2.0, 0.5);
-    let pair = |d: f64| {
-        let s = 0.7 + d;
-        let lean = Vec3::new(1.4 * (1.0 - s * s).sqrt(), 1.4 * s, 0.0);
-        (ball(1.0, c), ball(1.0, c + lean))
-    };
-    let expected = 2.0 * ball_volume(1.0) - lens_volume(1.0, 1.0, 1.4);
-    for d in [0.0, 1e-5, 1e-4, 3e-4] {
-        let (a, b) = pair(d);
-        let out = run(BooleanOp::Union, &a, &b)
-            .unwrap_or_else(|e| panic!("δ {d}: the section refused: {e:?}"));
-        let body = &out.body().unwrap_or_else(|| panic!("δ {d}: empty")).body;
-        if d == 0.0 {
-            assert_body(&format!("δ {d}"), body, expected);
-        } else {
-            assert_solid(&format!("δ {d}"), body, expected);
-        }
-        if d > 0.0 && d < 2e-4 {
-            let drawn = mesh::tessellate(body, 1e-2, Tol::witness());
-            assert!(
-                matches!(
-                    &drawn,
-                    Err(mesh::TessellateError::SphereTrimShape {
-                        cause: mesh::types::SphereTrimCause::ChordBudget,
-                        ..
-                    })
-                ),
-                "δ {d}: the near-pole schedule is past the arm's chord budget, got {:?}",
-                drawn.map(|m| m.positions.len())
-            );
-        }
-    }
+    // Pinned red at ε 1e-12: at δ 1e-4 the radical circle encloses the
+    // pole, and on the one band it is one closed edge whose image sweeps
+    // exactly one turn, read `1.25e-12` short, in band at ε 1e-12 only
+    // (`work/lathe/a-section-circle-enclosing-a-one-band-spheres-pole-reads-its-one-turn-sweep-in-band.md`).
+    // δ 1e-4 runs last, so every other δ still runs at that ε.
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &[1e-12],
+        "the section enclosing the pole at δ 1e-4",
+        &["δ 0.0001: the section refused", "AzimuthPeriod"],
+        || {
+            let c = Vec3::new(2.0, 2.0, 0.5);
+            let pair = |d: f64| {
+                let s = 0.7 + d;
+                let lean = Vec3::new(1.4 * (1.0 - s * s).sqrt(), 1.4 * s, 0.0);
+                (ball(1.0, c), ball(1.0, c + lean))
+            };
+            let expected = 2.0 * ball_volume(1.0) - lens_volume(1.0, 1.0, 1.4);
+            for d in [0.0, 1e-5, 3e-4, 1e-4] {
+                let (a, b) = pair(d);
+                let out = run(BooleanOp::Union, &a, &b)
+                    .unwrap_or_else(|e| panic!("δ {d}: the section refused: {e:?}"));
+                let body = &out.body().unwrap_or_else(|| panic!("δ {d}: empty")).body;
+                if d == 0.0 {
+                    assert_body(&format!("δ {d}"), body, expected);
+                } else {
+                    assert_solid(&format!("δ {d}"), body, expected);
+                }
+                if d > 0.0 && d < 2e-4 {
+                    let drawn = mesh::tessellate(body, 1e-2, Tol::witness());
+                    assert!(
+                        matches!(
+                            &drawn,
+                            Err(mesh::TessellateError::SphereTrimShape {
+                                cause: mesh::types::SphereTrimCause::ChordBudget,
+                                ..
+                            })
+                        ),
+                        "δ {d}: the near-pole schedule is past the arm's chord budget, got {:?}",
+                        drawn.map(|m| m.positions.len())
+                    );
+                }
+            }
+        },
+    );
 }
 
 /// **The nearest of those sections builds on its own.** The section

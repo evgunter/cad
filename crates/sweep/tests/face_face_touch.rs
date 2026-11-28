@@ -212,10 +212,7 @@ fn a_rod_on_a_plate_records_its_touch_and_a_bridge_lands_it() {
             tol(),
         )
     };
-    let ff = topo::OperandRecords {
-        ff: u.contacts.carried().ff,
-        ..topo::OperandRecords::default()
-    };
+    let ff = face_face(u.contacts.carried());
     match bridged(ff) {
         Ok(BooleanResult::Body(r)) => {
             assert_eq!(r.body.solids().count(), 1, "∪ bridge: one solid");
@@ -453,9 +450,10 @@ fn a_given_tangency_through_both_interiors_records_the_face_face_touch() {
 }
 
 /// **A carried edge–face or face–face row is validated at the door**,
-/// as its siblings are: a key that does not resolve, a face–face row
-/// naming one face twice, and an edge–face row whose edge bounds its
-/// face (no record: their interiors cannot meet) each refuse there.
+/// as its siblings are: a key that does not resolve and an edge–face
+/// row whose edge bounds its face (no record: their interiors cannot
+/// meet) each refuse there, and a face–face row naming one face twice
+/// is no record at all.
 #[test]
 fn a_carried_curve_touch_row_with_a_bad_key_refuses_at_the_door() {
     let plate = finished(
@@ -481,35 +479,40 @@ fn a_carried_curve_touch_row_with_a_bad_key_refuses_at_the_door() {
         .find(|&(he, _)| u.body.face_of_half_edge(he) == Some(face))
         .map(|(_, h)| h.edge)
         .unwrap();
-    let ef = |edge, face| topo::OperandRecords {
-        ef: vec![topo::CarriedRecord {
-            contact: topo::EfContact { edge, face },
+    // Each pair is built in an empty body, which holds no cell and so
+    // bounds none: what the door is handed is checked against `u`.
+    let one = |x, y| {
+        topo::OperandRecords::from_iter([topo::CarriedRecord {
+            contact: topo::Contact::new(&topo::Body::<f64>::new(), x, y).unwrap(),
             record: 0,
-        }],
-        ..topo::OperandRecords::default()
+        }])
     };
-    let ff = |a, b| topo::OperandRecords {
-        ff: vec![topo::CarriedRecord {
-            contact: topo::FfContact { a, b },
-            record: 0,
-        }],
-        ..topo::OperandRecords::default()
-    };
+    let (ef, ff) = (
+        |edge, face| one(topo::Cell::Edge(edge), topo::Cell::Face(face)),
+        |a, b| one(topo::Cell::Face(a), topo::Cell::Face(b)),
+    );
+    assert_eq!(
+        topo::Contact::new(&u.body, topo::Cell::Face(fa), topo::Cell::Face(fa)),
+        Err(topo::ContactPairError::OneCell(topo::Cell::Face(fa))),
+        "a pair naming one face twice is no record to carry"
+    );
     for (records_a, what) in [
         (
             ef(topo::EdgeKey::default(), face),
-            "carried e-f edge key does not resolve",
+            "a carried record's edge key does not resolve",
         ),
         (
             ef(edge, topo::FaceKey::default()),
-            "carried e-f face key does not resolve",
+            "a carried record's face key does not resolve",
         ),
-        (ef(rim, face), "carried e-f edge bounds its face"),
+        (
+            ef(rim, face),
+            "a carried record's one cell bounds the other",
+        ),
         (
             ff(fa, topo::FaceKey::default()),
-            "carried f-f face key does not resolve",
+            "a carried record's face key does not resolve",
         ),
-        (ff(fa, fa), "carried f-f pair names one face twice"),
     ] {
         let got = topo::boolean_op_with(
             topo::BooleanOp::Union,
@@ -901,10 +904,7 @@ fn bridged_rod_posed(
         tol(),
     );
     let records_a = if carry {
-        topo::OperandRecords {
-            ff: u.contacts.carried().ff,
-            ..topo::OperandRecords::default()
-        }
+        face_face(u.contacts.carried())
     } else {
         topo::OperandRecords::default()
     };
@@ -1280,7 +1280,7 @@ fn rod_along_x(x0: f64, len: f64, z: f64) -> AtRestBody<f64> {
 }
 
 /// **CONTACTHOLD's open m2, pinned as it stands**
-/// (`work/contacthold/a-fold-steps-restated-tangency-takes-one-of-several-verdicts-margins.md`):
+/// (`work/heldrecords/a-fold-steps-restated-tangency-takes-one-of-several-verdicts-margins.md`):
 /// two plates overlapping in z whose y = 2 faces are coplanar (the
 /// second raised ε/100 off it, inside the band) and merge, and a rod
 /// along x tangent to the merged face along z = 0.75, through both
@@ -1359,4 +1359,65 @@ fn contacthold_m2_a_restated_tangency_carries_the_first_of_two_verdicts_margins(
         step.body.coincidences[k].margin, m0,
         "m2 (open): the restated row carries the first verdict's margin alone"
     );
+}
+
+/// `records`' face–face records alone.
+fn face_face(records: topo::OperandRecords) -> topo::OperandRecords {
+    records.face_face().map(|(c, ..)| *c).collect()
+}
+
+/// The n-ary union of a full-height rod tangent to the plate's y = 2
+/// face along x = 0 (radius 0.5 about (0, 2.5), z 0..1, its cap circles
+/// on the face's top and bottom edges), a block flush on that face beside
+/// the line (x 1..1.8, y 2..2.6) over `z`, and the plate, in that order:
+/// the plate joins last, so the step reads the line against the plate's
+/// face, which the flush block's contact divides. Asserts the union
+/// builds, with the one face–face record of the rod's touch.
+fn rod_flush_plate(what: &str, z: (f64, f64)) {
+    let plate = finished(
+        "plate",
+        brick::<f64>((-2.0, 2.0), (-2.0, 2.0), (0.0, 1.0), tol()),
+        tol(),
+    );
+    let rod = ext("rod", vec![circle(0.0, 2.5, 0.5, 0.0)], 0.0, 1.0);
+    let flush = finished(
+        "flush",
+        brick::<f64>((1.0, 1.8), (2.0, 2.6), z, tol()),
+        tol(),
+    );
+    let built = nary_union(what, &[&rod, &flush, &plate]);
+    let last = &built.steps.last().expect("a step").body;
+    assert_eq!(
+        last.contacts.face_face().count(),
+        1,
+        "{what}: the rod's touch on the plate's face is one face–face record: {:?}",
+        last.contacts
+    );
+}
+
+/// **A section the output stage merges into a face is no cell of the
+/// plate face's division** (`rod_flush_plate`, the flush block taller
+/// than the plate): the merge takes a section edge on the plate face's
+/// boundary into a face beyond its pieces, and the rod's record lands
+/// on the piece that holds the line. Red where the division names that
+/// face among its minted cells: the record refuses `Unread` on the
+/// rod's wall against it.
+#[test]
+fn a_tall_flush_block_leaves_the_rods_touch_on_the_plates_piece() {
+    rod_flush_plate("tall flush (z 0..1.5)", (0.0, 1.5));
+}
+
+/// As [`a_tall_flush_block_leaves_the_rods_touch_on_the_plates_piece`],
+/// the flush block standing below the plate, its top flush with the
+/// plate's (z −0.5..1).
+#[test]
+fn a_deep_flush_block_leaves_the_rods_touch_on_the_plates_piece() {
+    rod_flush_plate("deep flush (z −0.5..1)", (-0.5, 1.0));
+}
+
+/// As [`a_tall_flush_block_leaves_the_rods_touch_on_the_plates_piece`],
+/// the flush block shorter than the plate (z 0..0.5).
+#[test]
+fn a_short_flush_block_leaves_the_rods_touch_on_the_plates_piece() {
+    rod_flush_plate("short flush (z 0..0.5)", (0.0, 0.5));
 }

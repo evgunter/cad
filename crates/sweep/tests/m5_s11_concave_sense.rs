@@ -693,7 +693,7 @@ fn loft_concave_arc_walls_face_out_and_a_flip_is_invisible_below() {
     // The residual. Segment 2 is the concave arc — the wall whose
     // extruded twin mints `sense: false` — pinned by its mid-chart
     // sample so the row cannot drift onto a planar wall.
-    let wall = lofted.side_faces[0][2][0].unwrap();
+    let wall = lofted.side_faces[0][2][0][0].unwrap();
     let (p, _) = wall_outward(&lofted.body, wall);
     assert!(
         (p.y - (2.5 - 2.0_f64.sqrt())).abs() < 1e-9,
@@ -754,7 +754,7 @@ fn loft_hole_walls_face_out_of_the_plate() {
     assert_eq!(topo::validate(&lofted.body), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(&lofted.body), Ok(()), "tier 2");
     let twin = extruded_twin(&loops, 1.0);
-    assert_walls_face_out(&lofted, &twin_oracle(&twin), &MID_CHART, 0.05, 6);
+    assert_walls_face_out(&lofted, &twin_oracle(&twin), &MID_CHART, 0.05, 8);
 }
 
 /// **A tapered loft agrees with the verified prism.** Every row above
@@ -791,9 +791,9 @@ fn a_tapered_concave_loft_keeps_the_prism_wall_directions() {
     assert_eq!(topo::validate(&tapered.body), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(&tapered.body), Ok(()), "tier 2");
     for (li, walls) in tapered.side_faces.iter().enumerate() {
-        for (si, fk) in walls.iter().map(|slabs| slabs[0].unwrap()).enumerate() {
+        for (si, fk) in walls.iter().map(|subs| subs[0][0].unwrap()).enumerate() {
             let (_, taper_n) = wall_outward(&tapered.body, fk);
-            let (_, prism_n) = wall_outward(&prism.body, prism.side_faces[li][si][0].unwrap());
+            let (_, prism_n) = wall_outward(&prism.body, prism.side_faces[li][si][0][0].unwrap());
             let dot = taper_n.dot(prism_n);
             assert!(
                 dot > core::f64::consts::FRAC_PI_4.cos(),
@@ -809,19 +809,22 @@ fn a_tapered_concave_loft_keeps_the_prism_wall_directions() {
 /// was `union(notched, pellet)` on two disjoint solids: no surface
 /// intersections, so the operation asks `point_in_solid`, and a wrong
 /// `sense` on the concave wall made it answer `In` and swallow the
-/// pellet. On a LOFTED operand both doors refuse instead: the boolean
-/// reads every edge of the pellet clear of the loft's NURBS walls, finds
-/// no crossing, and its extent fallback cannot say which side of the
-/// concave top wall the pellet sits on, and `point_in_solid` has no
-/// NURBS door at all.
+/// pellet. On a LOFTED operand the boolean refuses instead: it reads
+/// every edge of the pellet clear of the loft's NURBS walls, finds no
+/// crossing, and its extent fallback cannot say which side of the
+/// concave top wall the pellet sits on.
 ///
-/// So the swallow is closed for loft by REFUSAL, not by the bit, which
-/// is why the material-side probes above carry the guard. The extrude
-/// half of the witness is `m5_s10_face_sense`'s
+/// `point_in_solid` itself crosses the loft's walls (PR 7798's spline
+/// arm), and reads the pellet's point on its true side: the top wall is
+/// the arc of radius √2 about `(1, 2.5)`, so its floor at `x = 1` is
+/// `y = 2.5 − √2 ≈ 1.0858`, and `(1, 1.3)` lies in the notch, outside
+/// the material; `(1, 0.5)` lies inside it. The extrude half of the
+/// witness is `m5_s10_face_sense`'s
 /// `fixed_union_keeps_a_pellet_in_a_concave_notch`, in this binary; it
 /// is not re-run here.
 #[test]
 fn a_lofted_operand_refuses_the_union_check_typed() {
+    use topo::SolidContainment::{In, Out};
     let lofted = loft_pair(&notched_loops(), 1.0);
     // The S11 pellet: strictly inside the concave notch (the floor at
     // x = 1 is y = 2.5 − √2 ≈ 1.0858), so the two solids are disjoint.
@@ -861,19 +864,26 @@ fn a_lofted_operand_refuses_the_union_check_typed() {
     };
     assert_eq!(
         face,
-        lofted.side_faces[0][2][0].unwrap(),
+        lofted.side_faces[0][2][0][0].unwrap(),
         "the named face is the concave top wall the pellet sits under"
     );
-    let door = point_in_solid(
-        &lofted.body,
-        Point3::new(1.0, 1.3, 0.5),
-        band(),
-        Tol::witness(),
-    );
-    assert!(
-        door.is_err(),
-        "point_in_solid has no NURBS door: it must refuse, not guess: {door:?}"
-    );
+    // The notch's floor at `x = 1`, in closed form: the top arc's
+    // centre `(1, 1.5 + 1)` less its radius √2.
+    let floor = 2.5 - core::f64::consts::SQRT_2;
+    for (y, want) in [(1.3, Out), (0.5, In)] {
+        assert_eq!(y > floor, want == Out, "the oracle's side at y = {y}");
+        let door = point_in_solid(
+            &lofted.body,
+            Point3::new(1.0, y, 0.5),
+            band(),
+            Tol::witness(),
+        );
+        assert_eq!(
+            door,
+            Ok(want),
+            "point_in_solid reads (1, {y}, 0.5) on its side"
+        );
+    }
 }
 
 // =====================================================================
@@ -944,7 +954,7 @@ fn a_convexity_flipping_loft_faces_out_at_every_level() {
     // fixed at y = 0, so its mid-`u` height IS its signed bow: the
     // quarter circle's sagitta √2 − 1 into the region below, out of it
     // above, and zero at the level where the wall is flat.
-    let seg = lofted.side_faces[0][0][0].unwrap();
+    let seg = lofted.side_faces[0][0][0][0].unwrap();
     let bow = |t: f64| wall_outward_at(&lofted.body, seg, 0.5, t).0.y;
     let sag = 2.0_f64.sqrt() - 1.0;
     assert!(
@@ -985,7 +995,7 @@ fn a_three_section_curved_v_loft_faces_out_at_every_level() {
     // chart normal is carried by the stacking, so the dogleg tilts it
     // one way over the lower half and the other way over the upper —
     // a ruled `v` would hold it fixed and this would read cos = 1.
-    let side = lofted.side_faces[0][1][0].unwrap();
+    let side = lofted.side_faces[0][1][0][0].unwrap();
     let n0 = wall_outward_at(&lofted.body, side, 0.5, 0.05).1;
     let n1 = wall_outward_at(&lofted.body, side, 0.5, 0.95).1;
     assert!(
@@ -1089,7 +1099,7 @@ fn a_curved_path_swept_body_faces_out_along_the_whole_turn() {
     // ANTI-VACUITY: the turn has to reach the chart. One wall's normal
     // at the two ends of `v` is a quarter turn apart — a straight path
     // would hold it fixed and this would read cos = 1.
-    let wall = swept.side_faces[0][0][0].unwrap();
+    let wall = swept.side_faces[0][0][0][0].unwrap();
     let n0 = wall_outward_at(&swept.body, wall, 0.5, 0.0).1;
     let n1 = wall_outward_at(&swept.body, wall, 0.5, 1.0).1;
     assert!(

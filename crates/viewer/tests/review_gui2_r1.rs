@@ -195,7 +195,6 @@ fn cursor_projection_is_exactly_a_shift_and_scale_in_ndc() {
         )
         .expect("a finite camera");
         let aspect = rng.range(0.4, 3.0);
-        let vp32 = camera.view_projection_f32(aspect).expect("defined");
         let point = Point3::new(
             rng.range(-0.8, 0.8),
             rng.range(-0.8, 0.8),
@@ -210,33 +209,110 @@ fn cursor_projection_is_exactly_a_shift_and_scale_in_ndc() {
         let size = [rng.range(64.0, 4000.0), rng.range(64.0, 4000.0)]
             .narrow()
             .expect("a viewport of ordinary size");
-        let shifted = cursor_projection(&vp32, cursor, size);
-        let [px, py, pz] = point.narrow().expect("a point the seam draws");
-        let v = [px, py, pz, 1.0f32];
-        let apply = |m: &[[f32; 4]; 4]| {
-            let mut out = [0.0f32; 4];
-            for (row, slot) in out.iter_mut().enumerate() {
-                *slot = m[0][row] * v[0] + m[1][row] * v[1] + m[2][row] * v[2] + m[3][row] * v[3];
-            }
-            out
-        };
-        let base = apply(&vp32);
-        let out = apply(&shifted);
-        assert!(base[3] > 0.0);
-        let want_x = (base[0] / base[3] - cursor[0]) * size[0];
-        let want_y = (base[1] / base[3] - cursor[1]) * size[1];
-        let got_x = out[0] / out[3];
-        let got_y = out[1] / out[3];
-        let tol_of = |want: f32| 1.0e-3f32.max(want.abs() * 1.0e-4);
-        assert!(
-            (got_x - want_x).abs() < tol_of(want_x) && (got_y - want_y).abs() < tol_of(want_y),
-            "case {case}: shifted NDC ({got_x}, {got_y}) vs independent ({want_x}, {want_y})"
+        shifts_and_scales(
+            &format!("case {case}"),
+            &camera,
+            aspect,
+            point,
+            cursor,
+            size,
         );
-        // Depth and w are pass-through: rows 2 and 3 of the matrix are
-        // untouched by construction, so the clip z and w agree exactly.
-        assert_eq!(out[2], base[2], "case {case}: depth is untouched");
-        assert_eq!(out[3], base[3], "case {case}: w is untouched");
     }
+}
+
+/// The shift-and-scale property at one input, the fuzzer's and the
+/// pinned row's.
+///
+/// The independent side is computed in `f64` from the same `f32`
+/// matrix and point (each product is exact there), so it is the
+/// algebra's answer and the tolerance is the shifted side's own `f32`
+/// rounding: the shifted entries `(m − c·w)·s`, the dot product over
+/// them, the clip `w` and the divide, at most 12 roundings
+/// (`f32::EPSILON / 2` each) of the magnitudes they sum, bounded here
+/// by 16. That grows with the viewport size and with `1 / w`, which
+/// is why no absolute floor serves: a viewport 4000 pixels across
+/// with a point near the eye plane rounds by more than any floor
+/// small enough to see a wrong shift.
+fn shifts_and_scales(
+    case: &str,
+    camera: &Camera,
+    aspect: f64,
+    point: Point3<f64>,
+    cursor: [f32; 2],
+    size: [f32; 2],
+) {
+    let vp32 = camera.view_projection_f32(aspect).expect("defined");
+    let shifted = cursor_projection(&vp32, cursor, size);
+    let [px, py, pz] = point.narrow().expect("a point the seam draws");
+    let v = [px, py, pz, 1.0f32];
+    let apply = |m: &[[f32; 4]; 4]| {
+        let mut out = [0.0f32; 4];
+        for (row, slot) in out.iter_mut().enumerate() {
+            *slot = m[0][row] * v[0] + m[1][row] * v[1] + m[2][row] * v[2] + m[3][row] * v[3];
+        }
+        out
+    };
+    let wide = |row: usize, magnitude: bool| -> f64 {
+        (0..4)
+            .map(|i| {
+                let term = f64::from(vp32[i][row]) * f64::from(v[i]);
+                if magnitude { term.abs() } else { term }
+            })
+            .sum()
+    };
+    let base = apply(&vp32);
+    let out = apply(&shifted);
+    assert!(base[3] > 0.0, "{case}: the point is in front of the eye");
+    let w = wide(3, false);
+    for axis in 0..2 {
+        let (c, s) = (f64::from(cursor[axis]), f64::from(size[axis]));
+        let want = (wide(axis, false) / w - c) * s;
+        let got = f64::from(out[axis]) / f64::from(out[3]);
+        let magnitude =
+            (s * (wide(axis, true) + c.abs() * wide(3, true)) + got.abs() * wide(3, true)) / w;
+        let tol = 8.0 * f64::from(f32::EPSILON) * magnitude;
+        assert!(
+            (got - want).abs() <= tol,
+            "{case}: shifted NDC axis {axis} is {got}, the algebra's is {want}, off by {} \
+             against the f32 rounding bound {tol}",
+            (got - want).abs()
+        );
+    }
+    // Depth and w are pass-through: rows 2 and 3 of the matrix are
+    // untouched by construction, so the clip z and w agree exactly.
+    assert_eq!(out[2], base[2], "{case}: depth is untouched");
+    assert_eq!(out[3], base[3], "{case}: w is untouched");
+}
+
+/// The fuzzer's counterexample to an absolute tolerance floor
+/// (`CAD_FUZZ_SEED=0xe944f229074a29d0`, case 52): a viewport 3819
+/// pixels tall and a point at clip `w ≈ 0.096`, where the shifted `y`
+/// and a reference taken in `f32` part by 1.75e-3 of NDC, against a
+/// floor of 1e-3. Both sides were rounding; neither is a thousandth of
+/// a pixel from the algebra.
+#[test]
+fn cursor_projection_rounds_within_f32_on_a_wide_viewport_near_the_eye() {
+    let camera = Camera::new(
+        Point3::new(0.0, 0.0, 0.0),
+        1.169_741_804_920_349_2,
+        -2.273_604_324_169_088,
+        -0.931_909_376_557_387_6,
+        1.943_038_140_931_303_6,
+        1.0,
+    )
+    .expect("a finite camera");
+    shifts_and_scales(
+        "the pinned case",
+        &camera,
+        2.344_639_618_614_043,
+        Point3::new(
+            -0.647_960_619_479_476,
+            -0.420_222_021_991_171_1,
+            -0.788_532_260_756_566_6,
+        ),
+        [0.987_220_2, 0.878_528_54],
+        [3_411.910_6, 3_818.809_3],
+    );
 }
 
 // --- the id alphabet over this suite's own two-copy fixture ---------

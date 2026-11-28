@@ -4,7 +4,7 @@ kind: issue
 title: the two-hole plate's document never cuts its holes, so the gallery's plate opens as a blank slab
 status: parked
 blocked_on: [a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound]
-priority: P3
+priority: P1
 cost: M
 opened: 2026-10-02
 ---
@@ -46,6 +46,16 @@ The cut is pinned live as two walls: `tolerance::cut_wall` (wall 1, in
 (wall 2). An overshooting tool is not this part's spelling; measured as
 evidence, it refuses the 1e-9 box on a second frontier
 (`work/charttail/an-overshooting-subtract-flips-chart-bound-outer-span-over-a-tiny-box.md`).
-The trigger is both blockers closing: the cut then certifies and has a
-product, and the plate is re-authored as the cut.
+The cut's product half is done: the gallery's cut plate places its cut
+part and has it as its product (`demos/README.md`, The document
+gallery). The trigger is the certified half,
+`tally/a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound`
+closing: the cut then certifies, and the plate is re-authored as the
+cut.
 
+## Re-banded P1 (2026-11-25)
+
+Raised from P3 at Ev's direction (in chat): the gallery's plate should
+denote the part its study is about. Its blocker
+`tally/a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound`
+is raised to P1 with it.

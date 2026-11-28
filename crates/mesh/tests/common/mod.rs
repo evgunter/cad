@@ -130,7 +130,7 @@ pub fn rounded_prism() -> Body<f64> {
     sweep::test_support::extruded(SketchPlane::xy(), vec![lp], 1.0, Tol::witness())
 }
 
-/// The ball: unit half-disc revolved fully (two-band sphere, poles).
+/// The ball: unit half-disc revolved fully (one-face sphere, poles).
 pub fn ball() -> Body<f64> {
     let lp = bulge_loop(vec![
         (Point2::new(0.0, -1.0), 1.0),
@@ -493,6 +493,56 @@ pub fn check_mesh_acceptance(body: &Body<f64>, delta: f64, exact: Option<(f64, f
     assert_eq!(dump(&mesh), dump(&again), "rebuild not byte-identical");
 
     mesh
+}
+
+/// The points `split_edge` puts on `edge` of `body` at `fracs` of its
+/// stored interval: each a station, read off the parent's carrier, not
+/// off any predicate.
+pub fn split_points(body: &Body<f64>, edge: topo::EdgeKey, fracs: &[f64]) -> Vec<Point3<f64>> {
+    let c = body
+        .get_curve_geom(body.get_edge(edge).unwrap().curve)
+        .unwrap()
+        .certified()
+        .unwrap();
+    let (t0, t1) = c.params();
+    fracs
+        .iter()
+        .map(|f| c.carrier().eval(t0 + f * (t1 - t0)))
+        .collect()
+}
+
+/// **A body holding stations is construction state** (tier 3's check
+/// 11, maximal edges): the at-rest gate refuses it with one
+/// `JoinableVertexAtRest` at each of `stations` and nothing else, so no
+/// door that reads a finished body (props, a boolean's operands) takes
+/// it. `stations` are where the construction put them
+/// ([`split_points`]), so the gate's reading is checked against the
+/// construction, not against the predicate it reads by.
+#[track_caller]
+pub fn construction_state(body: &Body<f64>, stations: &[Point3<f64>]) {
+    let findings = topo::finish(body.clone(), Tol::witness())
+        .map(|_| ())
+        .expect_err("a body holding stations is not at rest")
+        .into_findings();
+    let point = |v: topo::VertexKey| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+    let mut at: Vec<Point3<f64>> = findings
+        .iter()
+        .filter_map(|e| match e {
+            topo::ValidationError::JoinableVertexAtRest { vertex } => Some(point(*vertex)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        at.len(),
+        findings.len(),
+        "the gate refuses the stations and nothing else: {findings:?}"
+    );
+    assert_eq!(at.len(), stations.len(), "one finding per station: {at:?}");
+    for s in stations {
+        let i = at.iter().position(|p| (*p - *s).norm() < 1e-12);
+        assert!(i.is_some(), "no finding at the station {s:?}: {at:?}");
+        at.swap_remove(i.unwrap());
+    }
 }
 
 /// The plate `[−1, 1]² × [0, 1]` with a hole of radius `hole` drawn as

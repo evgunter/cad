@@ -409,7 +409,7 @@ fn edge_on(
 fn floor_clears(carrier: &Curve3<f64>, at: Point3<f64>) -> bool {
     crate::splitting::containment::arc_distance_floor(carrier, (0.0, 1.0), at)
         .unwrap()
-        .clears(|gap| super::clear(gap, 1e-2, band()))
+        .clears(|gap| super::gap_clears(gap, 1e-2, band()))
 }
 
 /// **A ball beside a spline or spiric edge, inside the ball that holds

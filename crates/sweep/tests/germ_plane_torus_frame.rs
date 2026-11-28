@@ -13,9 +13,8 @@
 //!   concentric circle or the spiric oval the chord's sites lie on, and
 //!   the op builds, or stops past the join (`germ_plane_torus_chord` and
 //!   `germ_plane_torus_spiric` hold the bodies to the truth);
-//! - any other transverse plane cuts a general spiric quartic and
-//!   refuses at the frame, naming the loops the section certificate
-//!   reads (`GermSectionSpiric`);
+//! - any other transverse plane cuts a general spiric quartic, which
+//!   the section value marches and the join reads by its components;
 //! - a plane touching the torus keeps its on-carrier refusal, ahead of
 //!   the frame.
 //!
@@ -35,7 +34,7 @@ use profile::{RawLoop, test_support::bulge_loop};
 use revolve_common::{axis_y, validated};
 use sweep::test_support::finished;
 use sweep::{Revolution, revolve};
-use topo::{AtRestBody, BooleanError, BooleanOp, SpiricLoops};
+use topo::{AtRestBody, BooleanError, BooleanOp};
 
 /// A ring torus about `y`, `R`, `r`, as one revolve.
 pub(crate) fn torus(big_r: f64, r: f64) -> AtRestBody<f64> {
@@ -274,20 +273,22 @@ fn doors(
         .collect()
 }
 
-/// **A general pose refuses at its frame, by name, with the loops the
-/// certificate reads**: one null oval past the inner equator (S3, the
-/// axis-parallel plane `x = 1.8`) and on B3's tilted bar; two loops
-/// round the tube on the oblique planes O1 (20° off the axis, through
-/// `(0, 0.1, 0)`) and O2 (20° off the meridian normal, through the
-/// centre); two loops round the axis on a plane 3° off axis-normal
-/// through `(0, 0.2, 0)`. B3's pierce escalates ahead of the frame at a
-/// coarse run band, and says so.
+/// **A general pose builds to its volume**: one null oval past the inner
+/// equator (S3, the axis-parallel plane `x = 1.8`) and on B3's tilted
+/// bar; two loops round the tube on the oblique planes O1 (20° off the
+/// axis, through `(0, 0.1, 0)`) and O2 (20° off the meridian normal,
+/// through the centre); two loops round the axis on a plane 3° off
+/// axis-normal through `(0, 0.2, 0)`. The section value marches each;
+/// every op that builds is valid to tier 3, and a half-space's ops hold
+/// the donut's part past the plane, integrated apart from the kernel
+/// ([`torus_past_a_plane`]). An op other than ∪ may stop at the piece
+/// sort, which reads no torus face a marched edge trims; B3 may stop at
+/// its torus face's ring run, which winds no marched edge, and its
+/// pierce escalates ahead of everything at a coarse run band, and says
+/// so.
 #[test]
-fn a_general_pose_refuses_at_its_frame_naming_its_loops() {
+fn a_general_pose_builds_to_its_volume() {
     let d = donut();
-    let tilted = |a: f64, at: Point3<f64>| {
-        half_space(at, Vec3::new(degrees(a).sin(), degrees(a).cos(), 0.0))
-    };
     let b3 = finished(
         "B3",
         framed_bar(
@@ -299,35 +300,38 @@ fn a_general_pose_refuses_at_its_frame_naming_its_loops() {
         ),
         Tol::witness(),
     );
+    let tilt = |a: f64| Vec3::new(degrees(a).sin(), degrees(a).cos(), 0.0);
+    let past = |o: Point3<f64>, n: Vec3<f64>| (half_space(o, n), Some(torus_past_a_plane(o, n)));
+    let s3 = past(Point3::new(1.8, 0.0, 0.0), Vec3::unit_x());
+    let o1 = past(Point3::new(0.0, 0.1, 0.0), tilt(20.0));
+    let o2 = past(Point3::origin(), tilt(70.0));
+    let off3 = past(Point3::new(0.0, 0.2, 0.0), tilt(3.0));
+    let (mut held, mut sorted) = (0, Vec::new());
     for (pose, p, want) in [
-        (
-            "S3",
-            half_space(Point3::new(1.8, 0.0, 0.0), Vec3::unit_x()),
-            SpiricLoops::Null,
-        ),
-        ("B3", b3, SpiricLoops::Null),
-        (
-            "O1",
-            tilted(20.0, Point3::new(0.0, 0.1, 0.0)),
-            SpiricLoops::AroundTube,
-        ),
-        (
-            "O2",
-            tilted(70.0, Point3::origin()),
-            SpiricLoops::AroundTube,
-        ),
-        (
-            "3° off axis-normal",
-            tilted(3.0, Point3::new(0.0, 0.2, 0.0)),
-            SpiricLoops::AroundAxis,
-        ),
+        ("S3", s3.0, s3.1),
+        ("B3", b3, None),
+        ("O1", o1.0, o1.1),
+        ("O2", o2.0, o2.1),
+        ("3° off axis-normal", off3.0, off3.1),
     ] {
         let band = geom_core::Band::linear(Tol::witness()).unwrap();
         let pierce_in_band = band.zero() < 5.2e-6 && 5.2e-6 < band.escalate();
-        for (op, r) in six(&d, &p) {
+        let vt = core::f64::consts::PI.powi(2);
+        let vp = topo::test_support::pinned_volume(pose, &p, Tol::witness()).volume;
+        let wants = want.map(|meet: f64| {
+            [
+                vt + vp - meet,
+                vt + vp - meet,
+                meet,
+                meet,
+                vt - meet,
+                vp - meet,
+            ]
+        });
+        for (k, (op, r)) in six(&d, &p).into_iter().enumerate() {
             // B3's bar is 0.02 wide, and its pierce sector's curvature
             // margin (5.2e-6 m) lies in a coarse run's band: there the
-            // pierce escalates ahead of the frame, which is not reached.
+            // pierce escalates ahead of the section.
             if pose == "B3" && pierce_in_band {
                 assert!(
                     matches!(
@@ -342,61 +346,135 @@ fn a_general_pose_refuses_at_its_frame_naming_its_loops() {
                 );
                 test_utils::vacuity::stood_down(
                     &format!("{pose}, {op}"),
-                    "the frame's refusal: the pierce escalates ahead of it in this run's band",
+                    "the body: the pierce escalates ahead of it in this run's band",
                 );
                 continue;
             }
-            assert!(
-                matches!(
-                    &r,
-                    Err(BooleanError::GermSectionSpiric { loops, .. }) if *loops == want
-                ),
-                "{pose}, {op}: want {want:?}, got {:?}",
-                r.err()
+            let r = match r {
+                Err(BooleanError::Pieces(topo::PieceSortError::Probe {
+                    source: topo::PointInSolidError::PartialTorusFace { .. },
+                    ..
+                })) if !op.contains('∪') => {
+                    sorted.push(format!("{pose}, {op}"));
+                    continue;
+                }
+                // B3's null loops leave a ring on the torus face, whose
+                // run winding reads no marched edge
+                // (`work/orbit/a-ring-on-a-torus-face-bounded-by-a-marched-edge-has-no-ring-run-winding.md`).
+                Err(BooleanError::EdgeCarrierUnsupported {
+                    site: topo::EdgeCarrierSite::RingRun,
+                    ..
+                }) if pose == "B3" => continue,
+                r => r.unwrap_or_else(|e| panic!("{pose}, {op}: builds, got {e:?}")),
+            };
+            let Some(body) = r.body() else {
+                panic!("{pose}, {op}: the plane cuts the donut, so a body");
+            };
+            assert_eq!(
+                topo::validate_geometric(&body.body, Tol::witness()),
+                Ok(()),
+                "{pose}, {op}: tier 3"
             );
+            if let Some(wants) = wants {
+                let got = topo::test_support::pinned_volume(op, &body.body, Tol::witness()).volume;
+                assert!(
+                    (got - wants[k]).abs() < 1e-5 * vt,
+                    "{pose}, {op}: volume {got} against {}",
+                    wants[k]
+                );
+                held += usize::from(!op.contains('∪'));
+            }
         }
     }
+    // The ops past ∪ that stop at the piece sort read no torus face a
+    // marched edge trims (`work/inside/point-in-solid-refuses-a-torus-face-bounded-by-a-spline-chord.md`);
+    // some build and are held to their quadratures.
+    assert!(
+        held >= 1,
+        "no op past ∪ builds to its truth; at the piece sort: {sorted:?}"
+    );
 }
 
-/// **The corner bar on the donut refuses at its end square**, in every
-/// op: the end squares stand past the inner equator (`z² − (R − r)² =
-/// 2(r − s)(R − r − s) > 0`), so each cuts one null oval, a general
-/// pose. The plane the refusal names is an end square, square to `z`.
-#[test]
-fn the_donuts_corner_bar_refuses_at_its_end_square() {
-    let d = donut();
-    let b = corner_bar(2.0, 0.5, 0.1);
-    for (op, r) in six(&d, &b) {
-        let Err(BooleanError::GermSectionSpiric {
-            a_face,
-            a_kind,
-            b_face,
-            loops: SpiricLoops::Null,
-            ..
-        }) = r
-        else {
-            panic!("{op}: {:?}", r.err());
-        };
-        let face = if a_kind == geom::SurfaceKind::Plane {
-            a_face
-        } else {
-            b_face
-        };
-        let surface = b.face_surface(face).unwrap();
-        let geom::Surface::Plane {
-            frame: carrier_frame,
-            ..
-        } = surface
-        else {
-            panic!("{op}: the refusal's planar face is not a plane: {surface:?}");
-        };
-        let normal = carrier_frame.axis();
-        assert_eq!(
-            (normal.x, normal.y),
-            (0.0, 0.0),
-            "{op}: an end square is square to z, got {normal:?}"
-        );
+/// **The donut's part past a plane**, `n·(p − o) ≥ 0`, `n` unit: at a
+/// point `(ρ, y)` of the tube's disc the circle of radius `ρ` about the
+/// `y` axis is past the plane over the angle `2·acos(k)`, `k = (n·o −
+/// n_y·y)/(ρ·s)` held to `[−1, 1]`, `s` the norm of `n`'s part square to
+/// `y`; summed by the midpoint rule in polar coordinates about the tube
+/// circle's centre, `ρ = R + u·cos α`, `y = u·sin α`.
+pub(crate) fn torus_past_a_plane(o: Point3<f64>, n: Vec3<f64>) -> f64 {
+    let (big, small, m) = (2.0_f64, 0.5_f64, 800_u32);
+    let n = n / n.norm();
+    let s = n.x.hypot(n.z);
+    let c = n.x * o.x + n.y * o.y + n.z * o.z;
+    let (du, da) = (small / f64::from(m), core::f64::consts::TAU / f64::from(m));
+    let mut sum = 0.0;
+    for i in 0..m {
+        let u = (f64::from(i) + 0.5) * du;
+        for j in 0..m {
+            let a = (f64::from(j) + 0.5) * da;
+            let (rho, y) = (big + u * a.cos(), u * a.sin());
+            let k = ((c - n.y * y) / (rho * s)).clamp(-1.0, 1.0);
+            sum += rho * 2.0 * k.acos() * u;
+        }
     }
+    sum * du * da
+}
+
+/// **The corner bar on the donut builds its unions, both orders**:
+/// the end squares stand past the inner equator (`z² − (R − r)² =
+/// 2(r − s)(R − r − s) > 0`), so each cuts one null oval, a general
+/// pose the section value marches. Each result is valid to tier 3 and
+/// holds the donut's and the bar's closed forms less their overlap
+/// (`germ_interior_oval::corner_bar_overlap`); an op other than ∪ may
+/// stop at the piece sort, whose probe reads no torus face a marched
+/// edge trims.
+#[test]
+fn the_donuts_corner_bar_builds_at_its_end_squares() {
+    let (w, big_r, r) = (0.1, 2.0, 0.5);
+    let d = donut();
+    let b = corner_bar(big_r, r, w);
+    let rho = big_r - (r * r - w * w).sqrt();
+    let z = (rho * rho - w * w).sqrt();
+    let (vt, vp) = (core::f64::consts::PI.powi(2), 4.0 * w * w * 2.0 * z);
+    let vo = crate::germ_interior_oval::corner_bar_overlap(w, z);
+    let (mut held, mut sorted) = (0, Vec::new());
+    for ((op, r), want) in
+        six(&d, &b)
+            .into_iter()
+            .zip([vt + vp - vo, vt + vp - vo, vo, vo, vt - vo, vp - vo])
+    {
+        let r = match r {
+            // The piece sort's probe reads no torus face a marched edge
+            // trims (`work/inside/point-in-solid-refuses-a-torus-face-bounded-by-a-spline-chord.md`).
+            Err(BooleanError::Pieces(topo::PieceSortError::Probe {
+                source: topo::PointInSolidError::PartialTorusFace { .. },
+                ..
+            })) if !op.contains('∪') => {
+                sorted.push(op);
+                continue;
+            }
+            r => r.unwrap_or_else(|e| panic!("{op}: builds, got {e:?}")),
+        };
+        let body = r.body().unwrap_or_else(|| panic!("{op}: a body"));
+        assert_eq!(
+            topo::validate_geometric(&body.body, Tol::witness()),
+            Ok(()),
+            "{op}: tier 3"
+        );
+        let got = topo::test_support::pinned_volume(op, &body.body, Tol::witness()).volume;
+        assert!(
+            (got - want).abs() < 1e-8,
+            "{op}: volume {got} against {want}"
+        );
+        held += usize::from(!op.contains('∪'));
+    }
+    // The ops past ∪ that stop at the piece sort read no torus face a
+    // marched edge trims (`work/inside/point-in-solid-refuses-a-torus-face-bounded-by-a-spline-chord.md`);
+    // at least one builds and is held to its truth.
+    assert!(
+        held >= 1,
+        "no op past ∪ builds to its truth; at the piece sort: {sorted:?}"
+    );
 }
 
 /// **The lily's stem glue passes the chord, undeclared, in both member

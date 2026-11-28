@@ -78,7 +78,7 @@ fn full_ball_reversed_authoring_exports_the_same_canonical_poles() {
         )
         .unwrap();
         assert_all_tiers(&t.body);
-        assert_eq!(counts(&t.body), (2, 2, 2, 0));
+        assert_eq!(counts(&t.body), (2, 1, 1, 0));
         assert_ball_poles(&t, start_y);
     }
 }
@@ -129,8 +129,8 @@ fn full_subdivided_axis_run_exports_tips_and_omits_the_interior() {
     )
     .unwrap();
     assert_all_tiers(&t.body);
-    // Same V2 E2 F2 ball; the interior axis vertex does not exist.
-    assert_eq!(counts(&t.body), (2, 2, 2, 0));
+    // Same V2 E1 F1 ball; the interior axis vertex does not exist.
+    assert_eq!(counts(&t.body), (2, 1, 1, 0));
     assert!((pole_y(&t, 0, 0) + 1.0).abs() < 1e-12);
     assert!((pole_y(&t, 0, 1) - 1.0).abs() < 1e-12);
     assert_eq!(
@@ -200,8 +200,8 @@ fn full_mixed_profile_exports_poles_only_at_pinned_vertices() {
     assert_eq!(t.poles[0][0], None, "a disc's centre is no vertex");
     assert_eq!(
         t.body.vertices().count(),
-        3,
-        "the dome's pole and two rim vertices"
+        2,
+        "the dome's pole and its rim vertex"
     );
     assert_eq!(
         t.poles[0][1], None,

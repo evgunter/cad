@@ -213,7 +213,9 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
             let data = body
                 .face(face)
                 .ok_or(ReplaceFaceError::StaleFace { face })?;
-            let surface = data.surface();
+            let surface = data
+                .surface()
+                .map_err(|_| ReplaceFaceError::PlaceholderSurface { face })?;
             let Surface::Plane { frame, .. } = surface else {
                 return Err(ReplaceFaceError::TogetherNonPlanar {
                     face,
@@ -438,7 +440,7 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
         };
         // The edge's two planes as the door leaves them.
         let moved = |p: &MovedPlane<T>| match body.get_surface(p.old_key) {
-            Some(&Surface::Plane {
+            Ok(&Surface::Plane {
                 frame: carrier_frame,
             }) => Surface::Plane {
                 frame: carrier_frame.with_origin(carrier_frame.origin() + p.delta),
@@ -512,7 +514,7 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
         let Surface::Plane {
             frame: carrier_frame,
             ..
-        } = face.surface().clone()
+        } = face.expect_described().clone()
         else {
             unreachable!("{first:?}'s chart was read a plane in this call's plan phase")
         };
@@ -525,30 +527,6 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
         )?);
     }
     crate::replace_face::move_points_then_rechart(&mut work, &moved, charts, &specs, tol)?;
-    // Every edge OF THE SCOPE was just re-described, so its stored
-    // pcurve rows are stale — re-minted here for the same reason
-    // `replace_faces_offset` re-mints, and before the tier-2 gate that
-    // adopts the clone. A row outside the scope is not re-derived: the
-    // door did not touch its edge, so the row is exactly as fresh as it
-    // was found, which is what the `Maintains` posture claims.
-    //
-    // **KEPT although it is inert today, deliberately.** Only MINTING
-    // charts carry pcurve rows and a plane is not one, so on every body
-    // this door currently accepts the pass clears nothing and cannot go
-    // red — which means it is also not covered by any row here, and
-    // that is said rather than left for a reader to discover. It stays
-    // because the door's scope gate is the only thing making it inert:
-    // the curved corners that follow bring charts that DO mint, and a
-    // door that re-describes every edge in the scope without re-minting
-    // would be storing stale rows the moment they arrive. The census
-    // posture (`Maintains`, by re-minting) is therefore honest now and
-    // stays honest then.
-    let minting = scope.faces_in_scope();
-    crate::pcurves::mint_pcurves_of(&mut work, &minting, tol).map_err(|source| {
-        ReplaceFaceError::Pcurve {
-            source: source.for_driver(),
-        }
-    })?;
     // Tiers 1 and 2 over the WHOLE clone, in one walk (`Scope`'s docs
     // carry the account of what stays linear in the body).
     work.close_gated("offset_planes_together")
@@ -754,13 +732,10 @@ pub(crate) fn unplaced_in_scope(vertex: VertexKey) -> ! {
 /// statements were byte-identical twins and a fact spelled twice is a
 /// fact that drifts.
 ///
-/// **Narrowed to the scope, and only these two things.** (1) This
-/// partition: `of_solids` walks the named solids' shells and nothing
-/// else, so another solid's shells, faces, loops and half-edges are
-/// not read at all. (2) The closing pcurve pass
-/// ([`crate::pcurves::mint_pcurves_of`], over
-/// [`Scope::faces_in_scope`]): the rows of the scope's faces are
-/// re-derived and no others are read or written.
+/// **Narrowed to the scope, and only this.** The partition:
+/// `of_solids` walks the named solids' shells and nothing else, so
+/// another solid's shells, faces, loops and half-edges are not read at
+/// all.
 ///
 /// **Everything else a door does reads the whole body:**
 ///
@@ -905,14 +880,13 @@ impl Scope {
         }
     }
 
-    /// Every face of every solid this scope names — the faces a door's
-    /// closing pcurve pass is entitled to re-mint.
+    /// Every face of every solid this scope names.
     ///
     /// **In face-arena order**, and that is a contract, not an
     /// accident: it is read off the partition the walk already built,
     /// whose `SecondaryMap` iterates in key-slot order, so this is
-    /// exactly [`crate::pcurves::mint_pcurves`]'s own order restricted
-    /// to the scope. No second walk of the body, and nothing here can
+    /// exactly the body's own face order restricted to the scope. No
+    /// second walk of the body, and nothing here can
     /// fail — the entities were resolved when the scope was built.
     pub(crate) fn faces_in_scope(&self) -> Vec<FaceKey> {
         self.faces

@@ -53,8 +53,11 @@ pub enum Door {
     /// A spline span against an analytic face: the face's residual
     /// composed along the span (the ring composite).
     SplineComposite,
-    /// Any span against a spline face: enclosures on the span's pieces
-    /// and the surface's cells, a Krawczyk contraction for one meeting.
+    /// Any span against a spline face. [`cross()`] reads a line by the
+    /// signs of its two planes' residuals on the chart's Bernstein cells
+    /// ([`line_patch`]); the boolean's door reads any span by enclosures
+    /// on its pieces and the surface's cells, a Krawczyk contraction for
+    /// one meeting ([`spline_face`]).
     SplineFace,
     /// A spiric span against a plane: the section reduction, the line
     /// where the two planes meet read against the spiric's own torus
@@ -118,8 +121,9 @@ pub fn route(curve: CurveKind, surface: SurfaceKind) -> Route {
         ),
         (Line | Circle | Ellipse | Nurbs, SurfaceKind::Nurbs | Approx) => built(
             Door::SplineFace,
-            "boxes of the span's parameter and the chart's, cleared past the band or \
-             proved one transverse meeting by a Krawczyk contraction",
+            "a line by the signs of its planes' residuals on the chart's Bernstein cells; \
+             any span by boxes of the span's parameter and the chart's, cleared past the \
+             band or proved one transverse meeting by a Krawczyk contraction",
         ),
         (Spiric, SurfaceKind::Nurbs | Approx) => unbuilt(
             Door::SplineFace,
@@ -389,20 +393,117 @@ pub fn undecided_over<T: Decide, W>(
     speed: T,
     band: Band,
 ) -> Option<&Undecided<T, W>> {
-    let past = |gap: T| {
-        matches!(
-            geom_core::k_stats::decide(
-                "curve_face_window",
-                geom_core::Margin::of(gap * speed),
-                band
-            ),
-            Ok(geom_core::Sign::Zero | geom_core::Sign::Positive)
-        )
-    };
+    let past = |gap: T| window_gap_past(gap, speed, band);
     windows
         .iter()
         .find(|u| !(past(u.window.0 - b) || past(a - u.window.1)))
 }
+
+/// **A gap between windows, or a window and a span, read as the band
+/// reads it** (`curve_face_window`, the parameter metred at `speed`):
+/// the one reading every window comparison takes.
+pub(crate) fn window_gap<T: Decide>(
+    gap: T,
+    speed: T,
+    band: Band,
+) -> Result<geom_core::Sign, Indeterminate> {
+    geom_core::k_stats::decide(
+        "curve_face_window",
+        geom_core::Margin::of(gap * speed),
+        band,
+    )
+}
+
+/// A gap of zero or more, decided: what stands past it misses what it
+/// holds, the window being the escalation wider than its meetings.
+fn window_gap_past<T: Decide>(gap: T, speed: T, band: Band) -> bool {
+    matches!(
+        window_gap(gap, speed, band),
+        Ok(geom_core::Sign::Zero | geom_core::Sign::Positive)
+    )
+}
+
+/// A span's parameters, ascending.
+pub(crate) fn ascending<T: geom_core::Real>((t0, t1): (T, T)) -> (T, T) {
+    (t0.min(t1), t0.max(t1))
+}
+
+/// **The band's escalation along the span**: `Kε` as the span's own
+/// parameter, at its least speed. The one widening a window takes, so a
+/// run past it by a gap in the zero band misses every meeting it holds.
+pub(crate) fn escalation_reach<T: Decide>(span: &Span<'_, T>, band: Band) -> T {
+    T::from_f64(band.escalate()) / span.speeds().0.get()
+}
+
+/// **Where a window meets the span** (W3), the one reading of it: each
+/// copy of the window that does not miss the span, held to it. On a
+/// carrier whose parameter repeats ([`geom::Curve3::period`]: a conic, a
+/// spiric oval, a periodic spline), the copies are the window renamed by
+/// every whole period that can reach the span, however many turns the
+/// span runs, so a window across the seam answers its piece at each end
+/// of a span near a whole turn, and at each turn of a longer one; on any
+/// other carrier, the window as spelled. A copy misses where the span
+/// stands past it by a gap of zero or more (`curve_face_window`, at the
+/// span's least speed: the window is the escalation wider than its
+/// meetings); a gap in band keeps it, as that end's escalation on the
+/// span. A window a period or wider is the whole span.
+pub(crate) fn on_span<T: Decide>(span: &Span<'_, T>, (lo, hi): (T, T), band: Band) -> Vec<(T, T)> {
+    let (t0, t1) = ascending(span.params());
+    let speed = span.speeds().0.get();
+    let reach = escalation_reach(span, band);
+    let held = |(lo, hi): (T, T)| {
+        let (a, b) = (lo.max(t0), hi.min(t1));
+        let before = (t0, (t0 + reach).min(t1));
+        let after = ((t1 - reach).max(t0), t1);
+        let end = (
+            (hi - t0).select_le_zero(before.0, after.0),
+            (hi - t0).select_le_zero(before.1, after.1),
+        );
+        let width = b - a;
+        (
+            width.select_le_zero(end.0, a),
+            width.select_le_zero(end.1, b),
+        )
+    };
+    let meets = |window: (T, T)| {
+        let at = [Undecided { window, why: () }];
+        undecided_over(&at, (t0, t1), speed, band).is_some()
+    };
+    let Some(period) = span.carrier().period() else {
+        return [(lo, hi)]
+            .into_iter()
+            .filter(|&w| meets(w))
+            .map(held)
+            .collect();
+    };
+    let turn = period.length();
+    if window_gap_past(hi - lo - turn, speed, band) {
+        return vec![(t0, t1)];
+    }
+    // The copy whose end first reaches the span, and each a period on
+    // until one stands definitely past the span's far end: a copy one
+    // period short of the span is read too, which a gap in band keeps.
+    // A span of more turns than the walk can count is refused whole
+    // (W2: never understated).
+    let first = period.at_or_above(hi, t0) - turn;
+    let mut out = Vec::new();
+    let mut shift = first - hi;
+    for _ in 0..=MAX_TURNS_READ {
+        let copy = (lo + shift, hi + shift);
+        shift = shift + turn;
+        if window_gap_past(copy.0 - t1, speed, band) {
+            return out;
+        }
+        if meets(copy) {
+            out.push(held(copy));
+        }
+    }
+    vec![(t0, t1)]
+}
+
+/// The most copies of a window [`on_span`] reads along a span of many
+/// turns: a span longer than this many periods is one window whole.
+const MAX_TURNS_READ: u32 = 64;
 
 /// A member of the boundary as the pass reads it.
 enum Member<'s, 'a, T: geom_core::Real> {
@@ -583,12 +684,13 @@ fn carrier(refusal: geom::CarrierRefusal) -> BoundaryRefusal {
 ///
 /// # Errors
 ///
-/// [`PoseRefusal`].
+/// [`Undecided`]: the stretch of the span the pose could not read, and
+/// its [`PoseRefusal`].
 pub fn pose<T: Decide>(
     span: &Span<'_, T>,
     surface: &geom::Surface<T>,
     band: Band,
-) -> Result<Pose<T>, PoseRefusal> {
+) -> Result<Pose<T>, Undecided<T, PoseRefusal>> {
     pose::pose(span, surface, band)
 }
 
@@ -620,8 +722,13 @@ pub mod composite;
 pub mod conic_oracle;
 pub mod conic_quadric;
 pub mod cross;
+#[cfg(test)]
+mod cull_rows;
 pub mod ellipse_torus;
 pub mod end_root;
+#[cfg(test)]
+mod line_clearance_fuzz;
+pub mod line_patch;
 pub mod line_quadric;
 pub mod plane_crossing;
 pub mod pose;
@@ -635,3 +742,5 @@ pub mod spiric_plane;
 pub mod spline_face;
 #[cfg(test)]
 mod window_fuzz;
+#[cfg(test)]
+mod window_rows;

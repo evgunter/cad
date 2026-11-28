@@ -2117,7 +2117,7 @@ mod tests {
                 .unwrap();
         let (fk, _) = body
             .faces()
-            .find(|&(k, _)| matches!(body.face_surface(k), Some(Surface::Sphere { .. })))
+            .find(|&(k, _)| matches!(body.face_surface(k), Ok(Surface::Sphere { .. })))
             .expect("the revolve mints a sphere wall");
         let chart = Chart::of(body.face_surface(fk).unwrap()).unwrap();
         let rectangle = routes

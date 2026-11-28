@@ -432,7 +432,7 @@ pub(super) fn check_mutual<T: Decide>(
 }
 
 /// Every vertex the reduction recorded ON the other operand
-/// (`ReductionContacts::vv`, `a_on_b`, `b_on_a`) reads `OnBoundary` or
+/// (`ReductionContacts::vv`, `ReductionContacts::on`) reads `OnBoundary` or
 /// in-band against it, never `In` or `Out` (module docs: the reason the
 /// ladder reads no contact record). Debug builds only; a refusal of the
 /// probe is not this check's question and is passed over.
@@ -460,14 +460,14 @@ pub(super) fn debug_assert_contacts_undecisive<T: Decide + crate::props::AtRestP
              decisively: {read:?}"
         );
     };
-    for c in &contacts.vv {
+    for c in contacts.vv() {
         check(a, c.a, Operand::A);
         check(b, c.b, Operand::B);
     }
-    for c in &contacts.a_on_b {
+    for c in contacts.on(Operand::A) {
         check(a, c.vertex, Operand::A);
     }
-    for c in &contacts.b_on_a {
+    for c in contacts.on(Operand::B) {
         check(b, c.vertex, Operand::B);
     }
 }
@@ -566,10 +566,12 @@ mod tally_rows {
         for e in [
             PointInSolidError::Escalated {
                 face,
-                diag: crate::invalid_margin::invalid(
-                    geom_core::Band::new(1e-9, 1e-8).unwrap(),
-                    "test_tally",
-                ),
+                diag: geom_core::Indeterminate {
+                    margin: geom_core::MarginDiag::INVALID,
+                    band: geom_core::Band::new(1e-9, 1e-8).unwrap(),
+                    predicate: Some("test_tally"),
+                    terminal_sliver: false,
+                },
             },
             PointInSolidError::WallOutlineUnsupported { face },
             PointInSolidError::PartialConeFace { face },

@@ -2998,7 +2998,7 @@ fn wire_mirror<T: Decide + topo::AtRestPolicy>(
     let table = read_table(value)
         .project(0)
         .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
-    names::check_total(&table, &image, 0).map_err(NodeErrorKind::Naming)?;
+    let table = names::finish(table, &image, 0).map_err(NodeErrorKind::Naming)?;
     Ok(OpOut::plain(
         // The image stands where the copy's frame puts it, which the
         // reflection can carry past its source's reach: the result asks
@@ -3639,7 +3639,7 @@ fn pick_of<T: topo::AtRestPolicy + Decide>(
         };
         (body.clone(), piece.table.as_ref().clone(), &piece.carry)
     };
-    names::check_total(&table, body.body(), 0).map_err(NodeErrorKind::Naming)?;
+    let table = names::finish(table, body.body(), 0).map_err(NodeErrorKind::Naming)?;
     // The piece already stands where its holder stands.
     let carry = member_carry.copied(
         super::carry::Stands::Still,
@@ -3826,7 +3826,11 @@ fn projected<T: topo::AtRestPolicy + Decide>(
     names: super::OutputNames,
     index: u32,
 ) -> Result<(RecipeNodeId, u32, super::NodeValue<T>), NodeErrorKind> {
-    names::check_total(names.table(), body.body(), 0).map_err(NodeErrorKind::Naming)?;
+    let names = super::OutputNames::new(
+        names::finish_shared(names.shared_table(), body.body(), 0)
+            .map_err(NodeErrorKind::Naming)?,
+        names.shared_groups(),
+    );
     Ok((
         of,
         index,
@@ -4450,7 +4454,7 @@ fn member_reads<T: Decide + topo::AtRestPolicy>(
                 let table = read_table(value)
                     .project(index)
                     .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
-                names::check_total(&table, body.body(), 0).map_err(NodeErrorKind::Naming)?;
+                let table = names::finish(table, body.body(), 0).map_err(NodeErrorKind::Naming)?;
                 Ok(MemberRead {
                     read,
                     node: at,
@@ -4615,9 +4619,9 @@ fn images_apart<T: topo::AtRestPolicy + Decide + geom_core::Bounds>(
                 Ok(computing
                     .relative(members[j].framed.frame())
                     .map_err(NodeErrorKind::Motion)?
-                    .map_or_else(geom_core::Affine3::identity, |map| map.to_affine()))
+                    .unwrap_or_else(geom_core::RigidMotion::identity))
             })
-            .collect::<Result<Vec<geom_core::Affine3<T>>, NodeErrorKind>>()?;
+            .collect::<Result<Vec<geom_core::RigidMotion<T>>, NodeErrorKind>>()?;
         let certificate =
             topo::Separation::of(m.framed.body(), tol).map_err(NodeErrorKind::Boolean)?;
         pairs.extend(
@@ -5131,7 +5135,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 /// ([`super::Carry::copied`]).
 fn lone_member<T: topo::AtRestPolicy + Decide>(id: RecipeNodeId, one: &Member<T>) -> OpResult<T> {
     let table = names::name_lone_member(id, one.read, &one.table).map_err(NodeErrorKind::Naming)?;
-    names::check_total(&table, one.framed.body(), 0).map_err(NodeErrorKind::Naming)?;
+    let table = names::finish(table, one.framed.body(), 0).map_err(NodeErrorKind::Naming)?;
     Ok(
         OpOut::plain(ValuePayload::Body(one.framed.clone()), Arc::new(table)).carrying(
             one.carry.copied(

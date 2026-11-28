@@ -1,8 +1,11 @@
-//! **A cone against an oblique cylinder or another cone on the section
-//! value** (`geom_brep::pair_section`): the unit cone (apex at the origin,
-//! axis `z`, `α = π/4`, `ρ = |z|`) against the poses of `topo`'s
-//! `section_cert_cone_pair_rows`, read over a region, each row both ways
-//! round and pinned against a traced section.
+//! **A cone against an oblique cylinder, another cone or a sphere on the
+//! section value** (`geom_brep::pair_section`): the unit cone (apex at the
+//! origin, axis `z`, `α = π/4`, `ρ = |z|`) against the poses of `topo`'s
+//! `section_cert_cone_pair_rows`, read over a region (a sphere over its
+//! own ball), each row both ways round and pinned against a traced
+//! section; and the general components carried, marched from their
+//! witnesses (`ssi::march_cone_ruled`), every sample of every carrier on
+//! both surfaces.
 //!
 //! The oracle ([`traced`]) shares no code with the value: it solves the
 //! partner's implicit equation along each of a dense fan of the cone's
@@ -19,9 +22,10 @@
 
 use core::f64::consts::{FRAC_1_SQRT_2, FRAC_PI_4, TAU};
 use geom::Surface;
+use geom_brep::ssi::{self, SsiDomain, SsiError};
 use geom_brep::{
-    CarryError, CarryRefusal, ClassCarrier, Coincident, ComponentShape, ExtentBall, NoCarrier,
-    PairPose, PairSection, SectionDecision, SectionError, SectionRead, SsiLane,
+    CarriedSection, CarryError, CarryRefusal, ClassCarrier, Coincident, ComponentShape, ExtentBall,
+    NoCarrier, PairPose, PairSection, SectionDecision, SectionError, SectionRead, SsiLane,
 };
 use geom_core::{Band, Point3, Tol, Vec3};
 
@@ -43,6 +47,13 @@ fn cone_about(apex: Point3<f64>, axis: Vec3<f64>, alpha: f64) -> Surface<f64> {
 
 fn unit_cone() -> Surface<f64> {
     cone_about(Point3::origin(), Vec3::unit_z(), FRAC_PI_4)
+}
+
+fn sphere(center: Point3<f64>, r: f64) -> Surface<f64> {
+    Surface::Sphere {
+        frame: geom::Frame::new(center, Vec3::unit_z(), Vec3::unit_x()),
+        radius: r,
+    }
 }
 
 fn cylinder(origin: Point3<f64>, axis: Vec3<f64>, r: f64) -> Surface<f64> {
@@ -79,7 +90,8 @@ fn built(a: &Surface<f64>, b: &Surface<f64>, region: ExtentBall<f64>) -> PairSec
 
 /// The roots `t` of the partner's equation along `x(t) = b + t·v`, `v`
 /// unit, in closed form: against a cylinder `|(x − o) × d|² = r²`,
-/// against a cone `((x − k)·d)² = cos²α |x − k|²`.
+/// against a cone `((x − k)·d)² = cos²α |x − k|²`, against a sphere
+/// `|x − c|² = R²`.
 fn roots_along(partner: &Surface<f64>, b: Point3<f64>, v: Vec3<f64>) -> Vec<f64> {
     let (a2, a1, a0) = match *partner {
         Surface::Cylinder { frame, radius } => {
@@ -98,7 +110,11 @@ fn roots_along(partner: &Surface<f64>, b: Point3<f64>, v: Vec3<f64>) -> Vec<f64>
                 dw * dw - c2 * w.dot(w),
             )
         }
-        _ => panic!("the oracle reads a cylinder or a cone partner"),
+        Surface::Sphere { frame, radius } => {
+            let w = b - frame.origin();
+            (v.dot(v), 2.0 * w.dot(v), w.dot(w) - radius * radius)
+        }
+        _ => panic!("the oracle reads a cylinder, a cone or a sphere partner"),
     };
     // A ruling through an apex on the partner, in its tangent plane,
     // has a double root there, which rounding reads a hair below zero:
@@ -1290,23 +1306,503 @@ fn the_degenerate_poses_refuse_typed() {
     ));
 }
 
-/// **Carrying a cone pair's section refuses typed**: its components are
-/// the march's, and no march carries the pair yet; at `f64` with a march
-/// door the refusal names that, without one the lane.
+/// **A node's arcs are classified and not carried**, by name, and a
+/// section with no lane refuses the lane: the apex node of the wall
+/// through the apex, and of the sphere through it. A carry that marches
+/// toward the apex, or names another cause: red.
 #[test]
-fn carrying_refuses_until_a_march_carries_the_cone() {
+fn a_nodes_arcs_refuse_the_carry_by_name() {
+    let wall = cylinder(p(0.5, 0.0, 0.0), Vec3::unit_y(), 0.5);
+    let through = sphere(p(0.5, 0.0, 0.0), 0.5);
+    for partner in [&wall, &through] {
+        let section = built(&unit_cone(), partner, region());
+        assert!(
+            general(&section) && !section.nodes().is_empty(),
+            "the arcs are classified the general rung's, ending at the node"
+        );
+        assert!(matches!(
+            section.carry(Some(SsiLane::marched()), band()),
+            Err(CarryError::Refused(CarryRefusal::Unminted(
+                NoCarrier::ConeNode
+            )))
+        ));
+    }
     let bite = cylinder(p(0.0, 1.3, 1.0), Vec3::unit_x(), 0.4);
-    let section = built(&unit_cone(), &bite, region());
     assert!(matches!(
-        section.carry(Some(SsiLane::marched()), band()),
-        Err(CarryError::Refused(CarryRefusal::Unminted(
-            NoCarrier::ConeUnmarched
-        )))
-    ));
-    assert!(matches!(
-        section.carry(None::<geom_core::NoLane>, band()),
+        built(&unit_cone(), &bite, region()).carry(None::<geom_core::NoLane>, band()),
         Err(CarryError::Refused(CarryRefusal::NoLane { .. }))
     ));
+}
+
+// -------------------------------------------------------------------
+// Cone × sphere
+// -------------------------------------------------------------------
+
+/// **A ball biting the cone's side cuts one null loop**: the ball of
+/// radius `0.5` about `(1, 0, 1.5)`, `0.35` inside the upper nappe's
+/// meridian line and `1.77` from the other, its apex `1.8` off. A pose
+/// that reads the near line's distance as a tangency, or a sweep reading
+/// the two branch points as anything but one arc: red.
+#[test]
+fn a_ball_biting_the_side_cuts_one_null_loop() {
+    let ball = sphere(p(1.0, 0.0, 1.5), 0.5);
+    let (shapes, section) = checked(&unit_cone(), &ball, region(), 0.02);
+    assert_eq!(
+        shapes,
+        Shapes {
+            loops: 1,
+            ..Shapes::default()
+        }
+    );
+    assert!(general(&section), "the loop is the march's");
+    assert!(section.decided().is_empty(), "nothing decided Zero");
+    assert!(matches!(section.pose(), PairPose::ConeSphere(_)));
+    assert_eq!(section.counted().unwrap()[0].winds, [false, false]);
+}
+
+/// **A ball about the apex cuts one loop round each nappe**: the ball of
+/// radius `1` about `(0.3, 0, 0.2)`, off the axis, so every ruling meets
+/// it on each side of the apex. A sweep reading one sheet, or both on
+/// one nappe: red.
+#[test]
+fn a_ball_about_the_apex_cuts_one_loop_round_each_nappe() {
+    let ball = sphere(p(0.3, 0.0, 0.2), 1.0);
+    let (shapes, section) = checked(&unit_cone(), &ball, region(), 0.05);
+    assert_eq!(
+        shapes,
+        Shapes {
+            loops: 2,
+            ..Shapes::default()
+        }
+    );
+    let mut nappes: Vec<bool> = section
+        .counted()
+        .unwrap()
+        .iter()
+        .map(|c| {
+            assert!(c.winds[0], "each loop winds about the cone");
+            c.witness.unwrap().z > 0.0
+        })
+        .collect();
+    nappes.sort_unstable();
+    assert_eq!(nappes, [false, true], "one loop on each nappe");
+}
+
+/// **A ball clear of the cone has no section**: radius `0.5` about
+/// `(3, 0, 0)`, `2.1` from both lines of its meridian plane.
+#[test]
+fn a_ball_clear_of_the_cone_has_no_section() {
+    let (shapes, section) = checked(&unit_cone(), &sphere(p(3.0, 0.0, 0.0), 0.5), region(), 0.05);
+    assert_eq!(shapes, Shapes::default());
+    assert!(section.decided().is_empty());
+}
+
+/// The point at slant `2` up the upper nappe's generator in `xz`, and the
+/// cone's outward normal there.
+fn generator_point() -> (Point3<f64>, Vec3<f64>) {
+    let s = FRAC_1_SQRT_2;
+    (p(2.0 * s, 0.0, 2.0 * s), Vec3::new(s, 0.0, -s))
+}
+
+/// **A ball tangent where it also crosses the double cone refuses**, and
+/// each side of the tangency reads as the trace has it. Two poses on the
+/// unit cone, each decided `Zero` on one line of its centre's meridian
+/// plane while the other line is nearer than `R`:
+///
+/// - a touch beside a loop on the other nappe: centre `(2, 0, −1)`,
+///   `R = 3/√2`, touching the upper nappe at `(½, 0, ½)` from outside
+///   while crossing the lower one;
+/// - the far line: centre `(½, 0, 2)`, `R = 2.5/√2`, `Zero` on the line
+///   the centre stands farther from, the near one crossing.
+///
+/// Neither is one isolated point, so the value refuses by the tangency's
+/// own predicate rather than list one, and the door refuses
+/// `PairTangent`. At `R ∓ 0.1` the pose is transverse and its section
+/// agrees with the trace (`checked`): one loop and two for the touch, and
+/// whatever the trace finds for the far line. A pose that lists the touch
+/// alone, or drops a component either side: red.
+#[test]
+fn a_ball_tangent_beside_a_crossing_refuses_by_its_tangency() {
+    let s = FRAC_1_SQRT_2;
+    for (what, centre, r, loops) in [
+        (
+            "the touch beside a loop",
+            p(2.0, 0.0, -1.0),
+            3.0 * s,
+            Some([1, 2]),
+        ),
+        ("the far line", p(0.5, 0.0, 2.0), 2.5 * s, None),
+    ] {
+        let ball = sphere(centre, r);
+        for (a, b) in [(&unit_cone(), &ball), (&ball, &unit_cone())] {
+            assert!(
+                matches!(
+                    read(a, b, region()),
+                    Err(SectionError::Pinched {
+                        predicate: "kc_sphere_tangency"
+                    })
+                ),
+                "{what}: refused by its tangency, got {:?}",
+                read(a, b, region()).map(|_| ())
+            );
+            assert!(
+                matches!(
+                    ssi::cone_ruled_ssi(a, b, region(), domain(), band()),
+                    Err(SsiError::PairTangent {
+                        pair: ssi::TangentPair::ConeRuled,
+                        ..
+                    })
+                ),
+                "{what}: the door refuses the tangency before any rung"
+            );
+        }
+        for (k, dr) in [-0.1, 0.1].into_iter().enumerate() {
+            let (shapes, section) = checked(&unit_cone(), &sphere(centre, r + dr), region(), 0.05);
+            assert!(
+                section.tangency().is_none() && shapes.points == 0 && shapes.noded == 0,
+                "{what} at R {dr:+}: transverse, {shapes:?}"
+            );
+            if let Some(want) = loops {
+                assert_eq!(shapes.loops, want[k], "{what} at R {dr:+}: its loops");
+            }
+        }
+    }
+}
+
+/// **A ball touching both nappes lists both touches**: centre `(1, 0, 0)`,
+/// `R = 1/√2`, the distance to both lines of its meridian plane, the
+/// apex `1` off. The sphere stands nearest the double cone at both feet,
+/// `(½, 0, ±½)`, so the section is those two points, each with its
+/// decided tangency; at `R − 0.1` it is clear and at `R + 0.1` two
+/// loops, as the trace has it. A pose keeping only the first `Zero`: red.
+#[test]
+fn a_ball_touching_both_nappes_lists_both_touches() {
+    let r = FRAC_1_SQRT_2;
+    let ball = sphere(p(1.0, 0.0, 0.0), r);
+    for (a, b) in [(&unit_cone(), &ball), (&ball, &unit_cone())] {
+        let section = built(a, b, region());
+        let listed = section.counted().unwrap();
+        assert_eq!(listed.len(), 2, "two touches: {listed:?}");
+        let mut feet: Vec<Point3<f64>> = listed
+            .iter()
+            .map(|c| {
+                assert_eq!(c.shape, ComponentShape::Point);
+                assert!(matches!(
+                    c.carrier,
+                    ClassCarrier::Unminted(NoCarrier::Tangent)
+                ));
+                c.witness.unwrap()
+            })
+            .collect();
+        feet.sort_by(|x, y| x.z.total_cmp(&y.z));
+        for (got, want) in feet.iter().zip([p(0.5, 0.0, -0.5), p(0.5, 0.0, 0.5)]) {
+            assert!((*got - want).norm() < 1e-9, "a foot {got:?}, not {want:?}");
+        }
+        assert_eq!(section.decided().len(), 2, "each touch decided");
+        assert!(matches!(
+            ssi::cone_ruled_ssi(a, b, region(), domain(), band()),
+            Err(SsiError::PairTangent { .. })
+        ));
+    }
+    let (clear, _) = checked(
+        &unit_cone(),
+        &sphere(p(1.0, 0.0, 0.0), r - 0.1),
+        region(),
+        0.03,
+    );
+    assert_eq!(clear, Shapes::default(), "shrunk, the ball is clear");
+    let (two, _) = checked(
+        &unit_cone(),
+        &sphere(p(1.0, 0.0, 0.0), r + 0.1),
+        region(),
+        0.03,
+    );
+    assert_eq!(
+        two,
+        Shapes {
+            loops: 2,
+            ..Shapes::default()
+        },
+        "grown, a loop round each foot"
+    );
+}
+
+/// **Both lines `Zero` with the centre inside a nappe refuses**: a cone
+/// opened to `cos α = 4·escalate` (inside its convention over the
+/// region), the centre `(0.01, 0, 2)` inside its upper nappe and `R = 2`.
+/// Both lines of the meridian plane stand `2 sin α ± 0.01 cos α` from the
+/// centre, each within the band of `R`, but the far one is the most the
+/// centre's distance from the double cone reaches, not the least: the
+/// contact runs within the band round the whole turn, which no two points
+/// describe. Red if the two `Zero`s are listed as two touches.
+#[test]
+fn both_lines_zero_inside_a_nappe_refuses() {
+    let cos = 4.0 * band().escalate();
+    let wide = cone_about(Point3::origin(), Vec3::unit_z(), cos.acos());
+    let ball = sphere(p(0.01, 0.0, 2.0), 2.0);
+    for (a, b) in [(&wide, &ball), (&ball, &wide)] {
+        assert!(
+            matches!(
+                read(a, b, region()),
+                Err(SectionError::Pinched {
+                    predicate: "kc_sphere_tangency"
+                })
+            ),
+            "refused by its tangency: {:?}",
+            read(a, b, region()).map(|_| ())
+        );
+    }
+}
+
+/// **A ball touching the generator is decided tangent in closed form**,
+/// from outside and from inside the cone: its centre `0.4` along the
+/// cone's normal from a generator point either way, the oracle's own
+/// construction. Each is one point with no carrier, at that generator
+/// point, decided on `kc_sphere_tangency`, and the door refuses it
+/// before any rung; the same ball moved `0.02` farther out reads clear
+/// and inward crosses. A pose that misses the closed form, or places
+/// the touch off the generator: red.
+#[test]
+fn a_ball_touching_a_generator_is_decided_tangent() {
+    let (x, n) = generator_point();
+    for side in [1.0, -1.0] {
+        let ball = sphere(x + n * (0.4 * side), 0.4);
+        for (a, b) in [(&unit_cone(), &ball), (&ball, &unit_cone())] {
+            let section = built(a, b, region());
+            let tangency = section.tangency().expect("decided a tangency");
+            assert_eq!(
+                tangency.decision,
+                SectionDecision::Tangency("kc_sphere_tangency")
+            );
+            let [point] = section.counted().unwrap() else {
+                panic!("one point: {:?}", section.counted())
+            };
+            assert_eq!(point.shape, ComponentShape::Point);
+            assert!(matches!(
+                point.carrier,
+                ClassCarrier::Unminted(NoCarrier::Tangent)
+            ));
+            assert!(
+                (point.witness.unwrap() - x).norm() < 1e-9,
+                "the touch is the generator point: {:?}",
+                point.witness
+            );
+            assert!(matches!(
+                ssi::cone_ruled_ssi(a, b, region(), domain(), band()),
+                Err(SsiError::PairTangent {
+                    pair: ssi::TangentPair::ConeRuled,
+                    ..
+                })
+            ));
+        }
+        let off = sphere(x + n * (0.42 * side), 0.4);
+        assert!(
+            built(&unit_cone(), &off, region()).decided().is_empty(),
+            "moved off, the ball is clear"
+        );
+        let into = sphere(x + n * (0.3 * side), 0.4);
+        let (shapes, _) = checked(&unit_cone(), &into, region(), 0.02);
+        assert_eq!(shapes.loops, 1, "moved in, the ball crosses: {shapes:?}");
+    }
+}
+
+/// **A ball through the apex, the cone's form indefinite on its tangent
+/// plane, is a node at the apex**: radius `0.5` about `(0.5, 0, 0)`,
+/// tangent plane `x = 0` there, which holds the rulings `y = ±z`. Two
+/// arcs, one per nappe, from the node to the node, one set; the apex is
+/// recorded a coincidence, never a tangency. A pose reading the form
+/// definite: red.
+#[test]
+fn a_ball_through_the_apex_crossing_it_is_a_node() {
+    let ball = sphere(p(0.5, 0.0, 0.0), 0.5);
+    let (shapes, section) = checked(&unit_cone(), &ball, region(), 0.02);
+    assert_eq!(
+        shapes,
+        Shapes {
+            noded: 2,
+            sets: 1,
+            ..Shapes::default()
+        }
+    );
+    assert!(section.tangency().is_none());
+    assert_eq!(
+        section.coincidence().map(|(c, _)| c),
+        Some(Coincident::ConeApex)
+    );
+    let [node] = section.nodes() else {
+        panic!("one node: {:?}", section.nodes())
+    };
+    assert!((node.point - Point3::origin()).norm() < 1e-12);
+    assert!(
+        (node.normal + Vec3::unit_x()).norm() < 1e-12,
+        "the ball's outward normal, −x"
+    );
+    assert!(matches!(
+        ssi::cone_ruled_ssi(&unit_cone(), &ball, region(), domain(), band()),
+        Err(SsiError::UnsupportedCertificate { .. })
+    ));
+}
+
+/// **A ball through the apex, its tangent plane there meeting the cone
+/// at the apex alone, is an apex touch**: radius `0.5`, its centre `0.5`
+/// from the apex `0.2` rad off the axis, so the plane's normal is inside
+/// the cone's half-angle. The apex is an isolated point, and the ball
+/// still crosses the upper nappe in one loop. A pose reading the form
+/// indefinite: red.
+#[test]
+fn a_ball_through_the_apex_touching_it_is_an_apex_touch() {
+    let tilt = 0.2f64;
+    let ball = sphere(p(0.5 * tilt.sin(), 0.0, 0.5 * tilt.cos()), 0.5);
+    let (shapes, section) = checked(&unit_cone(), &ball, region(), 0.02);
+    assert_eq!(
+        shapes,
+        Shapes {
+            loops: 1,
+            points: 1,
+            ..Shapes::default()
+        }
+    );
+    assert!(section.nodes().is_empty() && section.tangency().is_none());
+    assert!(
+        section
+            .counted()
+            .unwrap()
+            .iter()
+            .any(|c| matches!(c.carrier, ClassCarrier::Unminted(NoCarrier::ApexTouch)))
+    );
+}
+
+/// **A ball on the cone's axis is read where it was read before**: the
+/// coaxial circles, `cone_sphere_section`'s.
+#[test]
+fn a_ball_on_the_axis_is_read_elsewhere() {
+    assert!(matches!(
+        read(&unit_cone(), &sphere(p(0.0, 0.0, 1.5), 0.5), region()),
+        Ok(SectionRead::Elsewhere(_))
+    ));
+    assert!(matches!(
+        ssi::cone_ruled_ssi(
+            &unit_cone(),
+            &sphere(p(0.0, 0.0, 1.5), 0.5),
+            region(),
+            domain(),
+            band()
+        ),
+        Err(SsiError::WrongLane { .. })
+    ));
+}
+
+// -------------------------------------------------------------------
+// The carry
+// -------------------------------------------------------------------
+
+/// The door's domain: the cube about the region.
+fn domain() -> SsiDomain {
+    SsiDomain {
+        center: Point3::origin(),
+        half_extent: 5.0,
+        extent: 10.0,
+        floor_scale: 1.0,
+    }
+}
+
+/// **`section` carried, every carrier on both surfaces**: the carry's
+/// components one to one with the listed ones, of the same shapes, each
+/// carrier's samples within `1e-7` of both operands by their implicit
+/// residuals, and each listed witness on its own carried component.
+fn carried_on_both(what: &str, section: &PairSection<f64>) -> CarriedSection<f64> {
+    let (a, b) = section.pose().operands();
+    let carried = section
+        .carry(Some(SsiLane::marched()), band())
+        .unwrap_or_else(|e| panic!("{what}: the carry refused: {e:?}"));
+    let listed = section.counted().unwrap();
+    assert_eq!(
+        carried.components().len(),
+        listed.len(),
+        "{what}: one to one"
+    );
+    for (c, l) in carried.components().iter().zip(listed) {
+        assert_eq!(c.shape, l.shape, "{what}: the listed shape");
+        let (t0, t1) = c.span;
+        for k in 0..=32 {
+            let x = c.carrier.eval(t0 + (t1 - t0) * f64::from(k) / 32.0);
+            for s in [a, b] {
+                let r = geom_brep::implicit_residual(s, x);
+                assert!(r.abs() <= 1e-7, "{what}: {x:?} stands {r:e} off {s:?}");
+            }
+        }
+        let w = l.witness.unwrap();
+        let near = (0..=512)
+            .map(|k| (c.carrier.eval(t0 + (t1 - t0) * f64::from(k) / 512.0) - w).norm())
+            .fold(f64::INFINITY, f64::min);
+        assert!(
+            near < 0.02,
+            "{what}: the witness {w:?} is {near} off its carrier"
+        );
+    }
+    carried
+}
+
+/// **A cone pair's general components are carried**, both ways round:
+/// the ball's bite (one loop) and the two loops about the apex; the
+/// narrow cone through the side (two loops); the rod's bite on the
+/// oblique cylinder (one loop) and the region across it (one arc, its
+/// cut ends the march's ends). A march that does not find the counted
+/// components, finds one twice, or traces off either surface: red.
+#[test]
+fn a_cone_pairs_components_are_carried_on_both_surfaces() {
+    let narrow = cone_about(p(-5.0, 0.0, 2.0), Vec3::unit_x(), 0.2);
+    let bite = cylinder(p(0.0, 1.3, 1.0), Vec3::unit_x(), 0.4);
+    let rows: [(&str, Surface<f64>, ExtentBall<f64>, usize); 5] = [
+        (
+            "the ball's bite",
+            sphere(p(1.0, 0.0, 1.5), 0.5),
+            region(),
+            1,
+        ),
+        (
+            "the ball about the apex",
+            sphere(p(0.3, 0.0, 0.2), 1.0),
+            region(),
+            2,
+        ),
+        (
+            "the narrow cone",
+            narrow,
+            ExtentBall::fixture(Point3::origin(), 8.0),
+            2,
+        ),
+        ("the rod's bite", bite.clone(), region(), 1),
+        (
+            "the bite cut open",
+            bite,
+            ExtentBall::fixture(p(0.0, 1.3, 1.0), 0.6),
+            2,
+        ),
+    ];
+    for (what, partner, region, count) in rows {
+        for (a, b) in [(&unit_cone(), &partner), (&partner, &unit_cone())] {
+            let section = built(a, b, region);
+            assert_eq!(section.counted().unwrap().len(), count, "{what}: the count");
+            let carried = carried_on_both(what, &section);
+            for (c, l) in carried.components().iter().zip(section.counted().unwrap()) {
+                if let Some(ends) = l.cut_ends {
+                    let (t0, t1) = c.span;
+                    let got = [c.carrier.eval(t0), c.carrier.eval(t1)];
+                    for e in ends {
+                        let off = got
+                            .iter()
+                            .map(|g| (*g - e).norm())
+                            .fold(f64::INFINITY, f64::min);
+                        assert!(
+                            off < 1e-6,
+                            "{what}: a cut end {e:?} {off} off the march's ends"
+                        );
+                    }
+                }
+            }
+        }
+    }
 }
 
 /// **The value decides at `Interval` as it does at `f64`**, on certified
@@ -1370,6 +1866,59 @@ fn the_value_reads_at_interval_as_at_f64() {
         } else {
             assert_eq!(listed.len(), 2, "{what}: two arcs");
             assert_eq!(section.node_sets().len(), 1, "{what}: one set");
+        }
+    }
+}
+
+/// **A carried loop winds as the classification claims it does**, about
+/// both carriers: the fat steep wall about the apex and the coaxial cone,
+/// each loop claiming `[true, true]`, and the narrow cone through the
+/// side, whose loops claim the partner alone, carried both ways round.
+/// The carry matches each branch to its listed loop by its witness and
+/// desyncs where the march's winding, read over its tube about each
+/// operand's axis, misses a claim (`PairSection::matched`). Each carried
+/// loop's winding agrees with its claim on both carriers. Red if the
+/// carry's winding misreads a cone loop (a desync), or the claim
+/// overstates it.
+#[test]
+fn a_carried_loop_winds_as_its_claim_on_both_carriers() {
+    let rows = [
+        (
+            "the fat steep wall",
+            cylinder(
+                p(0.1, 0.0, 0.0),
+                Vec3::new(0.3f64.sin(), 0.0, 0.3f64.cos()),
+                1.0,
+            ),
+            region(),
+            [true, true],
+        ),
+        (
+            "the coaxial cone",
+            cone_about(p(0.0, 0.0, 1.0), Vec3::unit_z(), 0.3),
+            region(),
+            [true, true],
+        ),
+        (
+            "the narrow cone through the side",
+            cone_about(p(-5.0, 0.0, 2.0), Vec3::unit_x(), 0.2),
+            ExtentBall::fixture(Point3::origin(), 8.0),
+            [false, true],
+        ),
+    ];
+    for (what, partner, region, claim) in rows {
+        for (a, b, want) in [
+            (&unit_cone(), &partner, claim),
+            (&partner, &unit_cone(), [claim[1], claim[0]]),
+        ] {
+            let section = built(a, b, region);
+            for l in section.counted().unwrap() {
+                assert_eq!(l.winds, want, "{what}: the listed claim");
+            }
+            let carried = carried_on_both(what, &section);
+            for c in carried.components() {
+                assert_eq!(c.winds, want, "{what}: the carried loop winds as claimed");
+            }
         }
     }
 }

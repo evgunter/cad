@@ -485,18 +485,28 @@ BOUNDS_ALLOWLIST=(
   # boxes.rs's two are the box builders (`face_box`, `edge_box`), each
   # its cover's bracketed box; its point read needs no `Bounds`.
   'crates/topo/src/boxes.rs 2 2026-07-29 (M5 PR 8), the driver amendment'
-  # carrier_touch.rs's four are the crossing layer's touch reading:
-  # `clusters`, the subdivision driver (a piece's half-length bracket
-  # stops the bisection); `edge_clear_of_ball`, which prunes a boundary
+  # carrier_touch.rs's three and face_reading.rs's four are the crossing
+  # layer's touch reading (GERM U4b moved the ball rule into the face
+  # reading, and its window reading localizes as the cluster reading
+  # does; carrier_touch's clusters stay for the spline composite alone,
+  # and the edge prune stays in carrier_touch, which names the splitting
+  # engine's distance floor at its base pin, `engine-leaves.counts`):
+  # `clusters` and the face reading's `localize`, each the subdivision
+  # driver (a piece's half-length bracket stops the bisection at the
+  # tangency floor), and `off_face`, which carries the bound to call it
+  # and `ball_off_face`; `edge_clear_of_ball`, which prunes a boundary
   # edge by its certified box against the touch's ball before deciding a
   # distance bound (a box miss is a terminal clear, the disjointness
-  # direction #571 allows); and `off_face` and `ball_off_face`, which
-  # carry the bound to call those two and read no bracket themselves.
-  # The bound is not a certifying one: the public boolean builds at a
-  # dual (`crates/topo/tests/inside_out_operand.rs`), where these reads
-  # prune and stop a bisection on the base scalar's brackets (`real.rs`'s
-  # entry).
-  'crates/topo/src/boolean/carrier_touch.rs 4 2026-07-29 (M5 PR 8), the driver amendment'
+  # direction #571 allows); and `ball_off_face`, `window_off_face` and
+  # `face_crossings`, which carry the bound to call it and order a
+  # `Through` apex among the found meetings by their parameters'
+  # brackets' upper ends (an order of points `cross` already placed
+  # apart, read for position only). The bound is not a certifying one: the public
+  # boolean builds at a dual (`crates/topo/tests/inside_out_operand.rs`),
+  # where these reads prune and stop a bisection on the base scalar's
+  # brackets (`real.rs`'s entry).
+  'crates/topo/src/boolean/carrier_touch.rs 3 2026-07-29 (M5 PR 8), the driver amendment'
+  'crates/topo/src/boolean/face_reading.rs 4 2026-07-29 (M5 PR 8), the driver amendment'
   # mod.rs's four are the reduction's doors: `boolean_reduce`, the
   # strategy driver it and the ops call (`boolean_reduce_declared_strategy`),
   # and the two trace doors (`sweep_traces`, `sweep_traces_with_pad`).
@@ -552,17 +562,21 @@ BOUNDS_ALLOWLIST=(
   # `Bounds` their calls do not compile. `section_cert.rs` itself, the
   # classifier and the per-pair rule, reads no box and carries no
   # compound bound, and `section_report` runs at `f64` only.
-  'crates/topo/src/boolean/ops.rs 26 2026-07-29 (M5 PR 8), the driver amendment'
+  # `section_extent_pass` left the seam: it reads the verdicts
+  # `no_crossings_pass` hands it, no body and no box, so it carries no
+  # bound. 26 − 1 = 25.
+  'crates/topo/src/boolean/ops.rs 25 2026-07-29 (M5 PR 8), the driver amendment'
   # reduce.rs's four are the sweep's own doors (`first_unsupported_pair`,
   # `gate_operand_pairs`, `face_tree`, `sweep_direction`); the fifth,
   # `sweep_and_settle`, is the one driver every boolean sweeps through,
   # and rides the same seam: it forwards to `sweep_direction` twice and
   # reads no bracket of its own (`Decide` alone does not compile there).
-  # Six more ride to `carrier_touch::off_face` the same way:
-  # `curved_face_arm`, `wall_crossing`, `settle_deferred`, and the spline
-  # span's `composite_count` and its two lanes, `spline_plane_crossings`
-  # and `spline_wall_event`, none of which reads a bracket of its own
-  # (without `Bounds` the call to `off_face` does not compile). 5 + 6 = 11.
+  # Six more ride to the touch reading the same way: `curved_face_arm`,
+  # `wall_crossing` and `settle_deferred` to `face_reading::face_crossings`,
+  # and the spline span's `composite_count` and its two lanes,
+  # `spline_plane_crossings` and `spline_wall_event`, to
+  # `carrier_touch::off_face`; none reads a bracket of its own (without
+  # `Bounds` those calls do not compile). 5 + 6 = 11.
   'crates/topo/src/boolean/reduce.rs 11 2026-07-29 (M5 PR 8), the driver amendment'
   # nary.rs's two are `nary_boolean`, the n-ary union and intersect,
   # and `run_members`, its body: it reads each member's box through
@@ -584,18 +598,23 @@ BOUNDS_ALLOWLIST=(
   # member into the computing frame (`Placed::taken`) and runs
   # `run_members` over them, and reads no bracket of its own. 4 + 1 = 5.
   'crates/topo/src/boolean/nary.rs 5 2026-07-29 (M5 PR 8), the driver amendment'
-  # `separation.rs` is FIVE. The ledger entry enumerates three seams
+  # `separation.rs` is THREE. The ledger entry enumerates three seams
   # (`Separation::of`, the pair certificate, `image`), and the pair
-  # certificate is `Separation::apart`, every pair of placed copies the
-  # boxes separate, with `may_meet`, its per-pair step: both read the
-  # prototype's face boxes through `image` and the tree `of` built, and
-  # neither reads a bracket of its own. The fifth,
-  # `SolidSeparation::of`, is argued in that struct's own doc as
-  # INHERITANCE from the sibling door — a dual-admission argument, not
-  # the necessity standard the ledger asks for — so its ledger row is
-  # owed and the entry says so rather than letting the count read as
-  # ratified by a ruling that does not mention it.
-  "crates/topo/src/separation.rs 5 2026-07-29 (M5 PR 8) for three of them; the fourth (SolidSeparation::of) rests on SolidSeparation's own doc and OWES a ledger row"
+  # certificate is `Separation::apart`, every pair of placed copies no
+  # face reading parts, with `may_meet`, its per-pair step. `Separation`
+  # borrows its prototype, so `of`, `apart` and `may_meet` take their
+  # bound from the one `impl<'b, T: Decide + Bounds> Separation<'b, T>`
+  # line: they read the prototype's face boxes through `image` and the
+  # tree `of` built, and neither reads a bracket of its own (the face
+  # reading behind a box overlap, `census::faces_apart`, is
+  # `T: Decide`). `image` is the second line. The third,
+  # `SolidSeparation`'s impl (`of`, `certify`), is argued in that
+  # struct's own doc as INHERITANCE from the sibling door — a
+  # dual-admission argument, not the necessity standard the ledger asks
+  # for — so its ledger row is owed and the entry says so rather than
+  # letting the count read as ratified by a ruling that does not mention
+  # it.
+  "crates/topo/src/separation.rs 3 2026-07-29 (M5 PR 8) for three of them; the third line (SolidSeparation's impl) rests on SolidSeparation's own doc and OWES a ledger row"
   'crates/editor-core/src/eval/mod.rs 7 2026-07-29 (M5 PR 8), the driver amendment'
   # 15 -> 16: `wire_shell` joined its nine sibling lowerings on the
   # same header. The shell's seat door stopped being a trait method
@@ -717,6 +736,10 @@ BOUNDS_ALLOWLIST=(
   # The lane constructors and the doors that were `Decide +
   # CertifiedBounds` now write `Certifies` or `CertifiedPolicy` in
   # `Decide`'s place, at the same count.
+  # props.rs 16 -> 17 -> 16: PR 7772's `certified_spline_face_crossings`
+  # retires with the policy's spline reader: the curve × face table reads
+  # a spline span against an analytic face at every deciding scalar, so
+  # no door hands a reader in (INSIDE, the face door's spline arm).
   'crates/topo/src/props.rs 16 M5 PR 11, the certified-quadrature plumbing'
   # quad_lane.rs 14 -> 15: `closed_form` re-derives a closed-form
   # face's flux at the interval scalar, lifting the face's geometry
@@ -755,7 +778,20 @@ BOUNDS_ALLOWLIST=(
   # `Interval::from_certified`. They are reached only from `nurbs_face`,
   # under `QuadLane::certified`'s first field, so they are the same
   # plumbing at the same door and are never formed at a dual.
-  'crates/topo/src/props/quad_lane.rs 18 M5 PR 11, the certified-quadrature plumbing'
+  # 18 -> 20 (LATHE, the flipped sphere face): `rotational_face`
+  # (`Decide + CertifiedBounds`) is `cut_face_lane`'s rotational arm
+  # moved out whole, the one place the face is assembled from its loops
+  # (assembled once per reader: check 6's side and check 7's volume
+  # each call it, the cost filed at
+  # work/lathe/tier3-lane-side-reading-costs-a-second-per-transversal-body.md);
+  # `material_sign` (`Decide + CertifiedBounds`) hands
+  # that face to `geom_brep::props::quad::rotational_material_sign`, the
+  # side check 6 reads where no closed form reads a face's trims. Both
+  # lift the face's loops through `Interval::from_certified` and are
+  # reached only under `QuadLane::certified`'s fields (`cut_face_rounds`
+  # and `material_sign`), so they are the same plumbing at the same
+  # door and are never formed at a dual.
+  'crates/topo/src/props/quad_lane.rs 20 M5 PR 11, the certified-quadrature plumbing'
   # The clearance engine's door, under the same seam and for the same
   # reason as `QuadLane::certified` (its own ledger paragraph in
   # `real.rs`, after the M5 PR 11 entry): it reads a `Body<T>` at any
@@ -1045,7 +1081,7 @@ BOUNDS_ALLOWLIST=(
   # at its domain middle and read no bracket, and its callers in
   # `ssi.rs` now take `Curve3::mid_point`, the witness pin's own point.
   # The seam is unmoved: the branch certificate keeps its bounds.
-  'crates/geom-brep/src/ssi/certify.rs 18 M6-2, the SSI rung-3 certificate; its two-chart tube (probe_tube_pair, pair_tube_chain) at the same bound; its limbs 1-2 alone (incidence_limbs), which certify_branch now calls, at the same bound'
+  'crates/geom-brep/src/ssi/certify.rs 20 M6-2, the SSI rung-3 certificate; its two-chart tube (probe_tube_pair, pair_tube_chain) at the same bound; its limbs 1-2 alone (incidence_limbs), which certify_branch now calls, at the same bound; limb 2s hold of the image to its chart knot rectangle (chart_domain_limb), read by limb 2 and by the fitted pcurve door, at the same bound'
   # M7-8, the declare-and-check edge lane.
   # 6 -> 8: the edge lane's door value (`NurbsLane`) gained a second
   # body, `analytic_rung3` (`Decide + Bounds + CertifiedEnclosure`, two

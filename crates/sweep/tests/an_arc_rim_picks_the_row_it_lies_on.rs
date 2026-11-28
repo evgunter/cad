@@ -37,8 +37,9 @@ fn band() -> Band {
     Band::linear(tol()).unwrap()
 }
 
-/// A prism whose profile's second edge is a semicircle (bulge 1), so
-/// its wall's rims are half-period arcs, `breaks` mirror-symmetric and
+/// A prism whose profile's second edge is a semicircle (bulge 1), which
+/// the loft cuts into two quarter walls, so each wall's rims are
+/// quarter arcs of one sub-arc, `breaks` mirror-symmetric and
 /// the wall reversible in `u` bitwise.
 fn semicircle_prism() -> Body<f64> {
     let v = |x: f64, y: f64, bulge: f64| (Point2::new(x, y), bulge);
@@ -56,21 +57,34 @@ fn semicircle_prism() -> Body<f64> {
         .into_body()
 }
 
-/// The arc wall and its two rim half-edges, `v = 0` first.
+/// The first quarter wall of the arc and its two rim half-edges, `v = 0`
+/// first.
 fn arc_wall(body: &Body<f64>) -> (FaceKey, [HalfEdgeKey; 2]) {
-    let mut rims: Vec<(f64, HalfEdgeKey)> = body
+    let rims: Vec<(f64, HalfEdgeKey)> = body
         .pcurves()
         .filter_map(|(h, c)| match c.pcurve() {
             image @ Pcurve::IsoArc { .. } => image.iso_arc_segment().map(|(p0, _)| (p0.y, h)),
             _ => None,
         })
         .collect();
-    rims.sort_by(|a, b| a.0.total_cmp(&b.0));
-    let [(_, bottom), (_, top)] = rims.as_slice() else {
-        panic!("the arc wall's two rims are its IsoArc rows: {rims:?}")
+    assert_eq!(
+        rims.len(),
+        4,
+        "two quarter walls, each with two IsoArc rows: {rims:?}"
+    );
+    let face = rims
+        .iter()
+        .map(|&(_, h)| body.face_of_half_edge(h).unwrap())
+        .min()
+        .unwrap();
+    let mut own: Vec<(f64, HalfEdgeKey)> = rims
+        .into_iter()
+        .filter(|&(_, h)| body.face_of_half_edge(h) == Some(face))
+        .collect();
+    own.sort_by(|a, b| a.0.total_cmp(&b.0));
+    let [(_, bottom), (_, top)] = own.as_slice() else {
+        panic!("the quarter wall's two rims are its IsoArc rows: {own:?}")
     };
-    let face = body.face_of_half_edge(*bottom).unwrap();
-    assert_eq!(body.face_of_half_edge(*top), Some(face), "one wall");
     (face, [*bottom, *top])
 }
 
@@ -111,7 +125,7 @@ fn a_rim_against_the_charts_u_takes_its_reversed_row() {
     let mut reversed = body.clone();
     let face = reversed.get_face(wall).unwrap();
     let (key, sense) = (face.surface, face.sense);
-    let Some(Surface::Nurbs(net)) = reversed.get_surface(key).cloned() else {
+    let Ok(Surface::Nurbs(net)) = reversed.get_surface(key).cloned() else {
         panic!("the arc wall is a spline chart")
     };
     // Lifts RechartUnvouched and RechartStrandsDescriptions: the wall
@@ -326,7 +340,7 @@ fn seam_tube() -> (Body<f64>, FaceKey, [HalfEdgeKey; 2]) {
     let on_torus = |body: &Body<f64>, h: HalfEdgeKey| {
         matches!(
             body.face_surface(body.face_of_half_edge(h).unwrap()),
-            Some(Surface::Torus { .. })
+            Ok(Surface::Torus { .. })
         )
     };
     let equators: Vec<_> = body

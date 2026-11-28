@@ -2,9 +2,11 @@
 id: the-chart-accounting-clears-a-thin-torus-only-in-sub-millimetre-cells
 kind: issue
 title: The chart accounting clears a cell against a thin torus only once it is sub-millimetre, so lily wall 8's torus × spline section exceeds its cell budget before it reaches the section
-status: open
+status: closed
 opened: 2026-11-12
 priority: P0
+closed: 2026-11-25
+branch: ssiarith/thin-torus-exclusion
 cost: M
 refs: [a-nurbs-face-against-a-torus-has-no-section-arm, the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding, the-nurbs-pair-all-exhausts-its-cell-budget-on-a-small-loop, two-tour-wall-probes-moved-on-main]
 ---
@@ -101,3 +103,31 @@ only by its text, which is how lily wall 8's pin matches it now. That
 flattening is on ONECOPY's ground, in
 `onecopy/the-section-tables-refusal-states-no-standing`
 (`Unaccounted`: "mixed").
+
+## Closed (2026-11-25, `ssiarith/thin-torus-exclusion`)
+
+`ImplicitForm::value` (`crates/geom-brep/src/ssi/residual.rs`) meets the
+expanded torus quartic with the same quartic factored as
+`((ρ − R)² + z² − r²)·((ρ + R)² + z² − r²)`, `ρ = √(x² + y²)`. The near
+factor carries the quartic's variation at the tube's own scale, so a
+box `d` from the tube clears once its width is under about `1.5d`
+(the review's measurement on lily's torus, both equators), where the
+expanded form wanted `d/170`. The gradient's torus arm is grouped as
+one factor times `x` and `y`, three times tighter than the two terms
+it subtracted. Every reader of `φ` over a box takes it
+(`ChartPhi::over`, the node and boundary reads).
+
+- Row: `a_thin_torus_form_clears_a_box_at_its_own_distance` (lily's
+  `R = 5`, `r = 0.06`; boxes a centimetre off the tube on both
+  equators, a fifth of that wide), red under the expanded form alone.
+- Lily wall 8 at ε 1e-9: the union no longer exceeds the cell budget
+  (62 s to refuse on main, about 30 s now) and stops at the pierce
+  pass, `HeldPierceUnbuilt { placed: false }`, filed as
+  `work/splice/lily-wall-8s-leaf-wall-lifts-no-closed-trim-at-the-pierce-pass.md`;
+  the wall is re-pinned there. Every lily wall probe passes at 1e-9.
+- At 1e-6 the union first refused at a second pair's uniqueness tube
+  (`a-thin-torus-tube-reads-no-crossing-angle-on-lily-wall-8-at-1e-6`);
+  with the gradient grouped it stops at the same pierce pass as 1e-9
+  (wall 2 stops the probes before it there).
+- The expected next stop, the plane × torus frame (`GermSectionSpiric`),
+  was not reached.

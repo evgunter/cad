@@ -230,21 +230,13 @@ fn r1_split_seam_donut_mesh_measured() {
 /// refused `props_rim_level` and the first fold answered twice the
 /// volume. The flux lane and the side fold nothing: the torus's chart
 /// Green form reads each piece's own span, so the shifted child — the
-/// identical arc — measures as the donut and encodes its side.
+/// identical arc — reads its flux and encodes its side. The split body
+/// is construction state (its split vertex a station, tier 3's check
+/// 11), so `mass_properties`, which reads finished bodies, never
+/// measures it.
 #[test]
 fn r1_a_reparametrised_split_child_refuses_at_the_fold() {
     let tol = Tol::witness();
-    let base = donut();
-    let mp0 = topo::mass_properties(
-        &topo::test_support::finished("the measured body", base.clone(), tol),
-        tol,
-        topo::test_support::pinned_resolution(tol),
-    )
-    .unwrap();
-    println!(
-        "unsplit: V={} A={}",
-        mp0.enclosure.volume, mp0.enclosure.surface_area
-    );
     let mut body = split_donut(0, &[0.5]);
     // The second child is the edge the split minted: the last edge.
     let child = body.edges().last().unwrap().0;
@@ -269,16 +261,9 @@ fn r1_a_reparametrised_split_child_refuses_at_the_fold() {
                 .certified()
                 .unwrap();
             println!("child stored interval after: {:?}", c2.params());
-            let mp = topo::mass_properties(
-                &topo::test_support::finished("the measured body", body.clone(), tol),
-                tol,
-                topo::test_support::pinned_resolution(tol),
-            );
-            println!(
-                "mass_properties: {:?}",
-                mp.as_ref()
-                    .map(|m| (m.enclosure.volume, m.enclosure.surface_area))
-            );
+            let base = donut();
+            let (seam, _) = base.edges().next().unwrap();
+            construction_state(&body, &split_points(&base, seam, &[0.5]));
             println!(
                 "tessellate: {:?}",
                 mesh::tessellate(&body, 0.1, tol)
@@ -294,15 +279,6 @@ fn r1_a_reparametrised_split_child_refuses_at_the_fold() {
             let meet = geom_brep::props::PropsError::SpanUncertified {
                 what: "props_meridian_pieces_meet",
             };
-            let v = mp
-                .unwrap_or_else(|e| panic!("mass_properties reads the identical arc: {e:?}"))
-                .enclosure
-                .volume;
-            assert!(
-                (v - mp0.enclosure.volume).abs() <= 1e-12 * mp0.enclosure.volume,
-                "the shifted child measures as the donut: {v} vs {}",
-                mp0.enclosure.volume
-            );
             assert!(
                 matches!(
                     mesh::tessellate(&body, 0.1, tol),

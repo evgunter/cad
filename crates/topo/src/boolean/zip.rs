@@ -1087,9 +1087,20 @@ fn align<T: Decide>(
 /// at that site, so a co-wound ring half there leaves the right vertex
 /// and arrives at the right one too. The paired halves must run against
 /// each other along their carriers there, read off their tangents at the
-/// site (`bool_zip_one_vertex_sense`); a half that runs with the outer
+/// site (`bool_zip_one_vertex_sense`): the cosine of the two directions,
+/// levered by the outer half's conic's extent, so the reading is a
+/// length at every scale of the conic. A half that runs with the outer
 /// one is [`BooleanError::SeamOrientation`]. A half between two vertices
 /// is [`align`]'s and passes.
+///
+/// A degenerate seam escalates as the kernel's own self-check
+/// ([`super::SelfCheck::SeamSense`]) rather than reading a sense: a zero
+/// tangent normalizes to poison, and so does the arm of a conic whose
+/// cover does not read ([`geom_brep::ExtentBall::of_covered`]). The arm
+/// only moves a verdict where the cosine is within `ε/R` of zero, `R`
+/// the conic's extent; two halves along one conic read `±1`, so it bites
+/// only for a conic smaller than the band, which no fixture reaches and
+/// no row pins.
 fn one_vertex_sense<T: Decide>(
     body: &Body<T>,
     (a_face, b_face): (FaceKey, FaceKey),
@@ -1103,9 +1114,8 @@ fn one_vertex_sense<T: Decide>(
     if start_of(body, outer)? != end {
         return Ok(());
     }
-    // The tangent a half leaves its start along: its carrier's at the
-    // start parameter, reversed on the minus half.
-    let leaving = |he: HalfEdgeKey| -> Result<geom_core::Vec3<T>, BooleanError> {
+    // A half's certified curve, and whether the half runs along it.
+    let curve_of = |he: HalfEdgeKey| -> Result<(&geom_brep::EdgeCurve<T>, bool), BooleanError> {
         let edge = body
             .get_half_edge(he)
             .ok_or_else(|| corr("seam half-edge no longer resolves"))?
@@ -1116,15 +1126,41 @@ fn one_vertex_sense<T: Decide>(
         let curve = data
             .certified()
             .ok_or_else(|| corr("a one-vertex seam edge has no certified curve"))?;
+        Ok((curve, data.record().he_plus == he))
+    };
+    // The unit direction a half leaves its start along: its carrier's
+    // tangent at the start parameter, reversed on the minus half.
+    let leaving = |(curve, plus): (&geom_brep::EdgeCurve<T>, bool)| {
         let (t0, t1) = curve.params();
-        Ok(if data.record().he_plus == he {
+        let tangent = if plus {
             curve.carrier().deriv(t0)
         } else {
             -curve.carrier().deriv(t1)
-        })
+        };
+        tangent.normalize()
     };
     let band = geom_core::Band::linear(tol).map_err(|_| corr("the zip's band does not read"))?;
-    let margin = geom_core::Margin::of(leaving(outer)?.dot(leaving(ring)?));
+    let (outer_curve, ring_curve) = (curve_of(outer)?, curve_of(ring)?);
+    // The lever is the outer half's own span's extent, the span it consumes.
+    // At a real seam the two halves leave the vertex antiparallel, so the
+    // margin is `cos · arm` with `cos = −1`, and the span's extent is at
+    // most the carrier's: a narrower lever can only move a decided
+    // `Negative` toward `Zero` (a refusal), never flip a sense. Every
+    // one-vertex seam the suites build closes over a full period, where
+    // the span's extent is the carrier's; no row reaches a partial span,
+    // which needs a one-vertex seam whose carrier runs past its edge's
+    // ends, and no builder is known to mint one.
+    let (t0, t1) = outer_curve.0.params();
+    let arm = geom_brep::ExtentBall::of_covered(
+        outer_curve
+            .0
+            .carrier()
+            .cover_over(geom::cover::ParamWindow::new(t0, t1))
+            .as_ref()
+            .ok(),
+    )
+    .lever();
+    let margin = geom_core::Margin::levered(leaving(outer_curve).dot(leaving(ring_curve)), arm);
     match crate::validate::decide("bool_zip_one_vertex_sense", margin, band) {
         Ok(geom_core::Sign::Negative) => Ok(()),
         Ok(_) => Err(BooleanError::SeamOrientation { a_face, b_face }),

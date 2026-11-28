@@ -43,7 +43,7 @@ fn the_waist_carves_at_the_certified_scalar_and_brackets_the_pappus_fill() {
     let r = 0.05;
     let source = topo::test_support::finished("source", waisted_at::<Interval>(tol), tol);
     let arcs = rim_arcs_at(&source, 0.5, 0.5);
-    assert_eq!(arcs.len(), 2, "the waist rim is seam-split into two arcs");
+    assert_eq!(arcs.len(), 1, "the waist rim is one closed edge");
     let p0 = topo::mass_properties(&source, tol, topo::test_support::pinned_resolution(tol))
         .expect("interval props");
     let v0 = 7.0 * PI / 12.0;
