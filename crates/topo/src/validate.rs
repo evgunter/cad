@@ -10756,6 +10756,12 @@ impl<T: crate::props::AtRestPolicy> AtRestBody<T> {
         }
     }
 
+    /// Reviewer probe: the kept certificate's faces, in its runs' order.
+    #[cfg(test)]
+    pub(crate) fn probe_run_faces(&self) -> Vec<FaceKey> {
+        self.sign.probe_run_faces()
+    }
+
     /// **Relogs the held finish record** into this thread's open frame:
     /// the taker's half of [`AtRestBody::holding`]. Nothing where none is
     /// held.

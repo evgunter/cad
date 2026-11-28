@@ -205,6 +205,8 @@ pub(crate) fn note_cut_ins(made: [usize; 2]) {
 }
 
 #[cfg(test)]
+mod review_gather_r1_probe;
+#[cfg(test)]
 pub(crate) mod cert_m3r1_probes;
 pub(crate) mod held;
 pub mod instance;

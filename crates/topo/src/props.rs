@@ -2396,6 +2396,12 @@ impl<T: AtRestPolicy> KeptSign<T> {
             .collect()
     }
 
+    /// Reviewer probe: the faces its runs name, in the runs' order.
+    #[cfg(test)]
+    pub(crate) fn probe_run_faces(&self) -> Vec<FaceKey> {
+        self.runs.iter().map(|run| run.face).collect()
+    }
+
     /// **This certificate over `body`**, the one body it was derived
     /// over, its rounds as the gate left them.
     pub(crate) fn of<'b>(&self, body: &'b Body<T>) -> SignCertificate<'b, T> {
