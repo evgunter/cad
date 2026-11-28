@@ -5850,9 +5850,17 @@ impl<T: Decide> Sym<T> {
         ) {
             count_decision(false);
             report::record(&numeric, false, None, self.value.enclosure_probe());
+            if m16::on() {
+                if let Some(enc) = self.value.enclosure_probe() {
+                    m16::definite(self.node, enc);
+                }
+            }
             return numeric;
         }
         let domain_violation = matches!(&numeric, Err(e) if e.margin.is_invalid());
+        if domain_violation && m16::on() {
+            m16::invalid(numeric.is_err());
+        }
         let m16_pre = (!domain_violation && m16::on()).then(|| m16::prebuild(self.node));
         let m16_t0 = std::time::Instant::now();
         let answered = if domain_violation {

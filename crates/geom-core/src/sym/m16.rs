@@ -78,6 +78,8 @@ thread_local! {
     static VALUED: RefCell<HashMap<&'static str, u32>> = RefCell::new(HashMap::new());
     static STRADDLED: RefCell<HashMap<&'static str, u32>> = RefCell::new(HashMap::new());
     static RENDERED: RefCell<HashMap<&'static str, u32>> = RefCell::new(HashMap::new());
+    static DEFINITE: RefCell<HashMap<&'static str, u32>> = RefCell::new(HashMap::new());
+    static POINTED: RefCell<HashMap<&'static str, u32>> = RefCell::new(HashMap::new());
 }
 
 /// Names what the following decisions belong to (a body, a leaf).
@@ -246,6 +248,129 @@ fn member(sess: &Session, node: SymId, f: f64) -> Result<f64, String> {
         .copied()
         .flatten()
         .ok_or_else(|| blocked.unwrap_or_else(|| "no-value".to_owned()))
+}
+
+/// The margin's graph enclosed op by op at ONE member of the box (`f`
+/// of the way across every bracket), outward-rounded: the point reading.
+fn point(sess: &Session, node: SymId, f: f64) -> Result<Interval, String> {
+    use crate::real::Real as R;
+    let mut memo: HashMap<SymId, Option<Interval>> = HashMap::new();
+    let mut blocked = None;
+    let mut stack = vec![(node, false)];
+    while let Some((id, expanded)) = stack.pop() {
+        if memo.contains_key(&id) {
+            continue;
+        }
+        let Some(n) = sess.node_of(id) else {
+            memo.insert(id, None);
+            blocked.get_or_insert("unknown-node".to_owned());
+            continue;
+        };
+        if !expanded {
+            stack.push((id, true));
+            stack.extend(n.kids().iter().map(|k| (*k, false)));
+            continue;
+        }
+        let kid = |i: usize| memo.get(&n.kids[i]).copied().flatten();
+        let v: Option<Interval> = match n.op {
+            SymOp::Param => match sess.params.get(&super::indet_param(n.payload)) {
+                Some(&(lo, hi)) => Some(<Interval as R>::from_f64(lo + f * (hi - lo))),
+                None => {
+                    blocked.get_or_insert("param-without-bracket".to_owned());
+                    None
+                }
+            },
+            SymOp::Opaque | SymOp::Hull | SymOp::Free => {
+                blocked.get_or_insert(format!("{:?}", n.op));
+                None
+            }
+            SymOp::Lit => Some(<Interval as R>::from_f64(f64::from_bits(n.payload))),
+            SymOp::Pi => Some(<Interval as R>::pi()),
+            SymOp::Add => (|| Some(kid(0)? + kid(1)?))(),
+            SymOp::Sub => (|| Some(kid(0)? - kid(1)?))(),
+            SymOp::Mul => match sess.node_of(n.kids[1]) {
+                Some(inv) if inv.op == SymOp::Inv => {
+                    (|| Some(kid(0)? / memo.get(&inv.kids[0]).copied().flatten()?))()
+                }
+                _ => (|| Some(kid(0)? * kid(1)?))(),
+            },
+            SymOp::Neg => kid(0).map(|x| -x),
+            SymOp::Powi => kid(0).map(|x| R::powi(x, n.payload as u32 as i32)),
+            SymOp::Inv => kid(0).map(|x| <Interval as R>::from_f64(1.0) / x),
+            SymOp::Sqrt => kid(0).map(R::sqrt),
+            SymOp::Abs => kid(0).map(R::abs),
+            SymOp::Sin => kid(0).map(|x| R::sin_cos(x).0),
+            SymOp::Cos => kid(0).map(|x| R::sin_cos(x).1),
+            SymOp::Tan => kid(0).map(R::tan),
+            SymOp::Asin => kid(0).map(R::asin),
+            SymOp::Acos => kid(0).map(R::acos),
+            SymOp::Atan => kid(0).map(R::atan),
+            SymOp::Floor => kid(0).map(R::floor),
+            SymOp::LessSin => kid(0).map(R::less_sin),
+            SymOp::Atan2 => (|| Some(R::atan2(kid(0)?, kid(1)?)))(),
+            SymOp::Min => (|| Some(R::min(kid(0)?, kid(1)?)))(),
+            SymOp::Max => (|| Some(R::max(kid(0)?, kid(1)?)))(),
+            SymOp::Copysign => (|| Some(R::copysign(kid(0)?, kid(1)?)))(),
+            SymOp::Select => (|| Some(R::select_le_zero(kid(0)?, kid(1)?, kid(2)?)))(),
+        };
+        memo.insert(id, v);
+    }
+    match memo.get(&node).copied().flatten() {
+        Some(v) if v.is_certified() => Ok(v),
+        Some(_) => Err("poison".to_owned()),
+        None => Err(blocked.unwrap_or_else(|| "no-value".to_owned())),
+    }
+}
+
+/// An ask whose margin is a domain violation: it never reaches the tier.
+pub(super) fn invalid(today_err: bool) {
+    if let Some(f) = sink() {
+        let _ = writeln!(
+            f.lock().unwrap(),
+            "INVALID\t{}\t{}\t{}",
+            CONTEXT.with(|c| c.borrow().clone()),
+            crate::k_stats::current_predicate(),
+            if today_err { "undecided" } else { "decided" }
+        );
+    }
+}
+
+/// A sample of the asks the VALUE signs: is each member's `f64` margin
+/// inside the leaf's value enclosure?
+pub(super) fn definite(node: SymId, enc: (f64, f64)) {
+    let Some(sink) = sink() else { return };
+    let name = crate::k_stats::current_predicate();
+    let take = DEFINITE.with(|m| {
+        let mut m = m.borrow_mut();
+        let n = m.entry(name).or_insert(0);
+        *n += 1;
+        *n <= 20
+    });
+    if !take {
+        return;
+    }
+    SESSION.with(|s| {
+        let slot = s.borrow();
+        let Some(sess) = slot.as_ref() else { return };
+        if !sess.params.values().any(|&(lo, hi)| lo < hi) {
+            return;
+        }
+        let ms: Vec<String> = [0.0, 0.25, 0.5, 0.75, 1.0]
+            .iter()
+            .map(|&f| match member(sess, node, f) {
+                Ok(v) => format!("{}:{v:e}", if enc.0 <= v && v <= enc.1 { "in" } else { "OUT" }),
+                Err(why) => format!("NA:{why}"),
+            })
+            .collect();
+        let _ = writeln!(
+            sink.lock().unwrap(),
+            "DEF\t{}\t{name}\t{:e}\t{:e}\t{}",
+            CONTEXT.with(|c| c.borrow().clone()),
+            enc.0,
+            enc.1,
+            ms.join(",")
+        );
+    });
 }
 
 /// The margin's graph: every node that can stand as an indeterminate,
@@ -475,6 +600,22 @@ pub(super) fn probe(
         } else {
             String::new()
         };
+        let decided = best.and_then(|(_, r, ..)| r.sign).is_some();
+        let p_cell = if decided && (undecided || sampled(20, &POINTED)) {
+            match point(sess, node, 0.5) {
+                Ok(p) => {
+                    use crate::real::Bounds;
+                    let class = match p.sign_within(band) {
+                        Ok(d) => format!("{:?}", d.sign),
+                        Err(_) => "straddles".to_owned(),
+                    };
+                    format!("{class}|{:e}|{:e}", p.lo(), p.hi())
+                }
+                Err(why) => format!("declines:{why}||"),
+            }
+        } else {
+            String::new()
+        };
         if let Some(f) = sink() {
             let cells: Vec<String> = reads
                 .iter()
@@ -484,7 +625,7 @@ pub(super) fn probe(
                 .collect();
             let _ = writeln!(
                 f.lock().unwrap(),
-                "ASK2\t{}\t{name}\t{today}\t{:e}\t{:e}\t{:e}\t{:e}\t{}\t{}\t{}\t{}",
+                "ASK2\t{}\t{name}\t{today}\t{:e}\t{:e}\t{:e}\t{:e}\t{}\t{}\t{}\t{}\t{p_cell}",
                 CONTEXT.with(|c| c.borrow().clone()),
                 enc.0,
                 enc.1,
