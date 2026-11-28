@@ -18,9 +18,12 @@
 //! changes; the nightly reads the same pins at 1e-6 and 1e-12. Every run
 //! of the two cones builds, the section loop a ring on `K`'s face that
 //! the carried chords close, each body valid at tier 3. Every run of the
-//! ball refuses: the ball's one wrap edge reads no point of the loop, so
-//! it is interior to both faces, and the loop is not cut in on the cone
-//! ([`BALL_PINNED`]). Where an order's
+//! ball builds too: the ball's one wrap edge reads no point of the loop,
+//! so it is interior to both faces, and the ball's face is cut in along a
+//! meridian the loop crosses (`topo::boolean::ops::interior_cuts`, the
+//! march's one loop), each body valid at tier 3, at tier 3′ and under the
+//! certificate. Its intersection is held to the volume the two
+//! cross-sections give, slice by slice ([`ball_in_cone`]). Where an order's
 //! three runs all build, the volumes close as the operations must:
 //! `|A ∪ B| + |A ∩ B| = |A| + |B|` and `|A ∖ B| = |A| − |A ∩ B|`, within
 //! the measured pads. A desync or a broken invariant is red whatever the
@@ -71,36 +74,9 @@ fn crossing_cone(tol: Tol) -> AtRestBody<f64> {
     cone(to * turn, tol)
 }
 
-/// The refusal of a loop interior to the cone's face and the ball's,
-/// the cone being `operand`.
-macro_rules! cone_refused {
-    ($operand:literal) => {
-        concat!(
-            "FallbackExtentUnsupported { operand: ",
-            $operand,
-            ", face: FaceKey(2v1), what: \"a curved face meets a face of the other solid in a \
-             closed loop interior to both faces, which no edge event and no vertex probe can \
-             see; the loop is certified, and cutting it in is not built\" }"
-        )
-    };
-}
-
 /// Each run's outcome, ∪, ∩, ∖ with the cone first, then with the other
 /// first.
 const PINNED: [&str; 6] = ["built"; 6];
-
-/// The ball's six runs: the loop on the cone's side is read by no edge
-/// of the ball's one band, and the no-crossings path does not cut it in
-/// on the cone's face, so each run refuses typed, naming the cone. Filed
-/// as work/lathe/a-cone-and-a-one-band-ball-meet-in-a-loop-inside-both-faces-and-refuse-its-cut-in.md.
-const BALL_PINNED: [&str; 6] = [
-    cone_refused!("A"),
-    cone_refused!("A"),
-    cone_refused!("A"),
-    cone_refused!("B"),
-    cone_refused!("B"),
-    cone_refused!("B"),
-];
 
 /// The widest pad a measured volume may carry, relative to the volume:
 /// the closures below are read within the pads, so a pad past it would
@@ -207,16 +183,117 @@ fn every_order(
     assert_eq!(got, pinned, "{what}: each run's outcome");
 }
 
+/// **The ball's part of the cone, `|K ∩ ball|`, slice by slice**: at
+/// height `y` both are discs in the plane of `x` and `z`, the ball's of
+/// radius `√(0.4² − (y − 0.6)²)` about `(0.9, 0)` and the cone's of radius
+/// `(2 − y)/2` about the axis, and the slice of the intersection is their
+/// lens, in closed form (the smaller disc where one holds the other, none
+/// where they are apart). Integrated over the ball's heights `[0.2, 1]`
+/// by composite five-point Gauss–Legendre on `panels` panels. The lens's
+/// area has a kink where the two discs change regime, so the rule
+/// converges there at a lower order, and the row reads it at two panel
+/// counts. An oracle that reads neither body.
+fn ball_in_cone(panels: u32) -> f64 {
+    let lens = |y: f64| {
+        let r1 = (0.4f64.powi(2) - (y - 0.6).powi(2)).max(0.0).sqrt();
+        let r2 = (2.0 - y) / 2.0;
+        let d = 0.9f64;
+        if d >= r1 + r2 {
+            0.0
+        } else if d <= (r1 - r2).abs() {
+            PI * r1.min(r2).powi(2)
+        } else {
+            let a1 = ((d.powi(2) + r1.powi(2) - r2.powi(2)) / (2.0 * d * r1)).acos();
+            let a2 = ((d.powi(2) + r2.powi(2) - r1.powi(2)) / (2.0 * d * r2)).acos();
+            let k = ((-d + r1 + r2) * (d + r1 - r2) * (d - r1 + r2) * (d + r1 + r2)).sqrt();
+            r1.powi(2) * a1 + r2.powi(2) * a2 - k / 2.0
+        }
+    };
+    let (nodes, weights) = (
+        [
+            0.0,
+            -0.538_469_310_105_683_1,
+            0.538_469_310_105_683_1,
+            -0.906_179_845_938_664,
+            0.906_179_845_938_664,
+        ],
+        [
+            0.568_888_888_888_888_9,
+            0.478_628_670_499_366_5,
+            0.478_628_670_499_366_5,
+            0.236_926_885_056_189_1,
+            0.236_926_885_056_189_1,
+        ],
+    );
+    let (lo, hi) = (0.2, 1.0);
+    let h = (hi - lo) / f64::from(panels);
+    (0..panels)
+        .map(|i| {
+            let mid = lo + h * (f64::from(i) + 0.5);
+            nodes
+                .iter()
+                .zip(weights)
+                .map(|(x, w)| w * lens(mid + x * h / 2.0))
+                .sum::<f64>()
+                * h
+                / 2.0
+        })
+        .sum()
+}
+
+/// **The cone and the ball off its axis build every op in either
+/// order.** Each body passes tier 3, tier 3′ and the certificate, the
+/// volumes close as the ops must, and the intersection, in either order,
+/// is [`ball_in_cone`]'s within its pad and `1e-7`. Main before the one
+/// band built this pose on the ball's two lune seams; the one-band ball
+/// cuts its face in instead
+/// (`work/lathe/a-cone-and-a-one-band-ball-meet-in-a-loop-inside-both-faces-and-refuse-its-cut-in.md`).
 #[test]
-fn a_cone_and_a_ball_off_its_axis_refuse_their_loop_in_every_order() {
+fn a_cone_and_a_ball_off_its_axis_build_in_every_order() {
     let tol = Tol::witness();
+    let (k, ball) = (cone(Affine3::identity(), tol), ball(tol));
     every_order(
         "the ball",
-        (&cone(Affine3::identity(), tol), &ball(tol)),
+        (&k, &ball),
         4.0 * PI * 0.4f64.powi(3) / 3.0,
-        BALL_PINNED,
+        PINNED,
         tol,
     );
+    let (want, finer) = (ball_in_cone(400), ball_in_cone(1600));
+    assert!(
+        (want - finer).abs() <= 1e-9,
+        "the slices converge: {want} at 400 panels, {finer} at 1600"
+    );
+    for (name, a, b) in [("the cone first", &k, &ball), ("the ball first", &ball, &k)] {
+        for (op, r) in [
+            ("∪", topo::union(a, b, tol)),
+            ("∩", topo::intersect(a, b, tol)),
+            ("∖", topo::subtract(a, b, tol)),
+        ] {
+            let r = r.unwrap_or_else(|e| panic!("{name}, {op}: builds: {e:?}"));
+            let out = r.body().unwrap_or_else(|| panic!("{name}, {op}: a body"));
+            assert_eq!(
+                topo::validate_pseudomanifold(&out.body, &out.contacts, tol),
+                Ok(()),
+                "{name}, {op}: tier 3′"
+            );
+            assert!(
+                topo::validate_geometric_certificate(&out.body, tol).is_ok(),
+                "{name}, {op}: the certificate"
+            );
+            if op == "∩" {
+                let (v, pad) = volume(&out.body, tol);
+                println!(
+                    "[oracle] {name}: |K ∩ ball| = {v} ± {pad:e}, slices {want}, off {:e}",
+                    v - want
+                );
+                assert!(
+                    (v - want).abs() <= pad + 1e-7,
+                    "{name}: |K ∩ ball| = {v} ± {pad:e}, the slices give {want}"
+                );
+            }
+        }
+    }
 }
 
 #[test]
