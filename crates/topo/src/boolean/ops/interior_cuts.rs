@@ -108,7 +108,7 @@ fn cut_in<T: Decide + AtRestPolicy>(
             super::plane_cut_of_sphere((operand, face), center, radius, plane, band)?
         }
         geom::Surface::Sphere { .. } => Some(super::sphere_pair_cut((operand, face), x, y, band)?),
-        geom::Surface::Torus { .. } | geom::Surface::Cylinder { .. } => {
+        geom::Surface::Torus { .. } | geom::Surface::Cylinder { .. } | geom::Surface::Cone { .. } => {
             loop_cut_in((operand, face), (center, radius), x, y, sections, band)?
         }
         // A cone's pair with a ball reaches here, and no cut-in is built

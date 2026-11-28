@@ -7547,6 +7547,17 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                     _ => Sign::Zero,
                 }),
                 Against::Tube(corners) => {
+                    // A hit on the chart's axis is a pole, an end of the
+                    // half-meridian. The tube lies decidedly in the open
+                    // half-plane `h` (`interior_cuts::read_loop_tube`'s
+                    // half, read above), so the loop meets the meridian
+                    // off the axis, between the poles: a pole is past every
+                    // crossing, by its own height. The tube's corners are
+                    // not read for it, since a piece's box near the pole
+                    // can reach past the sphere's own height.
+                    if sign_as("bool_sphere_cut_hit_on_axis", Margin::of(s.0))? == Sign::Zero {
+                        return sign_as("bool_sphere_cut_hit_pole", Margin::of(s.1));
+                    }
                     interior_cuts::height_against_tube(corners, (cut.center, axis), s.1, band)
                         .map_err(esc)
                 }
