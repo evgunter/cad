@@ -321,9 +321,29 @@ fn a_flip_on_a_body_with_a_round_hole_is_refused_named() {
         ids: Vec::new(),
         on: None,
     }));
-    r.insert(Node::Extrude {
+    let block = r.insert(Node::Extrude {
         profile: p.into(),
         distance: len(1.0),
+    });
+    // A taker, as the plate has: a body no node takes is finished off
+    // the node's log at `f64` and never at a leaf, so its mass
+    // properties' decisions reach neither vector (measured: without the
+    // union this row is green on the base tree too).
+    let tab_p = r.insert(Node::Profile(ProfileProgram {
+        loops: vec![
+            LoopProgram::polygon([(0.75, 0.75), (1.25, 0.75), (1.25, 1.25), (0.75, 1.25)])
+                .expect("finite tab corners"),
+        ],
+        ids: Vec::new(),
+        on: None,
+    }));
+    let tab = r.insert(Node::Extrude {
+        profile: tab_p.into(),
+        distance: len(0.5),
+    });
+    let placed = r.against(block, tab, &editor_core::Frame::translation([0.0, 0.0, 0.25]));
+    r.insert(Node::Union {
+        members: editor_core::Bodies::spelled(vec![block.into(), placed.into()]),
     });
     let doc = r.doc;
     let field = RangeField::Param(doc.var_named("height").unwrap());
