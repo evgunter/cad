@@ -657,6 +657,8 @@ mod rev_fix_xsplit_unreachable;
 mod review_binders_b;
 #[path = "review_gui1_r1.rs"]
 mod review_gui1_r1;
+#[path = "review_witness_premises_probe.rs"]
+mod review_witness_premises_probe;
 #[path = "review_m4_pr1.rs"]
 mod review_m4_pr1;
 #[path = "review_m4_pr1_die.rs"]
