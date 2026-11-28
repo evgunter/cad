@@ -50,17 +50,17 @@ struct Square {
 }
 
 /// The `1 − cos(θ)²` of one argument, as a form — rule B's substitution
-/// for `sin(θ)²`. The `cos` twin's id is `indet_atom(Cos, payload,
+/// for `sin(θ)²`, beside the `cos` twin's id. The twin's id is `indet_atom(Cos, payload,
 /// [arg.digest()])` with the `sin` atom's OWN payload — the same key a
 /// `cos(θ)` node mints (a `sin`/`cos` pair from one `sin_cos` carries
 /// one payload), so a `sin` and a `cos` of one argument reduce into one
 /// indeterminate and cancel. The payload is read from the atom's
 /// record rather than assumed zero, so a node that ever carried one
 /// would still find its twin.
-fn one_minus_cos_squared(arg: &Form, payload: u64) -> Option<Form> {
+fn one_minus_cos_squared(arg: &Form, payload: u64) -> Option<(u128, Form)> {
     let cos = indet_atom(SymOp::Cos.tag(), payload, &[arg.digest()]);
     let cos2 = Poly::term(vec![(cos, 2)], Rat::new(-1, 1, 0)?);
-    Some(Form::poly(Poly::one().add(&cos2)?))
+    Some((cos, Form::poly(Poly::one().add(&cos2)?)))
 }
 
 /// **The indeterminates `f` carries to a power past one**, once per
@@ -89,6 +89,7 @@ fn find_square(
     atoms: &IndetMap<AtomInfo>,
     budget: SymBudget,
     absent: &mut Vec<u128>,
+    twins: &mut Vec<(u128, AtomInfo)>,
 ) -> Option<Square> {
     for id in squared(f) {
         let Some(info) = atoms.get(&id) else {
@@ -136,10 +137,16 @@ fn find_square(
                 return Some(Square { id, x });
             }
             SymOp::Sin if rules.pythagoras => {
-                return Some(Square {
-                    id,
-                    x: one_minus_cos_squared(arg, info.payload)?,
-                });
+                let (cos, x) = one_minus_cos_squared(arg, info.payload)?;
+                twins.push((
+                    cos,
+                    AtomInfo {
+                        op: SymOp::Cos,
+                        payload: info.payload,
+                        args: [Some(arg.clone()), None, None],
+                    },
+                ));
+                return Some(Square { id, x });
             }
             _ => {}
         }
@@ -255,7 +262,15 @@ pub(super) fn reduce_steps(
     atoms: &IndetMap<AtomInfo>,
     steps: usize,
 ) -> Option<Form> {
-    reduce_noting(f, rules, budget, atoms, steps, &mut Vec::new())
+    reduce_noting(
+        f,
+        rules,
+        budget,
+        atoms,
+        steps,
+        &mut Vec::new(),
+        &mut Vec::new(),
+    )
 }
 
 /// [`reduce_steps`], pushing to `absent` every id the reduction looked
@@ -264,6 +279,11 @@ pub(super) fn reduce_steps(
 /// table never changes (atoms are inserted once, under a content key),
 /// so the only way a later call on the same form can differ is an id in
 /// `absent` minted since.
+///
+/// `twins` takes the record of every `cos` atom rule B wrote into the
+/// form: the reduction builds the twin's id from the `sin`'s argument,
+/// and a caller that keeps the reduced form records the twin, so that
+/// every atom id a kept form carries is in the atom table.
 pub(super) fn reduce_noting(
     f: &Form,
     rules: SymRules,
@@ -271,13 +291,14 @@ pub(super) fn reduce_noting(
     atoms: &IndetMap<AtomInfo>,
     steps: usize,
     absent: &mut Vec<u128>,
+    twins: &mut Vec<(u128, AtomInfo)>,
 ) -> Option<Form> {
     if f.poisoned || !(rules.sqrt_square || rules.pythagoras) {
         return Some(f.clone());
     }
     let mut cur = f.clone();
     for _step in 0..steps {
-        let Some(sq) = find_square(&cur, rules, atoms, budget, absent) else {
+        let Some(sq) = find_square(&cur, rules, atoms, budget, absent, twins) else {
             return Some(cur);
         };
         let Some(next) = apply(&cur, &sq, budget) else {

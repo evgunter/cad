@@ -248,11 +248,25 @@ pub enum Witness {
 }
 
 /// **The plain formula `(q − o)·n`**, in [`crate::Vec3::dot`]'s order:
-/// [`Real::difference_dot`]'s default, and the reading every scalar falls
-/// back to where its posed one does not apply.
+/// the reading a scalar falls back to where its posed one
+/// ([`Real::difference_dot`]) does not apply.
 #[must_use]
 pub fn plain_difference_dot<T: Real>(q: [T; 3], o: [T; 3], n: [T; 3]) -> T {
     (q[0] - o[0]) * n[0] + (q[1] - o[1]) * n[1] + (q[2] - o[2]) * n[2]
+}
+
+/// **The plain formulas for a depressed quartic's `Δ` and
+/// `D = 64s − 16p²`**: the reading a scalar falls back to where its posed
+/// one ([`Real::quartic_sign_algebra`]) does not apply.
+#[must_use]
+pub fn plain_quartic_sign_algebra<T: Real>(p: T, q_hat: T, s: T) -> [T; 2] {
+    let (p2, q2, s2) = (p.powi(2), q_hat.powi(2), s.powi(2));
+    let disc = T::from_f64(256.0) * s2 * s - T::from_f64(128.0) * p2 * s2
+        + T::from_f64(144.0) * p * q2 * s
+        - T::from_f64(27.0) * q2.powi(2)
+        + T::from_f64(16.0) * p2.powi(2) * s
+        - T::from_f64(4.0) * p2 * p * q2;
+    [disc, T::from_f64(64.0) * s - T::from_f64(16.0) * p2]
 }
 
 /// **A first harmonic's curve as it is stored**: the point `at` it
@@ -290,8 +304,8 @@ impl<T: Copy> StoredHarmonic<T> {
 }
 
 /// **The plain formula for [`Real::harmonic_belly`]**: `√(A² + B²) − |D|`
-/// with every term rounded as it is formed: its default, and the reading
-/// every scalar falls back to where its posed one does not apply.
+/// with every term rounded as it is formed: the reading a scalar falls
+/// back to where its posed one does not apply.
 #[must_use]
 pub fn plain_harmonic_belly<T: Real>(curve: StoredHarmonic<T>, o: [T; 3], n: [T; 3]) -> T {
     let StoredHarmonic {
@@ -472,16 +486,18 @@ pub trait Real:
     /// enters through [`Real::from_computed`].
     fn from_f64(x: f64) -> Self;
 
-    /// Embeds an `f64` that a NUMERICAL routine computed (a root, a
-    /// march point, a bound read off an enclosure): the value is
+    /// Embeds an `f64` that a NUMERICAL routine computed: the value is
     /// [`Real::from_f64`]'s, and at [`crate::Sym`] each call is its own
     /// unknown ([`crate::Sym::opaque`]), so no identity is proved over
     /// it. Declared, never defaulted: a scalar that defaulted it to
     /// `from_f64` would re-enter every computed value as a constant.
     ///
-    /// Which code may call it, and the door every other computed value
-    /// takes instead, is DL5.2 (the crate README, "Reading a bracket
-    /// where nothing certifies").
+    /// Which code may call it is DL5.2 (the crate README, "Reading a
+    /// bracket where nothing certifies"): the solved-value door
+    /// ([`crate::solved::decide_admit`]), a scalar's own impl, and a
+    /// place-taking evaluator's private step. The calls the rule does not
+    /// yet allow are owed, each listed with the work item that retires it
+    /// (`scripts/gates/from-computed-sites.sh`).
     fn from_computed(x: f64) -> Self;
 
     /// **What this scalar reads as in a sentence**: its value, its
@@ -518,10 +534,7 @@ pub trait Real:
     ///
     /// This is a *value-channel* question — the one every scalar can
     /// answer without a bracket — and it exists for **structure
-    /// discrimination**, not for deciding geometry: the first consumer
-    /// is `NurbsSurface::is_placeholder` (M6-3), which must tell the
-    /// all-poison "no description yet" placeholder from a described
-    /// control net at every evaluation scalar. Predicates on real
+    /// discrimination**, not for deciding geometry. Predicates on real
     /// margins keep going through `Decide`, whose poison arm carries
     /// the diagnostic; this method never replaces one.
     fn is_poison(self) -> bool;
@@ -594,14 +607,12 @@ pub trait Real:
     /// (Ogita, Rump and Oishi's `Dot2`), so the value is the exact one's
     /// rounding up to a term of order `u²·Σ|nᵢ(qᵢ − oᵢ)|`, whatever the
     /// cancellation; at an enclosure stated at points it is the exact sum
-    /// enclosed. The
-    /// default is the plain formula, the real function every scalar
-    /// computes; a scalar that carries `T`'s value channel computes it
-    /// through `T`'s own.
+    /// enclosed. A scalar that carries `T`'s value channel computes it
+    /// through `T`'s own. There is no default: the plain formula
+    /// ([`plain_difference_dot`]) is what this posing exists to replace,
+    /// so a scalar states its reading.
     #[must_use]
-    fn difference_dot(q: [Self; 3], o: [Self; 3], n: [Self; 3]) -> Self {
-        plain_difference_dot(q, o, n)
-    }
+    fn difference_dot(q: [Self; 3], o: [Self; 3], n: [Self; 3]) -> Self;
 
     /// **The belly `√(A² + B²) − |D|` of a first harmonic read across a
     /// plane, posed so its digits are the belly's own**: the height
@@ -641,13 +652,34 @@ pub trait Real:
     /// its axis and seam as enclosures of the polar factor, not as
     /// points, so it reads the plain enclosure, about `10¹⁶u` of the
     /// belly wide at a far scale, and a decision on it escalates
-    /// (`work/germ/a-lifted-frames-interval-belly-reads-the-plain-enclosure.md`). The default is the plain formula ([`plain_harmonic_belly`]);
-    /// a scalar that carries `T`'s value channel computes it through
-    /// `T`'s own.
+    /// (`work/germ/a-lifted-frames-interval-belly-reads-the-plain-enclosure.md`).
+    /// A scalar that carries `T`'s value channel computes it through
+    /// `T`'s own. There is no default ([`plain_harmonic_belly`] is the
+    /// fallback a scalar names), as for [`Real::difference_dot`].
     #[must_use]
-    fn harmonic_belly(curve: StoredHarmonic<Self>, o: [Self; 3], n: [Self; 3]) -> Self {
-        plain_harmonic_belly(curve, o, n)
-    }
+    fn harmonic_belly(curve: StoredHarmonic<Self>, o: [Self; 3], n: [Self; 3]) -> Self;
+
+    /// **The discriminant `Δ` and the depth `D = 64s − 16p²` of the
+    /// depressed monic quartic `y⁴ + p y² + q̂ y + s`, posed so their
+    /// digits are their own**: the two signs its real-root count is read
+    /// off. Near a repeated root `Δ` is a sum of terms orders larger than
+    /// it (two roots `δ` apart put `Δ ≈ δ²·L¹⁰` beside terms of `L¹²` and
+    /// more, `L` the roots' spread), and `D` cancels where `16s ≈ 4p²`,
+    /// so the plain formulas keep only their terms' rounding there.
+    ///
+    /// **At a value scalar** each is its exact expansion over the stored
+    /// coefficients ([`crate::exact::quartic_sign_algebra`]) rounded once,
+    /// within `2u` of itself whatever the cancellation; poison where the
+    /// coefficients' digits do not fit an exact expansion (a monomial's
+    /// lowest bit below the least subnormal, or an overflow), so a
+    /// decision on it escalates rather than answering on a plain reading.
+    /// **At an enclosure** stated at points, the exact expansions
+    /// enclosed; anywhere else the plain enclosure, which is sound. A
+    /// scalar that carries `T`'s value channel computes it through `T`'s
+    /// own. There is no default ([`plain_quartic_sign_algebra`] is the
+    /// fallback a scalar names), as for [`Real::difference_dot`].
+    #[must_use]
+    fn quartic_sign_algebra(p: Self, q_hat: Self, s: Self) -> [Self; 2];
 
     /// **The `f64` this value states**, where it is a plain enclosure
     /// that is a certified point (its two ends one `f64`); `None` (the
@@ -2629,6 +2661,13 @@ impl Real for f64 {
             return 0.0;
         }
         squares.estimate() / rise
+    }
+
+    /// The exact expansions, each rounded once; poison where they cannot
+    /// be exact (the trait's docs).
+    fn quartic_sign_algebra(p: Self, q_hat: Self, s: Self) -> [Self; 2] {
+        crate::exact::quartic_sign_algebra(p, q_hat, s)
+            .map_or([f64::NAN; 2], |parts| parts.map(|e| e.estimate()))
     }
 
     /// The identity — every `f64` embeds as itself, exactly.

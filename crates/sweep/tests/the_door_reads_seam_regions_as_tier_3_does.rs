@@ -5,7 +5,7 @@
 //! whose structure its walk cannot follow typed, never by a panic.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::seam_region_common::{flipped, seam_region, split_outside};
+use crate::seam_region_common::{flipped, seam_region, split_outside, two_lunes};
 use geom::Surface;
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane};
@@ -16,6 +16,14 @@ use sweep::test_support::{
 use sweep::{ExtrudeSide, Extrusion, extrude};
 use topo::{Body, FaceKey};
 type AB = topo::AtRestBody<f64>;
+
+/// A ball split into its two lunes: the shape whose meridians the
+/// over-cover rows split outside.
+fn lunes_poled(r: f64, c: Vec3<f64>, pole: Vec3<f64>, tol: Tol) -> Body<f64> {
+    let mut ball = ball_poled(r, c, pole, tol);
+    two_lunes(&mut ball, tol);
+    ball
+}
 
 fn cyl(cx: f64, cy: f64, r: f64, z0: f64, z1: f64) -> Body<f64> {
     let tol = Tol::witness();
@@ -57,11 +65,6 @@ fn g<E>(r: Result<topo::BooleanResult<f64>, E>) -> Option<AB> {
 /// the rotational lane.
 const VOLUME_ON: &str = "VolumeUncomputable on a";
 
-/// The result's piece sort, whose point-in-solid walk cannot read a
-/// sphere face bounded by a spline chord
-/// (`work/inside/point-in-solid-refuses-a-sphere-face-bounded-by-a-spline-chord.md`).
-const PIECES: &str = "the piece sort's walk on a chorded sphere face";
-
 /// Where a boolean stops: `body`, or its refusal by variant and the
 /// door that raised it.
 fn stop(r: &Result<topo::BooleanResult<f64>, topo::BooleanError>) -> String {
@@ -80,8 +83,6 @@ fn stop(r: &Result<topo::BooleanResult<f64>, topo::BooleanError>) -> String {
             Some(kind) => format!("{VOLUME_ON} {kind:?} face"),
             None => format!("{VOLUME_ON} face of no recorded kind"),
         }
-    } else if e.starts_with("Pieces(Probe") && e.contains("PartialSphereFace") {
-        PIECES.into()
     } else {
         e.chars().take(160).collect()
     }
@@ -94,8 +95,7 @@ fn stop(r: &Result<topo::BooleanResult<f64>, topo::BooleanError>) -> String {
 /// ball's four booleans with the upright rod build since the join's
 /// carried lane chords closed-form components (SECTARMS stage 3b-i);
 /// they stopped at the join's lane dispatch before. Every other boolean
-/// builds but one of each rod's `b − a`, whose result's piece sort
-/// refuses ([`PIECES`]).
+/// builds.
 fn pinned(part: Part) -> Stops {
     const BODY: &str = "body";
     let table: &[(&str, &str)] = match part {
@@ -104,7 +104,7 @@ fn pinned(part: Part) -> Stops {
             ("unit u rod", BODY),
             ("unit i rod", BODY),
             ("unit a-b rod", BODY),
-            ("unit b-a rod", PIECES),
+            ("unit b-a rod", BODY),
             ("tilt u rod", BODY),
             ("tilt i rod", BODY),
             ("tilt a-b rod", BODY),
@@ -114,13 +114,13 @@ fn pinned(part: Part) -> Stops {
             ("unit u rodx", BODY),
             ("unit i rodx", BODY),
             ("unit a-b rodx", BODY),
-            ("unit b-a rodx", PIECES),
+            ("unit b-a rodx", BODY),
         ],
         Part::TiltTurnedRod => &[
             ("tilt u rodx", BODY),
             ("tilt i rodx", BODY),
             ("tilt a-b rodx", BODY),
-            ("tilt b-a rodx", PIECES),
+            ("tilt b-a rodx", BODY),
         ],
         Part::Stub => &[
             ("unit u stub", BODY),
@@ -407,7 +407,7 @@ fn corpus(part: Part) -> (Vec<(String, AB)>, Stops) {
 
 fn sphere_faces(body: &Body<f64>) -> Vec<(FaceKey, topo::SurfaceKey)> {
     body.faces()
-        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Sphere { .. })))
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Ok(Surface::Sphere { .. })))
         .map(|(k, f)| (k, f.surface))
         .collect()
 }
@@ -526,12 +526,12 @@ fn an_over_cover_whose_region_encodes_its_side_is_refused_by_the_census() {
     let tol = Tol::witness();
     let unit = finished(
         "a",
-        ball_poled(1.0, v(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0), tol),
+        lunes_poled(1.0, v(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0), tol),
         tol,
     );
     let off = finished(
         "o",
-        ball_poled(0.8, v(0.9, 0.3, 0.2), v(0.0, 0.6, 0.8), tol),
+        lunes_poled(0.8, v(0.9, 0.3, 0.2), v(0.0, 0.6, 0.8), tol),
         tol,
     );
     for (name, r) in [
@@ -594,12 +594,12 @@ fn a_corrupt_body_does_not_finish_and_the_raw_door_panics_only_where_it_did() {
     let tol = Tol::witness();
     let unit = finished(
         "a",
-        ball_poled(1.0, v(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0), tol),
+        lunes_poled(1.0, v(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0), tol),
         tol,
     );
     let off = finished(
         "o",
-        ball_poled(0.8, v(0.9, 0.3, 0.2), v(0.0, 0.6, 0.8), tol),
+        lunes_poled(0.8, v(0.9, 0.3, 0.2), v(0.0, 0.6, 0.8), tol),
         tol,
     );
     let b = g(topo::boolean::union(&unit, &off, tol)).unwrap();
@@ -636,16 +636,21 @@ fn a_corrupt_body_does_not_finish_and_the_raw_door_panics_only_where_it_did() {
             Err(_) => panicked.push(format!("{id:?}")),
         }
     }
+    // The start vertex of the half-edge `25v1`: the shell's reference
+    // point reads it before any seam, as it reads the half-edge.
+    let corner = b
+        .half_edges()
+        .find(|(k, _)| format!("{k:?}") == "HalfEdgeKey(25v1)")
+        .map(|(_, h)| format!("{:?}", EntityId::Vertex(h.start)))
+        .expect("the half-edge 25v1");
     let before_any_seam = [
-        "Face(FaceKey(1v1))",
+        "Face(FaceKey(1v3))",
         "Face(FaceKey(2v1))",
         "Face(FaceKey(3v5))",
         "Face(FaceKey(6v5))",
-        "Loop(LoopKey(1v1))",
+        "Loop(LoopKey(2v1))",
         "HalfEdge(HalfEdgeKey(25v1))",
-        // The start vertex of that same half-edge: the shell's reference
-        // point reads it before any seam, as it reads the half-edge.
-        "Vertex(VertexKey(8v1))",
+        corner.as_str(),
     ];
     let new: Vec<_> = panicked
         .iter()
@@ -755,7 +760,7 @@ fn a_members_own_contradicted_read_is_named_over_the_over_cover() {
     let tol = Tol::witness();
     let mut body = Body::clone(&finished(
         "ball",
-        ball_poled(1.0, v(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0), tol),
+        lunes_poled(1.0, v(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0), tol),
         tol,
     ));
     assert!(split_outside(&mut body, v(0.0, 1.0, 0.0), tol));

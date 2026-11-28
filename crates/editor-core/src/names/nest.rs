@@ -357,7 +357,8 @@ impl RoleSeg {
             | RoleSeg::Inner(n)
             | RoleSeg::Rim(n)
             | RoleSeg::HoleRim { of: n, .. }
-            | RoleSeg::Member { of: n, .. } => f(Shared(n)),
+            | RoleSeg::Member { of: n, .. }
+            | RoleSeg::ConventionalVertex(n) => f(Shared(n)),
             RoleSeg::CrossingVertex { edge, sense } => {
                 f(Shared(edge));
                 sense_names(sense, f);
@@ -417,7 +418,8 @@ impl RoleSeg {
             | RoleSeg::Inner(n)
             | RoleSeg::Rim(n)
             | RoleSeg::HoleRim { of: n, .. }
-            | RoleSeg::Member { of: n, .. } => f(Shared(n)),
+            | RoleSeg::Member { of: n, .. }
+            | RoleSeg::ConventionalVertex(n) => f(Shared(n)),
             RoleSeg::CrossingVertex { edge, sense } => {
                 f(Shared(edge));
                 sense_names_mut(sense, f);
@@ -1863,19 +1865,18 @@ pub(super) mod tests {
                 R::LoftSeam(vec![(SectionId::new(1, 1), v)]),
                 R::LoftSectionEdge(SectionId::new(2, 2), e),
                 R::LoftSectionVertex(SectionId::new(3, 3), v),
+                R::SubArc(1),
+                R::SubArcJoint(2),
                 R::Band(e.into()),
                 R::BandRim(v),
-                R::BandRimPi(v),
-                R::BandPi(e.into()),
                 R::Meridian(MeridianEnd::Seam, e.into()),
                 // Runs of several pieces, in every role that holds one.
                 R::Lateral(PieceRun::new(vec![e, e2]).unwrap()),
                 R::Band(PieceRun::new(vec![e2, e]).unwrap()),
-                R::BandPi(PieceRun::new(vec![e, e2, e]).unwrap()),
-                R::Meridian(MeridianEnd::Pi, PieceRun::new(vec![e, e2]).unwrap()),
+                R::Meridian(MeridianEnd::Start, PieceRun::new(vec![e, e2]).unwrap()),
                 R::RimEdge(CapEnd::Start, PieceRun::new(vec![e2, e]).unwrap()),
                 R::AxisEdge(PieceRun::new(vec![e, e2]).unwrap()),
-                R::MeridianVertex(MeridianEnd::Pi, v),
+                R::MeridianVertex(MeridianEnd::End, v),
                 R::RevolveCap(MeridianEnd::End),
                 R::Pole(v),
                 R::AxisEdge(e2.into()),
@@ -1971,6 +1972,7 @@ pub(super) mod tests {
                     band: vec![b.clone()],
                 },
                 R::BandCut(r(a)),
+                R::ConventionalVertex(r(b)),
                 R::BandSlit {
                     edge: r(b),
                     band: vec![a.clone(), b.clone()],

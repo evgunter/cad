@@ -105,7 +105,7 @@ fn read_band(body: &Body<f64>, mesh: &mesh::Mesh) -> BandReading {
     let patch = mesh
         .patches
         .iter()
-        .find(|q| matches!(body.face_surface(q.face), Some(Surface::Torus { .. })))
+        .find(|q| matches!(body.face_surface(q.face), Ok(Surface::Torus { .. })))
         .expect("the body has its band");
     let surface = body.face_surface(patch.face).unwrap();
     let ids: HashSet<u32> = patch.triangles.iter().flatten().copied().collect();

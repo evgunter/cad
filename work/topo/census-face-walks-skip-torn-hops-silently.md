@@ -2,10 +2,11 @@
 id: census-face-walks-skip-torn-hops-silently
 kind: issue
 title: census's backstop and snapshot skip torn boundary hops silently, and a reviewer-probe block asserts nothing
-status: open
+status: closed
 opened: 2026-10-06
 priority: P4
 cost: E
+closed: 2026-11-25
 ---
 
 
@@ -54,3 +55,7 @@ result); either way one torn face meets one posture. Drop or
 Moved from TOPO to PROBE, whose charter is the guards and generators that cannot go red. TOPO kept only the Euler surgery rows when it dropped to P2.
 
 Moved from PROBE to TOPO on 2026-11-20, by `git mv`, when PROBE merged into TOPO: PROBE held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one TOPO carries.
+
+## Closed
+
+Closed 2026-11-25: **merged into** `census-arena-walks-read-a-torn-record-as-absent`, which carries this row's body under `## Merged in`, in the CONTACTHOLD cleanup (`docs/doc-ledger/contacthold-leaves-the-tracker.md`).

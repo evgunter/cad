@@ -89,42 +89,80 @@ fn point_of(symbol: u64, lo: f64, hi: f64) -> Option<f64> {
 
 /// **Whether the point reading refutes `id`**: its enclosure at the
 /// leaf's point is certified and excludes 0. `false` outside a session,
-/// where there is no bracket to read.
+/// where there is no bracket to read, at a zero-term budget, where the
+/// tier proves nothing and the ask costs nothing, and where a memo
+/// already holds the root's plain form as the zero form, which the
+/// tier's first rung answers from that memo and no reading can refute.
+///
+/// The memo check is what the reading costs on an identity it cannot
+/// refute: on `demo-tour certified` with the switch on, about half of
+/// the 1.4 M asks that reach here are roots a memo already holds as
+/// zero (measured by the lane that built this; the PR records the
+/// tour's time with and without it).
 pub(super) fn refutes(id: SymId) -> bool {
     SESSION.with(|s| {
         let mut slot = s.borrow_mut();
         slot.as_mut().is_some_and(|sess| {
+            if sess.budget.max_terms == 0 || plain_is_zero(sess, id) {
+                return false;
+            }
             reading(sess, id).is_some_and(|x| Bounds::lo(x) > 0.0 || Bounds::hi(x) < 0.0)
         })
     })
+}
+
+/// Whether this leaf's plain memo, or the drive's, already holds `id`'s
+/// plain form and it is the zero form.
+fn plain_is_zero(sess: &Session, id: SymId) -> bool {
+    match sess.forms.get(&id) {
+        Some(f) => f.is_zero(),
+        None => sess
+            .memo
+            .as_ref()
+            .and_then(|m| m.form(id))
+            .is_some_and(|f| f.is_zero()),
+    }
 }
 
 /// `id`'s certified enclosure at the leaf's point, `None` where the
 /// reading declines (the module docs list when).
 fn reading(sess: &mut Session, id: SymId) -> Option<Interval> {
     let mut memo = core::mem::take(&mut sess.points);
-    let out = read(sess, &mut memo, id);
+    let out = evaluate(sess, &mut memo, id, &|symbol| {
+        let &(lo, hi) = sess.params.get(&indet_param(symbol))?;
+        point_of(symbol, lo, hi).map(Interval::from_f64)
+    });
     sess.points = memo;
     out.filter(|x| x.is_certified())
 }
 
-/// The post-order walk, into `memo`: one reading per node, `None` for a
-/// node that declines. Without recursion, since a margin's graph can be
-/// deep.
-fn read(sess: &Session, memo: &mut IdMap<Option<Interval>>, root: SymId) -> Option<Interval> {
+/// **The graph evaluated at a scalar**, op by op as `Sym<T>` performs
+/// it, into `memo` (one value per node, `None` for a node with no
+/// value): the one walk the point reading and the re-valuation
+/// instrument (`sym::revalue`, at `f64`) share. A parameter is `param`
+/// of its symbol; an opaque value, a hull, a free variable and a node
+/// no table holds have no value; a quotient (`Mul(a, Inv(b))`) is read
+/// as `a / b`, so a graph that IS the computation re-values to its own
+/// bits at `f64`. A `select` reads its decision first and then only the
+/// arm that decision takes (both where it straddles), so an arm the
+/// computation does not take at this value cannot leave it without
+/// one. Without recursion, since a margin's graph can be deep.
+pub(super) fn evaluate<T: Real + Bounds>(
+    sess: &Session,
+    memo: &mut IdMap<Option<T>>,
+    root: SymId,
+    param: &dyn Fn(u64) -> Option<T>,
+) -> Option<T> {
     let mut stack = vec![(root, false)];
     while let Some((id, expanded)) = stack.pop() {
         if memo.contains_key(&id) {
             continue;
         }
-        let Some(n) = sess.nodes.get(&id) else {
+        let Some(n) = sess.node_of(id) else {
             memo.insert(id, None);
             continue;
         };
         if n.op == SymOp::Select && !expanded {
-            // The decision first, then only the arm it takes (both where
-            // it straddles), so an arm the construction does not take at
-            // the point is not read and cannot decline the reading.
             match memo.get(&n.kids[0]) {
                 None => {
                     stack.push((id, false));
@@ -146,43 +184,38 @@ fn read(sess: &Session, memo: &mut IdMap<Option<Interval>>, root: SymId) -> Opti
         }
         let kid = |i: usize| memo.get(&n.kids[i]).copied().flatten();
         let v = match n.op {
-            SymOp::Param => sess
-                .params
-                .get(&indet_param(n.payload))
-                .and_then(|&(lo, hi)| point_of(n.payload, lo, hi))
-                .map(Interval::from_f64),
+            SymOp::Param => param(n.payload),
             SymOp::Opaque | SymOp::Hull | SymOp::Free => None,
-            SymOp::Lit => Some(Interval::from_f64(f64::from_bits(n.payload))),
-            SymOp::Pi => Some(Interval::pi()),
+            SymOp::Lit => Some(T::from_f64(f64::from_bits(n.payload))),
+            SymOp::Pi => Some(T::pi()),
             SymOp::Add => Some(kid(0)? + kid(1)?),
             SymOp::Sub => Some(kid(0)? - kid(1)?),
-            // `Div` mints `Mul(a, Inv(b))`; read it as the quotient.
-            SymOp::Mul => match sess.nodes.get(&n.kids[1]) {
+            SymOp::Mul => match sess.node_of(n.kids[1]) {
                 Some(inv) if inv.op == SymOp::Inv => {
                     Some(kid(0)? / memo.get(&inv.kids[0]).copied().flatten()?)
                 }
                 _ => Some(kid(0)? * kid(1)?),
             },
             SymOp::Neg => Some(-kid(0)?),
-            SymOp::Powi => Some(Real::powi(kid(0)?, n.payload as u32 as i32)),
-            SymOp::Inv => Some(Interval::one() / kid(0)?),
-            SymOp::Sqrt => Some(Real::sqrt(kid(0)?)),
-            SymOp::Abs => Some(Real::abs(kid(0)?)),
-            SymOp::Sin => Some(Real::sin_cos(kid(0)?).0),
-            SymOp::Cos => Some(Real::sin_cos(kid(0)?).1),
-            SymOp::Tan => Some(Real::tan(kid(0)?)),
-            SymOp::Asin => Some(Real::asin(kid(0)?)),
-            SymOp::Acos => Some(Real::acos(kid(0)?)),
-            SymOp::Atan => Some(Real::atan(kid(0)?)),
-            SymOp::Floor => Some(Real::floor(kid(0)?)),
-            SymOp::LessSin => Some(Real::less_sin(kid(0)?)),
-            SymOp::Atan2 => Some(Real::atan2(kid(0)?, kid(1)?)),
-            SymOp::Min => Some(Real::min(kid(0)?, kid(1)?)),
-            SymOp::Max => Some(Real::max(kid(0)?, kid(1)?)),
-            SymOp::Copysign => Some(Real::copysign(kid(0)?, kid(1)?)),
+            SymOp::Powi => Some(kid(0)?.powi(n.payload as u32 as i32)),
+            SymOp::Inv => Some(T::one() / kid(0)?),
+            SymOp::Sqrt => Some(kid(0)?.sqrt()),
+            SymOp::Abs => Some(kid(0)?.abs()),
+            SymOp::Sin => Some(kid(0)?.sin_cos().0),
+            SymOp::Cos => Some(kid(0)?.sin_cos().1),
+            SymOp::Tan => Some(kid(0)?.tan()),
+            SymOp::Asin => Some(kid(0)?.asin()),
+            SymOp::Acos => Some(kid(0)?.acos()),
+            SymOp::Atan => Some(kid(0)?.atan()),
+            SymOp::Floor => Some(kid(0)?.floor()),
+            SymOp::LessSin => Some(kid(0)?.less_sin()),
+            SymOp::Atan2 => Some(kid(0)?.atan2(kid(1)?)),
+            SymOp::Min => Some(kid(0)?.min(kid(1)?)),
+            SymOp::Max => Some(kid(0)?.max(kid(1)?)),
+            SymOp::Copysign => Some(kid(0)?.copysign(kid(1)?)),
             SymOp::Select => kid(0).and_then(|d| match *select_arms(Some(d)) {
-                [k] => Some(Real::select_le_zero(d, kid(k)?, kid(k)?)),
-                [a, b] => Some(Real::select_le_zero(d, kid(a)?, kid(b)?)),
+                [k] => Some(d.select_le_zero(kid(k)?, kid(k)?)),
+                [a, b] => Some(d.select_le_zero(kid(a)?, kid(b)?)),
                 _ => None,
             }),
         };
@@ -191,11 +224,12 @@ fn read(sess: &Session, memo: &mut IdMap<Option<Interval>>, root: SymId) -> Opti
     memo.get(&root).copied().flatten()
 }
 
-/// The child slots of a `select` its decision's reading `d` takes:
-/// `when_le` where `d ≤ 0` is certified, `when_gt` where `d > 0` is, both
-/// where it straddles, and none where the decision declined. One rule for
-/// the walk and the reading.
-fn select_arms(d: Option<Interval>) -> &'static [usize] {
+/// The child slots of a `select` its decision's value `d` takes:
+/// `when_le` where `d ≤ 0` holds over all of `d`, `when_gt` where
+/// `d > 0` does, both otherwise (a straddling enclosure, or a `NaN`),
+/// and none where the decision has no value. One rule for the walk and
+/// the evaluation.
+fn select_arms<T: Bounds>(d: Option<T>) -> &'static [usize] {
     match d {
         None => &[],
         Some(d) if Bounds::hi(d) <= 0.0 => &[1],
@@ -247,9 +281,9 @@ pub fn check(decisions: &[super::revalue::Decision]) -> Option<Refuted> {
                 return None;
             }
             sess.instrumented = true;
-            let counts = sess.counts;
+            let counts = sess.node.counts;
             let at = super::ladder(sess, d.node, super::Path::Decision);
-            sess.counts = counts;
+            sess.node.counts = counts;
             Some(at.is_some())
         });
         match zero {
@@ -315,8 +349,8 @@ mod tests {
             s.borrow().as_ref().map_or(0, |s| {
                 s.forms.len()
                     + s.forms_early.len()
-                    + s.forms_door.len()
-                    + s.retries.iter().map(|m| m.len()).sum::<usize>()
+                    + s.node.forms_door.len()
+                    + s.node.retries.iter().map(|m| m.len()).sum::<usize>()
             })
         })
     }

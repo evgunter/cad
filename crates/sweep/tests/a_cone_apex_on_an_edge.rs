@@ -4,8 +4,8 @@
 //! (`geom_brep::curve_face::line_quadric::line_cone_roots`), splitting the edge there, and
 //! the vertex pair reads the halves (`boolean::fan`). The cone of height
 //! 1 about `y`, apex at `(0, 1, 0)`, base radius `tan α` on `y = 0`, in
-//! both forms: its apex reached by one wrap edge
-//! (`common::wrap_tip::one_wrap_edge`) and revolved by `sweep::revolve`.
+//! the form `sweep::revolve` builds, its apex reached by one wrap edge
+//! (`common::wrap_tip::one_wrap_edge`).
 //! Against a box one of whose edges runs through the apex, turned about
 //! the cone's axis by generic turns, every quarter turn and just short
 //! of the whole turn (where a box side lies just off the tipped cone's
@@ -21,14 +21,8 @@
 //!
 //! Where the box cuts one cone face along two rulings and the result
 //! keeps the cone's remainder (`∪`, `cone ∖ box`) on both lobes of that
-//! face, the face is pinched at the apex, which props cannot yet measure:
-//! that op refuses `ResultPinchedAtConeApex` by name
-//! (`a_cone_apex_on_a_plane_through_it`). Which face is cut that way is
-//! the turn's: the wrap-tipped cone has one face, the revolved cone two,
-//! parted at its seam. The ops that keep the box's part, `∩` and
-//! `box ∖ cone`, build at every pose. The poses that pinch are named,
-//! every aperture alike, so a pose that starts or stops pinching turns
-//! its row red.
+//! face, the face is pinched at the apex, two lobes meeting only there,
+//! and builds as every other op does.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::membership::{self, Region};
@@ -57,16 +51,10 @@ fn cone(alpha: f64) -> topo::Body<f64> {
     )
 }
 
-/// The cone in both forms: one wrap edge to its apex, and as
-/// `sweep::revolve` builds it.
-fn forms(alpha: f64) -> [(&'static str, topo::Body<f64>); 2] {
-    [
-        ("tipped", one_wrap_edge(cone(alpha), true).0),
-        (
-            "revolved",
-            crate::revolve_common::needle(alpha, None, tol()).into_body(),
-        ),
-    ]
+/// The cone as `sweep::revolve` builds it: one face, one wrap edge to
+/// its apex.
+fn forms(alpha: f64) -> [(&'static str, topo::Body<f64>); 1] {
+    [("tipped", one_wrap_edge(cone(alpha), true).0)]
 }
 
 /// `body` moved rigidly by `m`, finished.
@@ -98,25 +86,13 @@ fn volume(alpha: f64) -> f64 {
 /// One operand of [`six_ops`]: the body, its region, its volume.
 type Operand<'a> = (&'a AtRestBody<f64>, &'a dyn Fn() -> Region, f64);
 
-/// What one op of a pose is held to.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Expect {
-    /// It builds, at its closed form and its region.
-    Builds,
-    /// It refuses `ResultPinchedAtConeApex` by name: the cone's face cut
-    /// along two rulings through its apex is left pinched there, which
-    /// props cannot yet measure (`a_cone_apex_on_a_plane_through_it`).
-    Pinches,
-}
-
 /// Holds the six ops of `a` and `b` (`a` the cone), either way round:
 /// `∩` and `∪` with each first, `a ∖ b` and `b ∖ a`, to the volumes
 /// `share` (their intersection's) sets, and to their regions at the `7³`
 /// lattice over `lattice`, with tiers 3 and 3′ over the contacts each
-/// result records, or to the refusal `expect` names for the op.
+/// result records.
 fn six_ops(
     what: &str,
-    expect: &dyn Fn(&str) -> Expect,
     (a, ra, va): Operand,
     (b, rb, vb): Operand,
     share: f64,
@@ -147,19 +123,6 @@ fn six_ops(
         ("b ∖ a", subtract(b, a, tol()), vb - share, b_less),
     ] {
         let what = format!("{what}, {op}");
-        match expect(op) {
-            Expect::Pinches => {
-                assert!(
-                    matches!(
-                        result,
-                        Err(topo::BooleanError::ResultPinchedAtConeApex { .. })
-                    ),
-                    "{what}: expected to pinch at the apex, got {result:?}"
-                );
-                continue;
-            }
-            Expect::Builds => {}
-        }
         match result {
             Ok(BooleanResult::Body(body)) => {
                 membership::holds_short_of_tier_3_prime(
@@ -202,17 +165,6 @@ fn turned_box(
     (moved(&topo::test_support::brick(x, y, z, tol()), m), m)
 }
 
-/// What an op of a pose is held to where the pose pinches (`pose`):
-/// the ops keeping the cone's remainder, `∪` either way round and
-/// `cone ∖ box`, refuse pinched at the apex; every other op builds.
-fn pinched(pose: bool, op: &str) -> Expect {
-    if pose && matches!(op, "a ∪ b" | "b ∪ a" | "a ∖ b") {
-        Expect::Pinches
-    } else {
-        Expect::Builds
-    }
-}
-
 /// The turns about the axis every box is read at: generic ones, the
 /// quarter turns, and a ten-thousandth of a radian short of the whole
 /// turn, where the box's side lies just off the tipped cone's seam: past
@@ -222,14 +174,9 @@ const TURNS: [f64; 7] = [0.0, 0.4, FRAC_PI_2, 2.0, PI, 3.0 * FRAC_PI_2, TAU - 1e
 
 /// Holds every op of each cone form against the box `bx` (volume `vb`)
 /// turned about the axis by each of [`TURNS`], to `share(V)` of the cone
-/// `V`, or to the refusal `expect(α, turn, form, op)` names ([`six_ops`]).
-fn against_a_box(
-    what: &str,
-    bx: ((f64, f64), (f64, f64), (f64, f64)),
-    share: fn(f64) -> f64,
-    expect: fn(f64, f64, &str, &str) -> Expect,
-) {
-    against_a_box_at(what, &[30.0, 45.0, 60.0], bx, share, expect);
+/// `V` ([`six_ops`]).
+fn against_a_box(what: &str, bx: ((f64, f64), (f64, f64), (f64, f64)), share: fn(f64) -> f64) {
+    against_a_box_at(what, &[30.0, 45.0, 60.0], bx, share);
 }
 
 /// [`against_a_box`] at the apertures `alphas` (degrees), the lattice
@@ -239,7 +186,6 @@ fn against_a_box_at(
     alphas: &[f64],
     bx: ((f64, f64), (f64, f64), (f64, f64)),
     share: fn(f64) -> f64,
-    expect: fn(f64, f64, &str, &str) -> Expect,
 ) {
     let ((x0, x1), (y0, y1), (z0, z1)) = bx;
     let vb = (x1 - x0) * (y1 - y0) * (z1 - z0);
@@ -256,7 +202,6 @@ fn against_a_box_at(
                 );
                 six_ops(
                     &format!("{what}, {alpha}°, turned {turn}, {form}"),
-                    &|op| expect(alpha, turn, form, op),
                     (&c, &ra, volume(alpha)),
                     (&b, &rb, vb),
                     share(volume(alpha)),
@@ -280,11 +225,6 @@ fn an_edge_across_the_apex_holds_half_the_cones_top() {
         "an edge across the apex",
         ((0.0, 2.0), (0.55, 1.0), (-2.0, 2.3)),
         |v| v * 0.45f64.powi(3) / 2.0,
-        // Turned 2 or π, the tipped cone's seam lies outside the box, in
-        // the remainder `∪` and `cone ∖ box` keep: the remainder's face
-        // runs from the box's one ruling round through the seam to its
-        // other, two lobes meeting only at the apex.
-        |_, turn, form, op| pinched(form == "tipped" && (turn == 2.0 || turn == PI), op),
     );
 }
 
@@ -298,15 +238,6 @@ fn an_edge_along_the_axis_holds_a_quarter_of_the_cones_top() {
         "an edge along the axis",
         ((0.0, 2.0), (0.55, 1.6), (0.0, 2.1)),
         |v| v * 0.45f64.powi(3) / 4.0,
-        // A seam outside the box, in the kept remainder, between the
-        // box's two rulings (the remainder's face two lobes meeting only
-        // at the apex): the tipped cone's turned 2, π, 3π/2 or just short
-        // of the whole turn, the revolved cone's turned 2 or just short.
-        |_, turn, form, op| {
-            let tipped = [2.0, PI, 3.0 * FRAC_PI_2, TURNS[6]].contains(&turn);
-            let revolved = [2.0, TURNS[6]].contains(&turn);
-            pinched(if form == "tipped" { tipped } else { revolved }, op)
-        },
     );
 }
 
@@ -418,8 +349,7 @@ fn a_box_corner_a_fraction_of_the_band_off_the_apex_refuses_at_the_apex() {
 /// clear it, and no wider: a box edge's reach enters the line lane's
 /// root slack squared, which at ε 1e-12 a 6 m box's floor edge, crossing
 /// the 80° cone's shallow rulings, does not fit. Every op either way round holds half the cone above
-/// `y = 0.55`, `V·0.45³/2`, but the named pinches of the across-the-apex
-/// row.
+/// `y = 0.55`, `V·0.45³/2`.
 #[test]
 fn an_80_degree_cones_top_against_a_box_clear_of_its_rim_builds() {
     against_a_box_at(
@@ -427,6 +357,5 @@ fn an_80_degree_cones_top_against_a_box_clear_of_its_rim_builds() {
         &[80.0],
         ((0.0, 3.0), (0.55, 1.0), (-3.0, 3.3)),
         |v| v * 0.45f64.powi(3) / 2.0,
-        |_, turn, form, op| pinched(form == "tipped" && (turn == 2.0 || turn == PI), op),
     );
 }

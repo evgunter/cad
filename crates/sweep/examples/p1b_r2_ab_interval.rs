@@ -50,7 +50,7 @@ fn main() {
 
     let planes = blank
         .faces()
-        .filter(|(fk, _)| matches!(blank.face_surface(*fk), Some(Surface::Plane { .. })))
+        .filter(|(fk, _)| matches!(blank.face_surface(*fk), Ok(Surface::Plane { .. })))
         .count();
     println!(
         "[ABI] eps = {:e} | die blank: {} faces, {planes} planes, {} edges",

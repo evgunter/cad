@@ -4,7 +4,7 @@ kind: issue
 title: The tour's cut plate, its holes subtracted wholly inside the blank, certifies no box even at 1e-9 of the study, though the subtract volume tie that first refused it no longer decides anything
 status: open
 opened: 2026-10-03
-priority: P2
+priority: P1
 cost: M
 ---
 
@@ -76,3 +76,10 @@ evidence that clearing the tie alone would not certify a cut part.
 ## The tie left the operation path; the wall stands (2026-10-27)
 
 PR 5842, under `[ev]` PR 5780 (the boolean's volume relations are a test oracle, `topo::test_support::volume_relations`), deleted the volume backstop, so `volume_backstop_violation` no longer decides anything and the tie above cannot refuse a leaf. The wall stands anyway: `demo-tour certified`, built `--release` on that PR's head, still prints `wall 1 — … over 1e-9 of the study: REFUSED TYPED, Ok(Receipt { certified: 0, refused: 1, splits: 0 })`, and the real study's cut plate was not re-run. Some other decision refuses the `1e-9` whole box now; which is not measured. The shape-report replay above (`m10_8_harness::over_band_set` at `Sym<Interval>`) is the instrument to find it.
+
+## Re-banded P1 (2026-11-25)
+
+The tour's plate document waits on this row
+(`reachhold/the-plate-document-never-cuts-its-holes`), which Ev raised to
+P1, and a blocker carries the band of what waits on it
+(`work/README.md`, Priority).

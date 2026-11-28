@@ -89,14 +89,15 @@ fn the_recorded_band_trim_counts_are_executable() {
         })
         .collect();
     let nonzero: Vec<(String, usize)> = got.iter().filter(|(_, c)| *c > 0).cloned().collect();
-    // D′3 doubled both: the die's world copy carries the fillet's names
-    // verbatim, so each band-trim name sits in the fillet's table and
-    // the copy's, where the copy once wrapped it under `Placed`.
+    // Each band-trim name sits in the fillet's table and in the die's
+    // world copy's, which carries it verbatim (D′3); each filleted pip
+    // rim is one closed edge, a full revolve's wall being one band, so
+    // one trimline where its two seam-split arcs made two.
     assert_eq!(
         nonzero,
         vec![
-            ("die_composed".to_owned(), 8),
-            ("die_composed_tour".to_owned(), 168),
+            ("die_composed".to_owned(), 4),
+            ("die_composed_tour".to_owned(), 84),
         ],
         "the rim-vocabulary count invariant moved; the whole tally is {got:?}"
     );

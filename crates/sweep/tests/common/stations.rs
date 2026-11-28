@@ -67,18 +67,24 @@ pub fn cut_stations(
 
 /// Every vertex of `body` that is a station: two distinct edges whose
 /// carriers are one line or one circle, to 1e-9, between two faces on
-/// different surfaces. Curved carriers included, which
-/// `topo::joinable_vertices` does not yet read
-/// (`curved-joinable-vertices-are-left-unjoined` (a closed FUSE row; `docs/doc-ledger/fuse-leaves-the-tracker.md`)). Two
-/// faces on ONE surface at such a vertex are a full revolve's two
-/// π-bands meeting at a pole, which keeps valence 2 by construction:
-/// a curved join that row owns, not a station.
+/// different surfaces, or both a wrap edge of one face (a split seam).
+/// Read apart from `topo::joinable_vertices`, so a row asserting none
+/// does not lean on the predicate it checks. Two faces on ONE surface
+/// at such a vertex are two branches of one chart meeting at a pole (an
+/// imported two-half sphere, or a cap cut along a meridian), which keeps
+/// valence 2 by construction: not a station.
 pub fn station_vertices(body: &Body<f64>) -> Vec<VertexKey> {
     let carrier = |e: EdgeKey| {
         let curve = body.get_edge(e).unwrap().curve;
         body.get_curve_geom(curve)
             .and_then(topo::CurveGeom::certified)
             .map(|c| c.carrier().clone())
+    };
+    let wraps = |e: EdgeKey| {
+        let curve = body.get_edge(e).unwrap().curve;
+        body.get_curve_geom(curve)
+            .and_then(topo::CurveGeom::certified)
+            .is_some_and(|c| c.description().is_wrap())
     };
     let close = |a: Point3<f64>, b: Point3<f64>| (a - b).norm() < 1e-9;
     let one = |a: &Curve3<f64>, b: &Curve3<f64>| match (a, b) {
@@ -112,9 +118,13 @@ pub fn station_vertices(body: &Body<f64>) -> Vec<VertexKey> {
                 .iter()
                 .map(|&f| body.get_face(f).unwrap().surface)
                 .collect();
+            let pair = match keys[..] {
+                [f, g] => f != g,
+                [_] => es.iter().all(|&e| wraps(e)),
+                _ => false,
+            };
             es.len() == 2
-                && keys.len() == 2
-                && keys[0] != keys[1]
+                && pair
                 && es[0] != es[1]
                 && matches!((carrier(es[0]), carrier(es[1])), (Some(a), Some(b)) if one(&a, &b))
         })

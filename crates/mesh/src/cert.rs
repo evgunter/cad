@@ -294,13 +294,15 @@ pub fn cert_sphere(center: Point3<f64>, r: f64, tri: [Point3<f64>; 3]) -> f64 {
 /// whole number of turns apart to `10⁻⁸` rad the sag (of order `10⁻³²` of
 /// the radius) is read 87 % short, and across a hundred turns the loss
 /// passes the verdict's allowance. So the chord term holds to its own
-/// rounding for `|Δu|` up to a turn less a few `10⁻⁸`, and the lanes keep
-/// a side under that: the curved lane's sides span one column step, and
-/// a trimmed face's sides join points of one chart box, which is within
-/// a turn (a loop that winds about the axis refuses at the domain door,
-/// `TessellateError::DomainUnread`, and a seam walked twice refuses
-/// `SeamTwice`), so a side that near a whole turn would have to join
-/// that box's two ends. Whether the axis term enters is the
+/// rounding for `|Δu|` up to a turn less a few `10⁻⁸`. Within those
+/// `10⁻⁸` of one turn the shortfall is that 87 % of a sag of order
+/// `10⁻³²` of the radius, under the verdict's allowance, which only a
+/// hundred turns' loss passes; so the bound holds to the allowance up to
+/// one turn. The lanes keep a side within that: the curved lane's sides span one column step, and a trimmed
+/// face's sides join points of one chart box, which is at most a turn
+/// wide (a loop that winds about the axis refuses at the domain door,
+/// `TessellateError::DomainUnread`; a seam walked both ways spans one
+/// turn exactly). Whether the axis term enters is the
 /// signs of the `Sᵢ`; where one is within rounding of zero the axis is
 /// within rounding of a side, whose `D` is `A`'s limit there.
 ///

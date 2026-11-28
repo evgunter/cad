@@ -111,3 +111,10 @@ it.
 
 Reproduce: `cargo nextest run -p sweep --test all -E 'test(=cylinder_sphere_frame::a_ball_across_a_cylinder_wall_r_0_1_across_the_rim)'`,
 with the pin taken out.
+
+- 2026-11-23 (LATHE one-band lane, PR 7414): with a full revolve's ball
+  one band, the r 0.2 rim pose (`cylinder_sphere_frame::a_ball_across_a_cylinder_wall_r_0_2_across_the_rim`)
+  stops the same way, `B ∖ A` refused `EdgeInFace { gap: CarrierUnread }`,
+  at every ε row, where it built at its volume with two half-bands; it
+  is pinned beside r 0.1, whose stop is unchanged but for its keys. A
+  second witness of this row.

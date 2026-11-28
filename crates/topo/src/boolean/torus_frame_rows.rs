@@ -1,7 +1,6 @@
-//! **The plane×torus germ frame** ([`pair_section_frame_at`]'s torus
-//! arm), one row per outcome of the C5 table it reads
-//! ([`geom_brep::plane_torus_section`]), and the loop a germ's site
-//! picks. The torus is the donut of the plane × torus frame spec,
+//! **The plane×torus germ frame**, read off the section value's pose
+//! ([`geom_brep::PlaneTorusPose::closed_form`]), one row per outcome,
+//! and the loop a germ's site picks. The torus is the donut of the plane × torus frame spec,
 //! `R = 2`, `r = 0.5` about `y` through the origin; the planes are its
 //! poses: M1 (`x = 0`, through the axis), P1 (`y = 0.2`, square to it),
 //! S1 and B1's sides (`x = 0.3`, `x = ±0.1`, parallel to it short of
@@ -11,9 +10,9 @@
 
 use super::join::{
     FrameError, FrameExtent, SectionLoop, SectionLoops, frame_refusal, germs_face_each_other,
-    pair_section_frame_at,
+    pair_section_frame_at, plane_torus_frame,
 };
-use super::{BooleanError, HalfGerm, Locus, SpiricLoops};
+use super::{BooleanError, HalfGerm, Locus};
 use crate::entity::{FaceKey, HalfEdgeKey};
 use geom_brep::SectionPick;
 use geom_core::{Band, Point3, Tol, Vec3};
@@ -44,34 +43,22 @@ fn plane(origin: [f64; 3], normal: Vec3<f64>) -> geom::Surface<f64> {
     }
 }
 
-/// A torus face's reach, from a point on the tube: its far side.
-const REACH: f64 = BIG_R + BIG_R + SMALL_R;
-
 type Loops = Result<Option<SectionLoops<f64>>, FrameError>;
 
-/// The frame both ways round, levered at `lever`. The two readings must
-/// agree; the row reads the first.
-fn frame_at(p: &geom::Surface<f64>, lever: f64) -> Loops {
-    let read = |a, b| {
-        pair_section_frame_at(
-            a,
-            b,
-            FrameExtent::Reach(geom_core::test_support::fixture_lever(lever)),
-            band(),
-        )
-    };
+/// The frame both ways round. The two readings must agree; the row
+/// reads the first.
+fn frame(p: &geom::Surface<f64>) -> Loops {
     let torus = donut();
-    let (first, other) = (read(p, &torus), read(&torus, p));
+    let (first, other) = (
+        plane_torus_frame(p, &torus, band()),
+        plane_torus_frame(&torus, p, band()),
+    );
     assert_eq!(
         shape(&first),
         shape(&other),
         "the frame's member orders disagree"
     );
     first
-}
-
-fn frame(p: &geom::Surface<f64>) -> Loops {
-    frame_at(p, REACH)
 }
 
 /// An outcome's shape, for comparing readings.
@@ -81,10 +68,6 @@ fn shape(got: &Loops) -> String {
         Ok(None) => "straight".into(),
         Err(FrameError::Escalated { diag: d, .. }) => format!("escalated {:?}", d.predicate),
         Err(FrameError::Desync(what)) => format!("desync {what}"),
-        Err(FrameError::Spiric { loops, section }) => format!(
-            "spiric {loops:?} {section_at}",
-            section_at = section.render(geom_brep::recourse::Reading::Build)
-        ),
         Err(FrameError::NoArm) => "no arm".into(),
         Err(FrameError::OpenConic { .. }) => "an open conic".into(),
         Err(FrameError::DegenerateTorus { convention, .. }) => {
@@ -345,66 +328,36 @@ fn a_site_on_the_axis_trace_is_a_desync_not_a_loop() {
     }
 }
 
-/// **A general pose refuses by name, with the loops the certificate
-/// reads**: one null oval for a plane parallel to the axis past the
-/// inner equator (S3, `x = 1.8`, and the donut corner bar's end square
-/// `z = −1.5068`), two loops round the tube for the oblique planes O1
-/// and O2, two round the axis for a plane 3° off axis-normal. The
-/// Boolean's refusal is [`BooleanError::GermSectionSpiric`], carrying
-/// both, never the missing arm's `GermFrameUnsupported`.
+/// **A tilted pose reaching the frame is a desync**: one null oval for
+/// a plane parallel to the axis past the inner equator (S3, `x = 1.8`,
+/// and the donut corner bar's end square `z = −1.5068`), two loops round
+/// the tube for the oblique planes O1 and O2, two round the axis for a
+/// plane 3° off axis-normal. Each is the section value's, which the
+/// operation's section table holds, and whose germs ride its components;
+/// the frame takes the closed form's pose alone.
 #[test]
-fn a_general_pose_refuses_by_name_with_its_loops() {
+fn a_tilted_pose_reaching_the_frame_is_a_desync() {
     let tilt = |a: f64| {
         let a = a.to_radians();
         Vec3::new(a.sin(), a.cos(), 0.0)
     };
     let rho = BIG_R - (SMALL_R * SMALL_R - 0.01_f64).sqrt();
     let end = -(rho * rho - 0.01).sqrt();
-    for (pose, p, want) in [
-        (
-            "S3",
-            plane([1.8, 0.0, 0.0], Vec3::unit_x()),
-            SpiricLoops::Null,
-        ),
+    for (pose, p) in [
+        ("S3", plane([1.8, 0.0, 0.0], Vec3::unit_x())),
         (
             "the corner bar's end square",
             plane([0.0, 0.0, end], Vec3::unit_z()),
-            SpiricLoops::Null,
         ),
-        (
-            "O1",
-            plane([0.0, 0.1, 0.0], tilt(20.0)),
-            SpiricLoops::AroundTube,
-        ),
-        (
-            "O2",
-            plane([0.0, 0.0, 0.0], tilt(70.0)),
-            SpiricLoops::AroundTube,
-        ),
-        (
-            "3° off axis-normal",
-            plane([0.0, 0.2, 0.0], tilt(3.0)),
-            SpiricLoops::AroundAxis,
-        ),
+        ("O1", plane([0.0, 0.1, 0.0], tilt(20.0))),
+        ("O2", plane([0.0, 0.0, 0.0], tilt(70.0))),
+        ("3° off axis-normal", plane([0.0, 0.2, 0.0], tilt(3.0))),
     ] {
         let got = frame(&p);
-        let Err(e @ FrameError::Spiric { loops, .. }) = got else {
-            panic!("{pose}: want the spiric refusal, got {}", shape(&got));
-        };
-        assert_eq!(loops, want, "{pose}");
-        let torus = donut();
         assert!(
-            matches!(
-                frame_refusal(e, (FaceKey::default(), &p), (FaceKey::default(), &torus)),
-                BooleanError::GermSectionSpiric {
-                    a_kind: geom::SurfaceKind::Plane,
-                    b_kind: geom::SurfaceKind::Torus,
-                    loops,
-                    section: geom_brep::SectionError::RoutesToGeneralRung { .. },
-                    ..
-                } if loops == want
-            ),
-            "{pose}: the Boolean's refusal names the spiric"
+            matches!(got, Err(FrameError::Desync(_))),
+            "{pose}: want the desync, got {}",
+            shape(&got)
         );
     }
 }
@@ -443,12 +396,7 @@ fn a_torus_off_its_ring_is_refused_as_the_pierce_refuses_it() {
             major_radius: big_r,
             minor_radius: r,
         };
-        let got = pair_section_frame_at(
-            &torus,
-            &p,
-            FrameExtent::Reach(geom_core::test_support::fixture_lever(REACH)),
-            b,
-        );
+        let got = plane_torus_frame(&torus, &p, b);
         let Err(e) = got else {
             panic!("{what}: the frame refuses, got {}", shape(&got));
         };
@@ -497,42 +445,23 @@ fn a_tangent_circle_or_no_section_is_the_desync() {
     }
 }
 
-/// **The lever is the torus face's reach**: a plane through the centre
-/// whose axis tilt, levered at the reach, reads Zero is served as the
-/// meridian pair. Levered at two and ten times the reach the same tilt
-/// is in the band of `pt_axis_in_plane`, a lane choice (D3), so it takes
-/// the definite arm's lane: the general pose, refused by its loops, as
-/// at forty times. A lever doubled reads the first pose in the band, and
-/// one halved reads the pose at twice the reach Zero. Any other extent
-/// is a desync.
+/// **A plane×torus pair is never framed by its kinds**, at any extent:
+/// its frame is read on the pose the section value decides.
 #[test]
-fn the_axis_tilt_is_levered_at_the_torus_faces_reach() {
-    let b = band();
-    let sine = 0.8 * b.zero() / REACH;
-    let n = Vec3::new((1.0 - sine * sine).sqrt(), sine, 0.0);
-    let p = plane([0.0, 0.0, 0.0], n);
-    served(frame(&p), "Zero at the reach");
-    for lever in [2.0, 10.0, 40.0] {
-        let got = frame_at(&p, lever * REACH);
+fn a_plane_torus_pair_is_never_framed_by_its_kinds() {
+    let (b, torus) = (band(), donut());
+    let p = plane([0.0, 0.0, 0.0], Vec3::unit_x());
+    for extent in [
+        FrameExtent::Radii,
+        FrameExtent::Cone(geom_brep::Reach::fixture(Point3::origin(), 1.0)),
+    ] {
+        let got = pair_section_frame_at(&p, &torus, extent, b);
         assert!(
-            matches!(
-                got,
-                Err(FrameError::Spiric {
-                    loops: SpiricLoops::AroundTube,
-                    ..
-                })
-            ),
-            "the general pose at {lever} times the reach: got {}",
+            matches!(got, Err(FrameError::Desync(_))),
+            "plane×torus by its kinds: got {}",
             shape(&got)
         );
     }
-    let torus = donut();
-    let got = pair_section_frame_at(&p, &torus, FrameExtent::Radii, b);
-    assert!(
-        matches!(got, Err(FrameError::Desync(_))),
-        "plane×torus under its radii: got {}",
-        shape(&got)
-    );
 }
 
 /// A planar face on the plane through the origin with unit normal `n`:
@@ -561,23 +490,22 @@ fn plane_face(n: Vec3<f64>, to: Point3<f64>) -> (crate::Body<f64>, FaceKey) {
     (body, seed.face)
 }
 
-/// **The frame levers a torus face at its own reach, through the
-/// production path** ([`face_pair_section_loops`], which a germ inside
-/// both faces reads): a quarter of the outer tube of the ring
-/// `R = 2`, `r = 0.5` about `z`, bounded by the parallels `t = ±π/4` and
-/// the meridians `u = 0`, `π/2` ([`torus_sheet`]), against a plane
-/// through the centre whose axis tilt `s` puts `s·L` at `0.8·zero`,
-/// `1.5·zero`, `6·zero` and `15·zero`, `L` the face's reach from the
-/// reading point: each boundary circle's centre distance plus its
-/// radius. At `0.8·zero` the meridian pair is served; the rest are in the
-/// band of `pt_axis_in_plane` or past it, a lane choice (D3), so each
-/// takes the definite arm's lane, a general pose refused by name, in
-/// both member orders. A lever doubled reads the first pose in the band,
-/// and the general one; a lever halved reads the second Zero, and
-/// serves it.
+/// **Through the production path the frame takes the operation's
+/// section table's answer** ([`face_pair_section_loops`], which a germ
+/// inside both faces reads): a quarter of the outer tube of the ring
+/// `R = 2`, `r = 0.5` about `z` ([`torus_sheet`]) against a plane through
+/// the centre tilted off the axis by `k·zero/(2(R + r))`. A glue door's
+/// table, read over the pair, holds the pose where the value reads it
+/// closed, and the frame serves it; where the value reads it tilted the
+/// table holds its section, whose germs ride its components, so a frame
+/// asked of it is a desync. A table no door read decides the pose as the
+/// value does, and reads it the same way. Both member orders; the run
+/// holds both poses, and a tilted one the closed form reads closed at the
+/// torus face's own reach, where a frame levered there would serve it.
 #[test]
-fn a_torus_face_is_levered_at_its_own_reach_through_the_production_path() {
-    use super::join::{face_pair_section_loops, frame_reading};
+fn the_frame_takes_the_section_tables_answer_through_the_production_path() {
+    use super::join::face_pair_section_loops;
+    use super::section_table::SectionTable;
     let b = band();
     let (big_r, r, a) = (2.0, 0.5, core::f64::consts::FRAC_PI_4);
     let quarter = core::f64::consts::FRAC_PI_2;
@@ -585,110 +513,76 @@ fn a_torus_face_is_levered_at_its_own_reach_through_the_production_path() {
         (big_r, r),
         &[(0.0, -a), (quarter, -a), (quarter, a), (0.0, a)],
     );
-    let surface = |body: &crate::Body<f64>, f: FaceKey| body.proven_face(f).surface().clone();
-    let cover = || crate::cover::face_cover(&torus, face, b);
-    let at = frame_reading(&surface(&torus, face), cover, cover).unwrap();
-    let rho = big_r + r * a.cos();
-    let reach = [
-        (Point3::new(0.0, 0.0, r * a.sin()), rho),
-        (Point3::new(0.0, 0.0, -r * a.sin()), rho),
-        (Point3::new(big_r, 0.0, 0.0), r),
-        (Point3::new(0.0, big_r, 0.0), r),
-    ]
-    .iter()
-    .map(|&(centre, radius)| (centre - at).norm() + radius)
-    .fold(0.0, f64::max);
+    let keyed = |body: &crate::Body<f64>, f: FaceKey| {
+        let view = body.proven_face(f);
+        (view.record().surface, view.surface().unwrap().clone())
+    };
     let azimuth = Vec3::new(1.0, -1.0, 0.0).normalize();
-    for (lever, want) in [
-        (0.8, "served"),
-        (1.5, "spiric"),
-        (6.0, "spiric"),
-        (15.0, "spiric"),
-    ] {
-        let s = lever * b.zero() / reach;
+    let surface =
+        |body: &crate::Body<f64>, f: FaceKey| body.proven_face(f).expect_described().clone();
+    let cover = || crate::cover::face_cover(&torus, face, b);
+    let at = super::join::frame_reading(&surface(&torus, face), cover, cover).unwrap();
+    let face_reach = crate::cover::face_reach_from(&torus, face, at, b).unwrap();
+    let mut seen = (false, false);
+    let mut straddled = false;
+    for k in [0.3, 0.8, 1.5, 6.0, 15.0] {
+        let s = k * b.zero() / (2.0 * (big_r + r));
         let n = azimuth * (1.0 - s * s).sqrt() + Vec3::unit_z() * s;
         let (flat, flat_face) = plane_face(n, Point3::new(1.0, 1.0, 0.0));
-        for (label, got) in [
+        let (kp, sp) = keyed(&flat, flat_face);
+        let (kt, st) = keyed(&torus, face);
+        let closed = match geom_brep::PlaneTorusPose::decide(&sp, &st, b) {
+            Some(Ok(pose)) => matches!(pose.stance(), geom_brep::PtStance::Closed),
+            other => panic!("k = {k}: the value decides the pose, got {other:?}"),
+        };
+        if closed {
+            seen.0 = true;
+        } else {
+            seen.1 = true;
+            straddled |= geom_brep::plane_torus_section(&sp, &st, face_reach, b).is_ok();
+        }
+        for (label, (body_a, fa, ka, sa), (body_b, fb, kb, sb)) in [
             (
                 "plane, torus",
-                face_pair_section_loops(
-                    &super::section_table::SectionTable::default(),
-                    (&flat, flat_face),
-                    (&torus, face),
-                    b,
-                ),
+                (&flat, flat_face, kp, &sp),
+                (&torus, face, kt, &st),
             ),
             (
                 "torus, plane",
-                face_pair_section_loops(
-                    &super::section_table::SectionTable::default(),
-                    (&torus, face),
-                    (&flat, flat_face),
-                    b,
-                ),
+                (&torus, face, kt, &st),
+                (&flat, flat_face, kp, &sp),
             ),
         ] {
-            let read = match &got {
+            let mut reader = SectionTable::reader(None, None, b);
+            let held = reader.read((ka, sa), (kb, sb)).is_some();
+            let door = reader.finish();
+            assert_eq!(
+                held, !closed,
+                "k = {k}, {label}: the table holds a tilted pose's section"
+            );
+            let at_door = face_pair_section_loops(&door, (body_a, fa), (body_b, fb), b);
+            let unread =
+                face_pair_section_loops(&SectionTable::default(), (body_a, fa), (body_b, fb), b);
+            let read = |got: &Result<Option<SectionLoops<f64>>, BooleanError>| match got {
                 Ok(Some(_)) => "served",
-                Err(BooleanError::GermSectionSpiric {
-                    loops: SpiricLoops::AroundTube,
-                    ..
-                }) => "spiric",
+                Err(BooleanError::JoinDesync { .. }) => "desync",
                 _ => "something else",
             };
+            let want = if closed {
+                ("served", "served")
+            } else {
+                ("desync", "desync")
+            };
             assert_eq!(
-                read, want,
-                "s·L = {lever}·zero, {label}, L = {reach}: got {got:?}"
+                (read(&at_door), read(&unread)),
+                want,
+                "k = {k}, {label}: at the door {at_door:?}, unread {unread:?}"
             );
         }
     }
-}
-
-/// **A pose the table routes to its general rung and the certificate
-/// reads touching escalates, never desyncs**: the two read one pose,
-/// the table levered at the face's reach and the certificate unlevered,
-/// so a disagreement between them is a band. Three poses:
-///
-/// - the axis-parallel plane `zero/2` short of the inner equator, where
-///   the table reads a node (`pt_spiric_two_ovals` Zero) and the
-///   certificate's near-tube margin decides Zero;
-/// - a plane 20° off the axis, `zero/2` inside tangency to the tube,
-///   whose near-tube margin decides Zero;
-/// - the same plane `4·zero` inside, whose near-tube margin is
-///   undecided: that escalation is the certificate's own.
-#[test]
-fn a_general_pose_the_certificate_reads_touching_escalates() {
-    let b = band();
-    let phi = 20.0_f64.to_radians();
-    let n = Vec3::new(phi.sin(), phi.cos(), 0.0);
-    let tangent = |inside: f64| {
-        let h = phi.sin() * BIG_R + SMALL_R - inside;
-        let o = n * h;
-        plane([o.x, o.y, o.z], n)
-    };
-    let node = BIG_R - SMALL_R - 0.5 * b.zero();
-    for (pose, p, want) in [
-        (
-            "the node",
-            plane([node, 0.0, 0.0], Vec3::unit_x()),
-            "bool_join_torus_section_touching_under_a_germ",
-        ),
-        (
-            "tangent, decided",
-            tangent(0.5 * b.zero()),
-            "bool_join_torus_section_touching_under_a_germ",
-        ),
-        (
-            "tangent, undecided",
-            tangent(4.0 * b.zero()),
-            "pt_near_tube",
-        ),
-    ] {
-        let got = frame(&p);
-        assert!(
-            matches!(&got, Err(FrameError::Escalated { diag: d, .. }) if d.predicate == Some(want)),
-            "{pose}: want an escalation on {want}, got {}",
-            shape(&got)
-        );
-    }
+    assert_eq!(
+        (seen, straddled),
+        ((true, true), true),
+        "the run holds a closed pose, a tilted one, and a tilted one closed at the face's reach"
+    );
 }

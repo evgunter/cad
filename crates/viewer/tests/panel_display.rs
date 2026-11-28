@@ -536,7 +536,7 @@ fn the_field_shows_a_bare_literals_number_without_its_unit() {
         .into_iter()
         .next()
         .expect("the distance row");
-    assert_eq!(props::field_text(&row, Notation::DEFAULT), "8");
+    assert_eq!(common::literal_field_text(&row, Notation::DEFAULT), "8");
     assert_eq!(
         rendering_unit(row.dimension, row.unit, Notation::DEFAULT),
         Some(MM.def())
@@ -573,7 +573,8 @@ fn the_field_shows_a_driven_slots_value_and_edits_its_source() {
         .one()
         .expect("one value")
         .as_f64();
-    let shown = props::field_text(&row, session.notation());
+    let shown =
+        props::field_text(&row, session.notation()).expect("a driven row shows its reading");
     assert_eq!(
         shown,
         format!(
@@ -588,7 +589,8 @@ fn the_field_shows_a_driven_slots_value_and_edits_its_source() {
         length: MM,
         ..Notation::DEFAULT
     });
-    let shown = props::field_text(&row, session.notation());
+    let shown =
+        props::field_text(&row, session.notation()).expect("a driven row shows its reading");
     assert_eq!(
         shown,
         format!("{} {}", props::DRIVEN, props::written_text(value, MM.def())),
@@ -664,7 +666,7 @@ fn a_typed_literal_with_a_unit_authors_the_display_unit_too() {
         Some("in"),
         "the picker now says what the field said"
     );
-    assert_eq!(props::field_text(&row, Notation::DEFAULT), "25");
+    assert_eq!(common::literal_field_text(&row, Notation::DEFAULT), "25");
     assert_eq!(
         row.driver,
         props::SlotDriver::Literal,
@@ -689,7 +691,7 @@ fn a_typed_literal_with_a_unit_authors_the_display_unit_too() {
         .next()
         .expect("the distance row");
     assert_eq!(row.unit.map(|u| u.symbol()), Some("in"));
-    assert_eq!(props::field_text(&row, Notation::DEFAULT), "2");
+    assert_eq!(common::literal_field_text(&row, Notation::DEFAULT), "2");
 }
 
 /// **A variable declared in millimetres reads in millimetres**, and a
@@ -964,25 +966,14 @@ fn a_parameter_field_is_written_the_way_its_declaration_says() {
     assert_eq!(canonical(Dimension::Count), 1.0);
 }
 
-/// **A field's own render, typed back, is not an edit** — the guard,
-/// over the band where it has something to refuse.
-///
-/// The band is the render's, not the parser's: `readout::field_number`
-/// spells its number on the told grid,
-/// so a field can be showing a text that names its value only to
-/// within that grid. That text is also what an `egui::DragValue`
-/// commits when focus leaves it, so a field that took its own render
-/// for an edit would move the value by up to that much and charge an
-/// undo step for a click nobody meant as one.
-///
-/// **Each row is built on a value whose render is NOT exact**, which
-/// is what lets it go red: the `assert_ne!` below is the fixture's own
-/// guard, and a row over a value that renders exactly could not fail
-/// on the tolerance at all.
+/// **A field's own render, typed back, is not an edit**, and it is
+/// every figure of the value: what an `egui::DragValue` commits when
+/// focus leaves it is the text it showed, so a field whose text were a
+/// rounding would move the value and charge an undo step for a click
+/// nobody meant as one. Held over seventeen-figure values, one per
+/// dimension that has a notation.
 #[test]
 fn a_fields_own_render_typed_back_is_not_an_edit() {
-    // Canonical values, one per dimension that has a notation, each
-    // chosen so the shortest text that reads back is not the value.
     let cases: [(Dimension, f64); 3] = [
         (Dimension::Length, 1.234_567_890_123_456_7),
         (Dimension::Angle, 2.345_678_901_234_567),
@@ -990,15 +981,15 @@ fn a_fields_own_render_typed_back_is_not_an_edit() {
     ];
     for (dimension, canonical) in cases {
         let unit = rendering_unit(dimension, None, Notation::DEFAULT);
-        let showing = props::shown_in(unit, canonical);
-        let text = viewer::readout::field_number(showing);
+        let number = props::shown_value(unit, canonical).expect("the notation names it");
+        let text = number.seed();
         let read: f64 = text
             .parse()
-            .unwrap_or_else(|_| panic!("{showing} renders as {text}, which is not a number"));
-        assert_ne!(
-            read, showing,
-            "{dimension}: {showing} renders as {text}, which reads back exactly — this row \
-             would pass on an exact comparison and holds nothing"
+            .unwrap_or_else(|_| panic!("{canonical} renders as {text}, which is not a number"));
+        assert_eq!(
+            props::authored_in(unit, read).to_bits(),
+            canonical.to_bits(),
+            "{dimension}: {canonical} renders as {text}, which is another value"
         );
         assert!(
             props::echoed(&text, &text),
@@ -1006,7 +997,7 @@ fn a_fields_own_render_typed_back_is_not_an_edit() {
         );
         // And a number the user actually moved still is.
         assert!(
-            !props::echoed(&viewer::readout::field_number(showing * 2.0), &text),
+            !props::echoed(&number.text(number.shown() * 2.0), &text),
             "{dimension}: a number nobody echoed is an edit"
         );
     }
@@ -1028,7 +1019,7 @@ fn a_fields_own_render_typed_back_is_not_an_edit() {
 #[test]
 fn no_delta_from_the_render_is_small_enough_to_be_an_echo() {
     let showing = 1000.0_f64;
-    let rendered = viewer::readout::field_number(showing);
+    let rendered = props::FieldNumber::bare(showing).text(showing);
     assert!(
         props::echoed(&rendered, &rendered),
         "the render itself is the echo"
@@ -1223,7 +1214,7 @@ fn a_patterns_member_indexed_rows_show_each_members_value() {
             "fused {fused}: each member slides k spacings"
         );
         assert_eq!(
-            props::field_text(&row, Notation::DEFAULT),
+            props::field_text(&row, Notation::DEFAULT).expect("a driven row shows its reading"),
             format!("{} {} … {}", props::DRIVEN, said(0.0), said(2.0 * 0.07)),
             "fused {fused}: the field shows the least member's value and the greatest's"
         );
@@ -1263,7 +1254,7 @@ fn a_refused_member_past_the_spelled_ones_is_still_said() {
         .map(|(at, _)| at[0])
         .collect();
     assert_eq!(refused, [7], "the member dividing by zero refuses");
-    let field = props::field_text(&row, Notation::DEFAULT);
+    let field = props::field_text(&row, Notation::DEFAULT).expect("a driven row shows its reading");
     assert_eq!(
         field,
         format!(
@@ -1346,7 +1337,7 @@ fn a_non_monotone_slots_span_is_its_least_and_greatest() {
         .collect();
     assert_eq!(values, [0.001, 0.0, 0.001], "the slide falls and rises");
     assert_eq!(
-        props::field_text(&row, Notation::DEFAULT),
+        props::field_text(&row, Notation::DEFAULT).expect("a driven row shows its reading"),
         format!("{} {} … {}", props::DRIVEN, said(0.0), said(0.001)),
     );
 }
@@ -1407,7 +1398,7 @@ fn an_extrude_reading_an_index_reads_per_member_and_none_at_zero() {
     assert!(members.members().is_empty(), "an index of no members");
     let k = &members.over()[0];
     assert_eq!(
-        props::field_text(&row, Notation::DEFAULT),
+        props::field_text(&row, Notation::DEFAULT).expect("a driven row shows its reading"),
         format!(
             "{} {k} has no members",
             props::DRIVEN,

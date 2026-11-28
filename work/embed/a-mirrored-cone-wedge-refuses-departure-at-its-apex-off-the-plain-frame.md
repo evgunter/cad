@@ -116,3 +116,28 @@ one cell refused, at both scalars and all three ε. The same row pins it
 as that refusal, red when it holds. Its exit is not traced: whether it
 is the cover test at the apex again, at a ruling this PR's run-on does
 not reach, or another reading, is not measured.
+
+## Evidence from EMBEDWALK: the turned `−5.5` wedge holds once windows are read off supports
+
+Lane `embedwalk/unit-cone` (PR 7779, its head after merging main at
+`e329f79ce`), with `injective.rs` unchanged. `window_of` there reads a
+face's affine chart coordinates (a plane's `u` and `v`, a cone's slant)
+off its boundary pieces' supports along the coordinate's direction
+instead of the boundary's world box, which in a turned frame reached
+past the boundary (on a cone, past the apex into the other nappe;
+`work/embedwalk/the-unit-cone-on-a-turned-plane-held-until-the-windows-came-from-covers-and-refuses-departure-since.md`).
+At f64 and `Interval`, the default ε, release build:
+
+| `−θ`, pose | f64 | `Interval` |
+|---|---|---|
+| −5.5, turned | Embedded, 195 / 0 / 185 | Embedded, 221 / 0 / 211 |
+| −4.7224, turned | Embedded, 205 / 0 / 195 | Embedded, 186 / 0 / 176 |
+
+Every other pose of `a_cone_wedge_past_a_half_turn_is_embedded_at_its_apex`
+is embedded too, and the test now asks `Embedded` of every pose. Its
+exit was not traced cell by cell: what is demonstrated is that the
+window reading alone moves it. The ε 1e-6 and 1e-12 rows are CI's.
+
+The "same row pins it as that refusal" above no longer holds: that pin
+is gone, and every pose, the turned `−5.5` one included, is asked
+`Embedded` and is. The row looks answered; closing it is EMBED's call.

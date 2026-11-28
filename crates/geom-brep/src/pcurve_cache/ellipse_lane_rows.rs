@@ -1047,7 +1047,7 @@ macro_rules! certify_on_the_unit_sphere {
             },
             carrier.eval(t0),
             carrier.eval(t1),
-            |k| surfaces.get(k).cloned(),
+            |k| surfaces.get(k).cloned().ok_or(crate::SurfaceMiss::Stale),
             geom_core::test_support::fixture_lever(<$t>::one()),
             band(),
             crate::NurbsLane::certified(),

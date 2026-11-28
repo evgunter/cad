@@ -175,6 +175,12 @@ const EXCEPTIONS: &[(&str, &Door)] = &[
     ("cover_sphere_seam", &BOOLEAN),
     ("cover_face_nearest_foot", &BOOLEAN),
     ("curve_carrier_clear", &BOOLEAN),
+    // The face reading's piece of a window standing past its reach from
+    // the carrier, and clear of the carrier's medial axis for its
+    // second-order bound (`boolean::face_reading`, named in the curve ×
+    // face window's family); each hands on in band and refuses nothing.
+    ("curve_face_window_piece_clear", &BOOLEAN),
+    ("curve_face_window_piece_off_axis", &BOOLEAN),
     // The star's cuts and their order (`topo::star`), which both verbs
     // read; the Boolean's is the first door to raise them.
     ("germ_line", &BOOLEAN),
@@ -751,7 +757,7 @@ const INDIRECT: &[(&str, &str)] = &[
         NOT_A_NAME,
     ),
     (
-        "pcurves/net_period_rows.rs: a_long_u_domain_crosses_its_seam_by_one_period: DescribedChart::of(&s).unwrap()",
+        "pcurves/net_period_rows.rs: a_long_u_domain_crosses_its_seam_by_one_period: DescribedChart::of(&s)",
         NOT_A_NAME,
     ),
     (
@@ -770,12 +776,20 @@ const INDIRECT: &[(&str, &str)] = &[
     ("pcurves/mint.rs: chart_u_period: payload", CARRIER_CALL),
     ("pcurves/mint.rs: chart_v_period: payload", CARRIER_CALL),
     (
-        "pcurves/net_period_rows.rs: joint: DescribedChart::of(&s).unwrap()",
+        "pcurves/net_period_rows.rs: joint: DescribedChart::of(&s)",
         NOT_A_NAME,
     ),
     ("pcurves/decision.rs: lever_periods: name", FORWARDS),
     (
-        "pcurves/lift_rows.rs: lift: DescribedChart::of(surface).unwrap()",
+        "pcurves/collapsed_side_rows.rs: joint: DescribedChart::of(surface)",
+        NOT_A_NAME,
+    ),
+    (
+        "pcurves/collapsed_side_rows.rs: joint_at: DescribedChart::of(surface)",
+        NOT_A_NAME,
+    ),
+    (
+        "pcurves/lift_rows.rs: lift: DescribedChart::of(surface)",
         NOT_A_NAME,
     ),
     ("pcurves/mint.rs: net_closes_as: name", FORWARDS),
@@ -797,7 +811,7 @@ const INDIRECT: &[(&str, &str)] = &[
     // `ContainError::Escalated` on `ContainDecision::Carrier`.
     ("spline_trim.rs: decide: name", FORWARDS),
     (
-        "pcurves/pole_slit_tests.rs: only_a_net_closed_in_v_decides_a_v_element: super::DescribedChart::of(s).unwrap()",
+        "pcurves/pole_slit_tests.rs: only_a_net_closed_in_v_decides_a_v_element: super::DescribedChart::of(s)",
         NOT_A_NAME,
     ),
     ("pcurves/decision.rs: decide_plain_joint: chart", NOT_A_NAME),
@@ -829,7 +843,7 @@ const INDIRECT: &[(&str, &str)] = &[
     ("pcurves/site.rs: split_cache: chart", NOT_A_NAME),
     ("pcurves/site.rs: turn_element: chart", NOT_A_NAME),
     (
-        "pcurves/net_period_rows.rs: u_crossing: DescribedChart::of(&s).unwrap()",
+        "pcurves/net_period_rows.rs: u_crossing: DescribedChart::of(&s)",
         NOT_A_NAME,
     ),
     ("pcurves/decision.rs: walk_cycle: chart", NOT_A_NAME),

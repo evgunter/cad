@@ -109,7 +109,7 @@ fn circle_edges(body: &Body<f64>, radius: f64) -> Vec<EdgeKey> {
 
 fn torus_faces(body: &Body<f64>) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(geom::Surface::Torus { .. })))
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Ok(geom::Surface::Torus { .. })))
         .map(|(k, _)| k)
         .collect()
 }

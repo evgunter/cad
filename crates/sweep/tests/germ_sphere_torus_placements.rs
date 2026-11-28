@@ -100,6 +100,21 @@ fn outcome(got: &Result<topo::BooleanResult<f64>, BooleanError>) -> String {
 /// (`work/spiricarm/the-general-pose-torus-germ-unions-that-build-have-no-volume-truth.md`).
 #[test]
 fn a_ball_against_a_donut_carries_onto_the_torus_and_builds() {
+    // Pinned red at every ε: the spline edge's placement, a section loop
+    // inside the one-band ball and the one-band donut, refuses
+    // `RingHomingAmbiguous` once its cut-in is built
+    // (`work/lathe/a-section-loop-inside-two-one-band-curved-faces-refuses-at-the-section-certificate.md`).
+    // The other three placements are read first, so they still run.
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &test_utils::pinned_red::EVERY_ROW,
+        "a ball against a donut at four placements",
+        &["a spline edge in a torus ring's run", "RingHomingAmbiguous"],
+        placements_build,
+    );
+}
+
+fn placements_build() {
     let tol = Tol::witness();
     let origin = Vec3::new(0.0, 0.0, 0.0);
     let (ball0, donut0) = (
@@ -139,7 +154,14 @@ fn a_ball_against_a_donut_carries_onto_the_torus_and_builds() {
         )
     })
     .collect();
-    for (what, end, floor) in &got {
+    // The spline edge's placement last, so a stop there leaves every
+    // other placement read.
+    let spline = "a spline edge in a torus ring's run";
+    let ordered = got
+        .iter()
+        .filter(|g| g.0 != spline)
+        .chain(got.iter().filter(|g| g.0 == spline));
+    for (what, end, floor) in ordered {
         assert_eq!(end, "builds", "{what}: {got:#?}");
         assert!(floor.is_none(), "{what}: {floor:?}");
     }

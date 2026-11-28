@@ -301,8 +301,11 @@ fn a_higher_order_contact_escalates_on_kappa() {
                 assert!(
                     matches!(
                         got,
-                        Err(PoseRefusal::InBand {
-                            rung: PoseRung::Kappa,
+                        Err(super::Undecided {
+                            why: PoseRefusal::InBand {
+                                rung: PoseRung::Kappa,
+                                ..
+                            },
                             ..
                         })
                     ),
@@ -595,8 +598,11 @@ fn an_axis_parallel_line_reads_its_offset_with_its_drift() {
     assert!(
         matches!(
             got,
-            Err(PoseRefusal::InBand {
-                rung: PoseRung::AxisParallel,
+            Err(super::Undecided {
+                why: PoseRefusal::InBand {
+                    rung: PoseRung::AxisParallel,
+                    ..
+                },
                 ..
             })
         ),
@@ -621,8 +627,11 @@ fn a_circle_grazing_a_tubes_top_across_its_centre_circle_refuses() {
     assert!(
         matches!(
             got,
-            Err(PoseRefusal::InBand {
-                rung: PoseRung::Contour,
+            Err(super::Undecided {
+                why: PoseRefusal::InBand {
+                    rung: PoseRung::Contour,
+                    ..
+                },
                 ..
             })
         ),
@@ -772,4 +781,19 @@ fn a_graze_of_a_far_centred_conic_is_read_wrong_nowhere() {
         "read wrong: {got:?}; {}",
         test_utils::fuzz::replay()
     );
+}
+
+/// **A line drifting off a wall's axis by a gap in the band is apart where
+/// its offset clears that drift**: a unit run along `z` tilted so its
+/// distance from the axis moves by a gap in the band over the run, 3 m out
+/// from a unit wall. The axis-parallel rung reads the drift in its gap, and
+/// the offset `|at_mid| − half_drift`, the distance's 1-Lipschitz bound,
+/// decides it `Apart`. Mutant: the gap read as the rung's refusal, red.
+#[test]
+fn a_line_drifting_in_band_off_a_walls_axis_is_apart_where_it_clears() {
+    let drift = gap();
+    let carrier = line([4.0, 0.0, 0.0], [drift, 0.0, 1.0]);
+    let span = Span::new(&carrier, (0.0, 1.0));
+    let got = pose(&span, &wall(1.0), band());
+    assert!(matches!(got, Ok(Pose::Apart)), "{got:?}");
 }

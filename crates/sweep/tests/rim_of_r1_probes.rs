@@ -12,14 +12,11 @@ use sweep::ExtrudeSide;
 use geom::Curve3;
 use geom_core::{Point2, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
-use sweep::blend::build::fillet_edges;
-use sweep::test_support::{
-    arcs_at, ball_poled_z, cube, dome, lantern, realized, sphere_zone, waisted,
-};
+use sweep::test_support::{ball_poled_z, cube, dome, lantern, realized, sphere_zone};
 use sweep::{Extrusion, Revolution, extrude};
 use topo::boolean::BooleanOp;
 use topo::query::rim_of;
-use topo::{Body, EdgeKey, RimError, mass_properties, validate_geometric};
+use topo::{Body, EdgeKey, RimError};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -175,43 +172,4 @@ fn phase_one_reread_and_the_rotation_claim_on_every_arc() {
         total_rims >= 12,
         "the sweep covers more rims than the PR's ten"
     );
-}
-
-/// **The recourse, followed literally from the refusal.** Fillet one
-/// arc of a convex seam-split rim; the refusal's text names
-/// `topo::query::rim_of`; call exactly that on the arc that refused;
-/// hand the answer back to `fillet_edges`; it carves.
-#[test]
-fn the_refusals_own_text_names_the_door_and_following_it_carves() {
-    let source = sweep::test_support::finished("source", waisted(tol()), tol());
-    let before = mass_properties(&source, tol(), topo::test_support::pinned_resolution(tol()))
-        .unwrap()
-        .met()
-        .expect("the pinned resolution is met")
-        .volume;
-    let seed = arcs_at(&source, 1.0, 0.0)[0];
-    let Err(refusal) = fillet_edges(&source, &[seed], 0.05, tol()) else {
-        panic!("one arc stops at the seam vertex")
-    };
-    let text = refusal.error.render(geom_brep::recourse::Reading::Build);
-    assert!(
-        text.contains("request the rim whole, every arc the seam split it into"),
-        "the refusal names the request that carves: {text}"
-    );
-    assert!(
-        text.contains("the rim query, `rim_of`"),
-        "the refusal names the door that answers the request: {text}"
-    );
-    let rim = topo::query::rim_of(&source, seed).expect("the refusing arc names its rim");
-    assert_eq!(rim.len(), 2);
-    let out = fillet_edges(&source, &rim, 0.05, tol()).expect("the door's answer carves");
-    assert_eq!(out.band_faces.len(), 1);
-    validate_geometric(&out.body, tol()).unwrap();
-    let after = topo::test_support::pinned_volume(
-        "the measured body",
-        &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
-        tol(),
-    )
-    .volume;
-    assert!(after < before, "convex: material removed");
 }

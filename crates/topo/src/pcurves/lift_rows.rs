@@ -68,7 +68,7 @@ fn lift<T: Decide>(
 ) -> Result<JointElement, PinMiss> {
     let f = T::from_f64;
     decide_plain_joint(
-        DescribedChart::of(surface).unwrap(),
+        DescribedChart::of(surface),
         &at(u, v),
         f(0.0),
         Point2::new(f(prev.0), f(prev.1)),
@@ -277,7 +277,7 @@ fn undecided_incidence_still_lifts<T: Decide>(lane: &str) {
     let Ok(element) = out else {
         panic!("{lane}: the marks decide")
     };
-    let chart = DescribedChart::of(&s).unwrap();
+    let chart = DescribedChart::of(&s);
     assert!(
         matches!(
             singular_at(chart, on_sphere(0.0, v), band(10.0)),

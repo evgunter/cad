@@ -67,7 +67,7 @@ fn frustum(r0: f64, r1: f64) -> Body<f64> {
 
 fn cone_faces(body: &Body<f64>) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Cone { .. })))
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Ok(Surface::Cone { .. })))
         .map(|(k, _)| k)
         .collect()
 }
@@ -224,17 +224,24 @@ fn r1_e2e_hollow_both_frustums_from_the_consumers_seat() {
                 "{what} d={d}: the per-chart door builds: {got:?}"
             );
         }
-        // A single band of the two-band chart: the door names the sharer.
-        let mut work = body.clone();
-        let got = topo::replace_face_offset(&mut work, group[0], -T, Tol::witness());
-        println!(
-            "[r1] {what} single band: {}",
-            got.as_ref().err().map(name).unwrap_or_default()
+        // The cone wall is one face, the whole chart: the single-face
+        // door builds what the per-chart door builds.
+        assert_eq!(
+            group.len(),
+            1,
+            "{what}: a full revolve's cone wall is one face"
         );
-        assert!(matches!(
-            got,
-            Err(ReplaceFaceError::SharedSurfaceKey { .. })
-        ));
+        let mut single = body.clone();
+        topo::replace_face_offset(&mut single, group[0], -T, Tol::witness())
+            .unwrap_or_else(|e| panic!("{what}: the one wall face offsets: {}", name(&e)));
+        let mut chart = body.clone();
+        topo::replace_faces_offset(&mut chart, &group, -T, Tol::witness())
+            .expect("the per-chart door builds");
+        assert_eq!(
+            volume(&single).to_bits(),
+            volume(&chart).to_bits(),
+            "{what}: one face is its whole chart"
+        );
     }
 }
 
@@ -328,11 +335,71 @@ fn sphere_capped_cone(r0: f64, z0: f64, r1: f64, z1: f64, d_mint: f64) -> (Body<
     (body, apex_y)
 }
 
+/// **The volume of [`sphere_capped_cone`]'s body with its cone offset by
+/// `d`** (in the fixture's own convention, the `d_mint` it takes), its
+/// spheres unmoved: the closed form the row holds the door to. The
+/// offset moves the cone's apex along the axis by `−d / sin α`, and the
+/// offset generator meets each sphere where the nearer root of the
+/// quadratic in height lies; the solid is the bottom sphere's cap below
+/// that height, the frustum between the two, and the top sphere's cap
+/// above, each `π∫r² dz` in closed form. Independent of the kernel's
+/// quadrature.
+fn offset_volume(r0: f64, z0: f64, r1: f64, z1: f64, d_mint: f64, d: f64) -> f64 {
+    let tan_a = (r1 - r0) / (z1 - z0);
+    let apex_y = z0 - r0 / tan_a;
+    let sin_a = tan_a.abs().atan().sin();
+    // The fixture's spheres, as it builds them.
+    let cos_a = tan_a.abs().atan().cos();
+    let image = |z: f64| {
+        let v = (z - apex_y) / cos_a;
+        let v2 = v + d_mint * cos_a / sin_a;
+        let apex2 = apex_y - d_mint / sin_a;
+        (v2.abs() * sin_a, apex2 + v2 * cos_a)
+    };
+    let center = |r: f64, z: f64| {
+        let (r2, z2) = image(z);
+        (r2 * r2 + z2 * z2 - r * r - z * z) / (2.0 * (z2 - z))
+    };
+    let (c0, c1) = (center(r0, z0), center(r1, z1));
+    let big0 = (r0 * r0 + (z0 - c0).powi(2)).sqrt();
+    let big1 = (r1 * r1 + (z1 - c1).powi(2)).sqrt();
+    // The offset generator: r = (z − apex)·tan α about the moved apex.
+    let apex = apex_y - d / sin_a;
+    let meet = |c: f64, big: f64, near: f64| {
+        // ((z − apex)·t)² + (z − c)² = R²
+        let t2 = tan_a * tan_a;
+        let (qa, qb, qc) = (
+            t2 + 1.0,
+            -2.0 * (t2 * apex + c),
+            t2 * apex * apex + c * c - big * big,
+        );
+        let disc = (qb * qb - 4.0 * qa * qc).sqrt();
+        let roots = [(-qb - disc) / (2.0 * qa), (-qb + disc) / (2.0 * qa)];
+        if (roots[0] - near).abs() < (roots[1] - near).abs() {
+            roots[0]
+        } else {
+            roots[1]
+        }
+    };
+    let (za, zb) = (meet(c0, big0, z0), meet(c1, big1, z1));
+    let radius = |z: f64| ((z - apex) * tan_a).abs();
+    let cap = |c: f64, big: f64, a: f64, b: f64| {
+        core::f64::consts::PI * (big * big * (b - a) - ((b - c).powi(3) - (a - c).powi(3)) / 3.0)
+    };
+    let (ra, rb) = (radius(za), radius(zb));
+    cap(c0, big0, c0 - big0, za)
+        + core::f64::consts::PI * (zb - za) * (ra * ra + ra * rb + rb * rb) / 3.0
+        + cap(c1, big1, zb, c1 + big1)
+}
+
 /// **Is the per-chart cone offset reachable?** On both nappes: a cone
 /// between two spheres that hold its transported rims at exactly one
 /// inward `d`. If the door BUILDS, the minted cone must be the home's
-/// turn of the request and the body must shrink; the opposite sign, for
-/// which the spheres were not chosen, is the control and must refuse.
+/// turn of the request and the body must shrink. The opposite sign, for
+/// which the spheres were not chosen, builds too on the one-band
+/// operand (no meridian the door cannot redraw): the body grows. Either
+/// build leaves its rows for the finish to complete, and tier 3 reads
+/// the finished body.
 #[test]
 fn r1_per_chart_cone_offset_reachability_attack() {
     for (what, r0, r1, want_nappe) in [
@@ -385,27 +452,43 @@ fn r1_per_chart_cone_offset_reachability_attack() {
             match &got {
                 Ok(_) => {
                     let v1 = volume(&work);
-                    let tier3 = topo::validate_geometric(&work, Tol::witness());
+                    let tier3 = match topo::finish(work.clone(), Tol::witness()) {
+                        Ok(done) => topo::validate_geometric(&done, Tol::witness()),
+                        Err(e) => panic!("{what} d={d}: the built body finishes: {e:?}"),
+                    };
                     let minted = cone_of(&work, cone_faces(&work)[0]);
                     let want = geom_brep::offset_surface(&old, want_nappe.turn(d), band()).unwrap();
                     println!(
                         "[r1] {what} d={d} chosen={chosen}: BUILT volume {v0} -> {v1}, tier3 {tier3:?}"
                     );
                     println!("[r1]   minted {minted:?}\n[r1]   want   {want:?}");
-                    assert!(chosen, "{what}: the control sign built");
-                    assert_eq!(
-                        format!("{minted:?}"),
-                        format!("{want:?}"),
-                        "{what}: the door's mint is the home's turn"
-                    );
+                    if chosen {
+                        assert_eq!(
+                            format!("{minted:?}"),
+                            format!("{want:?}"),
+                            "{what}: the door's mint is the home's turn"
+                        );
+                        assert!(
+                            v1 < v0,
+                            "{what}: an inward per-chart offset must shrink the body"
+                        );
+                    } else {
+                        assert!(
+                            v1 > v0,
+                            "{what}: the control's outward offset must grow the body"
+                        );
+                    }
+                    let sign = if chosen { 1.0 } else { -1.0 };
+                    let want_v = offset_volume(r0, 0.0, r1, H, d_mint, sign * d_mint);
+                    println!("[r1]   closed form {want_v}");
                     assert!(
-                        v1 < v0,
-                        "{what}: an inward per-chart offset must shrink the body"
+                        (v1 - want_v).abs() <= 1e-12 * want_v,
+                        "{what} d={d}: volume {v1} against the closed form {want_v}"
                     );
                     assert_eq!(tier3, Ok(()), "{what}: tier 3");
                 }
-                Err(e) => println!(
-                    "[r1] {what} d={d} chosen={chosen}: {}: {e_at}",
+                Err(e) => panic!(
+                    "{what} d={d} chosen={chosen}: the offset builds, got {}: {e_at}",
                     name(e),
                     e_at = e.render(geom_brep::recourse::Reading::Build)
                 ),

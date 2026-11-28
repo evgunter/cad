@@ -13,11 +13,15 @@
 //!
 //! Parameter symbols are hashes, so a harness that wants names in the
 //! rendering registers them (`name_param`) before evaluating.
+//!
+//! What it writes for one decision is bounded (`RENDER_BUDGET`): a
+//! form too large for its share is spelled less deep, its unspelled
+//! atoms named and its unwritten terms counted.
 
 use core::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
 
-use super::form::{Form, Poly};
+use super::form::{Form, Mono, Poly};
 use super::rational::Rat;
 use super::{
     INDET_PI, ParamSymbol, SESSION, Session, SymId, SymOp, early_form, indet_param, plain_form,
@@ -60,7 +64,14 @@ pub struct DecisionShape {
     pub outcome: ShapeOutcome,
     /// The residual's PLAIN normal form, for a decision that stayed
     /// numeric without a definite sign — `None` otherwise, and `None`
-    /// outside a session.
+    /// outside a session. This text, [`Self::early_form`] and
+    /// [`Self::explain`] together take at most [`RENDER_BUDGET`] bytes.
+    /// A form too large to spell to the full depth NAMES the atoms it
+    /// leaves unspelled, `sqrt@89abcdef‹12 terms›` (the head, the
+    /// atom's id, its argument's terms: an atom id, under `@`, is not
+    /// one of the node ids [`Self::explain`] writes under `#`), and
+    /// one too wide even so counts the terms it leaves,
+    /// `‹40 more terms›`. A count of terms is always one polynomial's.
     pub form: Option<String>,
     /// The same residual's EARLY form (the session's rules applied per
     /// node), rendered beside the plain one, so a reader can see what
@@ -91,9 +102,6 @@ thread_local! {
     /// How many levels below a blocked residual [`explain`] walks
     /// (zero: no explanation is rendered).
     static EXPLAIN: Cell<usize> = const { Cell::new(0) };
-    /// The most characters of one rendered form [`explain`] prints
-    /// ([`explain_render_chars`]).
-    static RENDER_CHARS: Cell<usize> = const { Cell::new(EXPLAIN_RENDER_CHARS) };
     static SHAPES: RefCell<Vec<DecisionShape>> = const { RefCell::new(Vec::new()) };
     static NAMES: RefCell<BTreeMap<u128, String>> = const { RefCell::new(BTreeMap::new()) };
 }
@@ -105,14 +113,11 @@ pub fn start_shape_report() {
 }
 
 /// Removes the report and answers everything recorded since
-/// [`start_shape_report`]. The explanation's render width goes back to
-/// its default here too ([`explain_render_chars`] is per report, not
-/// per thread: a row that raised it cannot leak the raised width into
-/// a later decision rendered on the same thread of a shared test
-/// binary).
+/// [`start_shape_report`]. [`explain_depth`] stays as set: it is a
+/// dial a harness sets once, before the replays that each install a
+/// report of their own.
 pub fn take_shape_report() -> Vec<DecisionShape> {
     ACTIVE.set(false);
-    RENDER_CHARS.set(EXPLAIN_RENDER_CHARS);
     SHAPES.with(|s| core::mem::take(&mut *s.borrow_mut()))
 }
 
@@ -132,15 +137,6 @@ pub(super) fn truncate(mark: usize) {
 /// renders no explanation.
 pub fn explain_depth(levels: usize) {
     EXPLAIN.set(levels);
-}
-
-/// Sets the most characters of one rendered form the explanation
-/// prints (the default cuts at 1500, which is a page and is where an
-/// atom's argument gets cut open when the form carrying it is wide —
-/// a row that has to READ the argument raises it). Set it after
-/// [`start_shape_report`]: [`take_shape_report`] restores the default.
-pub fn explain_render_chars(chars: usize) {
-    RENDER_CHARS.set(chars);
 }
 
 /// Registers the NAME `symbol` renders as, on this thread.
@@ -204,78 +200,117 @@ pub(super) struct Rendered {
     pub(super) explain: Option<String>,
 }
 
+/// The largest numerator (terms) whose form [`explain`] writes beside
+/// its node; a wider one is described by its size alone.
+const EXPLAIN_FORM_TERMS: usize = 80;
+
+/// The most bytes of one node's form [`explain`] writes: a page, and
+/// room for every text of 1500 characters.
+const EXPLAIN_FORM_BYTES: usize = 4500;
+
 /// The DAG below `root` to `levels` deep, one line per node: its op,
 /// its early form's size, and `FROZEN` where the early memo holds the
 /// node's own indeterminate — the shape of a refusal, read off the
 /// tree rather than guessed from the residual. Nodes are visited in
-/// child order and a node reached twice is rendered once.
-/// The largest numerator (terms) [`explain`] renders in full.
-const EXPLAIN_RENDER_TERMS: usize = 80;
-
-/// The most characters of one rendered form [`explain`] prints unless
-/// [`explain_render_chars`] set another.
-const EXPLAIN_RENDER_CHARS: usize = 1500;
-
+/// child order and a node reached twice is rendered once. The text
+/// takes at most [`TEXT_BUDGET`]: where a node's lines do not fit it
+/// ends, with a line naming that node and the length of the walk's
+/// stack there.
 fn explain(sess: &mut Session, root: SymId, levels: usize) -> String {
-    use core::fmt::Write as _;
-    let mut out = String::new();
-    let mut seen: super::IdMap<()> = super::IdMap::default();
-    let mut stack = vec![(root, 0usize)];
-    while let Some((id, depth)) = stack.pop() {
-        if seen.insert(id, ()).is_some() {
-            continue;
-        }
-        let pad = "  ".repeat(depth);
-        let Some(node) = sess.nodes.get(&id).copied() else {
-            let _ = writeln!(out, "{pad}[unrecorded #{:08x}]", id.bits() as u32);
-            continue;
-        };
-        let e = early_form(sess, id);
-        let frozen = e.den == Poly::one()
-            && e.num.terms().len() == 1
-            && e.num
-                .terms()
-                .first()
-                .is_some_and(|(m, _)| m.as_slice() == [(id.bits(), 1)]);
-        let payload = match node.op {
-            SymOp::Lit => format!(" {}", f64::from_bits(node.payload)),
-            SymOp::Powi => format!(" ^{}", node.payload as u32 as i32),
-            _ => String::new(),
-        };
-        let shape = if frozen {
-            "FROZEN".to_owned()
-        } else {
-            let sz = size_of(&e);
-            format!("num {:?} den {:?}", sz.num, sz.den)
-        };
-        let _ = writeln!(
-            out,
-            "{pad}{:?}{payload} #{:08x}: {shape}",
-            node.op,
+    // The walk's stack holds a node once per parent that pushed it, a
+    // node already rendered among them, and nothing below a node not
+    // yet reached: its length is not a count of the nodes left.
+    let ends_before = |id: SymId, stack: usize| {
+        format!(
+            "‹the explanation ends before node #{:08x}; the walk's stack held {stack} more›\n",
             id.bits() as u32
-        );
-        // A small form is worth reading in full: the two sides of a
-        // residual that does not cancel are usually a few dozen terms.
-        if !frozen && e.num.terms().len() <= EXPLAIN_RENDER_TERMS {
-            let text = render_form(sess, &e, 0);
-            let cut = text
-                .char_indices()
-                .nth(RENDER_CHARS.get())
-                .map_or(text.len(), |(i, _)| i);
-            let _ = writeln!(
-                out,
-                "{pad}  = {}{}",
-                &text[..cut],
-                if cut < text.len() { "…" } else { "" }
-            );
-        }
-        if depth < levels {
-            for k in node.kids().iter().rev() {
-                stack.push((*k, depth + 1));
+        )
+    };
+    let mut out = Ink::new(TEXT_BUDGET);
+    let mut seen: super::IdMap<()> = super::IdMap::default();
+    let mut stack: Vec<(SymId, usize)> = Vec::new();
+    let mut next_unseen = |stack: &mut Vec<(SymId, usize)>| {
+        while let Some((id, depth)) = stack.pop() {
+            if seen.insert(id, ()).is_none() {
+                return Some((id, depth));
             }
         }
+        None
+    };
+    stack.push((root, 0));
+    let mut at = next_unseen(&mut stack);
+    // The line that ends the text before the node at hand, set aside
+    // before that node is written.
+    let Some(mut end) = out.reserve(ends_before(root, 0)) else {
+        return out.finish();
+    };
+    while let Some((id, depth)) = at {
+        let lines = explain_node(sess, id, depth);
+        if depth < levels
+            && let Some(node) = sess.node_of(id)
+        {
+            stack.extend(node.kids().iter().rev().map(|k| (*k, depth + 1)));
+        }
+        at = next_unseen(&mut stack);
+        let after = match at {
+            None => None,
+            Some((following, _)) => match out.reserve(ends_before(following, stack.len())) {
+                Some(slot) => Some(slot),
+                None => break,
+            },
+        };
+        if !out.put(&lines) {
+            if let Some(slot) = after {
+                out.release(slot);
+            }
+            break;
+        }
+        out.release(end);
+        match after {
+            Some(slot) => end = slot,
+            None => return out.finish(),
+        }
     }
-    out
+    out.write(end);
+    out.finish()
+}
+
+/// One node's lines of the explanation.
+fn explain_node(sess: &mut Session, id: SymId, depth: usize) -> String {
+    let pad = "  ".repeat(depth);
+    let Some(node) = sess.node_of(id) else {
+        return format!("{pad}[unrecorded #{:08x}]\n", id.bits() as u32);
+    };
+    let e = early_form(sess, id);
+    let frozen = e.den == Poly::one()
+        && e.num.terms().len() == 1
+        && e.num
+            .terms()
+            .first()
+            .is_some_and(|(m, _)| m.as_slice() == [(id.bits(), 1)]);
+    let payload = match node.op {
+        SymOp::Lit => format!(" {}", f64::from_bits(node.payload)),
+        SymOp::Powi => format!(" ^{}", node.payload as u32 as i32),
+        _ => String::new(),
+    };
+    let shape = if frozen {
+        "FROZEN".to_owned()
+    } else {
+        let sz = size_of(&e);
+        format!("num {:?} den {:?}", sz.num, sz.den)
+    };
+    let mut lines = format!(
+        "{pad}{:?}{payload} #{:08x}: {shape}\n",
+        node.op,
+        id.bits() as u32
+    );
+    // A small form is worth reading in full: the two sides of a
+    // residual that does not cancel are usually a few dozen terms.
+    if !frozen && e.num.terms().len() <= EXPLAIN_FORM_TERMS {
+        let text = render_form(sess, &e, EXPLAIN_FORM_BYTES);
+        lines.push_str(&format!("{pad}  = {text}\n"));
+    }
+    lines
 }
 
 /// The size of a form — this report's and the cost profile's one
@@ -299,10 +334,10 @@ pub(super) fn render_node(id: SymId) -> Option<Rendered> {
             return None;
         }
         let f = plain_form(sess, id);
-        let plain = render_form(sess, &f, 0);
+        let plain = render_form(sess, &f, TEXT_BUDGET);
         let (early, early_size) = if sess.rules.early {
             let e = early_form(sess, id);
-            (Some(render_form(sess, &e, 0)), size_of(&e))
+            (Some(render_form(sess, &e, TEXT_BUDGET)), size_of(&e))
         } else {
             (None, size_of(&f))
         };
@@ -342,58 +377,277 @@ pub fn render_early_of(node: SymId) -> Option<String> {
     render_node(node).and_then(|r| r.early)
 }
 
-/// Nested atoms render to this depth, then `…`.
+/// How many atoms deep an argument is spelled; an atom below that is
+/// `name(…)`. A limit on nesting alone: every atom spells its argument
+/// at every site, so the text of a form this deep is the product of
+/// the fan-out over the levels, and [`render_form`] is what bounds it.
 const DEPTH: usize = 4;
 
-fn render_form(sess: &Session, f: &Form, depth: usize) -> String {
-    if f.poisoned {
-        return "⊥".to_owned();
-    }
-    let num = render_poly(sess, &f.num, depth);
-    if f.den == Poly::one() {
-        num
-    } else {
-        format!("({num}) / ({})", render_poly(sess, &f.den, depth))
-    }
-}
+/// **The most bytes the report writes for one decision**: its plain
+/// form, its early form and its explanation each take at most a third
+/// ([`TEXT_BUDGET`]).
+///
+/// Thirds, and not one pool the three draw from, so that each text is
+/// a function of its own form: [`render_of`] of a node and the
+/// [`DecisionShape::form`] of a decision on it are the same bytes,
+/// whatever the other two texts took. The cost is a share one text
+/// leaves unused and no other can borrow.
+pub const RENDER_BUDGET: usize = 3 * TEXT_BUDGET;
 
-fn render_poly(sess: &Session, p: &Poly, depth: usize) -> String {
-    if p.is_zero() {
-        return "0".to_owned();
+/// One text's share of [`RENDER_BUDGET`]. A ceiling, not a fill line:
+/// a form is spelled one whole level shallower at a time
+/// ([`render_form`]), so a text just past the share falls well under
+/// it.
+///
+/// Sized on the documents the report's readers replay (`editor-core`'s
+/// `*_interval` suites, 1,692 rendered decisions): the median text is
+/// 635 bytes, nineteen in twenty are under 18 kB, and the share leaves
+/// all but 35 of them (one printing row's) spelled to the full depth.
+/// Nothing re-takes those figures and nothing has to: a text past the
+/// share is shortened and says so, and a row that reads one sees it.
+const TEXT_BUDGET: usize = 256 * 1024;
+
+use ink::Ink;
+
+mod ink {
+    /// **A text that takes no byte past its limit.** Content goes in
+    /// whole or not at all ([`Ink::put`]). A MARK, the text that says
+    /// what was left out, is set aside before the content it may have
+    /// to stand for is tried ([`Ink::reserve`]): its bytes are counted
+    /// from then on, so writing it later ([`Ink::write`]) has no way
+    /// to fail.
+    pub(super) struct Ink {
+        out: String,
+        limit: usize,
+        /// The bytes of the marks set aside and neither written nor
+        /// released: `out.len() + aside <= limit`.
+        aside: usize,
     }
-    p.terms()
-        .iter()
-        .map(|(m, c)| {
-            let mut parts = vec![render_rat(c)];
-            for &(id, e) in m {
-                let v = render_indet(sess, id, depth);
-                parts.push(if e == 1 { v } else { format!("{v}^{e}") });
+
+    /// A mark set aside in an [`Ink`].
+    pub(super) struct Slot(String);
+
+    impl Ink {
+        pub(super) fn new(limit: usize) -> Self {
+            Self {
+                out: String::new(),
+                limit,
+                aside: 0,
             }
-            parts.join("·")
-        })
-        .collect::<Vec<_>>()
-        .join(" + ")
+        }
+
+        fn fits(&self, bytes: usize) -> bool {
+            self.out.len() + self.aside + bytes <= self.limit
+        }
+
+        /// Writes `s` whole if it fits beside the marks set aside, and
+        /// says whether it did.
+        pub(super) fn put(&mut self, s: &str) -> bool {
+            let fits = self.fits(s.len());
+            if fits {
+                self.out.push_str(s);
+            }
+            fits
+        }
+
+        /// Sets `mark` aside, if it fits beside the others.
+        pub(super) fn reserve(&mut self, mark: String) -> Option<Slot> {
+            self.fits(mark.len()).then(|| {
+                self.aside += mark.len();
+                Slot(mark)
+            })
+        }
+
+        /// Writes a mark set aside.
+        pub(super) fn write(&mut self, Slot(mark): Slot) {
+            self.aside -= mark.len();
+            self.out.push_str(&mark);
+        }
+
+        /// Gives back the room of a mark that was not needed.
+        pub(super) fn release(&mut self, Slot(mark): Slot) {
+            self.aside -= mark.len();
+        }
+
+        pub(super) fn len(&self) -> usize {
+            self.out.len()
+        }
+
+        pub(super) fn finish(self) -> String {
+            self.out
+        }
+    }
 }
 
-fn render_rat(c: &Rat) -> String {
-    if c.den.is_one() && (0..=40).contains(&c.exp2) {
-        return format!("{}", c.num.shl(c.exp2 as usize));
+/// Where a [`Pen`] writes.
+trait Sink {
+    fn put(&mut self, s: &str);
+
+    /// The bytes taken so far.
+    fn len(&self) -> usize;
+
+    /// Takes the atom at `key` (its id and the depth it stands at)
+    /// from an earlier pass over it, where this sink keeps one.
+    fn recall(&mut self, _key: (u128, usize)) -> bool {
+        false
     }
-    if c.den.is_one() {
-        return format!("{}·2^{}", c.num, c.exp2);
-    }
-    format!("{}/{}·2^{}", c.num, c.den, c.exp2)
+
+    /// Keeps the atom at `key`, which began at `from`.
+    fn remember(&mut self, _key: (u128, usize), _from: usize) {}
 }
 
-fn render_indet(sess: &Session, id: u128, depth: usize) -> String {
-    if id == INDET_PI {
-        return "π".to_owned();
+/// The bytes a text would take, each atom walked once per depth: an
+/// atom's text at a depth is the same at every site.
+#[derive(Default)]
+struct Count {
+    bytes: usize,
+    atoms: BTreeMap<(u128, usize), usize>,
+}
+
+impl Sink for Count {
+    fn put(&mut self, s: &str) {
+        self.bytes = self.bytes.saturating_add(s.len());
     }
-    if let Some(name) = NAMES.with(|n| n.borrow().get(&id).cloned()) {
-        return name;
+
+    fn len(&self) -> usize {
+        self.bytes
     }
-    if let Some(atom) = sess.atoms.get(&id) {
-        let name = match atom.op {
+
+    fn recall(&mut self, key: (u128, usize)) -> bool {
+        let known = self.atoms.get(&key).copied();
+        if let Some(bytes) = known {
+            self.bytes = self.bytes.saturating_add(bytes);
+        }
+        known.is_some()
+    }
+
+    fn remember(&mut self, key: (u128, usize), from: usize) {
+        self.atoms.insert(key, self.bytes.saturating_sub(from));
+    }
+}
+
+/// A text whose size was counted first: `whole` goes false if a piece
+/// did not fit after all.
+struct Counted {
+    ink: Ink,
+    whole: bool,
+}
+
+impl Sink for Counted {
+    fn put(&mut self, s: &str) {
+        self.whole &= self.ink.put(s);
+    }
+
+    fn len(&self) -> usize {
+        self.ink.len()
+    }
+}
+
+/// One term of a polynomial with no atom spelled, which is as large as
+/// the term and no larger.
+impl Sink for String {
+    fn put(&mut self, s: &str) {
+        self.push_str(s);
+    }
+
+    fn len(&self) -> usize {
+        str::len(self)
+    }
+}
+
+/// `n` terms of ONE polynomial, in words: the count every mark gives.
+fn terms(n: usize) -> String {
+    match n {
+        1 => "1 term".to_owned(),
+        _ => format!("{n} terms"),
+    }
+}
+
+/// The mark that stands for the `left` terms after the last one written.
+fn more(left: usize) -> String {
+    match left {
+        1 => " + ‹1 more term›".to_owned(),
+        _ => format!(" + ‹{left} more terms›"),
+    }
+}
+
+/// The mark a polynomial none of whose terms is written leaves.
+fn unwritten(p: &Poly) -> String {
+    if p.is_zero() {
+        "0".to_owned()
+    } else {
+        format!("‹{}›", terms(p.terms().len()))
+    }
+}
+
+/// One rendering of a form. Atoms spell their arguments for `spell`
+/// levels. Below that an atom is `name(…)` when `spell` is the whole
+/// [`DEPTH`], and where the budget lowered it the atom is NAMED:
+/// `sqrt@89abcdef‹12 terms›` is its head, its ATOM id and its
+/// argument's size.
+///
+/// An atom id (`@`) is the low word of the atom's indeterminate, a hash
+/// of its head and its arguments' forms: two sites naming one id hold
+/// one atom. It is not a DAG node's id, which the explanation writes
+/// under `#`, and no table leads from one to the other. An argument's
+/// size is its polynomial's terms, `n terms / d terms` for a quotient,
+/// and one size per argument.
+struct Pen<'a, S> {
+    sess: &'a Session,
+    spell: usize,
+    sink: S,
+}
+
+impl<S: Sink> Pen<'_, S> {
+    fn form(&mut self, f: &Form, depth: usize) {
+        if f.poisoned {
+            self.sink.put("⊥");
+        } else if f.den == Poly::one() {
+            self.poly(&f.num, depth);
+        } else {
+            self.sink.put("(");
+            self.poly(&f.num, depth);
+            self.sink.put(") / (");
+            self.poly(&f.den, depth);
+            self.sink.put(")");
+        }
+    }
+
+    fn poly(&mut self, p: &Poly, depth: usize) {
+        if p.is_zero() {
+            self.sink.put("0");
+        }
+        for (i, (m, c)) in p.terms().iter().enumerate() {
+            if i > 0 {
+                self.sink.put(" + ");
+            }
+            self.term(m, c, depth);
+        }
+    }
+
+    fn term(&mut self, m: &Mono, c: &Rat, depth: usize) {
+        self.sink.put(&render_rat(c));
+        for &(id, e) in m {
+            self.sink.put("·");
+            self.indet(id, depth);
+            if e != 1 {
+                self.sink.put(&format!("^{e}"));
+            }
+        }
+    }
+
+    fn indet(&mut self, id: u128, depth: usize) {
+        if id == INDET_PI {
+            return self.sink.put("π");
+        }
+        if let Some(name) = NAMES.with(|n| n.borrow().get(&id).cloned()) {
+            return self.sink.put(&name);
+        }
+        let sess = self.sess;
+        let Some(atom) = sess.atoms.get(&id) else {
+            return self.sink.put(&format!("?#{:08x}", id as u32));
+        };
+        self.sink.put(match atom.op {
             SymOp::Sqrt => "sqrt",
             SymOp::Abs => "abs",
             SymOp::Sin => "sin",
@@ -410,18 +664,165 @@ fn render_indet(sess: &Session, id: u128, depth: usize) -> String {
             SymOp::Copysign => "copysign",
             SymOp::Select => "select",
             _ => "?",
-        };
-        if depth >= DEPTH {
-            return format!("{name}(…)");
+        });
+        let args = atom.args.iter().flatten();
+        if depth >= self.spell {
+            if self.spell == DEPTH {
+                return self.sink.put("(…)");
+            }
+            let sizes: Vec<String> = args
+                .map(|a| match (a.poisoned, a.den == Poly::one()) {
+                    (true, _) => "⊥".to_owned(),
+                    (false, true) => terms(a.num.terms().len()),
+                    (false, false) => format!(
+                        "{} / {}",
+                        terms(a.num.terms().len()),
+                        terms(a.den.terms().len())
+                    ),
+                })
+                .collect();
+            return self
+                .sink
+                .put(&format!("@{:08x}‹{}›", id as u32, sizes.join(", ")));
         }
-        let args = atom
-            .args
-            .iter()
-            .flatten()
-            .map(|a| render_form(sess, a, depth + 1))
-            .collect::<Vec<_>>()
-            .join(", ");
-        return format!("{name}({args})");
+        if self.sink.recall((id, depth)) {
+            return;
+        }
+        let from = self.sink.len();
+        self.sink.put("(");
+        for (i, a) in args.enumerate() {
+            if i > 0 {
+                self.sink.put(", ");
+            }
+            self.form(a, depth + 1);
+        }
+        self.sink.put(")");
+        self.sink.remember((id, depth), from);
     }
-    format!("?#{:08x}", id as u32)
+}
+
+/// **`f` as text of at most `limit` bytes**, a function of the form
+/// and the registered names alone.
+///
+/// It is spelled to the deepest level, [`DEPTH`] at most, at which the
+/// whole text fits, each candidate counted before it is written. Where
+/// it fits at none, every atom is named and each polynomial's terms
+/// are written while they fit, the rest counted ([`cut_form`]).
+fn render_form(sess: &Session, f: &Form, limit: usize) -> String {
+    for spell in (0..=DEPTH).rev() {
+        let mut count = Pen {
+            sess,
+            spell,
+            sink: Count::default(),
+        };
+        count.form(f, 0);
+        if count.sink.bytes > limit {
+            continue;
+        }
+        let mut pen = Pen {
+            sess,
+            spell,
+            sink: Counted {
+                ink: Ink::new(limit),
+                whole: true,
+            },
+        };
+        pen.form(f, 0);
+        debug_assert!(pen.sink.whole, "a text takes the bytes it was counted at");
+        if pen.sink.whole {
+            return pen.sink.ink.finish();
+        }
+    }
+    cut_form(sess, f, limit)
+}
+
+/// `f` with every atom named and its terms written while they fit:
+/// `(… + ‹244 more terms›) / (‹436 terms›)`. Every mark the text can
+/// come to owe is set aside before a term is tried. A limit under the
+/// length of those marks, a hundred bytes or so and neither limit
+/// here, keeps the ones that fit, in order.
+fn cut_form(sess: &Session, f: &Form, limit: usize) -> String {
+    let mut ink = Ink::new(limit);
+    if f.poisoned {
+        ink.put("⊥");
+        return ink.finish();
+    }
+    let Some(num) = ink.reserve(unwritten(&f.num)) else {
+        return ink.finish();
+    };
+    if f.den == Poly::one() {
+        cut_poly(sess, &mut ink, &f.num, num);
+        return ink.finish();
+    }
+    let rest = (|| {
+        Some((
+            ink.reserve(") / (".to_owned())?,
+            ink.reserve(unwritten(&f.den))?,
+            ink.reserve(")".to_owned())?,
+        ))
+    })();
+    let Some((over, den, close)) = rest else {
+        ink.write(num);
+        return ink.finish();
+    };
+    if !ink.put("(") {
+        ink.write(num);
+        return ink.finish();
+    }
+    cut_poly(sess, &mut ink, &f.num, num);
+    ink.write(over);
+    cut_poly(sess, &mut ink, &f.den, den);
+    ink.write(close);
+    ink.finish()
+}
+
+/// `p`'s terms, atoms named, while each fits beside the mark that
+/// counts the terms after it; `unwritten` is the mark for the whole of
+/// `p`, set aside by the caller.
+fn cut_poly(sess: &Session, ink: &mut Ink, p: &Poly, unwritten: ink::Slot) {
+    let terms_of = p.terms();
+    let mut owed = unwritten;
+    for (i, (m, c)) in terms_of.iter().enumerate() {
+        let mut term = Pen {
+            sess,
+            spell: 0,
+            sink: if i > 0 {
+                " + ".to_owned()
+            } else {
+                String::new()
+            },
+        };
+        term.term(m, c, 0);
+        let left = terms_of.len() - i - 1;
+        let after = if left == 0 {
+            None
+        } else {
+            match ink.reserve(more(left)) {
+                Some(slot) => Some(slot),
+                None => break,
+            }
+        };
+        if !ink.put(&term.sink) {
+            if let Some(slot) = after {
+                ink.release(slot);
+            }
+            break;
+        }
+        ink.release(owed);
+        match after {
+            Some(slot) => owed = slot,
+            None => return,
+        }
+    }
+    ink.write(owed);
+}
+
+fn render_rat(c: &Rat) -> String {
+    if c.den.is_one() && (0..=40).contains(&c.exp2) {
+        return format!("{}", c.num.shl(c.exp2 as usize));
+    }
+    if c.den.is_one() {
+        return format!("{}·2^{}", c.num, c.exp2);
+    }
+    format!("{}/{}·2^{}", c.num, c.den, c.exp2)
 }

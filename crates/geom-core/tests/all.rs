@@ -55,6 +55,10 @@ mod exact_q;
 mod refusal;
 mod span_fixtures;
 
+#[path = "a_drives_table_and_what_is_outside_it.rs"]
+mod a_drives_table_and_what_is_outside_it;
+#[path = "a_nodes_answer_at_the_symbolic_scalar_is_its_own.rs"]
+mod a_nodes_answer_at_the_symbolic_scalar_is_its_own;
 #[path = "a_value_with_no_expression_is_named_where_it_was_minted.rs"]
 mod a_value_with_no_expression_is_named_where_it_was_minted;
 #[path = "ambiguity_k_env.rs"]
@@ -237,3 +241,5 @@ mod m10_10_r1_sym_probes;
 mod m10_10_r2_probes;
 #[path = "polar_enclosure_contains_the_polar_factor.rs"]
 mod polar_enclosure_contains_the_polar_factor;
+#[path = "shape_report_render_budget.rs"]
+mod shape_report_render_budget;

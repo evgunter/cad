@@ -316,6 +316,7 @@ pub(super) fn eval_family<T: topo::AtRestPolicy + Decide>(
             node: id,
             kind,
             escalations: Arc::new(Vec::new()),
+            sym: Arc::default(),
         }),
         reused: false,
     };
@@ -519,6 +520,7 @@ pub(super) fn family_value<T: topo::AtRestPolicy + Decide>(
         witness: super::WitnessSlot {},
         content_key: content.finish(),
         naming_key: NamingKey(naming.finish().0),
+        sym: Arc::default(),
     })
 }
 

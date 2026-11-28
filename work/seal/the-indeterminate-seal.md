@@ -63,3 +63,14 @@ C24 is `crates/sweep/src/blend/battery.rs:129`, `measured`: a reporting projecti
 ## Triggers fired (2026-11-20, CHARTTAIL)
 
 `chart-region-mints-indeterminates-after-a-definite-sign` and `chart-definite-diag-labels-an-interval-lower-end-as-an-f64-value` closed with PR 7168: `chart_region.rs` mints no escalation after a definite sign. Pruned from `blocked_on`.
+
+## `invalid_margin.rs` is gone (ORBIT, 2026-11-24)
+
+`orbit/plane-torus-one-lever` (PR 7713) deleted
+`crates/topo/src/invalid_margin.rs`. Its last production caller was
+`boolean::join::pt_germ_frame`'s `PT_TOUCHING_UNDER_A_GERM`, retired
+together with the plane × torus frame's general-pose arm. The one test
+that called it (`shell_witness`'s tally row) now builds its
+`Indeterminate` as a struct literal. That literal is one of this row's
+hand-built sites, and the struct-literal half of the seal still covers
+it. The bullet above that deletes the file is met.

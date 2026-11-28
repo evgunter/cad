@@ -182,7 +182,7 @@ impl<'b> KeyFree<'b> {
         // curve, a half-edge its edge, a loop its half-edges, a face its
         // surface and loops.
         let surfaces: Vec<_> = body
-            .surfaces()
+            .described_surfaces()
             .map(|(k, s)| (format!("{k:?}"), read.word("S", format!("{s:?}"))))
             .collect();
         read.learn(surfaces);

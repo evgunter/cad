@@ -245,13 +245,14 @@ fn a_zigzag_touching_its_axis_at_two_vertices_revolves_by_every_partial_angle() 
 }
 
 /// A full turn closes each notch into a cavity shell. The counts pin the
-/// full turn's topology as it is built today; the cavity count and the
-/// volume pin what any correct full turn of these profiles is.
+/// full turn's topology as it is built today, each curved wall one band
+/// closed on its wrap edge; the cavity count and the volume pin what any
+/// correct full turn of these profiles is.
 #[test]
 fn a_full_turn_closes_each_notch_into_a_cavity() {
     for (label, pts, cavities, want_counts, moment) in [
-        ("U", &U[..], 1, (8, 12, 8, 0), 5.5),
-        ("comb", &COMB[..], 2, (12, 18, 12, 0), 9.0),
+        ("U", &U[..], 1, (4, 6, 6, 0), 5.5),
+        ("comb", &COMB[..], 2, (6, 9, 9, 0), 9.0),
     ] {
         let t = revolved(pts, Revolution::Full)
             .unwrap_or_else(|e| panic!("{label}: the full turn builds, got {e}"));

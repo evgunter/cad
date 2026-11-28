@@ -230,7 +230,7 @@ fn two_holes_two_cavities() {
 }
 
 /// An axis-touching OUTER with a hole: the outer builds as the
-/// two-π-band wire (poles at the run's ends), the hole still inserts
+/// one-band wire (poles at the run's ends), the hole still inserts
 /// as a lamina cavity — the case split composes.
 #[test]
 fn wire_outer_with_hole_cavity() {
@@ -252,17 +252,16 @@ fn wire_outer_with_hole_cavity() {
     assert_eq!(t.body.shells().count(), 2);
     assert_eq!(t.cavities.len(), 1);
     let RevolvedKind::Full {
-        pi_walls,
-        meridians,
-        ..
+        wire, meridians, ..
     } = &t.kind
     else {
         panic!("full revolve")
     };
-    // The outer is the wire case (π-band walls exist for its off-axis
-    // segments); the hole is lamina (a meridian per curved wall, none
-    // on its plane annuli).
-    assert!(pi_walls.iter().any(Option::is_some));
+    // The outer is the wire case (its cylinder's one meridian, none on
+    // its plane discs); the hole is lamina (a meridian per curved wall,
+    // none on its plane annuli).
+    assert!(*wire);
+    assert_eq!(meridians[0].iter().filter(|m| m.is_some()).count(), 1);
     assert_eq!(meridians[1].iter().filter(|m| m.is_some()).count(), 2);
 
     // Pappus: outer cylinder solid 2·3 at r̄ 1 minus hole 1·1 at r̄ 1.

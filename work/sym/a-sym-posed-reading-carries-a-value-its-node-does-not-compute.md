@@ -82,3 +82,14 @@ The class sweep: in `sym.rs`, the shape is a `Sym { value: <T's own
 reading>, node: <another formula's node> }`. It hits exactly the two
 above. The sweep cannot see a scalar that launders a value through
 `from_f64`, which is what the instrument itself reports.
+
+## 2026-11-24: the same two rows, filed again from f2815a23 (GREEN U21)
+
+GREEN's P0 `main-red-two-editor-core-slow-rows-no-row-holds-at-f2815a23`
+listed `revalue_die_chamfer` (`drifted: 322`) and `revalue_measured_web`
+(`drifted: 39`) as unheld. They are two of this row's ten, with the same
+counts and the same laundered names, so the cause is the same. A hosted
+bisect agrees (probe run 45369489326, default ε): both pass at
+`9f15dcb96c` and `1883da3554`, and fail at `3547fe5764` (PR 7411) and at
+every later point probed, through `341d62e9a6`. They stay red and
+unheld, as this row decided.

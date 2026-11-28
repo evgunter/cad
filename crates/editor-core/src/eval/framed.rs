@@ -124,7 +124,8 @@ impl<T: Real> Frame<T> {
     }
 
     /// **`self⁻¹ ∘ other`**: the map from `other`'s coordinates into
-    /// `self`'s, `None` where the two are one frame.
+    /// `self`'s ([`RigidMotion::relative`]), `None` where the two are one
+    /// frame, a map they share included.
     ///
     /// # Errors
     ///
@@ -136,12 +137,7 @@ impl<T: Real> Frame<T> {
         if self.same(other) {
             return Ok(None);
         }
-        Ok(Some(match (self.map(), other.map()) {
-            (None, Some(b)) => *b,
-            (Some(a), None) => a.inverse()?,
-            (Some(a), Some(b)) => a.inverse()?.compose(*b)?,
-            (None, None) => unreachable!("two `Own` frames are one frame"),
-        }))
+        RigidMotion::relative(self.map(), other.map())
     }
 }
 
@@ -444,10 +440,10 @@ impl<T: topo::AtRestPolicy> Framed<T> {
             .or_else(|| operands.into_iter().next())
     }
 
-    /// **The one door between two operands of one space**: the map from
-    /// `other`'s body coordinates into this one's
-    /// (`self.frame⁻¹ ∘ other.frame`), `None` where the two are in one
-    /// frame and the map is the identity.
+    /// **The map between two operands of one space**: from `other`'s
+    /// body coordinates into this one's (`self.frame⁻¹ ∘ other.frame`,
+    /// [`RigidMotion::relative`]), `None` where the two are in one frame
+    /// and the map is the identity.
     ///
     /// # Errors
     ///

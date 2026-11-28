@@ -54,8 +54,14 @@ mod shared;
 
 #[path = "a_blend_section_is_a_shared_row_of_its_bands.rs"]
 mod a_blend_section_is_a_shared_row_of_its_bands;
+#[path = "a_plane_against_a_torus_routes_as_its_pose_reads.rs"]
+mod a_plane_against_a_torus_routes_as_its_pose_reads;
+#[path = "a_plane_torus_closed_form_serves_its_circles_within_the_band_at_any_lever.rs"]
+mod a_plane_torus_closed_form_serves_its_circles_within_the_band_at_any_lever;
 #[path = "a_shared_row_is_certified_per_wall.rs"]
 mod a_shared_row_is_certified_per_wall;
+#[path = "a_thin_lemons_volume_keeps_its_digits.rs"]
+mod a_thin_lemons_volume_keeps_its_digits;
 #[path = "an_iso_family_reads_the_edges_span.rs"]
 mod an_iso_family_reads_the_edges_span;
 #[path = "an_iso_image_holds_its_line.rs"]
@@ -103,6 +109,8 @@ mod certify_turn_rule;
 mod computed_values_enter_as_unknowns;
 #[path = "cone_pair_section.rs"]
 mod cone_pair_section;
+#[path = "conic_sizes_are_decided.rs"]
+mod conic_sizes_are_decided;
 #[path = "coplanar_ellipses_one_locus.rs"]
 mod coplanar_ellipses_one_locus;
 #[path = "curved_torus_arc_residual.rs"]

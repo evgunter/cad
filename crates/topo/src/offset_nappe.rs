@@ -134,7 +134,10 @@ pub(crate) fn face_nappe_reading<T: Decide>(
     band: Band,
 ) -> Result<Nappe, NappeRefusal<T>> {
     let view = body.face(face).ok_or(NappeRefusal::Stale)?;
-    let (Surface::Cone { .. }, Some(axis)) = (view.surface(), view.surface().axis_line()) else {
+    let Ok(surface @ Surface::Cone { .. }) = view.surface() else {
+        return Ok(Nappe::Opening);
+    };
+    let Some(axis) = surface.axis_line() else {
         return Ok(Nappe::Opening);
     };
     let (station_min, station_max) = corner_stations(body, view, axis);
@@ -231,8 +234,7 @@ pub fn group_nappe<T: Decide>(
                 Err(e) => return Err(e),
             };
             let view = body.proven_face(face);
-            let (Surface::Cone { .. }, Some(axis)) = (view.surface(), view.surface().axis_line())
-            else {
+            let Some(axis) = view.expect_described().axis_line() else {
                 unreachable!("{face:?} disagreed on a nappe, which only a cone face has")
             };
             let (station_min, station_max) = corner_stations(body, view, axis);

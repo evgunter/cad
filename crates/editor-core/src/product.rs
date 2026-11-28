@@ -650,6 +650,11 @@ pub fn product<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
 /// them would be a second truth about what a document's product is.
 #[derive(Debug)]
 pub struct Product<T: topo::AtRestPolicy + Decide> {
+    /// What the gather left in the symbolic session
+    /// ([`geom_core::sym::NodeRecord`]): the decisions it took after
+    /// the nodes, in a scope of its own. Empty at every scalar but a
+    /// symbolic one.
+    pub sym: Arc<geom_core::sym::NodeRecord>,
     /// The document this product is OF (DI3).
     ///
     /// A gather is a statement about one document, and the doors that
@@ -757,8 +762,10 @@ impl<T: topo::AtRestPolicy + Decide> Product<T> {
             assembles: _,
             pieces,
             parts,
+            sym,
         } = self;
         Self {
+            sym: Arc::clone(sym),
             document: *document,
             body: body.clone(),
             frame: frame.clone(),
@@ -1325,7 +1332,22 @@ pub(crate) const GRAFTED_WITHIN_U32: &str = "a product's grafted source: each gr
 
 /// [`gather`] over its sources: grafted, gated, carried and
 /// censused, each source its own group.
+/// [`gather_into`] as a scope of its own in the symbolic session: the
+/// gather runs after the nodes, in no node's scope, and what it
+/// decides is the product's, on the product ([`Product::sym`]).
 fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
+    doc: &Doc<P>,
+    tol: Tol,
+    sources: Vec<Source<T>>,
+) -> Result<Product<T>, ProductError> {
+    let (product, record) = geom_core::sym::apart(|| gather_into(doc, tol, sources));
+    product.map(|mut product| {
+        product.sym = Arc::new(record);
+        product
+    })
+}
+
+fn gather_into<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     doc: &Doc<P>,
     tol: Tol,
     sources: Vec<Source<T>>,
@@ -1515,6 +1537,7 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
         });
     }
     Ok(Product {
+        sym: Arc::default(),
         document: doc.id(),
         body: aggregate,
         frame,
