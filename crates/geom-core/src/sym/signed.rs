@@ -3,7 +3,10 @@
 //! decision's sign is certified over the leaf's box, and the arm
 //! `min`/`max` takes, which is the same read (`max(A, B)` IS
 //! `select(B − A, A, B)`). One read, one enclosure, and this module is
-//! the whole of how a value is read. It also holds the exact
+//! the whole of how the FORMS read a value; the one other reader of
+//! the brackets is the point reading ([`super::point`]), which a
+//! decision asks before the tier and which builds no form. It also
+//! holds the exact
 //! polynomial square root (`poly_sqrt`), which reads no value.
 //!
 //! # What is read, and through which door

@@ -63,14 +63,20 @@ use crate::real::{Bounds, Real};
 /// `[0.15, 0.35]` or `[0.65, 0.85]`. `None` for a bracket that is not
 /// finite and ordered.
 ///
-/// The fraction is never the centre and never a face, because that is
+/// The fraction is never the centre and never a face of an ordinary
+/// bracket, because that is
 /// where a document puts the values a designed coincidence holds at: a
 /// root box is centred on the nominal, and bisection puts the nominal on
 /// a child's face, so a margin that vanishes there would read 0 at the
 /// point and climb on every leaf. It differs per symbol so that two
 /// parameters over equal brackets are not read at one value, where
-/// `x − y` would read 0. A function of the symbol and the bracket alone,
-/// so the reading is the same in every replay and on every schedule.
+/// `x − y` would read 0. At the edges of `f64` the rounded point can
+/// land on a face (a bracket a few ulps wide; one whose width overflows
+/// to infinity, where the clamp takes a face): it is still a point of
+/// the bracket, which is all soundness asks, and the reading there is
+/// only less likely to refute. A function of the symbol and the bracket
+/// alone, so the reading is the same in every replay and on every
+/// schedule.
 fn point_of(symbol: u64, lo: f64, hi: f64) -> Option<f64> {
     if !(lo.is_finite() && hi.is_finite() && lo <= hi) {
         return None;

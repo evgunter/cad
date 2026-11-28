@@ -747,7 +747,8 @@
 //!
 //! **Who asks for the forms.** The `Decide` impl has two callers of
 //! the walks and only one is the tier deciding: its DECISION path asks
-//! a form only where the numeric channel cannot answer, and the shape
+//! a form only where the numeric channel cannot answer and the point
+//! reading ([`point`]) does not refute the margin, and the shape
 //! report, when installed, renders blocked residuals through the walks.
 //! A definite numeric sign asks the tier nothing; the test instrument
 //! (`sym::contradiction`) walks the margins a build decided definite,
@@ -2419,7 +2420,7 @@ struct Session {
     /// The `f64` bracket of each document parameter this leaf was
     /// evaluated over, by the parameter's indeterminate id — recorded
     /// by [`Sym::param_over`] and read by the decision read
-    /// ([`signed`]) alone.
+    /// ([`signed`]) and the point reading ([`point`]).
     params: IndetMap<(f64, f64)>,
     /// The count each closed mint scope stopped at, by the scope's
     /// name, so a scope opened again in this session mints on from
@@ -5161,10 +5162,11 @@ impl<T> Sym<T> {
     /// [`Self::param`] over the bracket `[lo, hi]` the value was built
     /// from — the analysis box's own two `f64`s, which the caller that
     /// mints a parameter axis already holds. The bracket is recorded in
-    /// the installed session for the decision read ([`signed`]); it is
-    /// the ONLY value the symbolic tier ever reads, and it is read as
-    /// two floats through a certification enclosure, never as the lane
-    /// scalar.
+    /// the installed session for the decision read ([`signed`]) and the
+    /// point reading ([`point`]); it is the ONLY value either reads, as
+    /// two floats through a certification enclosure (the point reading
+    /// at one point of it), never as the lane scalar. A bracket that is
+    /// new or moved clears the leaf's point readings.
     /// Outside a session the bracket is dropped and this is `param`.
     #[must_use]
     pub fn param_over(symbol: ParamSymbol, value: T, lo: f64, hi: f64) -> Self {
@@ -5811,6 +5813,13 @@ impl<T: SpanLocate> SpanLocate for Sym<T> {
 /// enclosure contains 0** — asserted in debug builds, at every rung, a
 /// retry's and the registry door's included ([`Witness`](crate::Witness);
 /// the assertion's site argues it).
+///
+/// **Where the value reads no definite sign at an exact witness, the
+/// margin is read at one point of the box before the tier is asked**
+/// ([`point`]): an enclosure there that excludes 0 proves it no identity
+/// over the box, the tier is asked nothing, and the numeric reading is
+/// the answer (ERROR-DESIGN E12). A reading that holds 0, or declines,
+/// leaves the ask as it was.
 ///
 /// Everything else is `T::sign_within` verbatim.
 impl<T: Decide> Decide for Sym<T> {
