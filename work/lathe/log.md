@@ -270,3 +270,10 @@ Signed: (CARVE orchestrator)
 - 2026-11-28 (LATHE orchestrator) Strut-ring PR 7841 (head 6a69ffb1e1): (a) with a checked In→SectionInvariant; ball-first ∪/∩/∖ build with inclusion–exclusion; the donut-first ops are pinned at 7v1. ci profile base vs head: no moved outcome; 190 of 316 join slow rows unreached. Review is dual Opus: R1 on soundness of the deferral across the boolean and split lanes; R2 on the corpus (the unreached rows), mutations and merge loss.
 - 2026-11-28 (LATHE orchestrator) Correction: the strut-ring PR is 7840, not 7841.
 - 2026-11-28 (LATHE orchestrator) PR 7840 R1, early. MAJOR: the ball-first ops build on base too (the Undecided arm removed leaves bit-identical volumes), so the PR only moves the donut-first stop 6v1→7v1 and its claims are overstated. MAJOR-premise: the deferred rings read decidedly In newf (placement_on_carrier) yet stay pending in oldf, contradicting the stated soundness text. No wrong final placement found. 7840 is held; the lane is to verify.
+- 2026-11-28 (LATHE orchestrator) PR 7840 not merged as is. R1's full report:
+  - M1: the ball-first ops build on base; the only effect is 6v1→7v1.
+  - M2: the deferral premise is false; the rings read decidedly In newf.
+  - No unsound placement was found, but the deferral can mislabel a real pose as a SectionInvariant.
+  - Redirected (R1 Q1): read an Undecided pierce ring by the face door `placement_on_carrier`, as fate::rehome does. Decided In moves it, decided Out leaves it, in band refuses as on base. No deferral. Then check whether 7v1 placed In makes the donut-first ops build.
+  - Class: two deciders for one job (path parity vs face door), and the weaker one is used.
+  - Process: the lane's "now builds" claim came from a base run broken by a git stash mix-up. A mutation-to-base check (remove the change, re-run) would have caught it, and belongs in every "this now builds" claim.
