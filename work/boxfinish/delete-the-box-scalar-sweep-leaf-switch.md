@@ -6,7 +6,7 @@ status: parked
 opened: 2026-11-02
 priority: P1
 cost: M
-blocked_on: [a-door-reading-the-minted-axis-loses-identities-with-quotient-minted-partners, a-verb-stores-a-radius-as-a-magnitude-and-the-symbolic-tier-cannot-use-the-sign-its-gate-decided, tier-3-at-every-box-replay-leaf-multiplies-the-decisions, the-aimed-faces-advance-is-zero-only-through-its-first-edges-incidence, a-walls-aim-hangs-from-its-moving-edge-so-its-ray-reads-a-box-a-tenth-as-wide, a-moving-face-whose-normal-has-no-zero-component-reads-its-side-only-over-a-narrow-box, the-gathers-finish-re-derives-certificates-its-moved-members-carry, the-two-parameter-plates-volume-refuses-on-a-junction-margin-that-is-not-a-number]
+blocked_on: [a-door-reading-the-minted-axis-loses-identities-with-quotient-minted-partners, a-verb-stores-a-radius-as-a-magnitude-and-the-symbolic-tier-cannot-use-the-sign-its-gate-decided, tier-3-at-every-box-replay-leaf-multiplies-the-decisions, the-aimed-faces-advance-is-zero-only-through-its-first-edges-incidence, a-walls-aim-hangs-from-its-moving-edge-so-its-ray-reads-a-box-a-tenth-as-wide, a-moving-face-whose-normal-has-no-zero-component-reads-its-side-only-over-a-narrow-box, the-gathers-finish-re-derives-certificates-its-moved-members-carry, the-two-parameter-plates-volume-refuses-on-a-junction-margin-that-is-not-a-number, a-moved-leaf-is-finished-again-at-the-box-scalar-and-the-tours-pin-refuses-at-export]
 refs: [f64-tier-3-reads-volume-uncomputable-in-band-on-hairline-revolves, 6371]
 ---
 
