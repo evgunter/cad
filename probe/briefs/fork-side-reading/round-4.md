@@ -1,0 +1,16 @@
+# The side reading over a box: round 4 (you crossed)
+
+In round 3 each of you took the other's round-2 mechanism. Read the other's round-3 reply whole: `probe/briefs/fork-side-reading/A-round-3.md` or `B-round-3.md` on this branch.
+
+**Agreed by both now:** an opaque place that only an evaluator takes; ONE reader at every scalar, a dual included (the ray is built from a place only; a body carrying tangents is read on its values); the admission test "what is decided at the place is the same at every place it could have been"; one sentence added to the README's DL5.2 place row; the ray's constructor from a place lives in `geom/src/places.rs` beside the pinned private step.
+
+**The two mechanisms, each now held by the one who first argued against it:**
+- **P (a projection on the scalar):** `Decide::place`, beside `told_reading`, in `geom-core`; its call sites a gated allowlist, each stating the place-invariance argument. #990's "the one projection is `Real::told_reading`" is amended to two projections, and the #701 sentence gains the allowlist. Held because: the word "one" forbids a second projection wherever it lives; and a door through the at-rest policy limits nothing, since most of `topo` is bounded on that policy and could call it.
+- **D (a door through the at-rest policy):** one constructor in `geom::places` bounded on the bracket read alone, reached as a door value the scalar supplies through `AtRestPolicy`, like the nine doors already there (none at a dual). #990 unchanged (its sentence sits in the bullet on refusal payloads); one `Bounds` ledger entry. Held because: the bound is what stops code that does not hold the door from making a place, where an allowlist is review and not type; the read stays where `Bounds` is spelled, which the policy's own doc requires; and the machinery already exists.
+
+**Three points of fact decide between them. Check each in the tree and answer it, with the item you read:**
+1. **Does the door limit anything?** Who can obtain the policy's door value and so make a place: every `T: AtRestPolicy` body, or only code that also spells the bracket bound? Compare with how `ShellDoor::certified` spells its right. If any `AtRestPolicy`-bounded function can make a place, say what D adds over P beyond the home; if it cannot, say what P's allowlist adds over D's bound.
+2. **Does #990's letter forbid a second projection?** Read the passage as it stands (the two numbered shapes, then "the one projection is `Real::told_reading`"): is "the one projection" a statement about refusal payloads and told quantities only, or about any way a value at `T` yields something outside `T`? Say which sentence, if any, would be false after D and after P.
+3. **A dual under the "one reader" you both now want:** D's door has no values at a dual. How does a dual get its place under D (the value view's scalar holds the door?), and is that the same under P?
+
+**What to send back (≤ 50 lines, `## For Ev` first, unsigned):** your answers to the three points; your recommendation; if the two of you still differ after this, the two-sentence choice for Ev with the ratified text each changes. One of you moved because of the letter of #990 and one because of the reach of the bound: if the facts above settle both, there should be one answer.
