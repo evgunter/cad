@@ -27,9 +27,9 @@ symbol beside them; the symbol is the stable half.
   store: the pin IS the referenced content.
 - **Determinism** (D9): same build, same inputs, same outputs. The store is
   an input of an evaluation only where the evaluation crosses the seam.
-- **Free-move is display state** (G3, over shown spaces by DI5): a display
-  frame over one shown space's picture, no solver, keyed by that space
-  (DI5; `crates/viewer/src/display.rs`).
+- **Free-move is display state** (G3, over pictures by DI5): a display
+  frame over one shown space's picture or one free profile's, no solver,
+  keyed by that space or that node (DI5; `crates/viewer/src/display.rs`).
 
 ## DI1 — A node id names one authored node wherever it is minted
 
@@ -143,15 +143,22 @@ existing, requested }` (and `SaveWouldReplaceDocument { id, path }` for a
 target holding another document), and `Workspace::save_as_new_document`,
 with a random id at the chosen target.*
 
-## DI5 — A free-move frame belongs to the space it was drawn for
+## DI5 — A free-move frame belongs to the picture it was drawn for
 
-Several spaces can be shown at once in the GUI, overlapping. A free-move
-repositions the picture of one shown space and changes no geometry in any
-space: releasing the gesture writes nothing to the document, and the
-release leaves the display frame where it is. The frame is a held value
-like any other on this page, so it names the space it was drawn for: it is
-keyed by that space, and it is dropped when that key stops naming a shown
-space (an undo or an edit removes it; `DisplayState::prune`).
+Several pictures can be shown at once in the GUI, overlapping. A picture
+is a shown space other than the world, or a free profile: a profile drawn
+on no frame, whose numbers are read only against each other (DESIGN
+`[variables.kinds]`) and which stands in no space, since each construction
+that reads it lifts it into coordinates of its own. A free-move
+repositions one picture and changes no geometry in any space: releasing
+the gesture writes nothing to the document, and the release leaves the
+display frame where it is. The frame is a held value like any other on
+this page, so it names the picture it was drawn for: it is keyed by that
+space or that profile node, and it is dropped when that key stops naming
+such a picture (an undo or an edit removes the space or the node, or an
+edit draws the profile on a frame, after which it moves with that frame's
+space; `DisplayState::prune`). The world is not moved: every other frame
+is measured against it.
 Consequences:
 
 - Keeping a relation means stating it: a placement's mates read poses off
@@ -160,9 +167,12 @@ Consequences:
 - A free-move may write display metadata (Ev, PR 5312), so a layout can
   outlive the session. It is viewer data outside the canonical bytes, never
   hashed into a `ContentPin` and never read by evaluation; without it, a
-  reopened document draws its shown spaces at a default pose.
+  reopened document draws its pictures at a default pose. A saved space
+  frame carries a witness, because a space id can be minted again for a
+  different space after an undo; a saved profile frame needs none, because
+  a node id names one authored node across history (DI1).
 - G3's "hiding and free-move are display state, never persisted" stands,
-  over shown spaces.
+  over pictures.
 
 ## What this doc does not touch
 
