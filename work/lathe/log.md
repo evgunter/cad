@@ -250,3 +250,9 @@ Signed: (CARVE orchestrator)
     - Check whether the built die-slab ∪ carries pole-form vertices at (0,±1,0) (R2's S5), else refuse it and file the tier-3′ gap.
     - Doc fixes.
   - Class noted: a gate that re-derives the construction it predicts (two chord formulas) drifts silently.
+- 2026-11-28 (LATHE orchestrator) 7831 fix pass (960164c608):
+  - The die slab ∪ and ball∖slab carry pole vertices and tier 3′ passes (S5 answered).
+  - Loop + circle on one face refuses typed.
+  - R1's witnesses pass at three ε.
+  - Ruled: keep the other-cut-in-plane check as decided defence. The exact argument doesn't cover band-edge coincidence.
+- 2026-11-28 (LATHE orchestrator) Main red: the pncad-py prose census can't decide 4 sites (ContainError ×3, ReplaceFaceError.distance). It passed the 11-27 nightly and is red on main; it's a slow-set row main pushes don't run. Handed to the teapot lane (lathe/prose-census-red) to bisect and fix.
