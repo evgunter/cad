@@ -22,7 +22,17 @@
 //!   interior circle `x = −0.9`, and the corner box crosses its face in a
 //!   plane `z = 0` that holds that circle's own meridian;
 //! - a cap box and a far box under the equator: the far box's plane
-//!   `z = 0` holds both poles, its section far from the cut.
+//!   `z = 0` holds both poles, its section far from the cut;
+//! - a cap box and nine thin boxes, one in each plane of the meridian
+//!   ladder or a hair off it;
+//! - a cap box and a rod (a cylinder) crossing the face, or a dome (a
+//!   trimmed ball) read by its radical plane;
+//! - a rod stub's loop beside the corner box, alone and with the side
+//!   box's circle on the same face.
+//!
+//! Where a row reads volumes in both orders against the operands' own,
+//! it is inclusion–exclusion: `V(∪) + V(∩) = V(ball) + V(other)`, and
+//! each difference the operand less the intersection.
 //!
 //! `work/lathe/close-cuts-is-not-total-on-crossings-path-cut-ins.md`.
 
@@ -30,7 +40,7 @@
 
 use std::f64::consts::PI;
 
-use geom_core::{Point2, Tol};
+use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use sweep::Revolution;
 use sweep::test_support::{brick, finished, revolved_about_y};
 use topo::{AtRestBody, BooleanError, BooleanOp, BooleanResult};
@@ -97,6 +107,79 @@ fn cap_and_far() -> AtRestBody<f64> {
     joined(&cap_box(), &boxed((0.3, 0.5), (0.5, 2.0), (-0.1, 0.0)))
 }
 
+/// A rod along `z`: the disc of radius `r` about `(x0, y0)` from `z0` up
+/// by `h`.
+fn rod(x0: f64, y0: f64, r: f64, (z0, h): (f64, f64)) -> AtRestBody<f64> {
+    finished(
+        "a rod",
+        sweep::test_support::prism_at(
+            vec![(Point2::new(x0 - r, y0), 1.0), (Point2::new(x0 + r, y0), 1.0)],
+            z0,
+            h,
+            tol(),
+        ),
+        tol(),
+    )
+}
+
+/// A box turned about the ball's axis `y` by `phi`.
+fn turned(x: (f64, f64), y: (f64, f64), z: (f64, f64), phi: f64) -> AtRestBody<f64> {
+    let m = geom_core::test_support::rigid(
+        &Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0), phi),
+        tol(),
+    );
+    finished(
+        "a turned box",
+        topo::transform_rigid(&brick::<f64>(x, y, z, tol()), &m).unwrap(),
+        tol(),
+    )
+}
+
+/// The cap box with a thin box in each of the meridian ladder's nine
+/// planes, a hair `delta` (radians) off it: each is the plane `x = 0`
+/// turned by `atan(t) + delta` about the axis, beside the cap circle.
+/// The ladder is `interior_cuts::meridian_turns`' `t`.
+fn cap_and_turned_boxes(delta: f64) -> AtRestBody<f64> {
+    [0.0, 0.125, -0.125, 0.25, -0.25, 0.375, -0.375, 0.5, -0.5]
+        .into_iter()
+        .fold(cap_box(), |other, t: f64| {
+            joined(
+                &other,
+                &turned((-0.01, 0.0), (0.5, 2.0), (0.15, 0.25), t.atan() + delta),
+            )
+        })
+}
+
+/// A ball of radius `0.3` about `(0.9, 0, 0)` above `z = 0`: its sphere
+/// face, trimmed by the plane, crosses the unit ball's face.
+fn dome() -> AtRestBody<f64> {
+    let small = finished(
+        "the small ball",
+        sweep::test_support::ball_poled(
+            0.3,
+            Vec3::new(0.9, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            tol(),
+        ),
+        tol(),
+    );
+    match topo::boolean::intersect(&small, &boxed((-2.0, 2.0), (-2.0, 2.0), (0.0, 2.0)), tol()) {
+        Ok(BooleanResult::Body(b)) => finished("the dome", b.body.into_body(), tol()),
+        other => panic!("the dome builds: {:?}", other.map(|_| ())),
+    }
+}
+
+/// A rod about `(0.5, 0)` from `z = 0` up, its cap inside the ball: its
+/// face meets the ball's in one loop.
+fn rod_stub() -> AtRestBody<f64> {
+    rod(0.5, 0.0, 0.2, (0.0, 2.0))
+}
+
+/// The corner box: it crosses the ball's face, a first-pass section.
+fn corner_box() -> AtRestBody<f64> {
+    boxed((-2.0, -0.2), (-2.0, -0.7), (-2.0, 0.0))
+}
+
 /// What a run yields.
 #[derive(Debug)]
 enum Got {
@@ -104,13 +187,16 @@ enum Got {
     Body(f64, Result<(), Vec<topo::ValidationError>>),
     /// The interior-loop guard's refusal.
     Guard,
+    /// An escalation: a reading in band.
+    Escalated,
 }
 
 const OPS: [BooleanOp; 3] = [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract];
 
 /// `op` on `x` and `y`: a body passing tier 2 and the certificate, with
-/// no cut traced into it ([`sweep::test_support::cut_trace`]), or the
-/// interior-loop guard's refusal. Anything else fails the row.
+/// no cut traced into it ([`sweep::test_support::cut_trace`]), the
+/// interior-loop guard's refusal, or an escalation. Anything else fails
+/// the row.
 fn run(label: &str, op: BooleanOp, x: &AtRestBody<f64>, y: &AtRestBody<f64>) -> Got {
     let r = match op {
         BooleanOp::Union => topo::boolean::union(x, y, tol()),
@@ -138,7 +224,8 @@ fn run(label: &str, op: BooleanOp, x: &AtRestBody<f64>, y: &AtRestBody<f64>) -> 
             site: topo::PairRefusalSite::InteriorLoopGuard,
             ..
         }) => Got::Guard,
-        other => panic!("{label}: a body or the interior-loop guard, not {other:?}"),
+        Err(BooleanError::Escalated { .. }) => Got::Escalated,
+        other => panic!("{label}: a body, the interior-loop guard or an escalation, not {other:?}"),
     };
     println!("[closing] {label}: {got:?}");
     got
@@ -166,6 +253,29 @@ fn sound(label: &str, got: &Got) -> f64 {
     match got {
         Got::Body(v, Ok(())) => *v,
         other => panic!("{label}: a body passing tier 3′, not {other:?}"),
+    }
+}
+
+/// A body's volume where tier 3′ passes, or refuses only with the
+/// census's undecidable pair of curved parts
+/// (`work/reachhold/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`).
+fn built(label: &str, got: &Got) -> f64 {
+    match got {
+        Got::Body(v, Ok(())) => *v,
+        Got::Body(v, Err(findings))
+            if findings.iter().all(|f| {
+                matches!(
+                    f,
+                    topo::ValidationError::CensusUndecidable {
+                        reason: topo::Undecidable::MayOverlap,
+                        ..
+                    }
+                )
+            }) =>
+        {
+            *v
+        }
+        other => panic!("{label}: a body passing tier 3′ or its census alone, not {other:?}"),
     }
 }
 
@@ -346,13 +456,13 @@ fn a_section_through_both_poles_far_from_the_cut_does_not_stop_it() {
 #[test]
 fn the_die_slab_builds_where_its_closing_reads_a_pole_and_refuses_where_none() {
     let band = PI * (0.7 - 0.7f64.powi(3) / 3.0);
-    let ball = 4.0 / 3.0 * PI;
+    let whole = 4.0 / 3.0 * PI;
     for (op, [ab, ba]) in both_orders("the die's slab", &slab()) {
         let label = format!("the die's slab, {op:?}");
         match op {
             BooleanOp::Union => {
                 for got in [&ab, &ba] {
-                    same_volume(&label, sound(&label, got), 11.2 + ball - band);
+                    same_volume(&label, sound(&label, got), 11.2 + whole - band);
                 }
             }
             BooleanOp::Intersect => {
@@ -362,7 +472,7 @@ fn the_die_slab_builds_where_its_closing_reads_a_pole_and_refuses_where_none() {
                 );
             }
             BooleanOp::Subtract => {
-                same_volume(&label, sound(&label, &ab), ball - band);
+                same_volume(&label, sound(&label, &ab), whole - band);
                 assert!(
                     matches!(ba, Got::Guard),
                     "{label}, the slab less the ball: the guard's refusal: {ba:?}"
@@ -370,86 +480,149 @@ fn the_die_slab_builds_where_its_closing_reads_a_pole_and_refuses_where_none() {
             }
         }
     }
-}
-
-#[test]
-fn zz_probe_pole_vertices() {
-    for (name, x, y, op) in [
-        ("slab ∪ ball", slab(), ball(), BooleanOp::Union),
-        ("ball ∪ slab", ball(), slab(), BooleanOp::Union),
-        ("ball ∖ slab", ball(), slab(), BooleanOp::Subtract),
+    // The built bodies hold the circle `z = 0` through both poles, and
+    // carry each pole as a vertex (DESIGN `[topology]`: a chart
+    // singularity is "a vertex of every face whose closure holds it"),
+    // the form tier 3′'s chart-singularity arm reads.
+    for (label, r) in [
+        ("the slab ∪ the ball", topo::boolean::union(&slab(), &ball(), tol())),
+        ("the ball ∪ the slab", topo::boolean::union(&ball(), &slab(), tol())),
+        ("the ball ∖ the slab", topo::boolean::subtract(&ball(), &slab(), tol())),
     ] {
-        let r = match op {
-            BooleanOp::Union => topo::boolean::union(&x, &y, tol()),
-            _ => topo::boolean::subtract(&x, &y, tol()),
+        let Ok(BooleanResult::Body(out)) = r else {
+            panic!("{label} builds")
         };
-        let Ok(BooleanResult::Body(out)) = r else { panic!("{name}") };
-        let pts: Vec<_> = out.body.vertex_points().map(|(_, p)| p).collect();
-        let near = |q: [f64; 3]| pts.iter().filter(|p| ((p.x - q[0]).powi(2) + (p.y - q[1]).powi(2) + (p.z - q[2]).powi(2)).sqrt() < 1e-9).count();
-        let on_circle = pts.iter().filter(|p| p.z.abs() < 1e-9 && ((p.x.powi(2) + p.y.powi(2)).sqrt() - 1.0).abs() < 1e-9).map(|p| format!("({:.3},{:.3})", p.x, p.y)).collect::<Vec<_>>();
-        println!("[probe] {name}: {} vertices; at (0,1,0): {}; at (0,-1,0): {}; on z=0 unit circle: {:?}; tier3' {:?}", pts.len(), near([0.0, 1.0, 0.0]), near([0.0, -1.0, 0.0]), on_circle, topo::validate_pseudomanifold(&out.body, &out.contacts, tol()).map_err(|e| e.len()));
-    }
-}
-
-fn zz_rod(x0: f64, y0: f64, r: f64, z0: f64, h: f64) -> AtRestBody<f64> {
-    finished(
-        "a rod",
-        sweep::test_support::prism_at(
-            vec![(Point2::new(x0 - r, y0), 1.0), (Point2::new(x0 + r, y0), 1.0)],
-            z0,
-            h,
-            tol(),
-        ),
-        tol(),
-    )
-}
-
-fn zz_report(name: &str, other: &AtRestBody<f64>) {
-    let ball = ball();
-    for op in OPS {
-        for (order, x, y) in [("ball first", &ball, other), ("ball second", other, &ball)] {
-            let r = match op {
-                BooleanOp::Union => topo::boolean::union(x, y, tol()),
-                BooleanOp::Intersect => topo::boolean::intersect(x, y, tol()),
-                BooleanOp::Subtract => topo::boolean::subtract(x, y, tol()),
-            };
-            let got = match r {
-                Ok(BooleanResult::Body(out)) => {
-                    let t2 = topo::validate_closed(&out.body).is_ok();
-                    let cert = topo::validate_geometric_certificate(&out.body, tol()).is_ok();
-                    let v = topo::test_support::pinned_volume("probe", &out.body, tol()).volume;
-                    let t3 = topo::validate_pseudomanifold(&out.body, &out.contacts, tol());
-                    format!("BODY v={v} t2={t2} cert={cert} t3'={:?}", t3.map_err(|e| e.iter().map(|f| format!("{f:?}").chars().take(90).collect::<String>()).collect::<Vec<_>>()))
-                }
-                Ok(other) => format!("OTHER {:?}", std::mem::discriminant(&other)),
-                Err(e) => format!("ERR {e:?}").chars().take(300).collect(),
-            };
-            println!("[probe] {name}, {op:?}, {order}: {got}");
+        for pole in [1.0, -1.0] {
+            let at = out
+                .body
+                .vertex_points()
+                .filter(|(_, p)| (p.x.powi(2) + (p.y - pole).powi(2) + p.z.powi(2)).sqrt() < 1e-9)
+                .count();
+            assert_eq!(at, 1, "{label}: one vertex at the pole (0, {pole}, 0)");
         }
     }
 }
 
+
+/// **A first-pass section on the cut face that is no plane or sphere
+/// stops the cut-in, and the guard's refusal stands.** R1's rod along `z`
+/// about `(0, 0.9)`, from `z = 0.05` to `0.25`, crosses the ball's face
+/// beside the cap box's circle `z = 0.6`. A cylinder's section has no
+/// plane to turn the cut's meridian off (`interior_cuts::closing_meridians`),
+/// so the op does not cut in, in every op and either order.
 #[test]
-fn zz_probe_new_arms() {
-    let rod_stub = zz_rod(0.5, 0.0, 0.2, 0.0, 2.0);
-    zz_report("rod stub alone", &rod_stub);
-    zz_report("corner box and rod stub", &joined(&boxed((-2.0, -0.2), (-2.0, -0.7), (-2.0, 0.0)), &rod_stub));
-    zz_report("side, corner and rod stub", &joined(&side_and_corner(), &rod_stub));
-    // A rod whose cap edge crosses the face beside the cap circle.
-    zz_report("cap box and a crossing rod", &joined(&cap_box(), &zz_rod(0.0, -0.5, 0.15, -2.0, 1.2)));
-    // A small ball trimmed by z ≥ 0, crossing the face beside the cap circle.
-    let small = finished(
-        "the small ball",
-        sweep::test_support::ball_poled(0.3, geom_core::Vec3::new(0.9, 0.0, 0.0), geom_core::Vec3::new(0.0, 0.0, 1.0), tol()),
-        tol(),
-    );
-    match topo::boolean::intersect(&small, &boxed((-2.0, 2.0), (-2.0, 2.0), (0.0, 2.0)), tol()) {
-        Ok(BooleanResult::Body(out)) => {
-            let dome = finished("the dome", out.body.into_body(), tol());
-            zz_report("dome alone", &dome);
-            zz_report("cap box and a dome", &joined(&cap_box(), &dome));
-            zz_report("side box and a dome", &joined(&boxed((-2.0, -0.9), (-1.5, 1.5), (-1.5, 1.5)), &dome));
-        }
-        other => println!("[probe] the dome does not build: {:?}", other.map(|_| ())),
+fn a_rod_crossing_the_cut_face_is_no_section_a_meridian_turns_off() {
+    let name = "a cap box and a rod";
+    for (op, [ab, ba]) in both_orders(name, &joined(&cap_box(), &rod(0.0, 0.9, 0.12, (0.05, 0.2)))) {
+        assert!(
+            matches!((&ab, &ba), (Got::Guard, Got::Guard)),
+            "{name}, {op:?}: the guard's refusal in either order: {ab:?} {ba:?}"
+        );
     }
+}
+
+/// **A trimmed ball crossing the cut face is read by its radical plane,
+/// and the op builds.** The dome (a ball of radius `0.3` about
+/// `(0.9, 0, 0)`, above `z = 0`) crosses the ball's face beside the cap
+/// box's circle `z = 0.6`. Its sphere face is a first-pass section read
+/// as the two spheres' radical plane `x ≈ 0.956`, off the cut's meridian
+/// `x = 0`, and every op builds sound, a union or an intersection at one
+/// volume in either order, and every volume as the operands' own
+/// (inclusion–exclusion).
+#[test]
+fn a_trimmed_ball_crossing_the_cut_face_is_read_by_its_radical_plane() {
+    let name = "a cap box and a dome";
+    let other = joined(&cap_box(), &dome());
+    let mut runs = Vec::new();
+    for (op, [ab, ba]) in both_orders(name, &other) {
+        let label = format!("{name}, {op:?}");
+        let (v, w) = (sound(&label, &ab), sound(&label, &ba));
+        if op != BooleanOp::Subtract {
+            same_volume(&label, v, w);
+        }
+        runs.push((op, [v, w]));
+    }
+    inclusion_exclusion(name, &other, &runs);
+}
+
+/// **A loop's cut beside a first-pass section builds.** The rod stub
+/// about `(0.5, 0)` meets the ball's face in one loop, which the cut-in
+/// cuts along its own meridian; the corner box crosses the face away from
+/// it. Every op builds sound, a union or an intersection at one volume in
+/// either order, and every volume as the operands' own.
+#[test]
+fn a_loops_cut_beside_a_first_pass_section_builds() {
+    let name = "a corner box and a rod stub";
+    let other = joined(&corner_box(), &rod_stub());
+    let mut runs = Vec::new();
+    for (op, [ab, ba]) in both_orders(name, &other) {
+        let label = format!("{name}, {op:?}");
+        let (v, w) = (sound(&label, &ab), sound(&label, &ba));
+        if op != BooleanOp::Subtract {
+            same_volume(&label, v, w);
+        }
+        runs.push((op, [v, w]));
+    }
+    inclusion_exclusion(name, &other, &runs);
+}
+
+/// **A loop's cut-in and a circle's on one face, beside a first-pass
+/// section, refuse at the guard.** The side box's circle `x = −0.9` and
+/// the rod stub's loop both lie on the ball's one face, and the corner
+/// box crosses it. The gate this unit replaced refused any face holding a
+/// loop's cut-in and another; it no longer does, and the pose is not
+/// built: the guard's refusal stands, in every op and either order.
+/// Red when it builds (then pin it sound), or when it refuses otherwise.
+#[test]
+fn a_loop_and_a_circle_cut_in_on_one_face_refuse_at_the_guard() {
+    let name = "a side box, a corner box and a rod stub";
+    for (op, [ab, ba]) in both_orders(name, &joined(&side_and_corner(), &rod_stub())) {
+        assert!(
+            matches!((&ab, &ba), (Got::Guard, Got::Guard)),
+            "{name}, {op:?}: the guard's refusal in either order: {ab:?} {ba:?}"
+        );
+    }
+}
+
+/// **A box in every turn of the meridian ladder: on the planes the
+/// guard's refusal stands, a hair off them in band the op escalates, and
+/// clear of them it builds.** R1's nine thin boxes, each in a plane of
+/// the ladder turned by `delta`, beside the cap box's circle `z = 0.6`,
+/// whose own meridian is the ladder's first plane:
+/// - `delta = 0`: every turn is decidedly blocked, and the op goes on
+///   uncut, to the guard's refusal;
+/// - `delta = 10ε`: each turn's offset is read in band (about `2.5ε`),
+///   none clears, and the op escalates as that reading
+///   (`interior_cuts::closing_meridians`);
+/// - `delta = 100ε`: the first turn clears, the op builds, and every
+///   volume is the operands' own (inclusion–exclusion), a body tier 3′
+///   passes or reads only as the census's undecidable pair of parts.
+///
+/// In every op and either order.
+#[test]
+fn a_box_in_every_turn_blocks_escalates_or_builds_as_its_offset_reads() {
+    let eps = tol().eps();
+    for (delta, want) in [(0.0, "guard"), (10.0 * eps, "escalated")] {
+        let name = format!("nine turned boxes, δ {delta:e}");
+        for (op, [ab, ba]) in both_orders(&name, &cap_and_turned_boxes(delta)) {
+            let got = match (&ab, &ba) {
+                (Got::Guard, Got::Guard) => "guard",
+                (Got::Escalated, Got::Escalated) => "escalated",
+                _ => "other",
+            };
+            assert_eq!(got, want, "{name}, {op:?}: {ab:?} {ba:?}");
+        }
+    }
+    let name = format!("nine turned boxes, δ {:e}", 100.0 * eps);
+    let other = cap_and_turned_boxes(100.0 * eps);
+    let mut runs = Vec::new();
+    for (op, [ab, ba]) in both_orders(&name, &other) {
+        let label = format!("{name}, {op:?}");
+        let (v, w) = (built(&label, &ab), built(&label, &ba));
+        if op != BooleanOp::Subtract {
+            same_volume(&label, v, w);
+        }
+        runs.push((op, [v, w]));
+    }
+    inclusion_exclusion(&name, &other, &runs);
 }

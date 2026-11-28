@@ -55,6 +55,13 @@ choice then stops being a premise.
 
 ## Witnesses
 
-None measured. No row reaches either case today. This item is what
-remains of `close-cuts-is-not-total-on-crossings-path-cut-ins` (1b's
-generality) after `lathe/close-cuts-total`.
+In `crates/sweep/tests/a_crossings_path_cut_in_is_made_only_where_its_closing_is_total.rs`:
+
+- **Every turn blocked:** `a_box_in_every_turn_blocks_escalates_or_builds_as_its_offset_reads`, nine thin boxes in the ladder's nine planes beside the cap circle. On the planes the guard's refusal stands; a hair off them, in band, the op escalates.
+- **A cylinder on the cut face:** `a_rod_crossing_the_cut_face_is_no_section_a_meridian_turns_off`, the guard's refusal in every op.
+- **A loop's cut:** `a_loops_cut_beside_a_first_pass_section_builds` reaches the loop arm, whose own meridian clears, and builds sound. No row has a section across a loop's own meridian.
+- **A loop's cut-in and a circle's on one face:** `a_loop_and_a_circle_cut_in_on_one_face_refuse_at_the_guard`. The replaced gate refused any face holding a loop's cut-in and another; this one does not, and the pose refuses at the guard, typed.
+
+A sphere partner blocks a meridian only through a trimmed sphere whose section arc lies in a meridian plane, so runs toward a pole without reaching the cut circle. No row builds that fixture; `a_trimmed_ball_crossing_the_cut_face_is_read_by_its_radical_plane` reaches the radical-plane arm off the meridian.
+
+This item is what remains of `close-cuts-is-not-total-on-crossings-path-cut-ins` (1b's generality) after `lathe/close-cuts-total`.

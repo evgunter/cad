@@ -22,7 +22,7 @@ The crossings path then leaves the op uncut, and the interior-loop guard's refus
 
 ## Why it is not a closing question alone
 
-The `z = 0` circle puts both poles in the face's closure, and DESIGN `[topology]` makes a chart singularity "a vertex of every face whose closure holds it". So the face the closing reads is itself owed two pole vertices on a section curve, which the closing does not mint. A reading of the outline by another point than the pole (a pole of a turned chart, or a sphere point the face decidedly excludes) would part the loop, but the result would still lack those vertices.
+The `z = 0` circle puts both poles in the face's closure, and DESIGN `[topology]` makes a chart singularity "a vertex of every face whose closure holds it". So the face the closing reads is itself owed two pole vertices on a section curve, which the closing does not mint. The bodies that build hold the clause: the union in both orders and the ball less the slab each carry one vertex at each pole `(0, ±1, 0)`, on the `z = 0` circle, and tier 3′, whose chart-singularity arm reads that form, passes. The slab row asserts the vertices (2026-11-28). A reading of the outline by another point than the pole (a pole of a turned chart, or a sphere point the face decidedly excludes) would part the loop, but the result would still lack those vertices.
 
 ## Done when
 
