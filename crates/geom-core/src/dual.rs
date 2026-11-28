@@ -510,6 +510,10 @@ impl<T: KinkJacobian> Real for Dual<T> {
     }
 
     /// The value channel's: a sentence tells no tangent.
+    fn place(self) -> f64 {
+        self.value.place()
+    }
+
     fn told_reading(&self) -> crate::told::Reading {
         self.value.told_reading()
     }

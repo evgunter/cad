@@ -550,6 +550,10 @@ impl Real for Interval {
     }
 
     /// The enclosure's ends; an empty or ill-formed one does not read.
+    fn place(self) -> f64 {
+        crate::param::mid_param(self.0.lo(), self.0.hi())
+    }
+
     fn told_reading(&self) -> crate::told::Reading {
         crate::told::Reading::enclosure(self.0.lo(), self.0.hi())
     }

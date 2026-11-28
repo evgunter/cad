@@ -5154,6 +5154,10 @@ impl<T: Real> Real for Sym<T> {
     }
 
     /// The lane scalar's.
+    fn place(self) -> f64 {
+        self.value.place()
+    }
+
     fn told_reading(&self) -> crate::told::Reading {
         self.value.told_reading()
     }

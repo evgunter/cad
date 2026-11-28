@@ -2215,6 +2215,10 @@ impl Real for Probe {
         Self(x)
     }
 
+    fn place(self) -> f64 {
+        self.0
+    }
+
     fn told_reading(&self) -> crate::told::Reading {
         crate::told::Reading::value(self.0)
     }

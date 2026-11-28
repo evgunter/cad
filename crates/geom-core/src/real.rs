@@ -500,6 +500,17 @@ pub trait Real:
     /// (`scripts/gates/from-computed-sites.sh`).
     fn from_computed(x: f64) -> Self;
 
+    /// **A place to evaluate at, chosen from this value**: the middle
+    /// of its bracket, as an `f64`. A place is a choice and never a
+    /// claim (DESIGN `[scalars]`; this crate's README, DL5.2's place
+    /// row): any number serves where the reading taken at it is sound
+    /// wherever it lands, so nothing decides on it, and it re-enters a
+    /// lane only as a stated constant ([`Real::from_f64`]). At a point
+    /// scalar it is the value, bit for bit; at an enclosure one number
+    /// for every member; at a dual the base value's place, with no
+    /// tangent (DL5.1); at `Sym` its numeric channel's.
+    fn place(self) -> f64;
+
     /// **What this scalar reads as in a sentence**: its value, its
     /// enclosure, or nothing ([`crate::told::Reading`]). The one
     /// projection a refusal payload takes of a scalar
@@ -2677,6 +2688,10 @@ impl Real for f64 {
 
     fn from_computed(x: f64) -> Self {
         x
+    }
+
+    fn place(self) -> f64 {
+        self
     }
 
     fn told_reading(&self) -> crate::told::Reading {
