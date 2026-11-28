@@ -351,8 +351,13 @@ pub(super) fn closing_meridians<T: Decide + AtRestPolicy>(
                 let mut chosen = None;
                 for t in meridian_turns::<T>() {
                     let k = k0 + axis.cross(k0) * t;
-                    match meridian_reads((center, axis), (foot, rho, normal), k, &off_sections, sign)
-                    {
+                    match meridian_reads(
+                        (center, axis),
+                        (foot, rho, normal),
+                        k,
+                        &off_sections,
+                        sign,
+                    ) {
                         Ok(Some(k)) => {
                             chosen = Some(k);
                             break;

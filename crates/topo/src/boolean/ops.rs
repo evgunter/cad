@@ -7315,16 +7315,19 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         // chose clear of the face's sections, where it chose one.
         let k = match (cut.meridian, &cut.section) {
             (Some(chosen), _) => chosen,
-            (None, CutSection::Circle { foot, rho, u_ref, .. }) => {
-                interior_cuts::circle_meridian((cut.center, axis), (*foot, *rho, *u_ref), read)
-                    .map_err(esc)?
-                    .ok_or_else(|| {
-                        refuse_at(
-                            cut.face,
-                            "the section circle has no meridian of the face's chart",
-                        )
-                    })?
-            }
+            (
+                None,
+                CutSection::Circle {
+                    foot, rho, u_ref, ..
+                },
+            ) => interior_cuts::circle_meridian((cut.center, axis), (*foot, *rho, *u_ref), read)
+                .map_err(esc)?
+                .ok_or_else(|| {
+                    refuse_at(
+                        cut.face,
+                        "the section circle has no meridian of the face's chart",
+                    )
+                })?,
             (None, CutSection::Loop { toward: d, .. }) => {
                 let k = axis.cross(*d);
                 if sign_as("bool_sphere_cut_meridian", Margin::of(k.norm()))? == Sign::Zero {
