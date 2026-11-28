@@ -56,3 +56,11 @@ Neither recommendation moved; the details are now one text.
 - **What the count must show:** both name the same stops (a member that contradicts, or an empty intersection: stop; declines dominating: the next unit is the decline list; "encloses, straddles, members agree" dominating: a centred enclosure first; form cost: a gate before the form).
 
 **Reconciliation ends: agreed.** M16 (the count) is pending before the `[ev]` PR.
+
+## M16 (the count, in at 18:43 UTC 2026-11-28) and round 2
+
+M16 (`probe/M16-REPORT.md` on `boxfinish/probe-side-reading` at `fc5c3fe25e`): no empty intersection anywhere; on the fixture bodies and the extrude door's slab the reading decides 315 of 342 undecided asks; on the tour's first drive it decides 0 of 37,294 (36,482 decline: an indeterminate with no bracket 15,200, `Select` 7,897, trig atoms 13,193, depth 192; 812 straddle); the verb-built tilted body folds to the zero form at a point and is refused earlier over a box; 17 sampled asks differ from `f64` members, all one predicate at the least band on the hand-built fixture (the form is the exact constant 6.58e-19; members read ±5.55e-17).
+
+Against the round-1 stop conditions: A's excepts a margin within rounding of a band edge; B's says any member contradiction is a stop. B's other condition (the verb-built body folds and the reading decides little elsewhere: "not worth making yet") is partly met. So the numbers do not decide by themselves.
+
+**Round 2 dispatched 18:46 UTC** to both (same sessions), each shown M16 and both round-1 replies: the member contradictions; whether the unit is now the enclosure entering the declining atoms; what becomes of site re-spelling. A further count (M16b: the probe's enclosure extended to enter trig atoms, `Select` and hulls; the 15,200 traced; the tour's verdicts with it on) is with the probe lane.
