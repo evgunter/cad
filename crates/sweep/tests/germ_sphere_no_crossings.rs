@@ -284,9 +284,12 @@ fn quarter_cone() -> Body<f64> {
 }
 
 /// The lateral ball's eight ops at ε 1e-6 (∩, ∪ and both differences,
-/// the cone first, then the ball first): where its face's pierce by the
-/// cone's is read in band, the op escalates, typed.
-const LATERAL_COARSE: [&str; 8] = ["built"; 8];
+/// the cone first, then the ball first): each escalates, typed, at the
+/// pierce curvature (`BooleanDecision::PierceCurvature`), a margin of
+/// `1.26e-6` read in the band `[1e-6, 1e-5]` on a ball of radius `0.05`.
+/// Measured. Before the cone's cut-in, every op refused at the section
+/// pass at every ε.
+const LATERAL_COARSE: [&str; 8] = ["escalated PierceCurvature"; 8];
 
 /// **A ball strictly inside the cone, and one meeting its lateral face
 /// in a loop with no crossing.** Both boxes meet the cone face's, so the
@@ -295,7 +298,8 @@ const LATERAL_COARSE: [&str; 8] = ["built"; 8];
 /// lateral face meets it in one null loop whose witness lies inside
 /// both faces, with no event: R-loop, and the pass asks for one cut-in of
 /// the ball's face, whose every op builds at the volumes a slice-by-slice
-/// integral of the ball's part gives. The mutant reading that loop's arc
+/// integral of the ball's part gives at ε 1e-9 and 1e-12, and escalates,
+/// typed, at 1e-6 ([`LATERAL_COARSE`]). The mutant reading that loop's arc
 /// of generators as the whole circle claims two essential curves, which
 /// W2 clears on the apex-closed face: the certificates pass with no
 /// cut-in, red.
@@ -429,10 +433,8 @@ fn a_ball_against_a_cone_face_is_the_section_passs() {
             }
         }
     }
-    // Every op builds, but at ε 1e-6, where the ball (a twentieth across)
-    // is read against a band a tenth of its curvature's lever: there the
-    // pierce of its face by the cone's is read in band, and those ops
-    // escalate, typed ([`LATERAL_COARSE`]).
+    // Every op builds at ε 1e-9 and 1e-12; at ε 1e-6 every op escalates,
+    // typed ([`LATERAL_COARSE`]).
     let want: Vec<String> = if Tol::witness().eps() >= 1e-6 {
         LATERAL_COARSE.iter().map(|s| (*s).to_owned()).collect()
     } else {
