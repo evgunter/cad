@@ -2,23 +2,20 @@
 
 Trees: the tour, the verb-built body and the slab on `boxfinish/probe-switch-off`
 (box arm off, today's main, head b7c925b9c0); the probe code is also on
-`boxfinish/probe-side-reading`. **Measured** unless marked *inferred*. Tables:
-`probe/m16b/`.
+`boxfinish/probe-side-reading`. **Measured** unless *inferred*. Tables: `probe/m16b/`.
 
 ## The instrument
 
 `geom_core::sym::m16` reads each undecided ask's form at cumulative steps; the
 shipped walk is untouched and no answer changes unless `BOXFINISH_M16_ON=<steps>`.
 
-| step | adds |
-|---|---|
-| 0 | the shipped walk's reach: `Sqrt`, `Abs`, `Min`, `Max`, depth 8 |
-| 1 | `Sin`, `Cos`, `Tan`, `Asin`, `Acos`, `Atan`, `Atan2`: the argument form enclosed, then `Interval`'s own function |
-| 3 | `Select`: the condition enclosed; the certified arm, else the hull of both |
-| 7 | a hull node: the hull of its two children's plain forms |
-| 15 | depth 8 → 32 (with a memo per atom, so depth is not paid twice) |
-| 47 | **added by me**: a frozen node opened, its op applied to its children's plain forms' enclosures |
-| 111 | the labelled alternative: the node's own lane value, from a probe side table written at mint (the tier keeps none); sampled, 40 asks per predicate per thread |
+Steps: **0** the shipped walk's reach (`Sqrt`, `Abs`, `Min`, `Max`, depth 8);
+**1** + `Sin`, `Cos`, `Tan`, `Asin`, `Acos`, `Atan`, `Atan2` (argument form enclosed,
+then `Interval`'s own function); **3** + `Select` (the certified arm, else the hull
+of both); **7** + a hull node (the hull of its children's plain forms); **15** +
+depth 32, with a memo per atom; **47** + a frozen node opened, its op over its
+children's forms (**added by me**); **111** the labelled alternative, the node's
+lane value from a probe side table written at mint (the tier keeps none), sampled.
 
 Each reading takes the plain form, else the early one, intersected with the value's
 enclosure, read at the decision's band. No atom kind was refused as unsound to
@@ -36,11 +33,10 @@ They are **frozen ring nodes standing as their own indeterminate, and hulls**:
 | a frozen `Mul` node | 2,500 | `curve_carrier_gap` |
 | a frozen `Add` node | 2,430 | `azimuth_near_cut_side` |
 
-No bracket-less parameter, no opaque or free value, no literal, no atom recorded
-elsewhere (0 unmapped). M16's "no frozen node" was the leaf's own `budget_frozen`
-set, which is empty here: the freezes come from the drive's table. With the atoms
-entered more of them surface behind the atoms: at step 15 every remaining decline
-is one (Mul 14,514; Powi 14,358; Add 2,692).
+No bracket-less parameter, opaque, free value, literal or atom recorded elsewhere
+(0 unmapped). M16's "no frozen node" read the leaf's own `budget_frozen`, empty
+here: the freezes are the drive's. At step 15 every remaining decline is one
+(Mul 14,514; Powi 14,358; Add 2,692).
 
 ## 3. Cumulative, the tour's first drive (1,023 leaves; 37,218 undecided asks)
 
@@ -59,18 +55,12 @@ the same asks: 29.3 ms/ask (1,090 s summed over threads); plain build 9 µs/ask.
 On the 552,815 asks the ladder proves Zero with a non-zero plain form, the
 step-15 reading reads Zero every time. **No empty intersection at any step.**
 
-By predicate at step 47 (sign / straddles / declines): `curve_carrier_clear`
-248 / 7,776 / 4,512; `azimuth_near_cut_side` 912 / 3,876 / 664;
-`period_near_mark` 306 / 4,110 / 1,032; `curve_carrier_gap` 0 / 2,560 / 2,256;
-`curve_pair_span_end_side` 0 / 2,400 / 648; `side_at_infinity_winding`
-42 / 230 / 2,682 (`Atan2`); `curve_face_pose_disc` 456 / 1,048 / 0;
-`assert_bound` 0 / 812 / 0; `bool_ruled_region_frame` 0 / 0 / 648 (quotient).
+By predicate at step 47: `probe/m16b/tour-first-drive.txt`.
 
-**The verb-built body** (8 undecided asks over the four widths, both budgets):
-step 0 declines all 8 (`Cos` 6, `Sin` 2); step 1 decides 6, straddles 2; step 47
-decides all 8. **The slab rows** (172 undecided asks; on this tree the extrude
-door finishes at the door): step 0 94 sign / 78 decline (depth); step 15 136 /
-32 straddle / 4 decline; step 47 136 / 36 straddle.
+**Verb-built body** (8 undecided asks): step 0 declines all (`Cos` 6, `Sin` 2);
+step 1 decides 6; step 47 all 8. **Slab rows** (172 undecided; here the door
+finishes at the door): step 0 94 sign / 78 decline; step 15 136 / 32 straddle / 4;
+step 47 136 / 36 straddle.
 
 ## 4. Where it still straddles at step 47 while members are sampled
 
@@ -83,34 +73,20 @@ the value channel.
 |---|---|---|---|
 | `curve_carrier_clear` (7,776) | 240 | all Positive, 3.87e-3 … 3.93e-3 against [0, 1.39e-2] | loose by dependency inside the form |
 | `period_near_mark` (4,110) | 240 | 70 evaluable: all one sign, ±0.344 against [−1.33, 0.49] (least band); 170 not evaluable | dependency where evaluable |
-| `azimuth_near_cut_side` (3,876) | 240 | not evaluable (a hull or free value in the graph) | not determined |
-| `curve_carrier_gap` (2,560) | 240 | not evaluable | not determined |
-| `curve_pair_span_end_side` (2,400) | 240 | not evaluable | not determined |
+| `azimuth_near_cut_side` (3,876), `curve_carrier_gap` (2,560), `curve_pair_span_end_side` (2,400) | 240 each | not evaluable (a hull or free value) | not determined |
 | `curve_face_pose_disc` (1,048) | 264 | all Positive, 4.8e-4 … 5.0e-4 against ±1.38e-3 | dependency |
 | `side_at_infinity_winding` (230) | 230 | all Positive, 6.55e-3 … 6.61e-3 against [−4.8e-3, 2.1e-2] | dependency |
 | `assert_bound` (812) | 241 | 174 one-signed; 67 mixed across the band | dependency in 174, a real crossing in 67 |
 
-Their forms are in `probe/m16b/straddle-representatives.txt`. *Inferred:* a
-centred or mean-value evaluation is what these need; none was tried.
+Forms: `probe/m16b/straddle-representatives.txt`. *Inferred:* these need a
+centred or mean-value evaluation; none was tried.
 
 ## 5. Soundness
 
-At step 15: 1,808 asks × 5 members, 0 differ (100 not evaluable). At step 47:
-3,400 asks, 0 differ (430 not evaluable). Verb-built 120, slab 136: 0 differ.
-
-M16's 17 (`pm_census_ef_residual_side`, the tilted fixtures; not re-run here,
-M16's rows): `k_stats::prove` decides at `Band::least()` = (5e-324, 1e-323).
-
-| fixture | the form's enclosure | `f64` members seen |
-|---|---|---|
-| tilt (0.3, 0.2) | [6.5813e-19] | +5.55e-17, −5.55e-17, −1.67e-16 |
-| tilt (0.3, 0.2) | [1.3163e-18] | +1.11e-16, −9.71e-17 |
-| tilt (−0.45, 0.6) | [−2.6645e-17] | +5.55e-17, 0, −1.11e-16 |
-| tilt (−0.45, 0.6) | [−4.2188e-17] | 0, −1.67e-16 |
-| tilt (−0.45, 0.6) | [−6.8834e-17] | +1.11e-16, −1.11e-16 |
-
-23 asks, 17 with a member whose sign is not the form's. The form is exact; a
-member's `f64` rounding (1e-16) is larger than it, at a band of 5e-324.
+Step 15: 1,808 asks × 5 members, 0 differ; step 47: 3,400, 0 differ; verb-built
+120, slab 136: 0 differ. M16's 17 (`pm_census_ef_residual_side`): `prove` uses
+`Band::least()` = (5e-324, 1e-323); the exact forms are 6.6e-19 … 6.9e-17 in size
+and the `f64` members read ± 5.6e-17 … 1.7e-16 with mixed signs (rows in M16).
 
 ## 6. The verdict question
 
@@ -127,12 +103,10 @@ by box:
 certified that was not, none refused that was certified. The 1,964 asks step 47
 decides let their leaves ask about 21,000 more decisions and stop at another.
 
-The verb-built body with the reading on (15 or 47): ± 0.05 **builds** (6 faces,
-census 0, battery 0; was refused at `bool_join_nearest`); ± 0.1 and ± 0.25 pass
-the join and are refused later, `OrientationUndecided` on the volume
-([−0.41, 3.49], [−4.27, 8.04]); ± 0.45 still refused (`curve_pair_span_end_chord`
-at 15, `sector_arm` [0, 3.0] at 47). The door slab: refuses at 0.488, 0.49, 0.6,
-0.9 off; only at 0.9 on.
+Verb-built body, reading on (15 or 47): ± 0.05 **builds** (6 faces, census 0,
+battery 0); ± 0.1, ± 0.25 pass the join and are refused on the volume's
+`OrientationUndecided`; ± 0.45 still refused. Door slab: refuses at 0.488–0.9
+off, only at 0.9 on.
 
 ## 7. The second round's additions
 
@@ -141,13 +115,12 @@ at 15, `sector_arm` [0, 3.0] at 47). The door slab: refuses at 0.488, 0.49, 0.6,
   drive: `curve_carrier_clear` 13,392; `curve_pair_span_end_chord` 8,928;
   `side_at_infinity_winding` 8,258; `curve_carrier_gap` 4,464. None in the
   fixtures, the slab or the verb-built body.
-- **The hull indeterminate**: confirmed as read (`combine`'s `Hull` arm is
+- **The hull indeterminate**: confirmed (`combine`'s `Hull` arm,
   `Poly::indet(indet_hull(kid0, kid1))`, no atom record), but it is 3,596 of the
-  15,200; the other 11,578 are frozen nodes (`form_in`'s `frozen`:
-  `Poly::indet(id.bits())`). To enter either, the probe walks the margin's node
-  graph (`Session::node_of`), recomputes each hull's indeterminate from its
-  children's ids to map it back, and builds the children's plain forms
-  (`plain_form`, which needs the session mutably) before the walk.
+  15,200; the rest are frozen nodes (`form_in`'s `Poly::indet(id.bits())`). To
+  enter either the probe walks the margin's node graph (`Session::node_of`), maps
+  each indeterminate back from its children's ids, and builds the children's
+  plain forms (session held mutably) before the walk.
 - **Hold-back** (P = the graph enclosed op by op in `Interval` at the leaf's
   midpoint, same band; "terminal" = `F ∩ V` wholly within P's width of the band
   edge it was read against):
@@ -158,12 +131,9 @@ at 15, `sector_arm` [0, 3.0] at 47). The door slab: refuses at 0.488, 0.49, 0.6,
 | slab + verb-built | 81 | 81 | 0 | 0 | 0 |
 | tour, first drive | 1,964 | 1,634 | 0 | 0, in 0 leaves | 330 (a hull or free value) |
 
-  The 24 are exactly `pm_census_ef_residual_side` (reading `[6.58e-19]`
-  Positive; P `[−3.6e-16, 4.7e-16]`, least band): the hold-back catches all 17 of
-  M16's differing asks and nothing else. Tour by predicate (agrees / declines):
-  `azimuth_near_cut_side` 592 / 320; `curve_face_pose_disc` 456 / 0;
-  `period_near_mark` 296 / 10; `curve_carrier_clear` 248 / 0;
-  `side_at_infinity_winding` 42 / 0.
+  The 24 are exactly `pm_census_ef_residual_side` (reading `[6.58e-19]`, P
+  `[−3.6e-16, 4.7e-16]`): the hold-back catches M16's differing asks and nothing
+  else. Tour by predicate: `probe/m16b/tour-holdback.txt`.
 - **`assert_bound`'s 812**: `editor_core::measure`'s measured-versus-bound
   comparand of a document assertion: a decision (the assertion's verdict), on a
   measured value against a stated bound; in 67 of 241 sampled the members cross.
@@ -175,6 +145,6 @@ at 15, `sector_arm` [0, 3.0] at 47). The door slab: refuses at 0.488, 0.49, 0.6,
 
 ## Not measured
 
-- Whether the residual folds on the verb-built body over ± 0.05; a centred or
-  mean-value form; the tour past its first drive; members off the box diagonal.
-- Step 47's 39 ms/ask includes re-walking per opened node: the probe's cost.
+Whether the residual folds on the verb-built body over ± 0.05; a centred or
+mean-value form; the tour past its first drive; members off the box diagonal.
+Step 47's 39 ms/ask includes re-walking per opened node (the probe's cost).
