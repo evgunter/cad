@@ -49,3 +49,9 @@ consumer, since it replaces the planar lane's `Unlaned` refusal with the
 Moved from SPLICE to SPLICEFACE on 2026-10-28, by `git mv` in SPLICE's split along its seams (Track size; Ev, in chat, 2026-10-28).
 
 Moved from SPLICEFACE to SPLICE on 2026-11-02, by `git mv`, when SPLICEFACE merged back into SPLICE: the track budget now counts only the P0, P1 and unbanded rows a sitting dispatches (Ev, in chat, 2026-11-02), so the four tracks of SPLICE's 2026-10-28 split came in under one budget.
+
+## The curved lane (GERM U4b)
+
+The curved lane's `wall_crossing` reads `curve_face::cross` and the face
+reading (`boolean::face_reading`), so its doors are the table's; the
+planar lane's are U4c's.

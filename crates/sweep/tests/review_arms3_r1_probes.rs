@@ -119,7 +119,7 @@ fn an_unequal_lentil_fillets_to_the_radical_closed_form() {
     let mut spheres: Vec<(f64, f64)> = source
         .faces()
         .filter_map(|(fk, _)| match source.face_surface(fk) {
-            Some(&Surface::Sphere { frame, radius, .. }) => {
+            Ok(&Surface::Sphere { frame, radius, .. }) => {
                 let center = frame.origin();
                 Some((center.y, radius))
             }
@@ -507,7 +507,7 @@ fn a_torus_walled_rim_refuses_spine_unsupported_naming_the_grown_roster() {
     assert!(
         source
             .faces()
-            .any(|(fk, _)| matches!(source.face_surface(fk), Some(&Surface::Torus { .. }))),
+            .any(|(fk, _)| matches!(source.face_surface(fk), Ok(&Surface::Torus { .. }))),
         "the barrel wall is a torus"
     );
     // Two rims share this radius — the barrel's top at y = 0.6 and its
@@ -545,7 +545,8 @@ fn a_torus_walled_rim_refuses_spine_unsupported_naming_the_grown_roster() {
 
 /// A spinning top: a cone from the bottom pole to (0.6, 0.45), closed
 /// by a sphere cap through the top pole (centre (0, 0.275), R = 0.625).
-/// Pole-touching, so the full revolve seam-splits every wall.
+/// Pole-touching: the full revolve sweeps each wall as one band whose
+/// seam meridian, a wrap edge, ends at a pole.
 fn spinning_top() -> Body<f64> {
     let cs = Point2::new(0.0, 0.275);
     let p1 = Point2::new(0.6, 0.45);
@@ -561,31 +562,20 @@ fn spinning_top() -> Body<f64> {
     )
 }
 
-/// **The seam-vertex story, reproduced on a body the unit never
-/// built.** One arc of the cone×sphere rim refuses `UnbuiltEnd::Seam` with no
-/// policy; the rim requested WHOLE gets past every corner door and
-/// CARVES — the recourse's promise, taken literally on a second
-/// pole-touching body.
+/// **A second pole-touching body's cone×sphere rim carves whole**: on
+/// a full revolve the rim is one closed edge, the request the seam
+/// recourse names, and it passes every corner door to the closed-rim
+/// door.
 #[test]
-fn a_spinning_top_seam_vertex_refuses_and_the_whole_rim_carves() {
+fn a_spinning_tops_rim_carves_whole() {
     let body = sweep::test_support::finished("body", spinning_top(), tol());
     let arcs = rim_arcs_at(&body, 0.6, 0.45);
-    assert_eq!(arcs.len(), 2, "the seam splits the rim into two arcs");
-    match fillet_edges(&body, &arcs[..1], 0.03, tol()).map_err(|r| r.error) {
-        Err(e @ BlendError::UnbuiltEnd(UnbuiltEnd::Seam { .. })) => {
-            let text = e.render(geom_brep::recourse::Reading::Build);
-            assert!(
-                text.contains("request the rim whole"),
-                "the recourse names the request: {text}"
-            );
-        }
-        other => panic!("one arc refuses its seam tag, got {other:?}"),
-    }
+    assert_eq!(arcs.len(), 1, "the rim is one closed edge");
     // The recourse's request, taken literally: past the seam and
     // through the closed-rim door, as one annulus over both arcs.
     let out = fillet_edges(&body, &arcs, 0.03, tol())
         .unwrap_or_else(|e| panic!("the whole rim carves, got {e:?}"));
     validate_geometric(&out.body, tol())
         .unwrap_or_else(|e| panic!("the carved top must be tier-3 valid, got {e:?}"));
-    assert_eq!(out.band_faces.len(), 1, "one annulus band over both arcs");
+    assert_eq!(out.band_faces.len(), 1, "one annulus band over the rim");
 }

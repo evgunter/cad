@@ -37,7 +37,10 @@ use topo::validate::{ValidationError, validate_geometric};
 ///   finding (`work/verdict/m6-sense-gate-recorded-residuals.md`).
 #[test]
 fn a_reversed_band_is_refused_as_a_lamina_by_both_doors() {
-    let ball = common::ball();
+    // The ball cut into two lunes: a full revolve's ball is one face, and
+    // the lamina needs a band flipped beside one that is not.
+    let mut ball = common::ball();
+    sweep::test_support::two_lunes(&mut ball, Tol::witness());
     let keys: Vec<_> = ball.faces().map(|(k, _)| k).collect();
     let exact = 4.0 / 3.0 * std::f64::consts::PI;
 

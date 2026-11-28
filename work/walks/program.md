@@ -2,7 +2,7 @@
 id: walks
 kind: program
 title: WALKS — one topological relation, implemented n times across topo/src
-status: active
+status: ready
 opened: 2026-09-20
 group: kernel/topo/euler
 prefix: walks/

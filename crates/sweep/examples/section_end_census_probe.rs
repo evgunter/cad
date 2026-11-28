@@ -73,7 +73,6 @@ fn outcome(r: Result<topo::SplitResult<f64>, SplitError>) -> String {
                 SplitError::Reduce(_) => "reduce",
                 SplitError::Join(_) => "join",
                 SplitError::Finish(_) => "finish",
-                SplitError::Pcurves(_) => "pcurves",
                 SplitError::Pieces(_) => "pieces",
             };
             let variant = format!("{e:?}");

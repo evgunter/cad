@@ -322,7 +322,7 @@ fn a_chamfer_leaves_a_co_surface_seam_and_refuses_a_cusp_as_the_chamfer() {
             [a, b].iter().all(|&f| {
                 matches!(
                     lune.get_surface(surface(f)),
-                    Some(geom::Surface::Cylinder { .. })
+                    Ok(geom::Surface::Cylinder { .. })
                 )
             })
         })
@@ -369,31 +369,26 @@ fn a_chamfer_escalation_speaks_as_the_chamfer() {
     assert_speaks_as_the_chamfer(&err, "escalated");
 }
 
-/// **The seam-vertex tag is battery-shadowed for the chamfer on the
-/// rim family** (the measured half of the seam recourse's per-verb
-/// disposition): a seam-split rim's arcs are plane–sphere, and a
-/// chamfer request on one refuses at the ARM TABLE during resolution
-/// — before predicate 6 could ever classify the seam vertex. So the
-/// seam recourse's carve promise, which names the fillet's closed-rim
-/// band, is read by fillet callers alone on these fixtures.
+/// **A chamfer on a plane–sphere rim refuses at the ARM TABLE** during
+/// resolution: the lantern's neck rim is plane–sphere, and a plane–sphere
+/// pair has no ruled strip. So the seam recourse's carve promise, which
+/// names the fillet's closed-rim band, is read by fillet callers alone on
+/// these fixtures.
 #[test]
-fn a_chamfer_on_a_seam_split_rim_arc_refuses_at_the_arm_table_not_the_seam_vertex() {
+fn a_chamfer_on_a_plane_sphere_rim_refuses_at_the_arm_table() {
     let body = sweep::test_support::lantern(Tol::witness());
-    let arc = body
-        .edges()
-        .map(|(k, _)| k)
-        .find(|k| plane_sphere_sides(&body, *k))
-        .expect("the lantern carries plane–sphere mouth arcs");
+    let rim = sweep::test_support::rim_arcs_at(&body, 1.0, 0.0);
+    assert_eq!(rim.len(), 1, "the neck rim is one closed edge");
     let err = chamfer_edges(
         &sweep::test_support::at_rest(&body, Tol::witness()),
-        &[arc],
+        &rim,
         0.02,
         Tol::witness(),
     )
-    .expect_err("a plane–sphere arc has no ruled strip");
+    .expect_err("a plane–sphere rim has no ruled strip");
     assert!(
         matches!(err.error, BlendError::ChamferArmUnsupported { .. }),
-        "the arm table shadows the seam-vertex classification: {err:?}"
+        "the arm table refuses the pair: {err:?}"
     );
     assert_speaks_as_the_chamfer(&err, "seam-rim-arc");
 }
@@ -404,18 +399,6 @@ fn both_sides_spheres(body: &Body<f64>, edge: EdgeKey) -> bool {
     match edge_surfaces(body, edge) {
         Some((a, b)) => {
             matches!(a, geom::Surface::Sphere { .. }) && matches!(b, geom::Surface::Sphere { .. })
-        }
-        None => false,
-    }
-}
-
-/// One plane and one sphere support: the rim-arc family.
-fn plane_sphere_sides(body: &Body<f64>, edge: EdgeKey) -> bool {
-    match edge_surfaces(body, edge) {
-        Some((a, b)) => {
-            (matches!(a, geom::Surface::Plane { .. }) && matches!(b, geom::Surface::Sphere { .. }))
-                || (matches!(a, geom::Surface::Sphere { .. })
-                    && matches!(b, geom::Surface::Plane { .. }))
         }
         None => false,
     }
@@ -435,7 +418,7 @@ fn edge_surfaces(
     let face_of = |he: topo::HalfEdgeKey| -> Option<geom::Surface<f64>> {
         let l = body.get_half_edge(he)?.parent_loop;
         let f = body.get_loop(l)?.face;
-        body.face_surface(f).cloned()
+        body.face_surface(f).ok().cloned()
     };
     Some((face_of(e.he_plus)?, face_of(e.he_minus)?))
 }

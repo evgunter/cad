@@ -40,33 +40,45 @@ the semi-axes exchanged and
 
 the second's `v` is one ulp off the first's `−u_ref` in all three
 components. The same holds turned, a hundred units out and mirrored
-(`self_intersection_proves_injectivity::a_cones_split_states_its_sections_arcs_a_half_turn_apart_or_a_rounded_quarter`).
+(`self_intersection_proves_injectivity::a_cones_split_states_one_ellipse_through_its_wall_and_two_arcs_a_rounded_quarter_apart_through_its_cap`).
 
 Two statements a rounding apart state two curves
 (`crates/geom-core/README.md`, "A conic is the curve its stored numbers
 state"), so the embedding certificate's `one_stated_conic`
 (`crates/topo/src/injective.rs`) reads them as two, the cut cap is
 `Structural` at the vertex where they meet, and the body refuses there.
-With the cone's own section image read (PR 7605) and the exact
-restatements admitted (`embed/conic-symmetry`), the wall cuts hold at
-`f64` in every placement measured (28 of 28 asks over seven cuts) and
-this cut refuses `Uncertified { Departure }` on its cut cap in all four
-(4 of 4), the cap against a half-cone across a section arc.
+On main since PR 7414 a full revolve's wall is one band, so a cut
+through the wall alone states its section as one closed ellipse and
+holds no pair for this row to read: both wall cuts read `Embedded` at
+`f64` and at `Interval` in all four placements (16 of 16 asks,
+`self_intersection_proves_injectivity::a_split_cone_refuses_on_a_pair_holding_its_wall`).
+This cut still refuses `Uncertified { Departure }` on its cut cap in all
+four placements at both scalars (8 of 8), the cap against the cone's one
+wall face across a section arc.
 
 **What decides it, and a count.** Each arc is seamed at the principal
 vertex nearest its own middle, so the two arcs' middles decide it:
 opposite, a half turn, exact; in adjacent quadrants, a quarter turn,
-rounded. A cut through the wall alone leaves two arcs between the two
-rulings the wall's halves meet on, their middles opposite: a half turn
-in 864 of 864 such cuts of a frustum and a rod, either side kept (a scan of 1,152 splits, first the review's, pinned as
-`self_intersection_proves_injectivity::a_splits_two_section_arcs_are_stated_a_half_turn_apart_through_the_wall_and_either_way_through_a_cap`). A cut that runs out through a
-cap leaves two arcs that each end on the cap's rim, and whether it
-meets a cap does not decide it: of 66 two-arc cuts through a cap, 26
-state a quarter turn and 40 a half. This row first said a cap cut
-states a quarter; that was half right, read off 2 cap cuts and 12 wall
-cuts built by the lane. No split in the scan states its arcs run back
-or both (0 of 930); `oriented_arc`'s clockwise branch
-(`crates/topo/src/chord_join.rs`) is a door that could.
+rounded. Measured on one band over a scan of 1,152 splits of a frustum
+and a rod, either side kept (pinned as
+`self_intersection_proves_injectivity::a_splits_section_is_one_ellipse_through_the_wall_and_one_or_two_arcs_through_a_cap`):
+
+- every cut through the wall alone (864 of 864) states one closed
+  ellipse, so the wall is no longer this row's subject;
+- a cut that runs out through a cap leaves its wall arc whole (177 of
+  288) or cut in two by the wall's wrap edge (111), and of those two-arc
+  cuts 58 state a quarter turn and 53 a half: meeting a cap does not
+  decide which;
+- no split states two arcs any other way, run back or both (0 of 111),
+  though `oriented_arc`'s clockwise branch
+  (`crates/topo/src/chord_join.rs`) is a door that could; no split
+  refuses.
+
+Before one band (the review's scan on `a497926d1`) every wall-alone
+cut stated two arcs a half turn apart (864 of 864), and of 66 two-arc
+cap cuts 26 stated a quarter and 40 a half. This row first said a cap
+cut states a quarter, read off 2 cap cuts and 12 wall cuts built by
+the lane; that was half right.
 
 Of the 24 cone/cone census tests run through the at-rest gate with
 PR 7605's reading and this unit's in one tree, 12 still fail, and none

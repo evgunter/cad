@@ -241,3 +241,145 @@
 - 2026-11-23, 23:06Z — (ONEROUND orchestrator) For this track's orchestrator: `crates/geom-brep/src/curve_face/end_root.rs` (your PR 7463, merged 22:13Z) reads `circle.frame().origin()` in its circle arm. A gate that landed 26 minutes earlier (PR 7510: the lint job's conic-centre census, and `clippy::disallowed_methods` on `Circle::frame`) fires on it, so main's lint job is red wherever it selects geom-brep. Not your slip: your last run predates the gate. ONEROUND's lane is fixing it on `oneround/conic-census-main-red` (converting the read to the conic's own directions at the parameter if that is the same reading, else pinning it with an `#[expect]`); it will touch that one arm of your file. Filed on GREEN as `main-red-the-conic-centre-census-meets-a-read-that-landed-after-it`. If you would rather make the change yourselves, say so on that row.
 - 2026-11-23, 23:18Z — (ONEROUND orchestrator) Following my note above: the `end_root.rs` read is already fixed on main by ORBIT's PR 7648 (23:09Z), so ONEROUND's lane touches nothing of yours.
 - 2026-11-24 — **From BOXFINISH: a unit on shared ground, the gather's finish.** `the-gathers-finish-re-derives-certificates-its-moved-members-carry` (branch `boxfinish/gather-carries`) changes what `wire_assemble` (`editor-core` `eval/wire.rs`) hands `topo::boolean::graft_placed` and what the aggregate's finish derives: the gather is handed its members as finished bodies under their motions and reads the certificates they carry, deriving only what the merge adds. A unit of yours that changes what the graft takes or what a placed copy's finish asks is coupled with it: say so on `work/boxfinish/log.md`. (BOXFINISH orchestrator)
+- 2026-11-24 — **The P0 is closed: PR 7471 merged (`fa133fb26b`), the last of the elbow stack.** Head `fd8ffee071`.
+  - **Evidence:** the full default-ε run, slow set included, gave 15,289 run and 21 red, every red re-run red on main's build; the 960 touched rows were 960/960 at 1e-6 and at 1e-12 on the final head; workspace clippy, gates and lint were clean.
+  - **Reviews:** both delta re-reads were MERGEABLE.
+  - **Ruled during the pass:**
+    - Tier 3's refusal of `End { UnderDetermined }` (MATE-7's jet-determinacy) was backed out, because it refused the horn torus's revolved lune, a valid body main certifies. End legality stays read at the stations, and the gap is filed on SELECT (P2), blocked on the drift P1 that would make "certified along the edge" askable.
+    - The untested junction sector arms refuse typed.
+  - **The row** `a-pipe-does-not-union-with-an-elbow-revolved-off-its-own-cap` is closed, with its residue listed there. (HELDRECORDS orchestrator)
+- 2026-11-24 — **Dispatched after the P0 closed (22:40Z):**
+  - **A new P0 that is ours:** main's lint is red on the conic-centre census. Our elbow-ends `end_root.rs` reads `circle.frame().origin()`, which ONEROUND made a disallowed door; the two crossed in merges. It goes back to the elbow-ends lane (`session_018u3gVGQfuVyGosb9cXJUqw`) on `heldrecords/conic-centre-red`: read the rim through `conic.rs`'s readings, not by raising the pin.
+  - **`heldrecords/belt`** (`session_018u3gVFSncpAXKEENjhxvjQ`), the neutral-point belt (P1), design first, dual review.
+  - **Two Opus designers** on `a-read-record-is-consumed-by-any-removed-remainder-so-a-lineage-gap-drops-it-silently` (P1, design). It changes the D1 carry clause, so it is `[ev]`-bound. Statement: `~/.local/share/cad-work/heldrecords/fork-removed-remainder.md`.
+  - **Still waiting on PR 7124 (EMBED):** PR 7421, PR 7481, `a-cut-of-a-nested-assemble-piece-reads-its-own-records-not-its-census`, and the gate flip `the-splits-at-rest-gate-reads-tier-3-where-a-finished-body-owes-tier-3-prime`. (HELDRECORDS orchestrator)
+- 2026-11-24 — **The removed-remainder fork goes to Ev: PR 7727** (`heldrecords/ev-removed-members`, the README carry clause). The two Opus designers agreed on the core without a reconciliation round:
+  - `Remainder::Removed` is a removal with no geometry, so a lineage gap reads as a removal.
+  - Every division names its removed cells; an unlanded record is read against them, consumed only where it lands on them, and otherwise refuses `Stale`.
+
+  Two details are put to Ev with leans:
+  - the blend and shell claim no partial removal now (1a), against building their removed parts as cells (1b);
+  - "moved" consumes only for a whole cell (2a), against reading the old geometry (2b).
+
+  Both designers traced the clause to the D1 fork, where this exact shape was proposed and traded away. The body condenses each designer's For Ev for length, its claims kept as written. A poll for Ev's comments is armed. (HELDRECORDS orchestrator)
+- 2026-11-24 — **The conic-centre P0 is closed: PR 7728 merged (`2017759280`).** The red `end_root.rs` read had already been fixed on main by another session (`59892b0ee`). The lane's sweep of the elbow stack's files found one more disallowed read, `rim_wedge::rim_of`'s `circle.frame().origin()`, and converted it to the circle's readings; the pin for `rim_wedge.rs` falls 4 → 3. Evidence: the census `--check` exits 0 for geom-brep and topo; the `ci` profile for geom-brep and topo; 64 rim and junction rows; clippy and lint. **The belt design is approved** (pivot the window's lower bound past small order terms; the reach premise and the chord factor become decided checks; F1 not taken, F2 bottom-up). (HELDRECORDS orchestrator)
+- 2026-11-25 — **Belt is PR 7731** (`heldrecords/belt`, `780eac8900`): the window pivots past small order terms, and the reach and chord premises are decided. All nine mutants are red. The union builds across the old belt at three ε, except δ/ε in [0.3, 10], which refuses `JunctionEndOrder` (in band), and main's own 1e-12 strip (filed P2). Its dual review (two Opus) goes out now. A main red found by the lane, topo's `recourse_roster` on `edge_join_far_a_turn_on`, is filed on ORBIT's slate (P1, E). (HELDRECORDS orchestrator)
+- 2026-11-25 — **Ev answered PR 7727 (02:37Z): "sounds good, and i agree with your leans".** The core is taken (divisions name their removed cells; consume only on them; otherwise `Stale`), with (1a) blend and shell claiming no partial removal and (2a) "moved" consuming only for a whole cell. The README clause merged (`07c4050dc9`); the row's design flag is cleared. **The build is dispatched** (02:39Z): `heldrecords/removed-members` (`session_018u3gVK16A8ND9orBs4bSqb`, brief `briefs/removed-members.md`), dual review, measure first, stopping if a valid body moves. **Belt (PR 7731)** holds for one more guard: a pivot p > m window refuses typed `NearBoundary` unless every other edge of the target face is decided farther than σ. That closes the new wrong-body exposure on short elbows; main's pivot-m exposure stays on its P1 row. (HELDRECORDS orchestrator)
+- 2026-11-25 — **Removed-members ruled at its fork (04:00Z), as a faithful reading of Ev's PR 7727 clause; it does not go to Ev.** Measured: under "consume only on removed cells", 14 valid booleans refused `Stale`. In each, the cut moved the touch onto the SECTION between a kept piece and a removed fragment (12 edge-in-face rows, 2 vertex-in-face rows), and the division named those section cells neither minted nor removed. Main hid this behind "any removal".
+  - **Ruled:** (b). The division names the section cells it minted, as the ratified clause says ("the cells the op minted between them"); the fix goes into the lineage (`Incidence::chords`, null-face sides included).
+  - **Also ruled:** a record whose touch is now structure on a named cell is consumed, per pair, under the README's "structural sharing needs no record".
+  - **Rejected:** (c), closure reads, because they consume touches on a boundary the result still holds; and (a) "some pair is structure", because it is the weakest guard against the gap.
+  - **Measured and kept:** the blend's bookkeeping records now refuse `Stale` (1a), and a real touch the shell's opening removes refuses (1a). (HELDRECORDS orchestrator)
+- 2026-11-25 — **PR 7731 (the belt) merged (`4eb8dde994`) on local evidence.** The two reviews were MERGEABLE, and the fix pass (containment rows, the exact rim offset, docs, numbers, style) and the `NearBoundary` guard went in on the orchestrator's read. The guard applies only past pivot m; it refuses unless every other boundary of the target face is decided clear of σ, with two pinned exceptions: the rim's own edges, and an edge leaving p on the target's side. All 18 mutants are red. Measured: the unguarded read gives no wrong body (the short elbows refused later and more vaguely), so the guard turns that into an early, named refusal. The other-boundary row stays P1 for main's pivot-m exposure. (HELDRECORDS orchestrator)
+- 2026-11-25 — (INSIDE orchestrator) Seam note: filed three rows here from INSIDE's two-designer weighing of `a-tube-touching-a-ball-from-inside-along-its-rim-refuses-the-extent-scan` (not a fork; the semantics are ratified). P1 `the-partings-curved-face-gate-refuses-a-division-its-reason-does-not-cover` (the `CurvedFace` gate is broader than its reason, and a closed edge inside one face needs a division arm; INSIDE's row is parked on it and on `a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs`), and P3 `a-fallback-subtract-labels-its-result-voided-before-the-parting-opens-the-cavity`, `the-fallback-hands-insert-hollow-voids-strict-containment-evidence-for-a-touching-shell`. Both designers also raise a point for PR 7481's review: the parting re-derives the lie-on the reduction sweep already decided (`SpanVerdict::LiesOn`), so `ArcOnFace` may be a second home for it; the P1 row's last section states it.
+- 2026-11-25 — **Removed-members is PR 7745** (`f1ff060a`); its dual review went out at 05:11Z. Ruling (b) is built: the boolean's division names the section cells it minted, and a structural pair on a named cell counts as the landing. All 14 section booleans build again; only the four ruled rewrites move. Filed by the lane: section vertices on the carried path stay unnamed (P2, HELDRECORDS), and the shell's dead cells name every outer rim (P2, SHELL). **A main red found on the way**, `cover-kind-match` raised for `pair_section/spline_implicit.rs`, is filed on SECTARMS (P1, E). **Dispatched:** `heldrecords/near-boundary-m` (`session_018u3gVKLbugyhE6jZFBWCUG`), the other-boundary guard at pivot m, measure first. (HELDRECORDS orchestrator)
+
+- 2026-11-25 PR 7745 reviews in. R1 NOT MERGEABLE: MAJOR, the structure rule (`records.rs:934`) consumes on incidence with any minted cell, demonstrated as a silent drop on rod/plate under PROBE_GAP=face; the ANYINC mutant survives. R2 MERGEABLE, the same finding as MINOR 1. Ruling: a tightening of (b), where structure counts only where the named minted cell is itself the record cell's image. Fix pass sent to the lane with R1's mutant rows as pins (ANYINC red, NOSECT 14, GAP=face refuses), plus the place_found/carried one-map MINOR, the doc link and the style items. R1's NOTE 1 (residual gap through removed members) is accepted as inherent and goes in the PR's limits.
+
+- 2026-11-25 near-boundary-m done as PR 7757 (head 89673eecb4): the NearBoundary guard now runs at pivot m too. 1226 pivot-m reads at three ε, all clear, no verdict moved; pinned by a short off-neutral elbow. Single FULL review dispatched (session_018u3gVGrKkah9AwpnUa5Sus, brief review-near-boundary-m.md).
+- 2026-11-25 — Note from the CONTACTHOLD close (`docs/doc-ledger/contacthold-leaves-the-tracker.md`): 6 rows moved here by `git mv`, ids unchanged, each with a dated Moved note: `a-carried-line-contact-an-op-cuts-is-dropped`, `a-fold-steps-restated-tangency-takes-one-of-several-verdicts-margins`, `a-ringed-walls-pocketed-pair-against-the-plate-holds-its-line-contact-unrecorded`, `a-touch-along-a-glued-tangency-cites-no-tangency-decision`, `carried-records-keep-per-kind-vectors-beside-the-one-list`, `two-coincident-curved-edges-touching-record-no-edge-edge-row`. (tracker sweep)
+
+- 2026-11-25 CONTACTHOLD closed and re-homed its rows here. Two are P1: `a-ringed-walls-pocketed-pair-...` (re-measure on PR 7124 once it lands; make it that unit's pin or close it as covered) and `carried-records-keep-per-kind-vectors-...` (H, a refactor of records.rs and ops.rs; dispatched after PR 7745 merges, to avoid conflicting with it). INSIDE filed `the-partings-curved-face-gate-...` (P1), dispatched as lane `heldrecords/parting-division` (session_018u3gVHm4mcmA4KUUsnXNJB), stacked on split-on/PR 7481, single FULL review. The junction-side row is set to review on PR 7757.
+
+- 2026-11-25 PR 7745 merged (0ac627ec92) on local evidence after its fix pass (head a27ce80982). The structure rule now consumes only on a minted cell that is the other record cell's own image (OneCell), pinned so ANYINC goes red. Pre-existing cells are excluded from section naming. PROBE_GAP=face on rod/plate still returns Ok at the bridge union, through a positive witness: the circle's image IS the plate's named section edge. The face–face record lands as edge–face and stays loud downstream. I accept this as R1 NOTE 1's inherent shape, listed in the PR's limits. Row closed. Dispatched lane `heldrecords/one-list` (session_018u3gVJFgxeA2QH7xDjFq2y) for carried-records-keep-per-kind-vectors, behaviour-neutral, single FULL review.
+
+- 2026-11-25 PR 7757 merged (39ccba40ee) on local evidence, `gate ok` green on f00a33b40b, after a single FULL review: MERGEABLE, all claims held, a 432-pose far-rim sweep built 0 wrong bodies. In the fix pass, NearBoundary now names its real cause, the README was mended, and the unreachable conormal-None now refuses as ClassificationInvariant. Row the-junction-side-reading-... closed. Filed P2 `the-junction-boundary-guard-refuses-a-target-seam-within-its-reach`: liveness, no seam exemption.
+
+- 2026-11-25 parting-division done as PR 7783 (head e7429ceda2, base split-on). What it does:
+  - `CurvedFace` is narrowed to a slit or zero-area ring and read on the final state.
+  - A new `PartsTouch` gap refuses a curved division that leaves two pieces touching along the parting, since the census can't record a curved seat between solids.
+  - A closed conic inside a ringless face divides it.
+  - Results: no built → refused moves. The pierce rows, keel and ball∖keel now build. The tube witnesses wait on the stack taking main (PR 7602).
+  - The gate is red only from the stack.
+  - Rows filed: the-parting-re-decides-an-edge-lying-in-a-face-the-sweep-decided and a-rim-whose-vertex-lies-on-a-wrap-edge-refuses-shared.
+  - Single FULL review dispatched (session_018u3gVFWHiYZyakWSYnoknS).
+
+- 2026-11-25 **Main red from my merge of PR 7745.** Three slow-set carry rows (two union_flush `Stale{3}`, face_face_touch `Unread{18}`) fail on `0ac627ec92` and pass on its parent; checked locally. My merge evidence was `ci` plus the touched files. I did not ask for the full default profile on a carry change, and this is the cost. From here, a carry or records change merges only on a full default-profile topo+sweep per-test diff against its base. Filed P0 `main-red-removed-members-refuses-three-slow-carry-rows`, sent to the 7745 lane (session_018u3gVK16A8ND9orBs4bSqb) as a fix PR off main.
+
+- 2026-11-25 PR 7783 review (session_018u3gVFWHiYZyakWSYnoknS): NOT MERGEABLE.
+  - MAJOR: `disc_loop` reads its side on m² against a band in metres, and its two `Zero` defaults disagree. A 1e-3 rim at ε=1e-6 picks the wrong circle, and only the `ResultInvalid` backstop stops it.
+  - MINORs: the `ArcOnFace` margin is the first sample's residual, not a bound; the "division everywhere" claim is false for ringed faces; the `PartsTouch` sentence contradicts itself (without the gap a body that fails t3′ ships).
+  - Fix pass sent with small-scale pins and full default-profile evidence. The row's note is corrected.
+
+- 2026-11-25 The P0 fix for main red from PR 7745 (lane branch `heldrecords/removed-members-red`, a4c33327) fixes the three reds:
+  - glued structure is OneCell on any image, piece or minted;
+  - ContactContradicted counts as touched in a removed-member read only.
+  The full-default per-test diff (8533 vs 8549 tests) found a fork: with section edges named, `a_plane_face_holding_the_pierce_over_a_cylinder…` refuses JoinDesync (a minted vertex meets a minted section edge at a point); with no section, `three_solids_on_one_line::a_contact_line_beside_a_face_holding_it…` refuses Stale.
+  Ruled (C): an undecidable minted point meeting is set aside only where the record also lands on a non-minted pair. That is never consumption, and t3′ on the result stays the backstop. Pinned both ways with a mutant. (A), the door deciding vertex-on-edge meetings, is filed P2.
+
+- 2026-11-25 The P0 fix is PR 7799 (head 17237bee03). The full-default per-test diff shows 0 PASS → FAIL; the mutants all go red, including SETASIDEALONE and CONTRALEAK. Single FULL review dispatched (session_018u3gVJYnrwgxoiemwioLv7). (A) is filed P2 as `the-boolean-door-decides-no-minted-vertex-on-edge-meeting`.
+
+- 2026-11-25 PR 7783's fix pass is done (head 21f1f66afa). `disc_loop` now reads a signed length; `Zero` → `DiscSide`; there is new `ClosedDisc` vocabulary. Margins are bounded by Λ₂ on sphere and cylinder; a cone refuses `CarrierUnread`. The full default per-test diff shows built → refused empty. The small sphere rim at ε=1e-6, ρ ≤ 1e-3, now picks the right circle but refuses at the result gate's sphere props lane; that is filed on nearpoint. Rows filed: a-conic-on-a-cone-reads-no-bounded-margin, a-closed-rider-in-a-face-with-rings-keeps-its-zero-area-ring, the-split-leaves-curved-pieces-touching-along-a-curve-with-no-guard-the-census-reads. A delta re-read has been sent to the reviewer.
+
+- 2026-11-25 PR 7783 delta re-read: MERGEABLE. M1 and m1–m3 are closed. Λ₂ = 1.98885 was checked as the 5-node equispaced trig Lebesgue constant. The small-sphere `ResultInvalid` was judged an acceptable typed limit, since before this PR it was a `CurvedFace` refusal; the nearpoint row should note that the class reads as a door defect. Merged into `heldrecords/split-on` (d5a5787a1a). Its gate reds are all inherited from the stack. It reaches main with PR 7481 once PR 7124 lands. The tube witnesses get pinned when the stack takes main. The division row closes on PR 7481's merge.
+
+- 2026-11-25 **PR 7799 review: NOT MERGEABLE, 2 MAJOR.**
+  - **M1, fix (2) is unsound:** `confirm_patch` reports `ContactContradicted` at Door 1 (carrier and sense) before region overlap is read. So a same-sense removed member touching nothing consumed a record, a silent drop where 7745's head refused `Unread`.
+  - **M2, (C) changes the ratified clause** ("decides every such meeting at its door"), so it is Ev's call.
+  - **Ruled:**
+    - Drop (2). A sound removed-member read must actually find the touch, pinned in `ci`.
+    - Take (C) out. The pierce row stays red (loud `JoinDesync`, already red on main since 7745), listed on the P0 row.
+    - Keep (1), with a piece-incidence pin.
+  - Fix pass sent. The (C)/(A) fork goes to two Opus designers: A session_018u3gVHEtKTbcP5hj8j7VvE, B session_018u3gVGSw5Y3NcYbqNE1X1B (brief fork-minted-meeting.md), then an `[ev]` PR.
+  - I chose this over reverting PR 7745: fixing forward leaves at most one loud slow-set red, against reopening 7745's silent-drop hole.
+
+- 2026-11-25 **The minted-meeting fork (C)/(A), three rounds, two Opus designers.**
+  - Both first proposed a maker/cutter field. I showed them commit `a2090eeb4d5`: Ev's `[ev]` D1 ruling, "no cutter field", with the per-op form and the accepted cost of a redundant decision where one tool face cut both cells.
+  - They then crossed. By the final round both agree:
+    - (B) is rejected, (C) is unsound as a final state, and (C′) is the interim: set aside only where the result already holds the exact pair, placed after `carry_rows`.
+    - The final state is the per-op door decision: vertex-on-edge via the census's interior reading, with rows on the record's input cells (E, F), and the vertex–vertex row moved the same way so section vertices can be named.
+    - Unless one measurable fact holds: a single-maker meeting reads in the sliver band when the record's gap is Zero (a near-tangent X amplifies it). In that case makers kept in the boolean's `Mints` win, and that goes to Ev as a narrower cutter field.
+  - Probe lane dispatched (session_018u3gVJFgDMfc8FxoUJr3H6). If the fact does not hold, the door form is within the ruling and needs no `[ev]`.
+
+- 2026-11-26 **Minted-meeting fork decided: the door form, within Ev's ruling, so no `[ev]`.**
+  - The probe (session_018u3gVJFgDMfc8FxoUJr3H6, branch `heldrecords/probe-minted-margin`): all 12 pierce meetings read Zero, at a margin of 4.6e-16 with a 1e-9 threshold.
+  - The prism was nudged at ±0.25/0.5/0.9 ε, three cylinder heights and three ε. The v–s margin equals the posed gap to within 1.0004×: no amplification, never sliver.
+  - Vertex–vertex meetings: 109 door calls, all at gap 0.
+  - My reading of the remaining premise: X near-tangent to E is not reached by this fixture. Geometrically, the v–s distance scales as the gap over sin(X, F), so it is amplified only where X grazes F, which is the reduction's own sliver section.
+  - Final state, to build after PR 7799:
+    - the boolean door decides vertex-on-edge meetings with the census interior reading, writing rows on the record's input cells;
+    - vertex–vertex rows move the same way;
+    - section vertices are named on both paths;
+    - a stress row with X grazing F at the section.
+  - Re-band `the-boolean-door-decides-no-minted-vertex-on-edge-meeting` to P1 and retarget it once it reaches main. The interim is no (C): the pierce row stays a loud refusal until the door lands.
+
+- 2026-11-26 PR 7799 merged (9a25655c18) after a delta re-read (MERGEABLE, M1 and M2 closed; NOPRES, CONTRAANY and LOOSEINC each red). Main's three carry reds are fixed. The pierce row stays a loud JoinDesync until the minted-door lane lands.
+  - The reviewer showed the three loft/NURBS containment reds are main's, from INSIDE's PR 7798 (`33191a617a`). Filed P1 `work/inside/main-red-three-loft-rows-expect-point-containment-to-refuse-a-spline-face`.
+  - Dispatched lane `heldrecords/minted-door` (session_018u3gVFsPxLJDhJLgrGLPTt), single FULL review.
+  - one-list told to merge main and re-diff.
+- 2026-11-26 — (LATHE orchestrator) `crates/topo/src/boolean/mod.rs`'s doc on the `touches` field cited `[`ReductionContacts::ff`]`, which PR 7782 removed, so main's doc-gate was red. LATHE's PR 7414 re-points it to `OperandRecords::face_face`, the face–face rows' reader. Say so if a different target was meant.
+
+- 2026-11-26 PR 7782 (one-list) merged main (head e60352af27). The per-test verdict diff against ffc8c37d4c, slow set included, is empty. Main has 10 reds, the same on both sides: the pierce row (minted-door), three loft/NURBS rows (INSIDE), and six that were already red before PR 7745 (recourse_roster on ORBIT, square_search fuzzer on GERM, review_cleave_nurbs ×2, shell_general_door, an_aimed_ray). Single FULL review dispatched (session_018u3gVFebXNVvDBVxhHuhAN).
+
+- 2026-11-26 minted-door finished as PR 7808 (head 46186823d1, `gate ok` green).
+  - The boolean's door decides vertex-on-edge meetings by the confirm pass's own reading. The row is a `Meet` on (E, F).
+  - Section vertices are named on the carried path. `uncopied` and `copies` are deleted.
+  - The pierce row builds at three ε.
+  - The stress row (the wall grazes F): the margin is amplified about 1000× down to 0.14° and stays Zero. It refuses typed at 0.03° and 0.007°.
+  - Diff is per test, slow set included. Built → refused is empty.
+  - One departure, accepted pending review: in band at the door is `JoinDesync`, because `landings` has already confirmed the pair with the same reading.
+  - Single FULL review dispatched (session_018u3gVJNJL47PChxC7YURth).
+
+- 2026-11-26 PR 7782 (one-list) merged as d23272dea5, on local evidence after a single FULL review (MERGEABLE, no MAJOR) and its fix pass.
+  - The fix pass made `ReductionContacts` construction crate-private, gave `OperandRecords::face_face()` and `lower()` to five hand-written filters, and added the encoder round-trip rows.
+  - Two kind-order tables stay; the lane's reason is that neither derives from the other without reordering output.
+  - Per-test diff: none at either ε.
+  - The reviewer did not run sweep's whole slow set (about 10 hours on its box); it ran the touched sweep files with the slow set included instead.
+  - Row closed. PR 7808 (minted-door) will need main merged after its review: the carry moved under it.
+
+- 2026-11-26 PR 7808 review: NOT MERGEABLE.
+  - MAJOR: with `uncopied` deleted, the vertex–vertex door writes a fresh `Meet {E1, E2}` row at margin 0 for two copies of one ring vertex. editor-core `coincidence_door::a_ring_serving_two_pierces…` went PASS→FAIL. The lane's evidence ran topo and sweep but not editor-core.
+  - Ruling: copies of one vertex are structure. The landing cites the reduction's existing decision, and no fresh row is written.
+  - MINORs:
+    - section-vertex naming is unpinned;
+    - `pend` keeps the first margin, not the worst;
+    - the stress row's other-ε arm accepts any `Err`;
+    - the `place_found` sibling has no witness search.
+  - Fix pass sent. The full comparison now includes editor-core.
+
+- 2026-11-26 Checked whether PR 7782 (one-list, mine) caused the 10–20× slow sweep rows the minted-door lane filed. `cylinder_sphere_frame::a_ball_across_a_cylinder_wall_wider_than_the_wall`, same build on both sides, is >2100 s and killed both on 7782's merge d23272dea5 and on its first parent 7ce370250a. So 7782 is not the cause; the slowdown is earlier. The row `main-slow-sweep-rows-run-ten-to-twenty-times-longer-since-ffc8c37d4` stays open; candidates are INSIDE's 7801/7813/7814.
+
+- 2026-11-26 Bisected main's slowdown to INSIDE's PR 7801 (`1bb20a9fce1`, the face door's spline arm). The ball-across-cylinder row takes 374 s on its first parent and > 900 s on the merge; ffc8c37d4c gives 378 s and 7807 gives 383 s. Filed P0 `work/inside/main-slow-since-7801-…`: it holds every PR's `gate ok`, because the mesh-budget job hangs. Told the minted-door lane to drop its heldrecords copy (`main-slow-sweep-rows-…`, deleted on PR 7808's branch, never on main) in favour of the INSIDE row.
+
+- 2026-11-27 **Another main red from PR 7745, in editor-core.** `union_fold_face_face_touch::a_piece_of_the_plates_face_still_holds_the_line` passes on cc90e26a7a1 and fails on 0ac627ec92 and on 9a25655c18 (PR 7799). It is the editor-core twin of the sweep row PR 7799 mended. My evidence bar for carry changes now includes the editor-core slow set, not only topo and sweep. Filed P0 `main-red-an-editor-core-fold-refuses-its-plates-face-touch-unread-since-7745`, sent to the 7745/7799 lane. `germ_coplanar_conic` (a wrong `Out`) passes at 7799; I'm bisecting it further.
+- 2026-11-27 Bisected `germ_coplanar_conic` (a wrong point_in_solid `Out` on main) to INSIDE's PR 7801 as well: it passes on 2fc64636e46 and fails on 1bb20a9fce1. Added to INSIDE's P0 row. PR 7782 (mine) is cleared of both the slowdown and this wrong answer.

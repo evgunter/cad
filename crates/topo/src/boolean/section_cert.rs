@@ -790,6 +790,13 @@ pub(crate) fn classify_known<T: crate::props::AtRestPolicy>(
         (S::Plane { .. }, S::Torus { .. }) => swapped(torus_pair(g, f, band)),
         (S::Cone { .. }, S::Cylinder { .. } | S::Cone { .. })
         | (S::Cylinder { .. }, S::Cone { .. }) => cone_ruled(f, g, reach, region, band, marched),
+        // A cone against a plane or a sphere: the value serves the sphere
+        // and the join carries it, and the certificate still reads both on
+        // its own classifier.
+        (S::Cone { .. }, S::Plane { .. } | S::Sphere { .. }) => cone_pair(f, g, reach, band),
+        (S::Plane { .. } | S::Sphere { .. }, S::Cone { .. }) => {
+            swapped(cone_pair(g, f, reach, band))
+        }
         _ if geom_brep::pair_section::serves(f.kind(), g.kind()) => {
             match geom_brep::pair_section(f, g, region, None::<geom_core::NoLane>, band) {
                 Ok(geom_brep::SectionRead::Built(section)) => {
@@ -798,10 +805,6 @@ pub(crate) fn classify_known<T: crate::props::AtRestPolicy>(
                 Ok(geom_brep::SectionRead::Elsewhere(_)) => Section::Intractable,
                 Err(e) => of_pair_section(&Err(e), band, marched),
             }
-        }
-        (S::Cone { .. }, S::Plane { .. } | S::Sphere { .. }) => cone_pair(f, g, reach, band),
-        (S::Plane { .. } | S::Sphere { .. }, S::Cone { .. }) => {
-            swapped(cone_pair(g, f, reach, band))
         }
         (
             S::Nurbs(_) | S::Approx(_),
@@ -1022,27 +1025,6 @@ fn torus_plane<T: Decide>(
         Err(geom_brep::PtPinch::Undecided(diag)) => {
             Section::Tangent(diag.predicate.unwrap_or("pt_tube_rows"))
         }
-    }
-}
-
-/// **The loops a plane cuts on a ring torus**, by [`torus_plane`]'s own
-/// margins, so a refusal naming them and the certificate read one
-/// decision: `Ok(None)` where those margins decide a tangency or no
-/// section, and the diagnostics of the first margin they leave
-/// undecided. The plane runs through `p0` with normal `n`, the torus
-/// about `axis` has radii `(R, r)`; neither direction need be unit.
-pub(super) fn torus_plane_loops<T: Decide>(
-    (axis, big_r, r): (geom::Line<T>, T, T),
-    (p0, n): (Point3<T>, Vec3<T>),
-    band: Band,
-) -> Result<Option<super::SpiricLoops>, geom_core::Indeterminate> {
-    let a = axis.dir.get().normalize();
-    match geom_brep::PlaneTorusMeridian::new((axis.origin, a, [big_r, r]), (p0, n)).cut(band) {
-        Ok(geom_brep::PtCut::AroundAxis) => Ok(Some(super::SpiricLoops::AroundAxis)),
-        Ok(geom_brep::PtCut::AroundTube) => Ok(Some(super::SpiricLoops::AroundTube)),
-        Ok(geom_brep::PtCut::Null { .. }) => Ok(Some(super::SpiricLoops::Null)),
-        Ok(geom_brep::PtCut::Empty) | Err(geom_brep::PtPinch::Zero { .. }) => Ok(None),
-        Err(geom_brep::PtPinch::Undecided(diag)) => Err(diag),
     }
 }
 
@@ -1575,6 +1557,11 @@ pub(super) fn of_pair_section<T: Decide>(
             return Section::Tangent(diag.predicate.unwrap_or(geom_core::UNNAMED_PREDICATE));
         }
         Err(SectionError::Pinched { predicate }) => return Section::Tangent(predicate),
+        // A cone's aperture or seam guard decided `Zero` over the region:
+        // a margin in the band's zero, which a tighter band may part.
+        Err(SectionError::ConeAtTheBand { .. }) => {
+            return Section::Tangent("section_cone_at_the_band");
+        }
         Err(SectionError::Unordered { predicate }) => return Section::Unordered(predicate),
         // Two surfaces decided one share a carrier: no component count
         // is certified, as at a tangency. Two tori (`tt_coincident`), two
@@ -1591,7 +1578,7 @@ pub(super) fn of_pair_section<T: Decide>(
         Err(
             SectionError::RadiusEscalated { .. }
             | SectionError::DegenerateOperand { .. }
-            | SectionError::ConeAtTheBand { .. }
+            | SectionError::RadiusNotPositive { .. }
             | SectionError::DegenerateTorus(_)
             | SectionError::WrongLane { .. }
             | SectionError::RoutesToGeneralRung { .. }

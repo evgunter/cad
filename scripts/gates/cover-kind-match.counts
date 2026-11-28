@@ -9,7 +9,6 @@ ball 1 crates/geom-brep/src/chart_singularity.rs
 arm 2 crates/geom-brep/src/conic_bend.rs
 arm 1 crates/geom-brep/src/curve_face/circle_torus.rs
 ball 1 crates/geom-brep/src/curve_face/circle_torus.rs
-arm 1 crates/geom-brep/src/curve_face/conic_quadric.rs
 ball 1 crates/geom-brep/src/curve_face/conic_quadric.rs
 ball 2 crates/geom-brep/src/curve_face/line_quadric.rs
 arm 3 crates/geom-brep/src/curve_face/conic_oracle.rs
@@ -31,7 +30,8 @@ arm 1 crates/geom-brep/src/pair_section/cylinders.rs
 whole 1 crates/geom-brep/src/pair_section/cylinders.rs
 ball 1 crates/geom-brep/src/pair_section/gap.rs
 ball 1 crates/geom-brep/src/pair_section/ruling.rs
-arm 2 crates/geom-brep/src/pair_section/spline_implicit.rs
+arm 1 crates/geom-brep/src/pair_section/spline_implicit.rs
+arm 1 crates/geom-brep/src/pair_section/spline_implicit/cells.rs # from crates/geom-brep/src/pair_section/spline_implicit.rs
 ball 1 crates/geom-brep/src/pair_section/spline_pair.rs
 arm 1 crates/geom-brep/src/pair_section/torus.rs
 ball 1 crates/geom-brep/src/pair_section/torus.rs
@@ -74,18 +74,18 @@ arm 6 crates/sweep/src/blend/surgery.rs
 ball 1 crates/sweep/src/revolve/tube.rs
 arm 1 crates/sweep/src/test_support.rs
 arm 1 crates/topo/src/boolean/arcs.rs
-arm 9 crates/topo/src/boolean/carrier_touch.rs
-arm 14 crates/topo/src/boolean/join.rs
+arm 9 crates/topo/src/boolean/face_reading.rs # from crates/topo/src/boolean/carrier_touch.rs
+arm 10 crates/topo/src/boolean/join.rs
 whole 1 crates/topo/src/boolean/join.rs
 arm 6 crates/topo/src/boolean/ops.rs
-arm 7 crates/topo/src/boolean/reduce.rs
+arm 3 crates/topo/src/boolean/reduce.rs
 arm 1 crates/topo/src/rim_wedge.rs
 arm 6 crates/topo/src/boolean/section_cert.rs
 arm 2 crates/topo/src/boolean/sectors.rs
 arm 2 crates/topo/src/boolean/slit.rs
 arm 6 crates/topo/src/solid_contain.rs
 whole 2 crates/topo/src/solid_contain.rs
-arm 2 crates/topo/src/sphere_region.rs
+arm 1 crates/topo/src/sphere_region.rs
 arm 1 crates/topo/src/boolean/trace.rs
 whole 1 crates/topo/src/boolean/trace.rs
 whole 1 crates/topo/src/boxes.rs
@@ -93,9 +93,8 @@ arm 1 crates/topo/src/cell_region.rs
 ball 1 crates/topo/src/census.rs
 arm 1 crates/topo/src/census/in_plane.rs
 arm 1 crates/topo/src/chart_region.rs
-arm 5 crates/topo/src/chord_join.rs
+arm 4 crates/topo/src/chord_join.rs
 whole 1 crates/topo/src/chord_join.rs
-arm 1 crates/topo/src/clearance.rs
 arm 7 crates/topo/src/face_normal.rs
 arm 6 crates/topo/src/injective.rs
 arm 2 crates/topo/src/link.rs
@@ -112,6 +111,6 @@ arm 3 crates/topo/src/shell.rs
 arm 4 crates/topo/src/splitting/containment.rs
 arm 2 crates/topo/src/star/walk.rs
 arm 1 crates/topo/src/test_support_fixtures.rs
-arm 4 crates/topo/src/validate.rs
+arm 3 crates/topo/src/validate.rs
 arm 1 crates/topo/src/vertex_section.rs
 ball 1 crates/viewer/src/pane/viewport.rs

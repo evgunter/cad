@@ -67,7 +67,7 @@ fn plane_chart_at(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
     body.faces()
         .filter(|(fk, _)| {
             matches!(body.face_surface(*fk),
-                Some(Surface::Plane { frame, .. }) if (frame.origin().y - y).abs() < 1e-12)
+                Ok(Surface::Plane { frame, .. }) if (frame.origin().y - y).abs() < 1e-12)
         })
         .map(|(k, _)| k)
         .collect()
@@ -143,7 +143,7 @@ fn assert_the_cup_as_built(label: &str, cup: &Body<f64>, tol: Tol) {
             cup.vertices().count(),
             cup.edges().count()
         ),
-        (19, 24, 36),
+        (13, 12, 18),
         "{label}: the census the merge used to reach"
     );
     let roles = annulus_roles(cup);
@@ -168,15 +168,15 @@ fn assert_the_cup_as_built(label: &str, cup: &Body<f64>, tol: Tol) {
         "{label}: no coplanar pair is left to merge: {:?}",
         out.groups
     );
-    // The curved runs closing their chart's full period are still the
-    // merge's to decline, by design.
+    // Each curved wall is one face, so no run closing its chart's full
+    // period is offered to the merge to decline.
     assert_eq!(
         out.skipped
             .iter()
             .filter(|s| matches!(s.reason, topo::MergeCoplanarError::PeriodClosure { .. }))
             .count(),
-        6,
-        "{label}: six period-closure skips"
+        0,
+        "{label}: no period-closure skips"
     );
 }
 

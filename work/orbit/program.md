@@ -2,7 +2,7 @@
 id: orbit
 kind: program
 title: ORBIT — the curved boolean's P1 reach: torus touches, sphere meetings, and verdicts that depend on how a body is turned
-status: active
+status: ready
 opened: 2026-10-08
 group: kernel/boolean/curved
 prefix: orbit/

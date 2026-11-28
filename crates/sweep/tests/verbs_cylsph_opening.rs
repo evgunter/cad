@@ -186,10 +186,8 @@ fn coaxial_poses_build_every_op_at_their_volumes() {
 /// certifies, the matcher pairs the cylinder × sphere germs by foot on
 /// the section's one loop (`R < r + d`), and the join cuts both sides'
 /// chords from that loop; the cylinder and sphere faces they bound
-/// measure through the rotational lane, in both poses. The union is no
-/// legal operand only because a later boolean's point-in-solid walk
-/// cannot read its chorded sphere face
-/// (`crate::cylinder_sphere_frame::far_union`).
+/// measure through the rotational lane, in both poses, and the union is
+/// a legal operand (`crate::cylinder_sphere_frame::far_union`).
 #[test]
 fn a_transversal_pose_builds_in_both_poses() {
     use core::f64::consts::PI;
@@ -212,7 +210,7 @@ fn a_transversal_pose_builds_in_both_poses() {
             label,
             got,
             transversal_union_volume(),
-            crate::cylinder_sphere_frame::Ends::Builds,
+            crate::cylinder_sphere_frame::Ends::Sound,
             crate::cylinder_sphere_frame::pad_ceiling(area),
             &TRANSVERSAL_PAD_GUARDS,
         ) {
@@ -248,39 +246,75 @@ fn transversal_union_volume() -> f64 {
     PI * 4.0 + 4.0 / 3.0 * PI * big.powi(3) - common
 }
 
-/// **A chorded sphere face whose sense bit is flipped is refused at rest
-/// as a lamina**: the rotational lane reads the bit with no cross-check
-/// (a loop on a sphere bounds a face on each side), so under the flipped
-/// bit the face would measure as its complement; tier 3 exempts the
-/// face from its sense cross-check and refuses the body at check 4
-/// instead, where the flipped face meets its neighbours along a wedge of
-/// no angle (`ValidationError::LaminaWedge`). Every sphere face of the
-/// transversal union, flipped alone.
+/// **A curved face of the transversal pose with its sense bit flipped
+/// is refused at rest as inside out** (`ValidationError::CurvedSenseInverted`
+/// naming it). Every face here is trimmed by the section of the cylinder
+/// and the ball, which no closed form reads, so tier 3 reads each one's
+/// side through the rotational lane: a cylinder wall's off its chart
+/// area, a sphere face's off the poles it holds. A flip there is
+/// otherwise a different legal wedge at every edge, and the union's one
+/// sphere face, met only transversally, finished with its bit flipped.
 #[test]
-fn a_flipped_chorded_sphere_face_is_refused_as_a_lamina() {
+fn a_flipped_curved_face_of_the_transversal_union_is_refused() {
+    every_curved_face_flipped_is_refused(topo::BooleanOp::Union);
+}
+
+/// [`a_flipped_curved_face_of_the_transversal_union_is_refused`]'s
+/// intersection: its wall, and its sphere faces, which hold no pole.
+#[test]
+fn a_flipped_curved_face_of_the_transversal_intersection_is_refused() {
+    every_curved_face_flipped_is_refused(topo::BooleanOp::Intersect);
+}
+
+/// [`a_flipped_curved_face_of_the_transversal_union_is_refused`]'s
+/// difference, the ball less the cylinder: the bore's wall, and the
+/// ball's face, which holds both poles.
+#[test]
+fn a_flipped_curved_face_of_the_transversal_difference_is_refused() {
+    every_curved_face_flipped_is_refused(topo::BooleanOp::Subtract);
+}
+
+/// Every curved face of the transversal pose's `op` (the ball less the
+/// cylinder for a difference), a sphere face and a cylinder face among
+/// them, flipped alone, is refused as `CurvedSenseInverted` naming it.
+fn every_curved_face_flipped_is_refused(op: topo::BooleanOp) {
     let tol = Tol::witness();
     let c = finished("c", cyl(1.0, -2.0, 2.0), tol);
     let s = finished("s", ball_at(1.5, Vec3::new(0.6, 0.0, 0.0)), tol);
-    let got = topo::union(&c, &s, tol).expect("the union builds");
+    let got = match op {
+        topo::BooleanOp::Union => topo::union(&c, &s, tol),
+        topo::BooleanOp::Intersect => topo::intersect(&c, &s, tol),
+        topo::BooleanOp::Subtract => topo::subtract(&s, &c, tol),
+    }
+    .expect("the boolean builds");
     let body = &got.body().expect("a body").body;
-    let spheres: Vec<_> = body
+    let curved: Vec<_> = body
         .faces()
-        .filter(|(k, _)| matches!(body.face_surface(*k), Some(geom::Surface::Sphere { .. })))
-        .map(|(k, _)| k)
+        .filter_map(|(k, _)| {
+            body.face_surface(k)
+                .ok()
+                .filter(|s| !matches!(s, geom::Surface::Plane { .. }))
+                .map(|s| (k, s.clone()))
+        })
         .collect();
-    assert!(!spheres.is_empty(), "the union holds a sphere face");
-    for k in spheres {
+    let has = |kind: fn(&geom::Surface<f64>) -> bool| curved.iter().any(|(_, s)| kind(s));
+    assert!(
+        has(|s| matches!(s, geom::Surface::Sphere { .. }))
+            && has(|s| matches!(s, geom::Surface::Cylinder { .. })),
+        "{op:?}: a sphere face and a cylinder face to flip"
+    );
+    for (k, _) in curved {
         let flipped = body
             .flipped_face_sense_for_tests(k, geom_core::Tol::witness())
             .unwrap();
         let errs = topo::finish::<f64>(flipped, tol)
             .err()
-            .unwrap_or_else(|| panic!("{k:?} flipped finishes"));
+            .unwrap_or_else(|| panic!("{op:?}: {k:?} flipped finishes"));
         assert!(
-            errs.as_slice()
-                .iter()
-                .any(|e| matches!(e, topo::ValidationError::LaminaWedge { .. })),
-            "{k:?} flipped: {errs:?}"
+            errs.as_slice().iter().any(
+                |e| matches!(e, topo::ValidationError::CurvedSenseInverted { face } if *face == k)
+            ),
+            "{op:?}: {k:?} flipped: {errs:?}"
         );
     }
 }
@@ -363,9 +397,13 @@ fn a_contained_ball_builds_through_the_section_pass() {
 /// (`1.8 + 0.5 > 2`) without any edge of either body crossing a face:
 /// the seam stays inside the cylinder, the cylinder's seam line and
 /// rims stay clear of the ball. The section is one oval inside both
-/// faces, which the section pass certifies and refuses (R-loop), typed
-/// as the fallback's extent refusal. Were the pass not to take the pair
-/// up, the vertex probe would answer for it and count the lens wrong.
+/// faces, which the section pass certifies (R-loop). The cut-in that
+/// builds such a loop through a meridian of the ball's chart cannot place
+/// that meridian off the march's tube here
+/// (`work/lathe/a-loop-cut-in-refuses-where-the-marchs-tube-is-too-coarse-to-place-the-cut.md`),
+/// so the op answers the R-loop refusal, typed as the fallback's extent
+/// refusal. Were the pass not to take the pair up, the vertex probe would
+/// answer for it and count the lens wrong.
 #[test]
 fn a_ball_scraping_the_wall_refuses_at_the_section_pass() {
     let c = cyl(2.0, -2.0, 2.0);
@@ -457,7 +495,7 @@ fn a_torus_operand_passes_the_pair_gate_and_builds() {
             .and_then(|e| torus.get_curve_geom(e.curve))
             .and_then(topo::CurveGeom::certified)
             .is_some_and(|c| matches!(c.carrier(), topo::Curve3::Circle(..)));
-        let wall = matches!(a.face_surface(*f), Some(topo::Surface::Cylinder { .. }));
+        let wall = matches!(a.face_surface(*f), Ok(topo::Surface::Cylinder { .. }));
         circle && wall
     });
     assert!(
@@ -533,9 +571,9 @@ fn cylinder_torus_overlap() -> f64 {
 /// **The refusal is read off the variant, and the NURBS wall that once
 /// reached it end to end is pinned where it stops.** The variant is
 /// per-KIND and its Display carries no per-site branch, so the sentence
-/// is the variant's whatever raises it. A cylinder with one wall
-/// relabelled to the NURBS placeholder is not a finished body — the
-/// at-rest gate refuses the wall as uncertifiable — so it never reaches
+/// is the variant's whatever raises it. A cylinder with one wall moved
+/// onto a pending slot is not a finished body — the at-rest gate
+/// refuses the wall as uncertifiable — so it never reaches
 /// the crossing layer. The cyl×sphere and sphere×sphere crossings are
 /// stopped two layers above (the rows at the top of this file are that
 /// measurement), so the join dispatch's catch-all cannot be reached end
@@ -548,19 +586,16 @@ fn the_join_dispatchs_refusal_says_what_it_actually_wires() {
     // Lifts RechartStrandsDescriptions: the relabelled face is the join dispatch's input.
     b.set_face_surface_unvouched_for_tests(
         face,
-        topo::construction::FaceSurface::New {
-            surface: geom::Surface::Nurbs(std::sync::Arc::new(geom::NurbsSurface::placeholder())),
-            sense: true,
-        },
+        topo::construction::FaceSurface::Pending { sense: true },
     )
     .unwrap();
-    let errors = topo::finish(b, Tol::witness())
-        .expect_err("a NURBS placeholder wall is not a finished body");
+    let errors =
+        topo::finish(b, Tol::witness()).expect_err("a pending wall is not a finished body");
     assert!(
         errors.iter().any(
             |e| matches!(e, topo::ValidationError::UncertifiableSurface { face: f } if *f == face)
         ),
-        "the at-rest gate names the placeholder wall: {errors:?}"
+        "the at-rest gate names the pending wall: {errors:?}"
     );
     let err = BooleanError::CurvedBooleanUnsupported {
         operand: topo::Operand::B,

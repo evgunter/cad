@@ -17,7 +17,7 @@ Found by the delta review of PR 7396 (2026-11-23), a MINOR carried over from its
 
 Two doc NITs from the same review:
 - `revalue_corpus.rs`'s boss_union parting doc (~:580) should say its pin moved 3 sooner too (2399 → 2396);
-- `the_door_proves_two_thirds_of_the_composed_dies_joints` should say its 13 unproven joints are `Numeric/Budget`.
+- `the_door_proves_two_thirds_of_the_composed_dies_joints` should say its 13 unproven joints are `Numeric/Budget`. Moot since PR 7414: each pip's rim is one closed edge, so the row (now `the_door_proves_no_composed_die_joint_since_each_pip_rim_is_one_chain`) pins no joint.
 
 ## Done when
 

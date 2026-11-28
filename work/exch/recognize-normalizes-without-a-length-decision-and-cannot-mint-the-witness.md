@@ -57,7 +57,9 @@ not the sweep.
 
 - `crates/step-import/src/normalize.rs`, `half_turn` (`:111`): "rotates
   `w` a half turn about the unit direction `axis`" — exact-identity
-  arithmetic that is only an involution for a unit `axis`.
+  arithmetic that is only an involution for a unit `axis`. (Retired with
+  import's two-half pole form,
+  `work/lathe/import-mints-the-wrap-tip-at-a-chart-singularity.md`.)
 - `crates/step-import/src/adopt.rs`, `line_frame` (`:1031`): takes
   `dir` from the ε_in direction reader, which validates it by hand;
   a witness minted at that reader would let this and `half_turn` take
@@ -76,6 +78,7 @@ not the sweep.
 - `crates/step-import/src/normalize.rs`, `half_turn_curve` (`:121`):
   every point goes through `half_turn(p − origin, axis)`, so it
   carries `half_turn`'s premise on the same `axis`, one call up.
+  (Retired with `half_turn`.)
 
 ## Added by FRAME-WITNESS's §4 sweep (2026-09-15)
 
@@ -128,10 +131,10 @@ Found by FRAME's class sweep for a roll picked off a world axis. `crates/step-im
 - **The `entities.rs` copy** is gone: `Resolver::placement_built` and
   `unit_line_direction` build through
   `RigidMotion::from_axis_and_reference`.
-- **`half_turn` / `half_turn_curve`** live in `geom::pole_form` now.
-  Their one caller, `normalize::singularity`, reads the axis off a
-  chart's carrier (`chart.axis()`) and holds no witness, so the take
-  waits on the carrier rule.
+- **`half_turn` / `half_turn_curve`** are retired: import reaches a
+  pole by one wrap edge and mints no half-turn twin
+  (`work/lathe/import-mints-the-wrap-tip-at-a-chart-singularity.md`),
+  so these two siblings leave this row.
 - **`step-export`'s `direction` and `axis2_placement`** are the carrier
   case on the way out, on export's ground, and the carrier rule they
   write under is what `[ev]` PR 7131 (open) is changing; they are left

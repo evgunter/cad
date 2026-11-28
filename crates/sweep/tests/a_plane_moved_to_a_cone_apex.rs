@@ -473,7 +473,7 @@ fn a_cap_moved_off_a_frustum_wedge_apex_plans_its_wall_edge() {
                 .unwrap_or_else(|e| panic!("{label}: the offset refused {e:?}"));
             solid_truth::assert_body_is(
                 &label,
-                &offset,
+                &finished(&label, offset, tol),
                 (v + d * cap_area, 1e-12 * v + 0.25 * eps * cap_area),
                 &|q| truth.depth(q),
                 &named,
@@ -543,7 +543,7 @@ fn frustum_wedge(y0: f64, t: f64) -> (AtRestBody<f64>, Solid) {
 fn a_half_space_flush_with_a_frustum_wedge_cap_builds_the_union() {
     // Pinned red at 1e-6: the first union builds 1.0e-6 under its closed
     // form, where the row holds it to 3.9e-8
-    // (`work/onedoor/main-red-four-sweep-rows-hold-volumes-the-one-surface-record-moves-at-1e-6.md`).
+    // (`work/onedoor/a-planar-faces-volume-term-reads-its-unweighted-mean-vertex-so-in-band-vertices-lever-over-the-face.md`).
     test_utils::pinned_red::row(
         Tol::witness().eps(),
         &[1e-6],

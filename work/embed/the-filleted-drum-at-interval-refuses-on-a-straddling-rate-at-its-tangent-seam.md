@@ -201,3 +201,20 @@ so what the wall's seam reads without it is not measured.
 ## 2026-11-23: re-banded P0 (EMBED orchestrator)
 
 With PR 7329 in the second landing branch, three valid bodies in three units refuse here at `Interval` and hold at f64: this row's drum (its `Interval` half pinned refusing by PR 7329), PR 7320's rounded plate (its plane against a torus patch across their arc; `a_support_face_c1_through_a_vertex_at_interval`) and PR 7322's three-arc filleted disc (top plane against the band across the top circle; its lane's probe decides whether it belongs here or on the cell-side row). Each lane appends its trace below when its unit lands. None of the three changes this row lists is built.
+
+## 2026-11-25: the three sightings hold with the band's window narrowed (EMBEDWALK lane `embedwalk-twobands`)
+
+Measured on the EMBEDWALK branch `embedwalk/two-bands`, which gives a torus
+face the chart rectangle its boundary's pcurves span as its walk window
+(`clearance::window_of`, through `cover::bounded_torus_window`, on the loop's
+bounded side only) instead of the whole tube. Nothing in `injective.rs`
+changed. At `Interval`: the drum holds; every plane against a torus patch of the rounded plate across
+their arc is `Embedded`; the three-arc disc's top plane against its band
+holds. So the straddling rate was read on cells past the band's end, which
+the narrowed window no longer holds, and this row's symptom closes with
+that branch. The rate reading itself is unchanged: a window that still
+reaches past a tangent seam (a torus face with no chart rectangle, a
+sphere, a cone's whole turn) would meet it again. The three-arc disc at
+`Interval` still refuses, now on two of its wall's cylinders across their
+shared edge (`Uncertified`, departure arm), which main reads with the
+same receipt to the bit when that pair is asked alone (untraced).

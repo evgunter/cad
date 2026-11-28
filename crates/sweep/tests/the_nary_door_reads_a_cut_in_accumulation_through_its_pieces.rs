@@ -1,8 +1,8 @@
 //! **The n-ary door reads a piece of a cut-in sphere face through the
 //! face it was cut from**: two pip balls a step crosses off every edge
-//! have their sphere faces cut along a meridian before the step re-enters
-//! (`topo::BooleanNaming::chart_cuts`), so the accumulation's faces are
-//! pieces of the cut faces under keys the cut minted. The fold's member
+//! have their sphere faces cut along a meridian before the step re-enters,
+//! so the step's faces are pieces of the cut faces under keys the cut
+//! minted until the output stage closes the cut ([`closes_a_cut`]). The fold's member
 //! lineage reads each piece as the face it divides (`topo::FaceSource::root`),
 //! as the step's holdings do.
 
@@ -96,11 +96,18 @@ fn a_fold_over_balls_a_step_cuts_in_builds_at_its_closed_form() {
             run.end
         );
         assert!(
-            !run.steps[cut].body.naming.chart_cuts[0].is_empty(),
+            closes_a_cut(&run.steps[cut].body, 0),
             "{what}: the step joining member {} cuts the accumulation's ball in",
             cut + 1
         );
         let last = &run.steps.last().unwrap().body.body;
+        let faces = |b: &topo::Body<f64>| b.faces().count();
+        let brought: usize = bodies.iter().map(|b| faces(b)).sum();
+        assert!(
+            faces(last) <= brought,
+            "{what}: the closed cut leaves no face the members did not bring: {} against {brought}",
+            faces(last)
+        );
         let got = topo::test_support::pinned_volume(what, last, tol()).volume;
         assert!(
             (got - want).abs() <= 1e-6 * want,
@@ -137,7 +144,7 @@ fn a_verdict_on_a_cut_member_face_reaches_the_next_step() {
         &[ball(0.5, 0.5), two_shells, ball(0.5, 0.5 + D)],
     );
     assert!(
-        !run.steps[0].body.naming.chart_cuts[1].is_empty(),
+        closes_a_cut(&run.steps[0].body, 1),
         "the step joining the two-shell member cuts its crossing ball in"
     );
     assert!(
@@ -150,4 +157,24 @@ fn a_verdict_on_a_cut_member_face_reaches_the_next_step() {
          judgement's verdict: {:?}",
         run.end
     );
+}
+
+/// Whether the op closed a chart cut on a sphere face of operand `side`
+/// (0 for A, 1 for B): the output stage deletes a cut's piece between
+/// two pieces of the face it divided with one of them, a substitution
+/// row from that piece onto the face that keeps it.
+fn closes_a_cut(out: &topo::BooleanBody<f64>, side: usize) -> bool {
+    let grafted: Vec<topo::FaceKey> = out.naming.graft_faces.iter().map(|&(_, r)| r).collect();
+    out.naming.substitutions.rows().iter().any(|&(dead, kept)| {
+        let (topo::Cell::Face(_), topo::Cell::Face(kept)) = (dead, kept) else {
+            return false;
+        };
+        let on_sphere = out.body.get_face(kept).is_some_and(|f| {
+            matches!(
+                out.body.get_surface(f.surface),
+                Ok(geom::Surface::Sphere { .. })
+            )
+        });
+        on_sphere && grafted.contains(&kept) == (side == 1)
+    })
 }

@@ -165,7 +165,7 @@ pub fn measure(
     let mut area = 0.0;
     for (_, face) in body.faces() {
         let (_, surface) = body
-            .surfaces()
+            .described_surfaces()
             .find(|(k, _)| *k == face.surface)
             .expect("a face's surface is in its body");
         let sense = if face.sense { 1.0 } else { -1.0 };

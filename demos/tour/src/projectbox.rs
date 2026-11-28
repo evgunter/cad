@@ -281,7 +281,7 @@ fn standing_spring(tol: Tol) -> (pncad::topo::Body<f64>, f64) {
     // of its control points, and those all clear the boss top. (The
     // caps are planar and bounded by the corners above.)
     let mut walls = 0;
-    for (_, surface) in body.surfaces() {
+    for (_, surface) in body.described_surfaces() {
         if let pncad::geom::Surface::Nurbs(patch) = surface {
             walls += 1;
             let lowest = patch

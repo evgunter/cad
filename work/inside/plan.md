@@ -9,30 +9,33 @@ points against 30 with its P0 units landed or parked (PRs 4363, 4368,
 
 ## The slate
 
-**30 budget points** of dispatchable work against a ceiling of 30.
+The board is the slate (`python3 scripts/work.py status --program inside`).
+After the 2026-11-25/26 sitting, every P0 and P1 row is closed except
+`a-tube-touching-a-ball-from-inside-along-its-rim-refuses-the-extent-scan`,
+which is parked on HELDRECORDS's parting rows. The rest of the slate is P2 and
+below.
 
-| pri | item | cost | title |
-|---|---|---|---|
-| P1 | `revolved-tube-wall-refuses-bool-wall-trim-period` | D | point_in_solid refuses most probes of a fully revolved tube: bool_wall_trim_period escalates Invalid on a wall face |
-| P1 | `two-copies-of-a-pierce-carry-edges-that-run-within-the-band` | M | A near-tangent two-run pierce leaves its copies apart on one point, and the two edges leaving them run within the band for a stretch the census passes, at 89 poses main refused |
-| P2 | `point-in-solid-refuses-an-l-shaped-torus-face` | M | point_in_solid refuses a body whose torus wall is L-shaped in the chart, which the plane x torus boolean now mints |
-| P2 | `a-solid-touching-itself-at-a-vertex-reads-its-star-from-the-vertex-alone` | M | A solid touching itself at a point reads its touch star from its vertex there alone, so a second solid resting at that point refuses MixedTouch |
-| P2 | `a-touch-at-a-saddle-corner-refuses-unanalysed` | D | A touch at a saddle corner (an L's inner corner) that no plane separates refuses TouchUnanalysed, so a block seated in that corner on the floor cannot certify |
-| P2 | `census-containment-escalation-drops-its-decision` | M | topo: four doors drop or ignore the containment decision a refusal carries (census, ring re-homing, rim wedge, sphere region) |
-| P2 | `point-in-solid-escalation-carries-no-decision` | H | topo: PointInSolidError::Escalated carries no decision, and its refusals end in the coincidence menu with no declaration door |
-| P2 | `point-in-solid-refuses-a-ringed-cylinder-wall` | M | point_in_solid's wall outline refuses any ringed cylinder wall, so a later union member's containment probe stops on a pierced boss |
-| P2 | `the-census-edge-edge-collinear-lane-reads-the-offset-at-the-long-edges-start` | M | The census's collinear edge-edge lane reads two edges' line offset at the second edge's start, so its overlap verdict depends on arena order: a body whose edges part by 21 bands reads an undeclared overlap |
-| P2 | `the-census-material-probe-reads-only-vertices-so-a-flush-nested-solid-is-undecided` | M | The census material probe reads only an inner solid's vertices, so a solid nested flush on every side its vertices touch is CensusUndecidable(AllOn) where a face interior would decide it |
-| P2 | `torus-split-lead-escalates-a-legitimately-small-resolvent-root` | D | line_torus_roots' rung 3 (line_quadric_torus_split_lead) escalates every ray whose odd coefficient is small but decided nonzero, not only a rounding-scale contradiction |
-| P3 | `cone-chart-trim-reads-a-tilted-section-as-its-vertex-window` | M | cone_chart_trim folds the slant window over boundary vertices with no edge-class check, so a cone face bounded by a tilted planar section would be misread; no door builds one today |
+## Decided design (2026-11-25, two designers; `log.md`)
+
+`curve_face::cross` answers both spline arms itself, at `T: Decide`, by
+`Decide` signs on Bernstein coefficients computed in the scalar's own
+arithmetic: reals at f64 with no pads, enclosures at `Interval`.
+
+- **Selection readers** read on the value view: the face door, the side
+  reader, `point_in_solid` and the counts.
+- **A stored crossing** is a proposal, admitted at its storing site.
+- **Built:** the (line, spline patch) arm (PR 7798) and the (spline span,
+  analytic face) arm (PR 7801).
+- **Still `Enclosed`:** a conic or spline span against a spline face
+  (`cross-answers-a-spline-arm-with-a-whole-span-window`).
 
 ## Order
 
-The two P1 rows first.
-
-`census-containment-escalation-drops-its-decision` and `point-in-solid-escalation-carries-no-decision` are one lane: both carry a containment decision to the door that renders it, under D4 ¶1 (i), and CONTACT-10 (PR 4363) built the types they extend (`ContainDecision`, `LoopDecision`).
-
-The census rows (`…-collinear-lane-reads-the-offset-…`, `…-material-probe-reads-only-vertices-…`) touch RESTREAD's file; announce the seam.
+Next, by band:
+- the P2 rows that the sitting's units filed as residue: the torus spline
+  chord, the horn sheet, the ray lane on a spindle sheet, the coefficient
+  formation of the line × torus quartic;
+- the remaining SplineFace spans.
 
 ## Ratified ground (cited, not re-litigated)
 
@@ -42,11 +45,9 @@ The census rows (`…-collinear-lane-reads-the-offset-…`, `…-material-probe-
 
 ## Review posture
 
-CONTACT's, inherited: the review tiers of `memories/orchestration-model.md`
-(style, full single, or a dual under `docs/DUAL-REVIEW-PROTOCOL.md`,
-logged in `docs/DUAL-REVIEW-LOG.md`; a class-H unit draws a concurrent
-pair, a class-M unit a urandom draw), with an independent verifier on
-any unit a review passes with fixes.
+The review tiers of `memories/orchestration-model.md` (the orchestrator's
+read, a style or full single review, or a dual), with an independent
+verifier on any unit a review passes with fixes.
 
 The lesson CONTACT's reviews taught, stated so that briefs carry it:
 **nearly every defect they found was a lever or a bound that is

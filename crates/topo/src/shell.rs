@@ -14,7 +14,7 @@
 //! is what the construction reads: an inside-out solid (check 7,
 //! [`ValidationError::NegativeVolume`](crate::ValidationError::NegativeVolume)) or an inside-out shell (check
 //! 10) would be hollowed as its complement, and a stale or missing
-//! pcurve row would vanish under the closing mint below. Neither
+//! pcurve row would reach the finish as the verb's own. Neither
 //! reaches the verb, because neither is an [`AtRestBody`](crate::AtRestBody).
 //!
 //! The door reads no second gate: what it takes is the scalar's finished
@@ -179,30 +179,14 @@
 //! that catches a bad wall, and saying otherwise misattributes the
 //! net that is doing the work.
 //!
-//! # The closing mint
+//! # Pcurve rows
 //!
 //! The void door's posture is `Transfers`
 //! (`crate::pcurves::staleness_posture::DECLARED`, the `insert_voids`
 //! row): `Body::revert` carries the cavity's rows key for key (the
 //! plane faces' rows re-stated with their frames, the curved faces'
 //! untouched), the graft copies them verbatim onto fresh keys, and
-//! that row's contract is that the producer's final mint re-derives
-//! every row of the merged body. This verb is a
-//! producer and runs [`crate::pcurves::mint_pcurves`] once, on the
-//! assembled body, before `validate_geometric` — the verb's own
-//! whole-body pass, and it stays whole-body: it is what discharges
-//! `insert_voids`'s `Transfers` row over the WHOLE merged body, which
-//! no per-solid pass covers. One pass suffices: nothing between the
-//! door and the validate reads a stored row, the simultaneous lift
-//! doors mint the rows of their own scope (the solid they were handed)
-//! and touch no other, and every other step is `Neither` for rows.
-//! The pass CLEARS the map first, so it reads none of the operand's
-//! rows; that they were sound is the operand type's promise (above),
-//! and a stale-row operand refuses where it is gated, not here
-//! (`shell9_r2_probes`). The refusal is [`ShellError::Pcurve`], carrying
-//! the mint's refusal whole: a certification refusal ends by its own
-//! ending at the build door, a refusal of the pass itself as the
-//! kernel's.
+//! the finish completes what the void door leaves rowless.
 //!
 //! # The record
 //!
@@ -318,7 +302,9 @@
 //!   re-anchored on the ring corner that stands for its boundary end
 //!   ([`seamed_band`]), so every face and seam of the operand's chart
 //!   survives under its key and no face carries a ring. Built through a
-//!   POLE (a cap of two branches), and between two boundaries (one face
+//!   POLE: one face whose seam ends there, its wrap tip (the cap a full
+//!   revolve mints), or two branches whose seams meet there (a cap cut
+//!   along a meridian). Built between two boundaries (one face
 //!   walking one seam, the band a full revolve mints): that chart's rim
 //!   is TWO bands, one at each boundary, the second a face of its own
 //!   recorded as the rim's [`HoleRim`] row ([`band_between_boundaries`]).
@@ -343,16 +329,21 @@
 //! A chart need not arrive that way: it may be several faces meeting
 //! along edges only they share — two half-discs meeting at an apex —
 //! or one face SLIT, its loop walking one edge both ways to join a hole
-//! to its outer cycle. A full revolve mints neither (each plane wall is
+//! to its outer cycle. A full revolve's plane walls are neither (each is
 //! one face, a disc or an annulus carrying its hole as a ring), but the
 //! glue's hypothesis does not name where the operand came from. Gluing
-//! onto either puts the counterpart's boundary ON the designated face's
-//! own — sharing the apex, running back along the slit — and the result
-//! is a body every structural tier blesses and no triangulator accepts.
+//! onto either the apex or the slit puts the counterpart's boundary ON
+//! the designated face's own — sharing the apex, running back along the
+//! slit — and the result is a body every structural tier blesses and no
+//! triangulator accepts.
 //!
 //! Both are facts about how the operand was built rather than about
 //! the region, and step 3 removes them through the Euler doors alone
-//! (`kef`, `kev`, `kemr`). What survives step 3 is genuinely about the
+//! (`kef`, `kev`, `kemr`). A full revolve's curved cap walks its seam
+//! out to the pole and back: on the side that dies in the glue that seam
+//! is a spur, which step 3 kills like the apex; on the side that
+//! survives it is the band's seam, kept, and [`seamed_band`] collapses
+//! its tip onto the ring. What survives step 3 is genuinely about the
 //! region and is refused typed
 //! ([`ShellError::OpenFaceRimNotExpressible`]): a chart whose faces are
 //! not one region, a counterpart boundary that still meets the
@@ -401,7 +392,6 @@ use crate::entity::{
 use crate::euler::EulerOpError;
 use crate::face_normal::plane_outward_normal;
 use crate::live::{BoundaryMember, NAMES_ONLY_LIVE, proven};
-use crate::pcurves::{PcurveMintError, mint_pcurves};
 use crate::props::ShellRole;
 use crate::replace_face::ReplaceFaceError;
 
@@ -615,8 +605,9 @@ pub enum ShellError<T: Real> {
     /// cavity counterpart's boundary meets the designated face's own
     /// boundary rather than sitting strictly inside it; the two
     /// boundaries' holes do not correspond; or a wrapping chart is not
-    /// the band its surgery cuts (not two branches meeting at one pole,
-    /// not one face walking one seam, or the counterpart's corners not
+    /// the band its surgery cuts (neither one face whose seam ends at a
+    /// pole nor two branches whose seams meet at one, not one face
+    /// walking one seam, or the counterpart's corners not
     /// projecting onto the seam strictly inside it, in order). `what`
     /// names which.
     ///
@@ -643,18 +634,6 @@ pub enum ShellError<T: Real> {
         /// The predicate-layer escalation.
         source: Indeterminate,
     },
-    /// The closing pcurve mint refused on the assembled body (module
-    /// docs, "The closing mint"). Every gate before it accepted the
-    /// body — the offsets certified, the void door grafted, the rim
-    /// surgery closed — and the mint's refusal is carried whole
-    /// rather than as the validator's report of a stale row. A
-    /// certification refusal ends by its own ending at the build door
-    /// (the pose lever where an incidence read lands in band); a refusal
-    /// of the pass itself is the kernel's.
-    Pcurve {
-        /// The mint's typed refusal, verbatim.
-        source: PcurveMintError,
-    },
     /// A wall seam the rim surgery shortens to the cavity's corner,
     /// stored as the pair its two faces under-determine, reads mixed
     /// over its kept stretch when the must-carry rule is asked again
@@ -673,7 +652,8 @@ pub enum ShellError<T: Real> {
         refusal: crate::boolean::JoinRefusal,
     },
     /// The assembled result is not a finished body
-    /// ([`crate::AtRestPolicy::finish`]), so it is discarded: every
+    /// ([`crate::AtRestPolicy::finish`]), or the moved cavity's rows do
+    /// not complete before its walls are asked, so it is discarded: every
     /// finding, each read through its family.
     NotValid {
         /// The finish's findings.
@@ -814,16 +794,6 @@ impl<T: Real> ShellError<T> {
                     source.ending(WALL_OR_GEOMETRY),
                 )
             ),
-            // The mint's certification refusal ends by its own ending at
-            // the build door (an incidence read in band is the pose
-            // lever's, not a defect); a refusal of the pass itself, on a
-            // body every gate before it accepted, is the kernel's. The
-            // payload (in `Debug`) names keys the user never saw.
-            Self::Pcurve { source } => write!(
-                f,
-                "the finished thin solid's edges could not be parametrized on its faces{}",
-                ended(at.map(|at| shell_mint_ending(source, at)))
-            ),
             Self::RimSeamMixed { stations, .. } => write!(
                 f,
                 "a wall seam the rim shortens, {stations}. Recourse: {WALL_OR_GEOMETRY}"
@@ -927,18 +897,6 @@ fn cavity_refusal_ending(
             KERNEL_DEFECT_ENDING.into()
         }
     }
-}
-
-/// The ending of a pcurve mint the shell op ran: a certification
-/// refusal's own at the build door ([`PcurveMintError::ending`]), the
-/// kernel's defect for a refusal of the pass itself.
-fn shell_mint_ending(
-    source: &PcurveMintError,
-    at: geom_brep::recourse::ReadAt,
-) -> std::borrow::Cow<'static, str> {
-    source
-        .ending(at)
-        .map_or(KERNEL_DEFECT_ENDING.into(), Into::into)
 }
 
 /// `". {ending}"`, or nothing for a payload read at no door.
@@ -1066,11 +1024,6 @@ impl<T: Real> AsShelled<'_, T> {
                 "the shell op asked to fit an offset of {d} m at a tolerance of {tolerance} m, \
                  which its thickness gate and its tolerance never allow. {KERNEL_DEFECT_ENDING}"
             ),
-            R::Pcurve { source } => write!(
-                f,
-                "the offset body's edges could not be parametrized on their faces{}",
-                ended(at.map(|at| shell_mint_ending(source, at)))
-            ),
             error => write!(f, "{}", read_at(error, at)),
         }
     }
@@ -1117,12 +1070,14 @@ impl<T: crate::props::AtRestPolicy> Shelled<T> {
     /// their places. The rim surgery opens each designated chart: on the
     /// outer shell, every designated face is divided into the rim, the
     /// region at each further boundary ([`RimNaming::holes`]) and the
-    /// face itself where it is a branch of a seamed band, with the
-    /// opening removed, the rings' edges and vertices minted in it; a
-    /// divided seam ([`RimNaming::seam_pieces`]) into its pieces and the
-    /// ring corners its pieces end on, its span across the opening
-    /// removed; and an operand seam, slit or apex the chart reduction
-    /// retired ([`ShellNaming::dead`]) into the rims, the rest removed.
+    /// face itself where it is a branch of a seamed band, the rings'
+    /// edges and vertices minted in it; a divided seam
+    /// ([`RimNaming::seam_pieces`]) into its pieces and the ring corners
+    /// its pieces end on; and an operand seam, slit or apex the chart
+    /// reduction retired ([`ShellNaming::dead`]) into the outer rims,
+    /// one of which holds what is left of it. The opening is named as
+    /// no removed member: a record on a designated face or seam is read
+    /// against those cells and lands on them or refuses stale.
     /// On a void, the designated faces are removed, the rim being their
     /// cavity twin's. The cavity twins are new cells and no operand
     /// record names one, so a twin the reduction or the glue retired has
@@ -1132,7 +1087,7 @@ impl<T: crate::props::AtRestPolicy> Shelled<T> {
     #[must_use]
     pub fn lineage(&self) -> crate::Lineage {
         use crate::boolean::Cell;
-        use crate::lineage::{Descent, Division, Fate, Remainder, roots};
+        use crate::lineage::{Descent, Division, Fate, roots};
         let naming = &self.naming;
         let outer: Vec<&RimNaming> = naming
             .rims
@@ -1165,14 +1120,14 @@ impl<T: crate::props::AtRestPolicy> Shelled<T> {
             Fate::Divided(Division {
                 pieces,
                 minted,
-                remainder: Remainder::Removed,
+                removed: Vec::new(),
             })
         };
-        // Every statement is a removal, and removals of one cell merge.
+        // Every statement divides or removes, and two of one cell merge.
         let remove = |lineage: crate::Lineage, cell: Cell, fate: Fate| {
             lineage
-                .with_removal(cell, fate)
-                .unwrap_or_else(|e| unreachable!("the shell states only removals: {e:?}"))
+                .with_division(cell, fate)
+                .unwrap_or_else(|e| unreachable!("the shell keeps no cell it states: {e:?}"))
         };
         let mut lineage = crate::Lineage::new().through_joins(&naming.edge_joins);
         // `dead` is in result keys, and the reductions and the glue kill
@@ -1852,6 +1807,22 @@ pub(crate) fn shell_open_at<T: crate::props::CertifiedPolicy + geom_core::Certif
         })?;
     }
 
+    // The questions below read the cavity's stored rows on its curved
+    // faces, which the offset doors left for the finish; they read them
+    // completed, every row the doors kept as kept. A face completion
+    // leaves short has no rows to read, and is the finish's to report:
+    // the door answers with the cavity's finish finding set, the
+    // refusals beside every other finding.
+    crate::finish::fed(
+        &mut cavity,
+        tol,
+        |_| Ok::<(), core::convert::Infallible>(()),
+    )
+    .map_err(|fed| match fed {
+        crate::finish::Fed::NotFinished(findings) => ShellError::NotValid { findings },
+        crate::finish::Fed::Read(never) => match never {},
+    })?;
+
     // ---- Decide: no two moved walls meeting at an angle cross. ----
     moved_walls_cross(&cavity, &partition, thickness, band)?;
 
@@ -2120,10 +2091,8 @@ pub(crate) fn shell_open_at<T: crate::props::CertifiedPolicy + geom_core::Certif
             face: designated,
             error: Box::new(error),
         })?;
-        // The rim stage runs row-free: the closing mint clears the map
-        // and re-derives every row of the assembled body, so a row the
-        // lift wrote, or one a surgery op would mint here, is never
-        // read. Clearing it keeps every op below on its keys-only door.
+        // The rim stage runs row-free, every row dropped for the finish
+        // to derive, which keeps every op below on its keys-only door.
         out.pcurves.clear();
         out.joints.clear();
         // One face per side, loops disjoint. Both reductions retire
@@ -2415,16 +2384,6 @@ pub(crate) fn shell_open_at<T: crate::props::CertifiedPolicy + geom_core::Certif
         });
     }
 
-    // ---- The closing mint (module docs, "The closing mint"). ----
-    //
-    // Placed where the boolean places its own, after the last write.
-    // The rim stage clears the map before each chart's surgery, so on
-    // an opened body with a curved face every such face reaches this
-    // line row-free: moved ahead of the rim stage, the pass would leave
-    // them `Unminted` at the validation below (`shell_curved_mouth`'s
-    // cap row and `verbs_shell`'s revolved cups).
-    mint_pcurves(&mut out, tol).map_err(|source| ShellError::Pcurve { source })?;
-
     // ---- One validation, after the join. ----
     out.sweep_and_close();
     // The join (`docs/DESIGN.md`, maximal edges), over every solid: each is written.
@@ -2568,7 +2527,7 @@ fn record_rooted<T: Real>(operand: &Body<T>, result: &Body<T>, naming: &ShellNam
         check(result.get_loop(l).is_none(), &l, GONE);
     }
     for &g in dead_surfaces {
-        check(result.get_surface(g).is_none(), &g, GONE);
+        check(result.surface_slot(g).is_none(), &g, GONE);
     }
     for &s in dead_shells {
         check(result.get_shell(s).is_none(), &s, GONE);
@@ -2697,9 +2656,10 @@ fn undesignated(face: FaceKey) -> ! {
 /// 1. the chart's faces merge across the edges only they share
 ///    (`kef`), leaving the merged loop walking each killed edge's
 ///    surviving partner twice;
-/// 2. a SPUR — such a duplicate whose far vertex the merge left with
-///    one edge on it, the apex of two half-discs — dies with that
-///    vertex (`kev`);
+/// 2. a SPUR — such a duplicate whose loop walks it out and straight
+///    back ([`crate::surface_boundary::tips`]): the apex of two
+///    half-discs the merge left, or a wrap edge's tip — dies with its
+///    tip (`kev`);
 /// 3. a SLIT — a duplicate still anchored at both ends, joining a hole
 ///    to the outer cycle — splits the loop in two (`kemr`), the
 ///    inner side becoming the ring it always was. On a chart that
@@ -2775,9 +2735,12 @@ fn canonicalize_chart<T: Decide>(
     // on.
     let mut band_seams: Vec<EdgeKey> = Vec::new();
     while let Some((r#loop, he1, he2)) = duplicate_in_loop(body, anchor, &band_seams) {
-        // Whether `he` ends at a valence-one tip, which `kev` kills; a
-        // far vertex whose valence cannot be read refuses.
-        let tip = |body: &Body<T>, he: HeKey| valence(body, body.proven_half_edge_end(he)) == 1;
+        // Whether `he` ends at a tip, which `kev` kills.
+        let tip = |body: &Body<T>, he: HeKey| {
+            !crate::surface_boundary::tips(body, &[he])
+                .unwrap_or_else(|| unreachable!("{he:?} was walked as a member of a live loop"))
+                .is_empty()
+        };
         if tip(body, he1) {
             let killed = body.kev(he1).map_err(|error| ShellError::Rim {
                 face: anchor,
@@ -2806,7 +2769,7 @@ fn canonicalize_chart<T: Decide>(
             half_edge_points(body, &side1),
             half_edge_points(body, &side2),
         );
-        let chart = body.proven_face(anchor).surface().clone();
+        let chart = body.proven_face(anchor).expect_described().clone();
         let escalated = |source| ShellError::Escalated { source };
         let ring_first =
             if is_inner_of_concentric_pair(&chart, &p1, &p2, band).map_err(escalated)? {
@@ -2950,7 +2913,7 @@ fn wraps_its_period<T: Decide + crate::props::AtRestPolicy>(
     faces: &[FaceKey],
     band: Band,
 ) -> Result<bool, ShellError<T>> {
-    let surface = body.proven_face(faces[0]).surface();
+    let surface = body.proven_face(faces[0]).expect_described();
     let (Some(_), Some(chart)) = (
         crate::pcurves::chart_u_period(surface, band),
         crate::chart::Chart::of(surface),
@@ -3048,17 +3011,20 @@ struct SeamedRim {
 /// its outer boundary, its seams cut short, and the dying side's
 /// boundary.
 ///
-/// `host_faces` are the surviving chart's faces, unreduced: two
-/// branches, and `seams` the two edges they meet along. Both run from
-/// the host's boundary to one POLE, a vertex nothing else reaches, and
-/// the guest — reduced to one ring-free face — lies over the pole on the
-/// same surface.
+/// `host_faces` are the surviving chart's faces, unreduced, and `seams`
+/// the edges they lie on both sides of: one face whose one seam, a wrap
+/// edge, ends at its tip, read off the face's loop walk
+/// ([`crate::surface_boundary::tips`]); or two branches meeting along
+/// two seams at a vertex nothing else reaches. Either way the seams run
+/// from the host's boundary to that POLE, and the guest — reduced to one
+/// ring-free face — lies over the pole on the same surface.
 ///
 /// The surgery keeps every surviving edge: the glue (`kfmrh`) makes the
 /// guest's boundary a ring of the first host face, and each seam's pole
 /// end is then RE-ANCHORED on the ring vertex that corresponds to its
 /// boundary end, through a strut along the seam's own carrier that
-/// `kev` collapses. Two seams cannot both be re-anchored through one
+/// `kev` collapses. One seam's tip is collapsed so directly. Two seams
+/// cannot both be re-anchored through one
 /// pole, so the second is first moved off it onto a copy of it
 /// (`mev_null`), and the strut that would reach its ring vertex
 /// splits the first face (`mef`) along the first seam; the piece that
@@ -3092,34 +3058,49 @@ fn seamed_band<T: Decide + crate::props::AtRestPolicy>(
         face: designated,
         error: error.from_driver(),
     };
-    let ends = crate::query::edge_ends::<T>;
-    // The pole: the one vertex every seam reaches and nothing else does.
-    let pole = {
-        let (a, b) = ends(body, seams[0]);
-        [a, b].into_iter().find(|&v| {
-            valence(body, v) == seams.len()
-                && seams.iter().all(|&e| {
-                    let (s, t) = ends(body, e);
-                    s == v || t == v
-                })
-        })
-    };
-    // Two seams, one per branch boundary. One seam ending at a pole
-    // would leave the pole a strut tip, which tier 2 refuses at rest,
-    // so no finished operand carries it.
-    let (Some(pole), 2) = (pole, seams.len()) else {
-        return Err(not_expressible(
-            "the designated chart wraps its period, but it is not two branches whose seams \
-             meet at one pole",
-        ));
-    };
     let host = host_faces[0];
     let host_surface = proven(&body.faces, host, EntityId::Face).surface;
-    // The host face's corner at the pole: `into` arrives along one seam,
-    // `out_of` leaves along the other (along the same seam, on a spur).
     let host_cycle = cycle_of(body, body.proven_face(host).outer().0);
     let at = |body: &Body<T>, he: HeKey| proven(&body.half_edges, he, EntityId::HalfEdge).start;
-    let Some(&out_of) = host_cycle.iter().find(|&&he| at(body, he) == pole) else {
+    // The pole. One seam is a wrap edge kept to its end: the pole is its
+    // tip, read off the face's loop walk. Two seams, one per branch,
+    // meet at a pole nothing else reaches.
+    let pole = match (host_faces, seams) {
+        (&[_], &[_]) => {
+            let tips = crate::surface_boundary::tips(body, &host_cycle).unwrap_or_else(|| {
+                unreachable!("{host:?}'s outer loop was walked live, so its tips resolve")
+            });
+            match tips[..] {
+                [tip] => Some(Pole::Tip(tip)),
+                _ => None,
+            }
+        }
+        (&[_, _], &[a, b]) => {
+            let ends = crate::query::edge_ends::<T>;
+            let (s, t) = ends(body, a);
+            [s, t]
+                .into_iter()
+                .find(|&v| {
+                    valence(body, v) == 2
+                        && [a, b].iter().all(|&e| {
+                            let (s, t) = ends(body, e);
+                            s == v || t == v
+                        })
+                })
+                .map(Pole::Branches)
+        }
+        _ => None,
+    };
+    let Some(pole) = pole else {
+        return Err(not_expressible(
+            "the designated chart wraps its period, but it is neither one face whose seam ends \
+             at a pole nor two branches whose seams meet at one",
+        ));
+    };
+    let (Pole::Tip(pole_vertex) | Pole::Branches(pole_vertex)) = pole;
+    // The host face's corner at the pole: `into` arrives along one seam,
+    // `out_of` leaves along the other (along the same seam, at a tip).
+    let Some(&out_of) = host_cycle.iter().find(|&&he| at(body, he) == pole_vertex) else {
         return Err(not_expressible(
             "the designated chart wraps its period, but its first face does not reach the pole",
         ));
@@ -3137,13 +3118,16 @@ fn seamed_band<T: Decide + crate::props::AtRestPolicy>(
         ));
     };
     let point = |body: &Body<T>, v: VertexKey| body.resolve_vertex_point(v, crate::live::Proven);
-    let (p_pole, p_ga, p_gb) = (point(body, pole), point(body, ga), point(body, gb));
+    let (p_pole, p_ga, p_gb) = (point(body, pole_vertex), point(body, ga), point(body, gb));
     // Each corner the seams will end on lies on its seam strictly
     // between the boundary and the pole: the band between the boundary
     // and the ring is then the designated face's own, and not a stretch
     // of its surface past the boundary (a junction the cavity's wall
     // meets below the designated face's own).
-    for (seam, boundary, corner) in [(ea, ba, p_ga), (eb, bb, p_gb)] {
+    for (seam, boundary, corner) in [(ea, ba, p_ga), (eb, bb, p_gb)]
+        .into_iter()
+        .take(seams.len())
+    {
         let p_boundary = point(body, boundary);
         let reach = along(
             body,
@@ -3163,91 +3147,129 @@ fn seamed_band<T: Decide + crate::props::AtRestPolicy>(
         }
     }
 
-    // The second seam leaves the pole for a copy of it (a null edge), so
-    // the pole can be collapsed onto one ring vertex and the copy onto
-    // the other.
-    let made = body
-        .mev_null(
-            crate::euler::MevSite::Fan {
-                he1: out_of,
-                he2: {
-                    let data = proven(&body.edges, ea, EntityId::Edge);
-                    if data.he_plus == into {
-                        data.he_minus
-                    } else {
-                        data.he_plus
-                    }
-                },
-            },
-            crate::null::NewVertexSide::Above,
-        )
-        .map_err(rim_error)?;
-    let (station, off_pole) = (made.vertex, made.he_plus);
-
-    // The glue: the guest's boundary becomes a ring of the host face.
-    let fused = glue_ring(body, host, guest, designated, tol, dead)?;
-    let (ring_edges, ring_vertices) = ring_rows(body, fused.ring, rows);
-    let ring_cycle = cycle_of(body, fused.ring);
-    let leaving = |v: VertexKey| {
-        ring_cycle
-            .iter()
-            .copied()
-            .find(|&he| proven(&body.half_edges, he, EntityId::HalfEdge).start == v)
+    // The shared core. The glue makes the guest's boundary a ring of the
+    // host face; a strut along a seam's carrier joins the vertex `target`
+    // leaves to the ring corner `ring` leaves; `kev` collapses the strut's
+    // half that ends at `moved`, re-anchoring `seam` on the corner.
+    let glue = |body: &mut Body<T>, dead: &mut ShellRetired| {
+        let fused = glue_ring(body, host, guest, designated, tol, dead)?;
+        let rows = ring_rows(body, fused.ring, rows);
+        Ok::<_, ShellError<T>>((fused.ring, rows))
+    };
+    let leaving = |body: &Body<T>, ring: LoopKey, v: VertexKey| {
+        cycle_of(body, ring)
+            .into_iter()
+            .find(|&he| at(body, he) == v)
             .unwrap_or_else(|| unreachable!("{v:?} is a corner of the ring it was read off"))
     };
-    let (ra, rb) = (leaving(ga), leaving(gb));
-
-    // The strut that re-anchors the first seam, and the half of it that
-    // runs from the ring vertex to the pole, which `kev` collapses.
-    let collapse = |body: &Body<T>, plus: HeKey, minus: HeKey, tip: VertexKey| {
-        if body.proven_half_edge_end(plus) == tip {
-            plus
+    let collapse = |body: &mut Body<T>,
+                    strut: (HeKey, HeKey),
+                    seam: EdgeKey,
+                    moved: VertexKey,
+                    corner: geom_core::Point3<T>| {
+        let half = if body.proven_half_edge_end(strut.0) == moved {
+            strut.0
         } else {
-            minus
+            strut.1
+        };
+        let spec = re_anchored(body, seam, moved, corner, designated, band)?;
+        body.kev_describing(half, &[(seam, spec)], tol)
+            .map(|killed| killed.killed_vertex)
+            .map_err(rim_error)
+    };
+
+    let ring = match pole {
+        // One seam: the strut runs from the tip to its ring corner and
+        // the tip is collapsed onto it.
+        Pole::Tip(tip) => {
+            let (ring, rows) = glue(body, dead)?;
+            let joined = body
+                .mekr(
+                    crate::euler_ring::MekrSite::Cycles {
+                        target: out_of,
+                        ring: leaving(body, ring, ga),
+                    },
+                    along(body, ea, p_pole, p_ga, host_surface, band, designated)?,
+                    tol,
+                )
+                .map_err(rim_error)?;
+            dead.loops.push(joined.killed_ring);
+            let killed = collapse(body, (joined.he_plus, joined.he_minus), ea, tip, p_ga)?;
+            dead.vertices.push(killed);
+            (ring, rows)
+        }
+        // Two seams cannot both be re-anchored through one pole, so the
+        // second first leaves it for a copy of it (a null edge), the
+        // `station`. Its strut joins the station to its ring corner; the
+        // first's splits the first face along the first seam, and the new
+        // face, holding the pole and the scaffold between the seams, dies
+        // into the second host face. Each strut then collapses.
+        Pole::Branches(pole) => {
+            let made = body
+                .mev_null(
+                    crate::euler::MevSite::Fan {
+                        he1: out_of,
+                        he2: {
+                            let data = proven(&body.edges, ea, EntityId::Edge);
+                            if data.he_plus == into {
+                                data.he_minus
+                            } else {
+                                data.he_plus
+                            }
+                        },
+                    },
+                    crate::null::NewVertexSide::Above,
+                )
+                .map_err(rim_error)?;
+            let (station, off_pole) = (made.vertex, made.he_plus);
+            let (ring, rows) = glue(body, dead)?;
+            let (ra, rb) = (leaving(body, ring, ga), leaving(body, ring, gb));
+            let joined = body
+                .mekr(
+                    crate::euler_ring::MekrSite::Cycles {
+                        target: out_of,
+                        ring: rb,
+                    },
+                    along(body, eb, p_pole, p_gb, host_surface, band, designated)?,
+                    tol,
+                )
+                .map_err(rim_error)?;
+            dead.loops.push(joined.killed_ring);
+            let split = body
+                .mef(
+                    crate::euler::MefSite::Chords {
+                        he1: off_pole,
+                        he2: ra,
+                    },
+                    along(body, ea, p_pole, p_ga, host_surface, band, designated)?,
+                    crate::euler::FaceSurface::Inherit,
+                    tol,
+                )
+                .map_err(rim_error)?;
+            body.kef(off_pole).map_err(rim_error)?;
+            collapse(body, (joined.he_plus, joined.he_minus), eb, station, p_gb)?;
+            let killed = collapse(body, (split.he_plus, split.he_minus), ea, pole, p_ga)?;
+            dead.vertices.push(killed);
+            (ring, rows)
         }
     };
-    let joined = body
-        .mekr(
-            crate::euler_ring::MekrSite::Cycles {
-                target: out_of,
-                ring: rb,
-            },
-            along(body, eb, p_pole, p_gb, host_surface, band, designated)?,
-            tol,
-        )
-        .map_err(rim_error)?;
-    dead.loops.push(joined.killed_ring);
-    let split = body
-        .mef(
-            crate::euler::MefSite::Chords {
-                he1: off_pole,
-                he2: ra,
-            },
-            along(body, ea, p_pole, p_ga, host_surface, band, designated)?,
-            crate::euler::FaceSurface::Inherit,
-            tol,
-        )
-        .map_err(rim_error)?;
-    // The new face holds the pole and the scaffold between the two
-    // seams; it dies into the second host face.
-    body.kef(off_pole).map_err(rim_error)?;
-    let to_station = collapse(body, joined.he_plus, joined.he_minus, station);
-    let to_pole = collapse(body, split.he_plus, split.he_minus, pole);
-    let moved = re_anchored(body, eb, station, p_gb, designated, band)?;
-    body.kev_describing(to_station, &[(eb, moved)], tol)
-        .map_err(rim_error)?;
-    let moved = re_anchored(body, ea, pole, p_ga, designated, band)?;
-    let killed = body
-        .kev_describing(to_pole, &[(ea, moved)], tol)
-        .map_err(rim_error)?;
-    dead.vertices.push(killed.killed_vertex);
+    let (ring, (ring_edges, ring_vertices)) = ring;
     Ok(SeamedRim {
         face: host,
-        ring: fused.ring,
+        ring,
         ring_edges,
         ring_vertices,
         seam_pieces: Vec::new(),
     })
+}
+
+/// The pole of a chart that wraps through one ([`seamed_band`]).
+#[derive(Clone, Copy)]
+enum Pole {
+    /// The tip of one face's one seam, a wrap edge.
+    Tip(VertexKey),
+    /// The vertex two branches' two seams meet at.
+    Branches(VertexKey),
 }
 
 /// **The rim of a chart that wraps its period between two boundaries**,
@@ -3741,6 +3763,91 @@ mod rim_seam_rows {
     }
 }
 
+#[cfg(test)]
+mod pcurve_finding_endings {
+    #![allow(clippy::unwrap_used)]
+    use super::ShellError;
+    use crate::entity::{FaceKey, HalfEdgeKey};
+    use crate::pcurves::PcurveMintError;
+    use crate::validate::ValidationError;
+    use geom_brep::{OffMargin, PcurveCertifyError};
+    use geom_core::MarginDiag;
+
+    /// The thin solid's finding set holding `finding` alone, as the
+    /// finish or the cavity's completion reports it.
+    fn not_valid(finding: PcurveMintError) -> ShellError<f64> {
+        ShellError::NotValid {
+            findings: crate::NotFinished::new(vec![ValidationError::Pcurve { finding }]),
+        }
+    }
+
+    /// **A completion refusal at the shell door ends as the finish's
+    /// finding does, at rest** (D4 ¶1 (iv); [`crate::NotFinished`] reads
+    /// its findings at rest at every door): an incidence read in band
+    /// ends in the pose lever, never a defect, and a definite miss in the
+    /// at-rest "kernel defect or a damaged file"; an undecided reading of
+    /// the walk "not yet", a torn loop a defect. No arena key is spelled.
+    #[test]
+    fn a_completion_refusal_ends_by_its_own_ending() {
+        let incidence = |margin| PcurveMintError::Certify {
+            half_edge: HalfEdgeKey::default(),
+            error: PcurveCertifyError::Incidence(geom_brep::IncidenceRefusal::off_chart(
+                geom::SurfaceKind::Cone,
+                geom::CurveKind::Circle,
+                "WHY",
+                margin,
+            )),
+        };
+        let in_band = Some(OffMargin::InBand(MarginDiag::value(4e-9)));
+        for (margin, defect) in [(in_band, false), (None, true)] {
+            let text = not_valid(incidence(margin)).render(geom_brep::recourse::Reading::Build);
+            assert_eq!(
+                text.matches("kernel defect").count(),
+                usize::from(defect),
+                "{text}"
+            );
+            assert_eq!(
+                text.contains(geom_brep::recourse::INCIDENCE_AT_POSE.lever),
+                !defect,
+                "{text}"
+            );
+        }
+        let cause = geom_core::Indeterminate {
+            margin: MarginDiag::value(5e-9),
+            band: geom_core::Band::new(1e-9, 1e-8).unwrap(),
+            predicate: Some("pcurve_loop_v_stretch"),
+            terminal_sliver: false,
+        };
+        for (finding, defect) in [
+            (
+                PcurveMintError::NetStretchUndecided {
+                    half_edge: HalfEdgeKey::default(),
+                    cause,
+                },
+                false,
+            ),
+            (
+                PcurveMintError::LoopNotClosed {
+                    face: FaceKey::default(),
+                },
+                true,
+            ),
+        ] {
+            let text = not_valid(finding).render(geom_brep::recourse::Reading::Build);
+            assert_eq!(
+                text.matches("kernel defect").count(),
+                usize::from(defect),
+                "{text}"
+            );
+            assert_eq!(text.contains("no way through yet"), !defect, "{text}");
+            assert!(
+                !text.contains("FaceKey") && !text.contains("HalfEdgeKey"),
+                "{text}"
+            );
+        }
+    }
+}
+
 /// **A cavity wall's torus off its ring convention ends in its half's
 /// lever**, in band or decided, as the convention ends it at every door
 /// (`geom_brep::TorusRefusal::recourse`), and is said in the half's own
@@ -3820,97 +3927,6 @@ mod cavity_torus_endings {
     }
 }
 
-#[cfg(test)]
-mod mint_endings {
-    #![allow(clippy::unwrap_used)]
-    use super::ShellError;
-    use crate::entity::{FaceKey, HalfEdgeKey};
-    use crate::pcurves::PcurveMintError;
-    use crate::replace_face::ReplaceFaceError;
-    use geom_brep::{OffMargin, PcurveCertifyError};
-    use geom_core::{KERNEL_DEFECT_ENDING, MarginDiag};
-
-    /// **The closing mint's refusal ends by its own ending at the build
-    /// door** (D4 ¶1 (iv)), through both shell arms that carry it: an
-    /// incidence read in band ends in the pose lever, never a defect, and
-    /// a definite miss in the kernel's defect, once; an undecided reading
-    /// of the pass "not yet", a torn loop the defect. No arena key is
-    /// spelled.
-    #[test]
-    fn the_shell_ops_mint_refusal_ends_by_its_own_ending() {
-        let mint = |margin| PcurveMintError::Certify {
-            half_edge: HalfEdgeKey::default(),
-            error: PcurveCertifyError::Incidence(geom_brep::IncidenceRefusal::off_chart(
-                geom::SurfaceKind::Cone,
-                geom::CurveKind::Circle,
-                "WHY",
-                margin,
-            )),
-        };
-        let in_band = Some(OffMargin::InBand(MarginDiag::value(4e-9)));
-        for (margin, defect) in [(in_band, false), (None, true)] {
-            let shell: ShellError<f64> = ShellError::Pcurve {
-                source: mint(margin),
-            };
-            let face: ShellError<f64> = ShellError::Face {
-                face: FaceKey::default(),
-                error: Box::new(ReplaceFaceError::Pcurve {
-                    source: mint(margin),
-                }),
-            };
-            for refusal in [shell, face] {
-                let text = refusal.render(geom_brep::recourse::Reading::Build);
-                assert_eq!(
-                    text.matches(KERNEL_DEFECT_ENDING).count(),
-                    usize::from(defect),
-                    "{text}"
-                );
-                assert_eq!(
-                    text.contains(geom_brep::recourse::INCIDENCE_AT_POSE.lever),
-                    !defect,
-                    "{text}"
-                );
-            }
-        }
-        // A refusal of the pass itself ends by its own arm: an undecided
-        // reading "not yet", a torn loop the kernel's defect, once.
-        let cause = geom_core::Indeterminate {
-            margin: MarginDiag::value(5e-9),
-            band: geom_core::Band::new(1e-9, 1e-8).unwrap(),
-            predicate: Some("pcurve_loop_v_stretch"),
-            terminal_sliver: false,
-        };
-        for (source, defect) in [
-            (
-                PcurveMintError::NetStretchUndecided {
-                    half_edge: HalfEdgeKey::default(),
-                    cause,
-                },
-                false,
-            ),
-            (
-                PcurveMintError::LoopNotClosed {
-                    face: FaceKey::default(),
-                },
-                true,
-            ),
-        ] {
-            let text =
-                ShellError::<f64>::Pcurve { source }.render(geom_brep::recourse::Reading::Build);
-            assert_eq!(
-                text.matches(KERNEL_DEFECT_ENDING).count(),
-                usize::from(defect),
-                "{text}"
-            );
-            assert_eq!(text.contains("no way through yet"), !defect, "{text}");
-            assert!(
-                !text.contains("FaceKey") && !text.contains("HalfEdgeKey"),
-                "{text}"
-            );
-        }
-    }
-}
-
 /// The half-edges of `r#loop` in cycle order. Every loop the seamed
 /// band reads bounds a face of a finished wall or is a ring the glue
 /// just made of one, so it is a cycle.
@@ -3947,7 +3963,7 @@ fn pair_rings<T: Decide>(
     let source_rings = rings_of(source);
     let not_expressible =
         |what: &'static str| ShellError::OpenFaceRimNotExpressible { face: rim, what };
-    let chart = body.proven_face(rim).surface().clone();
+    let chart = body.proven_face(rim).expect_described().clone();
     let escalated = |source| ShellError::Escalated { source };
     match (&rim_rings[..], &source_rings[..]) {
         ([], []) => Ok(Vec::new()),
@@ -4288,7 +4304,7 @@ fn offset_door<T: Decide>(
     let all_planar = body
         .face_views()
         .filter(|f| scope.holds_face(f.key()))
-        .all(|f| matches!(f.surface(), geom::Surface::Plane { .. }));
+        .all(|f| matches!(f.expect_described(), geom::Surface::Plane { .. }));
     if all_planar {
         return Ok(OffsetDoor::Planar);
     }
@@ -4345,6 +4361,7 @@ fn offending_face<T: Real>(body: &Body<T>, error: &ReplaceFaceError<T>) -> Optio
         | ReplaceFaceError::NeighborPairUnroutable { edge, .. }
         | ReplaceFaceError::FittedBoundaryUnsupported { edge, .. }
         | ReplaceFaceError::CarrierLaneUnsupported { edge, .. }
+        | ReplaceFaceError::MovedCircleCollapses { edge, .. }
         | ReplaceFaceError::IsoRow { edge, .. }
         | ReplaceFaceError::Op {
             edge: Some(edge), ..
@@ -4353,7 +4370,6 @@ fn offending_face<T: Real>(body: &Body<T>, error: &ReplaceFaceError<T>) -> Optio
         | ReplaceFaceError::EmptyGroup
         | ReplaceFaceError::Escalated { .. }
         | ReplaceFaceError::Op { edge: None, .. }
-        | ReplaceFaceError::Pcurve { .. }
         | ReplaceFaceError::Join { .. }
         | ReplaceFaceError::ResultNotClosed { .. } => None,
     }
@@ -4380,7 +4396,7 @@ fn lift_to<T: Decide>(
 ) -> Result<T, ReplaceFaceError<T>> {
     let surface = |face: FaceKey| {
         let view = body.proven_face(face);
-        view.surface()
+        view.expect_described()
     };
     let d = match geom_brep::offset_distance(surface(from[0]), surface(onto)) {
         Ok(d) => d,
@@ -4686,7 +4702,7 @@ fn planar_faces<T: Decide>(
         let face = view.key();
         let geom::Surface::Plane {
             frame: carrier_frame,
-        } = view.surface()
+        } = view.expect_described()
         else {
             continue;
         };
@@ -5394,7 +5410,7 @@ fn moved_walls<T: Decide>(
     let mut out = Vec::new();
     for view in cavity.face_views() {
         let face = view.key();
-        let geom::Surface::Plane { frame, .. } = view.surface() else {
+        let geom::Surface::Plane { frame, .. } = view.expect_described() else {
             continue;
         };
         let (origin, normal) = (frame.origin(), frame.axis());
@@ -6667,8 +6683,8 @@ mod tests {
 
     /// A vertex whose orbit does not walk has no valence to answer, so
     /// the read panics naming the walk rather than answer zero, which
-    /// the spur test reads as "not a tip" and sends to the slit's
-    /// `kemr`. A lone vertex meets no edge and answers zero.
+    /// the two-branch pole reading would take as "not the pole". A lone
+    /// vertex meets no edge and answers zero.
     #[test]
     fn valence_panics_on_a_vertex_whose_orbit_does_not_walk() {
         let (body, halves, v) = crate::fixtures::torn_cube_closing_through_another_vertex();

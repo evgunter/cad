@@ -2,7 +2,7 @@
 //! `review_m2_pr5`. `survives_*` tests pass as-is and pin behavior the
 //! review verified; `finding_*` tests pin defects (FINDING comments).
 //!
-//! Assignments covered here (f64 lane): two-band wire construction
+//! Assignments covered here (f64 lane): one-band wire construction
 //! (multi-segment wires, cosurface across bands, pole valence), washer
 //! zip lineage, Seam-vs-tier-3 honesty (rotated frames, forged seams),
 //! witness antipode bitwise pin, an independent volume oracle
@@ -147,17 +147,6 @@ fn seam_edges(body: &Body<f64>) -> Vec<(EdgeKey, topo::SurfaceKey)> {
         .collect()
 }
 
-/// A wire full revolve's walls are each two π-bands parted at both
-/// meridians, so no edge of it is a wrap edge (D1: a wrap edge's two
-/// halves bound one face).
-fn assert_no_wrap_edges(body: &Body<f64>) {
-    assert_eq!(
-        seam_edges(body),
-        vec![],
-        "a wire's meridians part two π-bands"
-    );
-}
-
 /// Asserts every Seam edge's samples sit at azimuth ≈ 0 of its own
 /// surface (the u = 0 alignment claim, checked by the reviewer's own
 /// azimuth computation, not by re-running certification).
@@ -255,7 +244,7 @@ fn full_pappus_y(t: &Revolved<f64>) -> f64 {
 }
 
 // =====================================================================
-// Assignment 1 — the two-band wire construction, attacked with more
+// Assignment 1 — the one-band wire construction, attacked with more
 // interior vertices than any shipped test (3 interior wire vertices,
 // mixed plane/cylinder/cone walls) and with a cosurface pair INSIDE
 // the wire.
@@ -274,51 +263,27 @@ fn dome() -> ProfileLoop<f64> {
 }
 
 #[test]
-fn survives_wire_four_segment_dome_two_band_structure() {
+fn survives_wire_four_segment_dome_one_band_structure() {
     let vp = validated(vec![dome()]);
     let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
     // k = 4 wire segments, 3 interior vertices. Both tips end plane
-    // discs, built whole (no pole, no meridian, no π twin), so:
-    // V = 3·2 = 6; E = 4 meridians (cylinder, cone) + 3 + 3 half-rims
-    // = 10; F = 1 + 2 + 2 + 1 = 6; R = 0. 6 − 10 + 6 = 2 ⇒ g = 0.
-    assert_eq!(counts(&t.body), (6, 10, 6, 0));
+    // discs, built whole (no pole, no meridian), so: V = 3; E = 2
+    // meridians (cylinder, cone) + 3 full-period rims = 5; F = 4; R = 0.
+    // 3 − 5 + 4 = 2 ⇒ g = 0.
+    assert_eq!(counts(&t.body), (3, 5, 4, 0));
     assert_eq!(t.body.solids().count(), 1);
     assert_eq!(t.body.shells().count(), 1);
-    // Exactly 4 surfaces: each curved segment's band pair shares ONE key.
-    assert_eq!(t.body.surfaces().count(), 4);
-    let RevolvedKind::Full {
-        meridians,
-        pi_walls,
-        pi_meridians,
-        pi_rims,
-        ..
-    } = &t.kind
-    else {
+    // Exactly 4 surfaces, one per wall.
+    assert_eq!(t.body.described_surfaces().count(), 4);
+    let RevolvedKind::Full { meridians, .. } = &t.kind else {
         panic!("full");
     };
     let meridians = &meridians[0];
-    for j in [1, 2] {
-        let b1 = t.walls()[0][j].expect("band-1 wall");
-        let b2 = pi_walls[j].expect("band-2 wall");
-        assert_ne!(b1, b2, "bands are distinct faces");
-        assert_eq!(
-            wall_key(&t.body, b1),
-            wall_key(&t.body, b2),
-            "segment {j}: bands must share one surface key"
-        );
+    for j in 0..4 {
+        assert!(t.walls()[0][j].is_some(), "segment {j}: the wall is built");
     }
-    for j in [0, 3] {
-        assert!(t.walls()[0][j].is_some(), "segment {j}: the disc is built");
-        assert!(
-            pi_walls[j].is_none(),
-            "segment {j}: a plane wall has no π twin"
-        );
-    }
-    assert!(
-        t.walls()[0][4].is_none() && pi_walls[4].is_none(),
-        "axis run omitted"
-    );
+    assert!(t.walls()[0][4].is_none(), "axis run omitted");
     // Wall catalog: plane, cylinder, cone, plane.
     let kind_of = |f: FaceKey| t.body.get_surface(wall_key(&t.body, f)).unwrap().clone();
     assert!(matches!(
@@ -343,17 +308,14 @@ fn survives_wire_four_segment_dome_two_band_structure() {
         Surface::Plane { .. }
     ));
     // Neither tip is a vertex: each disc's centre went with its slit.
-    // Interior vertices (both copies): the band-1 and band-2 half-rims
+    // Interior vertices: the full-period rim (a self-loop, two ends)
     // plus one meridian per curved wall beside them — valence 4 between
     // the cylinder and the cone, 3 beside a disc. (Cross-check:
-    // 2E = 20 = 2·4 + 4·3.)
+    // 2E = 10 = 4 + 2·3.) No vertex at the antipode.
     for (p, valence_want) in [
         (Point3::new(1.0, 0.0, 0.0), 3),
         (Point3::new(1.0, 1.0, 0.0), 4),
         (Point3::new(0.5, 1.5, 0.0), 3),
-        (Point3::new(-1.0, 0.0, 0.0), 3),
-        (Point3::new(-1.0, 1.0, 0.0), 4),
-        (Point3::new(-0.5, 1.5, 0.0), 3),
     ] {
         assert_eq!(
             valence(&t.body, vertex_at(&t.body, p)),
@@ -361,45 +323,27 @@ fn survives_wire_four_segment_dome_two_band_structure() {
             "interior {p:?}"
         );
     }
-    // Meridian descriptions: the angle-0 meridian of each PERIODIC
-    // wall is that chart's own seam; the plane walls' meridians are
-    // not (a plane chart has no seam to be) and every angle-π copy is
-    // an ordinary image, because only one meridian per periodic chart
-    // can be its seam.
-    //
-    // **Re-expressed at PCURVE P-1b.** These eight lines used to read
-    // the description's VARIANT — `IsoCurve` for a seam, `MappedCurve`
-    // otherwise. U2 collapsed both into the one conventional form, so
-    // the variant now says `Chart` on all eight and discriminates
-    // nothing. The two facts the variants stood for are still stored:
-    // the seam obligation on the image, and the authority record (U2
-    // Q3) saying a profile entity determined the locus. The row reads
-    // those, and additionally pins each image to ITS OWN wall's chart
-    // — teeth the variant test never had.
-    // A wire's angle-0 meridians part their walls' two π-bands, so they
-    // are no wrap edges (D1) but declared images at rest, as the π
-    // copies are.
+    // Meridian descriptions: the meridian of each PERIODIC wall has
+    // both halves in its wall, so it is that chart's own seam, derived
+    // by the kernel and pinned to ITS OWN wall's chart; the plane walls
+    // have none.
     let wall_of = |seg: usize| wall_key(&t.body, t.walls()[0][seg].unwrap());
-    assert_declared_image_in(&t.body, meridians[1].unwrap(), wall_of(1));
-    assert_declared_image_in(&t.body, meridians[2].unwrap(), wall_of(2));
+    assert_seam_of(&t.body, meridians[1].unwrap(), wall_of(1));
+    assert_seam_of(&t.body, meridians[2].unwrap(), wall_of(2));
     for seg in [0, 3, 4] {
-        assert!(meridians[seg].is_none() && pi_meridians[seg].is_none());
-    }
-    for seg in [1, 2] {
-        assert_declared_image_in(&t.body, pi_meridians[seg].unwrap(), wall_of(seg));
+        assert!(meridians[seg].is_none());
     }
     // All 3 interior joins are transverse (plane×cyl, cyl×cone,
-    // cone×plane): Intersection in BOTH bands.
-    for (v, pr) in pi_rims.iter().enumerate().take(4).skip(1) {
-        for e in [t.rims[0][v].unwrap(), pr.unwrap()] {
-            assert!(matches!(
-                description(&t.body, e),
-                EdgeDescription::Intersection { .. }
-            ));
-        }
+    // cone×plane): one full-period Intersection each.
+    for v in 1..4 {
+        assert!(matches!(
+            description(&t.body, t.rims[0][v].unwrap()),
+            EdgeDescription::Intersection { .. }
+        ));
     }
     assert!(t.rims[0][0].is_none() && t.rims[0][4].is_none());
-    assert_no_wrap_edges(&t.body);
+    assert_seams_on_u0(&t.body);
+    assert_eq!(seam_edges(&t.body).len(), 2, "the two curved walls' seams");
     // Sign + kernel-coupled magnitude: cylinder π + frustum 7π/24.
     assert!(my_signed_volume(&t.body) > 0.0);
     let v = full_pappus_y(&t);
@@ -413,8 +357,8 @@ fn survives_wire_four_segment_dome_two_band_structure() {
 #[test]
 fn survives_wire_cosurface_pair_inside_the_wire() {
     // Cylinder wall split into two collinear segments at (1, 1): the
-    // run is ONE cylinder wall in each band, and the split vertex has
-    // no entity (a full revolve keeps no station).
+    // run is ONE cylinder wall, and the split vertex has no entity (a
+    // full revolve keeps no station).
     let lp = ProfileLoop::polygon([
         Point2::new(0.0, 0.0),
         Point2::new(1.0, 0.0),
@@ -425,39 +369,23 @@ fn survives_wire_cosurface_pair_inside_the_wire() {
     let vp = validated(vec![lp]);
     let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
-    // Two rim circles of two halves each, the cylinder's two meridians,
-    // two whole discs and two cylinder bands.
-    assert_eq!(counts(&t.body), (4, 6, 4, 0));
+    // Two rim circles, the cylinder's one meridian, two whole discs and
+    // one cylinder wall.
+    assert_eq!(counts(&t.body), (2, 3, 3, 0));
     // plane + ONE cylinder + plane.
-    assert_eq!(t.body.surfaces().count(), 3);
-    let RevolvedKind::Full {
-        pi_walls, pi_rims, ..
-    } = &t.kind
-    else {
-        panic!("full");
-    };
+    assert_eq!(t.body.described_surfaces().count(), 3);
     let walls = t.walls();
-    assert_eq!(walls[0][1], walls[0][2], "one band-1 wall over the run");
-    assert_eq!(pi_walls[1], pi_walls[2], "one band-2 wall over the run");
-    assert_ne!(walls[0][1], pi_walls[1]);
-    assert!(
-        t.rims[0][2].is_none() && pi_rims[2].is_none(),
-        "the split vertex has no rim"
-    );
-    // The genuine corners at (1,0) and (1,2): Intersection both bands.
+    assert_eq!(walls[0][1], walls[0][2], "one wall over the run");
+    assert!(t.rims[0][2].is_none(), "the split vertex has no rim");
+    // The genuine corners at (1,0) and (1,2): Intersection.
     for v in [1, 3] {
-        for e in [t.rims[0][v].unwrap(), pi_rims[v].unwrap()] {
-            assert!(matches!(
-                description(&t.body, e),
-                EdgeDescription::Intersection { .. }
-            ));
-        }
+        assert!(matches!(
+            description(&t.body, t.rims[0][v].unwrap()),
+            EdgeDescription::Intersection { .. }
+        ));
     }
-    assert_no_wrap_edges(&t.body);
-    // Independent volume: Pappus for the cylinder solid of revolution:
-    // V = π·r²·h = π·1²·2. Dense chordal fan (64 samples) from
-    // boundary points is sound here (wire faces are half-bands whose
-    // boundaries are NOT coplanar — they include half-rims).
+    assert_seams_on_u0(&t.body);
+    assert_eq!(seam_edges(&t.body).len(), 1, "the cylinder's one seam");
     // Fan oracle: sign only (see meridian_pappus_volume docs).
     assert!(my_signed_volume(&t.body) > 0.0);
     // Kernel-coupled magnitude: Pappus V = π·r²·h = 2π.
@@ -471,13 +399,10 @@ fn survives_wire_cosurface_pair_inside_the_wire() {
 
 #[test]
 fn survives_ball_pole_valence_and_volume() {
-    // The ball's poles must have valence exactly 2, and the reviewer's
-    // dense fan (sound here: each half-band boundary contains only the
-    // two coplanar meridians, so fan from a boundary point degenerates
-    // — instead fan each band from an equatorial interior point, the
-    // implementer's lifted-oracle shape, but with the reviewer's dense
-    // samples and a magnitude bound from an independently computed
-    // chordal expectation).
+    // The ball's poles are its meridian's two wrap tips, valence
+    // exactly 1, and its volume is read off the stored meridian carrier
+    // revolved by the reviewer (a boundary fan spans nothing: the one
+    // face's loop walks the meridian out and back).
     let lp = bulge_loop(vec![
         (Point2::new(0.0, -1.0), 1.0),
         (Point2::new(0.0, 1.0), 0.0),
@@ -486,11 +411,11 @@ fn survives_ball_pole_valence_and_volume() {
     let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
     for p in [Point3::new(0.0, -1.0, 0.0), Point3::new(0.0, 1.0, 0.0)] {
-        assert_eq!(valence(&t.body, vertex_at(&t.body, p)), 2, "pole {p:?}");
+        assert_eq!(valence(&t.body, vertex_at(&t.body, p)), 1, "pole {p:?}");
     }
-    // Independent volume oracle for the two-band ball: mesh each band
-    // by revolving the meridian carrier samples about the y-axis over
-    // the band's angular range — built by the reviewer from the stored
+    // Independent volume oracle for the one-face ball: mesh it by
+    // revolving the meridian carrier samples about the y-axis over the
+    // whole turn — built by the reviewer from the stored
     // carrier only, then compared against 4π/3.
     let RevolvedKind::Full { meridians, .. } = &t.kind else {
         panic!("full")
@@ -648,7 +573,11 @@ fn survives_four_arc_donut_wrap_run_single_torus() {
     assert_all_tiers(&t.body);
     // V4 E8 F4 R0: E–P = 0 ⇒ g = 1.
     assert_eq!(counts(&t.body), (4, 8, 4, 0));
-    assert_eq!(t.body.surfaces().count(), 1, "one torus for all four walls");
+    assert_eq!(
+        t.body.described_surfaces().count(),
+        1,
+        "one torus for all four walls"
+    );
     let keys: Vec<_> = t.walls()[0]
         .iter()
         .map(|w| wall_key(&t.body, w.unwrap()))
@@ -656,7 +585,7 @@ fn survives_four_arc_donut_wrap_run_single_torus() {
     assert!(keys.windows(2).all(|w| w[0] == w[1]), "{keys:?}");
     assert!(matches!(
         t.body.get_surface(keys[0]),
-        Some(Surface::Torus { .. })
+        Ok(Surface::Torus { .. })
     ));
     // All rims conventional — one torus on both sides under-determines
     // the locus, so each rim is an image in that chart declared by the
@@ -695,43 +624,39 @@ fn survives_four_arc_donut_wrap_run_single_torus() {
 // =====================================================================
 
 #[test]
-fn survives_forged_seam_on_pi_meridian_is_refused() {
-    // The angle-π meridian of the ball parts its two π-bands, so it is
-    // no wrap edge of either. A wrap flag forged onto it meters the one
-    // image like any chart image — the π meridian IS an image of the
-    // sphere — so certification admits it, and what stands between it
-    // and a silently wrong model is tier 3's adjacency arm: a wrap
-    // edge's two halves bound one face (D1).
-    let lp = bulge_loop(vec![
-        (Point2::new(0.0, -1.0), 1.0),
-        (Point2::new(0.0, 1.0), 0.0),
+fn survives_forged_seam_on_a_rim_is_refused() {
+    // The cone's base rim parts the cone from the base disc, so it is
+    // no wrap edge of either. A wrap flag of the cone forged onto it
+    // meters the one image like any chart image — the rim IS a
+    // latitude of the cone — and the edge door refuses it at the write:
+    // a wrap edge's two halves bound one face (D1).
+    let lp = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(0.0, 1.0),
     ]);
     let vp = validated(vec![lp]);
     let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
     let mut body = t.body.clone().into_body();
-    let RevolvedKind::Full { pi_meridians, .. } = &t.kind else {
-        panic!("full")
-    };
-    let pi_edge = pi_meridians[0].unwrap();
-    let sphere_key = wall_key(&body, t.walls()[0][0].unwrap());
-    let e = body.get_edge(pi_edge).unwrap();
+    let rim = t.rims[0][1].unwrap();
+    let cone_key = wall_key(&body, t.walls()[0][1].unwrap());
+    let e = body.get_edge(rim).unwrap();
     let c = body.get_curve_geom(e.curve).unwrap().certified().unwrap();
     let (carrier, (t0, t1)) = (c.carrier().clone(), c.params());
     let forged = geom_brep::EdgeCurveSpec {
-        description: EdgeDescriptionSpec::wrap(sphere_key),
+        description: EdgeDescriptionSpec::wrap(cone_key),
         carrier,
         param_start: t0,
         param_end: t1,
     };
-    body.set_edge_curve(pi_edge, forged, Tol::witness())
-        .expect("the π meridian is an image of the sphere, so its one meter certifies");
     assert_eq!(
-        topo::validate_geometric(&body, Tol::witness()),
-        Err(vec![topo::ValidationError::DescriptionNotAdjacent {
-            edge: pi_edge
-        }]),
-        "a forged wrap flag on an edge between two faces is refused at tier 3"
+        body.set_edge_curve(rim, forged, Tol::witness()),
+        Err(topo::EulerOpError::DescriptionNotAdjacent {
+            edge: topo::EdgeSubject::Keyed(rim)
+        }),
+        "a forged wrap flag on an edge between two faces is refused"
     );
+    assert_all_tiers(&body);
 }
 
 #[test]
@@ -1096,7 +1021,7 @@ fn survives_tight_but_definite_torus_clearance_is_accepted() {
         .filter(|w| {
             matches!(
                 t.body.get_surface(wall_key(&t.body, w.unwrap())),
-                Some(Surface::Torus { .. })
+                Ok(Surface::Torus { .. })
             )
         })
         .count();
@@ -1420,7 +1345,7 @@ fn survives_forged_seam_on_a_plane_annulus_edge_is_refused() {
     let plane_key = wall_key(&body, annulus);
     assert!(matches!(
         body.get_surface(plane_key),
-        Some(Surface::Plane { .. })
+        Ok(Surface::Plane { .. })
     ));
     // The annulus's outer circle: its whole outer cycle.
     let face = body.get_face(annulus).unwrap();
@@ -1453,11 +1378,10 @@ fn survives_forged_seam_on_a_plane_annulus_edge_is_refused() {
 #[test]
 fn survives_wire_cosurface_pair_at_segment_zero() {
     // Two collinear oblique segments FROM the axis tip ((0,0)->(1,1)->
-    // (2,2)): one run, so ONE cone wall in each band, and the split
-    // vertex (wire vertex 1) has no entity in a full revolve. The run's
-    // band-2 wall is the surviving wire face, so this pins that its
-    // bookkeeping (set_face_surface(seed, Shared(wall0))) reads the
-    // run's wall.
+    // (2,2)): one run, so ONE cone wall, and the split vertex (wire
+    // vertex 1) has no entity in a full revolve. The run's wall ends at
+    // the apex, so this pins that the run's one meridian is the cone's
+    // seam with the apex its tip.
     let lp = ProfileLoop::polygon([
         Point2::new(0.0, 0.0),
         Point2::new(1.0, 1.0),
@@ -1467,34 +1391,30 @@ fn survives_wire_cosurface_pair_at_segment_zero() {
     let vp = validated(vec![lp]);
     let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
-    // The cone (apex, two meridians, two bands) and the top disc built
-    // whole (no pole): V = 1 + 2 = 3; E = 2 + 2 = 4; F = 2 + 1 = 3.
-    assert_eq!(counts(&t.body), (3, 4, 3, 0));
+    // The cone (apex, one meridian, one face) and the top disc built
+    // whole (no pole): V = 1 + 1 = 2; E = 1 + 1 = 2; F = 1 + 1 = 2.
+    assert_eq!(counts(&t.body), (2, 2, 2, 0));
     // Surfaces: ONE cone + one plane.
-    assert_eq!(t.body.surfaces().count(), 2);
-    let RevolvedKind::Full {
-        pi_walls, pi_rims, ..
-    } = &t.kind
-    else {
+    assert_eq!(t.body.described_surfaces().count(), 2);
+    let RevolvedKind::Full { meridians, .. } = &t.kind else {
         panic!("full")
     };
     let walls = t.walls();
-    assert_eq!(walls[0][0], walls[0][1], "one band-1 wall over the run");
-    assert_eq!(pi_walls[0], pi_walls[1], "one band-2 wall over the run");
+    assert_eq!(walls[0][0], walls[0][1], "one wall over the run");
     let k0 = wall_key(&t.body, walls[0][0].unwrap());
-    assert_eq!(wall_key(&t.body, pi_walls[0].unwrap()), k0);
-    assert!(matches!(t.body.get_surface(k0), Some(Surface::Cone { .. })));
-    assert!(
-        t.rims[0][1].is_none() && pi_rims[1].is_none(),
-        "the split vertex has no rim"
-    );
-    // The cone-plane corner (vertex 2) transverse in both bands.
-    for e in [t.rims[0][2].unwrap(), pi_rims[2].unwrap()] {
-        assert!(matches!(
-            description(&t.body, e),
-            EdgeDescription::Intersection { .. }
-        ));
-    }
+    assert!(matches!(t.body.get_surface(k0), Ok(Surface::Cone { .. })));
+    assert!(t.rims[0][1].is_none(), "the split vertex has no rim");
+    // The run's one meridian is the cone's seam, its apex end a tip.
+    let seam = meridians[0][0].unwrap();
+    assert_eq!(meridians[0][1], Some(seam), "one meridian over the run");
+    assert_seam_of(&t.body, seam, k0);
+    let apex = vertex_at(&t.body, Point3::origin());
+    assert_eq!(valence(&t.body, apex), 1, "the apex is the seam's tip");
+    // The cone-plane corner (vertex 2) transverse.
+    assert!(matches!(
+        description(&t.body, t.rims[0][2].unwrap()),
+        EdgeDescription::Intersection { .. }
+    ));
     // Pappus: cone r=z from 0..2 -> integral of z^2 dz = 8/3; top
     // disc dz = 0. V = pi * 8/3. The run is ONE meridian edge, so the
     // oracle's midpoint rule (256 steps per edge, error ~1/(3n²) on a
@@ -1552,7 +1472,7 @@ fn survives_wire_quarter_arc_sphere_cap_with_tangent_join() {
     // Silo: base disc + cylinder + quarter-arc sphere cap (arc
     // centered ON the axis at (0,1)) + axis run. The cylinder-sphere
     // join at (1,1) is TANGENT (smooth, distinct keys): the D2
-    // conventional split must survive in BOTH bands, and tier 3 must
+    // conventional split must survive, and tier 3 must
     // accept it while the transverse base join upgrades.
     let lp = bulge_loop(vec![
         (Point2::new(0.0, 0.0), 0.0),
@@ -1568,55 +1488,46 @@ fn survives_wire_quarter_arc_sphere_cap_with_tangent_join() {
     let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
     // k = 3 (plane, cylinder, sphere), 2 interior vertices; the base
-    // disc is built whole (no pole, no meridian): V5 E8 F5 R0, 3
-    // surfaces.
-    assert_eq!(counts(&t.body), (5, 8, 5, 0));
-    assert_eq!(t.body.surfaces().count(), 3);
-    let RevolvedKind::Full {
-        meridians,
-        pi_walls,
-        pi_rims,
-        ..
-    } = &t.kind
-    else {
+    // disc is built whole (no pole, no meridian): V = 2 + the pole;
+    // E = 2 rims + 2 meridians; F = 3; R = 0. 3 surfaces.
+    assert_eq!(counts(&t.body), (3, 4, 3, 0));
+    assert_eq!(t.body.described_surfaces().count(), 3);
+    let RevolvedKind::Full { meridians, .. } = &t.kind else {
         panic!("full")
     };
     let meridians = &meridians[0];
     let sphere_key = wall_key(&t.body, t.walls()[0][2].unwrap());
     assert!(matches!(
         t.body.get_surface(sphere_key),
-        Some(Surface::Sphere { .. })
+        Ok(Surface::Sphere { .. })
     ));
-    assert_eq!(wall_key(&t.body, pi_walls[2].unwrap()), sphere_key);
-    // Transverse base join: Intersection in both bands.
-    for e in [t.rims[0][1].unwrap(), pi_rims[1].unwrap()] {
-        assert!(matches!(
-            description(&t.body, e),
-            EdgeDescription::Intersection { .. }
-        ));
-    }
-    // Tangent cylinder-sphere join: INTRINSIC in both bands since M5
-    // PR 12. HISTORY: this pin read `MappedCurve` from M2 to S13,
-    // because the jet certificate's span bounds covered only LINE
-    // carriers and a latitude join's carrier is a circle — so tier 3's
-    // must-carry could not demand the intrinsic description and the
-    // constructor did not store it. PR 12's circle arm retired that
-    // class (with its equivariance proof), and prefer-intrinsic
-    // (D2/OQ7) then demands what it always meant to: the cylinder and
-    // the sphere DETERMINE this locus, `κ_rel = 1/R` is bounded away
-    // from zero, and the description says so.
-    for e in [t.rims[0][2].unwrap(), pi_rims[2].unwrap()] {
-        assert!(matches!(
-            description(&t.body, e),
-            EdgeDescription::TangentIntersection { .. }
-        ));
-    }
-    // The sphere meridian arc and its pi copy are both images at rest.
+    // Transverse base join: Intersection.
     assert!(matches!(
-        description(&t.body, meridians[2].unwrap()),
-        EdgeDescription::Chart(_)
+        description(&t.body, t.rims[0][1].unwrap()),
+        EdgeDescription::Intersection { .. }
     ));
-    assert_no_wrap_edges(&t.body);
+    // Tangent cylinder-sphere join: INTRINSIC since M5 PR 12. HISTORY:
+    // this pin read `MappedCurve` from M2 to S13, because the jet
+    // certificate's span bounds covered only LINE carriers and a
+    // latitude join's carrier is a circle — so tier 3's must-carry
+    // could not demand the intrinsic description and the constructor
+    // did not store it. PR 12's circle arm retired that class (with its
+    // equivariance proof), and prefer-intrinsic (D2/OQ7) then demands
+    // what it always meant to: the cylinder and the sphere DETERMINE
+    // this locus, `κ_rel = 1/R` is bounded away from zero, and the
+    // description says so.
+    assert!(matches!(
+        description(&t.body, t.rims[0][2].unwrap()),
+        EdgeDescription::TangentIntersection { .. }
+    ));
+    // The sphere meridian arc is the sphere's seam, the pole its tip.
+    assert_seam_of(&t.body, meridians[2].unwrap(), sphere_key);
+    assert_eq!(
+        valence(&t.body, vertex_at(&t.body, Point3::new(0.0, 2.0, 0.0))),
+        1,
+        "the pole is the sphere seam's tip"
+    );
+    assert_seams_on_u0(&t.body);
     // Pappus: cylinder 1 + spherical cap 2/3 -> V = 5pi/3 (256-chord
     // arc sampling: relative error < 1e-4).
     assert!(my_signed_volume(&t.body) > 0.0);

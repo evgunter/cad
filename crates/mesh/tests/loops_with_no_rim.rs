@@ -525,17 +525,18 @@ fn a_hemisphere_pair_is_refused_at_the_branch_door_not_by_the_walk() {
     );
 }
 
-/// **The positive controls: two openings on two edges mesh.** The ball's
-/// two pole-to-pole bands and the rimless lune are rim-free loops whose
-/// two meridians are two edges meeting at the poles, and they mesh
-/// watertight. Their u-extents are the two columns' spread — π and the
-/// wedge angle — so nothing about the guard reads a width: these pass it
-/// on the same incidence question the refusals fail.
+/// **The positive controls: rim-free loops that mesh.** The ball's one
+/// face, its loop walking one wrap meridian pole to pole and back, and
+/// the rimless lune, whose two meridians are two edges meeting at the
+/// poles, are rim-free loops, and they mesh watertight. Their u-extents
+/// are the whole turn and the wedge angle, so nothing about the guard
+/// reads a width: these pass it on the same incidence question the
+/// refusals fail.
 #[test]
 fn a_rim_free_loop_whose_openings_are_two_edges_still_meshes() {
     let tol = Tol::witness();
     for (name, body) in [
-        ("ball, two pole-to-pole bands", ball()),
+        ("ball, one wrap meridian", ball()),
         ("rimless lune over theta = 2", sphere_wedge(2.0)),
     ] {
         assert_eq!(topo::validate_geometric(&body, tol), Ok(()), "{name}");

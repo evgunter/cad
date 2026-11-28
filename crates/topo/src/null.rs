@@ -1529,7 +1529,7 @@ mod tests {
         let (RulingCut { mut body, wall, .. }, ring) = ringed_ruling_cut();
         let read = |body: &Body<f64>| {
             let face = body.get_face(wall).unwrap();
-            let surface = body.get_surface(face.surface).unwrap();
+            let surface = body.surface_slot(face.surface).unwrap();
             crate::pcurves::site_rows_from(body, wall, surface).is_some()
         };
         assert!(read(&body), "the held-open wall is read further");

@@ -87,9 +87,9 @@ pub enum PieceSortError {
     },
     /// The point-in-solid walk refused at a witness of the shell other
     /// than in band, or no witness decided and one read in band (its
-    /// reading). A cylinder × sphere difference reaches it, the walk
-    /// refusing the result's chorded sphere face (`PartialSphereFace`;
-    /// `sweep/tests/cylinder_sphere_frame.rs`, `Door::Pieces`).
+    /// reading). A difference keeping a torus face a spline chord trims
+    /// reaches it (`PartialTorusFace`;
+    /// `work/inside/point-in-solid-refuses-a-torus-face-bounded-by-a-spline-chord.md`).
     Probe {
         /// The shell.
         shell: ShellKey,
@@ -518,7 +518,7 @@ mod tests {
         };
         let mut poisoned = brick((6.0, 7.0), (0.0, 1.0), (0.0, 1.0), tol);
         for surface in poisoned.surfaces.values_mut() {
-            if let geom::Surface::Plane { frame, .. } = surface {
+            if let crate::SurfaceSlot::Described(geom::Surface::Plane { frame, .. }) = surface {
                 *frame = frame.with_origin(geom_core::Point3::new(f64::NAN, f64::NAN, f64::NAN));
             }
         }

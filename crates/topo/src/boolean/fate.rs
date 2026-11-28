@@ -826,16 +826,23 @@ fn places<T: Decide>(
 /// a kept one in the Boolean's words on `operand`'s face
 /// ([`BooleanError::of_pierced_normal`]: an escalation, an apex or a
 /// crease) and an abort by its row ([`BooleanError::of_aborted_normal`]:
-/// a torus outside the ring convention, or `what`); a face that no
-/// longer resolves is `what` too.
+/// a torus outside the ring convention, or `what`); a face of a kind
+/// with no normal at a point is that limit
+/// ([`BooleanError::of_declined_normal`]), and one that no longer
+/// resolves is `what` too.
 fn normal_at<T: Decide>(
     ((body, operand), f, p): ((&Body<T>, Operand), FaceKey, Point3<T>),
     what: &'static str,
     band: Band,
 ) -> Result<Vec3<T>, BooleanError> {
-    match crate::face_normal::face_outward_normal_at(body, f, p, band) {
-        Ok(Some(n)) => Ok(n.vec()),
-        Ok(None) => Err(BooleanError::ClassificationInvariant { what }),
+    match crate::face_normal::face_outward_normal_or_why(body, f, p, band) {
+        Ok(Ok(n)) => Ok(n.vec()),
+        Ok(Err(why)) => Err(BooleanError::of_declined_normal(
+            operand,
+            f,
+            why,
+            BooleanError::ClassificationInvariant { what },
+        )),
         Err(why) => Err(match why.standing() {
             Ok(_) => BooleanError::of_pierced_normal(why, operand, f),
             Err(abort) => BooleanError::of_aborted_normal(abort, (operand, f), what),
@@ -1066,7 +1073,7 @@ fn end_at<T: crate::props::AtRestPolicy>(
     // A pinch is several vertices on one point, one per cone, each a
     // partner: every one is offered, and the face's own is placed.
     let mut at = Vec::new();
-    for c in &red.contacts.vv {
+    for c in red.contacts.vv() {
         let (k, d) = match holder {
             Operand::A => (c.a, c.b),
             Operand::B => (c.b, c.a),
@@ -1098,11 +1105,8 @@ fn end_at<T: crate::props::AtRestPolicy>(
             End::Touch(x)
         });
     }
-    let on = match holder {
-        Operand::A => &red.contacts.a_on_b,
-        Operand::B => &red.contacts.b_on_a,
-    };
-    on.iter()
+    red.contacts
+        .on(holder)
         .find(|c| xs.contains(&c.vertex) && divisions.root(c.face) == root)
         .map(|c| End::Touch(c.vertex))
         .ok_or(BooleanError::ClassificationInvariant {
@@ -2967,5 +2971,62 @@ mod tip_count_rows {
         let band = Band::new(1e-9, 1e-8).unwrap();
         assert_eq!(read::<f64>(&spike(), PLAIN, band), Err(None));
         assert_eq!(read::<Interval>(&spike(), PLAIN, band), Err(None));
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod declined_normal_rows {
+    use super::super::{BooleanError, Operand};
+    use geom_core::{Band, Tol};
+
+    /// **A corner face the point door reads no normal on is told apart
+    /// by why** ([`super::normal_at`], over
+    /// [`BooleanError::of_declined_normal`]):
+    /// - a spline sheet is the corner reading's limit,
+    ///   `CurvedBooleanUnsupported` naming the operand, the face and its
+    ///   kind;
+    /// - a key that resolves to no face is the caller's defect, `what`.
+    ///
+    /// Red where a spline face reads as a classification invariant, as
+    /// every declined normal did.
+    #[test]
+    fn a_spline_corner_face_is_a_limit_and_a_lost_one_the_callers_defect() {
+        use crate::test_support_fixtures::{dome, domed_cube};
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (body, top) = domed_cube();
+        let p = dome().eval(0.25, 0.5);
+        const WHAT: &str = "the row's corner face has no normal";
+        for operand in [Operand::A, Operand::B] {
+            let got = super::normal_at(((&body, operand), top, p), WHAT, band);
+            assert!(
+                matches!(
+                    got,
+                    Err(BooleanError::CurvedBooleanUnsupported { operand: o, face, kind: geom::SurfaceKind::Nurbs })
+                        if o == operand && face == top
+                ),
+                "{operand:?}: the dome, the reading's limit: {got:?}"
+            );
+        }
+        // Ten faces against the cube's six, so one key resolves to none.
+        let octagon: Vec<(f64, f64)> = (0..8)
+            .map(|k| {
+                let t = f64::from(k) * core::f64::consts::FRAC_PI_4;
+                (t.cos(), t.sin())
+            })
+            .collect();
+        let prism =
+            crate::test_support_fixtures::prism_z::<f64>(&octagon, 0.0, 1.0, Tol::witness());
+        let stale = prism
+            .body
+            .faces()
+            .map(|(f, _)| f)
+            .find(|f| body.face(*f).is_none())
+            .expect("the prism has a face key the cube does not resolve");
+        let got = super::normal_at(((&body, Operand::A), stale, p), WHAT, band);
+        assert!(
+            matches!(got, Err(BooleanError::ClassificationInvariant { what }) if what == WHAT),
+            "a key that resolves to no face, the caller's defect: {got:?}"
+        );
     }
 }

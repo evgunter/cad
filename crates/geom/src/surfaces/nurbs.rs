@@ -38,7 +38,6 @@
 //! conjugated by [`NurbsSurface::transposed`] — one implementation,
 //! both directions, deterministic.
 
-use core::num::NonZeroUsize;
 use geom_core::spline::ProjectiveScalar;
 use geom_core::spline::algebra::certainly_positive;
 use geom_core::spline::{
@@ -515,48 +514,6 @@ impl<T: Real> SurfaceWindow<'_, T> {
     }
 }
 
-/// **The three states a NURBS control net can be in.** This enum's
-/// docs are the one statement of the distinction; every consumer that
-/// tells the states apart matches on [`NurbsSurface::net_state`] and
-/// points here rather than restating the table.
-///
-/// The discriminator is the net's poison, and which values count as
-/// poison is the scalar's own answer ([`geom_core::Real::is_poison`]),
-/// so the SET of nets in each state differs between `f64`, the
-/// interval scalar and `Dual` — the crate docs' totality-and-poison
-/// section says why, and a consumer reasoning about which nets reach
-/// its arm has to reason at its own scalar.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum NetState {
-    /// **No description yet.** Every channel of every control point is
-    /// poison — the state the `mvfs` seed mints, and a legitimate
-    /// mid-surgery fact about a body still being built. Nothing can be
-    /// certified against it, and nothing about it is a claim that
-    /// turned out to be false; a consumer's answer here is a benign
-    /// "there is nothing to answer".
-    Placeholder,
-
-    /// **Real geometry.** No channel of any control point is poison, so
-    /// the net describes a locus and every evaluation on it is data.
-    /// What remains to check about such a surface is checked wherever
-    /// that surface's claims are checked — never here.
-    Described,
-
-    /// **Corrupt described geometry.** Poison in some channel of some
-    /// control point, but not in every channel of every one: this net
-    /// is NOT the placeholder, it claims to describe a locus, and it
-    /// cannot evaluate one. Evaluation carries the poison in the
-    /// poisoned channel and finite values in the others, so a consumer
-    /// reading only the finite channels gets an answer the geometry
-    /// does not support.
-    ///
-    /// This is the state that must fail at every consumer's described
-    /// arm rather than be handed [`NetState::Placeholder`]'s benign
-    /// one — the width rule's whole point, `net`'s
-    /// `is_placeholder` doc.
-    Poisoned,
-}
-
 /// A validated tensor-product NURBS surface (module docs; immutable
 /// after construction — every knot-algebra operation returns a new
 /// surface).
@@ -748,58 +705,6 @@ impl<T: Real> NurbsSurface<T> {
         self.control.iter().map(|p| [p.x, p.y, p.z]).collect()
     }
 
-    /// The "no description yet" placeholder payload for
-    /// [`crate::surfaces::Surface::Nurbs`]: structurally valid (bilinear on
-    /// `[0,1]²`, unit weights) with all-poison control points, so
-    /// every evaluation is all-poison — bit-for-bit the former unit
-    /// placeholder's totality behavior (D4 ¶2: fails every downstream
-    /// certification loudly).
-    pub fn placeholder() -> Self {
-        let p = net::poison_point::<T, Point3<T>>();
-        let unit = || Knots::from(KnotVector::unit_segment(NonZeroUsize::MIN)).lift(T::from_f64);
-        Self {
-            knots_u: unit(),
-            knots_v: unit(),
-            control: vec![p; 4],
-            weights: Weights::from_point_parts(vec![T::one(); 4], vec![1.0; 4]),
-            stretch: OnceLock::new(),
-            axis_floors: OnceLock::new(),
-            area_floor: OnceLock::new(),
-            rects: None,
-        }
-    }
-
-    /// Is this payload the [`NurbsSurface::placeholder`] — the "no
-    /// description yet" state — rather than a described surface?
-    ///
-    /// The discriminator and the reason it is `all` and not
-    /// `any` are the crate docs' totality-and-poison section.
-    pub fn is_placeholder(&self) -> bool {
-        net::is_placeholder(&self.control)
-    }
-
-    /// Which of the three states this payload's control net is in —
-    /// the whole state question, asked once.
-    ///
-    /// [`NetState`]'s own docs are the single statement of what the
-    /// three states are and why they differ; this method is the door
-    /// that answers it for a surface. A consumer that must treat the
-    /// states differently matches on the answer rather than composing
-    /// two predicates, so no call site carries a guard order.
-    ///
-    /// [`NurbsSurface::is_placeholder`] remains for the callers that
-    /// only ask the placeholder question, and agrees with this by
-    /// construction — both read `net`'s one implementation.
-    pub fn net_state(&self) -> NetState {
-        if net::is_placeholder(&self.control) {
-            NetState::Placeholder
-        } else if net::any_poison(&self.control) {
-            NetState::Poisoned
-        } else {
-            NetState::Described
-        }
-    }
-
     /// **C6's interim**: the u-direction `f64` knot vector, where
     /// every held knot is a point ([`Knots::structure_f64_interim`]).
     /// Counted by `scripts/gates/knots-f64-interim.sh`; it goes in C6's
@@ -831,6 +736,12 @@ impl<T: Real> NurbsSurface<T> {
     /// The control net, row-major (`iu · nv + iv` — module docs).
     pub fn control(&self) -> &[Point3<T>] {
         &self.control
+    }
+
+    /// Is every control point a finite number, at the scalar's own
+    /// finiteness? A net that is not describes nothing: it is corrupt.
+    pub fn is_finite(&self) -> bool {
+        net::is_finite(&self.control)
     }
 
     /// The weights held in `T`, same layout as
@@ -903,9 +814,8 @@ impl<T: Real> NurbsSurface<T> {
     /// [`Self::from_validated_parts`], which states why no
     /// re-validation is run. The contract is
     /// [`NurbsCurve3::map_scalar`]'s one dimension up: `f` is a lift
-    /// that keeps every value's point; what the placeholder and a
-    /// poisoned net lift to is argued once, in `crate::scalar_lift`'s
-    /// module docs.
+    /// that keeps every value's point, so a net that is not finite lifts
+    /// to one that is not finite (`crate::scalar_lift`'s module docs).
     ///
     /// [`NurbsCurve3::map_scalar`]: crate::curves::NurbsCurve3::map_scalar
     #[must_use]

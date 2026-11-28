@@ -48,6 +48,11 @@ Readers that rely on it:
   `contain::curved_face_placement_decided`, once it reads a spline wall
   that holds a pierce point
   (`a-spline-wall-cannot-say-whether-it-holds-a-pierce-point`).
+- `boolean::join::holding_face_normal`, through
+  `contain::face_placement_charted`'s in-trim foot and
+  `join::spline_held_normal`: a section chord's holding spline face is
+  read at that foot, and the chord ladder reads the loop's side by
+  that normal.
 
 ## What it needs
 

@@ -2,11 +2,12 @@
 id: a-full-turns-pinned-vertex-refuses-at-the-loft-door
 kind: issue
 title: a loft of one-segment loops whose vertex is pinned refuses PinnedCornerUnsupported: the full turn's wall is built around its strut
-status: open
+status: closed
 opened: 2026-11-22
 priority: P2
 cost: M
 refs: [a-nurbs-wall-with-a-collapsed-boundary-column-has-no-loop-joint]
+closed: 2026-11-23
 ---
 
 

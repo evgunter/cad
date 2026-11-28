@@ -2,11 +2,12 @@
 id: a-straddling-span-whose-roots-do-not-settle-keeps-its-door-off-the-face
 kind: issue
 title: A span whose ends straddle a carrier and whose roots do not settle keeps the pierce door though every touch is certified off the face
-status: open
+status: closed
 opened: 2026-10-06
 priority: P3
 cost: E
 refs: [4128]
+closed: 2026-11-25
 ---
 
 
@@ -31,3 +32,11 @@ fixture found builds that pose clear of the face. The fix is one arm;
 the row is the work.
 
 Moved from APEX to GERM on 2026-11-02, by `git mv`, when APEX merged into GERM: the track budget now counts only the P0, P1 and unbanded rows a sitting dispatches (Ev, in chat, 2026-11-02), so GERM, GERMCERT, ROOTS and APEX came in under one budget.
+
+## Closed
+
+GERM U4b: the straddle arm reads `cross` through the face reading. A
+straddling span whose every window is certified off the face is no event
+(`OffFace`), and one the answer says has no crossing and no window fails
+loud as a contradiction (`reduce::straddle_event`,
+`curved_posture_rows::a_straddle_with_no_interior_crossing_fails_loud`).

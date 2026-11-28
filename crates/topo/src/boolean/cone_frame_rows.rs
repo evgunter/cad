@@ -105,7 +105,6 @@ fn shape(frame: &Frame) -> String {
         Err(FrameError::Desync(what)) => format!("desync {what}"),
         Err(FrameError::OpenConic { conic }) => format!("open conic {conic:?}"),
         Err(FrameError::NoArm) => "no arm".into(),
-        Err(FrameError::Spiric { loops, .. }) => format!("spiric {loops:?}"),
         Err(FrameError::DegenerateTorus { convention, .. }) => {
             format!("degenerate torus {convention:?}")
         }
@@ -744,14 +743,14 @@ fn a_plane_off_the_apex_reads_one_loop() {
 }
 
 /// The cone wall about `z` with its apex at the origin (its lamina twin,
-/// which the fixture leaves on the seed's placeholder, put on the cone
+/// which the fixture leaves pending, put on the cone
 /// too, so the body moves) and the brick whose face `x = 0` holds the
 /// apex: its section the lines along `(0, ±1, 1)`.
 fn apex_pair() -> (crate::body::Body<f64>, crate::body::Body<f64>) {
     let tol = Tol::witness();
     let (mut wall, face) =
         crate::boxes::tests::cone_wall(core::f64::consts::FRAC_PI_4, 0.3, 2.8, 0.1, 2.0);
-    let carrier = wall.proven_face(face).surface().clone();
+    let carrier = wall.proven_face(face).surface().unwrap().clone();
     let twin = wall.faces().map(|(k, _)| k).find(|&k| k != face).unwrap();
     wall.lifting_rechart_refusals_for_tests(|b| {
         b.set_face_surfaces_describing(
@@ -776,7 +775,7 @@ fn apex_pair_faces(
     let face_of = |body: &crate::body::Body<f64>, keep: &dyn Fn(&geom::Surface<f64>) -> bool| {
         body.faces()
             .map(|(k, _)| k)
-            .find(|&k| keep(body.proven_face(k).surface()))
+            .find(|&k| keep(body.proven_face(k).surface().unwrap()))
             .unwrap()
     };
     let cone = face_of(cone_body, &|s| matches!(s, geom::Surface::Cone { .. }));

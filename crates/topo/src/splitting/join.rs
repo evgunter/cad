@@ -326,7 +326,7 @@ fn fixed_partners<T: Decide>(
             continue;
         }
         let view = body.face(face).ok_or_else(|| corrupt_face(face))?;
-        let wall = view.surface();
+        let wall = view.expect_described();
         let mut crossings = Vec::with_capacity(halves.len());
         for &h in &halves {
             let start = body.get_half_edge(h).ok_or_else(|| corrupt_he(h))?.start;
@@ -414,7 +414,7 @@ fn split_leave<T: Decide>(
 ) -> Result<geom_core::Vec3<T>, JoinError> {
     let face = he_face(body, half)?;
     let view = body.face(face).ok_or_else(|| corrupt_face(face))?;
-    let wall = view.surface();
+    let wall = view.expect_described();
     leave_on(body, plane_normal, above_set, half, (wall, view.sense()))
 }
 

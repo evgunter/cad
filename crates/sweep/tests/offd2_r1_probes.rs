@@ -6,7 +6,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::operands;
-use crate::common::shell_operands::{hollow_box, vessel};
+use crate::common::shell_operands::{disc_drum, hollow_box, vessel};
 use crate::common::torus_walls::klein_elbow;
 use geom_core::{Point2, Tol};
 use profile::test_support::bulge_loop;
@@ -20,7 +20,7 @@ fn plane_face_at(body: &Body<f64>, z: f64) -> FaceKey {
         .find(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(geom::Surface::Plane { frame, .. })
+                Ok(geom::Surface::Plane { frame, .. })
                     if (frame.origin().z - z).abs() < 1e-9 && frame.axis().x.abs() < 1e-9 && frame.axis().y.abs() < 1e-9
             )
         })
@@ -35,7 +35,7 @@ fn plane_face_x(body: &Body<f64>, x: f64) -> FaceKey {
         .find(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(geom::Surface::Plane { frame, .. })
+                Ok(geom::Surface::Plane { frame, .. })
                     if (frame.origin().x - x).abs() < 1e-9 && frame.axis().y.abs() < 1e-9 && frame.axis().z.abs() < 1e-9
             )
         })
@@ -427,7 +427,7 @@ fn probe_opened_vessel_cup() {
     let mut caps: Vec<(FaceKey, f64)> = v
         .faces()
         .filter_map(|(k, _)| match v.face_surface(k) {
-            Some(geom::Surface::Plane { frame, .. }) => {
+            Ok(geom::Surface::Plane { frame, .. }) => {
                 let origin = frame.origin();
                 Some((k, origin.y))
             }
@@ -474,7 +474,7 @@ fn probe_opened_vessel_cup() {
                 .faces()
                 .filter(|(fk, _)| {
                     matches!(cup.face_surface(*fk),
-                        Some(geom::Surface::Plane { frame, .. }) if (frame.origin().y - h).abs() < 1e-12)
+                        Ok(geom::Surface::Plane { frame, .. }) if (frame.origin().y - h).abs() < 1e-12)
                 })
                 .map(|(k, _)| k)
                 .collect();
@@ -570,21 +570,20 @@ fn probe_stale_designation_refuses_typed() {
 // bit-untouched-on-Err contract, checked on whole-body Debug.
 // ---------------------------------------------------------------------
 
-/// Replacing only ONE of the two faces wearing the vessel's cylinder
+/// Replacing only ONE of the two faces wearing the disc drum's cylinder
 /// chart must still refuse `SharedSurfaceKey`, and the body must be
-/// bit-untouched across the Err.
+/// bit-untouched across the Err. (A full revolve's wall is one face, so
+/// the drum, extruded from two half arcs, is the body whose curved
+/// chart two faces wear.)
 #[test]
 fn probe_partial_group_refuses_and_leaves_body_untouched() {
-    let v = vessel(1.0, 2.0);
+    let v = disc_drum(1.0, 2.0);
     let cyl: Vec<FaceKey> = v
         .faces()
-        .filter(|(fk, _)| matches!(v.face_surface(*fk), Some(geom::Surface::Cylinder { .. })))
+        .filter(|(fk, _)| matches!(v.face_surface(*fk), Ok(geom::Surface::Cylinder { .. })))
         .map(|(k, _)| k)
         .collect();
-    assert!(
-        cyl.len() >= 2,
-        "the full revolve wears one cylinder on two faces"
-    );
+    assert_eq!(cyl.len(), 2, "the drum wears one cylinder on two faces");
 
     let mut work = v.clone();
     let before = format!("{work:?}");
@@ -604,7 +603,7 @@ fn probe_partial_group_refuses_and_leaves_body_untouched() {
     // A mixed group refuses too, untouched.
     let cap = v
         .faces()
-        .find(|(fk, _)| matches!(v.face_surface(*fk), Some(geom::Surface::Plane { .. })))
+        .find(|(fk, _)| matches!(v.face_surface(*fk), Ok(geom::Surface::Plane { .. })))
         .map(|(k, _)| k)
         .unwrap();
     let mixed = vec![cyl[0], cap];
@@ -657,7 +656,7 @@ fn probe_late_err_leaves_body_untouched() {
     ])]);
     let cap = elbow
         .faces()
-        .find(|(fk, _)| matches!(elbow.face_surface(*fk), Some(geom::Surface::Plane { .. })))
+        .find(|(fk, _)| matches!(elbow.face_surface(*fk), Ok(geom::Surface::Plane { .. })))
         .map(|(k, _)| k)
         .unwrap();
     let mut work = elbow.clone();
