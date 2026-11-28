@@ -75,6 +75,8 @@
 //! - [`RigidMotion::compose`] — products of witnesses are not decided
 //!   again;
 //! - [`RigidMotion::inverse`] — the transpose;
+//! - [`RigidMotion::relative`] — `a⁻¹ ∘ b` between two placements in one
+//!   frame, through the two above;
 //! - [`RigidMotion::world_at`] — the world frame with its axes stated,
 //!   not computed;
 //! - [`RigidMotion::standing_at`] and [`RigidMotion::turn_alone`] — a
@@ -1082,6 +1084,24 @@ impl<T: Real> RigidMotion<T> {
         let rt = self.linear().transpose();
         let origin = finite(at(-(rt * self.offset())), MotionPart::Inverse)?;
         Ok(Self::from_linear(rt, origin))
+    }
+
+    /// **The map from `b`'s coordinates into `a`'s**: `a⁻¹ ∘ b`, for `a`
+    /// and `b` each the motion from its own coordinates into one frame
+    /// they share, `None` for that frame itself, so `None` where both are
+    /// (`[placement.frame]`'s composition through the nearest frame two
+    /// share).
+    ///
+    /// # Errors
+    ///
+    /// The inverse's or the composition's overflow.
+    pub fn relative(a: Option<&Self>, b: Option<&Self>) -> Result<Option<Self>, RigidMotionError> {
+        Ok(match (a, b) {
+            (None, None) => None,
+            (None, Some(&b)) => Some(b),
+            (Some(a), None) => Some(a.inverse()?),
+            (Some(a), Some(&b)) => Some(a.inverse()?.compose(b)?),
+        })
     }
 
     /// **This motion, then the translation by `t`**: the axes kept,

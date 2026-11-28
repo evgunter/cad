@@ -852,6 +852,11 @@ impl OutputNames {
     pub(crate) fn shared_table(&self) -> Arc<NameTable> {
         Arc::clone(&self.table)
     }
+
+    /// The groups, shared.
+    pub(crate) fn shared_groups(&self) -> Arc<crate::names::FragmentGroups> {
+        Arc::clone(&self.groups)
+    }
 }
 
 /// A successful node value (spec D2): the op-appropriate payload plus
@@ -7910,10 +7915,10 @@ fn seg_content_tag(tag: SegTag) -> u8 {
         S::LoftSeam => 46,
         S::LoftSectionEdge => 55,
         S::LoftSectionVertex => 56,
+        S::SubArc => 62,
+        S::SubArcJoint => 61,
         S::Band => 7,
         S::BandRim => 8,
-        S::BandRimPi => 9,
-        S::BandPi => 10,
         S::Meridian => 11,
         S::MeridianVertex => 12,
         S::RevolveCap => 13,
@@ -7940,6 +7945,7 @@ fn seg_content_tag(tag: SegTag) -> u8 {
         S::TurnFoot => 50,
         S::BandSection => 58,
         S::HostFoot => 59,
+        S::ConventionalVertex => 60,
         S::BandFace => 34,
         S::BandTrim => 35,
         S::BandFoot => 36,
@@ -7968,7 +7974,6 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
         MeridianEnd::Start => 1u8,
         MeridianEnd::End => 2,
         MeridianEnd::Seam => 3,
-        MeridianEnd::Pi => 4,
     };
     let rim = |s: crate::names::RimSupport| match s {
         crate::names::RimSupport::Host => 1u8,
@@ -8091,17 +8096,14 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
             h.write_id(s.0);
             pv(h, *v);
         }
+        RoleSeg::SubArc(q) | RoleSeg::SubArcJoint(q) => {
+            h.write_u64(u64::from(*q));
+        }
         RoleSeg::Band(r) => {
             run(h, r);
         }
         RoleSeg::BandRim(v) => {
             pv(h, *v);
-        }
-        RoleSeg::BandRimPi(v) => {
-            pv(h, *v);
-        }
-        RoleSeg::BandPi(r) => {
-            run(h, r);
         }
         RoleSeg::Meridian(m, r) => {
             h.write_tag(mer(*m));
@@ -8211,7 +8213,7 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
             h.name(edge);
             h.write_tag(rim(*support));
         }
-        RoleSeg::BandFoot(n) => {
+        RoleSeg::BandFoot(n) | RoleSeg::ConventionalVertex(n) => {
             h.name(n);
         }
         RoleSeg::BandCut(n) => {

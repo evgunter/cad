@@ -117,11 +117,11 @@ pub(crate) enum SegTag {
     LoftSeam,
     LoftSectionEdge,
     LoftSectionVertex,
+    SubArc,
+    SubArcJoint,
     // Revolve
     Band,
     BandRim,
-    BandRimPi,
-    BandPi,
     Meridian,
     MeridianVertex,
     RevolveCap,
@@ -163,6 +163,8 @@ pub(crate) enum SegTag {
     Member,
     // Blend, appended
     HostFoot,
+    // Any op, appended
+    ConventionalVertex,
 }
 
 impl SegTag {
@@ -179,10 +181,10 @@ impl SegTag {
             Self::LoftSeam => s::SegTag::LoftSeam,
             Self::LoftSectionEdge => s::SegTag::LoftSectionEdge,
             Self::LoftSectionVertex => s::SegTag::LoftSectionVertex,
+            Self::SubArc => s::SegTag::SubArc,
+            Self::SubArcJoint => s::SegTag::SubArcJoint,
             Self::Band => s::SegTag::Band,
             Self::BandRim => s::SegTag::BandRim,
-            Self::BandRimPi => s::SegTag::BandRimPi,
-            Self::BandPi => s::SegTag::BandPi,
             Self::Meridian => s::SegTag::Meridian,
             Self::MeridianVertex => s::SegTag::MeridianVertex,
             Self::RevolveCap => s::SegTag::RevolveCap,
@@ -218,6 +220,7 @@ impl SegTag {
             Self::Rim => s::SegTag::Rim,
             Self::HoleRim => s::SegTag::HoleRim,
             Self::Member => s::SegTag::Member,
+            Self::ConventionalVertex => s::SegTag::ConventionalVertex,
         }
     }
 }
@@ -279,7 +282,6 @@ pub(crate) enum MeridianEnd {
     Start,
     End,
     Seam,
-    Pi,
 }
 
 impl MeridianEnd {
@@ -293,7 +295,6 @@ impl MeridianEnd {
             Self::Start => s::MeridianEnd::Start,
             Self::End => s::MeridianEnd::End,
             Self::Seam => s::MeridianEnd::Seam,
-            Self::Pi => s::MeridianEnd::Pi,
         }
     }
 }
@@ -940,10 +941,10 @@ mod growth_tripwire {
             s::SegTag::LoftSeam => SegTag::LoftSeam,
             s::SegTag::LoftSectionEdge => SegTag::LoftSectionEdge,
             s::SegTag::LoftSectionVertex => SegTag::LoftSectionVertex,
+            s::SegTag::SubArc => SegTag::SubArc,
+            s::SegTag::SubArcJoint => SegTag::SubArcJoint,
             s::SegTag::Band => SegTag::Band,
             s::SegTag::BandRim => SegTag::BandRim,
-            s::SegTag::BandRimPi => SegTag::BandRimPi,
-            s::SegTag::BandPi => SegTag::BandPi,
             s::SegTag::Meridian => SegTag::Meridian,
             s::SegTag::MeridianVertex => SegTag::MeridianVertex,
             s::SegTag::RevolveCap => SegTag::RevolveCap,
@@ -979,6 +980,7 @@ mod growth_tripwire {
             s::SegTag::Rim => SegTag::Rim,
             s::SegTag::HoleRim => SegTag::HoleRim,
             s::SegTag::Member => SegTag::Member,
+            s::SegTag::ConventionalVertex => SegTag::ConventionalVertex,
         }
     }
 
@@ -1002,7 +1004,6 @@ mod growth_tripwire {
             s::Side::Meridian(s::MeridianEnd::Start) => SideArg::Meridian(MeridianEnd::Start),
             s::Side::Meridian(s::MeridianEnd::End) => SideArg::Meridian(MeridianEnd::End),
             s::Side::Meridian(s::MeridianEnd::Seam) => SideArg::Meridian(MeridianEnd::Seam),
-            s::Side::Meridian(s::MeridianEnd::Pi) => SideArg::Meridian(MeridianEnd::Pi),
             s::Side::Rim(s::RimSupport::Host) => SideArg::Rim(RimSupport::Host),
             s::Side::Rim(s::RimSupport::Mate) => SideArg::Rim(RimSupport::Mate),
         }
@@ -1061,29 +1062,12 @@ pub(crate) fn band(py: Python<'_>, node: &NodeId, piece: &Piece) -> PyResult<Str
     name_text(py, &s::band(node.0, piece.edge()))
 }
 
-/// **The `[pi, 2pi)` band face swept from the profile piece `piece`**
-/// — [`band`]'s twin, where a full revolve emits a segment as two
-/// faces. A face, as [`band`] is.
-#[pyfunction]
-pub(crate) fn band_pi(py: Python<'_>, node: &NodeId, piece: &Piece) -> PyResult<String> {
-    name_text(py, &s::band_pi(node.0, piece.edge()))
-}
-
 /// **The latitude rim at the vertex the profile piece `piece` starts
 /// at** — the edge between the band of the piece ending there and the
 /// piece's own. An edge.
 #[pyfunction]
 pub(crate) fn band_rim(py: Python<'_>, node: &NodeId, piece: &Piece) -> PyResult<String> {
     name_text(py, &s::band_rim(node.0, piece.edge().start()))
-}
-
-/// **The `[pi, 2pi)` latitude rim at the vertex the profile piece
-/// `piece` starts at** — [`band_rim`]'s twin, where a full revolve of
-/// a profile touching the axis emits each rim as two half-arcs between
-/// the seam vertices. An edge, as [`band_rim`] is.
-#[pyfunction]
-pub(crate) fn band_rim_pi(py: Python<'_>, node: &NodeId, piece: &Piece) -> PyResult<String> {
-    name_text(py, &s::band_rim_pi(node.0, piece.edge().start()))
 }
 
 /// **The meridian vertex at `end`**: the copy of the vertex the
@@ -1136,9 +1120,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Selector>()?;
     m.add_class::<GeomPred>()?;
     m.add_function(wrap_pyfunction!(band, m)?)?;
-    m.add_function(wrap_pyfunction!(band_pi, m)?)?;
     m.add_function(wrap_pyfunction!(band_rim, m)?)?;
-    m.add_function(wrap_pyfunction!(band_rim_pi, m)?)?;
     m.add_function(wrap_pyfunction!(meridian_vertex, m)?)?;
     m.add_function(wrap_pyfunction!(carried, m)?)?;
     Ok(())

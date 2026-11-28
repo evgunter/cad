@@ -229,7 +229,7 @@ fn graft_door<T: crate::props::AtRestPolicy>(
     spec: geom_brep::EdgeCurveSpec<T>,
     start: Point3<T>,
     end: Point3<T>,
-    surfaces: &dyn Fn(SurfaceKey) -> Option<geom::Surface<T>>,
+    surfaces: &dyn Fn(SurfaceKey) -> Result<geom::Surface<T>, crate::SurfaceMiss>,
     reach: geom_core::Lever<T>,
     band: geom_core::Band,
     locus: &[&geom_brep::LocusCertificate<T>],
@@ -243,7 +243,7 @@ pub(crate) type GraftDoor<T> = fn(
     geom_brep::EdgeCurveSpec<T>,
     Point3<T>,
     Point3<T>,
-    &dyn Fn(SurfaceKey) -> Option<geom::Surface<T>>,
+    &dyn Fn(SurfaceKey) -> Result<geom::Surface<T>, crate::SurfaceMiss>,
     geom_core::Lever<T>,
     geom_core::Band,
     &[&geom_brep::LocusCertificate<T>],
@@ -848,8 +848,7 @@ fn graft_solids_impl<T: geom_core::Decide>(
     // clearing the cache map (the module-docs posture in
     // `topo::pcurves`). The row's key not being in the graft's
     // half-edge walk IS the staleness test (the walk covers every live
-    // half-edge of the grafted solid), and the boolean result's own
-    // final mint pass clears and re-derives every cache anyway. ----
+    // half-edge of the grafted solid). ----
     for (k, cache) in src.pcurves.iter() {
         let Some(&dk) = half_edges.get(k) else {
             continue;
@@ -971,7 +970,7 @@ fn graft_solids_impl<T: geom_core::Decide>(
             curve.carrier(),
             curve.params(),
         );
-        let surfaces = |sk| dst.surfaces.get(sk).cloned();
+        let surfaces = |sk| dst.resolve_surface(sk);
         let recert = door(
             spec,
             start,
@@ -1088,7 +1087,7 @@ mod recertify_door_tests {
             let he = &dst.half_edges[edge.he_plus];
             let point = |v| dst.points[dst.vertices[v].point];
             let (start, end) = (point(he.start), point(dst.half_edges[he.next].start));
-            let surfaces = |k| dst.surfaces.get(k).cloned();
+            let surfaces = |k| dst.resolve_surface(k);
             let at_rest = curve
                 .recertify(
                     start,

@@ -407,10 +407,11 @@ fn declared_descriptions(body: &Body<f64>) -> usize {
 /// The row's own claim, unchanged: an edge of a body AT REST always
 /// says which chart it lies in, so the SCAFFOLDING arm the
 /// *"not a rigid translation"* door used to hang off cannot be
-/// entered; and these two bodies DO carry declared loci, which is what
-/// keeps the obstruction reachable through the authority record
-/// instead. Both halves are asserted on the fixtures rather than
-/// reasoned about, and both still hold — they are facts about the
+/// entered. These two bodies carry no declared locus: a full revolve's
+/// wall is one face whose seam is derived, so the declared arm is
+/// reached on another body (an extruded two-arc drum, `sweep`'s
+/// `pcurve_p1b_r2_probes` R2-S6). Both facts are asserted on the
+/// fixtures rather than reasoned about — they are facts about the
 /// bodies, not about which door offsets them.
 ///
 /// **What moved is which door they reach.** `shell` hands a body of
@@ -439,10 +440,10 @@ fn the_not_a_rigid_translation_door_is_unreachable_at_rest() {
             "{what}: every edge of a body at rest says which chart it lies in, so the \
              SCAFFOLD arm the door used to hang off cannot be entered"
         );
-        assert!(
-            declared_descriptions(&body) > 0,
-            "{what}: and these bodies do carry declared loci — which is what keeps the \
-             obstruction reachable through the authority record instead"
+        assert_eq!(
+            declared_descriptions(&body),
+            0,
+            "{what}: a full revolve declares nothing; its wall's seam is derived"
         );
     }
     for (what, body) in [
@@ -565,7 +566,7 @@ fn the_opened_rim_is_right_on_a_box() {
         .faces()
         .filter(|(fk, _)| {
             matches!(body.face_surface(*fk),
-                Some(Surface::Plane { frame, .. })
+                Ok(Surface::Plane { frame, .. })
                     if frame.axis().x.abs() < 1e-9 && frame.axis().y.abs() < 1e-9
                         && (frame.origin().z - 0.25).abs() < 1e-12)
         })

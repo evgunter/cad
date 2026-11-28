@@ -53,3 +53,40 @@ neighbouring plane cap to hold both ends of most sides there (the
 geometry, accepted meshes) and not the same row: these refuse.
 
 (TESSLIE, PR 7198, 2026-11-21) `TessellateError::BoundaryEar` is renamed `UnclearedSharedSide` (Python tag `uncleared_shared_side`), because the trimmed lane's rule is now about a shared side, not an ear. The cells above that say `BoundaryEar` were measured under the old name and rule; they are not re-measured here.
+
+## Measured cause, one band (LATHE, 2026-11-23)
+
+With a full revolve's wall one face (`lathe/full-revolve-one-band`), the half
+above the cut is one cone face a whole turn round, and the row re-measures
+(default ε, debug): `h = 1e-3` refuses `FoldedTriangle` at δ `1e-3` and meshes
+at `2e-4` and `3e-5`; `h = 1e-5` refuses `UnclearedSharedSide` at δ `1e-3` and
+`FoldedTriangle` at `2e-4` and `3e-5`.
+
+At `h = 1e-3`, δ `1e-3` every folded triangle joins two consecutive points of
+the section ellipse (slant `1e-3`) to a lattice node of the first row (slant
+`0.0125`) or a later rebuild's node, more than a quarter turn round the axis
+from them: `Δu` of 2.3 to 2.9 rad, the far corner near the seam (`u ≈ 0.42` or
+`5.86`) and the pair at `u ≈ 2.1 – 4.2`. No row stands between the two:
+`AnalyticRow::lattice_rows` lays none within the radius every chord certifies
+at, so the CDT in the development, a wedge `2π·sin α ≈ 0.126` rad wide, zips
+the small end to the first row. A chord triangle whose near pair sits at a
+small radius takes its plane's side from that pair, and its centroid's foot
+lies toward the far corner, so past a quarter turn its normal points into the
+surface. The census's cure, dropping the triangle's grid corners, re-joins the
+pair to the next far node, round after round, to the budget. On a half-turn
+face the same zipper reaches half as far round, which is why `h = 1e-3` meshed.
+
+Fixed on `lathe/mesh-budget-one-band` (LATHE's mesh-budget PR, 7556): the
+trimmed lane grades the rows of a cone face more than a quarter turn round
+(`crates/mesh/src/trimmed.rs`, `reach_graded`, over
+`AnalyticRow::lattice_rows`): no gap's slant exceeds the developed width of
+`GAP_TURNS = 4` whole turns at its lower slant, from the small end outward, so
+a triangle across it no longer reaches far round. The width is a measured
+choice: eight turns still fold one cell of 792 needle-funnel cells, four fold
+none. A face a quarter turn round or less is not graded. Both `h = 1e-3` and `h = 1e-5`
+then mesh at every δ of the row, both halves, each mesh the body's, the
+halves' volumes summing to the cone's within the chord loss
+(`reach_probes::a_needle_funnel_cut_at_its_apex_meshes_at_every_delta`).
+Splitting each far-reaching fold at its developed centroid instead was tried
+and not kept: it clears in 7 rounds against the budget of 6 and then trips the
+identified-vertex fan census (#678).

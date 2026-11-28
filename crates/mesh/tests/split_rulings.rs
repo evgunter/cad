@@ -256,10 +256,11 @@ fn holds_the_relation(what: &str, split: &Body<f64>, solid: &Body<f64>, delta: f
 ///   wall, a frustum wall, a slender wall (outer half-angle ≈ 6°, its top
 ///   annulus 0.05 wide, narrower than δ 0.1) and a needle wall, each
 ///   face outer and reversed inner;
-/// - **faces through the axis**, which a full revolve builds as two half
-///   faces: cones through their apex at 45°, 80°, 5° and 0.1°, and a
-///   frustum; a half cylinder wall and a half frustum, whose planar cut
-///   face holds both of the curved face's sides.
+/// - **faces through the axis**, which a full revolve builds as one face
+///   whose seam runs to the axis, its tip there: cones through their apex
+///   at 45°, 80°, 5° and 0.1°, and a frustum; a half cylinder wall and a
+///   half frustum, whose planar cut face holds both of the curved face's
+///   sides.
 ///
 /// Each line edge is split at one point, at two and at five, and every
 /// line edge at once at one point; each body is placed obliquely; at δ
@@ -332,7 +333,7 @@ fn a_split_side_adds_one_triangle_per_point() {
             }
         }
     }
-    assert_eq!(cells, 330, "the cells this row reads");
+    assert_eq!(cells, 285, "the cells this row reads");
     assert_eq!(
         unread_volumes(),
         0,
@@ -595,7 +596,7 @@ fn banded(angle: f64) -> Body<f64> {
     let (face, _) = body
         .faces()
         .find(|(fk, _)| {
-            matches!(body.face_surface(*fk), Some(geom::Surface::Cylinder { radius, .. }) if *radius > 1.5)
+            matches!(body.face_surface(*fk), Ok(geom::Surface::Cylinder { radius, .. }) if *radius > 1.5)
         })
         .expect("the outer wall");
     let rims: Vec<topo::EdgeKey> = body
@@ -935,8 +936,8 @@ fn every_close_split_of_a_draft_cones_rulings_meshes() {
         ("solid, half", solid, half),
         ("bored wall, full", bored, Revolution::Full),
     ];
-    // Cone rulings: one on a full-turn wall, two on every other body.
-    let mut rulings = 1 + 2 + 2 + 2 + 1;
+    // Cone rulings: one on a full turn (its seam), two on every other body.
+    let mut rulings = 1 + 2 + 1 + 2 + 1;
     if eps_row() != EpsRow::Coarse {
         bodies.push(wedge);
         rulings += 2;

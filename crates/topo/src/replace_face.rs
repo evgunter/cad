@@ -207,8 +207,8 @@
 //!
 //! Every decision — the mint, the refusals, the whole boundary plan —
 //! runs read-only against the incoming body. Mutation then runs on a
-//! clone in the attach layer's order (surface, then edge descriptions,
-//! then the whole-body pcurve mint), the clone is validated once at
+//! clone in the attach layer's order (surface, then edge descriptions),
+//! the clone is validated once at
 //! tier 2 — closed, every edge certified on its charts — and only a
 //! clone that passes is adopted. The body is untouched on every `Err`.
 //! Tier 2 does not read orientation: a move that carries a face through
@@ -236,10 +236,9 @@ use crate::body::Body;
 use crate::chart_groups::ChartGroups;
 use crate::entity::{EdgeKey, EntityId, FaceKey, GeomRef, SolidKey, VertexKey};
 use crate::euler::EulerOpError;
-use crate::geometry::SurfaceKey;
+use crate::geometry::{SurfaceKey, SurfaceMiss};
 use crate::live::{dangling_link, linked, proven};
 use crate::offset_derive::WallSlot;
-use crate::pcurves::{PcurveMintError, mint_pcurves};
 use crate::validate::ValidationError;
 
 /// Typed refusal of the face-replacement door. Scalar payloads echo the
@@ -333,12 +332,12 @@ pub enum ReplaceFaceError<T: Real> {
         /// The first face carrying a different surface.
         other: FaceKey,
     },
-    /// The face carries the "not yet described" placeholder surface,
-    /// which has no locus to offset.
+    /// The face's surface is still pending, which has no locus to
+    /// offset.
     ///
     /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     PlaceholderSurface {
-        /// The face carrying the placeholder.
+        /// The pending face.
         face: FaceKey,
     },
     /// **The apex-window predicate.** The face's `v`-window, shifted by
@@ -467,6 +466,20 @@ pub enum ReplaceFaceError<T: Real> {
         edge: EdgeKey,
         /// What the door could not do, in its own words.
         what: &'static str,
+    },
+    /// **A circle beside the face collapses under the move**: the
+    /// edge's moved radius (`offset_moved_radius`, the sum its image
+    /// would store) is decided not positive at this distance, so the
+    /// moved edge has no circle to be. The lane exists; the distance
+    /// takes the edge past where it shrinks to a point.
+    ///
+    /// Standing ([`Self::refusal`]): a limit, row 1(b), ending on its
+    /// own lever, the distance.
+    MovedCircleCollapses {
+        /// The edge whose circle collapses.
+        edge: EdgeKey,
+        /// The distance the face was moved by, in meters.
+        distance: T,
     },
     /// The fitted chart's boundary-row extraction refused: an interior
     /// iso parameter, an escalated coincidence, or a row the spline
@@ -826,13 +839,6 @@ pub enum ReplaceFaceError<T: Real> {
         /// The attach layer's typed refusal.
         error: EulerOpError,
     },
-    /// The whole-body pcurve mint refused on the re-described body.
-    ///
-    /// Standing ([`Self::refusal`]): a payload that mixes classes: aborts until it is split.
-    Pcurve {
-        /// The mint's typed refusal.
-        source: PcurveMintError,
-    },
     /// The join the public offset doors end with
     /// ([`Body::join_edges`](crate::construction::Construct::join_edges)) refused on the offset body. The body is
     /// untouched.
@@ -869,7 +875,7 @@ impl<T: Real> ReplaceFaceError<T> {
     /// ([`crate::cover::EdgeUncovered::refusal`]); the unbuilt lanes, row 2 (`*Unsupported`, the C5 boundary's
     /// `*Unroutable`), are limits; an invalid input (1(a)), a kernel or
     /// stored-data fault (4) and a payload that mixes classes (`Offset`,
-    /// `Fit`, `IsoRow`, the sections, `Op`, `Pcurve`,
+    /// `Fit`, `IsoRow`, the sections, `Op`,
     /// `Join`) abort until split. Exhaustive with no catch-all arm, so an
     /// added variant states its standing here before it compiles.
     ///
@@ -888,6 +894,7 @@ impl<T: Real> ReplaceFaceError<T> {
             | Self::NeighborPoseUnroutable { .. }
             | Self::FittedBoundaryUnsupported { .. }
             | Self::CarrierLaneUnsupported { .. }
+            | Self::MovedCircleCollapses { .. }
             | Self::NurbsLaneUnsupported { .. }
             | Self::TogetherAxialUnsupported { .. } => Ok(geom_brep::ladder::Refusal::Limit),
             Self::Band { .. }
@@ -921,7 +928,6 @@ impl<T: Real> ReplaceFaceError<T> {
             | Self::TogetherAxialEdge { .. }
             | Self::TogetherConicArc { .. }
             | Self::Op { .. }
-            | Self::Pcurve { .. }
             | Self::Join { .. } => Err(geom_brep::ladder::Aborts),
         }
     }
@@ -1055,6 +1061,12 @@ impl<T: Real> ReplaceFaceError<T> {
                 "an edge of the fitted face is {what}, which the face cannot carry through the \
                  move. {NOT_YET_ENDING}"
             ),
+            Self::MovedCircleCollapses { distance, .. } => write!(
+                f,
+                "a circular edge beside the face shrinks to a point or past it when the face \
+                 moves {distance:?} m, so the moved edge has no circle to be. Recourse: use a \
+                 smaller offset"
+            ),
             Self::CarrierLaneUnsupported { what, .. } => write!(
                 f,
                 "an edge beside the face cannot follow the offset: {what}. {NOT_YET_ENDING}"
@@ -1167,11 +1179,6 @@ impl<T: Real> ReplaceFaceError<T> {
                 "the moved faces could not be put onto their offset surface: {}",
                 read_at(error, at)
             ),
-            Self::Pcurve { source } => write!(
-                f,
-                "the offset body's edges could not be parametrized on their faces: {}",
-                read_at(source, at)
-            ),
             Self::Join { refusal } => write!(f, "offsetting the face: {}", read_at(refusal, at)),
             Self::TogetherChartMixed { .. } => write!(
                 f,
@@ -1242,6 +1249,54 @@ pub(crate) fn error_count(n: usize) -> String {
 /// ruling/nappe on the kinds whose chart normal varies with position.
 type Transported<T> = Option<(Curve3<T>, Option<Vec3<T>>)>;
 
+/// **A moved circle's radius, decided before it is stored**
+/// (`offset_moved_radius`, the size itself in metres): the size where it
+/// is a definitely positive length the constructors store,
+/// [`Unmoved::Collapses`] where it is decided not positive, and the
+/// escalation in band or on poison. A size the constructors would not
+/// store bounded is poison here ([`geom::conic_size_read`]): it can
+/// decide positive and is no length.
+///
+/// The surface's floor (`offset_radius_floor`) decides the moved
+/// surface's radius. A circle's is the stored circle's own radius
+/// moved, a different sum, so it is decided as the sum it is.
+pub(crate) fn moved_radius<T: Decide>(size: T, band: Band) -> Result<T, Unmoved> {
+    match decide(MOVED_RADIUS, Margin::of(geom::conic_size_read(size)), band)? {
+        Sign::Positive => Ok(size),
+        Sign::Zero | Sign::Negative => Err(Unmoved::Collapses),
+    }
+}
+
+/// **Why a curve on the moved face has no image here**, where the lane
+/// that carries it exists: its moved circle collapses (decided not
+/// positive at this distance), or a row it reads escalated.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum Unmoved {
+    /// A row escalated, in band or on poison.
+    Escalated(Indeterminate),
+    /// The moved circle's radius is decided not positive.
+    Collapses,
+}
+
+impl From<Indeterminate> for Unmoved {
+    fn from(source: Indeterminate) -> Self {
+        Self::Escalated(source)
+    }
+}
+
+impl Unmoved {
+    /// The door's refusal for an `edge` moved by `distance`.
+    pub(crate) fn refused<T: Decide>(self, edge: EdgeKey, distance: T) -> ReplaceFaceError<T> {
+        match self {
+            Self::Escalated(source) => ReplaceFaceError::Escalated { source },
+            Self::Collapses => ReplaceFaceError::MovedCircleCollapses { edge, distance },
+        }
+    }
+}
+
+/// K name: a moved circle's radius, as a length ([`moved_radius`]).
+const MOVED_RADIUS: &str = "offset_moved_radius";
+
 #[expect(
     clippy::disallowed_methods,
     reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
@@ -1253,7 +1308,7 @@ fn transport_curve<T: Decide>(
     curve: &Curve3<T>,
     mid: Point3<T>,
     band: Band,
-) -> Result<Transported<T>, Indeterminate> {
+) -> Result<Transported<T>, Unmoved> {
     Ok(match old {
         Surface::Plane { frame, .. } => {
             let normal = frame.axis();
@@ -1273,9 +1328,9 @@ fn transport_curve<T: Decide>(
                 }
                 Curve3::Circle(conic_k) => {
                     let carrier_frame_40 = &conic_k.frame();
-                    let radius = conic_k.radius();
+                    let radius = moved_radius(conic_k.radius() + d, band)?;
                     Some((
-                        Curve3::Circle(geom::Circle::new(*carrier_frame_40, radius + d)),
+                        Curve3::Circle(geom::Circle::new(*carrier_frame_40, radius)),
                         None,
                     ))
                 }
@@ -1318,10 +1373,14 @@ fn transport_curve<T: Decide>(
                     let frame = &circle_k.frame();
                     let v = (frame.origin() - apex).dot(axis.get()) / cos_a;
                     let v_new = v + action.shift();
+                    // A magnitude, decided positive as every arm's is:
+                    // a parallel moved onto the apex collapses as one
+                    // moved onto a cylinder's axis does.
+                    let radius = moved_radius((v_new * sin_a).abs(), band)?;
                     Some((
                         Curve3::Circle(geom::Circle::new(
                             frame.with_origin(action.apex() + axis.get() * (v_new * cos_a)),
-                            (v_new * sin_a).abs(),
+                            radius,
                         )),
                         None,
                     ))
@@ -1336,7 +1395,11 @@ fn transport_curve<T: Decide>(
         Surface::Sphere { frame, radius, .. } => {
             let center = frame.origin();
             let k = (*radius + d) / *radius;
-            homothety(curve, center, k).map(|c| (c, None))
+            let moved = match curve {
+                Curve3::Circle(circle) => Some(moved_radius(circle.radius() * k, band)?),
+                _ => None,
+            };
+            homothety(curve, center, k, moved).map(|c| (c, None))
         }
         Surface::Torus {
             frame: carrier_frame,
@@ -1366,23 +1429,30 @@ fn transport_curve<T: Decide>(
                     );
                     if parallel {
                         // A parallel: recover `v` from the stored circle
-                        // (`radius = R + r·cos v`, axial offset `r·sin v`)
-                        // and re-mint it at `r + d`.
+                        // (`radius = R + r·cos v`, axial offset
+                        // `h = r·sin v`) and move it by the tube's
+                        // normal `d·(cos v, sin v)`: the stored radius
+                        // and height plus their displacements, not
+                        // `R + (r + d)·cos v`, which re-adds `R` to its
+                        // own rounding (`moved_radius_rows`'s near-axis
+                        // parallel reads the difference).
+                        let h = (c - center).dot(axis);
                         let cos_v = (radius - *major_radius) / *minor_radius;
-                        let sin_v = (c - center).dot(axis) / *minor_radius;
-                        let r_new = *minor_radius + d;
+                        let sin_v = h / *minor_radius;
+                        let moved = moved_radius(radius + d * cos_v, band)?;
                         Some((
                             Curve3::Circle(geom::Circle::new(
-                                carrier_frame_39.with_origin(center + axis * (r_new * sin_v)),
-                                *major_radius + r_new * cos_v,
+                                carrier_frame_39.with_origin(center + axis * (h + d * sin_v)),
+                                moved,
                             )),
                             None,
                         ))
                     } else {
                         // A meridian (tube) circle: the tube centre is
                         // fixed and the radius moves with the minor.
+                        let moved = moved_radius(*minor_radius + d, band)?;
                         Some((
-                            Curve3::Circle(geom::Circle::new(*carrier_frame_39, *minor_radius + d)),
+                            Curve3::Circle(geom::Circle::new(*carrier_frame_39, moved)),
                             None,
                         ))
                     }
@@ -1448,20 +1518,25 @@ pub(crate) fn translate_curve<T: Real>(curve: &Curve3<T>, delta: Vec3<T>) -> Cur
 }
 
 /// `curve` under the homothety of ratio `k` about `c` — the sphere
-/// offset's own map.
+/// offset's own map. A circle's image takes the radius the caller
+/// decided ([`moved_radius`]), and has none where that is `None`.
 #[expect(
     clippy::disallowed_methods,
     reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
 )]
-fn homothety<T: Real>(curve: &Curve3<T>, c: Point3<T>, k: T) -> Option<Curve3<T>> {
+fn homothety<T: Real>(
+    curve: &Curve3<T>,
+    c: Point3<T>,
+    k: T,
+    moved: Option<T>,
+) -> Option<Curve3<T>> {
     let map = |p: Point3<T>| c + (p - c) * k;
     Some(match curve {
         Curve3::Circle(conic_k) => {
             let carrier_frame_38 = &conic_k.frame();
-            let radius = conic_k.radius();
             Curve3::Circle(geom::Circle::new(
                 carrier_frame_38.with_origin(map(carrier_frame_38.origin())),
-                radius * k,
+                moved?,
             ))
         }
         // A homothety is affine: the net's image, knots and weights as
@@ -1551,9 +1626,9 @@ pub fn replace_face_offset<T: Decide + crate::props::AtRestPolicy>(
 /// [`replace_face_offset`] for a CHART: every face carrying one surface
 /// key, replaced together.
 ///
-/// A surface can be worn by more than one face — a full revolve splits
-/// its wall into two bands over one cylinder, `step-import`'s adoption
-/// shares keys outright — and such a chart cannot be replaced one face
+/// A surface can be worn by more than one face — an extrusion of a
+/// two-arc circle parts its wall into two faces over one cylinder,
+/// `step-import`'s adoption shares keys outright — and such a chart cannot be replaced one face
 /// at a time: the fresh key would leave the sharer on the old surface
 /// while their shared seam named the new one, and a `Seam` description
 /// requires ONE surface on both sides, so there is no re-description
@@ -1699,7 +1774,7 @@ fn planned_charts<T: Decide + crate::props::AtRestPolicy>(
             let face = faces[0];
             let view = body.proven_face(face);
             let old_key = view.record().surface;
-            let old_surface = view.surface().clone();
+            let old_surface = view.surface().expect("the face is described").clone();
             assert!(
                 !matches!(old_surface, Surface::Cone { .. }),
                 "a cone's nappe and apex window are the door's"
@@ -1775,7 +1850,7 @@ pub fn offset_corner_arms_for_tests<T: Decide + crate::props::AtRestPolicy>(
     let band = Band::linear(tol).expect("the witness band");
     let view = body.proven_face(face);
     let old_key = view.record().surface;
-    let old_surface = view.surface().clone();
+    let old_surface = view.surface().expect("the face is described").clone();
     let new_surface = mint_offset(
         face,
         &old_surface,
@@ -1952,8 +2027,9 @@ fn wall_charts<'s, T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     moved: usize,
 ) -> Option<crate::offset_derive::WallCharts<'s>> {
-    T::section_lane()
-        .map(|_| crate::offset_derive::WallCharts::new(moved, body.surfaces().map(|(key, _)| key)))
+    T::section_lane().map(|_| {
+        crate::offset_derive::WallCharts::new(moved, body.described_surfaces().map(|(key, _)| key))
+    })
 }
 
 /// The moved chart wearing `key`, if one does.
@@ -2063,7 +2139,10 @@ pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
         if let Some(&other) = groups.of(old_key).iter().find(|k| !faces.contains(k)) {
             return Err(ReplaceFaceError::SharedSurfaceKey { face, other });
         }
-        let old_surface = view.surface().clone();
+        let old_surface = view
+            .surface()
+            .map_err(|_| ReplaceFaceError::PlaceholderSurface { face })?
+            .clone();
         // **The cone's mirror nappe is a consumer obligation, and this is
         // where this door discharges it.** `geom_brep::ConeOffset`'s
         // action moves the surface along the OPENING nappe's normal
@@ -2300,14 +2379,12 @@ pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
     // A row is stated over its edge's interval, which ends at the
     // edge's vertices, so the move stales every row of an edge that
     // ends at a moved vertex. They go before the re-anchors' site mints
-    // could keep them; the closing mint re-derives every face. That
-    // includes a fitted row on a neighbour that keeps its chart, which
-    // the closing mint would otherwise carry (`pcurves::carry_rows`):
-    // its image ends on the chart point of the vertex where it was
-    // stated, so once that vertex is displaced past the band the carry
-    // re-certifies it against an edge that ends elsewhere and refuses.
-    // A vertex in `moved` that lands within the band of where it was
-    // keeps a carryable row that this drop loses
+    // could keep them, for the finish to complete. That includes a
+    // fitted row on a neighbour that keeps its chart: its image ends on
+    // the chart point of the vertex where it was stated, so once that
+    // vertex is displaced past the band it is stale. A vertex in `moved`
+    // that lands within the band of where it was keeps a current row
+    // that this drop loses
     // (`work/shell/replace-faces-offset-drops-rows-at-a-vertex-the-move-leaves-in-place`).
     let staled: Vec<_> = work
         .half_edges
@@ -2342,7 +2419,6 @@ pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
                 },
             })?;
     }
-    mint_pcurves(&mut work, tol).map_err(|source| ReplaceFaceError::Pcurve { source })?;
     work.close_gated("offset_charts_staged")
         .map_err(|errors| ReplaceFaceError::ResultNotClosed { errors })?;
     let ends: std::collections::BTreeSet<crate::VertexKey> = written
@@ -2376,9 +2452,6 @@ fn mint_offset<T: Decide>(
     offset_fit: Option<impl geom_brep::OffsetFitLaneOf<T>>,
 ) -> Result<Surface<T>, ReplaceFaceError<T>> {
     if let Surface::Nurbs(base) = old {
-        if base.is_placeholder() {
-            return Err(ReplaceFaceError::PlaceholderSurface { face });
-        }
         return match offset_fit {
             None => Err(ReplaceFaceError::ApproxLaneUnsupported {
                 face,
@@ -2635,7 +2708,8 @@ fn iso_image_row<T: Decide>(
             // No lift to read: the ends are the image's own (above).
             let lift = crate::pcurves::Lift::read(body, half.parent_loop).ok()?;
             let row = lift.rows().iter().position(|row| row.half_edge == he)?;
-            let periods = crate::pcurves::ChartPeriods::stated(body.proven_face(face).surface());
+            let periods =
+                crate::pcurves::ChartPeriods::stated(body.proven_face(face).expect_described());
             Some(lift.stored_corners(row, periods))
         })
         .unwrap_or([None, None]);
@@ -2782,8 +2856,16 @@ fn plan_edge<'s, T: Decide>(
         // (`IsoRowError::Interior`) rather than reading another row.
         let extract = row.filter(|&(axis, at, _)| {
             self_shared || {
-                let held = body.proven_face(other).surface();
-                crate::offset_derive::holds_the_move(old_surface, held, Some((axis, at)), d, band)
+                // A pending neighbour holds nothing: its section refuses below.
+                body.proven_face(other).surface().is_ok_and(|held| {
+                    crate::offset_derive::holds_the_move(
+                        old_surface,
+                        held,
+                        Some((axis, at)),
+                        d,
+                        band,
+                    )
+                })
             }
         });
         iso_section = extract.is_none() && !self_shared;
@@ -2880,9 +2962,7 @@ fn plan_edge<'s, T: Decide>(
         sides[0]
     };
     if other_key != old_key {
-        let held = body.get_surface(other_key).unwrap_or_else(|| {
-            dangling_link(EntityId::Edge(edge), "face", GeomRef::Surface(other_key))
-        });
+        let held = held_surface(body, edge, other_key)?;
         let extent = geom_brep::edge_extent_inf(&old_carrier, t0, t1);
         if !crate::offset_derive::holds_the_move(old_surface, held, None, d, band) {
             return derive_edge(
@@ -2904,7 +2984,7 @@ fn plan_edge<'s, T: Decide>(
     }
 
     let (carrier, delta) = transport_curve(old_surface, nappe, d, &old_carrier, mid, band)
-        .map_err(|source| ReplaceFaceError::Escalated { source })?
+        .map_err(|unmoved| unmoved.refused(edge, d))?
         .ok_or(ReplaceFaceError::CarrierLaneUnsupported {
             edge,
             what: "its kind of curve has no exact offset on this kind of surface",
@@ -2960,8 +3040,8 @@ fn plan_edge<'s, T: Decide>(
     // Whether the section of the moved chart and an untouched neighbour
     // is one this kernel can state.
     let neighbour_section = |other: SurfaceKey| -> Result<(), ReplaceFaceError<T>> {
-        let other_surface = body.get_surface(other).unwrap_or_else(|| {
-            dangling_link(EntityId::Edge(edge), "description", GeomRef::Surface(other))
+        let other_surface = body.get_surface(other).unwrap_or_else(|miss| {
+            crate::live::described_link(EntityId::Edge(edge), "description", other, miss)
         });
         let other_kind = other_surface.kind();
         let kind = new_surface.kind();
@@ -2994,6 +3074,7 @@ fn plan_edge<'s, T: Decide>(
                 other @ (geom_brep::SectionError::WrongLane { .. }
                 | geom_brep::SectionError::NoRegion { .. }
                 | geom_brep::SectionError::DegenerateOperand { .. }
+                | geom_brep::SectionError::RadiusNotPositive { .. }
                 | geom_brep::SectionError::ConeAtTheBand { .. }
                 | geom_brep::SectionError::BeyondOperandExtent { .. }
                 | geom_brep::SectionError::CoincidentSurfaces
@@ -3047,9 +3128,7 @@ fn plan_edge<'s, T: Decide>(
         // and an offset leaves the normals along the edge as they were,
         // so the edge was already a corner, where an image is refused.
         EdgeDescription::Chart(ref c) if c.surface == old_key => {
-            let held = body.get_surface(other_key).unwrap_or_else(|| {
-                dangling_link(EntityId::Edge(edge), "face", GeomRef::Surface(other_key))
-            });
+            let held = held_surface(body, edge, other_key)?;
             let demanded = crate::offset_restate::re_ask_chart(
                 edge,
                 [(old_key, new_surface), (other_key, held)],
@@ -3080,8 +3159,8 @@ fn plan_edge<'s, T: Decide>(
         // now stands.
         EdgeDescription::OnPair { pair } if let Some(other) = pair.other(old_key) => {
             neighbour_section(other)?;
-            let held = body.get_surface(other).unwrap_or_else(|| {
-                dangling_link(EntityId::Edge(edge), "description", GeomRef::Surface(other))
+            let held = body.get_surface(other).unwrap_or_else(|miss| {
+                crate::live::described_link(EntityId::Edge(edge), "description", other, miss)
             });
             crate::offset_restate::re_ask_on_pair(
                 edge,
@@ -3170,12 +3249,8 @@ fn plan_edge<'s, T: Decide>(
         // rule reads, declared or not.
         EdgeDescription::Chart(ref c) => {
             neighbour_section(c.surface)?;
-            let held = body.get_surface(c.surface).unwrap_or_else(|| {
-                dangling_link(
-                    EntityId::Edge(edge),
-                    "description",
-                    GeomRef::Surface(c.surface),
-                )
+            let held = body.get_surface(c.surface).unwrap_or_else(|miss| {
+                crate::live::described_link(EntityId::Edge(edge), "description", c.surface, miss)
             });
             crate::offset_restate::re_ask_on_pair(
                 edge,
@@ -3214,6 +3289,31 @@ fn plan_edge<'s, T: Decide>(
         refused: None,
         apex_pair: None,
     })
+}
+
+/// The surface a face beside a moved edge wears: [`ReplaceFaceError::PlaceholderSurface`]
+/// naming that face where it is still pending, which has no locus to
+/// hold or section.
+fn held_surface<T: Real>(
+    body: &Body<T>,
+    edge: EdgeKey,
+    key: SurfaceKey,
+) -> Result<&Surface<T>, ReplaceFaceError<T>> {
+    match body.get_surface(key) {
+        Ok(surface) => Ok(surface),
+        Err(SurfaceMiss::Stale) => {
+            dangling_link(EntityId::Edge(edge), "face", GeomRef::Surface(key))
+        }
+        Err(SurfaceMiss::Pending) => {
+            let [a, b] = crate::edge_faces(body, edge);
+            let face = if body.proven_face(a).record().surface == key {
+                a
+            } else {
+                b
+            };
+            Err(ReplaceFaceError::PlaceholderSurface { face })
+        }
+    }
 }
 
 /// The surface keys on `edge`'s two sides.
@@ -3361,8 +3461,13 @@ fn carried_alike<T: Decide>(
     }
     let mid = old.mid_point(t0, t1);
     let transport = |c: &MovedChart<'_, T>| {
-        transport_curve(&c.old_surface, c.nappe, c.d, old, mid, band)
-            .map_err(|source| ReplaceFaceError::Escalated { source })
+        // A side whose circle collapses has no image, as a side with
+        // no lane has none.
+        match transport_curve(&c.old_surface, c.nappe, c.d, old, mid, band) {
+            Ok(image) => Ok(image),
+            Err(Unmoved::Collapses) => Ok(None),
+            Err(Unmoved::Escalated(source)) => Err(ReplaceFaceError::Escalated { source }),
+        }
     };
     // A side with no image is no witness, whatever the other side read
     // ([`climb`], [`Answering::Any`]): an escalation on one side is kept,
@@ -3471,6 +3576,7 @@ fn derive_edge<'w, 's, T: Decide>(
         other @ (geom_brep::SectionError::WrongLane { .. }
         | geom_brep::SectionError::NoRegion { .. }
         | geom_brep::SectionError::DegenerateOperand { .. }
+        | geom_brep::SectionError::RadiusNotPositive { .. }
         | geom_brep::SectionError::ConeAtTheBand { .. }
         | geom_brep::SectionError::BeyondOperandExtent { .. }
         | geom_brep::SectionError::CoincidentSurfaces
@@ -4121,8 +4227,8 @@ fn plan_reanchors<T: Decide>(
             EdgeDescriptionSpec::OnPair { pair, declared } => {
                 let [ka, kb] = pair.keys();
                 let surface = |k| {
-                    body.get_surface(k).unwrap_or_else(|| {
-                        dangling_link(EntityId::Edge(edge), "description", GeomRef::Surface(k))
+                    body.get_surface(k).unwrap_or_else(|miss| {
+                        crate::live::described_link(EntityId::Edge(edge), "description", k, miss)
                     })
                 };
                 crate::offset_restate::re_ask_on_pair(
@@ -4362,53 +4468,26 @@ fn carrier_foot<T: Decide>(
 /// is decided over the section's whole domain, which on a fit wider
 /// than the face reaches past the edge. On any other carrier the
 /// verdict refuses the corner.
-#[allow(clippy::too_many_arguments, clippy::type_complexity)]
-fn spline_corner_root<T: Decide>(
-    root: Result<crate::offset_derive::SplineRoot, crate::offset_derive::CornerVerdict<T>>,
-    spline: &NurbsCurve3<T>,
-    (vertex, edge, derived): (VertexKey, EdgeKey, bool),
-    d: T,
-    band: Band,
-    tol: Tol,
-) -> Result<Result<T, crate::offset_derive::CornerVerdict<T>>, ReplaceFaceError<T>> {
-    corner_of_root(
-        root,
-        (vertex, edge, derived),
-        d,
-        band,
-        tol,
-        spline.knot_values(),
-    )
-}
-
-/// [`spline_corner_root`]'s reading of the lane's verdict. The lane
-/// measures in `f64`, so its root and its gap enter as computed values;
-/// a short root stops at a domain end, which is the carrier's own held
-/// end knot (`held`; a value no breakpoint carries enters as computed).
+///
+/// The root and a short root's end are the lane's own numbers
+/// ([`crate::offset_derive::SplineRoot`]); the lane measures its gap in
+/// `f64`, so the gap enters as a computed value.
 #[allow(clippy::type_complexity)]
 fn corner_of_root<T: Decide>(
-    root: Result<crate::offset_derive::SplineRoot, crate::offset_derive::CornerVerdict<T>>,
+    root: Result<crate::offset_derive::SplineRoot<T>, crate::offset_derive::CornerVerdict<T>>,
     (vertex, edge, derived): (VertexKey, EdgeKey, bool),
     d: T,
     band: Band,
     tol: Tol,
-    held: &geom_core::spline::Knots<T>,
 ) -> Result<Result<T, crate::offset_derive::CornerVerdict<T>>, ReplaceFaceError<T>> {
-    // `held` is a carrier's knots, which are points (`net::carrier_knots`).
-    let held_end = |v: f64| match held.value_at(v) {
-        Ok(k) => k.unwrap_or_else(|| T::from_computed(v)),
-        Err(e) => {
-            unreachable!("a carrier's door admits only point knots (`CarrierKnotNotAPoint`): {e}")
-        }
-    };
     use crate::offset_derive::SplineRoot;
     match root {
-        Ok(SplineRoot::At(t)) => Ok(Ok(T::from_computed(t))),
+        Ok(SplineRoot::At(t)) => Ok(Ok(t)),
         Ok(SplineRoot::Short {
             end,
             near_gap,
             near: true,
-        }) if bound_within_eps::<T>(near_gap, tol, band)? => Ok(Ok(held_end(end))),
+        }) if bound_within_eps::<T>(near_gap, tol, band)? => Ok(Ok(end)),
         Ok(SplineRoot::Short {
             near_gap,
             near: true,
@@ -4464,8 +4543,8 @@ fn solve_corners<T: Decide>(
     let surface_of = |key: SurfaceKey| -> &Surface<T> {
         match moved_of(charts, key) {
             Some(chart) => &chart.new_surface,
-            None => body.get_surface(key).unwrap_or_else(|| {
-                unreachable!("{key:?} is a face's surface, read off a live face")
+            None => body.get_surface(key).unwrap_or_else(|miss| {
+                unreachable!("{key:?} is a face's described surface, read off a live face: {miss}")
             }),
         }
     };
@@ -4610,9 +4689,8 @@ fn solve_corners<T: Decide>(
                                         edge,
                                         scalar: T::NAME,
                                     })?;
-                                match spline_corner_root(
+                                match corner_of_root(
                                     lane.root(surface, spline, seed, inc.extent, band),
-                                    spline,
                                     (vertex, edge, inc.derived),
                                     d,
                                     band,
@@ -5933,7 +6011,7 @@ mod pair_over_its_span_rows {
     }
 }
 
-/// [`spline_corner_root`] on one spline carrier, the straight segment
+/// [`corner_of_root`] on one spline carrier, the straight segment
 /// `(-1, 0, 0) → (0, 0, 0)` on `[0, 1]`: where a plane past its end is
 /// taken as the corner, and what a surface the lane does not root does.
 #[cfg(test)]
@@ -5943,7 +6021,7 @@ mod spline_corner {
     use geom_core::spline::KnotVector;
     use geom_core::{Band, Point3, Tol, Vec3};
 
-    use super::{ReplaceFaceError, spline_corner_root};
+    use super::{ReplaceFaceError, corner_of_root};
     use crate::entity::{EdgeKey, VertexKey};
     use crate::offset_derive::{CornerVerdict, SectionLane, SectionLaneOf};
 
@@ -5973,9 +6051,8 @@ mod spline_corner {
         let tol = Tol::witness();
         let (spline, band) = (segment(), Band::linear(tol).unwrap());
         let extent = geom_core::test_support::fixture_lever(1.0);
-        spline_corner_root(
+        corner_of_root(
             SectionLaneOf::root(SectionLane::f64(), surface, &spline, 1.0, extent, band),
-            &spline,
             (VertexKey::default(), EdgeKey::default(), derived),
             0.1,
             band,
@@ -6144,137 +6221,10 @@ mod from_computed_rows {
     #![allow(clippy::unwrap_used, clippy::panic)]
     use geom::NurbsCurve3;
     use geom_core::spline::KnotVector;
-    use geom_core::{Band, Point3, Real, Tol};
+    use geom_core::{Point3, Real};
 
-    use super::{ReplaceFaceError, carrier_foot, corner_of_root};
-    use crate::entity::{EdgeKey, VertexKey};
-    use crate::offset_derive::{CornerVerdict, SplineRoot};
+    use super::carrier_foot;
     use crate::revalue_pin::{Revalued, S, revalued};
-
-    fn band() -> Band {
-        Band::linear(Tol::witness()).unwrap()
-    }
-
-    /// The corner a lane verdict reads as.
-    fn corner(root: SplineRoot) -> Result<Result<S, CornerVerdict<S>>, ReplaceFaceError<S>> {
-        corner_of_root(
-            Ok(root),
-            (VertexKey::default(), EdgeKey::default(), false),
-            S::from_f64(0.1),
-            band(),
-            Tol::witness(),
-            &unit_knots(),
-        )
-    }
-
-    /// The unit segment's knots, constants: a short root's end `1.0`
-    /// is its held end.
-    fn unit_knots() -> geom_core::spline::Knots<S> {
-        geom_core::spline::Knots::from(KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap())
-            .lift(S::from_f64)
-    }
-
-    /// The lane's root enters as a computed value: a root the lane
-    /// measures where the parameter moves it does not re-value to the
-    /// root `p0` measured.
-    #[test]
-    fn the_lanes_root_enters_as_computed() {
-        let found = revalued([0.5, 0.5 + 1.0e-3], |p, _| {
-            vec![corner(SplineRoot::At(p)).unwrap().unwrap()]
-        });
-        assert_eq!(
-            found,
-            Revalued {
-                kept: 0,
-                opaque: 1,
-                laundered: 0,
-            }
-        );
-    }
-
-    /// A short root's end is the carrier's held end knot, read off its
-    /// `Knots` as `spline_corner_root` hands them over: with the end
-    /// knot a variable, the corner re-values with it to
-    /// the bits the `p1` build computes (`kept`), where the `f64` end
-    /// entered as a constant would launder it. The ε decision on the
-    /// near gap reads the lane's measured gap, a computed value
-    /// (`opaque`).
-    #[test]
-    fn a_short_roots_end_is_the_held_end_knot() {
-        let found = revalued([1.0, 1.0 + 1.0e-3], |p, end_knot| {
-            let two = core::num::NonZeroUsize::new(2).unwrap();
-            let held =
-                geom_core::spline::Knots::new(vec![(S::from_f64(0.0), two), (end_knot, two)], 1)
-                    .unwrap();
-            let root = SplineRoot::Short {
-                end: p,
-                near_gap: 0.0,
-                near: true,
-            };
-            let corner = corner_of_root(
-                Ok(root),
-                (VertexKey::default(), EdgeKey::default(), false),
-                S::from_f64(0.1),
-                band(),
-                Tol::witness(),
-                &held,
-            )
-            .unwrap()
-            .unwrap();
-            vec![corner]
-        });
-        assert_eq!(
-            found,
-            Revalued {
-                kept: 1,
-                opaque: 1,
-                laundered: 0,
-            }
-        );
-    }
-
-    /// A short root's near gap enters as a computed value, both where ε
-    /// takes the end (`offset_vertex_agreement` decides it) and where it
-    /// refuses with the gap.
-    #[test]
-    fn a_short_roots_gap_enters_as_computed() {
-        let short = |near_gap| SplineRoot::Short {
-            end: 1.0,
-            near_gap,
-            near: true,
-        };
-        let eps = band().zero();
-        let found = revalued([0.5 * eps, 0.5 * eps * (1.0 + 1.0e-3)], |p, _| {
-            let end = corner(short(p)).unwrap().unwrap();
-            assert_eq!(end.value(), 1.0, "a gap within ε takes the end");
-            Vec::new()
-        });
-        assert_eq!(
-            found,
-            Revalued {
-                kept: 0,
-                opaque: 1,
-                laundered: 0,
-            },
-            "ε decides the gap as the lane measured it"
-        );
-        let past = 2.0 * (band().zero() + band().escalate());
-        let found = revalued([past, past * (1.0 + 1.0e-3)], |p, _| {
-            match corner(short(p)) {
-                Err(ReplaceFaceError::ReanchorPastCarrierEnd { gap, .. }) => vec![gap],
-                other => panic!("a gap past the band refuses with it, got {other:?}"),
-            }
-        });
-        assert_eq!(
-            found,
-            Revalued {
-                kept: 0,
-                opaque: 2,
-                laundered: 0,
-            },
-            "the decision and the refusal both carry the gap as the lane measured it"
-        );
-    }
 
     /// A carrier foot enters as a computed value: the lane's foot of a
     /// point the parameter moves along a spline segment at `Sym<f64>`
@@ -6436,6 +6386,233 @@ mod corner_rows {
             Point3::new(0.0, 1.0, 0.0),
         ];
         assert_eq!(corner_apart(&points, tol, band).ok(), Some(Some(1.0)));
+    }
+}
+
+/// **A moved circle's radius is decided as the sum the image stores.**
+/// Each row's mutant is `moved_radius` answering `Ok(Some(size))`
+/// undecided, under which the row panics in `Circle::new`.
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::float_cmp
+)]
+mod moved_radius_rows {
+    use geom::{Curve3, Surface};
+    use geom_brep::Nappe;
+    use geom_core::{Band, Bounds, Decide, Interval, Point3, Real, Tol, Vec3};
+
+    use super::{Unmoved, transport_curve};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    fn frame_at(z: f64) -> geom::Frame<f64> {
+        geom::Frame::new(Point3::new(0.0, 0.0, z), Vec3::unit_z(), Vec3::unit_x())
+    }
+
+    /// The moved radius of the circle of `radius` at height `z` about
+    /// the z axis: `Ok(Some(_))` its image's, `Err(Collapses)` decided
+    /// not positive, `Err(())` escalated.
+    fn moved_at<T: Decide>(
+        old: &Surface<T>,
+        d: T,
+        radius: T,
+        z: T,
+    ) -> Result<Option<T>, Option<Unmoved>> {
+        let (zero, one) = (T::zero(), T::one());
+        let circle = Curve3::circle(
+            Point3::new(zero, zero, z),
+            Vec3::new(zero, zero, one),
+            radius,
+            Vec3::new(one, zero, zero),
+        );
+        let mid = Point3::new(zero - radius, zero, z);
+        transport_curve(old, Nappe::Opening, d, &circle, mid, band())
+            .map(|image| {
+                image.map(|(c, _)| match c {
+                    Curve3::Circle(c) => c.radius(),
+                    other => panic!("a circle's image is a circle: {other:?}"),
+                })
+            })
+            .map_err(|e| match e {
+                Unmoved::Collapses => Some(Unmoved::Collapses),
+                Unmoved::Escalated(_) => None,
+            })
+    }
+
+    const COLLAPSES: Result<Option<f64>, Option<Unmoved>> = Err(Some(Unmoved::Collapses));
+    const ESCALATES: Result<Option<f64>, Option<Unmoved>> = Err(None);
+
+    fn moved(
+        old: &Surface<f64>,
+        d: f64,
+        radius: f64,
+        z: f64,
+    ) -> Result<Option<f64>, Option<Unmoved>> {
+        moved_at(old, d, radius, z)
+    }
+
+    /// [`moved_at`] at `Interval`, every operand a point: whether the
+    /// image escalates.
+    fn escalates_at_interval(old: &Surface<f64>, d: f64, radius: f64, z: f64) -> bool {
+        let iv = Interval::from_f64;
+        matches!(
+            moved_at(&old.map_scalar(iv), iv(d), iv(radius), iv(z)),
+            Err(None)
+        )
+    }
+
+    /// A stored circle whose radius is not its cylinder's: the surface's
+    /// floor decides `1 − 0.75`, the image stores `0.5 − 0.75`.
+    #[test]
+    fn a_cylinder_circle_past_its_own_collapse_has_no_image() {
+        let cylinder = Surface::Cylinder {
+            frame: frame_at(0.0),
+            radius: 1.0,
+        };
+        assert_eq!(
+            moved(&cylinder, -0.75, 0.5, 0.0),
+            COLLAPSES,
+            "decided not positive"
+        );
+        assert_eq!(
+            moved(&cylinder, 0.25, 1.0, 0.0),
+            Ok(Some(1.25)),
+            "the control"
+        );
+        assert_eq!(
+            moved(&cylinder, f64::INFINITY, 1.0, 0.0),
+            ESCALATES,
+            "no finite radius"
+        );
+    }
+
+    /// The homothety's ratio `(R + d)/R` overflows at a finite `d` that
+    /// the floor passes.
+    #[test]
+    fn a_sphere_circle_moved_past_the_float_range_escalates() {
+        let sphere = Surface::Sphere {
+            frame: frame_at(0.0),
+            radius: 1e-3,
+        };
+        assert_eq!(
+            moved(&sphere, 1e306, 1e-3, 0.0),
+            ESCALATES,
+            "the ratio overflows"
+        );
+        assert_eq!(
+            moved(&sphere, f64::INFINITY, 1e-3, 0.0),
+            ESCALATES,
+            "an infinite move"
+        );
+        assert_eq!(
+            moved(&sphere, 1e-3, 1e-3, 0.0),
+            Ok(Some(2e-3)),
+            "the control"
+        );
+    }
+
+    /// A torus parallel moves by `d·cos v` from its own stored radius:
+    /// the outer equator by `d`, the inner by `−d`, the top circle not
+    /// at all; a parallel stored inside the inner equator collapses
+    /// before the tube's ring does.
+    #[test]
+    fn a_torus_parallel_moves_from_its_own_radius() {
+        let torus = Surface::Torus {
+            frame: frame_at(0.0),
+            major_radius: 1.0,
+            minor_radius: 0.25,
+        };
+        assert_eq!(
+            moved(&torus, 0.125, 1.25, 0.0),
+            Ok(Some(1.375)),
+            "outer equator"
+        );
+        assert_eq!(
+            moved(&torus, 0.125, 0.75, 0.0),
+            Ok(Some(0.625)),
+            "inner equator"
+        );
+        assert_eq!(moved(&torus, 0.125, 1.0, 0.25), Ok(Some(1.0)), "top circle");
+        // `cos v = (0.25 − 1)/0.25 = −3`: off the torus, and `0.25 − 3·0.125 < 0`.
+        assert_eq!(
+            moved(&torus, 0.125, 0.25, 0.0),
+            COLLAPSES,
+            "decided not positive"
+        );
+    }
+
+    /// A parallel near the axis moves from its own radius, not from
+    /// `R + (r + d)·cos v`, whose `R` cancels against the `R` inside
+    /// `cos v = (ρ − R)/r` and leaves its rounding in a size thirty
+    /// times smaller. The expected value is the exact
+    /// `ρ + d·(ρ − 1)/0.99` correctly rounded.
+    ///
+    /// Mutant: the arm re-posed as `R + (r + d)·cos v` reads 39 ulps
+    /// off; the re-pose reads within 2.
+    #[test]
+    fn a_parallel_near_the_axis_keeps_its_own_radius() {
+        let torus = Surface::Torus {
+            frame: frame_at(0.0),
+            major_radius: 1.0,
+            minor_radius: 0.99,
+        };
+        let (radius, d) = (0.063, 0.038);
+        let cos_v: f64 = (radius - 1.0) / 0.99;
+        let z = 0.99 * (1.0 - cos_v * cos_v).sqrt();
+        let expected = 0.027_034_343_434_343_435_f64;
+        let got = moved(&torus, d, radius, z).unwrap().unwrap();
+        let ulps = got.to_bits().abs_diff(expected.to_bits());
+        assert!(ulps <= 2, "{got:e} against {expected:e}: {ulps} ulps");
+    }
+
+    /// **At `Interval` a size past the float range has an infinite
+    /// upper end** (`[MAX, ∞]` from the sum), whose own width is not
+    /// poison: each arm reads it through the
+    /// constructors' predicate (`geom::conic_size_read`) and escalates,
+    /// where a read of `is_finite_length` decided it positive and the
+    /// constructor panicked.
+    ///
+    /// Mutant: `conic_size_read` asking `is_finite_length` instead
+    /// panics in `Circle::new` at each arm.
+    #[test]
+    fn a_size_past_the_float_range_escalates_at_interval() {
+        let max = f64::MAX;
+        let cylinder = Surface::Cylinder {
+            frame: frame_at(0.0),
+            radius: 1.0,
+        };
+        assert!(escalates_at_interval(&cylinder, max, 1.0, 0.0), "cylinder");
+        let sphere = Surface::Sphere {
+            frame: frame_at(0.0),
+            radius: 1e-3,
+        };
+        assert!(escalates_at_interval(&sphere, 1e306, 1e-3, 0.0), "sphere");
+        let torus = Surface::Torus {
+            frame: frame_at(0.0),
+            major_radius: 1.0,
+            minor_radius: 0.25,
+        };
+        assert!(
+            escalates_at_interval(&torus, max, 1.25, 0.0),
+            "torus parallel"
+        );
+        // A parallel of the 45° cone at height 1: radius 1.
+        let cone = Surface::Cone {
+            frame: frame_at(0.0),
+            half_angle: core::f64::consts::FRAC_PI_4,
+        };
+        assert!(escalates_at_interval(&cone, max, 1.0, 1.0), "cone parallel");
+        let iv = Interval::from_f64;
+        let control = moved_at(&cylinder.map_scalar(iv), iv(0.25), iv(1.0), iv(0.0));
+        assert!(
+            matches!(control, Ok(Some(r)) if r.lo() <= 1.25 && 1.25 <= r.hi()),
+            "the control: {control:?}"
+        );
     }
 }
 

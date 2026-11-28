@@ -248,9 +248,9 @@ fn cylinder_pairs_are_refused_only_where_no_evidence_admits_them() {
     }
 }
 
-/// **Every pose of the unscoped implemented pairs is served**, and an
-/// unimplemented kind pair answers the table unchanged — including a
-/// pose that WOULD be the easy one (a coaxial cone×sphere).
+/// **Every pose of the unscoped implemented pairs is served**: a cone
+/// against a sphere or a cone is among them, its coaxial and common-apex
+/// poses the closed forms' and every other the general rung's.
 #[test]
 fn unscoped_pairs_answer_the_kind_table() {
     let cone = cone_z(PI_6);
@@ -261,8 +261,9 @@ fn unscoped_pairs_answer_the_kind_table() {
     assert!(served(&tilted, &c));
     assert!(served(&c, &s));
     assert!(served(&s, &sphere(Point3::new(1.0, 0.0, 0.0), 0.7)));
-    assert!(!served(&cone, &sphere(Point3::new(0.0, 0.0, -1.0), 0.5)));
-    assert!(!served(&cone, &cone_z(0.4)));
+    assert!(served(&cone, &sphere(Point3::new(0.0, 0.0, -1.0), 0.5)));
+    assert!(served(&cone, &sphere(Point3::new(0.3, 0.0, 2.0), 0.5)));
+    assert!(served(&cone, &cone_z(0.4)));
 }
 
 /// **An in-band pose escalates**; it is neither served nor refused. The

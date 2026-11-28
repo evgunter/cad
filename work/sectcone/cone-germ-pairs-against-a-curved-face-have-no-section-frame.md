@@ -2,11 +2,13 @@
 id: cone-germ-pairs-against-a-curved-face-have-no-section-frame
 kind: issue
 title: A cone wall crossing an oblique cylinder or another cone reaches the join and refuses GermFrameUnsupported: no frame names its section
-status: open
+status: closed
 opened: 2026-10-10
 priority: P1
 cost: H
 refs: [torus-germ-pairs-have-no-section-frame, cone-pairs-in-general-pose-have-no-section-arm]
+closed: 2026-11-25
+pr: 7735
 ---
 
 Found by GERM's general-pose cone lane (`cone-pairs-in-general-pose-have-no-section-arm`,
@@ -86,3 +88,18 @@ Two notes from the designers:
 - The touch case is classification only, so it can build before the metres enclosure.
 
 Witnesses are on SPLITDOOR's B3 row (`a-cone-by-curved-carrier-section-through-the-apex-has-no-germ-frame-or-certified-count`). That row waits on this one for its follow-on: the pierce germ and the gate. (SPLITDOOR orchestrator)
+
+## Evidence: a coaxial cone against a sphere (LATHE, 2026-11-23)
+
+Measured on `main` `ea1aca811` (LATHE one-site lane's
+review fix pass, PR 7476): a full revolve about `y` of the triangle
+`(0, −0.3)`, `(1.2, −0.3)`, `(0, 1.5)` (a cone, apex `y = 1.5`) against
+the unit ball at the origin refuses every op (∪ both orders, ∩, ∖ both
+orders) `GermFrameUnsupported { a_kind: Cone, b_kind: Sphere }`, before
+the join, at `join.rs` `conic_section_frame_at`'s `FrameError::NoArm`:
+`geom_brep::pair_section::serves` names no cone pair, and no frame arm
+reads cone × sphere. The pair is coaxial, so its section is two circles
+about the shared axis, the shape a frame reads. PR 7476's review met the
+same refusal on LATHE's one-band stack, so it is not a one-band regression.
+## Closed (2026-11-25)
+Its units have all landed: U1 (PR 7357), the partner-winding unit (7455), U2 (7637) and U3 (7735), plus the cone × sphere and cone × cone doors (7457). A cone wall crossing an oblique cylinder or another cone in general pose now rides its carried section in the join and no longer refuses `GermFrameUnsupported`. 7735's tilted-rod row builds all four ops to their closed-form volumes. The three poses the value reads elsewhere and that still have no germ frame (a sphere on the cone's axis, a coaxial torus, two cones of one aperture on parallel axes) are `the-cone-poses-read-elsewhere-have-no-germ-frame` (P2). The apex node's join half is in `the-r3-march-ends-no-branch-at-a-cone-node`.

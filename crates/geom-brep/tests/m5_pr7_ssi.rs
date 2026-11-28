@@ -2361,18 +2361,25 @@ fn the_c5_table_retires_the_arm_whose_proof_is_complete() {
     let r = route(SurfaceKind::Cone, SurfaceKind::Torus);
     assert!(r.implemented, "Cone×Torus is implemented");
     assert!(r.note.contains("IMPLICIT PAIR"), "{}", r.note);
+    // A cone against a cone or a sphere, marched from its ruling sweep's
+    // witnesses.
     for (a, b) in [
-        (SurfaceKind::Nurbs, SurfaceKind::Cylinder),
+        (SurfaceKind::Cone, SurfaceKind::Cone),
         (SurfaceKind::Cone, SurfaceKind::Sphere),
+        (SurfaceKind::Sphere, SurfaceKind::Cone),
     ] {
         let r = route(a, b);
-        assert!(!r.implemented, "{a:?}×{b:?} must stay refused");
-        assert!(
-            r.note.contains("TRACE") || r.note.contains("trace shape"),
-            "{a:?}×{b:?} must cite its trace shape: {}",
-            r.note
-        );
+        assert!(r.implemented, "{a:?}×{b:?} is implemented");
+        assert!(r.note.contains("IMPLICIT PAIR"), "{}", r.note);
     }
+    let (a, b) = (SurfaceKind::Nurbs, SurfaceKind::Cylinder);
+    let r = route(a, b);
+    assert!(!r.implemented, "{a:?}×{b:?} must stay refused");
+    assert!(
+        r.note.contains("TRACE") || r.note.contains("trace shape"),
+        "{a:?}×{b:?} must cite its trace shape: {}",
+        r.note
+    );
 }
 
 // ---------------------------------------------------------------------

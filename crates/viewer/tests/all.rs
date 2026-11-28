@@ -151,6 +151,8 @@ mod review_bundle_editor_r2;
 #[path = "review_intent_e_r1.rs"]
 mod review_intent_e_r1;
 
+#[path = "moved_copy_pick.rs"]
+mod moved_copy_pick;
 #[path = "msolve3_placer_refused.rs"]
 mod msolve3_placer_refused;
 #[path = "msolve5_unplaced_read_badge.rs"]

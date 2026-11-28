@@ -410,7 +410,7 @@ fn r2_an_undeclared_edge_still_crosses_a_non_translating_offset() {
     );
     let cone = base
         .faces()
-        .find(|(fk, _)| matches!(base.face_surface(*fk), Some(Surface::Cone { .. })))
+        .find(|(fk, _)| matches!(base.face_surface(*fk), Ok(Surface::Cone { .. })))
         .map(|(k, _)| k);
     let Some(cone) = cone else {
         println!("[R2-S4] the fixture has no cone face; nothing to measure");
@@ -532,42 +532,30 @@ fn r2_the_converted_edges_have_measurable_epsilon_headroom() {
 /// offsetting a chart whose boundary carries a DECLARED image still
 /// refuse through `CarrierLaneUnsupported`?
 ///
-/// The fixture is the revolved ball: its angle-π meridian is a
-/// declared image in the sphere's own chart (the unit's own
-/// `revolve_ball` row asserts exactly that), and a sphere's offset is
-/// concentric — not a rigid translation.
+/// The fixture is the disc drum: its two struts are declared images in
+/// the cylinder's own chart, and a cylinder's offset is concentric —
+/// not a rigid translation. (The revolved ball, which this row first
+/// stood on, is one face whose meridian is the chart's derived seam:
+/// it declares nothing.)
 #[test]
 fn r2_the_declared_arm_of_the_retired_refusal_is_reachable_at_rest() {
-    let lp = bulge_loop(vec![
-        (Point2::new(0.0, -1.0), 1.0),
-        (Point2::new(0.0, 1.0), 0.0),
-    ]);
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .expect("the half disc is a valid profile");
-    let ball = revolve(
-        &profile,
-        RevolveAxis {
-            origin: Point2::new(0.0, 0.0),
-            dir: Vec2::new(0.0, 1.0),
-        },
-        Revolution::Full,
+    let drum = topo::test_support::finished(
+        "the disc drum",
+        crate::common::shell_operands::disc_drum(1.0, 1.0),
         Tol::witness(),
-    )
-    .expect("the ball revolves")
-    .body;
+    );
 
     // The premise the tour row asserts: nothing scaffolded survives.
     assert!(
-        scaffold_descriptions(&ball).is_empty(),
-        "the ball is at rest — no scaffolding description"
+        scaffold_descriptions(&drum).is_empty(),
+        "the drum is at rest — no scaffolding description"
     );
     // And at least one edge IS declared, which is the other premise
     // the retirement text does not state.
-    let declared: Vec<EdgeKey> = ball
+    let declared: Vec<EdgeKey> = drum
         .edges()
         .filter(|(_, e)| {
-            ball.get_curve_geom(e.curve)
+            drum.get_curve_geom(e.curve)
                 .and_then(topo::CurveGeom::certified)
                 .is_some_and(|c| c.authority().is_declared())
         })
@@ -576,26 +564,26 @@ fn r2_the_declared_arm_of_the_retired_refusal_is_reachable_at_rest() {
     println!("[R2-S6] declared edges at rest: {}", declared.len());
     assert!(
         !declared.is_empty(),
-        "the ball's angle-pi meridian is a declared chart image"
+        "the drum's struts are declared chart images"
     );
 
-    // Both sphere bands share ONE surface key, so the chart moves as a
+    // Both wall faces share ONE surface key, so the chart moves as a
     // group.
-    let sphere_key = ball
+    let cylinder_key = drum
         .faces()
         .find_map(|(fk, f)| {
-            matches!(ball.face_surface(fk), Some(Surface::Sphere { .. })).then_some(f.surface)
+            matches!(drum.face_surface(fk), Ok(Surface::Cylinder { .. })).then_some(f.surface)
         })
-        .expect("the ball's sphere chart");
-    let group: Vec<FaceKey> = ball
+        .expect("the drum's cylinder chart");
+    let group: Vec<FaceKey> = drum
         .faces()
-        .filter(|(_, f)| f.surface == sphere_key)
+        .filter(|(_, f)| f.surface == cylinder_key)
         .map(|(k, _)| k)
         .collect();
 
-    let mut body = ball.clone().into_body();
+    let mut body = drum.clone().into_body();
     let outcome = topo::replace_faces_offset(&mut body, &group, 0.05, Tol::witness());
-    println!("[R2-S6] offsetting the sphere chart: {outcome:?}");
+    println!("[R2-S6] offsetting the cylinder chart: {outcome:?}");
     match outcome {
         Err(topo::ReplaceFaceError::CarrierLaneUnsupported { what, .. }) => {
             println!("[R2-S6] CarrierLaneUnsupported: {what}");
@@ -622,7 +610,7 @@ fn r2_the_die_fixtures_supports_are_all_planes() {
     let c = cube::<f64>(1.0, Tol::witness());
     let kinds: Vec<bool> = c
         .faces()
-        .map(|(fk, _)| matches!(c.face_surface(fk), Some(Surface::Plane { .. })))
+        .map(|(fk, _)| matches!(c.face_surface(fk), Ok(Surface::Plane { .. })))
         .collect();
     println!("[R2-S7] die blank faces: {} total", kinds.len());
     assert_eq!(kinds.len(), 6, "the die blank is a box");

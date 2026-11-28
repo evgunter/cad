@@ -4,6 +4,8 @@ kind: issue
 title: pick_for's cross-group Ambiguous refusal lists unplaced spaces and moved instances in id order, which since ids are digests is no order a reader can follow
 status: open
 opened: 2026-10-02
+priority: P3
+cost: M
 ---
 
 

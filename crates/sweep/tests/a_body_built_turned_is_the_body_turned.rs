@@ -181,12 +181,14 @@ const BALL_PAIRS: [(&str, Ball, Ball); 3] = [
 /// Every surface carrier, rendered by `{:?}` (shortest round-trip, so
 /// equal text is equal bits, signed zeros included), in arena order.
 fn surfaces(body: &Body<f64>) -> Vec<String> {
-    body.surfaces().map(|(_, s)| format!("{s:?}")).collect()
+    body.described_surfaces()
+        .map(|(_, s)| format!("{s:?}"))
+        .collect()
 }
 
 /// Each plane carrier's `(origin, normal, u_ref)`, in arena order.
 fn plane_frames(body: &Body<f64>) -> Vec<[[f64; 3]; 3]> {
-    body.surfaces()
+    body.described_surfaces()
         .filter_map(|(_, s)| match s {
             Surface::Plane { frame } => {
                 let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());

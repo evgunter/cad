@@ -63,7 +63,7 @@ fn edge_face_records(r: &BooleanResult<f64>) -> Vec<EdgeInPlane> {
                 let (start, end) = body.edge_vertices(e).unwrap();
                 let (p, q) = (point(body, start), point(body, end));
                 let plane = match body.face_surface(f) {
-                    Some(geom::Surface::Plane { frame, .. }) => {
+                    Ok(geom::Surface::Plane { frame, .. }) => {
                         let (origin, normal) = (frame.origin(), frame.axis());
                         let d = origin.x * normal.x + origin.y * normal.y + origin.z * normal.z;
                         Some((normal, d))

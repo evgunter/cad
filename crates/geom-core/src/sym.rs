@@ -5556,6 +5556,25 @@ impl<T: Real> Real for Sym<T> {
         }
     }
 
+    /// The plain formulas' forms, carrying `T`'s values
+    /// ([`Real::quartic_sign_algebra`]): the same reals, read to their
+    /// digits.
+    fn quartic_sign_algebra(p: Self, q_hat: Self, s: Self) -> [Self; 2] {
+        let plain = crate::real::plain_quartic_sign_algebra(p, q_hat, s);
+        let value = T::quartic_sign_algebra(p.value, q_hat.value, s.value);
+        let [disc, depth] = plain;
+        [
+            Sym {
+                value: value[0],
+                node: disc.node,
+            },
+            Sym {
+                value: value[1],
+                node: depth.node,
+            },
+        ]
+    }
+
     fn abs(self) -> Self {
         self.unary(self.value.abs(), SymOp::Abs, 0)
     }

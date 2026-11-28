@@ -95,7 +95,7 @@ pub(super) fn sweep_turn<T: Decide + topo::AtRestPolicy>(
         tol,
     )?;
     let wall_key = face_surface_key(body, turn.wall);
-    swept::describe_wrap_edge(body, turn.strut, wall_key, tol)?;
+    swept::describe_wrap_edge_fresh(body, turn.strut, wall_key, tol)?;
     let swept = LoopSwept {
         faces: vec![Some(turn.wall)],
         rims: vec![Some(turn.strut)],

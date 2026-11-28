@@ -104,16 +104,6 @@ fn dm1_no_longer_refuses_at_the_instancing_gate() {
                 attempts.len()
             )
         }
-        // **The arc rims mint** (a tripwire, not a cell): wall `#382`
-        // states its circle as four rational spans at end weights 1 and
-        // 2, an exact cylinder that stage-1 recognition promotes whole;
-        // the l-bracket witness below imports.
-        Err(StepImportError::Pcurves { source, .. }) => {
-            panic!(
-                "the l-bracket's arc rims mint on their rows: {}",
-                source.render(geom_brep::recourse::Reading::Build)
-            )
-        }
         // **The frontier: the aggregate gate, on the instances' touches.**
         // The bolts and nuts sit on the bracket, so vertices of two
         // instances share a position, and the assembled body's at-rest
@@ -124,7 +114,11 @@ fn dm1_no_longer_refuses_at_the_instancing_gate() {
         // another: the bracket's two walls are exact cylinders that
         // promote whole, so no C⁰-knot split mints vertices along their
         // rims for a bolt's vertex to land on.
-        Err(StepImportError::TierInvalid { solid, errors }) => {
+        Err(StepImportError::TierInvalid {
+            solid,
+            errors,
+            file,
+        }) => {
             assert!(
                 solid.is_none() && !errors.is_empty(),
                 "dm1's frontier is the aggregate gate: solid {solid:?}, verdicts {errors:?}"
@@ -140,7 +134,12 @@ fn dm1_no_longer_refuses_at_the_instancing_gate() {
                 "the aggregate gate reads one instance's vertex on another's edge as \
                  unrecorded: {errors:?}"
             );
-            let shown = StepImportError::TierInvalid { solid, errors }.render();
+            let shown = StepImportError::TierInvalid {
+                solid,
+                errors,
+                file,
+            }
+            .render();
             assert!(
                 !shown.contains("this tolerance targets"),
                 "a BUDGET refusal at the at-rest gate is check 7 back to consuming a \

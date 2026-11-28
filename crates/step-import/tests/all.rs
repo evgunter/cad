@@ -71,6 +71,8 @@ mod a_promotion_no_edge_carries_is_not_reported;
 mod a_relation_the_file_band_reads_zero_is_snapped;
 #[path = "a_retimed_straight_rim_imports_on_its_wall.rs"]
 mod a_retimed_straight_rim_imports_on_its_wall;
+#[path = "a_revolved_pole_or_apex_imports_as_built.rs"]
+mod a_revolved_pole_or_apex_imports_as_built;
 #[path = "a_smooth_join_imports_by_the_must_carry_rule.rs"]
 mod a_smooth_join_imports_by_the_must_carry_rule;
 #[path = "a_step_placement_is_built_by_its_axes_and_a_move_beyond_rounding_reported.rs"]
@@ -79,6 +81,8 @@ mod a_step_placement_is_built_by_its_axes_and_a_move_beyond_rounding_reported;
 mod a_straight_seam_on_a_retimed_column_imports;
 #[path = "a_vertex_its_description_fixes_is_built_where_its_surfaces_meet.rs"]
 mod a_vertex_its_description_fixes_is_built_where_its_surfaces_meet;
+#[path = "a_wide_hole_reaches_each_pole_however_its_edges_split.rs"]
+mod a_wide_hole_reaches_each_pole_however_its_edges_split;
 #[path = "an_edge_is_read_on_its_description_whatever_recognition_says.rs"]
 mod an_edge_is_read_on_its_description_whatever_recognition_says;
 #[path = "an_off_iso_line_on_a_spline_wall_imports_its_general_row.rs"]
@@ -200,5 +204,7 @@ mod wall_column_structure;
 mod whole_torus_one_face;
 #[path = "wild.rs"]
 mod wild;
+#[path = "wrap_tip_review_witnesses.rs"]
+mod wrap_tip_review_witnesses;
 
 test_utils::every_suite_file_is_aggregated!();

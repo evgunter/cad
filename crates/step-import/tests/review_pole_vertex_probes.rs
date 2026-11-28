@@ -3,14 +3,13 @@
 //! bounding circle that does not separate them), a cone cap on each
 //! nappe, and every one of them with its curved face's `same_sense`
 //! flipped. Each file either imports to the closed-form body (tier 3,
-//! volume, every singular point a vertex of two edges) or refuses
-//! typed; none ships a wrong body.
+//! volume, every singular point a vertex: the tip of one wrap edge or
+//! the meeting of two edges) or refuses typed; none ships a wrong body.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
 
-use geom::Surface;
-use geom_core::{Point3, Tol};
+use geom_core::Tol;
 use step_import::{ImportOptions, NormalizationKind, StepImport, import_step};
 
 /// A two-face solid: a curved face (`surface`, entities #25..#29 stated
@@ -134,32 +133,9 @@ fn outcome(name: &str, text: &str) -> Result<(f64, usize), String> {
     )
     .volume;
     // Every singular point of every curved face lying on the body is a
-    // vertex with two edges at it; one lying in a face's closure with
-    // no vertex is the defect the pass exists to remove.
-    let points: Vec<_> = b.vertex_points().collect();
-    for (fk, _) in b.faces() {
-        let s: Vec<Point3<f64>> = match *b.face_surface(fk).unwrap() {
-            Surface::Sphere { frame, radius, .. } => {
-                let (center, axis) = (frame.origin(), frame.axis());
-                vec![center + axis * radius, center - axis * radius]
-            }
-            Surface::Cone { frame, .. } => {
-                let apex = frame.origin();
-                vec![apex]
-            }
-            _ => continue,
-        };
-        for s in s {
-            if let Some((v, _)) = points.iter().find(|(_, p)| (*p - s).norm() <= 1e-9) {
-                let ends = b
-                    .edges()
-                    .flat_map(|(_, e)| [e.he_plus, e.he_minus])
-                    .filter(|h| b.get_half_edge(*h).unwrap().start == *v)
-                    .count();
-                assert_eq!(ends, 2, "{name}: singular point {s:?} ends {ends} edges");
-            }
-        }
-    }
+    // vertex in a form the kernel admits; one lying in a face's closure
+    // with no vertex is the defect the pass exists to remove.
+    crate::common::assert_singular_points_are_vertices(name, b);
     Ok((volume, singular_records))
 }
 
@@ -170,8 +146,8 @@ fn ball_less_cap(c: f64) -> f64 {
 
 /// A ball less the cap x > 6 mm: ONE sphere face holding both poles,
 /// bounded by one circle whose vertex sits on the meridian through
-/// u_ref. Two iterations: the north pole interior, then the south pole
-/// reached by the north's second meridian and completed as a strut tip.
+/// u_ref. Two iterations, one per pole, each reached by a wrap edge at
+/// the azimuth of the hole's point nearest it.
 #[test]
 fn a_sphere_face_holding_both_poles_imports_as_the_ball_less_its_cap() {
     let text = two_face(SPHERE, true, [6., 0., 0.], [-1., 0., 0.], [0., 0., 1.], 8.);
@@ -185,8 +161,8 @@ fn a_sphere_face_holding_both_poles_imports_as_the_ball_less_its_cap() {
 }
 
 /// The same ball, the circle's vertex placed at the equator: the
-/// meridian through it is TANGENT to the hole there, so the cut meets
-/// the vertex from both poles.
+/// meridian through it is TANGENT to the hole there, and each pole's wrap
+/// edge runs to the hole's point nearest it instead.
 #[test]
 fn a_sphere_face_holding_both_poles_with_its_vertex_at_the_equator() {
     let text = two_face(SPHERE, true, [6., 0., 0.], [-1., 0., 0.], [0., 1., 0.], 8.);
@@ -429,21 +405,22 @@ END-ISO-10303-21;
     (text, PI * a * b * (h / q) / 3.0 * 1e-9)
 }
 
-/// The oblique cone's rim is an ellipse, a carrier the pass does not
-/// yet cut a face along (the meeting reader reads it; the pass takes
-/// lines and circles): it refuses typed, naming that. Read at a coaxial
-/// cut (slope 0, an ellipse with equal axes) and an oblique one.
+/// The oblique cone's rim is an ellipse, which the pass cuts no face
+/// along; but Open CASCADE states the apex as the tip of its seam
+/// generator, the wrap tip, so nothing is cut: the cone imports as
+/// stated, with no record, and measures its closed form. Read at a
+/// coaxial cut (slope 0, an ellipse with equal axes) and an oblique one.
 #[test]
-fn an_obliquely_cut_open_cascade_cone_refuses_typed() {
+fn an_obliquely_cut_open_cascade_cone_imports_as_stated() {
     for slope in [0.0, 0.2] {
-        let (text, _) = oblique_cone(slope);
-        match outcome("oblique cone", &text) {
-            Err(e) => assert!(
-                e.contains("does not yet cut this one"),
-                "slope {slope}: {e}"
-            ),
-            Ok(got) => panic!("slope {slope}: imported {got:?}"),
-        }
+        let (text, want) = oblique_cone(slope);
+        let (volume, records) =
+            outcome("oblique cone", &text).unwrap_or_else(|e| panic!("slope {slope}: {e}"));
+        assert_eq!(records, 0, "slope {slope}: nothing re-minted");
+        assert!(
+            (volume - want).abs() <= 1e-9 * want,
+            "slope {slope}: volume {volume} vs {want}"
+        );
     }
 }
 
@@ -516,11 +493,11 @@ fn a_meridian_landing_beside_a_rim_vertex() {
     if (0.99e-9..=1.01e-9).contains(&tol.eps()) {
         let lines: Vec<&str> = report.iter().map(String::as_str).collect();
         for (i, want) in [
-            "delta 5e-10: ships 4 edges",
+            "delta 5e-10: ships 2 edges",
             "delta 1.5e-9: step import: face #33: ",
             "delta 3e-9: step import: face #33: ",
             "delta 9e-9: step import: face #33: ",
-            "delta 2e-8: ships 4 edges",
+            "delta 2e-8: ships 2 edges",
         ]
         .into_iter()
         .enumerate()

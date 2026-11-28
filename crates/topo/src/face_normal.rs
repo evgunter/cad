@@ -127,8 +127,8 @@ pub(crate) fn surface_outward_normal<T: Real>(
 /// supports); the module docs list the in-crate callers.
 ///
 /// `None` for a non-planar face (the caller falls through to its own
-/// curved arms, or has none), and for a face key that no longer
-/// resolves.
+/// curved arms, or has none), for a face with no surface yet, and for a
+/// face key that no longer resolves.
 ///
 /// # Panics
 ///
@@ -136,7 +136,7 @@ pub(crate) fn surface_outward_normal<T: Real>(
 /// a torn surface is not a non-planar one.
 pub fn face_outward_normal<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<OutwardNormal<T>> {
     let f = body.face(face)?;
-    match f.surface() {
+    match f.surface().ok()? {
         geom::Surface::Plane { frame, .. } => {
             let normal = frame.axis();
             Some(plane_outward_normal(f.record(), normal))
@@ -152,8 +152,9 @@ pub fn face_outward_normal<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<O
 /// a material side off the sign (`side_code`, a containment ray's
 /// `d·n̂`) are why the fold is here.
 ///
-/// `None` for a face that is not a plane, and for a `face` key that
-/// does not resolve: a public door hands this its own caller's key.
+/// `None` for a face that is not a plane, for a face with no surface
+/// yet, and for a `face` key that does not resolve: a public door hands
+/// this its own caller's key.
 ///
 /// # Panics
 ///
@@ -161,7 +162,7 @@ pub fn face_outward_normal<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<O
 /// surface is not a non-planar one.
 pub fn face_plane<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<PlaneDesc<T>> {
     let f = body.face(face)?;
-    match f.surface() {
+    match f.surface().ok()? {
         geom::Surface::Plane { frame, .. } => {
             let (origin, normal) = (frame.origin(), frame.axis());
             Some(plane_desc_of(f.record(), origin, normal))
@@ -194,8 +195,9 @@ pub(crate) fn plane_desc_of<T: Real>(
 /// material side whatever the kind.
 ///
 /// `None` for a carrier with no closed description here (a spindle, a
-/// NURBS patch, a fitted stand-in), and for a `face` key that does not
-/// resolve: a public door hands this its own caller's key.
+/// NURBS patch, a fitted stand-in), for a face with no surface yet, and
+/// for a `face` key that does not resolve: a public door hands this its
+/// own caller's key.
 ///
 /// # Panics
 ///
@@ -203,7 +205,7 @@ pub(crate) fn plane_desc_of<T: Real>(
 /// surface is not a carrier outside the inventory.
 pub fn face_carrier_desc<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierDesc<T>> {
     let f = body.face(face)?;
-    carrier_desc_on(f.record(), f.surface())
+    carrier_desc_on(f.record(), f.surface().ok()?)
 }
 
 /// [`face_carrier_desc`] of a face read from another operand's frame
@@ -216,7 +218,7 @@ pub fn seated_carrier_desc<T: Decide>(
     face: FaceKey,
 ) -> Option<CarrierDesc<T>> {
     let f = seat.body().face(face)?;
-    carrier_desc_on(f.record(), &seat.surface(f.surface())?)
+    carrier_desc_on(f.record(), &seat.surface(f.surface().ok()?)?)
 }
 
 /// The description of a face whose record is `record` on `surface`.
@@ -470,7 +472,7 @@ pub(crate) enum SplineNormalError {
     /// The face's carrier is not a spline chart: the point door
     /// ([`face_outward_normal_at`]) answers for it.
     NotSpline,
-    /// The face's chart is the placeholder, which has no locus.
+    /// The face's surface is still pending: it has no locus.
     PlaceholderChart,
     /// The chart point read no normal ([`NormalAtError`]).
     At(NormalAtError),
@@ -565,26 +567,31 @@ fn ring_half(
 ///
 /// [`NormalAtError`] — an in-band margin, a torus outside the ring
 /// convention, a point definitely off the surface, or a cone's apex. A
-/// face key that
-/// no longer resolves is `Ok(None)`.
+/// face with no normal to read is `Ok(Err(_))`, by why ([`NoNormalAt`]):
+/// a spline, approximating or spindle sheet, or a key that no longer
+/// resolves to a face on a surface.
 ///
 /// # Panics
 ///
 /// Where the surface a resolved face names does not resolve (D2 row 4).
-pub(crate) fn face_outward_normal_at<T: Decide>(
+pub(crate) fn face_outward_normal_or_why<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     p: Point3<T>,
     band: Band,
-) -> Result<Option<OutwardNormal<T>>, NormalAtError> {
+) -> Result<Result<OutwardNormal<T>, NoNormalAt>, NormalAtError> {
     let Some(f) = body.face(face) else {
-        return Ok(None);
+        return Ok(Err(NoNormalAt::Unresolved));
     };
-    let surface = f.surface();
+    // A pending face has no arm at a point, as a spline chart has none:
+    // a caller whose refusal names the cause reads the slot apart.
+    let Ok(surface) = f.surface() else {
+        return Ok(Err(NoNormalAt::Unresolved));
+    };
     match surface {
         geom::Surface::Plane { frame, .. } => {
             let normal = frame.axis();
-            Ok(Some(plane_outward_normal(f.record(), normal)))
+            Ok(Ok(plane_outward_normal(f.record(), normal)))
         }
         geom::Surface::Cylinder { .. }
         | geom::Surface::Sphere { .. }
@@ -617,7 +624,7 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
             let grad = geom_brep::implicit_gradient(surface, p);
             let margin = Margin::levered(grad.norm() - T::one(), arm);
             match decide("bool_pierce_normal_on_chart", margin, band) {
-                Ok(Sign::Zero) => Ok(Some(OutwardNormal::from_chart(grad, f.sense()))),
+                Ok(Sign::Zero) => Ok(Ok(OutwardNormal::from_chart(grad, f.sense()))),
                 Ok(Sign::Positive | Sign::Negative) => Err(NormalAtError::OffSurface),
                 Err(diag) => Err(NormalAtError::Escalated {
                     decision: NormalDecision::OnSurface,
@@ -652,7 +659,7 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
                 band,
             )?;
             match on {
-                Ok(_) => Ok(Some(surface_outward_normal(surface, p, f.sense()))),
+                Ok(_) => Ok(Ok(surface_outward_normal(surface, p, f.sense()))),
                 Err(diag) => Err(NormalAtError::Escalated {
                     decision: NormalDecision::OnSurface,
                     diag,
@@ -665,9 +672,41 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
         // [`spline_outward_normal_at`], and one without names the kind in
         // its own refusal. A spindle sheet's arm is not written yet.
         geom::Surface::Spindle { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => {
-            Ok(None)
+            Ok(Err(NoNormalAt::UnreadKind(surface.kind())))
         }
     }
+}
+
+/// [`face_outward_normal_or_why`] with the reason it reads no normal
+/// dropped: `Ok(None)` for a key that no longer resolves, a face with
+/// no surface yet, and a face whose kind has no arm at a point.
+///
+/// # Errors
+///
+/// As [`face_outward_normal_or_why`].
+///
+/// # Panics
+///
+/// As [`face_outward_normal_or_why`].
+pub(crate) fn face_outward_normal_at<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    p: Point3<T>,
+    band: Band,
+) -> Result<Option<OutwardNormal<T>>, NormalAtError> {
+    face_outward_normal_or_why(body, face, p, band).map(Result::ok)
+}
+
+/// **Why [`face_outward_normal_or_why`] reads no normal**: the one home
+/// of the kinds with no arm at a point, so a caller tells a limit apart
+/// from a defect by this, not by re-deriving the kind.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum NoNormalAt {
+    /// The face is on a spline, approximating or spindle sheet, of this
+    /// kind, whose normal has no arm at a point alone. A limit.
+    UnreadKind(geom::SurfaceKind),
+    /// The key resolves to no face, or the face has no surface yet.
+    Unresolved,
 }
 
 /// **The outward normal of a face's carrier at the foot of `p`**: at
@@ -708,7 +747,9 @@ pub(crate) fn face_outward_normal_at_foot<T: Decide>(
         Ok(Sign::Positive | Sign::Negative) => Ok(()),
         Ok(Sign::Zero) | Err(_) => Err(FootNormalError::NoFoot { band }),
     };
-    let surface = f.surface();
+    let surface = f
+        .surface()
+        .map_err(|crate::Pending| FootNormalError::Pending)?;
     match *surface {
         geom::Surface::Plane { frame, .. } => {
             let normal = frame.axis();
@@ -772,6 +813,8 @@ pub(crate) enum FootNormalError {
     },
     /// The carrier is one this door reads no foot on.
     Unread,
+    /// The face has no surface yet ([`crate::SurfaceMiss::Pending`]).
+    Pending,
 }
 
 /// A spline face's OUTWARD normal **at the chart point `uv` a point
@@ -817,11 +860,10 @@ pub(crate) fn spline_outward_normal_at<T: Decide>(
 ) -> Result<OutwardNormal<T>, SplineNormalError> {
     use geom_brep::ChartPointRefusal;
     let f = body.face(face).ok_or(SplineNormalError::StaleFace)?;
-    let surface = f.surface();
+    let surface = f
+        .surface()
+        .map_err(|_| SplineNormalError::PlaceholderChart)?;
     let chart = surface.spline_chart().ok_or(SplineNormalError::NotSpline)?;
-    if surface.is_placeholder_chart() {
-        return Err(SplineNormalError::PlaceholderChart);
-    }
     let uv = (T::from_computed(u), T::from_computed(v));
     let net = geom::cover::Cover::net(chart.control().to_vec());
     let reach = geom_brep::ExtentBall::of_cover_from(net.as_ref(), p).lever();
@@ -1955,9 +1997,9 @@ mod tests {
 
     /// **The spline door names each face it has no chart point to read
     /// on**: a key that no longer resolves, a carrier that is not a spline
-    /// chart, a placeholder chart.
+    /// chart, a face with no surface yet.
     #[test]
-    fn the_spline_door_names_a_stale_a_non_spline_and_a_placeholder_face() {
+    fn the_spline_door_names_a_stale_a_non_spline_and_a_pending_face() {
         use super::SplineNormalError;
         let p = Point3::new(0.0, 0.0, 1.0);
         let read = |body: &crate::body::Body<f64>, face| {
@@ -1970,10 +2012,8 @@ mod tests {
             read(&plane, face),
             Err(SplineNormalError::NotSpline)
         ));
-        let (placeholder, face) = face_on(geom::Surface::Nurbs(std::sync::Arc::new(
-            geom::NurbsSurface::placeholder(),
-        )));
-        let got = read(&placeholder, face);
+        let st = crate::fixtures::mvfs_state();
+        let got = read(&st.body, st.face);
         assert!(
             matches!(got, Err(SplineNormalError::PlaceholderChart)),
             "{got:?}"

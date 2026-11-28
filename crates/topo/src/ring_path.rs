@@ -797,7 +797,7 @@ pub(crate) enum LoopArc<T: Real> {
     Spline(SplineArc<T>),
 }
 
-/// **A spline arc on a cylinder, a sphere, a torus or a spline face,
+/// **A spline arc on a cylinder, a sphere, a cone, a torus or a spline face,
 /// with the evidence that it lies on the face's surface to within the
 /// band.**
 ///
@@ -818,10 +818,14 @@ pub(crate) enum LoopArc<T: Real> {
 ///   with its three-limb certificate against both surfaces of the
 ///   section, the chord a join is about to mint from it.
 ///
-/// Both are read on a cylinder, a sphere, a torus or a spline face: the
-/// faces a carried chord bounds, which the ring lane's rows read
-/// (`ring_path::tests`, `ring_path::spline_wall_rows`). A spline wall's
-/// pieces are its own iso curves, which lie on it. Every piece of a
+/// Both are read on a cylinder, a sphere, a cone, a torus or a spline
+/// face: the faces a carried chord bounds, which the ring lane's rows
+/// read (`ring_path::tests`, `ring_path::spline_wall_rows`). A spline
+/// wall's pieces are its own iso curves, which lie on it. A cone's are
+/// its parallels, at each end's own radius, and its rulings' segments,
+/// off its apex, each segment leaning off its ruling by at most the
+/// ends' offsets from the cone, within the band ([`Quadric::ruled_paths`]),
+/// as a cylinder's does. Every piece of a
 /// torus path past its lead lies on the tube through its end, within the band of the face's own, so the
 /// argument is the cylinder's: a crossing on the surface is a meeting in
 /// space. The lead, which moves the start onto that tube along its own
@@ -3742,9 +3746,10 @@ mod tests {
 
     /// **A circle piece decided apart from a conic arc misses it, past a
     /// plane meeting read in band** ([`coplanar_apart`]): the piece, a
-    /// unit circle in the `xz` plane, rises to the conic's plane `z = h`
-    /// within the band of touching it (its gap `1 − h` mid-band), so
-    /// [`plane_roots`] refuses; the conic, a unit circle about
+    /// unit circle in the `xz` plane over `(−2, 1)`, rises at `−π/2` to
+    /// the conic's plane `z = h` within the band of touching it (its gap
+    /// `1 − h` mid-band), so [`plane_roots`] refuses; the conic, a unit
+    /// circle about
     /// `(10, 0, h)`, lies decided apart from it whatever the planes. The
     /// pair crosses nowhere and flips nothing. Red against the old order,
     /// which refused at the plane meeting.
@@ -3760,7 +3765,7 @@ mod tests {
         );
         let piece = CircleArc {
             circle: geom::Circle::new(geom::Frame::new(o, y, x), 1.0),
-            span: (-1.0, 1.0),
+            span: (-2.0, 1.0),
         };
         let arc = LoopArc::of(
             &geom::Curve3::circle(Point3::new(10.0, 0.0, h), z, 1.0, x),

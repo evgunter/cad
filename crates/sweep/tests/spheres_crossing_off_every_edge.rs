@@ -102,6 +102,7 @@ enum Want {
 /// `scale` (a difference of nearly equal balls is a cancellation).
 fn check(
     label: &str,
+    operands: [&AtRestBody<f64>; 2],
     out: Result<BooleanResult<f64>, BooleanError>,
     (volume, scale): (f64, f64),
     want: Want,
@@ -140,6 +141,14 @@ fn check(
             );
         }
     }
+    // The meridian the scan cut each sphere face along is closed again:
+    // every edge between two pieces of one sphere is one its operands
+    // wrote.
+    crate::common::maximal_spheres::assert_spheres_maximal(
+        label,
+        &bb.body,
+        &operands.map(|o| &**o),
+    );
     let v = topo::test_support::pinned_volume("the measured body", &bb.body, tol).volume;
     assert!(
         (v - volume).abs() <= 1e-9 * volume.abs() + 1e-15 * scale,
@@ -156,9 +165,10 @@ fn assert_six(
     pose: &str,
     a: &AtRestBody<f64>,
     b: &AtRestBody<f64>,
-    (va, vb, shared): (f64, f64, f64),
+    shares: (f64, f64, f64),
     wants: [Want; 6],
 ) {
+    let (va, vb, shared) = shares;
     let tol = Tol::witness();
     let ops = [
         ("a ∪ b", va + vb - shared, topo::union(a, b, tol)),
@@ -169,7 +179,13 @@ fn assert_six(
         ("b ∩ a", shared, topo::intersect(b, a, tol)),
     ];
     for ((op, volume, out), want) in ops.into_iter().zip(wants) {
-        check(&format!("{pose}, {op}"), out, (volume, va + vb), want);
+        check(
+            &format!("{pose}, {op}"),
+            [a, b],
+            out,
+            (volume, va + vb),
+            want,
+        );
     }
 }
 
@@ -249,12 +265,16 @@ fn the_plain_witness_builds_its_seam_crossing_at_the_interval_scalar() {
             assert!(
                 matches!(
                     &out,
-                    Err(BooleanError::Pcurves { source })
-                        if crate::common::frame_cost::pcurve_escalates(
-                            source,
-                            "pcurve_envelope",
-                            PLAIN_ENVELOPE,
-                        )
+                    Err(BooleanError::ResultInvalid { findings })
+                        if findings.as_slice().iter().any(|f| matches!(
+                            f,
+                            topo::ValidationError::Pcurve { finding }
+                                if crate::common::frame_cost::pcurve_escalates(
+                                    finding,
+                                    "pcurve_envelope",
+                                    PLAIN_ENVELOPE,
+                                )
+                        ))
                 ),
                 "Interval {op}: pinned to escalate the cut's pcurve envelope in {PLAIN_ENVELOPE:?} \
                  at ε 1e-12 ({PLAIN_ENVELOPE_ROW}): {:?}",
@@ -381,9 +401,12 @@ fn tilted_and_spun_charts_build() {
 /// `5·10⁻⁷` from its own poles): each builds every op at its closed form.
 /// The cut keeps each ball's own chart, so the circle stays beside the
 /// unit ball's pole, and the mesher's sphere arm refuses a face holding
-/// it: folded beside the `10⁻⁵` circle where the face keeps the pole's
-/// side, and over its chord budget for every face at `10⁻⁷`
+/// it: folded beside the `10⁻⁵` circle in each union and `a ∖ b`
+/// ([`Want::Folds`]), and over its chord budget for every face at `10⁻⁷`
 /// (`work/tesslane/a-tilted-circle-near-a-sphere-pole-refuses-at-the-sphere-arm.md`).
+/// A face that keeps such a circle as a ring beside its chart pole (the
+/// small balls', whose circles pass beside their own poles, outside the
+/// unit ball) has its ring placed by the ring reader, and draws.
 /// The distances are band-relative
 /// (at `ε = 10⁻⁶` the `10⁻⁷` circle is inside the band, and at `10⁻¹²`
 /// the `10⁻³` ball meets the f64 placement frontier,
@@ -449,10 +472,11 @@ fn two_trimmed_spheres_build() {
 /// `δ` builds, `10⁻⁷` included: the arc's pcurve beside the pole is the
 /// projected image (C4), whose sector pieces refine toward the pole and
 /// certify while the arc stays clear of it, and every op's volume holds.
-/// At `10⁻³` the mesher draws every op. At `10⁻⁵` the uniform chord
-/// schedule the circle asks near the pole draws the unit ball's
-/// remnant in three ops and folds a triangle over the chord beside the
-/// pole in the other three, which refuse typed ([`Want::Folds`]). At
+/// At `10⁻³` the mesher draws every op, the ring reader placing the
+/// circle where a face keeps it as a ring. At `10⁻⁵` the uniform chord
+/// schedule the circle asks near the pole folds a triangle over the
+/// chord beside the pole in each union and `a ∖ b`, which refuses typed
+/// ([`Want::Folds`]); the others draw. At
 /// `10⁻⁷` the schedule asks one edge for more chords than the sphere
 /// arm's budget, and the mesher refuses at once ([`Want::Budget`]).
 /// The distances are band-relative (at `ε = 10⁻⁶` the `10⁻⁵` circle's
@@ -607,7 +631,8 @@ fn a_ball_escaping_through_a_plane_and_a_sphere() {
 /// The two lens-shaped differences build. The
 /// intersection builds a sliver `2·10⁻⁶` thick, sound: its two caps
 /// are small regions the sphere arm reads by the fan form, so its
-/// volume lands within about `1e-9` of the lens in either order (it
+/// volume lands within a few roundings of its flux's cancelling
+/// `R·Area` of the lens in either order (it
 /// read `−54%` and `−86%` before) and its at-infinity side decides, so
 /// it is a legal operand (`work/heldrecords/a-built-sliver-is-not-a-legal-operand.md`).
 #[test]
@@ -629,6 +654,7 @@ fn a_large_ball_near_external_tangency_is_pinned() {
     ] {
         check(
             &format!("r 50, {op}"),
+            [&a, &b],
             out,
             (va + vb - shared, va + vb),
             Draws,
@@ -636,12 +662,14 @@ fn a_large_ball_near_external_tangency_is_pinned() {
     }
     check(
         "r 50, a ∖ b",
+        [&a, &b],
         topo::subtract(&a, &b, tol),
         (va - shared, va + vb),
         Draws,
     );
     check(
         "r 50, b ∖ a",
+        [&a, &b],
         topo::subtract(&b, &a, tol),
         (vb - shared, va + vb),
         Draws,
@@ -658,13 +686,18 @@ fn a_large_ball_near_external_tangency_is_pinned() {
     }
     // `outcome`'s volume test is absolute (`1e-7`), which a lens of
     // `1.2e-11` passes whatever it reads, so the sliver's volume is held
-    // here RELATIVE to the exact lens, per order and per gap. Measured at
-    // most `4.0e-9` (`a ∩ b` at a `3e-6` gap, an error of 1.1e-19 m³),
-    // with each face read about its shell's own vertex; `2.9e-9` when
-    // every face was read about the world origin, the unit ball's
-    // centre, where its cap's flux has no lever to cancel. The `b ∩ a` sliver at a `1e-5` gap reads `2.5e-3`
-    // off: that is the flux's own `R·Area` against `c·A⃗` cancellation,
-    // FLUXTAIL's `a-sphere-faces-flux-cancels-r-times-its-area-against-its-vector-area`
+    // here RELATIVE to the exact lens, per order and per gap, to what the
+    // flux form can resolve. A sphere face's flux is `R·Area` against
+    // `c·A⃗` (FLUXTAIL's
+    // `a-sphere-faces-flux-cancels-r-times-its-area-against-its-vector-area`):
+    // the big ball's cap carries `R·Area = 50·2π·50·h₂` (`6.2e-4` m³ at a
+    // `2e-6` gap, `h₂` its cap height), which cancels down to a lens of
+    // `1.2e-11`, so one rounding of that term is already `8.8e-9` of the
+    // lens. The bound is four such roundings, `4ε·R·Area / V`: `4.4e-8`
+    // at `2e-6`, `8.9e-9` at `1e-5`. Measured inside it in either order
+    // (`7.7e-9` at `a ∩ b`, `2e-6`). The `b ∩ a` sliver at a `1e-5` gap
+    // reads `2.5e-3` off, far past rounding: that is the same cancellation
+    // with the face read about a vertex `51` from the big ball's centre
     // (`work/heldrecords/a-built-sliver-is-not-a-legal-operand.md` has the
     // table), held at its measured size so it cannot grow unseen.
     for gap in [2e-6, 3e-6, 5e-6, 1e-5] {
@@ -681,10 +714,15 @@ fn a_large_ball_near_external_tangency_is_pinned() {
                 .unwrap_or_else(|| panic!("gap {gap:e}, {op}: the sliver builds"));
             let v = topo::test_support::pinned_volume("the measured body", &body, tol).volume;
             let rel = (v - want).abs() / want;
+            // The big ball's cap: its height above the radical plane,
+            // and the `R·Area` its flux cancels.
+            let a1 = (d * d + 1.0 - 50.0 * 50.0) / (2.0 * d);
+            let h2 = 50.0 - (d - a1);
+            let flux = 50.0 * core::f64::consts::TAU * 50.0 * h2;
             let bound = if gap == 1e-5 && op == "b ∩ a" {
                 3e-3
             } else {
-                5e-9
+                4.0 * f64::EPSILON * flux / want
             };
             assert!(
                 rel <= bound,
@@ -692,4 +730,69 @@ fn a_large_ball_near_external_tangency_is_pinned() {
             );
         }
     }
+}
+
+/// **A band of a ball between two parallel planes keeps one circle as its
+/// outline**: a box crossing the unit ball between `z = 0.4` and `0.7`,
+/// both circles off every edge and clear of the ball's poles and seams.
+/// The ball's face is cut along one meridian through both circles, and
+/// in the intersection the band keeps no edge of the ball's own: the
+/// last piece of the cut parts two circles, and the one the chart's pole
+/// lies beyond is the outline (`topo::boolean::slit`, closing a cut).
+/// Every op builds maximal at its closed form, and every op meshes: where
+/// the band is kept, its outline is the tilted circle, and the ring
+/// reader places the other circle inside it.
+#[test]
+fn a_band_between_two_circles_builds_under_every_boolean() {
+    let (lo, hi) = (0.4f64, 0.7f64);
+    let band = |a: f64, b: f64| std::f64::consts::PI * ((b - a) - (b.powi(3) - a.powi(3)) / 3.0);
+    let slab = boxed((-2.0, 2.0), (-2.0, 2.0), (lo, hi));
+    let slab_volume = 4.0 * 4.0 * (hi - lo);
+    // The band's roles, read off its loops: its outline is the circle
+    // `z = lo`, which the chart's poles `(0, ±1, 0)` lie beyond, and its
+    // ring the circle `z = hi`. Swapping them leaves the volume, the
+    // tiers and the face count as they are.
+    let tol = Tol::witness();
+    for (op, out) in [
+        ("the ball ∩ the box", topo::intersect(&unit(), &slab, tol)),
+        ("the box ∖ the ball", topo::subtract(&slab, &unit(), tol)),
+    ] {
+        let body = body(out);
+        let heights = |l: topo::LoopKey| -> Vec<f64> {
+            body.half_edges()
+                .filter(|(_, h)| h.parent_loop == l)
+                .map(|(_, h)| {
+                    body.vertex_points()
+                        .find(|&(v, _)| v == h.start)
+                        .map(|(_, p)| p.z)
+                        .unwrap()
+                })
+                .collect()
+        };
+        let on = |zs: &[f64], z: f64| !zs.is_empty() && zs.iter().all(|&h| (h - z).abs() < 1e-9);
+        let bands: Vec<_> = body
+            .faces()
+            .filter(|&(f, _)| matches!(body.face_surface(f), Ok(geom::Surface::Sphere { .. })))
+            .collect();
+        let [(_, band)] = bands[..] else {
+            panic!("{op}: the band is one sphere face, got {}", bands.len())
+        };
+        let [ring] = band.rings[..] else {
+            panic!("{op}: the band holds one ring, got {:?}", band.rings)
+        };
+        assert!(
+            on(&heights(band.outer), lo) && on(&heights(ring), hi),
+            "{op}: the band's outline is the circle z = {lo} and its ring z = {hi}, got {:?} \
+             and {:?}",
+            heights(band.outer),
+            heights(ring)
+        );
+    }
+    assert_six(
+        "the band",
+        &unit(),
+        &slab,
+        (ball_volume(1.0), slab_volume, band(lo, hi)),
+        [Draws; 6],
+    );
 }

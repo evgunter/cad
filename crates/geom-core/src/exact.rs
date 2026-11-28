@@ -294,8 +294,84 @@ pub(crate) fn kept_exactly(curve: crate::StoredHarmonic<f64>, o: [f64; 3], n: [f
     .into_iter()
     .flatten()
     .min();
-    let deepest = [t_a, t_b, t_d].into_iter().flatten().map(|t| 2 * t).min();
+    // Each square's factors; and the prefixes `A` and `B` are built
+    // through before their semi-axis scales them, `u_ref·n` and (in
+    // `triple_product`) `axis·(u_ref·n)`, deeper than half of `A²` or `B²`
+    // where `a`'s or `b`'s lowest bit is high.
+    let squares = [t_a, t_b, t_d].into_iter().flatten().map(|t| 2 * t);
+    let prefixes = [sum(&[lb_u, lb_n]), sum(&[lb_w, lb_u, lb_n])];
+    let deepest = squares.chain(prefixes.into_iter().flatten()).min();
     !deepest.is_some_and(|d| d < -1074)
+}
+
+/// **The discriminant `Δ` and the depth `D = 64s − 16p²` of the
+/// depressed monic quartic `y⁴ + p y² + q̂ y + s`, exactly**, as
+/// expansions of the stored coefficients
+/// ([`crate::Real::quartic_sign_algebra`]):
+///
+/// ```text
+/// Δ = 256s³ − 128p²s² + 144pq̂²s − 27q̂⁴ + 16p⁴s − 4p³q̂²
+/// ```
+///
+/// Every product the evaluation forms, each monomial and each prefix it
+/// is built through (`p⁴` before `p⁴s`), is a product of the
+/// coefficients, so its exact value is a multiple of `2` to the sum of
+/// their lowest bits ([`low_bit`]). Where that sum is at least `−1074`
+/// for every product formed, each error-free product's error term is a
+/// representable multiple of the least subnormal, so every product is
+/// exact and so is the expansion. `None` where one is not, or where a
+/// term overflows.
+#[must_use]
+pub fn quartic_sign_algebra(p: f64, q_hat: f64, s: f64) -> Option<[Expansion; 2]> {
+    let (lp, lq, ls) = (low_bit(p), low_bit(q_hat), low_bit(s));
+    // A product's lowest bit, `None` where a factor is zero (it is
+    // absent).
+    let lowest = |factors: &[(Option<i32>, i32)]| {
+        factors
+            .iter()
+            .try_fold(0i32, |acc, &(bit, k)| bit.map(|b| acc + k * b))
+    };
+    // Every product below, in the order it is formed: the squares, then
+    // each term's prefixes and the term. `D`'s `p²` is the first, and
+    // `64s` scales `s` by a power of two, exact short of overflow.
+    let deepest = [
+        &[(lp, 2)][..],
+        &[(lq, 2)],
+        &[(ls, 2)],
+        &[(ls, 3)],
+        &[(lp, 2), (ls, 2)],
+        &[(lp, 1), (lq, 2)],
+        &[(lp, 1), (lq, 2), (ls, 1)],
+        &[(lq, 4)],
+        &[(lp, 4)],
+        &[(lp, 4), (ls, 1)],
+        &[(lp, 2), (lq, 2)],
+        &[(lp, 3), (lq, 2)],
+    ]
+    .into_iter()
+    .filter_map(lowest)
+    .min();
+    if deepest.is_some_and(|d| d < -1074) {
+        return None;
+    }
+    let (p2, q2, s2) = (
+        Expansion::product(p, p),
+        Expansion::product(q_hat, q_hat),
+        Expansion::product(s, s),
+    );
+    let mut disc = s2.scaled(s).scaled(256.0);
+    for term in [
+        p2.times(&s2).scaled(-128.0),
+        q2.scaled(p).scaled(s).scaled(144.0),
+        q2.times(&q2).scaled(-27.0),
+        p2.times(&p2).scaled(s).scaled(16.0),
+        p2.times(&q2).scaled(p).scaled(-4.0),
+    ] {
+        disc.add_expansion(&term.compressed());
+    }
+    let mut depth = p2.scaled(-16.0);
+    depth.add_expansion(&Expansion::product(s, 64.0));
+    (disc.is_finite() && depth.is_finite()).then(|| [disc.compressed(), depth.compressed()])
 }
 
 /// A double-double `hi + lo`, its parts formed by error-free transforms.
@@ -588,5 +664,202 @@ mod tests {
             flat.components().iter().all(|c| c.abs() < 1e-17),
             "two parallel rows: zero up to their own rounded inputs, {flat:?}"
         );
+    }
+
+    /// **A depressed quartic's `Δ` and `D` are read to their own
+    /// digits** ([`crate::Real::quartic_sign_algebra`]). Each fixture is
+    /// `(y² − 2a y + a² ± δ²)(y² + 2a y + c)`: a pair `δ` apart (or `δ`
+    /// off the real line) at `a`, and two more, at a spread of 1 m to
+    /// 1000 km, `δ` from a millionth of it down to a trillionth. At `f64`
+    /// each value is the exact one's rounding, within `2u` of it; the
+    /// plain formula, on the same coefficients, is off by more than a
+    /// thousandth of `Δ` itself somewhere, and with the wrong sign
+    /// somewhere, so a value read off it would fail the first assertion
+    /// and certify a count the coefficients do not have. At `Interval`,
+    /// stated points enclose the exact value.
+    #[test]
+    #[allow(clippy::panic)]
+    fn a_quartics_sign_algebra_keeps_its_digits() {
+        use crate::real::Bounds;
+        use crate::{Interval, Real};
+        let u = f64::EPSILON / 2.0;
+        let (mut plain_worst, mut plain_flips, mut fixtures) = (0.0f64, 0, 0);
+        for spread in [1.0, 1e3, 1e6] {
+            for gap in [1e-6, 1e-9, 1e-12] {
+                for (a, c) in [(0.31, -0.57), (-0.12, 0.08), (0.45, 0.2)] {
+                    for pair in [1.0, -1.0] {
+                        let (a, c, delta) = (a * spread, c * spread * spread, gap * spread);
+                        let m = a * a + pair * delta * delta;
+                        let (p, q, s) = (c + m - 4.0 * a * a, 2.0 * a * (m - c), m * c);
+                        let Some([disc, depth]) = super::quartic_sign_algebra(p, q, s) else {
+                            panic!("({p:e}, {q:e}, {s:e}): its digits fit an expansion");
+                        };
+                        let got = f64::quartic_sign_algebra(p, q, s);
+                        let plain = crate::real::plain_quartic_sign_algebra(p, q, s);
+                        let enclosed = Interval::quartic_sign_algebra(
+                            Interval::from_f64(p),
+                            Interval::from_f64(q),
+                            Interval::from_f64(s),
+                        );
+                        for (i, exact) in [disc, depth].iter().enumerate() {
+                            let want = exact.estimate();
+                            let off = |x: f64| {
+                                let mut gap = exact.clone();
+                                gap.add(-x);
+                                gap.estimate().abs()
+                            };
+                            assert!(
+                                off(got[i]) <= 2.0 * u * want.abs(),
+                                "({p:e}, {q:e}, {s:e}) part {i}: {} for exact {want:e}",
+                                got[i]
+                            );
+                            assert!(
+                                enclosed[i].lo() <= want && want <= enclosed[i].hi(),
+                                "({p:e}, {q:e}, {s:e}) part {i}: {:?} misses {want:e}",
+                                enclosed[i]
+                            );
+                            if i == 0 && want != 0.0 {
+                                plain_worst = plain_worst.max(off(plain[0]) / want.abs());
+                                plain_flips += usize::from(plain[0].signum() != want.signum());
+                            }
+                        }
+                        fixtures += 1;
+                    }
+                }
+            }
+        }
+        assert_eq!(fixtures, 54, "every fixture read");
+        assert!(
+            plain_worst > 1e-3 && plain_flips > 0,
+            "the plain formula is off by {plain_worst:e} of Δ with {plain_flips} sign flips: \
+             the fixtures do not cancel"
+        );
+    }
+
+    test_utils::gated_to!["crates/geom-core/src/exact.rs"];
+
+    /// **A product formed through a prefix below the least subnormal is
+    /// not read as exact.** `p⁴` is formed before `p⁴s`: at
+    /// `p = 3·2⁻²⁷⁰`, `p⁴`'s lowest bit is `2⁻¹⁰⁸⁰`, past the subnormals,
+    /// while `p⁴s` at `s = 64` would be in range; read as exact it was off
+    /// the exact `Δ` by 1.3e-321. So is `u_ref·n` before `A = a·(u_ref·n)`
+    /// in [`super::kept_exactly`], whose square alone is checked
+    /// otherwise.
+    #[test]
+    fn a_prefix_below_the_least_subnormal_poisons() {
+        use crate::Real;
+        let p = 3.0 * 2f64.powi(-270);
+        assert!(super::quartic_sign_algebra(p, 0.0, 64.0).is_none());
+        assert!(f64::quartic_sign_algebra(p, 0.0, 64.0)[0].is_nan());
+        let p = -3.0 * 2f64.powi(-270);
+        assert!(super::quartic_sign_algebra(p, 2f64.powi(-60), 2f64.powi(200)).is_none());
+        let fine = 3.0 * 2f64.powi(-600);
+        let curve = crate::StoredHarmonic {
+            at: [0.0; 3],
+            axis: [0.0, 0.0, 1.0],
+            u_ref: [fine, 1.0, 0.0],
+            semi: (2f64.powi(700), 0.0),
+            phase: (0.0, 0.0),
+        };
+        assert!(
+            !super::kept_exactly(curve, [0.0; 3], [fine, 0.0, 1.0]),
+            "u_ref·n's lowest bit is 2⁻¹²⁰⁰"
+        );
+    }
+
+    /// **`B`'s prefix `axis·(u_ref·n)` below the least subnormal is not
+    /// kept**: `triple_product` forms it before `b` scales it, and only
+    /// `B²` and `u_ref·n` were checked otherwise.
+    #[test]
+    fn a_triple_prefix_below_the_least_subnormal_is_not_kept() {
+        let t = 3.0 * 2f64.powi(-500);
+        let curve = crate::StoredHarmonic {
+            at: [0.0; 3],
+            axis: [3.0 * 2f64.powi(-100), 0.0, 1.0],
+            u_ref: [0.0, t, 0.0],
+            semi: (2f64.powi(700), 2f64.powi(700)),
+            phase: (0.0, 0.0),
+        };
+        // w·(u·n) = 27·2⁻¹¹⁰⁰ rounds to nothing; B's exact value is 27·2⁻⁴⁰⁰.
+        assert!(!super::kept_exactly(curve, [0.0; 3], [0.0, 0.0, t]));
+    }
+
+    /// **A quartic reading past the subnormals, or overflowing, is
+    /// poison**, and one exactly at the least subnormal is read.
+    #[test]
+    fn a_quartic_reading_past_the_subnormals_is_poison() {
+        use crate::Real;
+        let at = |p: f64, q: f64, s: f64| f64::quartic_sign_algebra(p, q, s);
+        // `2f64.powi(-1074)` is zero (it inverts an overflowing `2¹⁰⁷⁴`): the
+        // least subnormal by its bits.
+        assert_eq!(at(0.0, 0.0, 2f64.powi(-358))[0], 256.0 * f64::from_bits(1));
+        assert!(
+            at(0.0, 0.0, 2f64.powi(-359))[0].is_nan(),
+            "s³ below the least subnormal"
+        );
+        assert!(
+            at(0.0, 2f64.powi(-269), 0.0)[0].is_nan(),
+            "q̂⁴ below the least subnormal"
+        );
+        assert!(at(1.0, 1.0, f64::MAX)[0].is_nan(), "overflow");
+    }
+
+    /// **A quartic's `Δ` and `D` against an integer oracle** (a
+    /// counterexample search: the seed varies). Near-repeated-root
+    /// integer quartics `(y² − 2a y + a² ± δ²)(y² + 2a y + c)`, their
+    /// `Δ` and `D` exact in `i128`, rescaled by `2^(2k)`, `2^(3k)`,
+    /// `2^(4k)` (`Δ` scales by `2^(12k)` and `D` by `2^(4k)`, exactly) at
+    /// `k` = −80, 0 and 60: the `f64` reading has the oracle's sign, is
+    /// zero exactly where it is, and is within `3u` of the oracle's own
+    /// rounding (its own `2u`, and the oracle's one rounding to `f64`).
+    #[test]
+    fn a_quartics_sign_algebra_matches_an_integer_oracle() {
+        use crate::Real;
+        use test_utils::fuzz;
+        let mut rng = fuzz::start("exact::quartic_sign_algebra::integer_oracle");
+        let u = f64::EPSILON / 2.0;
+        let int = |rng: &mut fuzz::Rng, bound: usize| {
+            i128::try_from(rng.below(2 * bound + 1)).unwrap_or(0)
+                - i128::try_from(bound).unwrap_or(0)
+        };
+        let mut checked = 0usize;
+        for _ in 0..fuzz::scaled(3_000) {
+            let a = int(&mut rng, 1 << 9);
+            let c = int(&mut rng, 1 << 18);
+            let delta = int(&mut rng, 4);
+            let sign = if rng.below(2) == 0 { 1 } else { -1 };
+            let m = a * a + sign * delta * delta;
+            let (p, q, s) = (c + m - 4 * a * a, 2 * a * (m - c), m * c);
+            let disc = 256 * s * s * s - 128 * p * p * s * s + 144 * p * q * q * s
+                - 27 * q * q * q * q
+                + 16 * p * p * p * p * s
+                - 4 * p * p * p * q * q;
+            let depth = 64 * s - 16 * p * p;
+            #[allow(clippy::cast_precision_loss)]
+            let f = |x: i128| x as f64;
+            for k in [-80i32, 0, 60] {
+                let scale = |e: i32| 2f64.powi(e * k);
+                let got =
+                    f64::quartic_sign_algebra(f(p) * scale(2), f(q) * scale(3), f(s) * scale(4));
+                for (part, (exact, e)) in [(disc, 12), (depth, 4)].into_iter().enumerate() {
+                    let want = f(exact) * scale(e);
+                    let ok = if exact == 0 {
+                        got[part] == 0.0
+                    } else {
+                        got[part].signum() == want.signum()
+                            && (got[part] - want).abs() <= 3.0 * u * (1.0 + u) * want.abs()
+                    };
+                    assert!(
+                        ok,
+                        "(a, c, δ, ±) = ({a}, {c}, {delta}, {sign}) at k = {k}, part {part}: \
+                         {} against {want:e}; {}",
+                        got[part],
+                        fuzz::replay()
+                    );
+                    checked += 1;
+                }
+            }
+        }
+        assert!(checked > 0, "the oracle read nothing; {}", fuzz::replay());
     }
 }

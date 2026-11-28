@@ -385,7 +385,7 @@ fn a_shelled_vessel_of_revolution_certifies_and_its_inverted_rim_does_not() {
         .faces()
         .filter(|(fk, _)| {
             matches!(vessel.face_surface(*fk),
-                Some(geom::Surface::Plane { frame, .. }) if (frame.origin().y - h).abs() < 1e-9)
+                Ok(geom::Surface::Plane { frame, .. }) if (frame.origin().y - h).abs() < 1e-9)
         })
         .map(|(k, _)| k)
         .collect();

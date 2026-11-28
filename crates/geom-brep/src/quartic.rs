@@ -74,7 +74,8 @@ pub type QuarticRoots<T> = Roots<T, 4>;
 /// the coarsest shipped row and six at the finest.
 ///
 /// **And the certified COUNT never touches this function.** The count is
-/// read off `Δ`, `p` and `D` — exact sign algebra on the coefficients —
+/// read off `Δ`, `p` and `D` — sign algebra on the coefficients, read
+/// exactly —
 /// before any root is constructed, so the truncation can perturb a root
 /// VALUE and can never move the count the arm answers on. What a
 /// perturbed root value can do is shift a hit by that relative gap,
@@ -229,7 +230,7 @@ fn cubic_largest_real_root<T: geom_core::Real>(c2: T, c1: T, c0: T, three_real: 
 }
 
 /// **The certified real roots of the depressed monic quartic**
-/// `y⁴ + p y² + q̂ y + s`: the count read off exact sign algebra (`Δ`,
+/// `y⁴ + p y² + q̂ y + s`: the count read off sign algebra (`Δ`,
 /// then `p` and `D = 64s − 16p²` on the positive branch), the
 /// biquadratic arm when `q̂` is in band, Ferrari's factorization
 /// otherwise, and the constructed count checked against the certified
@@ -244,7 +245,7 @@ fn cubic_largest_real_root<T: geom_core::Real>(c2: T, c1: T, c0: T, three_real: 
 ///
 /// # The certified count, and what it costs
 ///
-/// The count is read off exact sign algebra, never off the roots: with
+/// The count is read off sign algebra, never off the roots: with
 /// `Δ` the quartic's discriminant,
 ///
 /// * `Δ` Negative ⇒ exactly **2** real roots;
@@ -259,6 +260,17 @@ fn cubic_largest_real_root<T: geom_core::Real>(c2: T, c1: T, c0: T, three_real: 
 /// `δ²/lever`. **So the ladder refuses over a BAND around a repeated
 /// root, not at one**, and the band is as wide as `√(K·ε·lever)` in root
 /// separation.
+///
+/// **`Δ` and `D` are read to their own digits**
+/// ([`geom_core::Real::quartic_sign_algebra`]): near a repeated root
+/// `Δ`'s terms are orders larger than it, and on a kilometre-scale lever
+/// the plain formula's rounding alone is past the band, so a sign read
+/// off it would be the rounding's. Read exactly, the count a definite
+/// sign certifies is the coefficients' own; where their digits do not
+/// fit an exact expansion `Δ` is poison and rung 1 escalates. What the
+/// coefficients'
+/// formation lost is the caller's
+/// (`work/inside/line-torus-coefficients-lose-a-shallow-crossing-to-their-formation.md`).
 ///
 /// # The ladder, rung by rung
 ///
@@ -293,17 +305,12 @@ fn cubic_largest_real_root<T: geom_core::Real>(c2: T, c1: T, c0: T, three_real: 
 ///    discriminant, i.e. a double root, which contradicts the definite
 ///    discriminant of rung 1. [`Unsettled::Tangency`].
 /// 5. **[`Unsettled::CountDisagrees`]**: the roots CONSTRUCTED
-///    disagree in number with the count CERTIFIED by rung 1. Where
-///    measured exactly, the construction is right and rung 1 is wrong:
-///    `Δ`'s `f64` evaluation carries rounding far past the band that no
-///    decision charges, so a definite-looking sign can be the noise's
-///    (`work/inside/ray-torus-count-certifies-on-an-uncharged-discriminant.md`;
-///    measured by `topo`'s
-///    `torus_predicate_rows::the_ladder_disagrees_with_itself_on_a_lanes_coefficients`
-///    and `a_far_ray_reaches_the_count_disagreement`). This rung catches
-///    the defect only where the two counts differ; where the noise flips
-///    the count to [`Roots::Miss`], the answer is wrong and
-///    nothing here sees it.
+///    disagree in number with the count CERTIFIED by rung 1. The count
+///    is the coefficients' own wherever their digits fit an exact
+///    expansion (elsewhere `Δ` is poison and rung 1 escalates); the
+///    construction rounds again (the resolvent's root, the factors'
+///    coefficients and discriminants), so this is the one place the two
+///    are made to agree.
 ///
 /// # Errors
 ///
@@ -321,26 +328,18 @@ pub fn depressed_quartic_roots<T: Decide>(
 ) -> Result<QuarticRoots<T>, RootRefusal> {
     let two = T::from_f64(2.0);
     let four = T::from_f64(4.0);
-    let disc = T::from_f64(256.0) * s.powi(3) - T::from_f64(128.0) * p.powi(2) * s.powi(2)
-        + T::from_f64(144.0) * p * q_hat.powi(2) * s
-        - T::from_f64(27.0) * q_hat.powi(4)
-        + T::from_f64(16.0) * p.powi(4) * s
-        - four * p.powi(3) * q_hat.powi(2);
+    let [disc, depth] = T::quartic_sign_algebra(p, q_hat, s);
+    // `p² − 4s` is `−D/16` and cancels as `D` does, so it is read from
+    // `D`: the biquadratic arm's split and the resolvent's linear term.
+    let p2_less_4s = T::zero() - depth / T::from_f64(16.0);
     let disc_sign = decide(rows.disc(), Margin::over_lever(disc, lever.powi(11)), band)?;
     let count = match disc_sign {
         Sign::Negative => 2usize,
         Sign::Zero => return Err(Unsettled::Tangency.into()),
         Sign::Positive => {
             let shape = decide(rows.shape(), Margin::over_lever(p, lever), band)?;
-            let depth = decide(
-                rows.depth(),
-                Margin::over_lever(
-                    T::from_f64(64.0) * s - T::from_f64(16.0) * p.powi(2),
-                    lever.powi(3),
-                ),
-                band,
-            )?;
-            match (shape, depth) {
+            let depth_sign = decide(rows.depth(), Margin::over_lever(depth, lever.powi(3)), band)?;
+            match (shape, depth_sign) {
                 (Sign::Negative, Sign::Negative) => 4,
                 (Sign::Positive, _) | (_, Sign::Positive) => 0,
                 // One of the two is on its own zero while the other does
@@ -363,8 +362,9 @@ pub fn depressed_quartic_roots<T: Decide>(
             // `X² − pX + s`. Those are the NEGATIVES of the roots of the
             // quadratic in `y²`, which is the sign this arm is easy to get
             // backwards and which no in-band case would have caught.
-            let inner = p.powi(2) - four * s;
-            match decide(rows.split(), Margin::over_lever(inner, lever.powi(3)), band)? {
+            let inner = p2_less_4s;
+            let split = Margin::over_lever(inner, lever.powi(3));
+            match decide(rows.split(), split, band)? {
                 Sign::Positive => {}
                 // A repeated `y²`, or none at all with a count that says
                 // otherwise: neither is a certified pair of factors.
@@ -386,7 +386,7 @@ pub fn depressed_quartic_roots<T: Decide>(
             // already decided above rather than a second decision.
             let z = cubic_largest_real_root(
                 two * p,
-                p.powi(2) - four * s,
+                p2_less_4s,
                 T::zero() - q_hat.powi(2),
                 disc_sign == Sign::Positive,
             );
@@ -432,6 +432,28 @@ pub fn depressed_quartic_roots<T: Decide>(
     }
     Ok(Roots::of(&ts[..found])
         .unwrap_or_else(|| unreachable!("two factors make at most four roots")))
+}
+
+/// **The exact real-root count of `y⁴ + p y² + q̂ y + s`** on its `f64`
+/// coefficients, by the rule [`depressed_quartic_roots`] certifies on
+/// (its docs) read on the exact `Δ` and `D`
+/// ([`geom_core::exact::quartic_sign_algebra`]): `None` where `Δ` is
+/// exactly zero, `p` or `D` is on the positive branch, or the
+/// coefficients do not fit an exact expansion.
+#[cfg(any(test, feature = "test-support"))]
+#[must_use]
+pub fn exact_root_count(p: f64, q_hat: f64, s: f64) -> Option<usize> {
+    let [disc, depth] = geom_core::exact::quartic_sign_algebra(p, q_hat, s)?;
+    let (disc, depth) = (disc.estimate(), depth.estimate());
+    if disc < 0.0 {
+        Some(2)
+    } else if disc == 0.0 || p == 0.0 || depth == 0.0 {
+        None
+    } else if p < 0.0 && depth < 0.0 {
+        Some(4)
+    } else {
+        Some(0)
+    }
 }
 
 #[cfg(test)]

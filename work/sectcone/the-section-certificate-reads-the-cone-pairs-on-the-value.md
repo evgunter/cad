@@ -31,3 +31,18 @@ The work:
 2. **The apex touch.** The value lists it as a `Point` component, `Unminted(NoCarrier::ApexTouch)`, beside `Coincidence(ConeApex)`. Map it explicitly: a `Touch` when it stands alone, R-tan otherwise.
 3. **`serves` stays false.** Flipping `serves(ConeRuled)` reaches the join: it would panic `glue::coincidence_site`'s `ConeApex` `unreachable!` and send `rides_carried` to `JoinDesync`. U2 calls `pair_section` for `Arm::ConeRuled` directly in `classify_known`, and keeps `serves` false until the march exists (the doors unit, and U3). The "serve the cone pairs" item moves out of U2.
 4. **The region.** A sweep-only door's default table has no region, so the value reads `NoRegion`. Give the call the face pair's overlap ball, as topo's `cone_pair` did. `cylinder_cylinder` already accepted the same loss.
+
+**Added by the cone × sphere / cone × cone door lane (PR 7457).**
+`serves` now takes cone × cylinder, cone × cone and cone × sphere, so the
+section table holds them and the join carries them on the value.
+`topo::boolean::section_cert` `classify_known` reads cone × cylinder and
+cone × cone on the value (this unit's `cone_ruled` arm, PR 7637), and
+cone × sphere still on its own `cone_pair`, ahead of its `serves` arm. So
+for cone × sphere the certificate's classification and the value's are
+still two. Its copy is `section_cert.rs` `cone_sphere` (a closed-form
+nappe count); `section_cert_cone_rows.rs`
+`sphere_and_cone_every_nappe_class` and the R-tan row
+(`section_cone_sphere_apex`, `section_cone_sphere_generator`) re-point onto
+the value, whose apex on the sphere is a node or a touch
+(`ConeRuledPose`), never R-tan, and whose tangency beside a crossing
+refuses `Pinched { kc_sphere_tangency }`.

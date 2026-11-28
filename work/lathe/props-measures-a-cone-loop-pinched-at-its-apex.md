@@ -2,10 +2,12 @@
 id: props-measures-a-cone-loop-pinched-at-its-apex
 kind: issue
 title: A cone loop pinched at its apex, two lobes meeting only there, is a valid face the props closed form refuses
-status: open
+status: closed
 opened: 2026-11-01
 priority: P1
 cost: M
+closed: 2026-11-26
+pr: 7585
 ---
 
 Filed by SPLITDOOR (`splitdoor/cone-apex-boolean`, PR 6266), on CONEARM's slate because `crates/geom-brep/src/props/curved.rs`'s cone arm is CONEARM's.

@@ -40,7 +40,7 @@ mod review_probes {
     fn torus(b: &Body<f64>) -> (Point3<f64>, Vec3<f64>, f64, f64, Vec3<f64>) {
         let mut found = None;
         for (fk, _) in b.faces() {
-            if let Some(Surface::Torus {
+            if let Ok(Surface::Torus {
                 frame,
                 major_radius,
                 minor_radius,
@@ -320,7 +320,7 @@ mod review_probes {
             let mut cones = 0usize;
             for (fk, _) in b.faces() {
                 match b.face_surface(fk) {
-                    Some(Surface::Sphere { frame, radius, .. }) => {
+                    Ok(Surface::Sphere { frame, radius, .. }) => {
                         let (center, axis) = (frame.origin(), frame.axis());
                         saw_sphere = true;
                         assert!(
@@ -332,7 +332,7 @@ mod review_probes {
                         assert!((center.z - cen.1).abs() < 1e-12, "{name} center.z");
                         assert!((radius - rad).abs() < 1e-15, "{name} radius");
                     }
-                    Some(Surface::Cone { frame, .. }) => {
+                    Ok(Surface::Cone { frame, .. }) => {
                         let axis = frame.axis();
                         cones += 1;
                         assert!(
@@ -344,10 +344,10 @@ mod review_probes {
                 }
             }
             assert!(
-                saw_sphere && cones == 4,
+                saw_sphere && cones == 2,
                 "{name}: sphere zone between a neck cone and a conical pucker, \
-                 both coaxial with the stem tangent and both halved at the \
-                 revolve seam — saw {cones} cone faces"
+                 both coaxial with the stem tangent, each one face — saw \
+                 {cones} cone faces"
             );
         }
     }
@@ -400,9 +400,9 @@ mod review_probes {
     /// `merge_coplanar_faces` then repaired; it now sweeps a planar
     /// wall whole (BAND, "one wall per run"), so neither cap carries a
     /// same-key adjacency. Its CURVED walls (two cones, one sphere
-    /// zone) are still cut at the seam, and the row tells the two
-    /// apart — no planar pair, six curved — so a change that stopped
-    /// doing so fails here rather than silently. The body as built is
+    /// zone) sweep in one band each too, so no curved wall carries one
+    /// either: a revolve that cut any wall again fails here. The body
+    /// as built is
     /// tier 2 and tier 3 clean (the delta review's MIN-1 asked for
     /// both real validators, not the tier 1 one).
     #[test]
@@ -420,17 +420,18 @@ mod review_probes {
                 continue;
             }
             match lant.get_surface(sides.plus.surface) {
-                Some(Surface::Plane { .. }) => planar_pairs += 1,
-                Some(_) => curved_pairs += 1,
-                None => {}
+                Ok(Surface::Plane { .. }) => planar_pairs += 1,
+                Ok(_) => curved_pairs += 1,
+                Err(_) => {}
             }
         }
         // Each pair is counted from both of its two struts.
         assert_eq!(
             (planar_pairs, curved_pairs),
-            (0, 6),
+            (0, 0),
             "two whole planar caps (the lip disk and the throat disk) and three \
-             curved walls (two cones, one sphere zone), each split at its seam"
+             whole curved walls (two cones, one sphere zone): no two faces share \
+             a carrier"
         );
         assert_eq!(
             pncad::topo::validate_closed(lant),
@@ -557,10 +558,9 @@ mod review_probes {
     /// The census is what the re-authoring changed structurally: the
     /// meridian gained one segment (the neck cone) between the throat
     /// disk and the belly, and a FULL revolve emits every CURVED wall as
-    /// two half-bands on one carrier, so the neck arrives as two faces
-    /// with the seam struts and rim vertices that go with them. Its two
-    /// planar caps it sweeps whole (BAND, one wall per run: 10 faces,
-    /// 18 edges, 10 vertices became 8, 14, 8). The
+    /// one band with one seam meridian, so the neck arrives as one face
+    /// with its seam and the rim vertex that goes with it. Its two
+    /// planar caps it sweeps whole. The
     /// exact volume is the same closed form
     /// `finding_13_tessellation_table_reproduces` measures the mesh
     /// against, taken here from the kernel's own `mass_properties`
@@ -577,11 +577,10 @@ mod review_probes {
             lant.vertices().count(),
         );
         println!("lantern census (shells, faces, edges, vertices) = {census:?}");
-        // RE-BASELINED (wall 6 retired: the mouth rolled into one
-        // torus band): (1, 8, 14, 8) -> (1, 9, 17, 10), one band face
-        // between the zone and the pucker, its two tangency circles
-        // each two half-arcs, and their seam vertices.
-        assert_eq!(census, (1, 9, 17, 10), "the re-authored lantern's census");
+        // Six faces (two discs, the neck and pucker cones, the sphere
+        // zone, the mouth's torus band), each curved one band with its
+        // one seam; every rim one closed circle on its seam vertex.
+        assert_eq!(census, (1, 6, 9, 5), "the re-authored lantern's census");
         let props = pncad::topo::mass_properties(
             &demo_tour::booleans::at_rest(lant, Tol::witness()),
             Tol::witness(),
@@ -696,8 +695,10 @@ mod review_probes {
             // RE-BASELINED (wall 6 retired): the mouth's torus band,
             // sized per curvature like any torus, adds its own cells —
             // 1_080 -> 1_220 and 2_556 -> 3_038.
-            ("lily_lantern", 5e-3, 832),
-            ("lily_lantern", 2e-3, 1_900),
+            // The lantern's curved walls are one band each, so no seam
+            // meridian parts a wall into two meshed patches.
+            ("lily_lantern", 5e-3, 826),
+            ("lily_lantern", 2e-3, 1_860),
             // RE-BASELINED: the swept leaves are fitted at the cubic
             // degree along the path (wall 15 retired) — 6_468 -> 5_576
             // and 5_992 -> 5_164. RE-BASELINED again (PR 4984, one
@@ -712,9 +713,11 @@ mod review_probes {
             // (71 snapped bands -> 0: their aspects are malign in raw
             // UV and benign over the face's metric), so each band keeps
             // its own columns and the grid drops 1_152 -> 1_081 cells —
-            // 5_374 -> 5_254. Leaf c measures unchanged.
+            // 5_374 -> 5_254. Leaf c measured unchanged then; it is now
+            // leaf b's mirror image across the stem, and meshes as leaf b
+            // does — 4_962 -> 5_254.
             ("lily_leaf_b", 2e-3, 5_254),
-            ("lily_leaf_c", 2e-3, 4_962),
+            ("lily_leaf_c", 2e-3, 5_254),
         ];
         // Measured first, compared once: a row-at-a-time assert stops
         // at the first move and hides the rest, and this table is read
@@ -801,7 +804,9 @@ mod review_probes {
         // which is exactly what a loft stops being. What pins the
         // lofted blade instead is
         // `the_lofted_blade_tapers_and_rolls_in_the_stored_geometry`.
-        for (name, leaf) in [("lily_leaf_b", LEAF_B), ("lily_leaf_c", LEAF_C)] {
+        // `lily_leaf_c` is `lily_leaf_b` mirrored across the stem, so it
+        // is held to the same section, path and Pappus volume.
+        for (name, leaf) in [("lily_leaf_b", LEAF_B), ("lily_leaf_c", LEAF_B)] {
             let pappus = lance_area(leaf.section)
                 * leaf
                     .curl
@@ -986,8 +991,7 @@ mod review_probes {
         let lant = body(&ps, "lily_lantern");
         let mut centre = None;
         for (fk, _) in lant.faces() {
-            if let Some(pncad::geom::Surface::Sphere { frame, radius, .. }) = lant.face_surface(fk)
-            {
+            if let Ok(pncad::geom::Surface::Sphere { frame, radius, .. }) = lant.face_surface(fk) {
                 let center = frame.origin();
                 assert!((radius - FLOWER_GLOBE).abs() < 1e-12);
                 centre = Some(center);
@@ -1001,7 +1005,7 @@ mod review_probes {
             // keel's apex is the section's deepest point.
             let mut points: Vec<Point3<f64>> = s.vertex_points().map(|(_, p)| p).collect();
             for (fk, _) in s.faces() {
-                if let Some(&pncad::geom::Surface::Plane { frame, .. }) = s.face_surface(fk) {
+                if let Ok(&pncad::geom::Surface::Plane { frame, .. }) = s.face_surface(fk) {
                     let (origin, normal) = (frame.origin(), frame.axis());
                     let margins: Vec<Point3<f64>> = s
                         .vertex_points()
@@ -1150,7 +1154,7 @@ mod review_probes {
             let a = segs[i].1;
             let mut halves: Vec<Vec3<f64>> = Vec::new();
             for (fk, _) in b.faces() {
-                let Some(&pncad::geom::Surface::Plane {
+                let Ok(&pncad::geom::Surface::Plane {
                     frame: carrier_frame,
                     ..
                 }) = b.face_surface(fk)
@@ -1240,7 +1244,7 @@ mod review_probes {
     pub(super) fn pucker_cone_faces(ps: &[Piece<f64>]) -> Vec<pncad::topo::FaceKey> {
         let lant = body(ps, "lily_lantern");
         let (neck, _, _, _) = weld_circle(lant, body(ps, "lily_arch"), caps(ps, "lily_arch"));
-        let Some(&Surface::Cone {
+        let Ok(&Surface::Cone {
             frame: carrier_frame,
             ..
         }) = lant.face_surface(neck)
@@ -1252,7 +1256,7 @@ mod review_probes {
             .filter(|(fk, _)| {
                 matches!(
                     lant.face_surface(*fk),
-                    Some(&Surface::Cone { frame, .. }) if (frame.origin() - neck_apex).norm() > 1e-9
+                    Ok(&Surface::Cone { frame, .. }) if (frame.origin() - neck_apex).norm() > 1e-9
                 )
             })
             .map(|(k, _)| k)
@@ -1276,7 +1280,7 @@ mod review_probes {
     fn sphere_of(b: &Body<f64>) -> (Point3<f64>, f64, Vec3<f64>) {
         let mut found: Option<SphereCarrier> = None;
         for (fk, _) in b.faces() {
-            if let Some(pncad::geom::Surface::Sphere { frame, radius }) = b.face_surface(fk) {
+            if let Ok(pncad::geom::Surface::Sphere { frame, radius }) = b.face_surface(fk) {
                 let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                 let s = (center, *radius, axis, u_ref);
                 match found {
@@ -1350,7 +1354,7 @@ mod review_probes {
     fn cap_frames(b: &Body<f64>) -> Vec<Cap> {
         let mut out = Vec::new();
         for (fk, _) in b.faces() {
-            let Some(&pncad::geom::Surface::Plane {
+            let Ok(&pncad::geom::Surface::Plane {
                 frame: carrier_frame,
                 ..
             }) = b.face_surface(fk)
@@ -1523,7 +1527,7 @@ mod verbs_gate_r1_probes {
         let mut zone = None;
         for (k, _) in lant.faces() {
             match lant.face_surface(k) {
-                Some(&Surface::Cone {
+                Ok(&Surface::Cone {
                     frame, half_angle, ..
                 }) if pucker.contains(&k) => {
                     let (apex, axis) = (frame.origin(), frame.axis());
@@ -1559,7 +1563,7 @@ mod verbs_gate_r1_probes {
                     let d = seg(v_lo, v_lo.abs() * ta, v_hi, v_hi.abs() * ta) - br;
                     min_frustum_gap = min_frustum_gap.min(d);
                 }
-                Some(&Surface::Sphere { frame, radius, .. }) => {
+                Ok(&Surface::Sphere { frame, radius, .. }) => {
                     let center = frame.origin();
                     let d = (center - bc).norm();
                     if d <= radius + br && d + br >= radius {
@@ -1611,9 +1615,9 @@ mod verbs_gate_r1_probes {
         // {tightest} on its tightest axis, so the pair-scoped gate
         // ADMITS — and what answers is not a germ class at all but
         // the operand-shape precondition. WHICH faces, corrected at
-        // M9-5 and re-measured here: NOT the zone's two half-bands —
-        // same-key CURVED adjacency is the canonical maximal form —
-        // but the lantern's two AXIS-TOUCHING PLANAR CAPS.
+        // M9-5 and re-measured here: NOT the zone, one band — the
+        // canonical maximal form of a curved wall — but the lantern's
+        // two AXIS-TOUCHING PLANAR CAPS.
         //
         // With the caps swept whole, the crossing layer's circle × sphere
         // roots, the radical-plane join and its chords' arcs, taken from
@@ -1686,15 +1690,16 @@ mod verbs_gate_r1_probes {
         pncad::mesh::validate::check_volume(&draw, va - lens, carved_area, 2e-3)
             .unwrap_or_else(|e| panic!("the carve's mesh encloses the carve, got {e:?}"));
         // All three draw: the seam a third of a turn round lies inside
-        // one half-band of the zone, a ring of that face, which the
-        // trimmed lane meshes as the face's outer loop less the ring.
+        // the zone's one face, off its seam meridian, a ring of that
+        // face, which the trimmed lane meshes as the face's outer loop
+        // less the ring.
         let seamed = demo_tour::lily::seamed_lantern(lant.clone().into_body(), tol)
             .unwrap_or_else(|e| panic!("the three seams carve, got {e:?}"));
         assert!(
             seamed.faces().any(|(fk, face)| !face.rings.is_empty()
                 && matches!(
                     seamed.face_surface(fk),
-                    Some(pncad::topo::Surface::Sphere { .. })
+                    Ok(pncad::topo::Surface::Sphere { .. })
                 )),
             "a seam's section is a ring of a sphere face"
         );
@@ -1869,7 +1874,7 @@ mod verbs_gate_r1_probes {
             if !faces.contains(&k) {
                 continue;
             }
-            let Some(&Surface::Cone {
+            let Ok(&Surface::Cone {
                 frame, half_angle, ..
             }) = lant.face_surface(k)
             else {

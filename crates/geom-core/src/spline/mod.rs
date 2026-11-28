@@ -52,6 +52,7 @@ pub mod algebra;
 pub mod basis;
 pub mod blossom;
 pub mod built;
+pub mod canonical_rows;
 pub mod compose;
 pub mod derivative;
 pub mod hull;

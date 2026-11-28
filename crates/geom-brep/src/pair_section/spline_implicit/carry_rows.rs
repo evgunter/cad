@@ -11,6 +11,7 @@ use geom::{NurbsSurface, Surface};
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Point3, Tol, Vec3};
 
+use crate::intersect::SectionError;
 use crate::pair_section::{
     CarriedComponent, CarryError, CarryRefusal, ChartReach, ComponentShape, NoCarrier, PairSection,
     SectionRead, SsiLane, pair_section,
@@ -69,6 +70,16 @@ pub(super) fn listed(a: &Surface<f64>, b: &Surface<f64>) -> PairSection<f64> {
         SectionRead::Built(s) => s
             .read_whole(lane, band())
             .unwrap_or_else(|e| panic!("{:?} × {:?} reads whole: {e:?}", a.kind(), b.kind())),
+        SectionRead::Elsewhere(_) => panic!("a spline × implicit pair is built here"),
+    }
+}
+
+/// [`listed`], or the refusal the pair's reading stops on before any
+/// carry, where the row's scale is past what the run's ε reads.
+fn listed_at(a: &Surface<f64>, b: &Surface<f64>) -> Result<PairSection<f64>, SectionError> {
+    let lane = Some(SsiLane::marched());
+    match pair_section(a, b, None, lane, band())? {
+        SectionRead::Built(s) => s.read_whole(lane, band()),
         SectionRead::Elsewhere(_) => panic!("a spline × implicit pair is built here"),
     }
 }
@@ -148,10 +159,8 @@ fn from_carrier(c: &CarriedComponent<f64>, p: Point3<f64>) -> f64 {
 ///
 /// What the code guarantees is the pad's lower side: every point of the
 /// section within it. How near the rung it stands is a measurement, held
-/// here as a tripwire: on these walls the pad is about 1.1 rungs and the
-/// reach at most about half the wall across. These arcs' pcurves hold
-/// many spans, so cutting each window into cells moves none of them; the
-/// two-arc row below holds that.
+/// here as a tripwire: on these walls the pad is about a rung and the
+/// reach at most about half the wall across.
 ///
 /// Red against: a carry that refuses every spline × implicit component
 /// (the listing's `Unminted`); a pad left in chart units (the tube's
@@ -299,7 +308,7 @@ fn a_rim_arc_is_carried_as_its_reading_fitted_it_with_its_pad_in_metres() {
 /// The cylinder along `x` about the wall's middle line
 /// `(y, z) = (1.15·s, s)`, of radius `r·s`: it cuts the wall in two arcs
 /// from side to side, about `2·r·s` apart.
-fn rod(s: f64, r: f64) -> Surface<f64> {
+pub(super) fn rod(s: f64, r: f64) -> Surface<f64> {
     Surface::Cylinder {
         frame: geom::Frame::new(pt(0.0, 1.15 * s, s), Vec3::unit_x(), Vec3::unit_z()),
         radius: r * s,
@@ -308,7 +317,7 @@ fn rod(s: f64, r: f64) -> Surface<f64> {
 
 /// The two arcs [`rod`] cuts on the wall, below the middle line then
 /// above it: each the wall's point on 21 iso-lines `u`, bisected.
-fn rod_arcs(w: &Surface<f64>, s: f64, r: f64) -> [Vec<Point3<f64>>; 2] {
+pub(super) fn rod_arcs(w: &Surface<f64>, s: f64, r: f64) -> [Vec<Point3<f64>>; 2] {
     let f = |u: f64| {
         move |v: f64| {
             let p = on_wall(w, u, v);
@@ -326,31 +335,46 @@ fn rod_arcs(w: &Surface<f64>, s: f64, r: f64) -> [Vec<Point3<f64>>; 2] {
     [arc((0.0, 0.5)), arc((0.5, 1.0))]
 }
 
-/// **Each point of two close rim arcs reads on its own arc alone, or the
-/// carry refuses by name**, at `s = 0.01, 1, 10`: a rod along the wall
-/// cuts it in two arcs `2·r` apart, `r = 0.07, 0.10, 0.15`. Carried, each
-/// arc's witness and every point of each arc (bisected along the wall's
-/// iso-lines) reads on that arc and on no other (`CarriedSection::site`);
-/// refused, the refusal is [`CarryRefusal::PadsMeet`]. A site read on two
-/// arcs that share no node is a desync, so neither may be met. At
-/// `r = 0.15` the arcs stand about three rungs apart, and are carried.
+/// **Each point of two close rim arcs reads on its own arc alone**, at
+/// `s = 0.01, 1, 100`: a rod along the wall cuts it in two arcs `2·r`
+/// apart, `r = 0.045, 0.09, 0.095, 0.15`. The certifying rung follows
+/// the gap, so the arcs stand two to three rungs apart (2.03 at
+/// `r = 0.045` and `0.09`). Each is carried. Each arc's witness and
+/// every point of each arc (bisected along the wall's iso-lines) reads
+/// on that arc and on no other (`CarriedSection::site`), and so does the
+/// point moved half the band's zero toward the other arc. The wall's
+/// point on the rod's axis line, between the arcs, lies in no cell of
+/// either and reads on no component.
 ///
-/// Red against: the carry holding no arcs apart, with a pad an eighth of
-/// the arc's length (the window read whole), which reaches across to the
-/// other arc: a witness on two components; and, with the arcs held apart,
-/// the window read whole, which refuses at `r = 0.15`.
+/// At `ε = 1e-12` the wall at `s = 100` is not read: the whole reading
+/// cannot decide its limb 2 there, before any carry (asserted, with the
+/// scale it is allowed at).
+///
+/// Red against: arcs held apart by their pads about their carriers'
+/// hulls, each pad a rung and more, where the arcs two rungs apart
+/// refuse `PadsMeet` (`r = 0.045, 0.09, 0.095`); a refinement that
+/// drops a half holding a point of the arc (the point reads on none).
 #[test]
-fn each_point_of_two_close_rim_arcs_reads_on_its_own_arc_or_the_carry_refuses() {
-    for s in [1e-2, 1.0, 10.0] {
-        for r in [0.07, 0.10, 0.15] {
+fn each_point_of_two_close_rim_arcs_reads_on_its_own_arc_alone() {
+    use crate::pair_section::{SiteReading, SiteRefusal};
+    for s in [1e-2, 1.0, 100.0] {
+        for r in [0.045, 0.09, 0.095, 0.15] {
             let w = wall(s);
-            let carried = match listed(&w, &rod(s, r)).carry(Some(SsiLane::marched()), band()) {
-                Ok(carried) => carried,
-                // Three rungs apart, the arcs carry: a measurement held as
-                // a tripwire on the pad's cells, not a bound the code proves.
-                Err(CarryError::Refused(CarryRefusal::PadsMeet { .. })) if r < 0.15 => continue,
-                Err(e) => panic!("s = {s}, r = {r}: carried, or refused by name: {e:?}"),
+            let section = match listed_at(&w, &rod(s, r)) {
+                Ok(section) => section,
+                Err(unread) => {
+                    assert!(
+                        s == 100.0 && Tol::witness().eps() == 1e-12,
+                        "s = {s}, r = {r}: the pair reads whole: {unread:?}"
+                    );
+                    println!("s = {s}, r = {r}: not read at this ε, before any carry: {unread:?}");
+                    // The scale, not the rod, is what the ε does not read.
+                    break;
+                }
             };
+            let carried = section
+                .carry(Some(SsiLane::marched()), band())
+                .unwrap_or_else(|e| panic!("s = {s}, r = {r}: two arcs are carried: {e:?}"));
             let [lower, upper] = carried.components() else {
                 panic!("s = {s}, r = {r}: two arcs: {}", carried.components().len());
             };
@@ -363,10 +387,13 @@ fn each_point_of_two_close_rim_arcs_reads_on_its_own_arc_or_the_carry_refuses() 
             };
             let [low_points, high_points] = rod_arcs(&w, s, r);
             let witnesses = carried.components().iter().map(|c| c.witness);
-            for (k, points) in [(below, low_points), (above, high_points)] {
-                for p in points.into_iter().chain(witnesses.clone().skip(k).take(1)) {
+            for (k, toward, points) in [(below, 1.0, low_points), (above, -1.0, high_points)] {
+                let nudge = Vec3::unit_z() * (toward * 0.5 * band().zero());
+                let moved = points.iter().map(|&p| p + nudge).collect::<Vec<_>>();
+                let own = witnesses.clone().skip(k).take(1);
+                for p in points.into_iter().chain(moved).chain(own) {
                     match carried.site(p, band()) {
-                        Ok(crate::pair_section::SiteReading::OnArc(foot)) => assert_eq!(
+                        Ok(SiteReading::OnArc(foot)) => assert_eq!(
                             foot.component, k,
                             "s = {s}, r = {r}: {p:?} reads on its own arc"
                         ),
@@ -374,27 +401,184 @@ fn each_point_of_two_close_rim_arcs_reads_on_its_own_arc_or_the_carry_refuses() 
                     }
                 }
             }
+            let between = carried.site(on_wall(&w, 0.5, 0.5), band());
+            assert!(
+                matches!(
+                    between,
+                    Err(SiteRefusal::Desync(
+                        "a site lies on no component of its section"
+                    ))
+                ),
+                "s = {s}, r = {r}: the point between the arcs lies in no cell of either: \
+                 {between:?}"
+            );
         }
     }
 }
 
-/// **Two arcs closer than their pads carry neither, by name**: a rod of
-/// radius `0.09` cuts the wall in two arcs `0.18` apart, each read within
-/// a pad of about `0.098`, so a point on the rod's axis line between them
-/// would stand within both. The carry refuses
-/// [`CarryRefusal::PadsMeet`], naming both pads and the gap.
+/// **A wall whose chart quickens**, scaled by `s`: linear in `u` from
+/// `x = −1` to `x = 1`, quadratic in `v` over two spans that meet at
+/// `v = ½`, its heights' control rows at `z = 0, 0.05, 0.2, 2`. Over the
+/// lower span it rises at `0.2` to `0.3` a unit of `v`, over the upper
+/// at up to `7.2`, so a chart pad sized by the wall's fastest speed
+/// reaches a few hundredths of a rung in metres on the lower span.
+fn quickening(s: f64) -> Surface<f64> {
+    let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+    let control = [-1.0, 1.0]
+        .into_iter()
+        .flat_map(|x| {
+            [(1.0, 0.0), (1.01, 0.05), (1.0, 0.2), (1.0, 2.0)].map(|(y, z)| pt(s * x, s * y, s * z))
+        })
+        .collect();
+    Surface::Nurbs(std::sync::Arc::new(
+        NurbsSurface::new(ku, kv, control, vec![1.0; 8]).unwrap(),
+    ))
+}
+
+/// **Two arcs a ninth of the tube's rung apart are carried, each point
+/// on its own arc alone**, at `s = 0.01, 1, 100`: on the wall whose
+/// chart quickens, a rod of radius `0.02·s` about the line `z = 0.06·s`
+/// cuts the slow span in two arcs `0.038·s` apart. The rung, `0.35·s`,
+/// is the tube's at the wall's fastest speed; on the slow span a window
+/// reaches a few hundredths of it in metres, so the arcs stand closer
+/// than a quarter of the rung (asserted, the row's premise) while their
+/// windows do not overlap. Each arc's pad, `0.06·s`, is wider than the
+/// gap: it is the arcs' thin cells that stand apart, not their pads.
+/// Each point of each arc, and each arc's witness, reads on its own
+/// arc.
 ///
-/// Red against: a carry that holds no pair of arcs apart (`apart`): the
-/// arcs carried, and the axis point a desync on two components.
+/// Two scales are past what a run's ε reads, each refused before any
+/// carry and asserted with the ε it is allowed at: at `ε = 1e-6` the
+/// wall at `s = 0.01`, whose arcs end `3.8e-4` apart on its side, pinches
+/// at the side; at `ε = 1e-12` the wall at `s = 100`, where the march
+/// settles no state finer than the tolerance.
+///
+/// Red against: arcs held apart by their pads about their carriers'
+/// hulls, some `0.07·s` each, where the two arcs refuse `PadsMeet`.
 #[test]
-fn two_arcs_closer_than_their_pads_carry_neither_by_name() {
-    let refused = listed(&wall(1.0), &rod(1.0, 0.09)).carry(Some(SsiLane::marched()), band());
-    let Err(CarryError::Refused(CarryRefusal::PadsMeet { pads, gap })) = refused else {
-        panic!("two arcs within their pads refuse by name: {refused:?}");
+fn two_arcs_a_ninth_of_a_rung_apart_on_a_quickening_wall_are_carried() {
+    use crate::pair_section::SiteReading;
+    for s in [1e-2, 1.0, 100.0] {
+        let w = quickening(s);
+        let (z0, r) = (0.06 * s, 0.02 * s);
+        let partner = Surface::Cylinder {
+            frame: geom::Frame::new(pt(0.0, s, z0), Vec3::unit_x(), Vec3::unit_z()),
+            radius: r,
+        };
+        let section = match listed_at(&w, &partner) {
+            Ok(section) => section,
+            Err(unread) => {
+                let eps = Tol::witness().eps();
+                assert!(
+                    (s == 1e-2 && eps == 1e-6) || (s == 100.0 && eps == 1e-12),
+                    "s = {s}: the pair reads whole: {unread:?}"
+                );
+                println!("s = {s}: not read at this ε, before any carry: {unread:?}");
+                continue;
+            }
+        };
+        let carried = section
+            .carry(Some(SsiLane::marched()), band())
+            .unwrap_or_else(|e| panic!("s = {s}: two arcs are carried: {e:?}"));
+        let [a, b] = carried.components() else {
+            panic!("s = {s}: two arcs: {}", carried.components().len());
+        };
+        let (below, above) = if a.witness.z < b.witness.z {
+            (0, 1)
+        } else {
+            (1, 0)
+        };
+        let gap = (a.witness - b.witness).norm();
+        for c in [a, b] {
+            let Some(crate::ssi::SsiTube::Chart { rung, .. }) =
+                c.certificate.as_ref().map(|cert| cert.tube)
+            else {
+                panic!("s = {s}: a chart tube certifies the arc");
+            };
+            assert!(
+                gap < 0.25 * rung,
+                "s = {s}: the arcs stand {gap} apart, within a quarter of the rung {rung}"
+            );
+        }
+        // Each arc's point on an iso-line `u`: the wall's point where it
+        // meets the rod, below its axis line then above it.
+        let f = |u: f64| {
+            let w = &w;
+            move |v: f64| {
+                let p = on_wall(w, u, v);
+                (p.y - s).hypot(p.z - z0) - r
+            }
+        };
+        let axis = root(|v| on_wall(&w, 0.5, v).z - z0, (0.0, 0.5), "the axis line");
+        for (k, range) in [(below, (0.0, axis)), (above, (axis, 0.5))] {
+            let points = (0..=20).map(|i| {
+                let u = f64::from(i) / 20.0;
+                on_wall(&w, u, root(f(u), range, "the rod"))
+            });
+            let own = carried.components()[k].witness;
+            for p in points.chain([own]) {
+                match carried.site(p, band()) {
+                    Ok(SiteReading::OnArc(foot)) => {
+                        assert_eq!(foot.component, k, "s = {s}: {p:?} reads on its own arc");
+                    }
+                    other => panic!("s = {s}: {p:?} reads on one arc: {other:?}"),
+                }
+            }
+        }
+    }
+}
+
+/// **Two arcs the carry cannot part are listed refusing `PadsMeet`, and
+/// the section carries none**: the rod's reading at the run's band,
+/// listed at a band whose escalation is `0.1`, where its two arcs,
+/// `0.18` apart, stand within the band of each other. Each arc's
+/// component holds the refusal, and the carry returns it.
+///
+/// Red against: a listing that drops the refusal and carries each arc on
+/// the cells it stopped at.
+#[test]
+fn two_arcs_the_carry_cannot_part_are_listed_refusing_and_carry_none() {
+    use crate::pair_section::{ClassCarrier, Components, PadsStop};
+    let (w, p) = (wall(1.0), rod(1.0, 0.09));
+    let pose = super::SplineImplicitPose::of(&w, &p).expect("a spline wall and a cylinder");
+    let reading = crate::ImplicitSection::of(&p, pose.net(), pose.domain(), band())
+        .expect("the pair is read");
+    let form = reading.form().clone();
+    let out = reading.all().expect("the pair reads whole");
+    let wide = Band::linear_at(Tol::witness(), 0.1 / Tol::witness().k()).expect("a band");
+    let partner = super::Bracketed {
+        surface: &p,
+        form: &form,
     };
+    let section = super::listed(pose.clone(), partner, out, None, wide).expect("the arcs list");
+    let Components::Counted(components) = section.components() else {
+        panic!("a whole reading lists its components");
+    };
+    assert_eq!(components.len(), 2, "the rod's two arcs");
+    for c in components {
+        assert!(
+            matches!(
+                &c.carrier,
+                ClassCarrier::Fitted(f) if matches!(
+                    f.as_ref(),
+                    Err(CarryError::Refused(CarryRefusal::PadsMeet {
+                        stop: PadsStop::Stall,
+                        ..
+                    }))
+                )
+            ),
+            "each arc's component holds the refusal: {:?}",
+            c.carrier
+        );
+    }
+    let refused = section.carry(Some(SsiLane::marched()), wide);
     assert!(
-        gap > 0.0 && gap <= 0.18 && gap <= pads[0] + pads[1],
-        "the arcs stand {gap} apart, within the pads {pads:?}"
+        matches!(
+            refused,
+            Err(CarryError::Refused(CarryRefusal::PadsMeet { .. }))
+        ),
+        "the section carries none: {refused:?}"
     );
 }
 
