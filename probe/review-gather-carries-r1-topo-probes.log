@@ -1,0 +1,11 @@
+test review_gather_carries_r1::a_carried_gather_beside_the_derived_finish_over_member_kinds_and_placements ... member brick: 1 solids, 6 faces
+test review_gather_carries_r1::a_member_in_anothers_cavity_and_a_gather_of_a_gather ... a brick in a cavity: carried 8.83e-1; derived finish Ok(Ok(0.883))
+test review_gather_carries_r1::a_point_inversion_typed_as_a_rigid_motion_reaches_the_gather ... the map sends (1, 2, 3) to Point3 { x: -1.0, y: -2.0, z: -3.0 }
+the gather CARRIES under the inversion: carried volume Ok(2.0); the derived finish: Err(NotFinished { findings: [PoisonedSurfaceDatum { face: FaceKey(7v1), kind: Plane, datum: Normal }, PoisonedSurfaceDatum { face: FaceKey(7v1), kind: Plane, datum: URef }, PoisonedSurfaceDatum { face: FaceKey(8v1), kind: Plane, datum: Normal }, PoisonedSurfaceDatum { face: FaceKey(8v1), kind: Plane, datum: URef }, PoisonedSurfaceDatum { face: FaceKey(9v1), kind: Plane, datum: Normal }, PoisonedSurfaceDatum { face: FaceKey(9v1), kind: Plane, datum: URef }, PoisonedSurfaceDatum { face: FaceKey(10
+test review_gather_carries_r1::at_interval_an_unmoved_gather_carried_beside_derived ... Interval unmoved: carried Interval(DInterval { lo: 2.4374999999999964, hi: 2.4375000000000044, dec: Com }), derived Interval(DInterval { lo: 2.4374999999999964, hi: 2.4375000000000044, dec: Com })
+test review_gather_carries_r1::the_gather_logs_one_vector_at_f64_and_interval_over_boolean_members ... f64 logs 1 verdicts, Interval 1
+test review_gather_carries_r1::the_gathers_typed_refusals_are_reachable ... ok
+test review_gather_carries_r1::the_public_trait_method_finishes_a_body_holding_a_solid_no_gate_read ... ok
+test review_gather_carries_r1::the_public_trait_method_finishes_a_body_unrelated_to_its_parts ... union with the minted body: Err(ResultInvalid { findings: NotFinished { findings: [OutsideSessionBox { margin: MarginDiag(Value(-1001.0, None, ZeroWord(0))) }] } })
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 1291 filtered out; finished in 0.33s
+=== RC

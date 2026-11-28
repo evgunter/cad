@@ -1,0 +1,15 @@
+##### CENSUS
+RG census f64 one place: Ok([SameSideInterference { a: FaceKey(1v1), b: FaceKey(7v1) }])
+RG census Interval one place: Ok([CensusUndecidable { a: Face(FaceKey(2v1)), b: Face(FaceKey(8v1)), what: "whether they lie on one plane, and so whether the parts overlap behind them, cannot be read at this tolerance. Recourse: move one of them clear of the band, or onto the other's plane", reason: MayOverlap }, CensusUndecidable { a: Face(FaceKey(1v1)), b: Face(FaceKey(7v1)), what: "whether they lie on one plane, and so wheth
+RG census f64 overlapping: Ok([SameSideInterference { a: FaceKey(1v1), b: FaceKey(7v1) }])
+RG census Interval overlapping: Ok([CensusUndecidable { a: Face(FaceKey(1v1)), b: Face(FaceKey(7v1)), what: "whether they lie on one plane, and so whether the parts overlap behind them, cannot be read at this tolerance. Recourse: move one of them clear of the band, or onto the other's plane", reason: MayOverlap }, CensusUndecidable { a: Face(FaceKey(2v1)), b: Face(FaceKey(8v1)), what: "whether they lie on one plane, and so wheth
+RG census f64 apart: Ok([])
+RG census Interval apart: Ok([CensusEscalated { cause: Indeterminate { margin: MarginDiag(Enclosure { lo: -0.003911471975669891, hi: 0.00391147197566989, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("pm_census_ef_residual") } }, CensusEscalated { cause: Indeterminate { margin: MarginDiag(Enclosure { lo: 0.0, hi: 0.08295006083309236, tag: None, zero: Zer
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3421 filtered out; finished in 0.31s
+##### HEAD SUITE 17:41:53
+head rc 100 18:00:19
+     Summary [ 762.013s] 3758 tests run: 3741 passed (6 slow), 17 failed, 110 skipped
+##### BASE SUITE 18:00:19
+base rc 100 18:32:03
+     Summary [ 754.197s] 3753 tests run: 3736 passed (7 slow), 17 failed, 110 skipped
+##### DONE
