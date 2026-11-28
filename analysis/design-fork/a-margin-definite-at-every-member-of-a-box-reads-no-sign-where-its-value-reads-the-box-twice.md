@@ -91,3 +91,11 @@ Both land on **no hold-back**, for one reason: the ratified text promises a cert
 - **What M16b would have to show to move either:** disagreement between the form's answer and a member's rounded reading on more than about 1% of decided asks at tolerance bands.
 
 **Reconciliation ends: agreed**, four rounds. M16b pending before the `[ev]` PR.
+
+## M16b (in at 20:04 UTC 2026-11-28) and round 5
+
+M16b (`probe/M16b-REPORT.md` on `boxfinish/probe-side-reading` at `c8aafb799d`): **with the extended reading on, the tour's first drive does not move** (211 / 301 / 511, the same boxes and verdicts, with trig, `Select`, hull and depth entered, and again with frozen nodes opened). The 15,200 untraced indeterminates are frozen ring nodes (from the drive's table) and hulls. Entering trig, `Select` and hulls decides 0 of 37,218 on the drive; depth 32 decides 42; opening frozen nodes 1,964, with 22,812 straddling and 12,442 declining. Where it straddles with members sampled the members agree and the intersection is the value's own enclosure: dependency inside the form. No empty intersection; 5,464 asks sampled at five members, none differs. The reading does work on the verb-built tilted body at ± 0.05 (it builds), the slab at wide boxes and the fixture bodies.
+
+Against the round-4 agreement: both designers' "the next wall is elsewhere" conditions are met on the drive (asks decide and leaves still refuse; "enclosable, straddles, members agree").
+
+**Round 5 dispatched 20:07 UTC** to both: what the defect is, restated; whether the round-4 agreement stands, changes or shrinks; the site work; what a further count must show. M17 (a mean-value reading on the expression graph: the margin at one member plus its derivative enclosed over the box, with the tour's verdicts under it) is with the probe lane.
