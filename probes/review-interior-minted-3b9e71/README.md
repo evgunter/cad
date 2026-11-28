@@ -14,3 +14,7 @@ none 0; TWINPANIC 128; TWIN1PANIC 0; MREADPANIC 10; FACEPANIC 0; old 1 (the new 
 Mutants head/old: NOSECT 13/13, NOSECTV 0/1, IGNREM 18/35, JOINTBAD 14/31, ANYREM 3/4, ANYINC, NOPRES, CONTRAANY, LOOSEINC 1/2
 (old's +1 is the pin everywhere; IGNREM/JOINTBAD's other 16 are faces whose every fragment is discarded: Divided-with-no-pieces on old, Removed on head).
 GAP with PANIC, fall-through hooked: face 3/4, edge 12/13, recut 56/56 (same set); without PANIC recut 16/12.
+
+Slow set: 1039 `sweep::all` tests outside ci's default filter (`reach_cone_root_lane` excluded), profile `cap90`, release with debug assertions,
+head with `PROBE_SAMEPANIC PROBE_TWIN1PANIC PROBE_FACEPANIC`: 997 pass, 3 fail (the seam-split census, germ_coplanar_conic, the spline-capped box; the PR's main-and-head three), 39 time out;
+no probe or assertion fired; 16520 TWINROOT lines, all OTHER. 138 tests reach a twin exclusion; under "old" those 138 give 134 pass / 1 fail / 3 timeout, the same tests as head.
