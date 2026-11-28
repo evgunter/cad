@@ -7306,6 +7306,34 @@ mod pending_ring_tests {
         );
     }
 
+    /// **A pending ring is moved only by its own join**: a later
+    /// division that reads it strictly inside its run is a kernel defect
+    /// and refuses as one ([`ChordJoiner::rehome_rings`]), rather than
+    /// moving it. A deferred ring's point lies outside the face holding it
+    /// or on its boundary, so a sound reading never gets here; the row
+    /// forces it by marking two struts pending off the diagonal, one on
+    /// each side, so the division reads one of them inside.
+    ///
+    /// Red where the check is dropped and the ring is moved.
+    #[test]
+    fn a_pending_ring_a_later_run_reads_inside_is_a_defect() {
+        let (mut body, top, c) = slab();
+        let mut j = joiner();
+        let (below, _) = pierce_ring(&mut body, top, Point3::new(1.5, 0.5, 1.0), 1);
+        let (above, _) = pierce_ring(&mut body, top, Point3::new(0.5, 1.5, 1.0), 1);
+        j.pending.insert(below, ());
+        j.pending.insert(above, ());
+        let got = divide(&mut j, &mut body, top, (c[0], c[2]));
+        assert!(
+            matches!(
+                got,
+                Err(JoinError::SectionInvariant { face, what })
+                    if face == top && what.contains("pending pierce ring")
+            ),
+            "a pending ring read inside a later run: {got:?}"
+        );
+    }
+
     /// **A ring with a real edge, every vertex on the run, still
     /// refuses**: only a ring of null edges is deferred.
     #[test]
