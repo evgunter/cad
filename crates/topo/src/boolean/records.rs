@@ -14,7 +14,7 @@
 use std::collections::BTreeMap;
 thread_local! { pub(crate) static GAPPED: core::cell::RefCell<std::collections::BTreeSet<Cell>> = Default::default(); }
 fn pv(k: &str) -> bool { std::env::var(k).is_ok() }
-fn probe_consume(path: &str, cells: [Cell; 2]) { if GAPPED.with(|g| cells.iter().any(|c| g.borrow().contains(c))) { eprintln!("SILENT_DROP path={path} cells={cells:?}"); if pv("PROBE_PANIC") { panic!("SILENT_DROP path={path}"); } } }
+fn probe_consume(path: &str, cells: [Cell; 2]) { if pv("PROBE_PATHLOG") { eprintln!("PATH {path} {cells:?}"); } if GAPPED.with(|g| cells.iter().any(|c| g.borrow().contains(c))) { eprintln!("SILENT_DROP path={path} cells={cells:?}"); if pv("PROBE_PANIC") { panic!("SILENT_DROP path={path}"); } } }
 
 use geom_core::Real;
 
@@ -983,6 +983,7 @@ pub(in crate::boolean) fn landings<'b, T: crate::props::AtRestPolicy>(
             }
         }
         if !landed && on_structure { probe_consume("structure", cells); }
+        if landed && pv("PROBE_PATHLOG") { eprintln!("PATH landed record={record} {cells:?}"); }
         if landed || on_structure {
             continue;
         }
@@ -1070,6 +1071,7 @@ pub(in crate::boolean) fn landings<'b, T: crate::props::AtRestPolicy>(
             let Some(parted) = parted.as_deref_mut() else {
                 return Err(CarryRefusal::Parted { record });
             };
+            if pv("PROBE_PATHLOG") { eprintln!("PATH parted record={record} {cells:?} fates={fates:?}"); }
             parted.push(Parting {
                 record,
                 held: held_at,
@@ -1085,6 +1087,8 @@ pub(in crate::boolean) fn landings<'b, T: crate::props::AtRestPolicy>(
                 });
             }
         }
+        probe_consume("fallthrough", cells);
+        if pv("PROBE_PATHLOG") { eprintln!("PATH fallthrough record={record} {cells:?} held_by={held_by:?} fates={fates:?}"); }
     }
     Ok(out)
 }

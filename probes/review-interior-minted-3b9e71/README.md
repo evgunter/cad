@@ -7,3 +7,10 @@ On the head, with PR 7825's review probes ported (`review-editor-fold-red-5f04e9
 - `PROBE_TWIN1PANIC`: panic where a section cell with no twin is kept interior (TWIN1 log).
 - `PROBE_MREADPANIC` / `PROBE_FACEPANIC`: panic where `minted_read` drops a cell in `fate_of` / a face is left among minted.
 - `face_pieces` logs `TWINROOT SAME|OTHER` per excluding twin face: whether it descends from the divided face; `PROBE_SAMEPANIC` panics on SAME.
+- `records.rs`: `PROBE_PATHLOG` logs each record's exit from `landings` (landed, parted, and the whole-removal fall-through, which PR 7825's `probe_consume` did not hook; it now does, as `fallthrough`).
+
+Counts, `--cargo-profile release` with debug assertions, `--profile ci -p topo -p sweep` (7273 tests); "old" = `PROBE_OLDSECT PROBE_OLDFILTER`:
+none 0; TWINPANIC 128; TWIN1PANIC 0; MREADPANIC 10; FACEPANIC 0; old 1 (the new pin); OLDSECT alone 4 (flush rows + pin).
+Mutants head/old: NOSECT 13/13, NOSECTV 0/1, IGNREM 18/35, JOINTBAD 14/31, ANYREM 3/4, ANYINC, NOPRES, CONTRAANY, LOOSEINC 1/2
+(old's +1 is the pin everywhere; IGNREM/JOINTBAD's other 16 are faces whose every fragment is discarded: Divided-with-no-pieces on old, Removed on head).
+GAP with PANIC, fall-through hooked: face 3/4, edge 12/13, recut 56/56 (same set); without PANIC recut 16/12.
