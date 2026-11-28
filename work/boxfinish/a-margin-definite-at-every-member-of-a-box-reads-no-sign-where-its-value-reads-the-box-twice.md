@@ -7,6 +7,7 @@ opened: 2026-11-28
 priority: P1
 cost: H
 design: true
+refs: [real-margin-dependency-widening, a-margin-whose-form-is-a-nonzero-constant-escalates-over-a-box]
 ---
 
 
