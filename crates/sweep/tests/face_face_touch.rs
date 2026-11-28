@@ -1428,7 +1428,7 @@ fn a_tall_flush_blocks_division_names_no_edge_on_the_plate_faces_boundary() {
     let near = |a: f64, b: f64| (a - b).abs() < 1e-9;
     // Each division of a face on y = 2, its pieces' x and z extent beside
     // its minted cells' points.
-    let faces: Vec<([f64; 4], Vec<Vec<[f64; 3]>>)> = divisions
+    let faces: Vec<FaceDivision> = divisions
         .iter()
         .filter_map(|d| {
             let pieces: Vec<[f64; 3]> = d.pieces.iter().map(at).collect();
@@ -1470,6 +1470,10 @@ fn a_tall_flush_blocks_division_names_no_edge_on_the_plate_faces_boundary() {
     }
 }
 
+/// A face division as the pin reads it: its pieces' x and z extent
+/// (`[x0, x1, z0, z1]`) and each minted cell's points.
+type FaceDivision = ([f64; 4], Vec<Vec<[f64; 3]>>);
+
 /// Each coordinate `k`'s least and greatest value over `points`.
 fn lo_hi(points: &[[f64; 3]], k: usize) -> (f64, f64) {
     points
@@ -1477,6 +1481,65 @@ fn lo_hi(points: &[[f64; 3]], k: usize) -> (f64, f64) {
         .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), p| {
             (lo.min(p[k]), hi.max(p[k]))
         })
+}
+
+/// **A notch that takes the whole run of a recorded face–face touch
+/// consumes the record on the plate face's removed member.** The rod
+/// (z 0.25..0.75) on the plate's y = 2 face, its touch along x = 0 one
+/// face–face record, and a notch x −0.3..0.3, y 1.5..2.6 through both
+/// subtracted with that record carried: the notch divides the plate's
+/// face, the strip under the line a removed member beside the two kept
+/// pieces, and cuts the rod's wall off the line, so the record lands on
+/// no kept pair, lands on the removed strip, and is consumed. Red where
+/// the boolean's removed members are not read (the record then refuses
+/// stale) or are read in the wrong operand's keys.
+#[test]
+fn a_notch_under_a_recorded_line_touch_consumes_it_on_the_removed_strip() {
+    let plate = finished(
+        "plate",
+        brick::<f64>((-2.0, 2.0), (-2.0, 2.0), (0.0, 1.0), tol()),
+        tol(),
+    );
+    let rod = ext("rod", vec![circle(0.0, 2.5, 0.5, 0.0)], 0.25, 0.5);
+    let u = match topo::union(&plate, &rod, tol()) {
+        Ok(BooleanResult::Body(u)) => u,
+        other => panic!("plate ∪ rod: {:?}", other.map(|_| ())),
+    };
+    assert_eq!(
+        face_pairs(&u),
+        [(SurfaceKind::Plane, SurfaceKind::Cylinder)],
+        "plate ∪ rod: the face–face record of the plate's face and the rod's wall"
+    );
+    let notch = finished(
+        "notch",
+        brick::<f64>((-0.3, 0.3), (1.5, 2.6), (-0.5, 1.5), tol()),
+        tol(),
+    );
+    let out = match topo::boolean_op_with(
+        topo::BooleanOp::Subtract,
+        &u.body,
+        &notch,
+        &topo::BooleanInputs {
+            records_a: face_face(u.contacts.carried()),
+            ..topo::BooleanInputs::default()
+        },
+        topo::SweepStrategy::Realized,
+        tol(),
+    ) {
+        Ok(BooleanResult::Body(out)) => out,
+        other => panic!("− notch: {:?}", other.map(|_| ())),
+    };
+    assert_eq!(
+        out.contacts.face_face().count(),
+        0,
+        "− notch: the record is consumed: {:?}",
+        out.contacts
+    );
+    assert_eq!(
+        topo::validate_pseudomanifold(&out.body, &out.contacts, tol()),
+        Ok(()),
+        "− notch: nothing of the touch is left"
+    );
 }
 
 /// As [`a_tall_flush_block_leaves_the_rods_touch_on_the_plates_piece`],
