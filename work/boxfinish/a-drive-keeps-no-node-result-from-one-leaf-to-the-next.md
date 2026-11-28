@@ -2,11 +2,12 @@
 id: a-drive-keeps-no-node-result-from-one-leaf-to-the-next
 kind: unit
 title: A drive keeps no node result from one leaf to the next: one store per drive under the evaluator's memo rule, and receipts that count what a result rests on
-status: open
+status: dispatched
 opened: 2026-11-22
 priority: P1
 cost: H
 parent: a-drive-finishes-a-body-again-in-every-leaf-whose-box-does-not-move-it
+branch: boxfinish/node-store
 ---
 
 
@@ -33,7 +34,17 @@ rule; if cousin-only repeats are rare there, the parent-only prior is
 the simpler final state (Ev was told on PR 7368 it would be taken and
 logged).
 
-After `a-nodes-result-at-the-symbolic-scalar-reads-per-replay-session-state`.
+After `a-nodes-result-at-the-symbolic-scalar-reads-per-replay-session-state`
+(landed, PR 7492).
+
+**Letter H; dual tier, a concurrent pair** (a result served to a leaf
+that did not build it is sound only if the key, the brackets and the
+record say everything the leaf would have read; the drive's schedule
+and every multi-leaf receipt move with it). Logged before the draw.
+
+**Dispatched 2026-11-28** on `boxfinish/node-store`, from main. The
+lane measures first (parent-only against a shared store, as point 3
+leaves open) and sends its plan before it builds.
 
 **From the session-state unit, for whoever builds the store**
 (`geom_core::sym::NodeRecord`, `NodeValue::sym`, `NodeError::sym`):
