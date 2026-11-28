@@ -205,11 +205,24 @@ fn a_node_result_is_held_under_the_brackets_of_what_the_node_reads() {
     let doc = registering(tol);
     let (root, half, var) = root_and_half(&doc);
     let reads = doc.free_reads();
-    let ev = evaluate::<Interval>(&doc, None, &CancelToken::new(), &opts_over(&root), tol);
+    let ev = with_session_memo_retry(
+        budget(),
+        SymRules::shipped(),
+        SymRetry::kept_atom(),
+        &table(),
+        || evaluate::<Sym<Interval>>(&doc, None, &CancelToken::new(), &opts_over(&root), tol),
+    )
+    .0;
     let (mut reading, mut blind) = (0, 0);
     for id in &ev.order {
-        let Some(v) = ev.value(*id) else { continue };
-        let keys = (v.content_key, v.naming_key);
+        let keys = match ev.result(*id) {
+            Some(NodeResult::Ok(v)) => (v.content_key, v.naming_key),
+            Some(NodeResult::Failed(e)) => match e.keys {
+                Some(keys) => keys,
+                None => continue,
+            },
+            _ => continue,
+        };
         let same = drive_result_key(&doc, *id, keys, &root) == drive_result_key(&doc, *id, keys, &half);
         let read = reads.get(id).is_some_and(|r| r.contains(&var));
         assert_eq!(same, !read, "{id:?}: one key across the split exactly when it does not read it");
