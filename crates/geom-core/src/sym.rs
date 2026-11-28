@@ -2914,15 +2914,6 @@ pub fn serve(held: &Arc<NodeRecord>) {
     });
 }
 
-/// **Whether the installed session defers its decisions**
-/// ([`deferred::with_deferred_session`]): a margin it calls `Zero`
-/// names an entry of this session's list, so a result built under it
-/// is read only in it. `false` outside a session.
-#[must_use]
-pub fn deferring() -> bool {
-    SESSION.with(|s| s.borrow().as_ref().is_some_and(|s| s.deferred.is_some()))
-}
-
 impl Drop for NodeGuard {
     fn drop(&mut self) {
         let _ = self.close();

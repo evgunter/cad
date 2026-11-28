@@ -4199,12 +4199,14 @@ pub enum PriorRefusal {
     /// does not hold, and a result reused from it would be read as
     /// unknowns. Another leaf of the same drive is another session on
     /// the same table, and its prior is read.
+    ///
+    /// A deferring session (`geom_core::sym::deferred`) is on a table of
+    /// its own, so a prior from any other session is this refusal: a
+    /// margin it calls `Zero` names an entry of its session's list, and
+    /// a node's deferred entries do not ride its value. A prior built
+    /// in the same deferring session names that session's entries, and
+    /// is read.
     Table,
-    /// This run's symbolic session defers its decisions
-    /// (`geom_core::sym::deferred`): a margin it calls `Zero` names an
-    /// entry of its own list, and a node's deferred entries do not ride
-    /// its value, so a result taken from a prior would carry none.
-    Deferring,
 }
 
 /// **What a run holds its prior to** ([`PriorRefusal::of`]): the
@@ -4278,9 +4280,6 @@ impl PriorRefusal {
         let twist = RunLane::of(opts).twist;
         if (prior.twist, prior.symbols, prior.boolean_sweep) != (twist, *symbols, *boolean_sweep) {
             return Some(Self::Options);
-        }
-        if geom_core::sym::deferring() {
-            return Some(Self::Deferring);
         }
         (!prior_under_this_table(prior.table)).then_some(Self::Table)
     }

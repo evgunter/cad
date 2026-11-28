@@ -59,8 +59,9 @@
 //! - A node that instantiates a part: its keys name the part by
 //!   reference alone, and the part's run is entered in each replay.
 //! - Anything of a nested document, which takes no prior.
-//! - Anything under a deferring session ([`super::PriorRefusal::Deferring`]),
-//!   or under another expression table ([`super::PriorRefusal::Table`]).
+//! - Anything under another expression table than the drive's
+//!   ([`super::PriorRefusal::Table`]), a deferring session's included:
+//!   it is always on a table of its own.
 //! - Anything while the shape report records decisions: a served node
 //!   pushes no row (`geom_core::sym::reports_decisions`). The drive
 //!   installs no store then.

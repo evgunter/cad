@@ -492,7 +492,11 @@ fn reads(code: &str) -> usize {
 /// items are not read); a new reader reds, and the answer is to read
 /// through `Evaluation::usable` or to give the file its line here. A
 /// listed file that stops reading is not a red.
-const READERS: [(&str, &str); 14] = [
+const READERS: [(&str, &str); 15] = [
+    (
+        "crates/editor-core/src/eval/store.rs",
+        "a drive's node store holds a node's result whole, value or refusal, as the run          that made it left it, and hands it back to the run that reaches its keys; it          counts its refusals for its size, and reads no value",
+    ),
     (
         "crates/editor-core/src/eval/members.rs",
         "the per-member schedule (D10 `[repetition]`) is the evaluator's at one value of the \

@@ -260,30 +260,35 @@ fn a_store_of_another_table_or_of_none_is_not_read() {
     }
 }
 
-/// **A deferring session takes no prior**: an evaluation inside one,
-/// handed another of the same session (one table), reads nothing of it.
+/// **A deferring session takes no prior from another session**: a
+/// deferring session is on a table of its own, so an evaluation built
+/// in one is refused in the next whole ([`PriorRefusal::Table`]), and a
+/// margin's deferred entry is never read in a session whose list it is
+/// not on. A prior built in the same deferring session is read
+/// (`docm4_evaluation_identity`'s
+/// `a_prior_under_the_other_symbols_setting_is_refused` holds that).
 ///
-/// Mutant: `PriorRefusal::of` without the deferring arm reads it, every
-/// node reused.
+/// Mutant: `PriorRefusal::of` without its table comparison reads it,
+/// every node reused.
 #[test]
-fn a_deferring_session_takes_no_prior() {
+fn a_deferring_session_takes_no_prior_from_another_session() {
     let tol = Tol::witness();
     let doc = registering(tol);
     let (root, _, _) = root_and_half(&doc);
     let opts = opts_over(&root);
-    let (reused, refused) = geom_core::sym::deferred::with_deferred_session(
-        budget(),
-        SymRules::shipped(),
-        SymRetry::kept_atom(),
-        || {
-            let first: Evaluation<Sym<Interval>> = evaluate(&doc, None, &CancelToken::new(), &opts, tol);
-            let second = evaluate(&doc, Some(&first), &CancelToken::new(), &opts, tol);
-            (second.reused, second.prior_refused)
-        },
-    )
-    .0;
-    assert_eq!(refused, Some(PriorRefusal::Deferring));
-    assert_eq!(reused, 0, "no node is taken from the prior");
+    let deferring = |prior: Option<&Evaluation<Sym<Interval>>>| {
+        geom_core::sym::deferred::with_deferred_session(
+            budget(),
+            SymRules::shipped(),
+            SymRetry::kept_atom(),
+            || evaluate(&doc, prior, &CancelToken::new(), &opts, tol),
+        )
+        .0
+    };
+    let first = deferring(None);
+    let second = deferring(Some(&first));
+    assert_eq!(second.prior_refused, Some(PriorRefusal::Table));
+    assert_eq!(second.reused, 0, "no node is taken from the prior");
 }
 
 /// **A family whose every member is served carries the family's
