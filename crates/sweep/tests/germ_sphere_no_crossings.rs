@@ -361,7 +361,7 @@ fn a_ball_against_a_cone_face_is_the_section_passs() {
         0.05,
         (e, centre.y),
         (
-            |y: f64| (0.0..=1.0).contains(&y).then(|| (0.0, 1.0 - y)),
+            |y: f64| (0.0..=1.0).contains(&y).then_some((0.0, 1.0 - y)),
             &[],
         ),
         2000,

@@ -214,7 +214,7 @@ fn a_cone_and_a_ball_off_its_axis_build_in_every_order() {
         0.4,
         (0.9, 0.6),
         (
-            |y: f64| (0.0..=2.0).contains(&y).then(|| (0.0, (2.0 - y) / 2.0)),
+            |y: f64| (0.0..=2.0).contains(&y).then_some((0.0, (2.0 - y) / 2.0)),
             &[],
         ),
         2000,

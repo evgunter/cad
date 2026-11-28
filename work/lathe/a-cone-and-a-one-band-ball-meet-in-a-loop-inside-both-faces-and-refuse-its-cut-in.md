@@ -57,3 +57,7 @@ Two stops, each traced:
 
 - **The cone's arm was missing from `interior_cuts::cut_in`.** That was an omission from when the operand gate stopped refusing the pair (426d22ec8e), not a rule. The cut is made on the sphere face, so the cone's face need not be simply connected.
 - **`apply_cut_ins` read the ball's pole vertex against the loop's tube heights.** The tube's boxes reach past the sphere (to `0.4186`, with r `0.4`), so the pole read as inside the loop's heights. The loop lies decidedly in the cut's open half-plane, so a pole, the half-meridian's end, lies past every crossing. A hit read on the axis is now placed by its own height.
+
+The cut-in also reaches `germ_sphere_no_crossings::a_ball_against_a_cone_face_is_the_section_passs`, whose small ball (radius `0.05`) on the quarter cone's lateral face refused at the section pass before. It now asks for one cut-in.
+- At ε 1e-9 and 1e-12, every op builds in either order, at the slice integral of the ball's part (`sweep::test_support::lens`) and the closed forms with it.
+- At ε 1e-6, every op escalates, typed, at the pierce curvature: a margin of `1.26e-6` read in the band `[1e-6, 1e-5]`.
