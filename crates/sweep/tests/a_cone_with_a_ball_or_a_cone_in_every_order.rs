@@ -78,9 +78,13 @@ fn crossing_cone(tol: Tol) -> AtRestBody<f64> {
 /// first.
 const PINNED: [&str; 6] = ["built"; 6];
 
-/// The widest pad a measured volume may carry, relative to the volume:
-/// the closures below are read within the pads, so a pad past it would
-/// let a degrading enclosure pass them.
+/// The widest pad a measured volume may carry, relative to the volume or
+/// to a unit volume, whichever is larger: the closures below are read
+/// within the pads, so a pad past it would let a degrading enclosure pass
+/// them. The operands are of unit scale, and a small result's pad is set
+/// by the measurement's resolution over its area (`1024ε` of boundary
+/// displacement), not by its volume: the ball's part of the cone,
+/// `0.043`, carries `1e-7` at ε `1e-6`.
 const PAD_CEILING: f64 = 1e-6;
 
 /// A body's measured volume and pad, the pad within [`PAD_CEILING`].
@@ -89,7 +93,7 @@ fn volume(body: &AtRestBody<f64>, tol: Tol) -> (f64, f64) {
         .unwrap_or_else(|e| panic!("the body does not measure: {e:?}"))
         .enclosure;
     assert!(
-        m.volume_pad <= PAD_CEILING * m.volume.abs(),
+        m.volume_pad <= PAD_CEILING * m.volume.abs().max(1.0),
         "the volume {} carries a pad {} past its ceiling",
         m.volume,
         m.volume_pad
