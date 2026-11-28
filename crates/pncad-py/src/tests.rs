@@ -4503,6 +4503,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "curved_pierce_escalated",
             "curved_pierce_unsupported",
             "curved_sector_side_unsupported",
+            "cut_outline_undecided",
             "degenerate_torus",
             "edge_carrier_unsupported",
             "edge_in_face",
