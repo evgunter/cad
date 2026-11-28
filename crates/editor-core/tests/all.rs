@@ -780,6 +780,8 @@ mod m10_9_r1_probes_interval;
 
 #[path = "a_nodes_result_at_the_symbolic_scalar_is_its_keys.rs"]
 mod a_nodes_result_at_the_symbolic_scalar_is_its_keys;
+#[path = "a_drive_serves_a_node_result_once.rs"]
+mod a_drive_serves_a_node_result_once;
 #[path = "sym_9_retry_interval.rs"]
 mod sym_9_retry_interval;
 

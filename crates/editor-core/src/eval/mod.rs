@@ -5777,10 +5777,15 @@ where
     // A result this leaf computed for the drive's store goes there with
     // its record; a claim dropped unpublished (no keyed result) empties
     // its slot.
-    if let Some(claim) = claim
-        && matches!(step.result, NodeResult::Ok(_) | NodeResult::Failed(_))
-    {
-        claim.publish(&step.result);
+    // A value that carries a census is not published: its census is
+    // run by this leaf's readers, and another leaf's reader would find
+    // it run (the reader rule in `eval_node_in`).
+    if let Some(claim) = claim {
+        match &step.result {
+            NodeResult::Ok(v) if v.carry.touches_census() => {}
+            NodeResult::Ok(_) | NodeResult::Failed(_) => claim.publish(&step.result),
+            NodeResult::Poisoned { .. } => {}
+        }
     }
     step
 }
@@ -6134,6 +6139,12 @@ where
             })
             .filter(|v| v.content_key == content_key && v.naming_key == naming_key)
             .map(|v| NodeResult::Ok(v.clone())),
+        // A door's census runs where its first reader asks for it, and
+        // logs and counts in that reader (`product::Census`): a node
+        // that reads a value carrying one is built in every leaf, as
+        // the door is (`eval_node`), so that the reader that runs it is
+        // the reader a leaf with no store would have run it in.
+        NodePrior::Store(..) if stands.values().any(|v| v.carry.touches_census()) => None,
         NodePrior::Store(store, box_) => match store.take(id, content_key, naming_key, box_) {
             store::Taken::Held(result) => Some(result),
             store::Taken::Claim(taken) => {
@@ -9092,6 +9103,55 @@ mod name_feed_tests {
 #[doc(hidden)]
 pub mod testing {
     use crate::test_support::evaluate_bound;
+
+    /// **A drive's node store, outside a drive** (`super::store`): for
+    /// runs of a document at the options it was made for, its entries
+    /// read under the expression table `table` (`geom_core::sym::table`).
+    pub struct Store<T: super::OwnRecord>(super::store::NodeStore<T>);
+
+    impl<T: super::OwnRecord> Store<T> {
+        /// An empty store for runs of `doc` at `opts`, under `table`.
+        pub fn new(
+            doc: &crate::Doc<crate::ProfileProgram>,
+            opts: &crate::EvalOptions,
+            table: Option<u64>,
+        ) -> Self {
+            Self(super::store::NodeStore::new(
+                std::sync::Arc::new(super::store::ReadSets::of(doc)),
+                super::PriorSeat::of(doc, opts, table),
+            ))
+        }
+
+        /// A run of `doc` at `opts`, served from this store and filling it.
+        pub fn serve(
+            &self,
+            doc: &crate::Doc<crate::ProfileProgram>,
+            opts: &crate::EvalOptions,
+            tol: geom_core::Tol,
+        ) -> crate::Evaluation<T> {
+            super::evaluate_served(doc, &self.0, &crate::CancelToken::new(), opts, tol)
+        }
+
+        /// The results held.
+        pub fn entries(&self) -> usize {
+            self.0.size().entries
+        }
+    }
+
+    /// **The key a drive holds a result of `node` by** at `box_`
+    /// (`super::store::ReadSets::key`), as text: two results a drive
+    /// tells apart have two texts.
+    pub fn drive_result_key(
+        doc: &crate::Doc<crate::ProfileProgram>,
+        node: crate::RecipeNodeId,
+        keys: (super::ContentKey, super::NamingKey),
+        box_: &crate::analysis::ParamBox,
+    ) -> String {
+        format!(
+            "{:?}",
+            super::store::ReadSets::of(doc).key(node, keys.0, keys.1, box_)
+        )
+    }
 
     /// **A scalar a test evaluates at, whichever door its runs take**: a
     /// scalar that is its own build of record through

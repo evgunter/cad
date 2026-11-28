@@ -64,6 +64,10 @@
 //! - Anything while the shape report records decisions: a served node
 //!   pushes no row (`geom_core::sym::reports_decisions`). The drive
 //!   installs no store then.
+//! - A value that carries a door's census, or a node that reads one
+//!   (`Carry::touches_census`): a census runs once, where its first
+//!   reader asks for it, and logs and counts in that reader, so it is
+//!   built in every leaf with every reader of it.
 //! - A failure before the node's keys: there is nothing to look it up
 //!   by, and nothing ran that a store would save.
 

@@ -113,6 +113,20 @@ impl<T: topo::AtRestPolicy + Decide> Default for Carry<T> {
 }
 
 impl<T: topo::AtRestPolicy + Decide> Carry<T> {
+    /// **Whether a reader of this carry can run a door's census**
+    /// ([`crate::product::Census`]): it carries one, or pieces a census
+    /// reads, itself or on a member. A census runs where a reader first
+    /// asks for it and logs and counts there, so which reader that is
+    /// is a fact about the run, not about any one node's inputs.
+    pub(crate) fn touches_census(&self) -> bool {
+        self.census.is_some()
+            || self.pieces.is_some()
+            || self
+                .members
+                .as_ref()
+                .is_some_and(|members| members.iter().any(Self::touches_census))
+    }
+
     /// **What a value that carries its source's carries** (D10
     /// `[placement.placement]`), the one door every copy's carry goes
     /// through, and a mirror's image's: this carry's records, each
