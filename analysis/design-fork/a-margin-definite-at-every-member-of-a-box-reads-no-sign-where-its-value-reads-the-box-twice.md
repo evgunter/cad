@@ -64,3 +64,13 @@ M16 (`probe/M16-REPORT.md` on `boxfinish/probe-side-reading` at `fc5c3fe25e`): n
 Against the round-1 stop conditions: A's excepts a margin within rounding of a band edge; B's says any member contradiction is a stop. B's other condition (the verb-built body folds and the reading decides little elsewhere: "not worth making yet") is partly met. So the numbers do not decide by themselves.
 
 **Round 2 dispatched 18:46 UTC** to both (same sessions), each shown M16 and both round-1 replies: the member contradictions; whether the unit is now the enclosure entering the declining atoms; what becomes of site re-spelling. A further count (M16b: the probe's enclosure extended to enter trig atoms, `Select` and hulls; the 15,200 traced; the tour's verdicts with it on) is with the probe lane.
+
+### Round 2 replies (both in by 18:49 UTC 2026-11-28)
+
+Both moved, to the same place on all but one point.
+
+- **Agreed:** one unit of the reading AND the enclosure entering the declining atoms (trig by the argument and the interval's certified function; `Select` by its condition's certified arm, else the hull of both arms; a hull by its children; a memo in place of the depth cap); opaque, free and frozen stay declined; "plain" leaves the E12 sentence; the reading is worth making only with the atoms; the 17 contradicting members are the gap round 1 named, not a hole in the soundness argument; PR 7724 continues; re-spelling whose only reason is "the parameter enters twice" is held until M16b.
+- **A:** no hold-back. The box decision is the sign of the real margin; the witness match protects a member's build (a decision the witness reads the other way is a flip, refused). Names the rule one would use for member fidelity and leans against it.
+- **B (new this round):** a hold-back. The form's answer stands only where the point reading at one member, through the same band, gives the same answer; else the value's reading stands. B withdrew its round-1 stop ("any contradiction of a member") as worded too bluntly.
+
+**Positions moved and did not meet on the hold-back.** Round 3 dispatched 18:51 UTC to both: each to answer the other's argument (the witness-match argument traced for a decision on the witness's path; the hold-back's dependence on one sampled member; the proven `Zero` at the least band as the same gap; what an exact comparison is for).
