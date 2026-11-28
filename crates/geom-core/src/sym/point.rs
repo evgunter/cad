@@ -100,11 +100,14 @@ fn point_of(symbol: u64, lo: f64, hi: f64) -> Option<f64> {
 /// already holds the root's plain form as the zero form, which the
 /// tier's first rung answers from that memo and no reading can refute.
 ///
-/// The memo check is what the reading costs on an identity it cannot
-/// refute: on `demo-tour certified` with the switch on, about half of
-/// the 1.4 M asks that reach here are roots a memo already holds as
-/// zero (measured by the lane that built this; the PR records the
-/// tour's time with and without it).
+/// The memo check is a price cut on identities, which no reading can
+/// refute: on `demo-tour certified` with the switch on, 719 k of the
+/// 1.40 M asks that reach here are roots a memo already holds as zero.
+/// What it cannot cut is the first reading of a root with no form yet
+/// (581 k asks, about 24 µs each). Measured on the whole command, three
+/// alternating runs each, this change costs 125.4 s against main's
+/// 120.8 s (+3.8 %; main's runs spread 116.3 to 124.0 s), and buys the
+/// box-arm-off drive's leaf time from 1,306 s to 373 s.
 pub(super) fn refutes(id: SymId) -> bool {
     SESSION.with(|s| {
         let mut slot = s.borrow_mut();
