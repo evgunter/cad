@@ -97,7 +97,7 @@ pub struct DriveMemo {
     budget: SymBudget,
     rules: SymRules,
     /// Whether the table hands entries back. Off is the differential
-    /// dial (`DriveConfig::plain_memo`): the frozen ids are still
+    /// dial (`DriveConfig::memo`): the frozen ids are still
     /// collected, so the drive's `frozen` column means the same thing
     /// with the dial either way.
     serves_forms: bool,
@@ -173,7 +173,7 @@ impl DriveMemo {
     }
 
     /// A table that collects the drive's distinct freezes and serves
-    /// nothing: `DriveConfig::plain_memo` off. The dial is a
+    /// nothing: `DriveConfig::memo` at `MemoDial::Off`. The dial is a
     /// performance dial, so the column it leaves on the receipt is the
     /// column the serving table reports.
     #[must_use]

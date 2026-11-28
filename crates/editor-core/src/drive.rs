@@ -839,7 +839,7 @@ impl ParamBoxVerdict {
     }
 
     /// **What the drive's table came to** at its end
-    /// (`DriveConfig::plain_memo`): the nodes, plain forms and atom
+    /// (`DriveConfig::memo`): the nodes, plain forms and atom
     /// records it held and an estimate of the heap they occupied. The
     /// leaves' warm caches of it are not in the estimate
     /// (`geom_core::sym::MemoSize::bytes_estimate`).
@@ -1712,7 +1712,7 @@ pub(crate) enum LeafVerdict {
 /// box, and each node's state while the node runs
 /// (`geom_core::sym::MintScope::node`); the expression table, the
 /// plain forms and the atom records are the drive's (`memo`,
-/// `DriveConfig::plain_memo`, `geom_core::sym::DriveMemo`), shared
+/// `DriveConfig::memo`, `geom_core::sym::DriveMemo`), shared
 /// across the workers and the same whichever leaf wrote them.
 ///
 /// **The f64 witness pass is untouched.** A point residual is tight, so
