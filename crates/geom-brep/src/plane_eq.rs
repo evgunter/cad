@@ -9,8 +9,8 @@
 //! 1. **Geometric trilean (definite-different)**: parallelism margin
 //!    `‖n₁ × n₂‖·arm` (`plane_eq_parallel`, the arm the extent's
 //!    radius, the offsets read at its centre) definitely positive ⇒
-//!    [`CarrierRelation::Distinct`]; else offset margin
-//!    `d₁ − (n₁·n₂)·d₂` (`plane_eq_offset`) definitely nonzero ⇒
+//!    [`CarrierRelation::Distinct`]; else the pair's offset
+//!    ([`pair_offset`], `plane_eq_offset`) definitely positive ⇒
 //!    parallel-but-offset ⇒ `Distinct`.
 //! 2. **Zero glues** (D10, Booleans): an offset margin decided Zero is
 //!    one plane, `SameOriented` or `SameOpposite` by the decided
@@ -19,18 +19,29 @@
 //!    band is a sliver and refuses ([`CarrierEqError::Undecided`]):
 //!    near-coincidence never silently becomes contact (F6).
 //!
-//! **The offset holds no decided sign.** With `dᵢ = nᵢ·(oᵢ − c)` each
-//! plane's signed distance from the extent's centre `c` and
-//! `fᵢ = c + dᵢ·nᵢ` the centre's foot on plane `i`, the offset is
-//! `n₁·(f₁ − f₂)`: how far the second plane's foot stands off the
-//! first plane. Each normal enters it twice, so it is the same
-//! expression whichever way either normal is spelled, and the
-//! orientation rung only labels the verdict. It is read at the feet of
-//! the region in use and never at a plane's stored origin, which may
-//! lie any distance along its plane from that region. The mirror
-//! claim, the first plane's foot off the second plane, is
-//! `(n₁·n₂)·offset − ‖n₁ × n₂‖²·d₂`: the offset to within a sign and a
-//! term second order in the tilt the parallelism rung has bounded.
+//! **The offset holds no decided sign and no operand order**
+//! ([`pair_offset`]). With `dᵢ = nᵢ·(oᵢ − c)` each plane's signed
+//! distance from the extent's centre `c` and `fᵢ = c + dᵢ·nᵢ` the
+//! centre's foot on plane `i`, the second plane's foot stands
+//! `e₁₂ = d₁ − (n₁·n₂)·d₂ = n₁·(f₁ − f₂)` off the first plane, and the
+//! first's stands `e₂₁ = d₂ − (n₁·n₂)·d₁` off the second. Each is read
+//! at the feet of the region in use and never at a plane's stored
+//! origin, which may lie any distance along its plane from that region.
+//!
+//! The two are one claim to second order: `e₂₁ = −(n₁·n₂)·e₁₂ +
+//! ‖n₁ × n₂‖²·d₂`, and the same with the planes exchanged, so their
+//! magnitudes differ by no more than `‖n₁ × n₂‖²·max(|d₁|, |d₂|)`,
+//! second order in the tilt the parallelism rung has bounded. Either is
+//! by itself a reading of the planes' offset. The ladder reads their
+//! geometric mean, `√|e₁₂·e₂₁|`, which lies between the two
+//! magnitudes: exchanging the planes exchanges the two factors and
+//! nothing else, so the margin is the same number, and as an expression
+//! it is zero exactly where either factor is. `e₁₂` holds the first
+//! normal once and the second twice, `e₂₁` the other way round, so
+//! where one normal carries a sign factor `λ` the other does not, one
+//! factor is zero given `λ² ≡ 1` and the other with nothing asked of
+//! `λ`: the pair is one plane as an expression whichever plane is named
+//! first. The orientation rung only labels the verdict.
 //!
 //! In-band parallelism and orientation margins escalate typed
 //! ([`CarrierEqError::Escalated`]), naming the rung that could not decide
@@ -124,12 +135,13 @@ pub fn oriented_plane_eq<T: Decide>(
 /// The ladder itself (module docs), with the margin that decided a
 /// coincidence: the offset's decided Zero.
 ///
-/// At `f64` the margins are the pose's values to rounding. At
-/// `Interval` they enclose every pose the descriptions admit, so a Zero
-/// holds for all of them. At a symbolic scalar the offset is zero as an
-/// expression where the two descriptions are one plane as formulas,
-/// whichever sign each normal is spelled with, and the orientation is
-/// read off the value alone.
+/// The verdict and its margins are the same with `p1` and `p2`
+/// exchanged, at every scalar. At `f64` the margins are the pose's
+/// values to rounding. At `Interval` they enclose every pose the
+/// descriptions admit, so a Zero holds for all of them. At a symbolic
+/// scalar the offset is zero as an expression where either mirror
+/// offset is ([`pair_offset`]), and the orientation is read off the
+/// value alone.
 pub(crate) fn plane_ladder<T: Decide>(
     p1: &PlaneDesc<T>,
     p2: &PlaneDesc<T>,
@@ -192,8 +204,9 @@ pub(crate) fn plane_ladder<T: Decide>(
         NonzeroSign::Positive => CarrierRelation::SameOriented,
         NonzeroSign::Negative => CarrierRelation::SameOpposite,
     };
-    let offset_margin = Margin::of(d1 - cos * d2);
+    let offset_margin = Margin::of(pair_offset(d1, d2, cos));
     match CoincidenceMeasure::decide("plane_eq_offset", offset_margin, band) {
+        // The offset is a magnitude: a definite sign is apart.
         Ok(
             offset @ Decided {
                 sign: Sign::Positive | Sign::Negative,
@@ -213,6 +226,16 @@ pub(crate) fn plane_ladder<T: Decide>(
             relation,
         }),
     }
+}
+
+/// **The offset between two near-parallel planes, read from both**
+/// (module docs): the geometric mean `√|e₁₂·e₂₁|` of the two mirror
+/// offsets, from each plane's signed distance `d1`, `d2` from the
+/// region's centre and the normals' cosine `cos`. Never negative, the
+/// same number with the planes exchanged, and zero as an expression
+/// where either mirror offset is.
+pub(crate) fn pair_offset<T: geom_core::Real>(d1: T, d2: T, cos: T) -> T {
+    ((d1 - cos * d2) * (d2 - cos * d1)).abs().sqrt()
 }
 
 /// The parallelism rung's refusal of a margin decided definitely
@@ -240,6 +263,9 @@ pub(crate) fn unreadable_norm(norm: Decided, band: Band) -> CarrierEqError {
         ),
     }
 }
+
+#[cfg(test)]
+mod order_fuzz;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -485,6 +511,124 @@ mod tests {
         }
     }
 
+    /// The second wall's sign factor `λ`, positive at its value, spelled
+    /// the `spelling`th way over the variables `x`: a side over its own
+    /// length for sides of growing size (0 to 4, 7 to 9), a chord's unit
+    /// in space (5), and the unit of two chords' cross product (6).
+    fn sign_factor<T: Decide>(spelling: usize, x: &[T]) -> T {
+        let k = T::from_f64;
+        let sum =
+            |range: std::ops::Range<usize>| x[range].iter().copied().fold(k(0.0), |a, b| a + b);
+        let unitise = |v: T| v / (v * v).sqrt();
+        match spelling {
+            0 => unitise(x[0]),
+            1 => unitise(x[0] - x[1] + k(1.0)),
+            2 => unitise(x[0] * x[1] - x[2] * x[3] + k(5.0)),
+            3 => unitise(sum(0..4) * sum(4..8) - sum(0..3) * sum(3..6)),
+            4 => unitise(sum(0..8) * sum(0..8) * sum(0..4) - sum(0..5)),
+            5 => {
+                let v = Vec3::new(x[0] - x[0], k(0.0), sum(0..4) - sum(4..6));
+                v.z / v.norm()
+            }
+            6 => {
+                let u = Vec3::new(sum(0..3), x[3], k(0.0));
+                let w = Vec3::new(x[4], sum(5..8), k(0.0));
+                let n = u.cross(w);
+                n.z / n.norm()
+            }
+            7 => unitise(sum(0..24) - k(20.0)),
+            8 => unitise(sum(0..4) * sum(0..4) - sum(0..3)),
+            _ => unitise(sum(0..4) * sum(4..8) * sum(0..2) - sum(0..5)),
+        }
+    }
+
+    /// Whether the ladder's and the pair door's coincidences discharge
+    /// for a wall whose normal is a literal axis against one whose
+    /// normal is that axis times [`sign_factor`]'s `spelling`, on one
+    /// plane as formulas, at `max_terms`, the walls `exchanged` or not.
+    fn spelled_pair_proves(
+        max_terms: usize,
+        spelling: usize,
+        exchanged: bool,
+    ) -> [Option<bool>; 2] {
+        use crate::carrier_eq::{CarrierDesc, pair_door_reading};
+        use geom_core::sym::deferred::{discharge, with_deferred_session};
+        use geom_core::{ParamSymbol, Real, Sym, SymBudget, SymRetry, SymRules};
+        type S = Sym<f64>;
+        let budget = SymBudget {
+            max_terms,
+            max_degree: 64,
+        };
+        let band = band();
+        with_deferred_session(budget, SymRules::shipped(), SymRetry::none(), || {
+            let k = S::from_f64;
+            let at =
+                |name: &str, value| S::param(ParamSymbol::new(test_utils::symbol_id(name)), value);
+            let x: Vec<S> = (0..24)
+                .map(|i| at(&format!("x{i}"), 1.0 + 0.1 * f64::from(i)))
+                .collect();
+            let y = -(at("h", 1.0) / k(2.0));
+            let literal = PlaneDesc {
+                origin: Point3::new(k(0.0), k(0.0), y),
+                normal: Vec3::new(k(0.0), k(0.0), k(-1.0)),
+            };
+            let spelled = PlaneDesc {
+                origin: Point3::new(x[7], k(0.0), y),
+                normal: Vec3::new(k(0.0), k(0.0), sign_factor(spelling, &x)),
+            };
+            let (a, b) = if exchanged {
+                (spelled, literal)
+            } else {
+                (literal, spelled)
+            };
+            let extent = ConsumedExtent::arm(k(1.0));
+            let ladder = plane_ladder(&a, &b, &extent, band)
+                .ok()
+                .and_then(CarrierVerdict::one);
+            let door = pair_door_reading(
+                &CarrierDesc::Plane(a),
+                &CarrierDesc::Plane(b),
+                &extent,
+                band,
+            )
+            .ok()
+            .and_then(|read| read.verdict().one());
+            [ladder, door].map(|one| one.map(|(_, margin)| discharge(margin)))
+        })
+        .0
+    }
+
+    /// **Whether a pair is proven one plane does not follow the order
+    /// its planes are named in.** A literal-axis wall against a wall
+    /// whose normal carries a sign factor spelled ten ways, on one plane
+    /// as formulas: at the ladder and at the pair door the coincidence
+    /// discharges alike in both orders, at 256 terms and at 4096, and
+    /// every spelling is proven. Red where the offset is read in one
+    /// order only: a spelling whose factor's square does not fold to one
+    /// (the first is spelling 4) then proves in one order and not the
+    /// other.
+    #[test]
+    fn a_sign_factor_spelled_ten_ways_proves_alike_in_either_order() {
+        for (max_terms, spelling) in (0..10)
+            .map(|s| (256, s))
+            .chain([4, 7, 8, 9].map(|s| (4096, s)))
+        {
+            let stated = spelled_pair_proves(max_terms, spelling, false);
+            let exchanged = spelled_pair_proves(max_terms, spelling, true);
+            println!("{max_terms} terms, spelling {spelling}: {stated:?} / {exchanged:?}");
+            assert_eq!(
+                stated, exchanged,
+                "{max_terms} terms, spelling {spelling}: the ladder's and the door's proofs, \
+                 stated and exchanged"
+            );
+            assert_eq!(
+                stated,
+                [Some(true); 2],
+                "{max_terms} terms, spelling {spelling}: one plane as an expression"
+            );
+        }
+    }
+
     /// **Zero glues, whatever the planes' descriptions** (D10): two
     /// copies of one plane read one oriented plane, and exact negations
     /// read one plane opposed, each with the offset's decided margin.
@@ -525,8 +669,8 @@ mod tests {
         assert_eq!(
             read(offset),
             Ok(CarrierVerdict::Apart(Decided {
-                sign: Sign::Negative,
-                margin: MarginDiag::value(-4.0),
+                sign: Sign::Positive,
+                margin: MarginDiag::value(4.0),
             })),
             "the offset parts them"
         );
