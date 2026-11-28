@@ -62,6 +62,8 @@ In `crates/sweep/tests/a_crossings_path_cut_in_is_made_only_where_its_closing_is
 - **A loop's cut:** `a_loops_cut_beside_a_first_pass_section_builds` reaches the loop arm, whose own meridian clears, and builds sound. No row has a section across a loop's own meridian.
 - **A loop's cut-in and a circle's on one face:** `a_loop_and_a_circle_cut_in_on_one_face_refuse_at_the_guard`. The replaced gate refused any face holding a loop's cut-in and another; this one does not, and the pose refuses at the guard, typed.
 
+**Another cut-in's circle on the face** is read too, and is expected never to block. At exactness no candidate lies in another cut-in circle's plane: such a circle would be a great circle through both poles, met by the cut's own circle wherever a candidate crosses it twice. The check is kept because blocking is decided against the band, where a near-great circle through near-poles within the band of a candidate is the case that argument does not close. No row is built at that band edge: it needs two disjoint cut-in circles, one within the band of a great circle through both poles and the other's candidate, which no cheap fixture gives. A mutation of the check is equivalent at exactness (R2's M6, PR 7831).
+
 A sphere partner blocks a meridian only through a trimmed sphere whose section arc lies in a meridian plane, so runs toward a pole without reaching the cut circle. No row builds that fixture; `a_trimmed_ball_crossing_the_cut_face_is_read_by_its_radical_plane` reaches the radical-plane arm off the meridian.
 
 This item is what remains of `close-cuts-is-not-total-on-crossings-path-cut-ins` (1b's generality) after `lathe/close-cuts-total`.

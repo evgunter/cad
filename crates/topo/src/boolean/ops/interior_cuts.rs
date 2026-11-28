@@ -246,12 +246,14 @@ fn meridian_turns<T: Real>() -> [T; 9] {
 ///   [`loop_cut_in`]), off every first-pass section's plane on the face
 ///   as above, or the op does not cut in.
 ///
-/// Another cut-in's circle on the face is no section to turn off: a
-/// meridian plane holds the axis, so a cut-in circle in one is a great
-/// circle through both poles, and a candidate meets the cut's own circle
-/// twice on the sphere, so on that great circle. Two cut-in circles on one
-/// face are disjoint sections of the partner's faces, so no candidate
-/// lies in another's plane.
+/// Each cut is also turned off every other cut-in circle's plane on the
+/// face, and is expected never to be blocked there: a meridian plane holds
+/// the axis, so a cut-in circle in one is a great circle through both
+/// poles, and a candidate meets the cut's own circle twice on the sphere,
+/// so on that great circle. Two cut-in circles on one face are disjoint
+/// sections of the partner's faces, so at exactness no candidate lies in
+/// another's plane. The check is kept because blocking is decided against
+/// the band, where that argument does not reach.
 ///
 /// Where a cut's piece parts a face bounded by section curves alone, the
 /// closing decides which part keeps the outline itself
@@ -279,8 +281,28 @@ pub(super) fn closing_meridians<T: Decide + AtRestPolicy>(
         diag,
     };
     let sign = |name: &'static str, m: T| decide(name, Margin::of(m), band);
+    // Each cut-in's circle, by its face: another cut on that face must not
+    // run along it either. At exactness no candidate lies in another
+    // cut-in circle's plane (the doc above says why), so this is expected
+    // never to block; it is read because blocking is decided against the
+    // band, and a near-great circle through near-poles within the band of
+    // a candidate is the case the exact argument does not close. A
+    // mutation of it is equivalent at exactness (R2's M6, PR 7831).
+    let circles: Vec<CutCircle<T>> = cut_ins
+        .iter()
+        .enumerate()
+        .filter_map(|(index, c)| match c.section {
+            CutSection::Circle { foot, normal, .. } => Some(CutCircle {
+                index,
+                at: (c.operand, c.face),
+                foot,
+                normal: normal.normalize(),
+            }),
+            CutSection::Loop { .. } => None,
+        })
+        .collect();
     let mut out = Vec::with_capacity(cut_ins.len());
-    for mut cut in cut_ins {
+    for (index, mut cut) in cut_ins.into_iter().enumerate() {
         let (holder, partner) = match cut.operand {
             Operand::A => (a, b),
             Operand::B => (b, a),
@@ -318,6 +340,12 @@ pub(super) fn closing_meridians<T: Decide + AtRestPolicy>(
             };
             planes.push((at, normal.normalize()));
         }
+        planes.extend(
+            circles
+                .iter()
+                .filter(|c| c.index != index && c.at == (cut.operand, cut.face))
+                .map(|c| (c.foot, c.normal)),
+        );
         // Whether the meridian plane on the unit normal `k` is decidedly
         // off every section plane: crossing it (`|n × k|` read apart from
         // zero), or parallel to it and decidedly off it.
@@ -387,6 +415,15 @@ pub(super) fn closing_meridians<T: Decide + AtRestPolicy>(
         out.push(cut);
     }
     Ok(Some(out))
+}
+
+/// A cut-in's circle, by its place in the cut-ins and the operand face
+/// it lies on ([`closing_meridians`]).
+struct CutCircle<T: Real> {
+    index: usize,
+    at: (Operand, FaceKey),
+    foot: Point3<T>,
+    normal: Vec3<T>,
 }
 
 /// **The meridian plane on the normal `k` for a circle's cut**, `k`
