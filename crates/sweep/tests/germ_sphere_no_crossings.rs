@@ -19,9 +19,8 @@
 //!   closes (`topo::boolean::slit`).
 //! - **Sphere × cone** is examined by the pass: a ball strictly inside
 //!   the cone is certified apart, and a ball meeting the lateral face in
-//!   a loop with no crossing refuses R-loop, naming the cone face. The
-//!   rows run the path's two certificates directly, since the operand
-//!   gate keeps every cone pair off the operations.
+//!   a loop with no crossing is certified R-loop and builds through a
+//!   cut-in of the ball's face, as the scraping ball does.
 //!
 //! The mutant is the scan stepping past the pair without the pass
 //! taking it up: then nothing examines the pair, the scraping ball's
@@ -284,40 +283,17 @@ fn quarter_cone() -> Body<f64> {
     .into_body()
 }
 
-/// The path's certificates refuse, naming the cone face, with the
-/// refusal whose sentence contains `why_has`.
-fn refused_by_the_pass_on_the_cone(cone: &Body<f64>, ball: &Body<f64>, what: &str, why_has: &str) {
-    for (a, b, operand) in [
-        (cone, ball, topo::Operand::A),
-        (ball, cone, topo::Operand::B),
-    ] {
-        match topo::test_support::no_crossings_certificates(BooleanOp::Union, a, b, Tol::witness())
-        {
-            Err(BooleanError::FallbackExtentUnsupported {
-                operand: o,
-                face,
-                what: why,
-            }) => {
-                assert_eq!(o, operand, "{what}");
-                assert!(
-                    matches!(cone.face_surface(face), Ok(geom::Surface::Cone { .. })),
-                    "{what}: the refusal names the cone face"
-                );
-                assert!(why.contains(why_has), "{what}: {why}");
-            }
-            other => panic!("{what}: {other:?}"),
-        }
-    }
-}
-
 /// **A ball strictly inside the cone, and one meeting its lateral face
 /// in a loop with no crossing.** Both boxes meet the cone face's, so the
 /// pass takes both up. The ball inside meets the double cone nowhere
 /// (W0), and the path certifies it with no re-cut. The ball on the
 /// lateral face meets it in one null loop whose witness lies inside
-/// both faces, with no event: R-loop. The mutant reading that loop's arc
+/// both faces, with no event: R-loop, and the pass asks for one cut-in of
+/// the ball's face, whose every op builds at the volumes a slice-by-slice
+/// integral of the ball's part gives. The mutant reading that loop's arc
 /// of generators as the whole circle claims two essential curves, which
-/// W2 clears on the apex-closed face: the certificates pass, red.
+/// W2 clears on the apex-closed face: the certificates pass with no
+/// cut-in, red.
 #[test]
 fn a_ball_against_a_cone_face_is_the_section_passs() {
     let cone = quarter_cone();
@@ -354,10 +330,69 @@ fn a_ball_against_a_cone_face_is_the_section_passs() {
     let h = 0.5_f64.sqrt();
     let foot = Vec3::new(0.45 * h, 0.55, -0.45 * h);
     let centre = foot + Vec3::new(0.5, h, -0.5) * 0.045;
-    refused_by_the_pass_on_the_cone(
-        &cone,
-        &ball_at(0.05, centre),
-        "the ball on the lateral face",
-        "the loop is certified",
+    // The ball on the lateral face: the pass reads its loop (R-loop) and
+    // asks for one cut-in of the ball's face, nothing deferred.
+    let lateral = ball_at(0.05, centre);
+    for (a, b) in [(&cone, &*lateral), (&*lateral, &cone)] {
+        assert_eq!(
+            topo::test_support::no_crossings_certificates(BooleanOp::Union, a, b, Tol::witness())
+                .unwrap(),
+            (1, 0),
+            "the ball on the lateral face is cut in"
+        );
+    }
+    // Every op builds, at the volumes the ball's part of the cone gives,
+    // that part integrated over slices across the cone's axis (the cone's
+    // slice the disc of radius `1 − y`, the quadrant holding the ball's
+    // whole slice).
+    let cone = finished("the quarter cone", cone, Tol::witness());
+    let (vc, vb) = (PI / 12.0, ball_volume(0.05));
+    let e = (centre.x.powi(2) + centre.z.powi(2)).sqrt();
+    let (integral, error) = sweep::test_support::lens::ball_in_revolved(
+        0.05,
+        (e, centre.y),
+        (
+            |y: f64| (0.0..=1.0).contains(&y).then(|| (0.0, 1.0 - y)),
+            &[],
+        ),
+        2000,
     );
+    let claim = 1e-6 * (vc + vb);
+    for (x, y, (vx, vy), order) in [
+        (&cone, &lateral, (vc, vb), "the cone first"),
+        (&lateral, &cone, (vb, vc), "the ball first"),
+    ] {
+        let built = |op: BooleanOp, r: Result<topo::BooleanResult<f64>, BooleanError>| {
+            let label = format!("{order}, {op:?}");
+            let r = r.unwrap_or_else(|e| panic!("{label}: the op builds, got {e:?}"));
+            sweep::test_support::cut_trace::assert_no_cut_trace(&label, &r, [x, y]);
+            (label, volume(&r.body().expect("a body").body))
+        };
+        let lens = built(BooleanOp::Intersect, topo::intersect(x, y, Tol::witness()));
+        let l = lens.1;
+        assert!(
+            (l - integral).abs() <= claim + 10.0 * error,
+            "{}: the ball's part {l} against its integral {integral} ± {error}",
+            lens.0
+        );
+        for ((label, v), want) in [
+            (
+                built(BooleanOp::Union, topo::union(x, y, Tol::witness())),
+                vc + vb - l,
+            ),
+            (
+                built(BooleanOp::Subtract, topo::subtract(x, y, Tol::witness())),
+                vx - l,
+            ),
+            (
+                built(BooleanOp::Subtract, topo::subtract(y, x, Tol::witness())),
+                vy - l,
+            ),
+        ] {
+            assert!(
+                (v - want).abs() <= claim,
+                "{label}: {v} against the closed forms with the ball's part, {want}"
+            );
+        }
+    }
 }

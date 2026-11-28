@@ -23,7 +23,7 @@
 //! meridian the loop crosses (`topo::boolean::ops::interior_cuts`, the
 //! march's one loop), each body valid at tier 3, at tier 3′ and under the
 //! certificate. Its intersection is held to the volume the two
-//! cross-sections give, slice by slice ([`ball_in_cone`]). Where an order's
+//! cross-sections give, slice by slice (`sweep::test_support::lens`). Where an order's
 //! three runs all build, the volumes close as the operations must:
 //! `|A ∪ B| + |A ∩ B| = |A| + |B|` and `|A ∖ B| = |A| − |A ∩ B|`, within
 //! the measured pads. A desync or a broken invariant is red whatever the
@@ -187,68 +187,10 @@ fn every_order(
     assert_eq!(got, pinned, "{what}: each run's outcome");
 }
 
-/// **The ball's part of the cone, `|K ∩ ball|`, slice by slice**: at
-/// height `y` both are discs in the plane of `x` and `z`, the ball's of
-/// radius `√(0.4² − (y − 0.6)²)` about `(0.9, 0)` and the cone's of radius
-/// `(2 − y)/2` about the axis, and the slice of the intersection is their
-/// lens, in closed form (the smaller disc where one holds the other, none
-/// where they are apart). Integrated over the ball's heights `[0.2, 1]`
-/// by composite five-point Gauss–Legendre on `panels` panels. The lens's
-/// area has a kink where the two discs change regime, so the rule
-/// converges there at a lower order, and the row reads it at two panel
-/// counts. An oracle that reads neither body.
-fn ball_in_cone(panels: u32) -> f64 {
-    let lens = |y: f64| {
-        let r1 = (0.4f64.powi(2) - (y - 0.6).powi(2)).max(0.0).sqrt();
-        let r2 = (2.0 - y) / 2.0;
-        let d = 0.9f64;
-        if d >= r1 + r2 {
-            0.0
-        } else if d <= (r1 - r2).abs() {
-            PI * r1.min(r2).powi(2)
-        } else {
-            let a1 = ((d.powi(2) + r1.powi(2) - r2.powi(2)) / (2.0 * d * r1)).acos();
-            let a2 = ((d.powi(2) + r2.powi(2) - r1.powi(2)) / (2.0 * d * r2)).acos();
-            let k = ((-d + r1 + r2) * (d + r1 - r2) * (d - r1 + r2) * (d + r1 + r2)).sqrt();
-            r1.powi(2) * a1 + r2.powi(2) * a2 - k / 2.0
-        }
-    };
-    let (nodes, weights) = (
-        [
-            0.0,
-            -0.538_469_310_105_683_1,
-            0.538_469_310_105_683_1,
-            -0.906_179_845_938_664,
-            0.906_179_845_938_664,
-        ],
-        [
-            0.568_888_888_888_888_9,
-            0.478_628_670_499_366_5,
-            0.478_628_670_499_366_5,
-            0.236_926_885_056_189_1,
-            0.236_926_885_056_189_1,
-        ],
-    );
-    let (lo, hi) = (0.2, 1.0);
-    let h = (hi - lo) / f64::from(panels);
-    (0..panels)
-        .map(|i| {
-            let mid = lo + h * (f64::from(i) + 0.5);
-            nodes
-                .iter()
-                .zip(weights)
-                .map(|(x, w)| w * lens(mid + x * h / 2.0))
-                .sum::<f64>()
-                * h
-                / 2.0
-        })
-        .sum()
-}
-
 /// **The cone and the ball off its axis build every op in either
 /// order.** Each body passes tier 3, tier 3′ and the certificate, the
 /// volumes close as the ops must, and the intersection, in either order,
-/// is [`ball_in_cone`]'s within its pad and `1e-7`. Main before the one
+/// the slice-by-slice integral of the ball's part within its pad and `1e-7`. Main before the one
 /// band built this pose on the ball's two lune seams; the one-band ball
 /// cuts its face in instead
 /// (`work/lathe/a-cone-and-a-one-band-ball-meet-in-a-loop-inside-both-faces-and-refuse-its-cut-in.md`).
@@ -263,10 +205,19 @@ fn a_cone_and_a_ball_off_its_axis_build_in_every_order() {
         PINNED,
         tol,
     );
-    let (want, finer) = (ball_in_cone(400), ball_in_cone(1600));
-    assert!(
-        (want - finer).abs() <= 1e-9,
-        "the slices converge: {want} at 400 panels, {finer} at 1600"
+    // The ball's part of the cone, slice by slice across the cone's axis:
+    // the ball's slice a disc about a centre `0.9` off the axis at height
+    // `0.6`, the cone's the disc of radius `(2 − y)/2`, their overlap a lens
+    // in closed form (`sweep::test_support::lens`), an oracle that reads
+    // neither body.
+    let (want, error) = sweep::test_support::lens::ball_in_revolved(
+        0.4,
+        (0.9, 0.6),
+        (
+            |y: f64| (0.0..=2.0).contains(&y).then(|| (0.0, (2.0 - y) / 2.0)),
+            &[],
+        ),
+        2000,
     );
     for (name, a, b) in [("the cone first", &k, &ball), ("the ball first", &ball, &k)] {
         for (op, r) in [
@@ -288,11 +239,11 @@ fn a_cone_and_a_ball_off_its_axis_build_in_every_order() {
             if op == "∩" {
                 let (v, pad) = volume(&out.body, tol);
                 println!(
-                    "[oracle] {name}: |K ∩ ball| = {v} ± {pad:e}, slices {want}, off {:e}",
+                    "[oracle] {name}: |K ∩ ball| = {v} ± {pad:e}, slices {want} ± {error:e}, off {:e}",
                     v - want
                 );
                 assert!(
-                    (v - want).abs() <= pad + 1e-7,
+                    (v - want).abs() <= pad + 1e-7 + 10.0 * error,
                     "{name}: |K ∩ ball| = {v} ± {pad:e}, the slices give {want}"
                 );
             }

@@ -42,6 +42,11 @@ crates/geom-brep/src/ssi/march.rs 1
 crates/geom-brep/src/ssi/refine.rs 1
 # attach: unvouched reads every edge: NOT A SEARCH.
 crates/topo/src/attach.rs 1
+# ops: apply_cut_ins' `place` of every boundary hit on the cut's
+# half-meridian, a pole read on the axis and by its own height (2): each
+# hit is sorted below or over the section and every hit is needed, so the
+# first in band refuses as well as any: NOT A SEARCH.
+crates/topo/src/boolean/ops.rs 2
 # interior_cuts: cut_ins' cut_in over every refusing pair, each pair's
 # sphere faces all cut or none: NOT A SEARCH.
 crates/topo/src/boolean/ops/interior_cuts.rs 1
