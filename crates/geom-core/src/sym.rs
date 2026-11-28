@@ -1038,6 +1038,8 @@ pub mod deferred;
 /// and the pure operations on a form.
 #[path = "sym/form.rs"]
 mod form;
+/// Probe (M16): the form-enclosure reading, counted beside today's answer.
+pub mod m16;
 /// Rule F: the manifest sign — `copysign` and `abs` atoms whose sign
 /// the form already shows, and the non-negativity predicate rule D
 /// shares with it.
@@ -5854,11 +5856,36 @@ impl<T: Decide> Sym<T> {
             return numeric;
         }
         let domain_violation = matches!(&numeric, Err(e) if e.margin.is_invalid());
+        let m16_pre = (!domain_violation && m16::on()).then(|| m16::prebuild(self.node));
+        let m16_t0 = std::time::Instant::now();
         let answered = if domain_violation {
             None
         } else {
             discharge_checked(self.node, self.value.enclosure_probe())
         };
+        if let (Some(pre), Some(enc)) = (m16_pre, self.value.enclosure_probe()) {
+            let today = match (&numeric, answered.is_some()) {
+                (_, true) => "ladder-zero",
+                (Ok(_), false) => "value-zero-in-band",
+                (Err(_), false) => "undecided",
+            };
+            if let Some(sign) = m16::probe(
+                self.node,
+                enc,
+                band,
+                pre,
+                today,
+                m16_t0.elapsed().as_nanos(),
+            ) {
+                let margin = match numeric {
+                    Ok(Decided { margin, .. }) | Err(Indeterminate { margin, .. }) => margin,
+                };
+                return Ok(Decided {
+                    sign,
+                    margin: margin.as_proven(),
+                });
+            }
+        }
         count_decision(answered.is_some());
         if let Some(level) = std::env::var("BOXFINISH_M15").ok() {
             let name = crate::k_stats::current_predicate();

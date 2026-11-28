@@ -536,3 +536,51 @@ fn m15_probe() {
         ),
     }
 }
+
+// ---- probe (M16): population 1, the fixture bodies ----
+
+/// Probe: records through `BOXFINISH_M16=<file>` only.
+#[test]
+#[ignore = "probe: BOXFINISH_M16=<file> cargo nextest run -p topo m16_pop1 --run-ignored all"]
+fn m16_pop1() {
+    use geom_core::sym::m16;
+    let tol = Tol::witness();
+    let band = Band::linear(tol).expect("the witness band");
+    let budget = SymBudget {
+        max_terms: 64,
+        max_degree: 8,
+    };
+    let records = crate::boolean::ContactRecords::default();
+    for (kind, name) in M14_KINDS.iter().enumerate() {
+        for w in M14_WIDTHS {
+            for pass in ["census", "finish"] {
+                let what = format!("pop1|{name}|{w}|{pass}");
+                m16::context(&what);
+                let (out, counts) = geom_core::sym::with_session(budget, || {
+                    let top = Sym::param_over(
+                        ParamSymbol::new(test_utils::symbol_id("m16_top")),
+                        Interval::from_bounds(1.0 - w, 1.0 + w),
+                        1.0 - w,
+                        1.0 + w,
+                    );
+                    let body = m14_body::<Boxed>(kind, top, tol);
+                    if pass == "census" {
+                        crate::census::census_and_certify(&body, &records, band, tol, None)
+                    } else {
+                        crate::validate::validate_pseudomanifold_structural(&body, &records, tol)
+                            .err()
+                            .unwrap_or_default()
+                    }
+                });
+                let kinds: Vec<String> = out
+                    .iter()
+                    .map(|e| format!("{e:?}").chars().take(40).collect())
+                    .collect();
+                m16::note(&format!(
+                    "{what}\tfindings={}\t{counts:?}\t{kinds:?}",
+                    out.len()
+                ));
+            }
+        }
+    }
+}

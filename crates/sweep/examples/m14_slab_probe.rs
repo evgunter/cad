@@ -63,9 +63,199 @@ fn rows<T: Decide + topo::AtRestPolicy + Bounds>(what: &str, body: &Body<T>, ban
     }
 }
 
+type Boxed = Sym<Interval>;
+
+fn boxed(name: u64, mid: f64, w: f64) -> Boxed {
+    Sym::param_over(
+        ParamSymbol::new(name),
+        Interval::from_bounds(mid - w, mid + w),
+        mid - w,
+        mid + w,
+    )
+}
+
+/// Population 1 (the slab) and 4 (wide slabs): census, then the whole battery.
+fn m16_slabs(tol: Tol, band: Band) {
+    use geom_core::sym::m16;
+    let budget = SymBudget {
+        max_terms: 64,
+        max_degree: 8,
+    };
+    let records = topo::ContactRecords::default();
+    for (pop, w) in [
+        ("pop1", 0.05),
+        ("pop1", 0.1),
+        ("pop1", 0.25),
+        ("pop1", 0.45),
+        ("pop4w", 0.44),
+        ("pop4w", 0.488),
+        ("pop4w", 0.49),
+        ("pop4w", 0.6),
+        ("pop4w", 0.9),
+    ] {
+        for pass in ["census", "finish"] {
+            let what = format!("{pop}|slab|{w}|{pass}");
+            m16::context(&what);
+            let (out, counts) = geom_core::sym::with_session(budget, || {
+                let body = match slab::<Boxed>(boxed(0x4d31_3600, 1.0, w), tol) {
+                    Ok(body) => body,
+                    Err(e) => return Err(e),
+                };
+                Ok(if pass == "census" {
+                    topo::census_traces(
+                        &body,
+                        &records,
+                        band,
+                        tol,
+                        None,
+                        topo::CensusStrategy::Realized,
+                    )
+                    .0
+                } else {
+                    topo::validate_pseudomanifold_structural(&body, &records, tol)
+                        .err()
+                        .unwrap_or_default()
+                })
+            });
+            match out {
+                Ok(out) => {
+                    let kinds: Vec<String> = out
+                        .iter()
+                        .map(|e| format!("{e:?}").chars().take(40).collect())
+                        .collect();
+                    m16::note(&format!(
+                        "{what}\tfindings={}\t{counts:?}\t{kinds:?}",
+                        out.len()
+                    ));
+                }
+                Err(e) => m16::note(&format!("{what}\tdoor refuses\t{}", &e[..e.len().min(300)])),
+            }
+        }
+    }
+}
+
+/// Population 2: a brick cut by a tilted slab through the Boolean door,
+/// the cutter's height over a box.
+fn m16_verbs(tol: Tol, band: Band) {
+    use geom_core::Real as _;
+    use geom_core::sym::m16;
+    use topo::FinishedBody as _;
+    let c = Boxed::from_f64;
+    let records = topo::ContactRecords::default();
+    for w in [0.0, 0.05, 0.1, 0.25, 0.45] {
+        for budget in [
+            SymBudget {
+                max_terms: 64,
+                max_degree: 8,
+            },
+            SymBudget {
+                max_terms: 4096,
+                max_degree: 128,
+            },
+        ] {
+            let what = format!("pop2|cut|{w}|b{}", budget.max_terms);
+            m16::context(&format!("{what}|build"));
+            let (out, counts) =
+                geom_core::sym::with_session(budget, || -> Result<String, String> {
+                    let stock = topo::test_support::finished(
+                        "the stock",
+                        sweep::test_support::brick::<Boxed>(
+                            (0.0, 1.0),
+                            (0.0, 1.0),
+                            (0.0, 3.0),
+                            tol,
+                        ),
+                        tol,
+                    );
+                    let cutter = topo::test_support::finished(
+                        "the cutter",
+                        sweep::test_support::brick::<Boxed>(
+                            (-2.0, 3.0),
+                            (-2.0, 3.0),
+                            (0.0, 4.0),
+                            tol,
+                        ),
+                        tol,
+                    );
+                    let axis = geom_core::UnitVec3::new(
+                        geom_core::Vec3::new(c(0.6), c(0.8), c(0.0)),
+                        "the tilt",
+                        band,
+                    )
+                    .map_err(|e| format!("axis: {e:?}"))?;
+                    let tilt = geom_core::RigidMotion::rotation(axis, c(0.25))
+                        .map_err(|e| format!("rotation: {e:?}"))?;
+                    let lift = geom_core::RigidMotion::translation(geom_core::Vec3::new(
+                        c(0.0),
+                        c(0.0),
+                        boxed(0x4d31_3601, 1.5, w),
+                    ))
+                    .map_err(|e| format!("translation: {e:?}"))?;
+                    let cutter = cutter
+                        .moved(&tilt, tol)
+                        .map_err(|e| format!("tilt refuses: {e}"))?
+                        .moved(&lift, tol)
+                        .map_err(|e| format!("lift refuses: {e}"))?;
+                    let cut = topo::boolean_op_with(
+                        topo::BooleanOp::Subtract,
+                        &stock,
+                        &cutter,
+                        &topo::BooleanInputs::default(),
+                        topo::SweepStrategy::Realized,
+                        tol,
+                    )
+                    .map_err(|e| {
+                        let t = format!("{e:?}");
+                        format!("boolean refuses: {}", &t[..t.len().min(600)])
+                    })?;
+                    let Some(result) = cut.body() else {
+                        return Err("boolean empty".into());
+                    };
+                    let body = result.body.clone();
+                    m16::context(&format!("{what}|census"));
+                    println!("M15 CASE {what}");
+                    let census = topo::census_traces(
+                        &body,
+                        &records,
+                        band,
+                        tol,
+                        None,
+                        topo::CensusStrategy::Realized,
+                    )
+                    .0;
+                    println!("M15 END {what}");
+                    m16::context(&format!("{what}|finish"));
+                    let finish = topo::validate_pseudomanifold_structural(&body, &records, tol)
+                        .err()
+                        .unwrap_or_default();
+                    let kinds = |v: &[topo::ValidationError]| -> Vec<String> {
+                        v.iter()
+                            .map(|e| format!("{e:?}").chars().take(160).collect())
+                            .collect()
+                    };
+                    Ok(format!(
+                        "faces={} census={} {:?} finish={} {:?}",
+                        body.faces().count(),
+                        census.len(),
+                        kinds(&census),
+                        finish.len(),
+                        kinds(&finish)
+                    ))
+                });
+            m16::note(&format!("{what}\t{out:?}\t{counts:?}"));
+            println!("M16 {what}: {out:?}");
+        }
+    }
+}
+
 fn main() {
     let tol = Tol::witness();
     let band = Band::linear(tol).expect("the witness band");
+    match std::env::var("BOXFINISH_M16_RUN").as_deref() {
+        Ok("slabs") => return m16_slabs(tol, band),
+        Ok("verbs") => return m16_verbs(tol, band),
+        _ => {}
+    }
     let budget = SymBudget {
         max_terms: 64,
         max_degree: 8,
