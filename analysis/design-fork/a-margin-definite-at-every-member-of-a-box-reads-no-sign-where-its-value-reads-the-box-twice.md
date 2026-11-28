@@ -25,3 +25,19 @@ One brief for both: `boxfinish/briefs` `probe/briefs/designer-definite-margin.md
 - **Confidence:** likely.
 - **Rejected the framing:** in part. The class is not new: `work/tier/real-margin-dependency-widening` (2026-09-04) and `work/sym/a-margin-whose-form-is-a-nonzero-constant-escalates-over-a-box` already hold it. The body's construction (a vertex on its plane only to rounding) is a separate, smaller defect.
 - **Proposed changing ratified text:** yes, three sentences of E12 ("Everything else decides numerically as today"; the soundness sentence on the numeric channel; "plain intervals suffice for the real margins" in the affine rejection).
+
+### B (delivered 17:40 UTC 2026-11-28)
+
+- **Answer:** at the symbolic box scalar a decision reads its margin from the expression as well as the value, for every margin: where the value's enclosure gives no answer, the tier encloses the reduced form over the box's brackets and the ordinary band test is applied to that enclosure intersected with the value's. A zero form is the case where the enclosure is the point 0. Declines on a frozen form, a hull, an opaque or free value, an atom it cannot enter. An in-band result is unproven.
+- **One line of argument:** the tier already encloses a reduced form over the brackets to pick a `select` arm inside a zero proof and cannot say the same of the margin itself; E12's own rejection of per-site re-association transfers to margins that are not identities.
+- **Confidence:** likely (unsure on cost on the tour's large margins).
+- **Rejected the framing:** in part: the three kinds of margin need one answer, not three; the M15 body is a fixture, and a verb-built tilted body would likely fold to the zero form.
+- **Proposed changing ratified text:** yes: E12's "Everything else decides numerically as today" replaced, and "plain intervals suffice for the real margins" deleted.
+
+## Agreement at first report
+
+Judged on the recommended final state: **agreed**. Both act at `Sym::decide_sign`, decide on the intersection of the value's and the form's enclosures, decline where the form's real may differ from the construction's, keep an in-band zero unproven with its own K outcome, and change the same E12 sentence. They differ in detail only: the order relative to PR 7712's point reading (A: plain form, then the box read, then the point reading; B: the point reading first), which form is enclosed (A: the early form is admissible; B: the plain form first), and the wording for E12. Both ask for a count before building.
+
+## Round 1 (dispatched 17:45 UTC 2026-11-28; a confirmation round, not a disagreement)
+
+Each shown the other's report and asked for one agreed order, one form, one decline list and one wording for E12. A count (M16) is being taken by the probe lane meanwhile.
