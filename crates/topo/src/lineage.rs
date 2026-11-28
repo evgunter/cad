@@ -72,25 +72,6 @@ pub struct Division {
     pub removed: Vec<Cell>,
 }
 
-impl Division {
-    /// **The minted cells as one reads them**: each read through
-    /// `read`, those that read as one of the pieces dropped. A minted
-    /// cell a piece's image also names is that piece, not a cell
-    /// between the pieces: a chord the output stage's merge took into
-    /// the fragment it divides, a vertex a join took into the piece's
-    /// edge. The one home of that rule: the boolean states its
-    /// divisions through it read as they stand, and the carry reads
-    /// them through it read through the joins.
-    pub(crate) fn minted_read(&self, read: impl Fn(Cell) -> Cell) -> Vec<Cell> {
-        let pieces: Vec<Cell> = self.pieces.iter().map(|&p| read(p)).collect();
-        self.minted
-            .iter()
-            .map(|&m| read(m))
-            .filter(|m| !pieces.contains(m))
-            .collect()
-    }
-}
-
 /// How a carry backs two cells an op minted, one on each of a record's
 /// two cells, that meet at a point.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

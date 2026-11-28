@@ -4919,7 +4919,7 @@ fn operand_fate<T: Real>(
 /// divided nor lost any part, and otherwise divided, the lost cells its
 /// removed members. A minted cell whose live image is one of the pieces
 /// (a chord the output stage's merge took into the fragment it divides)
-/// is that piece ([`Division::minted_read`](crate::lineage::Division::minted_read)).
+/// is that piece ([`super::records::minted_read`]).
 /// What is left is the cell's interior between its pieces: the section
 /// rule ([`Incidence::chords`]) mints no cell on the cell's boundary, so
 /// no face is left among it.
@@ -4930,7 +4930,7 @@ fn fate_of(pieces: Vec<Cell>, minted: Vec<Cell>, divided: bool, gone: Vec<Cell>)
         minted,
         removed: gone,
     };
-    division.minted = division.minted_read(|c| c);
+    division.minted = super::records::minted_read(&division, |c| c);
     debug_assert!(
         !division.minted.iter().any(|c| matches!(c, Cell::Face(_))),
         "a division mints no face but its pieces: {division:?}"

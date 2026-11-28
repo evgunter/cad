@@ -83,8 +83,8 @@ lane's follow-up.
   - That case now falls under the shared rule below, and a face left
     among `minted` after it is a debug-assertion failure.
 - **Step 3.**
-  - The normalisation has one home, `Division::minted_read`
-    (`crates/topo/src/lineage.rs`): a minted cell that reads as a piece
+  - The normalisation has one home, `boolean::records::minted_read`
+    (`crates/topo/src/boolean/records.rs`): a minted cell that reads as a piece
     is that piece.
   - `fate_of` states its divisions through it, read as they stand, and
     `place_found` shares this through `fate_of`.
