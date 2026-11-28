@@ -344,18 +344,67 @@ pub(super) fn wall_quadratic<T: Decide>(
     let w0p = wall.offset(q);
     let dp = d.get() - axis.get() * d.get().dot(axis.get());
     let a2 = dp.norm_squared();
-    let shift = match about {
-        About::Start => T::zero(),
-        About::Nearest => ((T::zero() - w0p.dot(dp)) / a2)
-            .max(T::zero() - span)
-            .min(span),
+    let Moved {
+        shift,
+        slope,
+        square,
+    } = match about {
+        About::Start => Moved::at_start(w0p, dp),
+        About::Nearest => Moved::nearest(w0p, dp, Some((T::zero() - span, span))),
     };
     let w = w0p + dp * shift;
     Centred::new(
         (w0, d.get(), shift, w),
-        [a2, w.dot(dp), w.norm_squared() - radius.powi(2)],
+        [a2, slope, square - radius.powi(2)],
         radius,
     )
+}
+
+/// **An offset `w₀` moved along `d` by `shift`**, as a quadratic read
+/// about the moved point needs it: `w·d` and `|w|²` for `w = w₀ + d·shift`.
+struct Moved<T> {
+    shift: T,
+    /// `w·d`.
+    slope: T,
+    /// `|w|²`.
+    square: T,
+}
+
+impl<T: Decide> Moved<T> {
+    /// Not moved: both read off `w₀` itself.
+    fn at_start(w0: Vec3<T>, d: Vec3<T>) -> Self {
+        Self {
+            shift: T::zero(),
+            slope: w0.dot(d),
+            square: w0.norm_squared(),
+        }
+    }
+
+    /// **Moved to the closest approach to `w₀`'s origin, held to `run`**
+    /// where there is one. With `w_free` the approach, square to `d`, and
+    /// the run moving it by `held` along `d`, `w = w_free + d·held`, so
+    /// `w·d = |d|²·held` and `|w|² = (|w₀ × d|² + (w·d)²)/|d|²`: each the
+    /// fact, read off `w₀` once, rather than recomputed from a `w` that
+    /// counts `w₀` twice (directly and through the shift). With `g = w₀·d`,
+    /// `|d|²·held` is `min(|d|²·hi + g, 0) − min(−g − |d|²·lo, 0)`: zero
+    /// wherever the approach `−g/|d|²` is inside the run, and the slope at
+    /// the end that holds it back elsewhere, with no division by `|d|²`.
+    fn nearest(w0: Vec3<T>, d: Vec3<T>, run: Option<(T, T)>) -> Self {
+        let (a2, g) = (d.norm_squared(), w0.dot(d));
+        let free = (T::zero() - g) / a2;
+        let (shift, slope) = match run {
+            Some((lo, hi)) => (
+                free.max(lo).min(hi),
+                (a2 * hi + g).min(T::zero()) - (T::zero() - g - a2 * lo).min(T::zero()),
+            ),
+            None => (free, T::zero()),
+        };
+        Self {
+            shift,
+            slope,
+            square: (w0.cross(d).norm_squared() + slope.powi(2)) / a2,
+        }
+    }
 }
 
 /// **The line × sphere quadratic** `|d|²s² + 2(w·d)s + (|w|² − r²)`,
@@ -369,14 +418,18 @@ pub(super) fn sphere_quadratic<T: Decide>(
     let geom::Line { origin: q, dir: d } = line;
     let w0 = q - center;
     let a2 = d.get().norm_squared();
-    let shift = match about {
-        About::Start => T::zero(),
-        About::Nearest => (T::zero() - w0.dot(d.get())) / a2,
+    let Moved {
+        shift,
+        slope,
+        square,
+    } = match about {
+        About::Start => Moved::at_start(w0, d.get()),
+        About::Nearest => Moved::nearest(w0, d.get(), None),
     };
     let w = w0 + d.get() * shift;
     Centred::new(
         (w0, d.get(), shift, w),
-        [a2, w.dot(d.get()), w.norm_squared() - radius.powi(2)],
+        [a2, slope, square - radius.powi(2)],
         radius,
     )
 }
@@ -542,14 +595,18 @@ pub(super) fn line_cone_quadratic<T: Decide>(
         dir: axis,
     } = cone;
     let w0 = q - apex;
-    let shift = line.param_within(apex, run);
+    let Moved {
+        shift,
+        slope,
+        square,
+    } = Moved::nearest(w0, d.get(), Some(run));
     let w = w0 + d.get() * shift;
     let cos2 = half_angle.cos().powi(2);
     let (da, wa) = (d.get().dot(axis.get()), w.dot(axis.get()));
     let coeffs = [
         da.powi(2) - d.get().norm_squared() * cos2,
-        da * wa - w.dot(d.get()) * cos2,
-        wa.powi(2) - w.norm_squared() * cos2,
+        da * wa - slope * cos2,
+        wa.powi(2) - square * cos2,
     ];
     Centred::new((w0, d.get(), shift, w), coeffs, T::zero())
 }
@@ -1007,13 +1064,18 @@ mod wall_root_rows {
     /// ε = 1e-12) and `8.4e-8` (against ε = 1e-9), where
     /// [`quadratic_roots`]' `c/(−b − √disc)` is off by `4.5e-14` and
     /// `4.5e-11`. Each expected root is the exact root of the row's own
-    /// `f64` data, rounded once.
+    /// `f64` data, rounded once. Read about the closest approach, the
+    /// second row's run holds the approach back and its residual is read
+    /// at the run's end, `2·10⁶` along the line, where the offset's
+    /// rounding costs the root `1.2·10⁻⁷`: that reading is held to
+    /// `10⁻¹²` of the root, the row's ε being the cancellation's.
     #[test]
     fn a_near_axis_rays_exit_root_is_right_to_the_band() {
         let tol = Tol::witness();
         let z = Vec3::new(0.0, 0.0, 1.0);
         let rows = [
-            // ε, radius, q, d⊥, span, the exit root
+            // ε, radius, q, d⊥, span, the exit root, the bound about the
+            // closest approach
             (
                 1e-12,
                 0.5,
@@ -1021,11 +1083,12 @@ mod wall_root_rows {
                 (2f64.powi(-18), 2f64.powi(-19)),
                 4096.0,
                 2_878.535_214_595_601,
+                1e-12,
             ),
-            (1e-9, 1e3, (999.0, 0.0), (1e-6, 0.0), 2e6, 1e6),
+            (1e-9, 1e3, (999.0, 0.0), (1e-6, 0.0), 2e6, 1e6, 1e-6),
         ];
         let mut off = Vec::new();
-        for (eps, r, (qx, qy), (dx, dy), span, exit) in rows {
+        for (eps, r, (qx, qy), (dx, dy), span, exit, nearest) in rows {
             let band =
                 Band::linear_at(tol, eps).unwrap_or_else(|e| panic!("the band at {eps}: {e:?}"));
             let d = Vec3::new(dx, dy, (1.0 - dx * dx - dy * dy).sqrt());
@@ -1048,9 +1111,13 @@ mod wall_root_rows {
                 let WallRoots::Two([_, t1], _) = got else {
                     panic!("both roots at {eps}, {about:?}: {got:?}");
                 };
-                if (t1 - exit).abs() > eps {
+                let bound = match about {
+                    About::Start => eps,
+                    About::Nearest => nearest,
+                };
+                if (t1 - exit).abs() > bound {
                     off.push(format!(
-                        "at ε = {eps}, {about:?}: {t1} against {exit}, off by {:e}",
+                        "at ε = {eps}, {about:?}: {t1} against {exit}, off by {:e} (bound {bound:e})",
                         (t1 - exit).abs()
                     ));
                 }
@@ -1790,5 +1857,259 @@ mod door_rows {
                 .is_some_and(|p| p.starts_with("line_quadric_torus_")),
             "named by the quartic's rows: {diag:?}"
         );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod nearest_rows {
+    //! **The quadratic about a line's closest approach**: its middle
+    //! coefficient is zero by construction where the approach is inside
+    //! the run, at every scalar, and is what it is where the run holds
+    //! the approach back.
+
+    use super::*;
+    use geom_core::sym::{ParamSymbol, with_session};
+    use geom_core::{Bounds, Interval, Real, Sym, SymBudget};
+
+    /// A wall of radius 1.2 mm about the `z` axis, and a ray tilted 10°
+    /// off it whose start moves with one box parameter `u ∈ [−1, 1]`,
+    /// 0.5 mm by 1.2 mm across the box: the shape of a hole's aimed ray
+    /// over a parameter box.
+    fn boxed<T: Real>(u: T) -> (geom::Line<T>, (geom::Line<T>, T)) {
+        let lift = |x: f64| T::from_f64(x);
+        let (tilt, turn) = (10f64.to_radians(), 200f64.to_radians());
+        let d = Vec3::new(tilt.sin() * turn.cos(), tilt.sin() * turn.sin(), tilt.cos());
+        let q = Point3::new(
+            lift(-2.26e-4) + lift(2.5e-4) * u,
+            lift(-5.83e-4) + lift(6.0e-4) * u,
+            lift(0.0),
+        );
+        let ray = geom::Line {
+            origin: q,
+            dir: geom_core::UnitVec3::squared(d.map(lift)),
+        };
+        let wall = geom::Line {
+            origin: Point3::new(0.0, 0.0, 0.0).map(lift),
+            dir: geom_core::UnitVec3::exact_z(),
+        };
+        (ray, (wall, lift(1.2e-3)))
+    }
+
+    /// **About its closest approach inside the run, the wall's `b` is
+    /// zero over the box**, at `Interval` and at `Sym<Interval>` as at
+    /// `f64`: the box enters the moved offset twice (directly and through
+    /// the shift), and the two cancel exactly in `b` at every point.
+    #[test]
+    fn the_nearest_points_b_is_zero_over_the_box() {
+        let span = 0.1;
+        let point = wall_quadratic(boxed(0.0).0, boxed(0.0).1, span, About::Nearest);
+        let over = |u: Interval| {
+            let (ray, wall) = boxed(u);
+            wall_quadratic(ray, wall, Interval::from_f64(span), About::Nearest).coeffs[1]
+        };
+        let interval = over(Interval::from_bounds(-1.0, 1.0));
+        let budget = SymBudget {
+            max_terms: 64,
+            max_degree: 8,
+        };
+        let (sym, _) = with_session(budget, || {
+            let u = Sym::param_over(
+                ParamSymbol::new(0xb0),
+                Interval::from_bounds(-1.0, 1.0),
+                -1.0,
+                1.0,
+            );
+            let (ray, wall) = boxed(u);
+            wall_quadratic(ray, wall, Sym::from_f64(span), About::Nearest).coeffs[1].value()
+        });
+        let mut off = Vec::new();
+        if point.coeffs[1].abs() > 1e-19 {
+            off.push(format!("f64: b = {:e}", point.coeffs[1]));
+        }
+        for (scalar, b) in [("Interval", interval), ("Sym<Interval>", sym)] {
+            if !(b.lo() == 0.0 && b.hi() == 0.0) {
+                off.push(format!("{scalar}: b = [{:e}, {:e}]", b.lo(), b.hi()));
+            }
+        }
+        assert!(off.is_empty(), "the nearest point's b: {off:?}");
+    }
+
+    /// A ray tilted 10° off the wall's axis in the `xz` plane, passing
+    /// 0.12 mm from the axis, whose start the box parameter `u` moves along
+    /// `d⊥` by `±1 cm`: every member is the same line, started elsewhere.
+    fn along<T: Real>(u: T) -> (geom::Line<T>, (geom::Line<T>, T)) {
+        let lift = |x: f64| T::from_f64(x);
+        let tilt = 10f64.to_radians();
+        let d = Vec3::new(tilt.sin(), 0.0, tilt.cos());
+        let ray = geom::Line {
+            origin: Point3::new(lift(1e-2) * u, lift(1.2e-4), lift(0.0)),
+            dir: geom_core::UnitVec3::squared(d.map(lift)),
+        };
+        let wall = geom::Line {
+            origin: Point3::new(0.0, 0.0, 0.0).map(lift),
+            dir: geom_core::UnitVec3::exact_z(),
+        };
+        (ray, (wall, lift(1.2e-3)))
+    }
+
+    /// **About its closest approach inside the run, the wall's `c` is the
+    /// line's distance from the axis, squared, less the radius's, over the
+    /// box**, at `Interval` and at `Sym<Interval>`: a start moved along
+    /// `d⊥` moves the shift and not the moved offset, which counts the
+    /// start twice (directly and through the shift) and read `±4·10⁻⁴`
+    /// against a `c` of `−1.4·10⁻⁶`.
+    #[test]
+    fn the_nearest_points_c_is_the_lines_distance_over_the_box() {
+        let span = 0.1;
+        let want = 1.2e-4f64.powi(2) - 1.2e-3f64.powi(2);
+        let point = wall_quadratic(along(0.0).0, along(0.0).1, span, About::Nearest);
+        let interval = {
+            let (ray, wall) = along(Interval::from_bounds(-1.0, 1.0));
+            wall_quadratic(ray, wall, Interval::from_f64(span), About::Nearest).coeffs[2]
+        };
+        let budget = SymBudget {
+            max_terms: 64,
+            max_degree: 8,
+        };
+        let (sym, _) = with_session(budget, || {
+            let u = Sym::param_over(
+                ParamSymbol::new(0xb1),
+                Interval::from_bounds(-1.0, 1.0),
+                -1.0,
+                1.0,
+            );
+            let (ray, wall) = along(u);
+            wall_quadratic(ray, wall, Sym::from_f64(span), About::Nearest).coeffs[2].value()
+        });
+        let mut off = Vec::new();
+        let near = 1e-9 * want.abs();
+        if (point.coeffs[2] - want).abs() > near {
+            off.push(format!("f64: c = {:e} against {want:e}", point.coeffs[2]));
+        }
+        for (scalar, c) in [("Interval", interval), ("Sym<Interval>", sym)] {
+            if !(c.lo() <= want && want <= c.hi() && c.hi() - c.lo() <= near) {
+                off.push(format!("{scalar}: c = [{:e}, {:e}]", c.lo(), c.hi()));
+            }
+        }
+        assert!(
+            off.is_empty(),
+            "the nearest point's c against {want:e}: {off:?}"
+        );
+    }
+
+    /// **Where the run holds the approach back, `b` is the residual's
+    /// slope at the run's end**, `(w₀⊥ + d⊥·shift)·d⊥` with the shift at
+    /// that end, at `f64` and inside the box's enclosure at every point
+    /// sampled.
+    #[test]
+    fn a_held_back_approachs_b_is_the_slope_at_the_runs_end() {
+        let span = 1e-4;
+        let enclosure = {
+            let (ray, wall) = boxed(Interval::from_bounds(-1.0, 1.0));
+            wall_quadratic(ray, wall, Interval::from_f64(span), About::Nearest)
+        };
+        let mut off = Vec::new();
+        for i in 0..=8 {
+            let u = -1.0 + f64::from(i) / 4.0;
+            let (ray, (wall, radius)) = boxed(u);
+            let got = wall_quadratic(ray, (wall, radius), span, About::Nearest);
+            let w0p = wall.offset(ray.origin);
+            let axis = wall.dir.get();
+            let dp = ray.dir.get() - axis * ray.dir.get().dot(axis);
+            let free = -w0p.dot(dp) / dp.norm_squared();
+            let held = free.clamp(-span, span);
+            let want = (w0p + dp * held).dot(dp);
+            let square = (w0p + dp * held).norm_squared() - radius.powi(2);
+            if (got.coeffs[2] - square).abs() > 1e-18 {
+                off.push(format!("u = {u}: c {:e} against {square:e}", got.coeffs[2]));
+            }
+            if free.abs() <= span {
+                off.push(format!("u = {u}: the approach {free:e} is inside the run"));
+            }
+            if (got.shift - held).abs() > 0.0 || (got.coeffs[1] - want).abs() > 1e-18 {
+                off.push(format!(
+                    "u = {u}: shift {:e}, b {:e} against {held:e}, {want:e}",
+                    got.shift, got.coeffs[1]
+                ));
+            }
+            let b = enclosure.coeffs[1];
+            if !(b.lo() <= got.coeffs[1] && got.coeffs[1] <= b.hi()) {
+                off.push(format!(
+                    "u = {u}: b {:e} outside [{:e}, {:e}]",
+                    got.coeffs[1],
+                    b.lo(),
+                    b.hi()
+                ));
+            }
+        }
+        assert!(off.is_empty(), "the held-back approach's b: {off:#?}");
+    }
+
+    /// **The wall's crossings of the boxed ray are bounded and hold every
+    /// sampled member's**, over a tenth of the box: the door's roots over
+    /// the nearest point's held `b`.
+    #[test]
+    fn the_boxed_rays_wall_crossings_are_bounded() {
+        let band = geom_core::Band::linear(geom_core::Tol::witness()).unwrap();
+        let read = |u: Interval| {
+            let (ray, (wall, radius)) = boxed(u);
+            line_wall_roots(
+                ray,
+                wall,
+                radius,
+                Interval::from_f64(0.1),
+                band,
+                About::Nearest,
+            )
+        };
+        let got = read(Interval::from_bounds(-0.1, 0.1));
+        let Ok(WallRoots::Two([t0, t1], slack)) = got else {
+            panic!("two crossings over the box: {got:?}");
+        };
+        println!(
+            "t0 [{:e}, {:e}], t1 [{:e}, {:e}]",
+            t0.lo(),
+            t0.hi(),
+            t1.lo(),
+            t1.hi()
+        );
+        let mut off = Vec::new();
+        for (k, t) in [t0, t1].iter().enumerate() {
+            if !(t.lo().is_finite() && t.hi().is_finite() && slack.hi().is_finite()) {
+                off.push(format!(
+                    "root {k}: [{:e}, {:e}], slack {:e}",
+                    t.lo(),
+                    t.hi(),
+                    slack.hi()
+                ));
+            }
+        }
+        // Each member's crossings in closed form, `q + d·t` on the circle
+        // of radius `r` about the `z` axis: an oracle the door does not
+        // share.
+        for i in 0..=16 {
+            let u = -0.1 + f64::from(i) / 80.0;
+            let (ray, (_, radius)) = boxed(u);
+            let (q, d) = (ray.origin, ray.dir.get());
+            let (a, b, c) = (
+                d.x * d.x + d.y * d.y,
+                q.x * d.x + q.y * d.y,
+                q.x * q.x + q.y * q.y - radius * radius,
+            );
+            let root = (b * b - a * c).sqrt();
+            let want = [(-b - root) / a, (-b + root) / a];
+            for (k, (t, w)) in [t0, t1].iter().zip(want).enumerate() {
+                let near = 1e-12 * w.abs().max(1e-3);
+                if !(t.lo() - near <= w && w <= t.hi() + near) {
+                    off.push(format!(
+                        "u = {u}: root {k} {w:e} outside [{:e}, {:e}]",
+                        t.lo(),
+                        t.hi()
+                    ));
+                }
+            }
+        }
+        assert!(off.is_empty(), "the boxed ray's crossings: {off:#?}");
     }
 }

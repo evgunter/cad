@@ -11,8 +11,9 @@ use geom_core::{Band, Decide, Margin, Sign};
 use crate::roots::{RootRefusal, Roots, Unsettled};
 
 /// **The two roots of `a·t² + 2b·t + c`**, `[(−b − √disc)/a,
-/// (−b + √disc)/a]` with `disc = b² − a·c` decided positive by the
-/// caller, each spelled so that no sum in it cancels.
+/// (−b + √disc)/a]` with `disc = b² − a·c` decided positive and `a`
+/// decided nonzero by the caller, each spelled so that no sum in it
+/// cancels.
 ///
 /// Of the two numerators `−b ∓ √disc`, one adds magnitudes and the
 /// other cancels when `a·c` is small beside `b²`; divided by a lead `a`
@@ -22,14 +23,26 @@ use crate::roots::{RootRefusal, Roots, Unsettled};
 /// also `c` over the other numerator, which adds magnitudes, and that is
 /// the spelling taken for it. Which numerator adds magnitudes is the
 /// sign of `b`, read by [`geom_core::Real::select_le_zero`] as a value
-/// selection, not a decision: both spellings name the same root, so
-/// where an enclosure of `b` straddles zero the hull of the two is as
-/// narrow as either, and neither denominator nears zero there (it is
-/// `√disc` plus a sliver).
+/// selection, not a decision, and each arm reads `b` held to its own
+/// side of zero (`min(b, 0)` where `b ≤ 0` is read, `max(b, 0)` where
+/// `b > 0` is), so each divisor is at least `√disc` in magnitude
+/// wherever its arm is read.
+///
+/// - `f64`: the arm `b`'s sign picks, and `b` is its own clamp there, so
+///   each root is the plain spelling's bits.
+/// - `Interval`: where `b` is decided, that arm over the whole box;
+///   where it straddles zero, the hull of the two arms, each over its
+///   own half of `b` and bounded by `√disc` below its divisor: an
+///   enclosure of both roots over the box, finite wherever the inputs
+///   are.
+/// - `Dual<T>`: the value channel is the scalar's; the tangent follows
+///   `b`'s at a tie (`min` and `max` keep `self`).
+/// - `Sym<T>`: the value channel is `T`'s, the same arms recorded.
 pub fn quadratic_roots<T: Decide>(a: T, b: T, c: T, disc: T) -> [T; 2] {
     let root = disc.max(T::zero()).sqrt();
-    // `−b − √disc` adds magnitudes for `b > 0`, `√disc − b` for `b ≤ 0`.
-    let (minus, plus) = (T::zero() - b - root, root - b);
+    let (b_le, b_gt) = (b.min(T::zero()), b.max(T::zero()));
+    // `√disc − b` adds magnitudes for `b ≤ 0`, `−b − √disc` for `b > 0`.
+    let (plus, minus) = (root - b_le, T::zero() - b_gt - root);
     [
         b.select_le_zero(c / plus, minus / a),
         b.select_le_zero(plus / a, c / minus),
@@ -506,5 +519,77 @@ mod cbrt_rows {
                 ((exact - truth) / truth).abs()
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod quadratic_rows {
+    //! [`super::quadratic_roots`] over an enclosure whose `b` straddles
+    //! zero by more than `√disc`: a lead decided nonzero and a
+    //! discriminant decided positive bound both roots, at every scalar.
+
+    use super::quadratic_roots;
+    use geom_core::{Bounds, Interval, Real};
+
+    /// **A wall's crossing over a box whose `b` straddles zero wider than
+    /// `√disc` is bounded, and holds every point's roots.** The traced
+    /// case of a ray on a hole's cylinder wall over a parameter box
+    /// (`a = 0.0301537`, `b = [-9.48e-5, 1.10e-4]`,
+    /// `c = [-1.638e-6, -1.47e-7]`): `√disc − b` and `−b − √disc` both
+    /// contain zero there, so `c` over either is the whole line.
+    #[test]
+    fn a_straddling_b_wider_than_the_root_reads_bounded_roots() {
+        let a = Interval::from_f64(0.030_153_7);
+        let b = Interval::from_bounds(-9.48e-5, 1.10e-4);
+        let c = Interval::from_bounds(-1.638e-6, -1.47e-7);
+        let [r0, r1] = quadratic_roots(a, b, c, b.powi(2) - a * c);
+        let mut off = Vec::new();
+        for (i, r) in [r0, r1].into_iter().enumerate() {
+            if !(r.lo().is_finite() && r.hi().is_finite()) {
+                off.push(format!("root {i} is unbounded: [{}, {}]", r.lo(), r.hi()));
+            }
+        }
+        // Every point of the box has its two roots inside the reading,
+        // and the reading is no wider than a few times their spread.
+        let (mut lo, mut hi) = ([f64::INFINITY; 2], [f64::NEG_INFINITY; 2]);
+        for i in 0..=16 {
+            for j in 0..=16 {
+                let bp = b.lo() + (b.hi() - b.lo()) * f64::from(i) / 16.0;
+                let cp = c.lo() + (c.hi() - c.lo()) * f64::from(j) / 16.0;
+                let ap = a.lo();
+                let root = (bp * bp - ap * cp).sqrt();
+                let want = [(-bp - root) / ap, (-bp + root) / ap];
+                for k in 0..2 {
+                    lo[k] = lo[k].min(want[k]);
+                    hi[k] = hi[k].max(want[k]);
+                }
+                let got = quadratic_roots(ap, bp, cp, bp * bp - ap * cp);
+                for (k, (r, w)) in [r0, r1].iter().zip(want).enumerate() {
+                    if !(r.lo() <= w && w <= r.hi()) {
+                        off.push(format!("root {k} misses {w:e} at b = {bp:e}, c = {cp:e}"));
+                    }
+                    if (got[k] - w).abs() > 1e-12 * w.abs().max(1e-3) {
+                        off.push(format!(
+                            "f64 root {k} at b = {bp:e}: {} against {w:e}",
+                            got[k]
+                        ));
+                    }
+                }
+            }
+        }
+        for (k, r) in [r0, r1].iter().enumerate() {
+            let (width, spread) = (r.hi() - r.lo(), hi[k] - lo[k]);
+            println!(
+                "root {k}: [{:e}, {:e}], the points' spread {spread:e}",
+                r.lo(),
+                r.hi()
+            );
+            if width.is_nan() || width > 4.0 * spread {
+                off.push(format!(
+                    "root {k} reads {width:e} wide over a spread of {spread:e}"
+                ));
+            }
+        }
+        assert!(off.is_empty(), "the straddling quadratic's roots: {off:#?}");
     }
 }
