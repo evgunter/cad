@@ -107,7 +107,7 @@ fn point_of(symbol: u64, lo: f64, hi: f64) -> Option<f64> {
 /// (581 k asks, about 24 µs each). Measured on the whole command, three
 /// alternating runs each, this change costs 125.4 s against main's
 /// 120.8 s (+3.8 %; main's runs spread 116.3 to 124.0 s), and buys the
-/// box-arm-off drive's leaf time from 1,306 s to 373 s.
+/// box-arm-off drive's leaf time from 1,306 s to 373–384 s (two runs).
 pub(super) fn refutes(id: SymId) -> bool {
     SESSION.with(|s| {
         let mut slot = s.borrow_mut();
