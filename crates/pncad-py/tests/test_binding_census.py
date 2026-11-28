@@ -3594,6 +3594,8 @@ NOT_BOUND = {
     "MassBasis": SHAPE,
     "MassBudget": SHAPE,
     "MeasureAccounting": SHAPE,
+    "MemoDial": SHAPE,
+    "NodeStoreSize": SHAPE,
     "ParamBox": SHAPE,
     "ParamBoxVerdict": SHAPE,
     "PerParam": SHAPE,

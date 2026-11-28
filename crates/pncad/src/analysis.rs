@@ -57,8 +57,8 @@ pub use editor_core::{
 /// The E6 driver and the box it drives over.
 pub use editor_core::{
     BoxAxis, BudgetKind, CertifiedLeaf, DEFAULT_MAX_DEPTH, DEFAULT_MAX_LEAVES, DriveConfig,
-    DriveRefusal, LeafResults, MeasureAccounting, ParamBox, ParamBoxVerdict, ReasonClass, Receipt,
-    RefusalReason, RefusedLeaf, Unsettled, drive,
+    DriveRefusal, LeafResults, MeasureAccounting, MemoDial, NodeStoreSize, ParamBox,
+    ParamBoxVerdict, ReasonClass, Receipt, RefusalReason, RefusedLeaf, Unsettled, drive,
 };
 
 /// The E4/E5 sensitivity and stackup report — the answer to "does this
