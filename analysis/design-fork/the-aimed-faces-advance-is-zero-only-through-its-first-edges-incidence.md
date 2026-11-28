@@ -60,3 +60,12 @@ Round-2 replies (both in by 16:24 UTC 11-28; raw on `boxfinish/briefs` `probe/br
 ## Round 3 (dispatched 16:28 UTC 11-28 to both; statement `probe/briefs/fork-side-reading/round-3.md` at `c8c05d8a93b`)
 
 Each shown the other's round-2 reply, the agreed and differing points, and the provenance neither could read in a shallow checkout (fork-log rows 291 and 292 with Ev's recorded words on DL5 and the told quantity; the commits that restated #990 and removed the public place door). Asked: the recommendation now; the other mechanism's strongest point answered; the split in two sentences if it stands; the exact sentences for Ev.
+
+Round-3 replies (both in by 16:28 UTC 11-28; raw on `boxfinish/briefs` `probe/briefs/fork-side-reading/{A,B}-round-3.md`): **they crossed.**
+- **A moved to B's round-2 mechanism** (a projection on the scalar, `Decide::place`, with a gated allowlist; #990 amended): the word "one" in "the one projection is `Real::told_reading`" forbids a second projection wherever it lives, and a door through the at-rest policy limits nothing since most of `topo` holds that policy. It adds: one reader at a dual too, and place-invariance as the admission test.
+- **B moved to A's round-2 mechanism** (one constructor in `geom::places` bounded on the bracket read, reached as a door through the at-rest policy; #990 unchanged): the machinery exists (nine doors, the pinned private step), its plumbing objection was mostly wrong, and Ev's recorded "only the bounds reading needs the extra check" puts the read where `Bounds` is spelled. It also wants one reader at a dual, through a value view.
+- Agreed by both: the opaque place; one reader at every scalar; the admission test; DL5.2's added sentence; the ray's constructor in `geom/src/places.rs`.
+
+## Round 4 (dispatched 16:33 UTC 11-28 to both; statement `probe/briefs/fork-side-reading/round-4.md` at `811922ea192`)
+
+Each shown the other's round-3 reply and the two mechanisms side by side, and asked to settle three points of fact in the tree: whether the policy's door limits who can make a place; whether #990's letter forbids a second projection; how a dual gets its place under each. Then the recommendation, or the two-sentence choice for Ev.
