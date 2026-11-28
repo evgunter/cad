@@ -94,3 +94,64 @@ check runs only. What is left to do here: find the gate of the
 unlabelled pair, and measure the two `pcurve_chart_placement` margins.
 (BOXFINISH orchestrator)
 
+
+## The at-rest policy's lanes, read for what each scalar logs (PR 7716's fix pass, 2026-11-28)
+
+Read, not run. In `topo`'s `props.rs` the `f64` and `Interval`
+`AtRestPolicy` impls do not build a lane two ways: each of the four
+lanes is `Some(its one constructor)` at one scalar and `None` at the
+other, so what differs is a whole path present or absent.
+
+- **`offset_fit_lane`: `f64` only** (`props.rs:7652` against `:8000`).
+  `f64` logs `offset_normal_floor` (`geom-brep`'s `offset_meters.rs:586`)
+  and `offset_curvature_headroom` (`offset_meters.rs:985`) once per rung
+  of `meter_patch`'s ladder, per `Approx` face at tier 3's check 1
+  (`validate.rs:7696`) and at the offset mint (`replace_face.rs:2461`).
+  `Interval` logs nothing and refuses (`ApproxLaneUnsupported`,
+  `validate.rs:7705`, `replace_face.rs:2457`). Not read: what
+  `fit_offset_at` logs beyond the meters.
+- **`section_lane`: `f64` only** (`props.rs:7722` against `:8070`).
+  `f64` logs `offset_section_level_row` (`offset_derive.rs:1404`),
+  `offset_section_sense` (`:1314`) and the section doors' `ssi_*` rows.
+  `Interval` refuses a plane × spline or spline × spline pair
+  (`NurbsLaneUnsupported`, `replace_face.rs:3605`); analytic pairs run
+  `section_closed` at both scalars.
+- **`ssi_lane`: `f64` only** (`props.rs:7729` against `:8077`). `f64`
+  logs everything the march and the spline readings decide
+  (`ssi_transversality`, `ssi_step_progress`, `ssi_closure_*`,
+  `ssi_on_locus`, `ssi_tube_*`, `ssi_chart_domain`, `ssi_pair_*`, and
+  the march's own limb 2, `ssi_hull_value` then `ssi_hull_sup`,
+  `ssi/certify.rs:1172`, `:1187`). `Interval` refuses before any march
+  (`CarryRefusal::NoLane`, `pair_section.rs:2093`; `NoMarch`,
+  `spline_implicit.rs:705`). Not read: which march rows sit inside
+  unlogged scopes.
+- **`clearance_lane`: `Interval` only** (`props.rs:7754` against
+  `:8103`). `Interval` logs one `clearance_margin` row, only where the
+  sweep refuses `BoxDependent` under an upper bound (`editor-core`'s
+  `eval/wire.rs:2733`); the sweep's own readings run under
+  `k_stats::unlogged("F41")` (`clearance.rs:1649`). `f64` answers
+  `NeedsCertifyingLane` (`wire.rs:2658`) and logs nothing.
+- **`leaf` / `take`.** `f64`: `Leaf = AtRestBody`, the full finish runs
+  at leaf time under a bracket whose record is held on the body and
+  relogged by `take` (`props.rs:7774`–`7796`). `Interval`:
+  `Leaf = Replay`, tier 2 only at leaf time, and `take` finishes a
+  clone live (`props.rs:8119`–`8131`). So `f64`'s rows at a taker are a
+  replay of what it decided at leaf time, and `Interval`'s are decided
+  there afresh: the two are equal only where tier 3 itself logs alike
+  at both scalars. A tier-3 refusal's record lands on the leaf node at
+  `f64` and on a taker (or nowhere) at `Interval`; a moved leaf runs
+  `T::leaf` again at `f64` (`finish.rs:659`) and no completion at
+  `Interval`.
+
+Outside the four lanes, the two sites the measured partings name:
+`limb2`'s switch on the witness kind
+(`limb-2-logs-other-decisions-at-an-enclosure-scalar-than-at-the-witness`),
+and `pcurve_projected_lever`'s count on a line × cone row, whose parts
+are halved on a detached spread reading that takes "spread" where it
+is undecided (`pcurve_cache/projected.rs:3165`–`3204`), so a wider
+value gives more parts and more rows. That the second is the cause of
+a measured parting is inferred.
+
+Not determined by this read: whether a body that reaches any of the
+`f64`-only lanes can be driven over a box at all today (each refuses
+at `Interval`, so such a leaf fails before its vectors are compared).

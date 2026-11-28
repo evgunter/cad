@@ -1727,8 +1727,11 @@ fn classify_replay<T: topo::AtRestPolicy + geom_core::Decide>(
     //
     // HOW IT ASKS, AND IN WHAT ORDER. Two reads per node, and the
     // order is a rule: (1) the node's escalation log decides among the box-DEPENDENT outcomes: every
-    // indeterminate outcome the FUNNEL produced while the op ran is on
-    // it — on the value if the op built anyway, on the error if it did
+    // indeterminate outcome the FUNNEL logged while the op ran is on
+    // it (a reading taken through `k_stats::unlogged` or
+    // `check_unlogged` is not: its ledger row in
+    // `docs/predicate-dimension-audit.md` argues why no reader here
+    // wants it) — on the value if the op built anyway, on the error if it did
     // not — so an escalation an op wrapped in its own error enum (a
     // sweep's `ExtrusionEscalated`, ~40 such variants across five
     // crates) is seen without matching on any of them — which is what

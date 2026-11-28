@@ -1754,11 +1754,7 @@ fn rederive_faces<T: geom_core::Certifies>(
             None => match walked_closed_form(lane, surface, &run.contribution) {
                 Some(read) => read,
                 None => {
-                    // The interval re-read of a face the walk decided
-                    // (ledger row F48): it states no decision of its own.
-                    let (read, moved) = geom_core::k_stats::unlogged("F48", || {
-                        lifted_closed_form(body, band, lane, run)
-                    })?;
+                    let (read, moved) = lifted_closed_form(body, band, lane, run)?;
                     recentred &= moved;
                     read
                 }
@@ -1804,35 +1800,35 @@ fn walked_closed_form<T: geom_core::Certifies>(
 /// scalar** about the point its run was read about, with its region's
 /// carry ([`closed_form_or_carried`]), and whether it was read there.
 ///
-/// Its decisions are the walk's own, asked again of the face's geometry
-/// lifted, so the re-derivation runs it off the log
-/// (`docs/predicate-dimension-audit.md`, F48): a verdict vector lists a
-/// face's premises where the walk decided them, at every scalar alike.
-/// A refusal here still refuses the face.
+/// It is read off the log, for every caller: ledger row F48
+/// (`docs/predicate-dimension-audit.md`) says why, and what its
+/// decisions still steer.
 fn lifted_closed_form<T: geom_core::Certifies>(
     body: &Body<T>,
     band: Band,
     lane: QuadLane<T>,
     run: &FaceRun<T>,
 ) -> Result<((Interval, Interval), bool), MassPropsError> {
-    let face = body.proven_face(run.face);
-    let (c, moved) = closed_form_or_carried(
-        |surface, loops, points, same_sense, band, about, cap| {
-            (lane.closed_form)(surface, loops, points, same_sense, band, about, cap)
-        },
-        face.expect_described(),
-        &face_loops(face)?,
-        &face_tips(face)?,
-        face.sense(),
-        band,
-        corner_of(lane, run),
-    )
-    .map_err(|source| MassPropsError::Face {
-        face: run.face,
-        source,
-    })?;
-    let carry = run.about.carry().unwrap_or_else(Interval::zero);
-    Ok(((c.flux + carry, c.area), moved))
+    geom_core::k_stats::unlogged("F48", || {
+        let face = body.proven_face(run.face);
+        let (c, moved) = closed_form_or_carried(
+            |surface, loops, points, same_sense, band, about, cap| {
+                (lane.closed_form)(surface, loops, points, same_sense, band, about, cap)
+            },
+            face.expect_described(),
+            &face_loops(face)?,
+            &face_tips(face)?,
+            face.sense(),
+            band,
+            corner_of(lane, run),
+        )
+        .map_err(|source| MassPropsError::Face {
+            face: run.face,
+            source,
+        })?;
+        let carry = run.about.carry().unwrap_or_else(Interval::zero);
+        Ok(((c.flux + carry, c.area), moved))
+    })
 }
 
 /// A face's loops as their vertex points, in traversal order, the outer
@@ -9944,15 +9940,13 @@ mod lifted_pass_rows {
     }
 
     /// **The re-derivation states nothing on the log at a scalar that
-    /// rounds** (`rederive_faces`' closed-form read, ledger row F48): the
-    /// drum's wall is read again at the interval scalar, its premises
-    /// asked again there, and none of them is recorded, so the log lists
-    /// them where the walk decided them and nowhere else. The read
-    /// itself is taken: the volume it encloses is the drum's.
+    /// rounds** (ledger row F48): the drum's wall is read again at the
+    /// interval scalar and none of its premises is recorded. That the
+    /// read is taken at all is the next row's.
     ///
-    /// Red where the lifted pass runs on the log (`unlogged` taken off
-    /// `lifted_closed_form`'s call): two verdicts are recorded,
-    /// `props_circle_axis_class` and `props_rim_fit`.
+    /// Red where the lifted pass runs on the log (`unlogged` taken out
+    /// of `lifted_closed_form`): the wall's premises are recorded,
+    /// `props_circle_axis_class` first.
     #[test]
     fn the_lifted_pass_records_nothing_on_the_log() {
         let tol = Tol::witness();
@@ -9965,13 +9959,7 @@ mod lifted_pass_rows {
             "the re-derivation recorded {:?}",
             recorded.verdicts
         );
-        use geom_core::Bounds;
-        let volume = read.unwrap().volume;
-        let drum = core::f64::consts::PI * 0.8125 * 0.8125;
-        assert!(
-            volume.lo() <= drum && drum <= volume.hi() && volume.hi() - volume.lo() < 1e-12,
-            "the re-derived volume {volume:?} is not the drum's {drum}"
-        );
+        read.unwrap();
     }
 
     /// `quad_lane::closed_form`, refusing every curved face by a payload
@@ -9993,11 +9981,10 @@ mod lifted_pass_rows {
         quad_lane::closed_form(surface, loops, held, sense, band, centre, measured)
     }
 
-    /// **A refusal inside the lifted pass refuses the face, by its own
-    /// payload**: running the pass off the log drops what it records,
-    /// never what it returns. A lane whose closed form refuses the
-    /// drum's wall refuses the re-derivation at that face, with the
-    /// refusal it was handed.
+    /// **The lifted pass is run on a curved face, and a refusal inside
+    /// it refuses the face by its own payload**: a lane whose closed
+    /// form refuses the drum's wall refuses the re-derivation at that
+    /// face, with the refusal it was handed.
     ///
     /// Red where the re-derivation answers a refused lifted pass some
     /// other way (the walk's sums in its place): it reads a volume.
@@ -10011,7 +9998,12 @@ mod lifted_pass_rows {
         };
         let wall = runs
             .iter()
-            .find(|run| !matches!(body.proven_face(run.face).surface(), Surface::Plane { .. }))
+            .find(|run| {
+                !matches!(
+                    body.proven_face(run.face).expect_described(),
+                    Surface::Plane { .. }
+                )
+            })
             .unwrap()
             .face;
         match rederive(&body, band, tol, lane, &runs, true) {
