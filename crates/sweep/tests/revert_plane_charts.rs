@@ -6,10 +6,9 @@
 //! the reflection, and every certificate the source carried is a
 //! certificate of the result (`topo::revert` module docs). Measured on
 //! SHELL's drum: a cylinder whose top cap carries a latitude ring, so
-//! one plane holds three faces with the ring between them, and the
-//! ring's two half-circles are the plane images with a non-zero `v`
-//! channel (the two radial lines lie on the `u_ref` axis and were fixed
-//! by the mirror all along). The other image kinds a
+//! one plane holds two faces with the ring between them, and the ring
+//! is the plane image with a non-zero `v` channel. The other image
+//! kinds a
 //! plane can carry — an iso line, a fitted or general NURBS image —
 //! have no producer on a plane, so their body-level rows build the
 //! face by hand through the Euler door with the image given.
@@ -83,11 +82,10 @@ fn assert_mirrored(label: &str, stored: &Pcurve<f64>, mirrored: &Pcurve<f64>, ts
 
 /// **The red-first row.** Every plane chart image of the reverted
 /// cavity is the cavity's image with `v` negated, bit for bit, at all
-/// nine schedule samples — the ring's two half-circles included, whose
-/// `v` channel is where the unmirrored image used to miss by
-/// `2·r·sin(π/8)`. On the merge base every plane image travels
-/// verbatim: the radial lines pass (a zero is its own negation up to
-/// sign) and this row fails at the half-circles' first interior sample.
+/// nine schedule samples — the latitude ring, whose `v` channel is
+/// where the unmirrored image used to miss. A full revolve's plane wall
+/// is one face with no radial seam, so the ring is the cavity's one
+/// plane image.
 #[test]
 fn reverted_drum_cavity_mirrors_every_plane_chart_image_with_its_frame() {
     let cavity = door_cavity(&collinear_cap_drum(), T);
@@ -103,15 +101,8 @@ fn reverted_drum_cavity_mirrors_every_plane_chart_image_with_its_frame() {
         }
         assert_mirrored(&format!("{ek:?}"), before, after, &schedule(&cavity, *ek));
     }
-    assert_eq!(
-        circles, 2,
-        "the latitude ring's two half-circles are plane images"
-    );
-    assert!(
-        stored.len() > circles,
-        "the radial lines are plane images too: {} images",
-        stored.len()
-    );
+    assert_eq!(circles, 1, "the latitude ring is a plane image");
+    assert_eq!(stored.len(), circles, "and the plane's only one");
 }
 
 /// **The contract at `revert`'s module docs, metered.** Every edge of

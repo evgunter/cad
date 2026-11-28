@@ -162,8 +162,7 @@ impl<'a> ChartRow<'a> {
     ///
     /// # Errors
     ///
-    /// [`TessellateError::UnsupportedSurface`] for a NURBS face with no
-    /// description yet; [`TessellateError::MissingEntity`] for a plane,
+    /// [`TessellateError::MissingEntity`] for a plane,
     /// which has no chart row, and for a spline face whose cell table the
     /// chord pass did not leave; the window readers' errors.
     pub(crate) fn of(
@@ -173,12 +172,6 @@ impl<'a> ChartRow<'a> {
         bounds: &'a FaceBounds,
     ) -> Result<Self, TessellateError> {
         match *surface {
-            // The mvfs "no description yet" state (types docs). An
-            // approximating surface has no such state: its fit is
-            // certified by construction.
-            Surface::Nurbs(ref payload) if payload.is_placeholder() => {
-                Err(TessellateError::UnsupportedSurface { face: fk })
-            }
             Surface::Nurbs(_) | Surface::Approx(_) => Ok(Self::Spline {
                 grid: face_cells(bounds, fk)?,
             }),
@@ -411,7 +404,9 @@ impl<'a> AnalyticRow<'a> {
     /// face's widest). Two rows at roots `s` and `s + Δs` then stand
     /// `Δs·(2s + Δs) ≤ hv·√(v_m/v_w)` apart, `v_m` the slant midway
     /// between them in `s`: `hv` at the widest radius, shorter toward the
-    /// apex, and at most twice the uniform count over a window.
+    /// apex, and at most twice the uniform count over a window. The
+    /// trimmed lane then grades the gaps of a cone face whose span lets a
+    /// triangle reach far round the axis (`trimmed::reach_graded`).
     ///
     /// *What is proved.* A chord of 3-D length `L` from radius `ρ₁` to a
     /// larger one, `Δu` round the axis, sags at most

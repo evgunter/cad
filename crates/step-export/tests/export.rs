@@ -473,7 +473,7 @@ fn empty_body_refuses_typed() {
 }
 
 /// mvfs's skeletal body — one face bounded by an empty loop, its
-/// surface the "no description yet" placeholder — is legal only
+/// surface still pending — is legal only
 /// mid-construction, so the at-rest gate refuses it and the writer
 /// never sees it.
 #[test]
@@ -550,6 +550,14 @@ fn a_mid_surgery_body_cannot_reach_the_writer() {
 /// regeneration. The sign of a zero component is one real number either
 /// way, and nothing reads it: the importer folds it at translation.
 ///
+/// **Regenerated when a full revolve's curved wall became one band**
+/// (LATHE, `lathe/full-revolve-one-band`): five fixtures, `ball`,
+/// `cone`, `die_pips`, `composed_die` and `lily_lantern`, each curved
+/// revolve wall one `ADVANCED_FACE` closing on its one seam meridian
+/// where it was two half-bands meeting at a meridian and its π copy.
+/// Faces `ball` 2 → 1, `cone` 3 → 2, `die_pips` 48 → 27,
+/// `composed_die` 89 → 68, `lily_lantern` 6 → 4; every other fixture is
+/// byte for byte what it was.
 /// **Regenerated when the Rodrigues arm spelled its last term
 /// `k × (k × v)/(1 + c)`** (`least_turn_rodrigues`, so that a pair one
 /// direction turns by the identity through the arithmetic): the same 5
@@ -635,7 +643,7 @@ fn boss_union_seam_vertices_are_exactly_on_the_plate_top() {
     let body = common::boss_union();
     // (2) first: the chart cannot express any z but the plane's own.
     let tops: Vec<_> = body
-        .surfaces()
+        .described_surfaces()
         .filter_map(|(k, s)| match s {
             geom::Surface::Plane { frame }
                 if frame.origin().z == 1.0 && frame.axis().z.abs() == 1.0 =>

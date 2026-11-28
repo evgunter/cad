@@ -33,12 +33,13 @@
 //!    `revert`'s refusal of two edges on one segment is not asked: it
 //!    guards the COMPLEMENT, whose wedges pair the sheets differently,
 //!    while a reflection maps each wedge onto a wedge.
-//! 3. **Pcurve rows and joints re-minted** on the image, construction-
-//!    fresh. A row on an analytic chart restated with its azimuth
-//!    negated is the same locus, but it lands on a branch a whole period
-//!    off the one a fresh mint takes, which tier 3 reads as a deck shift
+//! 3. **Pcurve rows and joints dropped** on the image. A row on an
+//!    analytic chart restated with its azimuth negated is the same
+//!    locus, but it lands on a branch a whole period off the one a fresh
+//!    mint takes, which tier 3 reads as a deck shift
 //!    (`EnvelopeTerm::FidelityU`), so the rows are derived again rather
-//!    than restated.
+//!    than restated: by the finish that takes the image, or by the
+//!    reflection arm of [`crate::FinishedBody::moved`].
 //!
 //! The net effect, face by face: a plane's normal is `M·n` and its chart
 //! `v` reversed; an analytic face keeps its `sense` and its chart's
@@ -59,8 +60,6 @@
 //!
 //! # The audit's residuals (P3)
 //!
-//! The `Nurbs` placeholder refuses as [`crate::transform_rigid`] does,
-//! and a row the re-mint refuses refuses [`TransformError::Pcurve`].
 //! Every chart image has a mirror image, a spiric's included
 //! (`map_isometry`'s `reflected_image`).
 
@@ -109,29 +108,21 @@ impl<T: Real> Reflection<T> {
 }
 
 /// The mirror image of `body` across `reflection`'s plane (module docs):
-/// a new body with the source's keys, every certificate carried and its
-/// pcurve rows re-minted. It
-/// is the construction-state map; a finished body mirrors through
-/// [`crate::FinishedBody::moved`], which carries its verdict too.
+/// a new body with the source's keys, every certificate carried and no
+/// pcurve row. It is the construction-state map; a finished body mirrors
+/// through [`crate::FinishedBody::moved`], which carries its verdict too.
 ///
 /// # Errors
 ///
 /// [`TransformError`], as [`crate::transform_rigid`].
-pub fn mirror_body<T: Decide + crate::props::AtRestPolicy>(
+pub fn mirror_body<T: Decide>(
     body: &Body<T>,
     reflection: &Reflection<T>,
-    tol: Tol,
 ) -> Result<Body<T>, TransformError> {
-    let owes_rows = body.pcurves().next().is_some();
     let mut inside_out = map_isometry(body, &Isometry::Improper(*reflection))?;
     inside_out.pcurves.clear();
     inside_out.joints.clear();
-    let mut out = inside_out.reverted();
-    if owes_rows {
-        crate::pcurves::mint_pcurves(&mut out, tol)
-            .map_err(|source| TransformError::Pcurve { source })?;
-    }
-    Ok(out)
+    Ok(inside_out.reverted())
 }
 
 #[cfg(test)]
@@ -158,9 +149,9 @@ mod tests {
         let (body, face) = crate::fixtures::approx_faced_body::<f64>();
         let reflection =
             Reflection::across(Point3::new(0.1, -0.2, 0.3), Vec3::new(1.0, 2.0, 3.0), tol).unwrap();
-        let image = mirror_body(&body, &reflection, tol).expect("an offset face mirrors");
+        let image = mirror_body(&body, &reflection).expect("an offset face mirrors");
         let m = reflection.to_affine();
-        let surface = |b: &Body<f64>| b.proven_face(face).surface().clone();
+        let surface = |b: &Body<f64>| b.proven_face(face).surface().unwrap().clone();
         let (source, mapped) = (surface(&body), surface(&image));
         let (Surface::Approx(a), Surface::Approx(b)) = (&source, &mapped) else {
             panic!("the image's face is an offset surface: {mapped:?}");

@@ -1,4 +1,4 @@
-//! A z-poled ball's lune split by `mef` along a meridian OUTSIDE it: its
+//! A z-poled ball of two lunes, one lune split by `mef` along a meridian OUTSIDE it: its
 //! faces then cover the sphere twice, each holds both poles on its loop,
 //! and their seam region has no boundary, so no side is read for it.
 //! Tier 3's cover census refuses it: the three faces claim the sphere
@@ -12,25 +12,28 @@
 #![allow(clippy::unwrap_used, clippy::panic)]
 
 use crate::seam_region_common::{
-    flipped, sphere_faces, split_at_meridian, split_faces_at_equator, split_inside,
-    split_meridians_at_equator, split_outside, v,
+    flipped, sphere_faces, split_faces_at_equator, split_inside, split_meridians_at_equator,
+    split_outside, two_lunes, v,
 };
 use geom_brep::props::PropsError;
 use geom_core::Tol;
 use sweep::test_support::{ball_poled, finished};
+use topo::AtRestBody;
+
+/// The z-poled unit ball split into its two lunes.
+fn lune_ball(tol: Tol) -> AtRestBody<f64> {
+    let mut ball = ball_poled(1.0, v([0.0; 3]), v([0.0, 0.0, 1.0]), tol);
+    two_lunes(&mut ball, tol);
+    finished("ball", ball, tol)
+}
 use topo::{Body, ValidationError};
 
 #[test]
 fn an_exterior_meridian_covers_the_sphere_twice_and_is_refused() {
     let tol = Tol::witness();
-    let ball = finished(
-        "ball",
-        ball_poled(1.0, v([0.0; 3]), v([0.0, 0.0, 1.0]), tol),
-        tol,
-    );
+    let ball = lune_ball(tol);
     let mut body = Body::clone(&ball);
-    let lune = sphere_faces(&body)[0];
-    split_at_meridian(&mut body, lune, v([0.0, 1.0, 0.0]), tol);
+    assert!(split_outside(&mut body, v([0.0, 1.0, 0.0]), tol));
     assert_eq!(sphere_faces(&body).len(), 3, "the lune is split in two");
     let errs = topo::validate_geometric(&body, tol).unwrap_err();
     assert!(
@@ -66,11 +69,7 @@ fn an_exterior_meridian_covers_the_sphere_twice_and_is_refused() {
 #[test]
 fn a_double_cover_whose_faces_each_read_their_own_side_is_refused() {
     let tol = Tol::witness();
-    let ball = finished(
-        "ball",
-        ball_poled(1.0, v([0.0; 3]), v([0.0, 0.0, 1.0]), tol),
-        tol,
-    );
+    let ball = lune_ball(tol);
     let mut control = Body::clone(&ball);
     split_meridians_at_equator(&mut control, tol);
     split_faces_at_equator(&mut control, tol);
@@ -130,11 +129,7 @@ fn a_double_cover_whose_faces_each_read_their_own_side_is_refused() {
 fn a_ball_of_three_lunes_or_more_turned_inside_out_is_an_over_cover() {
     let tol = Tol::witness();
     for n in [2usize, 3, 5] {
-        let mut body = Body::clone(&finished(
-            "ball",
-            ball_poled(1.0, v([0.0; 3]), v([0.0, 0.0, 1.0]), tol),
-            tol,
-        ));
+        let mut body = Body::clone(&lune_ball(tol));
         let mut k = 0;
         while sphere_faces(&body).len() < n {
             let a = 0.1 + std::f64::consts::TAU * f64::from(k) / 7.0;

@@ -80,7 +80,7 @@ impl NameOrigin {
 }
 
 /// What one role segment says about the entity it names.
-pub(crate) enum SegOrigin<'a> {
+pub enum SegOrigin<'a> {
     /// The entity existed in an operand; the name is its name there,
     /// and the [`CarriedAs`] says what the op did to it on the way.
     Carried(&'a StableName, CarriedAs<'a>),
@@ -93,7 +93,7 @@ pub(crate) enum SegOrigin<'a> {
 /// **How an operand's entity was carried through** — the module docs'
 /// three ways, with what tells two carried copies of one entity apart.
 #[derive(Clone, Copy)]
-pub(crate) enum CarriedAs<'a> {
+pub enum CarriedAs<'a> {
     /// Passed through whole from the input the op read through `read`:
     /// a member, a seat or a target.
     From(crate::VarId),
@@ -110,7 +110,8 @@ pub(crate) enum CarriedAs<'a> {
 
 /// Read the outermost segment's verdict — the whole classification,
 /// stated once (module docs).
-pub(crate) fn origin(seg: &RoleSeg) -> SegOrigin<'_> {
+#[must_use]
+pub fn origin(seg: &RoleSeg) -> SegOrigin<'_> {
     match seg {
         // The name-free roles are the sweep, split and boolean
         // primitives: an entity born of the recipe rather than of an
@@ -154,7 +155,10 @@ pub(crate) fn origin(seg: &RoleSeg) -> SegOrigin<'_> {
         // face became.
         | RoleSeg::Inner(_)
         | RoleSeg::Rim(_)
-        | RoleSeg::HoleRim { .. } => SegOrigin::Minted,
+        | RoleSeg::HoleRim { .. }
+        // A closed edge's conventional vertex cites that edge, an
+        // entity of this node's own body, and is none of it.
+        | RoleSeg::ConventionalVertex(_) => SegOrigin::Minted,
 
         // A merged face has SEVERAL parents and is identical to none
         // of them, so there is no single operand entity to descend

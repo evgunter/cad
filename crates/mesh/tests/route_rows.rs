@@ -191,7 +191,7 @@ fn poisoned(
     let (fk, sense, was) = body
         .faces()
         .find(|(fk, f)| {
-            f.rings.is_empty() && matches!(body.face_surface(*fk), Some(Surface::Cylinder { .. }))
+            f.rings.is_empty() && matches!(body.face_surface(*fk), Ok(Surface::Cylinder { .. }))
         })
         .map(|(fk, f)| (fk, f.sense, body.face_surface(fk).unwrap().clone()))
         .expect("a ringless wall");
@@ -223,31 +223,34 @@ fn no_non_iso_form(body: &Body<f64>, fk: topo::FaceKey) -> bool {
         .all(|h| body.pcurve(h).is_none_or(|c| !c.pcurve().is_non_iso_form()))
 }
 
-/// **A section tilted within the band meshes to main's bytes.** The
+/// **A section tilted within the band meshes to its pinned bytes.** The
 /// ball less a slab turned a few nanoradians: the circle's axis class
 /// lands in the band at the shape door (margin ≈ θ), but the mint stored
 /// each sphere face's section as a projected image, which is no iso
 /// line, so the route sends the face to the trimmed lane without asking
 /// the door. Each cell meshes, passes `check_mesh`, and digests to the
-/// bytes it meshed to on the merge base.
+/// bytes pinned here. The four `x0 = 0.3` cells' bytes are read with
+/// the body's vertices as the boolean rounds them on unit carrier
+/// directions (a few ulps from the rounding before them, the mesh's
+/// counts the same).
 #[test]
-fn a_section_tilted_within_the_band_meshes_to_mains_bytes() {
-    const MAIN: [(f64, f64, u64); 8] = [
-        (0.3, 2e-9, 0x8f44_f884_2b54_c898),
-        (0.3, 3e-9, 0x0596_3e5f_aff7_827f),
-        (0.3, 5e-9, 0x3a24_2f4d_5df2_2351),
-        (0.3, 8e-9, 0x63f8_de94_5085_4eb9),
-        (0.6, 2e-9, 0x5f5b_7e07_e15f_1436),
-        (0.6, 3e-9, 0x33aa_c942_b3f8_59c6),
-        (0.6, 5e-9, 0x02eb_fa12_532b_212e),
-        (0.6, 8e-9, 0xbb9a_30df_a7b3_36b0),
+fn a_section_tilted_within_the_band_meshes_to_its_pinned_bytes() {
+    const PINNED: [(f64, f64, u64); 8] = [
+        (0.3, 2e-9, 0xfe73_0cfb_6f43_27ad),
+        (0.3, 3e-9, 0x5e6b_f545_8933_1d7c),
+        (0.3, 5e-9, 0x3291_1c0a_47a1_aeaa),
+        (0.3, 8e-9, 0x018d_08e3_72f2_6f85),
+        (0.6, 2e-9, 0x992a_1dd8_5fac_89cc),
+        (0.6, 3e-9, 0x0a0f_3a92_b511_90c8),
+        (0.6, 5e-9, 0xe13e_b4ca_24a6_f2f2),
+        (0.6, 8e-9, 0xda7f_9b6b_d4b3_4a4a),
     ];
-    for (x0, theta, want) in MAIN {
+    for (x0, theta, want) in PINNED {
         let body = ball_less_a_tilted_slab(x0, theta);
         let label = format!("x0 = {x0}, θ = {theta:e}");
         assert!(
             body.faces().any(|(fk, _)| {
-                matches!(body.face_surface(fk), Some(Surface::Sphere { .. }))
+                matches!(body.face_surface(fk), Ok(Surface::Sphere { .. }))
                     && !no_non_iso_form(&body, fk)
             }),
             "{label}: a sphere face stores a projected image"
@@ -255,7 +258,7 @@ fn a_section_tilted_within_the_band_meshes_to_mains_bytes() {
         let mesh = mesh::tessellate(&body, 5e-2, Tol::witness())
             .unwrap_or_else(|e| panic!("{label}: meshes, got {e:?}"));
         mesh::validate::check_mesh(&mesh).unwrap_or_else(|e| panic!("{label}: {e:?}"));
-        assert_eq!(mesh_digest(&body, 5e-2), want, "{label}: main's bytes");
+        assert_eq!(mesh_digest(&body, 5e-2), want, "{label}: the pinned bytes");
     }
 }
 
@@ -294,6 +297,17 @@ fn a_section_tilted_within_the_band_meshes_to_mains_bytes() {
 /// other decision the same in order and sign — and they were all a memo
 /// hit recorded, so a hit on those five now records nothing. The mesh is
 /// byte-identical on all nine bodies.
+///
+/// **One move, on the bodies a full revolve's curved wall makes.** The
+/// ball, the cone and the three balls less a slab are built with each
+/// curved wall one face reaching the axis by its wrap edge, where they
+/// were two half-bands: fewer faces and edges, so their K streams and
+/// bytes are re-pinned on that branch (PR 7414); every other row is
+/// main's unchanged. The ball less a slab at 0.3 turned 2e-9 holds
+/// its four vertices a few ulps from where that branch held them
+/// before main's merge (unit carrier directions), with the same
+/// topology and the same 185 positions and 62 + 304 triangles, so its
+/// bytes are that branch's measured on the merge.
 #[test]
 fn a_body_that_meshes_records_mains_k_stream() {
     const MAIN: [(&str, u64, u64, u64); 9] = [
@@ -311,15 +325,15 @@ fn a_body_that_meshes_records_mains_k_stream() {
         ),
         (
             "ball",
-            0x5aaf_8fe2_c8bd_5999,
+            0xd989_c8c2_2884_6a96,
             0xcbf2_9ce4_8422_2325,
-            0x8403_8e18_2870_7107,
+            0x82de_47f9_12c6_3b20,
         ),
         (
             "cone",
-            0x84b3_064b_95c6_8ad5,
+            0x1d69_ab23_9d29_0d1c,
             0xcbf2_9ce4_8422_2325,
-            0xee15_493c_99b8_730d,
+            0x66cc_0536_ee55_6c4c,
         ),
         (
             "donut",
@@ -329,9 +343,9 @@ fn a_body_that_meshes_records_mains_k_stream() {
         ),
         (
             "ball less a slab turned 0.3",
-            0x5dae_4d58_bce4_166f,
+            0x1587_ba3b_91f0_f3a5,
             0xcbf2_9ce4_8422_2325,
-            0xc7c8_23ba_ac8c_455f,
+            0x64f4_4265_6ecd_b1f0,
         ),
         (
             "pipe cut on a tilt",
@@ -341,15 +355,15 @@ fn a_body_that_meshes_records_mains_k_stream() {
         ),
         (
             "ball less a slab at 0.3 turned 2e-9",
-            0x5dae_4d58_bce4_166f,
+            0x1587_ba3b_91f0_f3a5,
             0xcbf2_9ce4_8422_2325,
-            0x8f44_f884_2b54_c898,
+            0xfe73_0cfb_6f43_27ad,
         ),
         (
             "ball less a slab at 0.6 turned 8e-9",
-            0x5dae_4d58_bce4_166f,
+            0x1587_ba3b_91f0_f3a5,
             0xcbf2_9ce4_8422_2325,
-            0xbb9a_30df_a7b3_36b0,
+            0xda7f_9b6b_d4b3_4a4a,
         ),
     ];
     let corpus = k_corpus();
@@ -454,7 +468,7 @@ fn a_split_side_is_not_read_before_the_doors_answer() {
     let (wall, _) = washer
         .faces()
         .find(|(fk, f)| {
-            f.rings.is_empty() && matches!(washer.face_surface(*fk), Some(Surface::Cylinder { .. }))
+            f.rings.is_empty() && matches!(washer.face_surface(*fk), Ok(Surface::Cylinder { .. }))
         })
         .expect("a ringless wall");
     let seam: Vec<topo::EdgeKey> = washer
@@ -545,7 +559,7 @@ fn poisoned_ellipse_wall() -> (Body<f64>, topo::FaceKey) {
     let (fk, sense, was) = body
         .faces()
         .find(|(fk, f)| {
-            f.rings.is_empty() && matches!(body.face_surface(*fk), Some(Surface::Cylinder { .. }))
+            f.rings.is_empty() && matches!(body.face_surface(*fk), Ok(Surface::Cylinder { .. }))
         })
         .map(|(fk, f)| (fk, f.sense, body.face_surface(fk).unwrap().clone()))
         .expect("the wall");

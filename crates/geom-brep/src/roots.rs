@@ -24,7 +24,9 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Real};
 /// (module docs).
 #[derive(Debug, Clone, Copy)]
 pub enum Roots<T, const N: usize, C = Infallible> {
-    /// A certified count of zero: the carrier misses the surface.
+    /// A certified count of zero: the carrier misses the surface, on the
+    /// arc that was read (a door's wrapper reads its arc only, so a
+    /// meeting off it is no meeting here).
     Miss,
     /// The residual is a zero constant along the carrier: it lies on the
     /// surface.
@@ -288,6 +290,22 @@ pub fn touch_or_tangency<R: From<Unsettled>>(
     touch: impl FnOnce(Indeterminate) -> R,
 ) -> R {
     gap.map_or_else(|| Unsettled::Tangency.into(), touch)
+}
+
+/// **A stored root the solved-value door refused**, told as the walk's
+/// refusal: a residual read definitely off is [`Unsettled::Meter`] under
+/// the door's row, and one in the band's escalation the caller's
+/// `escalated`. The one spelling of that mapping for the curve × face
+/// arms ([`crate::curve_face::composite`],
+/// [`crate::curve_face::spline_face`]).
+pub fn unadmitted<R: From<Unsettled>>(
+    refused: geom_core::solved::Unadmitted,
+    escalated: impl FnOnce(Indeterminate) -> R,
+) -> R {
+    match refused {
+        geom_core::solved::Unadmitted::Off { row, .. } => Unsettled::Meter { row }.into(),
+        geom_core::solved::Unadmitted::Undecided(diag) => escalated(diag),
+    }
 }
 
 impl From<RootFault> for RootRefusal {

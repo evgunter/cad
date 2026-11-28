@@ -145,8 +145,8 @@ pub use curved::{
     ClosedSurface, MaterialSign, SeamCover, SeamLoops, boundary_material_sign,
     boundary_material_sign_holding, boundary_material_sign_loops, closed_surface,
     cone_face_closed_form, curved_face, curved_face_holding, curved_face_loops,
-    iso_rectangle_sides, require_iso_rectangle, require_one_chart_branch, seam_loops,
-    sphere_region_cover, sphere_region_material_sign, whole_surface,
+    iso_rectangle_sides, require_cone_cap, require_iso_rectangle, require_one_chart_branch,
+    seam_loops, sphere_region_cover, sphere_region_material_sign, whole_surface,
 };
 pub(crate) use curved::{PoleLeft, sphere_pole_left};
 pub use loop_area::{
@@ -165,8 +165,12 @@ pub use loop_area::{
 ///
 /// The tags must **faithfully identify shared vertices** — no residual
 /// can catch a tag lie, because a lie leaves the geometry unchanged.
-/// No props lane reads them: closure is decided on the traversed
-/// endpoints, and a tag lie moves no flux (`torus_flux_reads_no_tags`).
+/// One props lane reads them: a cone loop that passes its apex point
+/// more than once is measured only where every pass is at one vertex
+/// tag (`curved`'s apex lobes, `props_cone_apex_vertices`), so a tag lie
+/// there admits two cones of material meeting at the apex. Elsewhere
+/// closure is decided on the traversed endpoints, and a tag lie moves
+/// no flux (`torus_flux_reads_no_tags`).
 /// `topo`'s flattening satisfies the contract by construction
 /// (first-seen traversal order over the half-edge cycle); callers
 /// constructing `LoopEdge`s by hand own it.
@@ -302,7 +306,7 @@ pub struct FaceContribution<T: Real> {
 )]
 pub enum PropsError {
     /// A carrier or surface this closed-form inventory has no arm for
-    /// and never will in this lane: the `Nurbs` placeholder, and a
+    /// and never will in this lane: a
     /// `Curve3::Spiric` boundary edge on a plane (the oval's area is an
     /// elliptic integral) or on a cylinder, cone or sphere (a spiric
     /// lies on none). A spiric-bounded face is measured by the
@@ -432,7 +436,8 @@ pub enum PropsError {
     },
     /// A cone face (`curved::cone_face_closed_form`) fails a premise of
     /// its vector-area closed form: a loop that sweeps past a turn
-    /// through the apex, that meets itself at a vertex, or a ring that
+    /// through the apex, that meets itself at a vertex off the apex,
+    /// whose lobes at the apex cover it other than once, or a ring that
     /// touches the apex. Name-only, as [`Self::SphereLoop`]: `what` is
     /// the deciding predicate's name.
     ///

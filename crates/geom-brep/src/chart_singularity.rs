@@ -487,7 +487,7 @@ pub struct Located<T: Real> {
 /// # Errors
 ///
 /// The escalation of a distance in the band.
-pub fn on_boundary<T: Decide>(d: T, band: Band) -> Result<bool, Indeterminate> {
+fn on_boundary<T: Decide>(d: T, band: Band) -> Result<bool, Indeterminate> {
     decide("chart_singularity_on_boundary", Margin::of(d), band).map(|s| s == Sign::Zero)
 }
 
@@ -1619,11 +1619,10 @@ pub fn spline_collapsed_row<T: Real>(
     net: &geom::NurbsSurface<T>,
     side: crate::ssi::ChartSide,
 ) -> Option<Vec<usize>> {
-    // A net that is not `Described` — the placeholder, or a poisoned
-    // net — describes no surface, so it has no side to read: its rows are
-    // one stored point because they are poison, not because a side
-    // collapses. Every side reader asks here.
-    if !matches!(net.net_state(), geom::NetState::Described) {
+    // A net that is not finite describes no surface, so it has no side
+    // to read: its rows are one stored point because they are poison,
+    // not because a side collapses. Every side reader asks here.
+    if !net.is_finite() {
         return None;
     }
     let row = side_row(net, side);

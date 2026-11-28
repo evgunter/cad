@@ -369,17 +369,22 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
         "crates/geom-brep/src/pair_section/ruling.rs",
         9,
         9,
-        "the coverage walk's six (`96b964110`) sit in a function that asks: `apart`'s two \
-         behind its own `is_certified()`, and the unseparated root's four (`|−B + σ√D|`'s low \
-         end, `|A|`'s high, the ball's reach and the ruling's speed) each the end of an \
-         enclosure that bounds the way it is read, formed by sums, products and roots alone",
+        "all nine are `coverage`'s, the debug-only cross-check of the sweep's count: `clear`'s \
+         gap (2) and `Δ`'s high end (1), each behind its own `is_certified()`; `apart`'s two, \
+         behind its own `is_certified()`; and the unseparated root's four (`|−B + σ√D|`'s low \
+         end, `|A|`'s high, the ball's reach and the ruling's speed), not behind an ask, each \
+         the end of an enclosure that bounds the way it is read, formed by sums, products and \
+         roots alone. The two sign tests (`Δ < 0`, `apart`'s off-zero) stay off the funnel: \
+         each is a certified exclusion of zero, `Δ`'s proving a ruling misses the partner and \
+         `apart`'s the divisor of the root's quotient, a proof the walk states and not a \
+         decision at the band, and a band only makes them refuse more; `decide` would also \
+         record, from a walk only debug builds run, a decision release builds never make",
     ),
     (
         "crates/geom-brep/src/pair_section/spline_implicit.rs",
-        9,
-        7,
-        "the 7 that ask are PR 6897's three node-carry reads and `box_gap`'s per-axis gap, \
-         read only where both boxes' coordinates certify and NaN otherwise, which holds nothing apart (`PadsMeet`). The other 2 read \
+        3,
+        1,
+        "the 1 that asks is `ray_at`'s lead, read where it certifies. The other 2 read \
          the pivot's lift, the foot's height over the stored plane divided by the stored \
          normal's length: `Pivot::shift`'s upper end, which pads the reading's band, and a \
          quotient by a length not proven away from zero has an end that is not finite, which \
@@ -387,6 +392,12 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          `Bracketed::at`'s, the same lift carried on the reading's form, which is only the \
          bracket's first step, every side it keeps decided by `Bracketed::sign`, which asks \
          `is_certified()` (`ssi::section::sign`), its pad the reach over the span it kept",
+    ),
+    (
+        "crates/geom-brep/src/pair_section/spline_implicit/cells.rs",
+        20,
+        20,
+        "",
     ),
     (
         "crates/geom-brep/src/pair_section/spline_implicit/curved.rs",
@@ -751,14 +762,17 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/topo/src/clearance.rs",
-        54,
+        57,
         16,
-        "the 16 that ask are `poisoned` (2), `iso_bounded_domain`'s knots and joins (12) and \
-         `extent_of` (2). Of the other 38, `split_axis`'s 4 and the `coincidence` and \
+        "the 16 that ask are `poisoned` (2), `exact`'s knots (4), `iso_bounded_domain`'s \
+         joins and winding (8) and `extent_of` (2). Of the other 41, `split_axis`'s 4 and the \
+         `coincidence` and \
          `meeting_stations` seeds (2 and 4) are selections; `min_separation`'s admission (2), \
          `pair`'s (2), `witness`'s (2) and `overflow`'s (1) read a separation `poisoned` has \
          passed; `window_of`'s windows (6) and `row_of`'s parameters (2) read values `certified_lift` crossed, which refuses the face unless every crossing \
-         certifies; `support_separation`'s 8 are the choice of direction (each cell's normal and \
+         certifies, and `window_of`'s two support ends (2) read the boundary's cover, which \
+         `boundary_of` returns only where every lifted value certifies; `sheet_latitude`'s \
+         apex (1) is the high end of the lifted radii's apex latitude, stepped outward an ulp; `support_separation`'s 8 are the choice of direction (each cell's normal and \
          the line between the boxes' centres, read at their middles) and of orientation, and the \
          supports' gap it reads after `poisoned` has passed both, a lower bound along any \
          direction; and `box_dependent`'s 2 store a straddling separation's ends as the \

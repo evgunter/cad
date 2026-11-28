@@ -1438,7 +1438,7 @@ fn a_split_across_a_ringed_wall_mints_each_segment_on_one_curve() {
         .clone();
     let ringed_walls = body
         .faces()
-        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(geom::Surface::Cylinder { .. })))
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Ok(geom::Surface::Cylinder { .. })))
         .filter(|(_, f)| !f.rings.is_empty())
         .count();
     assert_eq!(
@@ -1455,7 +1455,7 @@ fn a_split_across_a_ringed_wall_mints_each_segment_on_one_curve() {
         let ringed = h
             .faces()
             .filter(|(fk, f)| {
-                matches!(h.face_surface(*fk), Some(geom::Surface::Cylinder { .. }))
+                matches!(h.face_surface(*fk), Ok(geom::Surface::Cylinder { .. }))
                     && !f.rings.is_empty()
             })
             .count();
@@ -1497,8 +1497,8 @@ fn a_split_across_a_ringed_wall_mints_each_segment_on_one_curve() {
     let (lower, upper) = (ellipse_arcs(&below), ellipse_arcs(&above));
     assert_eq!(
         (lower.len(), upper.len()),
-        (3, 3),
-        "the section crosses the wall in three arcs: seam to seam, seam to mouth, mouth to seam"
+        (2, 2),
+        "the section crosses the wall in two arcs: seam to mouth, mouth to seam"
     );
     for (carrier, (t0, t1), back) in &lower {
         let back = back.as_ref().expect("an ellipse runs back");

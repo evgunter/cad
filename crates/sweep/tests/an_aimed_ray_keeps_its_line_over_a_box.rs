@@ -66,7 +66,7 @@ fn bottom_cap_ray(lo: f64, hi: f64) -> String {
         let bottom = body
             .faces()
             .map(|(face, _)| face)
-            .find(|&face| match *body.face(face).unwrap().surface() {
+            .find(|&face| match *body.face(face).unwrap().surface().unwrap() {
                 geom::Surface::Plane { frame, .. } => {
                     let normal = frame.axis();
                     normal.z.hi() < -0.5

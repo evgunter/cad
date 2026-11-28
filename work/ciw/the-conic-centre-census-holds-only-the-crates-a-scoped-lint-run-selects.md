@@ -46,3 +46,22 @@ are reported once; no workspace crate is so today.
 - the scope filter selecting every crate whose files the diff touches
   for the lint job (if it does already, this row is the nightly half
   only: not checked against `scripts/ci-filter.py`).
+
+## 2026-11-24 — a selected crate's own count moves with the scope (ORBIT)
+
+Measured by `orbit/transient-chart-cut` (PR 7664). `crates/topo/src/injective.rs`
+is identical on that branch and on `origin/main` (`6a90f5caf`). Yet the
+census reads **10** production reads there, against the pin of 11:
+
+- under the PR lint job's scope (PR 7664's lint, run 45330513743);
+- locally, with `cargo clippy -p topo --all-targets --all-features`, on a
+  worktree of `origin/main` itself;
+- locally, with `--workspace --exclude viewer`, on the branch.
+
+`main`'s own push run passes at 11. So a file of a SELECTED crate can
+count differently by scope: the census reds a PR that never touched it,
+and lowering the pin to the PR's reading would red `main`. The pin
+needs to be read under the scope that wrote it, or the census needs to
+be scope-invariant. Spans the branch's run reports in that file: lines
+2868, 2873, 3903, 3906, 3936, 3941, 6242, 10422, 11600, 11683, 11685,
+11686, 11829, 11836, 11937, 11954, 11956.

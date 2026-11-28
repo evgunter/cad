@@ -1646,7 +1646,7 @@ mod tests {
             );
             assert_eq!(
                 field_text(&driven, notation),
-                format!("{} {height}", crate::props::DRIVEN),
+                Some(format!("{} {height}", crate::props::DRIVEN)),
                 "and the driven slot reads in the same notation"
             );
         }

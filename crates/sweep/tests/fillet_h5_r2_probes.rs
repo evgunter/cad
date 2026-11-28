@@ -27,7 +27,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+use geom_brep::EdgeCurveSpec;
 use geom_core::{Point2, Point3, Tol};
 use sweep::Revolution;
 use sweep::blend::BlendError;
@@ -129,38 +129,6 @@ fn stepped() -> Body<f64> {
     )
 }
 
-/// Merge the CURVED wall the rim's arcs rest on into ONE face by
-/// killing one of its co-surface seam meridians at a rim vertex
-/// (`kef`): the half-band discipline is then false of that wall.
-fn merge_curved_wall(body: &mut Body<f64>, arcs: &[EdgeKey]) {
-    for &a in arcs {
-        let ed = body.get_edge(a).unwrap();
-        for he in [ed.he_plus, ed.he_minus] {
-            let v = body.get_half_edge(he).unwrap().start;
-            let em = body.get_vertex(v).unwrap().emanating.unwrap();
-            let orbit = body.vertex_orbit(em).unwrap();
-            for h in orbit {
-                let e = body.get_half_edge(h).unwrap().edge;
-                if arcs.contains(&e) {
-                    continue;
-                }
-                let (fa, fb) = faces_of(body, e);
-                if fa == fb || is_plane(body, fa) || is_plane(body, fb) {
-                    continue;
-                }
-                if body.get_face(fa).unwrap().surface != body.get_face(fb).unwrap().surface {
-                    continue;
-                }
-                let hp = body.get_edge(e).unwrap().he_plus;
-                body.kef(hp)
-                    .expect("a curved wall's seam meridian kills into one face");
-                return;
-            }
-        }
-    }
-    panic!("no curved co-surface seam meridian found at a rim vertex");
-}
-
 fn planar_supports(body: &Body<f64>, arcs: &[EdgeKey]) -> Vec<FaceKey> {
     let mut out = Vec::new();
     for &a in arcs {
@@ -232,16 +200,16 @@ fn a_host_with_a_strut_spur_in_its_outer_cycle_does_not_finish() {
     );
 }
 
-/// **A finished host pinched at a rim vertex refuses at the hostless
-/// host gate.** A coplanar triangle is cut into the repaired cylinder's
-/// base disc at a rim vertex (`mev`, `mev`, `mef`, each edge resting in
-/// the disc's chart), so the disc's one outer cycle is both rim arcs
-/// plus the triangle's path, visiting the vertex twice. That body
-/// finishes, and the fillet refuses at the gate while the chamfer
-/// refuses its arm. The mirrored triangle winds against the plane,
-/// which tier 3 names.
+/// **A finished host pinched at a rim vertex refuses at the one-edge
+/// rim door.** A coplanar triangle is cut into the repaired cylinder's
+/// base disc at the rim's vertex (`mev`, `mev`, `mef`, each edge
+/// resting in the disc's chart), so the disc's one outer cycle is the
+/// rim plus the triangle's path, visiting the vertex twice. That body
+/// finishes, and both the fillet and the chamfer refuse the rim's
+/// support as no revolution wall. The mirrored triangle winds against
+/// the plane, which tier 3 names.
 #[test]
-fn a_finished_pinched_host_refuses_at_the_hostless_gate() {
+fn a_finished_pinched_host_refuses_at_the_one_edge_rim_door() {
     for mirrored in [false, true] {
         let mut body = repaired(pole_cylinder());
         let arcs = rim_arcs_at(&body, 1.0, 0.0);
@@ -315,18 +283,18 @@ fn a_finished_pinched_host_refuses_at_the_hostless_gate() {
             matches!(
                 &fillet,
                 Err(r) if matches!(&r.error, BlendError::UnsupportedChain { detail, .. }
-                    if detail.contains("host face carries edges outside the requested chain"))
+                    if detail.contains("support is not a revolution wall"))
             ),
-            "the hostless host gate fires on the fillet: {fillet:?}"
+            "the one-edge rim door refuses the fillet: {fillet:?}"
         );
         let chamfer = chamfer_edges(&operand, &arcs, 0.05, tol()).map(drop);
         assert!(
             matches!(
                 &chamfer,
                 Err(r) if matches!(&r.error, BlendError::UnsupportedChain { detail, .. }
-                    if detail.contains("host face carries edges outside the requested chain"))
+                    if detail.contains("support is not a revolution wall"))
             ),
-            "the hostless host gate fires on the chamfer's frustum too: {chamfer:?}"
+            "the one-edge rim door refuses the chamfer too: {chamfer:?}"
         );
     }
 }
@@ -335,118 +303,37 @@ fn a_finished_pinched_host_refuses_at_the_hostless_gate() {
 // The curved single host — the `HostSide`-passed argument's shape.
 // ------------------------------------------------------------------
 
-/// **A CURVED single face carrying both arcs over a slit does not
-/// finish.** The plane×sphere hemisphere's two half-caps are merged into
-/// ONE sphere face by killing a seam meridian, which leaves the pole a
-/// strut tip; tier 2 names it, so the operand never reaches the blend
-/// door.
-#[test]
-fn a_curved_single_face_carrying_both_arcs_over_a_slit_does_not_finish() {
-    let mut body = hemisphere_on_flat_base();
-    let arcs = rim_arcs_at(&body, 1.0, 0.0);
-    assert_full_revolve_rim(&arcs, "the hemisphere base");
-    merge_curved_wall(&mut body, &arcs);
-    assert_eq!(planar_supports(&body, &arcs).len(), 1, "one plane host");
-    assert_eq!(
-        curved_supports(&body, &arcs).len(),
-        1,
-        "ONE sphere face carries both arcs"
-    );
-    let errors = unfinished(&body);
-    assert!(
-        errors.len() == 1 && matches!(errors[0], ValidationError::ScaffoldingStrutVertex { .. }),
-        "tier 2 names the slit's pole: {errors:?}"
-    );
-}
-
-/// The two seam meridians of the cylinder wall the rim's arcs rest on.
-fn wall_meridians(body: &Body<f64>) -> [EdgeKey; 2] {
-    let found: Vec<EdgeKey> = body
-        .edges()
-        .map(|(e, _)| e)
-        .filter(|&e| {
-            let (fa, fb) = faces_of(body, e);
-            fa != fb
-                && !is_plane(body, fa)
-                && !is_plane(body, fb)
-                && body.get_face(fa).unwrap().surface == body.get_face(fb).unwrap().surface
-        })
-        .collect();
-    found
-        .try_into()
-        .unwrap_or_else(|f: Vec<_>| panic!("a full revolve's wall has two meridians, got {f:?}"))
-}
-
-/// **A CURVED single face carrying both arcs is construction state.**
-/// One of a cylinder wall's two seam meridians is
-/// killed and the other, either one, restated as the wall's wrap edge
-/// (`kef_describing`), which merges the wall into ONE face that
-/// finishes: the wall touches no pole, so no strut tip is left. A wrap
-/// edge sits wherever the construction cut the wall, so either meridian
-/// carries the wrap flag and meters the cylinder's volume, π. The kill
-/// leaves each rim two arcs of one circle meeting at the killed
-/// meridian's end with nothing else there, which tier 3's check 11
-/// refuses at rest: the join would take each rim back into one closed
-/// edge, so no blend door meets a support carrying both arcs. The same
-/// kill through plain `kef` leaves the survivor a slit as well, which
-/// tier 3 refuses beside them.
+/// **A CURVED single face carrying both arcs of a rim is construction
+/// state.** The pole cylinder's wall is one face, its base rim one
+/// closed edge; split at its antipode the rim is two arcs of one circle,
+/// both on that one cylinder face, meeting at the split's vertex with
+/// nothing else there, which tier 3's check 11 refuses at rest: the join
+/// would take the rim back into one closed edge, so no blend door meets
+/// a curved support carrying both arcs. The wall still meters π.
 #[test]
 fn a_curved_single_face_carrying_both_arcs_is_construction_state() {
-    for (repair, order) in [(false, 0), (false, 1), (true, 0), (true, 1)] {
+    for repair in [false, true] {
         let mut body = pole_cylinder();
         if repair {
             body = repaired(body);
         }
+        let rim = rim_arcs_at(&body, 1.0, 0.0);
+        assert_full_revolve_rim(&rim, "the cylinder base");
+        let (t0, t1) = body
+            .get_curve_geom(body.get_edge(rim[0]).unwrap().curve)
+            .unwrap()
+            .certified()
+            .unwrap()
+            .params();
+        let split = body
+            .split_edge(rim[0], 0.5 * (t0 + t1), tol())
+            .expect("the rim splits at its antipode");
         let arcs = rim_arcs_at(&body, 1.0, 0.0);
-        assert_full_revolve_rim(&arcs, "the cylinder base");
-        let meridians = wall_meridians(&body);
-        let (dies, wraps) = (meridians[order], meridians[1 - order]);
-        let (wall, _) = faces_of(&body, wraps);
-        let wall = body.get_face(wall).unwrap().surface;
-        let dying = body.get_edge(dies).unwrap().he_plus;
-        let (v0, v1) = body.edge_vertices(dies).unwrap();
-        // The killed meridian's two ends are left between two arcs of
-        // one rim circle each: joinable vertices (tier 3's check 11).
-        let mut ends = [v0, v1];
-        ends.sort();
-        let joinable = || {
-            ends.iter()
-                .map(|&vertex| ValidationError::JoinableVertexAtRest { vertex })
-        };
-
-        let mut slit = body.clone();
-        slit.kef(dying).expect("the meridian kills");
-        assert_eq!(
-            topo::finish(slit, tol())
-                .map(drop)
-                .map_err(topo::NotFinished::into_findings),
-            Err(
-                std::iter::once(ValidationError::DescriptionNotAdjacent { edge: wraps })
-                    .chain(joinable())
-                    .collect()
-            ),
-            "repair = {repair}: plain kef leaves a slit, not at rest"
-        );
-
-        body.kef_describing(dying, &[(wraps, EdgeDescriptionSpec::wrap(wall))], tol())
-            .expect("the survivor restates as the wall's wrap edge");
+        assert_eq!(arcs.len(), 2, "repair = {repair}: the rim is two arcs");
         assert_eq!(
             curved_supports(&body, &arcs).len(),
             1,
             "repair = {repair}: ONE cylinder face carries both arcs"
-        );
-        let image = body
-            .get_curve_geom(body.get_edge(wraps).unwrap().curve)
-            .unwrap()
-            .certified()
-            .unwrap()
-            .description()
-            .chart()
-            .expect("the wrap edge carries a chart image")
-            .wrap;
-        assert!(
-            image,
-            "repair = {repair}, order = {order}: the survivor wraps"
         );
         // Raw door: the measured body is construction state whose joinable vertices tier 3 refuses (JoinableVertexAtRest).
         let volume = topo::test_support::measure_unvalidated(
@@ -460,18 +347,16 @@ fn a_curved_single_face_carrying_both_arcs_is_construction_state() {
         .volume;
         assert!(
             (volume - core::f64::consts::PI).abs() < 1e-9,
-            "repair = {repair}, order = {order}: the wall meters π, got {volume}"
+            "repair = {repair}: the wall meters π, got {volume}"
         );
-        // Each rim's two arcs meet at the killed meridian's end with
-        // nothing else there, so the merged wall is construction state
-        // (tier 3's check 11) and no blend door takes it: the join would
-        // take each rim back into one closed edge first.
         assert_eq!(
             topo::finish(body, tol())
                 .map(drop)
                 .map_err(topo::NotFinished::into_findings),
-            Err(joinable().collect()),
-            "repair = {repair}, order = {order}: the merged wall's rims are each two arcs"
+            Err(vec![ValidationError::JoinableVertexAtRest {
+                vertex: split.vertex
+            }]),
+            "repair = {repair}: the rim's two arcs meet at a joinable vertex"
         );
     }
 }
@@ -488,7 +373,7 @@ fn compose_two_rims(
 ) -> Result<(), String> {
     let mut both = rim_arcs_at(source, rims[0].0, rims[0].1);
     both.extend(rim_arcs_at(source, rims[1].0, rims[1].1));
-    assert_eq!(both.len(), 4, "{what}: two rims of two arcs each");
+    assert_eq!(both.len(), 2, "{what}: two rims of one edge each");
     let one_call = fillet_edges(
         &sweep::test_support::at_rest(source, tol()),
         &both,
@@ -558,9 +443,9 @@ fn compose_two_rims(
 
 /// **Two hostless rims of one body on a SHARED mate wall, in one call.**
 /// The repaired pole-touching cylinder's two discs are each one plane
-/// face; both rims are hostless and both rest on the cylinder's two
-/// half-bands, so the second rim's `refresh_annulus_seams` re-reads
-/// mate seams the first band split while carrying a `Strut` through on
+/// face; both rims are hostless and both rest on the cylinder's one
+/// band, so the second rim's `refresh_annulus_seams` re-reads the mate
+/// seam the first band split while carrying a `Strut` through on
 /// the host side. Both sequential orders must agree bit for bit.
 #[test]
 fn two_hostless_rims_on_a_shared_mate_wall_compose_in_one_call() {
@@ -611,7 +496,7 @@ fn a_hostless_rim_beside_a_ladder_rim_and_a_ringed_host_measured() {
     let body = sweep::test_support::finished("body", repaired(stepped()), tol());
     for (r, y) in [(1.0, 0.0), (0.5, 1.5), (1.0, 1.0)] {
         let arcs = rim_arcs_at(&body, r, y);
-        assert_eq!(arcs.len(), 2, "({r}, {y}) two arcs");
+        assert_eq!(arcs.len(), 1, "({r}, {y}) one edge");
         let out = fillet_edges(&body, &arcs, 0.05, tol())
             .unwrap_or_else(|e| panic!("the ({r}, {y}) rim carves, got {e:?}"));
         validate_geometric(&out.body, tol()).expect("tier-3 valid");
@@ -619,7 +504,7 @@ fn a_hostless_rim_beside_a_ladder_rim_and_a_ringed_host_measured() {
     // The ladder ring beside a hostless rim, one call.
     let mut both = rim_arcs_at(&body, 1.0, 0.0);
     both.extend(rim_arcs_at(&body, 0.5, 1.0));
-    assert_eq!(both.len(), 4);
+    assert_eq!(both.len(), 2, "two rims of one edge each");
     let out = fillet_edges(&body, &both, 0.05, tol())
         .unwrap_or_else(|e| panic!("the ladder rim composes with the base rim, got {e:?}"));
     validate_geometric(&out.body, tol()).expect("tier-3 valid");

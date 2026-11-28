@@ -129,24 +129,25 @@ fn permitted(
     (r, span): (f64, (f64, f64)),
     eps: f64,
 ) -> bool {
-    let clear = truth.residual_depth >= 10.0 * eps;
-    // A graze past the span leaves the span itself apart (the pose's
-    // `kappa`): its residual over the span one-signed past `Kε`, read
-    // only for a `Miss`.
-    let span_clear = || {
-        let (lo, hi) = crate::curve_face::conic_oracle::extremes(
+    use crate::curve_face::conic_oracle::{arc_truth, holds_on_arc};
+    // Judged on the arc alone: a graze off it leaves the arc's own
+    // reading to be answered.
+    let on_arc = || {
+        arc_truth(
             |t| crate::implicit_residual(&wall(r), c.eval(t)),
-            span.0,
-            span.1,
-        );
-        lo >= 10.0 * eps || hi <= -10.0 * eps
+            span,
+            &truth.roots,
+            10.0 * eps,
+        )
     };
     match got {
         Ok(Err(Unsettled::AtApex)) => false,
         Ok(Err(_)) | Err(_) => true,
         Ok(Ok(CircleRoots::On(_))) => farthest(c, r) <= 10.0 * eps,
-        Ok(Ok(CircleRoots::Miss)) => (clear && truth.roots.is_empty()) || span_clear(),
-        Ok(Ok(CircleRoots::Certified(found))) => clear && found.count() == truth.roots.len(),
+        Ok(Ok(CircleRoots::Miss)) => holds_on_arc(&[], &on_arc(), span, 10.0 * eps).unwrap_or(true),
+        Ok(Ok(CircleRoots::Certified(found))) => {
+            holds_on_arc(found.roots(), &on_arc(), span, 10.0 * eps).unwrap_or(true)
+        }
     }
 }
 
@@ -181,17 +182,30 @@ fn no_pose_inside_the_band_is_answered() {
             if truth.residual_depth >= 10.0 * eps {
                 continue;
             }
-            let got = conic_quadric_roots(&c, m - h, m + h, &wall(r), band);
-            if permitted(&got, &truth, &c, (r, (m - h, m + h)), eps) {
-                continue;
+            // The door's test reader, and beside it the production reading
+            // (`cross`), each judged the same way.
+            let production = Ok(crate::curve_face::conic_oracle::cross_reading(
+                &c,
+                (m - h, m + h),
+                &wall(r),
+                band,
+            )
+            .as_door());
+            for got in [
+                conic_quadric_roots(&c, m - h, m + h, &wall(r), band),
+                production,
+            ] {
+                if permitted(&got, &truth, &c, (r, (m - h, m + h)), eps) {
+                    continue;
+                }
+                wrong.push(format!(
+                    "ε {eps:e}, depth {depth:e} (true {:.3e}, residual {:.3e}, {} true roots): \
+                     {got:?}\n  {c:?} wall r {r}",
+                    truth.depth,
+                    truth.residual_depth,
+                    truth.roots.len()
+                ));
             }
-            wrong.push(format!(
-                "ε {eps:e}, depth {depth:e} (true {:.3e}, residual {:.3e}, {} true roots): \
-                 {got:?}\n  {c:?} wall r {r}",
-                truth.depth,
-                truth.residual_depth,
-                truth.roots.len()
-            ));
         }
     }
     assert!(

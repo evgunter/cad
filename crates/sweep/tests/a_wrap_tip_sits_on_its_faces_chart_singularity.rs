@@ -3,9 +3,9 @@
 //! seam clause of `[topology]`: where no edge the author wrote reaches a
 //! pole or an apex, one wrap edge does, walked out and back).
 //!
-//! No door mints a tip yet, so each body is a revolved solid cut by
-//! Euler operators: the two meridians a full revolve leaves at a pole or
-//! an apex become one by `kef`, restated as the face's wrap edge.
+//! A full revolve mints the tips: its curved wall reaches each pole or
+//! apex by one wrap edge. The other bodies are revolved solids cut by
+//! Euler operators.
 //!
 //! - a hemisphere's pole and a cone's apex, each reached by one wrap edge,
 //!   pass tiers 2 and 3 and measure their closed forms through the chart
@@ -238,24 +238,17 @@ fn a_valence_one_vertex_off_a_wrap_edge_is_a_strut() {
     );
 }
 
-/// The unit ball with one of its two meridians killed: one face whose
-/// loop walks the other pole to pole and back, restated as its wrap edge.
+/// The unit ball as a full revolve builds it: one face whose loop walks
+/// its one meridian pole to pole and back, the meridian its wrap edge.
 fn one_face_ball() -> (Body<f64>, FaceKey, EdgeKey) {
-    let mut ball = revolved_about_y(
+    let ball = revolved_about_y(
         vec![(Point2::new(0.0, -1.0), 1.0), (Point2::new(0.0, 1.0), 0.0)],
         Revolution::Full,
         tol(),
     );
     let out = leaving(&ball, vertex_at(&ball, NORTH));
+    assert_eq!(out.len(), 1, "one wrap edge leaves the pole");
     let wraps = ball.get_half_edge(out[0]).unwrap().edge;
-    let face = ball.face_of_half_edge(out[0]).unwrap();
-    let surface = ball.get_face(face).unwrap().surface;
-    ball.kef_describing(
-        out[1],
-        &[(wraps, EdgeDescriptionSpec::wrap(surface))],
-        tol(),
-    )
-    .expect("the one-face ball");
     let face = ball.face_of_half_edge(out[0]).unwrap();
     (ball, face, wraps)
 }
@@ -354,7 +347,10 @@ fn a_wrap_tip_on_a_cylinder_has_no_singularity_to_lie_on() {
         .find_map(|(he, h)| {
             let p = point(&body, h.start);
             let face = body.face_of_half_edge(he)?;
-            let on_wall = matches!(body.face_surface(face)?, geom::Surface::Cylinder { .. });
+            let on_wall = matches!(
+                body.face_surface(face).ok()?,
+                geom::Surface::Cylinder { .. }
+            );
             (on_wall && p.y.abs() < 1e-12).then_some((he, face))
         })
         .expect("the wall leaves a base vertex");

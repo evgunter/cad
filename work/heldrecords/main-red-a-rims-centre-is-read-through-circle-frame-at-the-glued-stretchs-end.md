@@ -2,9 +2,10 @@
 id: main-red-a-rims-centre-is-read-through-circle-frame-at-the-glued-stretchs-end
 kind: issue
 title: Main red: a rim's centre is read through Circle::frame at the glued stretch's end, which the conic-centre census pins at 0
-status: open
+status: closed
 opened: 2026-11-23
 priority: P0
+closed: 2026-11-24
 ---
 
 
@@ -29,3 +30,22 @@ read at the site and raise the pin. It is red on every PR whose diff seeds
 
 Found by the FORMWORDS orchestrator while following up a lane's note; not
 FORMWORDS's.
+
+## Closed
+
+The read the row names was converted on main by `59892b0ee` ("geom-brep
+end_root: a circle's end reads its radial through its axis, not its
+centre frame"), another session's, before this row was taken up: on
+`origin/main` `0b175aa35` the census reads geom-brep at its pins (69 reads,
+17 files) and topo at its pins.
+
+Swept for every disallowed-door read the elbow stack (PRs 7432, 7463)
+added, with clippy's `--force-warn clippy::disallowed_methods` over
+geom-brep and topo, in `end_root.rs`, `rim_wedge.rs` and `boolean/reduce.rs`
+and `boolean/mod.rs`: one, `rim_wedge::rim_of`'s `circle.frame().origin()`,
+which carried an `#[expect]` pointing at a closed ONEROUND row. It now
+reads the centre through the circle's own readings (its point at the
+parameter's zero lies `radius` along `u_ref` from it), and
+`scripts/gates/conic-centre-reads.counts` lowers `rim_wedge.rs` from 4
+to 3. The other hits in those files are in test code or are ONEROUND's
+own, outside the stack.

@@ -221,7 +221,7 @@ fn grid() -> Vec<Point3<f64>> {
 /// and every op refuses `Join`: at the line's end vertices the disc's cap
 /// sector (a coplanar lump) and its wall sector (a tangent lump) share the
 /// cap's circle edge as a bound, the vertex shape of
-/// `work/contacthold/a-dipping-round-refuses-at-a-run-boundary-on-its-coplanar-bottom-sector.md`.
+/// `work/tang/a-dipping-round-refuses-at-a-run-boundary-on-its-coplanar-bottom-sector.md`.
 /// The same pair with a taller disc answers every op
 /// ([`p1_a_bore_inside_a_tall_disc_touching_its_wall`]).
 #[test]
@@ -640,7 +640,7 @@ enum Sliver {
 ///   order: a bisector
 ///   bound levered at its sector's arm `h` reads its second-order
 ///   departure in band:
-///   `work/contacthold/a-glued-tangencys-bisector-reads-its-curving-at-its-sectors-short-arm.md`.
+///   `work/germ/a-glued-tangencys-bisector-reads-its-curving-at-its-sectors-short-arm.md`.
 fn sliver_refusal(h: f64) -> Option<Sliver> {
     let b = Band::linear(tol()).unwrap();
     let in_band = |m: f64| (b.zero()..=b.escalate()).contains(&m);

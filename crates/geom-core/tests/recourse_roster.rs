@@ -156,6 +156,7 @@ const INDIRECT: &[(&str, &str)] = &[
     ("period.rs: read: rows.turn", ROW_FIELD),
     ("period.rs: registered: turn", FORWARDS),
     ("running.rs: divisor: name", FORWARDS),
+    ("solved.rs: decide_admit: row", FORWARDS),
     (
         "sym.rs: register_equal: return SymRegistration::Witnessed;",
         NOT_A_NAME,

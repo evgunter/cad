@@ -129,7 +129,7 @@ fn a_rimless_lune_meshes_through_the_door_and_measures() {
     mesh::validate::check_mesh(&mesh).expect("watertight");
     let sphere_face = body
         .faces()
-        .find(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Sphere { .. })))
+        .find(|(fk, _)| matches!(body.face_surface(*fk), Ok(Surface::Sphere { .. })))
         .map(|(fk, f)| (fk, f.outer))
         .expect("the wedge has a sphere face");
     let (outer, _) =
@@ -205,16 +205,18 @@ fn receipts(body: &topo::Body<f64>) -> Vec<FaceReceipt> {
         .collect()
 }
 
-/// **The split-seam donut is the unsplit donut to every consumer.** A
-/// donut whose seam meridian is carried by two edges after
-/// `split_edge` is the chart rectangle it always was, and props folds
-/// the pieces of a split edge back into the meridian they carry —
-/// identity through the split lineage, never through the stored
-/// circle's values — so the shape door, the flux lane,
-/// `boundary_material_sign` and `mass_properties` answer for the
-/// split body exactly what they answer for the unsplit one, BITWISE
-/// (V = 9.8696…, A = 39.478…, each face's flux and area, each face's
-/// side: zero ulps apart). The mesh is the unsplit donut's up to the
+/// **The split-seam donut is the unsplit donut to every consumer of
+/// its faces.** A donut whose seam meridian is carried by two edges
+/// after `split_edge` is the chart rectangle it always was, and props
+/// folds the pieces of a split edge back into the meridian they carry
+/// — identity through the split lineage, never through the stored
+/// circle's values — so the shape door, the flux lane and
+/// `boundary_material_sign` answer for the split body exactly what
+/// they answer for the unsplit one, BITWISE (each face's flux and
+/// area, each face's side: zero ulps apart). The split body itself is
+/// construction state (the split vertex is a station, tier 3's check
+/// 11), so `mass_properties`, which reads finished bodies, measures
+/// only the unsplit donut. The mesh is the unsplit donut's up to the
 /// seam column, which is chorded per sub-edge: every position the two
 /// meshes do not share lies on the seam minor circle, and both are
 /// watertight. The split column carries the split vertex, which the
@@ -244,25 +246,9 @@ fn a_split_seam_donut_meshes_and_measures_as_the_unsplit_donut() {
         topo::test_support::pinned_resolution(tol),
     )
     .expect("the unsplit donut measures");
-    let mp = topo::mass_properties(
-        &topo::test_support::finished("the measured body", body.clone(), tol),
-        tol,
-        topo::test_support::pinned_resolution(tol),
-    )
-    .expect("the split-seam donut measures");
-    assert_eq!(
-        (
-            mp.enclosure.volume.to_bits(),
-            mp.enclosure.surface_area.to_bits()
-        ),
-        (
-            mp0.enclosure.volume.to_bits(),
-            mp0.enclosure.surface_area.to_bits()
-        ),
-        "mass properties bitwise: split {mp:?} vs unsplit {mp0:?}"
-    );
+    construction_state(&body, &[split_point]);
     assert!(
-        (mp.enclosure.volume - 9.869_604_401_089_358).abs() < 1e-12,
+        (mp0.enclosure.volume - 9.869_604_401_089_358).abs() < 1e-12,
         "V = π² for R = 2, r = 0.5"
     );
     let (r0, r) = (receipts(&base), receipts(&body));
@@ -344,26 +330,18 @@ fn a_split_seam_donut_meshes_and_measures_as_the_unsplit_donut() {
 /// t1]` is the unsplit edge's stored interval bitwise, and the piece
 /// at the `t0` end evaluates its carrier there to the unsplit edge's
 /// own `t0` point bitwise. That is what makes the folded meridian the
-/// unsplit meridian's record exactly, at every split fraction — and
-/// `mass_properties` says so bitwise on both patterns. The premise is
-/// ENFORCED, not assumed: a child restated through `set_edge_curve`
-/// with its interval shifted by a period on its own carrier (every
-/// piece still certifies) no longer meets its sibling, and the shape
-/// door refuses `props_meridian_pieces_meet` — this row reds if the
-/// fold ever admits it. `mass_properties` needs no fold: the torus's
-/// chart Green form reads each piece's own span, so the shifted child
-/// — the identical arc — measures as the donut.
+/// unsplit meridian's record exactly, at every split fraction. The
+/// premise is ENFORCED, not assumed: a child restated through
+/// `set_edge_curve` with its interval shifted by a period on its own
+/// carrier (every piece still certifies) no longer meets its sibling,
+/// and the shape door refuses `props_meridian_pieces_meet` — this row
+/// reds if the fold ever admits it. Every split body here is
+/// construction state (each split vertex a station, tier 3's check 11),
+/// so no finished-body door measures it.
 #[test]
 fn split_children_partition_the_parent_edges_own_parametrisation() {
     let tol = Tol::witness();
     let base = donut();
-    let v0 = topo::test_support::pinned_volume(
-        "the measured body",
-        &topo::test_support::finished("the measured body", base.clone(), tol),
-        tol,
-    )
-    .volume
-    .to_bits();
     let (f0, _) = base.faces().next().unwrap();
     let (outer0, _) = topo::props::loop_edges(
         base.cycle_loop(base.get_face(f0).unwrap().outer)
@@ -424,17 +402,8 @@ fn split_children_partition_the_parent_edges_own_parametrisation() {
             [p0.x.to_bits(), p0.y.to_bits(), p0.z.to_bits()],
             "{fracs:?}: the anchor point"
         );
-        assert_eq!(
-            topo::test_support::pinned_volume(
-                "the measured body",
-                &topo::test_support::finished("the measured body", body.clone(), tol),
-                tol
-            )
-            .volume
-            .to_bits(),
-            v0,
-            "{fracs:?}: the volume, bitwise"
-        );
+        let (seam_key, _) = base.edges().next().unwrap();
+        construction_state(&body, &split_points(&base, seam_key, fracs));
         // The enforcement: shift the last-minted child by a period.
         let mut shifted = body.clone();
         let child = shifted.edges().last().unwrap().0;
@@ -453,17 +422,6 @@ fn split_children_partition_the_parent_edges_own_parametrisation() {
         let meet = PropsError::SpanUncertified {
             what: "props_meridian_pieces_meet",
         };
-        let got = topo::test_support::pinned_volume(
-            "the measured body",
-            &topo::test_support::finished("the measured body", shifted.clone(), tol),
-            tol,
-        )
-        .volume;
-        let want = f64::from_bits(v0);
-        assert!(
-            (got - want).abs() <= 1e-12 * want,
-            "{fracs:?}: the shifted child is the identical arc: {got} vs {want}"
-        );
         assert!(
             matches!(
                 mesh::tessellate(&shifted, 0.1, tol),

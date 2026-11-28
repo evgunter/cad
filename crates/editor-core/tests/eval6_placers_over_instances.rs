@@ -123,7 +123,10 @@ pub(crate) fn bits<T: geom_core::Decide + core::fmt::Debug>(b: &Body<T>) -> Vec<
         b.edges().count(),
         b.vertices().count()
     )];
-    v.extend(b.surfaces().map(|(k, s)| format!("S {k:?} {s:?}")));
+    v.extend(
+        b.described_surfaces()
+            .map(|(k, s)| format!("S {k:?} {s:?}")),
+    );
     v.extend(b.curves().map(|(k, c)| format!("C {k:?} {c:?}")));
     v.extend(b.points().map(|(k, p)| format!("P {k:?} {p:?}")));
     v

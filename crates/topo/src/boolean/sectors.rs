@@ -388,6 +388,10 @@ impl SectorFaceError {
     /// walk could not resolve.
     pub(crate) fn boolean_refusal(self, operand: Operand, band: Band) -> BooleanError {
         match self {
+            Self::Pending { face } => unreachable!(
+                "{face:?} is pending in a boolean operand: operands are finished bodies, and \
+                 tier 3 refuses a pending face at rest"
+            ),
             Self::Unsupported { face, kind } => BooleanError::CurvedBooleanUnsupported {
                 operand,
                 face,
@@ -998,6 +1002,11 @@ pub(super) fn tangent_lump<T: Decide>(
 /// off it, or a junction whose record carries no circle): each is outside
 /// what the certificate states. A placement in band, of the site on the
 /// rim or of the other operand's vertex at it, is the rim's coincidence.
+///
+/// **Not yet answered**: no row reaches a sector site on a junction's rim
+/// (the three mutants of the readers' Junction arms survive every elbow,
+/// junction and tube-chain row), so a site the certificate covers is
+/// refused typed too, as above, until one does.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn junction_lump<T: Decide>(
     rim: Option<crate::rim_wedge::Rim<T>>,
@@ -1039,11 +1048,16 @@ pub(super) fn junction_lump<T: Decide>(
             return Err(unplaced());
         }
     }
-    Ok(SideCode::Out)
+    // The certificate above states `Out`, but no geometry any row builds
+    // reaches a sector site on a junction's rim, so no row would see this
+    // arm answer wrongly; it refuses until one does
+    // (`work/heldrecords/the-junction-sector-arms-are-reached-by-no-row.md`).
+    Err(unplaced())
 }
 
 /// **A declared-`Junction` sector bound's side** at a v-v site on the
-/// rim, on the certificate [`junction_lump`] states: `On` for a bound
+/// rim, refused with [`junction_lump`] until a row reaches it; on the
+/// certificate it states: `On` for a bound
 /// that IS the glued rim's edge (its edge a circle the rim's identity
 /// ladder decides the rim, [`crate::rim_wedge::circle_is_rim`]), the edge
 /// both sectors share; `Out` for every bound that leaves the rim, every
@@ -1603,8 +1617,7 @@ pub(super) fn germ_loci<T: crate::props::AtRestPolicy>(
         (ca, cb) => {
             let (far_a, far_b) = (site_of(a.body, ea.far)?, site_of(b.body, eb.far)?);
             if contacts
-                .vv
-                .iter()
+                .vv()
                 .any(|c| far_a.contains(&c.a) && far_b.contains(&c.b))
             {
                 return one_segment(a, ea, b, eb, declared);
@@ -2014,32 +2027,17 @@ fn touch<T: Decide>(
 ) -> Result<Touch, BooleanError> {
     let site = site_of(side.body, far)?;
     Ok(
-        if on_faces(contacts, side.operand)
-            .iter()
-            .any(|c| site.contains(&c.vertex))
-        {
+        if contacts.on(side.operand).any(|c| site.contains(&c.vertex)) {
             Touch::Face
         } else if contacts
-            .vv
-            .iter()
-            .any(|c| site.contains(&vv_sides(c, side.operand).0))
+            .vv()
+            .any(|c| site.contains(&vv_sides(&c, side.operand).0))
         {
             Touch::Boundary
         } else {
             Touch::Apart
         },
     )
-}
-
-/// The recorded contacts of `operand`'s vertices on the partner's faces.
-fn on_faces(
-    contacts: &super::ReductionContacts,
-    operand: Operand,
-) -> &[crate::Cited<super::VfContact>] {
-    match operand {
-        Operand::A => &contacts.a_on_b,
-        Operand::B => &contacts.b_on_a,
-    }
 }
 
 /// A vertex pair's two vertices, `operand`'s first.
@@ -2071,13 +2069,13 @@ fn tangent_face<T: Decide>(
         return Ok(None);
     };
     let far_site = site_of(partner.body, far)?;
-    let mut far_faces: Vec<FaceKey> = on_faces(contacts, partner.operand)
-        .iter()
+    let mut far_faces: Vec<FaceKey> = contacts
+        .on(partner.operand)
         .filter(|c| far_site.contains(&c.vertex))
         .map(|c| c.face)
         .collect();
-    for c in &contacts.vv {
-        let (mine, theirs) = vv_sides(c, side.operand);
+    for c in contacts.vv() {
+        let (mine, theirs) = vv_sides(&c, side.operand);
         if far_site.contains(&theirs) {
             far_faces.extend(faces_at(side.body, mine).map_err(stale_site)?);
         }
@@ -2459,8 +2457,7 @@ fn coincident_run<T: Decide>(
         return Ok(false);
     };
     Ok(contacts
-        .vv
-        .iter()
+        .vv()
         .any(|c| a.far.contains(&c.a) && b.far.contains(&c.b))
         && parallel_same_as(
             a.dir,
@@ -5122,6 +5119,16 @@ mod tests {
     fn a_cone_sector_off_the_apex_is_the_faces_outward_normal() {
         let alpha = 0.5_f64;
         let (mut body, face) = crate::boxes::tests::cone_wall(alpha, 0.0, 1.0, 0.5, 1.0);
+        // The lamina's other face is left pending by the fixture, which no
+        // boolean operand holds: a spline patch stands in, whose sectors
+        // the walk refuses and this row skips.
+        crate::fixtures::describe_pending_as(
+            &mut body,
+            &crate::fixtures::patch_spanning(
+                Point3::new(-2.0, -2.0, 0.0),
+                Point3::new(2.0, 2.0, 1.0),
+            ),
+        );
         let vertices: Vec<VertexKey> = body.vertices.keys().collect();
         for sense in [true, false] {
             body.set_face_sense(face, sense).unwrap();

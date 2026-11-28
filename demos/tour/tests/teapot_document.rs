@@ -13,8 +13,8 @@
 //!    and two crossings on the flange seam carry that seam and one
 //!    band each.
 //! 2. **The scene's one request builds the kernel's one-request
-//!    body**, on the solid lid, whose rims are each two half-arcs asked
-//!    for by both names: same census, the three bands' stored
+//!    body**, on the solid lid, whose rims are each one closed edge
+//!    asked for by name: same census, the three bands' stored
 //!    `(station, major, minor)` bit for bit, the mass to a relative
 //!    1e-14 — and the same face ORDER, which is what the tess-budget
 //!    rows and the uv sheet's cells key on.
@@ -40,7 +40,7 @@ use pncad::geom::Surface;
 use pncad::geom_core::Tol;
 use pncad::prelude::{EntityKind, MeridianEnd, RoleSeg, StableName, fillet_edges, query};
 use pncad::profile::ArcSweep;
-use pncad::select::{ProfilePieces, band_rim, band_rim_pi, edge_name};
+use pncad::select::{ProfilePieces, band_rim, edge_name};
 use pncad::topo::{AtRestBody, Body, EdgeKey};
 
 use demo_tour::teapot::{
@@ -170,7 +170,7 @@ fn bands(b: &Body<f64>) -> Vec<(u64, u64, u64)> {
     let mut out: Vec<(u64, u64, u64)> = b
         .faces()
         .filter_map(|(fk, _)| match b.face_surface(fk) {
-            Some(Surface::Torus {
+            Ok(Surface::Torus {
                 frame,
                 major_radius,
                 minor_radius,
@@ -335,18 +335,18 @@ fn two_slits_on_one_meridian_carry_the_band_that_made_each() {
 }
 
 /// The latitude rim at meridian vertex `v` of an axis-touching lid,
-/// WHOLE: its two half-arcs' names.
-fn rim_arcs(doc: &Doc<ProfileProgram>, lid: RecipeNodeId, v: u32, tol: Tol) -> [StableName; 2] {
+/// WHOLE: its one closed edge's name.
+fn rim_names(doc: &Doc<ProfileProgram>, lid: RecipeNodeId, v: u32, tol: Tol) -> [StableName; 1] {
     let piece = pieces_of(doc, lid, tol)
         .vertex(0, v as usize)
         .expect("the vertex is the meridian's");
-    [band_rim(lid, piece), band_rim_pi(lid, piece)]
+    [band_rim(lid, piece)]
 }
 
 /// **The scene's one request builds the kernel's one-request body.**
 ///
 /// On the SOLID lid the scene ships, its three rims each asked for by
-/// both half-arc names. Same census, the same three bands bit for bit,
+/// name. Same census, the same three bands bit for bit,
 /// the same mass, the same face order: the document door adds names
 /// and nothing else.
 #[test]
@@ -355,7 +355,7 @@ fn one_request_builds_the_kernels_body() {
     let (mut doc, lid) = sharp_lid_in(Doc::empty_derived("teapot-solid-lid", tol), 0.0, tol);
     let sel: Vec<StableName> = ROLLED
         .iter()
-        .flat_map(|&v| rim_arcs(&doc, lid, v, tol))
+        .flat_map(|&v| rim_names(&doc, lid, v, tol))
         .collect();
     let rolled = insert(
         &mut doc,
@@ -375,7 +375,7 @@ fn one_request_builds_the_kernels_body() {
     let sharp = body_at(&ev, lid);
     let doc_body = body_at(&ev, rolled);
 
-    // The kernel's request over the same six half-arcs — their keys
+    // The kernel's request over the same three rims — their keys
     // found through the NAMES, so the two doors are asked for the same
     // edges and not merely for six edges each.
     let keys: Vec<EdgeKey> = sel
@@ -384,17 +384,18 @@ fn one_request_builds_the_kernels_body() {
             query::all_edges(&sharp)
                 .into_iter()
                 .find(|&k| edge_name(&ev, lid, 0, k).ok() == Some(want))
-                .expect("each rolled half-arc's key, by its name")
+                .expect("each rolled rim's key, by its name")
         })
         .collect();
     let kernel = fillet_edges(&finished("sharp", sharp.clone(), tol), &keys, ROLL, tol)
         .expect("the kernel door rolls all three in one request")
         .body;
 
-    assert_eq!(census(&sharp), (8, 14, 8));
+    // Each wall one band: three one-crossing bands of (1, 2, 1) each.
+    assert_eq!(census(&sharp), (4, 7, 5));
     assert_eq!(bands(&kernel).len(), 3, "three rims, three torus bands");
-    assert_eq!(census(&kernel), (12, 21, 11));
-    assert_eq!(census(&doc_body), (12, 21, 11));
+    assert_eq!(census(&kernel), (7, 13, 8));
+    assert_eq!(census(&doc_body), (7, 13, 8));
     assert_eq!(
         bands(&kernel),
         bands(&doc_body),
@@ -419,14 +420,14 @@ fn one_request_builds_the_kernels_body() {
     let order = |b: &Body<f64>| -> Vec<String> {
         b.faces()
             .map(|(fk, _)| match b.face_surface(fk) {
-                Some(Surface::Torus { frame, .. }) => {
+                Ok(Surface::Torus { frame, .. }) => {
                     let center = frame.origin();
                     format!("torus@{}", center.y)
                 }
-                Some(Surface::Plane { .. }) => "plane".to_owned(),
-                Some(Surface::Cylinder { .. }) => "cylinder".to_owned(),
-                Some(Surface::Cone { .. }) => "cone".to_owned(),
-                Some(Surface::Sphere { .. }) => "sphere".to_owned(),
+                Ok(Surface::Plane { .. }) => "plane".to_owned(),
+                Ok(Surface::Cylinder { .. }) => "cylinder".to_owned(),
+                Ok(Surface::Cone { .. }) => "cone".to_owned(),
+                Ok(Surface::Sphere { .. }) => "sphere".to_owned(),
                 _ => "?".to_owned(),
             })
             .collect()

@@ -59,11 +59,19 @@ fn pinch() -> (BooleanBody<f64>, topo::OperandRecords) {
     let Ok(BooleanResult::Body(pinch)) = topo::union(&block, &wedge, tol()) else {
         panic!("the wedge folds into the notch");
     };
-    let rows = topo::OperandRecords {
-        vf: Vec::new(),
-        ve: Vec::new(),
-        ..pinch.contacts.carried()
-    };
+    let rows = pinch
+        .contacts
+        .carried()
+        .rows()
+        .iter()
+        .filter(|c| {
+            !matches!(
+                c.contact.kind(),
+                topo::ContactKind::VertexFace(..) | topo::ContactKind::VertexEdge(..)
+            )
+        })
+        .copied()
+        .collect();
     (pinch, rows)
 }
 

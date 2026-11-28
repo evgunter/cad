@@ -122,14 +122,17 @@ mod tests {
                 name: "teapot",
                 doc: demo_tour::teapot::gallery_document(tol),
                 placements: 4,
-                at_rest: 42,
+                at_rest: 19,
                 product: None,
                 why: concat!(
-                    "FOUR placements, because the teapot is four solids and the operand ",
-                    "gate has no arm for either join. FORTY-TWO at-rest findings, all ",
-                    "loud and none refusing: ONE interference, the handle's torus ",
-                    "standing in the vessel's sphere, unlocalised because the ",
-                    "intersection cannot take it; FORTY-ONE could-not-look, the face ",
+                    "FOUR placements, because the teapot is four solids: the handle's ",
+                    "join builds and does not mesh, and the spout's refuses. NINETEEN ",
+                    "at-rest findings, all ",
+                    "loud and none refusing: TWO interference, the handle's two ends ",
+                    "standing in the vessel's sphere, one finding for each solid of ",
+                    "the two parts' intersection, each bounded by its end's wedge cap; ",
+                    "SEVENTEEN ",
+                    "could-not-look (each revolved wall one face, so fewer pairs), the face ",
                     "pairs where a curved face of one part is within reach of the ",
                     "other (the spout's walls in the vessel among them) and the ",
                     "contacts the census met but no door recorded. The lifted lid's ",
@@ -358,7 +361,8 @@ mod tests {
 
     /// The die, by the numbers its own scene already knows.
     ///
-    /// `diefillet::stops` asserts the composed BODY is 26 + 21·3 faces
+    /// `diefillet::stops` asserts the composed BODY is 26 + 21·2 faces
+    /// (each pip's cavity one band and its fillet)
     /// and tier-3 valid. This asserts the same thing one level up, of
     /// the document's PRODUCT — which is the thing the viewer draws
     /// and the thing that was wrong. The volume is the composed die's,
@@ -378,7 +382,7 @@ mod tests {
             pncad::document::product(&doc, &evaluation, tol).expect("the die document gathers");
         assert_eq!(
             product.faces().count(),
-            26 + 21 * 3,
+            26 + 21 * 2,
             "the product is the composed die's own face count, not it plus a blank"
         );
         let volume = mass_properties(

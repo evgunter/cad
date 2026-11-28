@@ -144,7 +144,7 @@ fn the_lily_lanterns_rims_select_the_same_arcs_under_both_windows() {
         let new_seeds = arcs_at(&lant, r, y);
         let old_seeds = seeds_radius_only(&lant, r, 5e-4);
         assert_eq!(old_seeds, new_seeds, "{name}: the seed set moved");
-        assert_eq!(new_seeds.len(), 2, "{name}: seam-split into two arcs");
+        assert_eq!(new_seeds.len(), 1, "{name}: one closed edge");
         let rim = rim_arcs_at(&lant, r, y);
         let mut want = new_seeds.clone();
         want.sort_unstable();
@@ -163,7 +163,7 @@ fn the_lily_lanterns_rims_are_at_their_analytic_radii_to_1e_9() {
     for (r, _) in lily_rims() {
         assert_eq!(
             seeds_radius_only(&lant, r, 1e-9).len(),
-            2,
+            1,
             "radius {r} selects at 1e-9"
         );
     }

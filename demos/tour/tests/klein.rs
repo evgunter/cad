@@ -138,8 +138,8 @@ mod verbs_gate_r1_probes {
         println!("klein wall 3: {joined:?}");
         assert!(
             wall3_pinned(&joined, &bulb_body, &top),
-            "wall 3 must refuse the bulb's cone against the loop's spline wall at the germ frame: \
-             {joined:?}"
+            "wall 3 must refuse a seam of the loop meeting the bulb's neck cylinder in the band of \
+             its edge: {joined:?}"
         );
 
         let trimmed = pncad::topo::subtract(&bulb_body, &top, tol)
@@ -147,8 +147,7 @@ mod verbs_gate_r1_probes {
         println!("klein wall 4: {trimmed:?}");
         assert!(
             wall4_pinned(&trimmed, &joined, &bulb_body, &top),
-            "wall 4 must refuse wall 3's rim arc of the loop on the bulb's neck cylinder: \
-             {trimmed:?}"
+            "wall 4 must refuse at wall 3's meeting: {trimmed:?}"
         );
     }
 }
@@ -194,9 +193,9 @@ mod r1_mesh2_review_probes {
 }
 
 /// **The Klein loop's caps hold against its walls where a wall seam
-/// meets them.** The loop's section circle is split into four arcs,
-/// one per wall, so each cap is a plane bounded by four arcs of one
-/// circle. A cap cell holding a vertex where two arcs meet is read by
+/// meets them.** The loop's section is two circles, each two half turns
+/// the sweep cuts at their sub-arc joints into four quarter walls, so
+/// each cap is a plane bounded by eight arcs of two circles. A cap cell holding a vertex where two arcs meet is read by
 /// no presentation; the wall's departure from the cap's plane certifies
 /// it, the wall's side on the shared edge read off its own restricted
 /// iso net. The tour builds at `f64` only; the `Interval` twin of this
@@ -211,23 +210,14 @@ mod cap_corner_departure {
         let tol = Tol::witness();
         let float = bottle::<f64>(tol).top;
         let pairs = cap_wall_pairs(&float);
-        assert_eq!(pairs.len(), 8, "two caps against four walls: {pairs:?}");
+        assert_eq!(pairs.len(), 16, "two caps against eight walls: {pairs:?}");
         let receipts: Vec<(usize, u32)> = pairs
             .iter()
             .map(|&pair| assert_holds("klein loop", &float, pair))
             .collect();
         assert_eq!(
             receipts,
-            [
-                (1, 1),
-                (1, 1),
-                (1, 1),
-                (1, 1),
-                (3, 3),
-                (3, 3),
-                (3, 3),
-                (3, 3)
-            ],
+            [[(1, 1); 8], [(3, 3); 8]].concat(),
             "each pair's (splits, deepest cell)"
         );
     }
@@ -235,10 +225,12 @@ mod cap_corner_departure {
 
 /// **The loop's outer walls hold against its inner walls within the
 /// default budget.** The loop's section is an annulus whose two circles
-/// are each split into two arcs, so its four walls are two outer halves
-/// and two inner halves, about 0.05 apart over a 2.8 body, and an outer
-/// wall shares no vertex with an inner one. Two of those four pairs
-/// face each other tilted against the axes, where the distance test's
+/// are each two half turns the sweep cuts at their sub-arc joints, so
+/// its eight walls are four outer quarters and four inner quarters,
+/// about 0.05 apart over a 2.8 body, and an outer wall shares no vertex
+/// with an inner one. The walls of one circle are one ring of shared
+/// vertices, so the outer and inner walls are the two rings. Some of
+/// those pairs face each other tilted against the axes, where the distance test's
 /// boxes stay apart only for cells about as small as the gap; the
 /// support along a cell's normal separates them at cells of about
 /// √(gap · radius). Each pair holds under the strict question at the
@@ -287,20 +279,31 @@ mod wall_gap_support {
             })
             .map(|(f, _)| (f, vertices(&body, f)))
             .collect();
+        // The ring of walls through `walls[0]`: every wall reached from
+        // it through a shared vertex.
+        let mut ring: BTreeSet<FaceKey> = BTreeSet::from([walls[0].0]);
+        while let Some(&(next, _)) = walls.iter().find(|(f, vs)| {
+            !ring.contains(f)
+                && walls
+                    .iter()
+                    .any(|(g, ws)| ring.contains(g) && !vs.is_disjoint(ws))
+        }) {
+            ring.insert(next);
+        }
         let apart: Vec<(FaceKey, FaceKey)> = walls
             .iter()
             .enumerate()
             .flat_map(|(i, (f, a))| {
                 walls[i + 1..]
                     .iter()
-                    .filter(|(_, b)| a.is_disjoint(b))
+                    .filter(|(g, b)| a.is_disjoint(b) && ring.contains(f) != ring.contains(g))
                     .map(move |(g, _)| (*f, *g))
             })
             .collect();
         assert_eq!(
-            apart.len(),
-            4,
-            "two outer walls against two inner walls: {apart:?}"
+            (ring.len(), apart.len()),
+            (4, 16),
+            "four outer walls against four inner walls: {apart:?}"
         );
         let window = |f, which| {
             Side {

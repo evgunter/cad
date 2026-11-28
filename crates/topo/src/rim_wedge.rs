@@ -1241,26 +1241,27 @@ pub(crate) fn face_boundary_arcs<T: Real>(
 }
 
 /// The circle carriers of a face's boundary edges.
-fn face_boundary_circles<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<Rim<T>> {
+fn face_boundary_circles<T: geom_core::SpanLocate>(body: &Body<T>, face: FaceKey) -> Vec<Rim<T>> {
     face_boundary_arcs(body, face)
         .into_iter()
         .filter_map(|(_, c)| rim_of(c.carrier()))
         .collect()
 }
 
-/// A circle carrier as a [`Rim`]; none for any other carrier.
-#[expect(
-    clippy::disallowed_methods,
-    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
-)]
-fn rim_of<T: Real>(carrier: &geom::Curve3<T>) -> Option<Rim<T>> {
+/// A circle carrier as a [`Rim`]; none for any other carrier. The
+/// centre is read through the circle's own readings: its point at the
+/// parameter's zero lies `radius` along `u_ref` from it.
+fn rim_of<T: geom_core::SpanLocate>(carrier: &geom::Curve3<T>) -> Option<Rim<T>> {
     match *carrier {
-        geom::Curve3::Circle(circle) => Some(Rim {
-            center: circle.frame().origin(),
-            axis: circle.axis_unit(),
-            radius: circle.radius(),
-            u_ref: circle.u_ref(),
-        }),
+        geom::Curve3::Circle(circle) => {
+            let (radius, u_ref) = (circle.radius(), circle.u_ref());
+            Some(Rim {
+                center: carrier.eval(T::zero()) - u_ref * radius,
+                axis: circle.axis_unit(),
+                radius,
+                u_ref,
+            })
+        }
         _ => None,
     }
 }
@@ -1293,7 +1294,6 @@ pub(crate) fn rim_edges_convex<T: Decide>(
         let crate::live::BoundaryMember::Edge { edge, .. } = member else {
             continue;
         };
-        let ek = edge.key();
         let Some(curve) = edge.certified() else {
             return false;
         };
@@ -1307,7 +1307,7 @@ pub(crate) fn rim_edges_convex<T: Decide>(
         }
         on_rim += 1;
         if !matches!(
-            crate::edge_wedge(body, ek, band),
+            crate::edge_wedge(body, edge.key(), band),
             Some(geom_brep::WedgeVerdict::Crease {
                 convexity: geom_brep::Convexity::Convex,
                 ..
@@ -1398,7 +1398,7 @@ pub(crate) fn classify_shared_rim<T: Decide>(
         RIM_PHASES,
     );
     use geom_brep::WedgeVerdict as V;
-    match geom_brep::edge_wedge_over_as(&walk, reach, band, geom_core::k_stats::Role::Check) {
+    match geom_brep::rim_routing_wedge(&walk, reach, band) {
         V::Crease { .. } => Ok(RimRouting::Transverse),
         V::Seam { .. } => Ok(RimRouting::Seam),
         V::End { end, .. } => Ok(RimRouting::Cusp(end)),

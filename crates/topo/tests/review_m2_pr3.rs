@@ -210,7 +210,7 @@ fn e2e_mini_extrude_triangle_prism_passes_tiers_and_upgrades() {
     assert_eq!(body.vertices().count(), 6);
     assert_eq!(body.edges().count(), 9);
     assert_eq!(body.faces().count(), 5);
-    assert_eq!(body.surfaces().count(), 5);
+    assert_eq!(body.surface_slots().count(), 5);
     assert_eq!(validate(&body), Ok(()));
     assert_eq!(validate_closed(&body), Ok(()));
     // At rest the un-upgraded body names all nine chords, once each by
@@ -461,7 +461,7 @@ fn survives_surface_swap_behind_intersection_edges_detected_at_rest() {
     // Anchoring: the old plane is still referenced by four Intersection
     // descriptions, so it must survive the orphan sweep.
     assert!(
-        body.get_surface(old_surface).is_some(),
+        body.get_surface(old_surface).is_ok(),
         "descriptions must anchor the old surface"
     );
     // Tiers 1–2 still structurally clean; tier 3 reports the swap.

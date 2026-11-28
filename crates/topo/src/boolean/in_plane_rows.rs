@@ -170,8 +170,18 @@ fn each_edge_face_record_cites_its_own_pieces_ends() {
             };
             let ([sa, sb], records, pending) = sweep(a, b, decoys);
             let (x, y, list, other) = match x_is {
-                Operand::A => (&sa, &sb, &records.a_in_b, &records.b_in_a),
-                Operand::B => (&sb, &sa, &records.b_in_a, &records.a_in_b),
+                Operand::A => (
+                    &sa,
+                    &sb,
+                    records.lying_in(Operand::A).collect::<Vec<_>>(),
+                    records.lying_in(Operand::B).collect::<Vec<_>>(),
+                ),
+                Operand::B => (
+                    &sb,
+                    &sa,
+                    records.lying_in(Operand::B).collect::<Vec<_>>(),
+                    records.lying_in(Operand::A).collect::<Vec<_>>(),
+                ),
             };
             assert!(
                 other.is_empty(),
@@ -278,7 +288,10 @@ fn an_end_resting_in_the_face_holds_its_piece() {
     settle_in_plane([&lid, &u], &mut acc, band()).expect("the settle reads no midpoint");
     let (records, _) = acc.finish();
     assert_eq!(
-        records.a_in_b,
+        records
+            .lying_in(Operand::A)
+            .map(|c| c.record)
+            .collect::<Vec<_>>(),
         [EfContact { edge, face: top }],
         "the edge is recorded in the U's top"
     );
@@ -320,8 +333,16 @@ fn a_short_piece_reads_at_its_corner() {
             "slab {x_is:?}: every piece decided, so the log holds no escalation: {escalated:?}"
         );
         let (in_slab, in_fill, cut) = match x_is {
-            Operand::A => (&records.b_in_a, &records.a_in_b, &sb),
-            Operand::B => (&records.a_in_b, &records.b_in_a, &sa),
+            Operand::A => (
+                records.lying_in(Operand::B).collect::<Vec<_>>(),
+                records.lying_in(Operand::A).collect::<Vec<_>>(),
+                &sb,
+            ),
+            Operand::B => (
+                records.lying_in(Operand::A).collect::<Vec<_>>(),
+                records.lying_in(Operand::B).collect::<Vec<_>>(),
+                &sa,
+            ),
         };
         assert!(
             in_fill.is_empty(),

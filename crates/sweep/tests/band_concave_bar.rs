@@ -195,10 +195,10 @@ pub(crate) fn floor<T: Real + Bounds>(body: &Body<T>, k: f64) -> EdgeKey {
 fn bar_walls<T: Real + Bounds>(body: &Body<T>, section: Section, k: f64) -> Vec<FaceKey> {
     body.faces()
         .filter(|(fk, _)| match (body.face_surface(*fk), section) {
-            (Some(geom::Surface::Cylinder { radius, .. }), Section::Round(a)) => {
+            (Ok(geom::Surface::Cylinder { radius, .. }), Section::Round(a)) => {
                 (mid(*radius) - a).abs() < 1e-9 * k
             }
-            (Some(geom::Surface::Plane { frame, .. }), Section::Square(_)) => {
+            (Ok(geom::Surface::Plane { frame, .. }), Section::Square(_)) => {
                 let (origin, normal) = (frame.origin(), frame.axis());
                 let (y, z) = (mid(origin.y), mid(origin.z));
                 mid(normal.x).abs() < 1e-12

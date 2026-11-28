@@ -2,10 +2,12 @@
 id: focus-marking-is-per-node-not-per-segment
 kind: issue
 title: Viewport focus marking is per NODE, so a profile step cannot light the walls it swept
-status: open
+status: closed
 opened: 2026-08-29
 priority: P1
-cost: D
+cost: H
+closed: 2026-11-25
+pr: 7766
 ---
 
 ## From GitHub issue 1182
@@ -127,3 +129,7 @@ which VGEOM claims. VIEW has left the tracker. EDIT's door is
 "the drawn patches whose role path mentions this step's pieces" is now
 the filter, and a step's pieces are exactly what a profile step lights.
 Id kept; priority unchanged.
+
+## Closed (2026-11-25)
+
+PR 7766: `marks::step_focus` lights the faces whose name is a wall over a piece of the edited step (read off the names since #3223; the DM8 door was not needed), counting a merged face whole with an Advisory note; a step with no piece lights nothing; an unreadable name lights nothing and is said. A part instance's copied names are told apart by the site they are read at (`names::verbatim_edge`/`names::origin`), since part and host mint identical ids. Residue filed: `a-step-lights-the-walls-its-pieces-name-not-every-wall-it-moves` (here), `chrome/a-parts-names-read-at-a-colliding-id-attribute-to-a-host-feature`, `doctail/does-profile-edges-of-keep-a-consumer`, `green/viewer-app-feature-tests-are-timed-by-no-fast-set-check`; the mint-seeding option is on `refs/a-part-name-in-the-host-is-spelled-in-the-parts-ids`.

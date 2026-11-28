@@ -261,8 +261,7 @@ fn mfkrh_plug_by(
         Door::KeysOnly => body.mfkrh_plug(ring, GENERATOR_SENSE),
         Door::Minting => body.mfkrh_minting(
             ring,
-            crate::euler::FaceSurface::New {
-                surface: geom::Surface::nurbs_placeholder(),
+            crate::euler::FaceSurface::Pending {
                 sense: GENERATOR_SENSE,
             },
             tol,
@@ -1743,7 +1742,7 @@ pub(crate) fn teardown(body: &mut Body<f64>, tol: Tol) {
             assert_eq!(body.vertices().count(), 0);
             assert_eq!(body.points().count(), 0);
             assert_eq!(body.curves().count(), 0);
-            assert_eq!(body.surfaces().count(), 0);
+            assert_eq!(body.surface_slots().count(), 0);
             // Kill hygiene, the whole point: no provenance record
             // outlives its entity.
             assert_eq!(body.solid_provenance.len(), 0);

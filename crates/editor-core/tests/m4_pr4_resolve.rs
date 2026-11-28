@@ -906,7 +906,8 @@ fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
         | RoleSeg::BandCut(x)
         | RoleSeg::Inner(x)
         | RoleSeg::Rim(x)
-        | RoleSeg::HoleRim { of: x, .. } => under(x),
+        | RoleSeg::HoleRim { of: x, .. }
+        | RoleSeg::ConventionalVertex(x) => under(x),
         // A crossing: its line, its face, and the things its sense
         // names on the line.
         RoleSeg::CrossingVertex { edge, sense } => under(edge) || sensed(sense, &under),
@@ -943,14 +944,14 @@ fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
         // Segments that embed no name.
         RoleSeg::OutputBody
         | RoleSeg::Cap(_)
+        | RoleSeg::SubArc(_)
+        | RoleSeg::SubArcJoint(_)
         | RoleSeg::Lateral(_)
         | RoleSeg::RimEdge(..)
         | RoleSeg::LateralEdge(_)
         | RoleSeg::CapVertex(..)
         | RoleSeg::Band(_)
         | RoleSeg::BandRim(_)
-        | RoleSeg::BandRimPi(_)
-        | RoleSeg::BandPi(_)
         | RoleSeg::Meridian(..)
         | RoleSeg::MeridianVertex(..)
         | RoleSeg::RevolveCap(_)

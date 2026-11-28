@@ -35,6 +35,34 @@ use crate::parts::PartFiles;
 use crate::pickindex::{PickIndex, PictureKey};
 use crate::scene::DisplayTolerance;
 
+// --- a field's text -------------------------------------------------
+
+/// **The text a literal slot's field shows**, which its keyboard edit
+/// opens on: the row's value spelled exactly in the unit the row is
+/// written in (`crate::props::FieldNumber::text`), for a row that shows
+/// its number rather than a text over it (`crate::props::field_text`
+/// answers `None`).
+pub fn literal_field_text(row: &crate::props::SlotRow, notation: crate::props::Notation) -> String {
+    assert_eq!(
+        crate::props::field_text(row, notation),
+        None,
+        "{:?} shows a text over its number",
+        row.slot
+    );
+    assert!(
+        row.value
+            .as_ref()
+            .ok()
+            .and_then(crate::props::Reading::one)
+            .is_some(),
+        "{:?} is a literal that evaluated to one value",
+        row.slot
+    );
+    crate::props::slot_number(row, notation)
+        .expect("its notation names its value")
+        .seed()
+}
+
 // --- literals -------------------------------------------------------
 
 /// A literal of each dimension, and a point of two lengths —

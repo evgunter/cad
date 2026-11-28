@@ -76,4 +76,8 @@ The reviewer measured about 10% of random seeds red at `CAD_FUZZ_EFFORT=1`. The 
 
 **A further seed** (ONECOPY, `onecopy/topo-forwarders`, PR 6686, whose renames do not reach the fuzz's draw or its oracle): seed `0x1b29dd259aa2977b` at `CAD_TOLERANCE_EPS=1e-12`, `CAD_FUZZ_EFFORT=1`, cone 29, reports "the drawn cone bounds no one material (a fixture defect)" for both the `split` and `conic` readings. Replayed on a clean `origin/main` worktree at `3eea1540`, it is red there too, identically. Found by a slow-set run of `link::cone_fuzz::the_consumers_paths_never_contradict_the_exact_oracle` (1 in 7 runs).
 
+(LATHE, 2026-11-23) Another seed of the same reading: `CAD_FUZZ_SEED=0x1b8581440f2a68bb`
+fails at ε `1e-6`, cone 31, split and conic ("the drawn cone bounds no one material (a fixture
+defect)"), on `lathe/full-revolve-one-band` at `03e5b2264` and on `lathe/mesh-budget-one-band`
+alike; not replayed on main.
 - 2026-11-23 — **another seed** (EMBED, lane strip, `embed/strip` at `fb97c19836`, topo's slow set under `--profile ci`): `CAD_FUZZ_SEED=0x4374899374838d3a CAD_FUZZ_EFFORT=1` reads "ε 1e-12, cone 18, split: the drawn cone bounds no one material (a fixture defect)" at `crates/topo/src/link/cone_fuzz.rs:2377`.

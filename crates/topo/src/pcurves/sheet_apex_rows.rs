@@ -42,7 +42,7 @@ fn joint<T: Decide>(
 ) -> Result<JointElement, PinMiss> {
     let f = T::from_f64;
     decide_plain_joint(
-        DescribedChart::of(surface).unwrap(),
+        DescribedChart::of(surface),
         &Pcurve::Harmonic {
             u: geom_brep::Channel::fixed_angle(f(entry.0)),
             v: geom_brep::Channel::fixed_angle(f(entry.1)),

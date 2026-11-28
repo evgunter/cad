@@ -60,7 +60,7 @@ fn minor_radii(body: &Body<f64>) -> Vec<f64> {
     let mut out: Vec<f64> = body
         .faces()
         .filter_map(|(fk, _)| match body.face_surface(fk) {
-            Some(Surface::Torus { minor_radius, .. }) => Some(*minor_radius),
+            Ok(Surface::Torus { minor_radius, .. }) => Some(*minor_radius),
             _ => None,
         })
         .collect();
@@ -305,7 +305,11 @@ fn the_line_arm_carries_a_hand_split_drum_seam_to_its_foot_at_the_direct_door() 
             e_at = e.render(geom_brep::recourse::Reading::Build)
         )
     });
-    assert_eq!(topo::validate_geometric(&moved, tol()), Ok(()), "tier 3");
+    assert_eq!(
+        topo::test_support::validate_completed(&moved, tol()),
+        Ok(()),
+        "tier 3"
+    );
     // The door ends with the join: the image stands between the two
     // half-seams on one generator of the moved wall, so the join takes
     // it, and the seam is whole again on the moved wall.
@@ -430,7 +434,7 @@ fn shells_with_one_surface_vertices(
 /// The surface key of `body`'s faces wearing `pred`'s surface.
 fn wall_key(body: &Body<f64>, pred: impl Fn(&Surface<f64>) -> bool) -> topo::SurfaceKey {
     body.faces()
-        .find(|(fk, _)| body.face_surface(*fk).is_some_and(&pred))
+        .find(|(fk, _)| body.face_surface(*fk).is_ok_and(&pred))
         .expect("the wall")
         .1
         .surface
@@ -480,7 +484,7 @@ fn cavity_at_closed_form(
         },
     );
     assert_eq!(
-        topo::validate_geometric(&cavity, tol()),
+        topo::test_support::validate_completed(&cavity, tol()),
         Ok(()),
         "{what}: cavity tier 3"
     );
@@ -612,11 +616,7 @@ fn a_sphere_from_an_arc_run_hollows_to_its_closed_form() {
             ]),
             Revolution::Full,
         );
-        assert_eq!(
-            body.faces().count(),
-            2,
-            "station {v}: one wall in two π-bands"
-        );
+        assert_eq!(body.faces().count(), 1, "station {v}: one wall, one face");
         let mut cavity = body.clone();
         let band = geom_core::Band::linear(tol()).expect("band");
         topo::offset_charts_together(&mut cavity, &hollow_moves(&body, t), band, tol())
@@ -627,7 +627,7 @@ fn a_sphere_from_an_arc_run_hollows_to_its_closed_form() {
                 )
             });
         assert_eq!(
-            topo::validate_geometric(&cavity, tol()),
+            topo::test_support::validate_completed(&cavity, tol()),
             Ok(()),
             "station {v}: tier 3"
         );
@@ -669,7 +669,7 @@ fn a_sphere_from_an_arc_run_hollows_to_its_closed_form() {
                     )
                 });
             assert_eq!(
-                topo::validate_geometric(&cavity, tol()),
+                topo::test_support::validate_completed(&cavity, tol()),
                 Ok(()),
                 "{label}: tier 3"
             );
@@ -701,8 +701,8 @@ fn a_sphere_from_an_arc_run_hollows_to_its_closed_form() {
 /// reverted cavity's stored pcurve rows arrive on the twins verbatim
 /// and continuous — the reversal moves each loop's anchor with its
 /// direction, so the grafted body is tier-3 valid on the carried rows
-/// (`shell9_probe`, the sphere rows) — and the verb's closing mint
-/// re-derives them all the same, the `Transfers` row's contract.
+/// (`shell9_probe`, the sphere rows) — and the finish keeps them as
+/// carried, deriving only the rows that are missing.
 #[test]
 fn a_two_arc_sphere_shells_to_its_closed_form() {
     let (r, t) = (1.0, 0.05);
@@ -914,8 +914,8 @@ fn a_partial_frustum_moving_only_its_cone_keeps_its_generators() {
                 .map(|faces| {
                     let face = body.get_face(faces[0]).expect("a live face");
                     let distance = match body.face_surface(faces[0]) {
-                        Some(Surface::Cone { .. }) if face.sense => d,
-                        Some(Surface::Cone { .. }) => -d,
+                        Ok(Surface::Cone { .. }) if face.sense => d,
+                        Ok(Surface::Cone { .. }) => -d,
                         _ => 0.0,
                     };
                     topo::ChartMove { faces, distance }
@@ -934,7 +934,7 @@ fn a_partial_frustum_moving_only_its_cone_keeps_its_generators() {
                 )
             });
             assert_eq!(
-                topo::validate_geometric(&body, tol()),
+                topo::test_support::validate_completed(&body, tol()),
                 Ok(()),
                 "{what}, d {d}: tier 3"
             );

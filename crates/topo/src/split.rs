@@ -30,12 +30,12 @@ use geom_brep::recourse::{Refused, RefusedArm, RefusedSide, SizedDecision, Sized
 use geom_core::{Band, Decide, Point3, Tol};
 
 use crate::body::Body;
-use crate::entity::{EdgeKey, EntityId, GeomRef, HalfEdgeKey, VertexKey};
+use crate::entity::{EdgeKey, EntityId, HalfEdgeKey, VertexKey};
 #[cfg(debug_assertions)]
 use crate::euler::ArenaDelta;
 use crate::euler::{EdgeSubject, EulerOpError};
 use crate::geometry::{CurveKey, PointKey};
-use crate::live::{Arg, dangling_link, link, lookup};
+use crate::live::{Arg, link, lookup};
 use crate::provenance::Provenance;
 
 /// The lever a split of a smooth edge (a tangency or a pair) has where the must-carry rule
@@ -156,12 +156,8 @@ impl<T: Decide> Body<T> {
         band: Band,
     ) -> Result<EdgeCurveSpec<T>, EulerOpError> {
         let surface = |k| {
-            self.get_surface(k).unwrap_or_else(|| {
-                dangling_link(
-                    EntityId::Edge(edge),
-                    "curve's description",
-                    GeomRef::Surface(k),
-                )
+            self.get_surface(k).unwrap_or_else(|miss| {
+                crate::live::described_link(EntityId::Edge(edge), "curve's description", k, miss)
             })
         };
         // The rule's escalation by the order that raised it: the bend, or

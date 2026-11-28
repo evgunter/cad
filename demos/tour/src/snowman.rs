@@ -29,7 +29,7 @@
 //! **The waist is selected by description, and the description is
 //! ambiguous.** `edge_adjacent_matches(Sphere, Sphere)` names the
 //! waist's arcs AND every seam meridian of either ball, because a
-//! meridian's two sides are two half-bands of one sphere. The kind
+//! seam meridian has its ball's one sphere face on both sides. The kind
 //! vocabulary has no atom for "two different surfaces" or for a
 //! concave edge (SELECT-DESIGN GS-Q2 reserves `Convex`/`Reflex`
 //! unbuilt), so the scene separates them through `query::rim_of`,
@@ -243,8 +243,8 @@ fn waist(body: &Body<f64>) -> Vec<EdgeKey> {
     let rim = rim.expect("the union has a waist rim");
     assert_eq!(
         (named.len(), rim.len(), meridians),
-        (6, 2, 4),
-        "(Sphere, Sphere) names two waist arcs and four co-surface meridians"
+        (3, 1, 2),
+        "(Sphere, Sphere) names the waist rim and two co-surface meridians, one per ball"
     );
     rim
 }

@@ -79,7 +79,7 @@ mod notation;
 mod units;
 mod written;
 
-pub use decimal::Decimal;
+pub use decimal::{Decimal, POSITIONAL_DECADES, Positional};
 pub use fmt::{FmtQuantityError, fmt_angle, fmt_length};
 pub use notation::Notation;
 pub use units::{

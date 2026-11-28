@@ -1,6 +1,6 @@
 //! Acceptance: full revolves with chart singularities — the ball
-//! (two-band sphere, pole fans, no rims in either loop) and the cone
-//! (apex fan, wire-case half-rims, base disc from swept radial
+//! (one-face sphere, pole fans, no rims in its loop) and the cone
+//! (apex fan, one closed base rim, base disc from swept radial
 //! segments).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -220,17 +220,12 @@ fn a_polar_cap_sizes_its_azimuth_at_its_widest_latitude() {
     )
     .unwrap()
     .body;
-    for (delta, pinned) in [(0.01, 100), (0.002, 506)] {
+    for (delta, pinned) in [(0.01, 100), (0.002, 495)] {
         let mesh = check_mesh_acceptance(&body, delta, None);
         let tris: usize = mesh
             .patches
             .iter()
-            .filter(|p| {
-                matches!(
-                    body.face_surface(p.face),
-                    Some(geom::Surface::Sphere { .. })
-                )
-            })
+            .filter(|p| matches!(body.face_surface(p.face), Ok(geom::Surface::Sphere { .. })))
             .map(|p| p.triangles.len())
             .sum();
         assert_eq!(tris, pinned, "the cap's sphere patch at δ {delta}");

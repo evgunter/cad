@@ -211,7 +211,7 @@ fn a_spiric_rim_exports_as_a_spline_and_reimports_at_its_volume() {
     assert!(
         native
             .faces()
-            .all(|(fk, _)| native.face_surface(fk).is_some_and(|s| matches!(
+            .all(|(fk, _)| native.face_surface(fk).is_ok_and(|s| matches!(
                 s,
                 geom::Surface::Plane { .. }
                     | geom::Surface::Cylinder { .. }
@@ -223,7 +223,7 @@ fn a_spiric_rim_exports_as_a_spline_and_reimports_at_its_volume() {
     let back = import_step(&text, &ImportOptions::default(), tol());
     // At a coarse band the census's edge-meeting read exhausts on the
     // rims the build makes, where it passes the native body's
-    // (`work/contacthold/the-census-meeting-read-exhausts-on-an-imported-spiric-rim-at-a-coarse-band.md`):
+    // (`work/cpair/the-census-meeting-read-exhausts-on-an-imported-spiric-rim-at-a-coarse-band.md`):
     // that refusal is pinned here, and the volume is measured below it.
     if tol().eps() >= 1e-6 {
         assert!(
