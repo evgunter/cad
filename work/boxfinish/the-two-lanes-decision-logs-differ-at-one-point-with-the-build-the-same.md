@@ -95,6 +95,38 @@ unlabelled pair, and measure the two `pcurve_chart_placement` margins.
 (BOXFINISH orchestrator)
 
 
+## The corpus at one point, no box (PR 7716's review, 2026-11-28)
+
+The reviewer's measurement on PR 7716's head, taken again in its fix
+pass with the reviewer's probe on that head merged with main
+`3ff862c423`: an `f64` build and an `Interval` build of each document
+at its authored point, their verdict vectors (`certifying_vector`)
+compared. Of the 34 corpus documents and `cone_on_sphere` and `cup`,
+25 are equal and 11 part; no document differs in a `props_*` count.
+
+| document | first parting, `f64` against `Interval` | counts that differ, `f64`:`Interval` |
+|---|---|---|
+| `boss_union` | `curve_carrier_gap` against `curve_carrier_clear` | `curve_carrier_gap` 68:65 |
+| `die_pips` | the same pair | `chart_singularity_in_span` 5:4, `chart_singularity_nearer` 6:5, `curve_carrier_gap` 8:7 |
+| `die_tool` | the same pair | `chart_singularity_in_span` 30:24, `chart_singularity_nearer` 76:70, `curve_carrier_gap` 48:42 |
+| `die_composed` | the same pair | `chart_singularity_in_span` 50:55, `chart_singularity_nearer` 42:30, `curve_carrier_gap` 33:32, `pcurve_cylinder_chart_axial` 0:36 |
+| `die_fillet` | `chart_singularity_nearer` (check, Zero) against `chart_singularity_at_vertex` (check) | `chart_singularity_nearer` 32:23 |
+| `die_composed_tour` | the same pair | `chart_singularity_in_span` 435:372, `chart_singularity_nearer` 850:739, `curve_carrier_gap` 358:337 |
+| `tube_arc` | `ssi_hull_sup` against `pcurve_projected_lever` | `pcurve_projected_lever` 8:12 |
+| `hollow_tube_elbow` | the same pair | `pcurve_projected_lever` 16:24 |
+| `cone_on_sphere` | the same pair | `pcurve_projected_lever` 8:10 |
+| `axis_projection` | `census_backstop_depth_toward` against `census_backstop_depth_across` | `bool_pair_gap` 326:479, `census_backstop_depth_toward` 6:0, `curve_pair_pose_clear` 53:0, `curve_pair_pose_held_one_piece` 30:0, `curve_pair_pose_parallel` 249:236, `curve_pair_walk_held_end` 177:147, `curve_pair_walk_span_order` 83:46 |
+| `revolves_on_one_axis` | `curve_pair_walk_held_end` against `curve_pair_pose_basin` | `curve_pair_pose_held_one_piece` 12:0, `curve_pair_walk_held_end` 42:30, `curve_pair_walk_span_order` 24:12 |
+
+Four of the five pairs are not in the first table above:
+`curve_carrier_gap` / `curve_carrier_clear`,
+`chart_singularity_nearer` / `chart_singularity_at_vertex`,
+`census_backstop_depth_toward` / `census_backstop_depth_across`, and
+`curve_pair_walk_held_end` / `curve_pair_pose_basin`. None is traced.
+The `ssi_hull_sup` pair is
+`limb-2-logs-other-decisions-at-an-enclosure-scalar-than-at-the-witness`
+(ISOTAIL).
+
 ## The at-rest policy's lanes, read for what each scalar logs (PR 7716's fix pass, 2026-11-28)
 
 Read, not run. In `topo`'s `props.rs` the `f64` and `Interval`
