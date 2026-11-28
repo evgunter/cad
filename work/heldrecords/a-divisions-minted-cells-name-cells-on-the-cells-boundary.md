@@ -106,3 +106,11 @@ lane's follow-up.
   - It is red in main's state (the old section rule plus the face
     filter), which names the edge (1, 2, 1)–(1.8, 2, 1).
   - The three flush rows stay green in that state.
+- **Sweep slow set (the reach method).** Panic probes went at the two
+  sites where the change alters a fate (a section cell the twin rule
+  excludes, a minted cell the shared rule drops) and ran over the 1039
+  slow `sweep::all` tests outside ci's default filter, at a 300 s cap.
+  - 160 tests reached a changed site or the cap.
+  - Those 160 ran unprobed on main and head at a 900 s cap. No test
+    passes on main and fails on head.
+  - The same three tests fail on both sides, and eight time out on both.
