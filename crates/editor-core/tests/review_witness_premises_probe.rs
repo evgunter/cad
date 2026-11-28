@@ -287,3 +287,84 @@ fn what_the_drive_says_of_wider_leaves_and_of_a_leaf_across_a_tangency() {
         }
     }
 }
+
+/// **A flip on a body with a curved face is still refused, named**: a
+/// unit square whose bottom side carries a vertex at a parameter height
+/// (convex below zero, a notch above), with a round hole, extruded. The
+/// leaves short of the crossing certify (the hole's wall is a curved
+/// closed-form face), and every leaf wholly past it is a flip crossing
+/// whose evidence names a predicate.
+#[test]
+fn a_flip_on_a_body_with_a_round_hole_is_refused_named() {
+    use crate::fixture::{Recorder, len};
+    use editor_core::{Formula, LoopProgram, Node, ProfileProgram};
+    let mut r = Recorder::new();
+    r.push(DocEdit::DeclareVar {
+        name: VarName::from_static("height"),
+        def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, -0.125)),
+    });
+    let height = Formula::named(VarName::from_static("height"), Dimension::Length);
+    let p = r.insert(Node::Profile(ProfileProgram {
+        loops: vec![
+            LoopProgram::polygon_expr([
+                [len(0.0), len(0.0)],
+                [len(0.5), height],
+                [len(1.0), len(0.0)],
+                [len(1.0), len(1.0)],
+                [len(0.0), len(1.0)],
+            ]),
+            LoopProgram::Circle {
+                centre: [len(0.5), len(0.625)],
+                radius: len(0.125),
+            },
+        ],
+        ids: Vec::new(),
+        on: None,
+    }));
+    r.insert(Node::Extrude {
+        profile: p.into(),
+        distance: len(1.0),
+    });
+    let doc = r.doc;
+    let field = RangeField::Param(doc.var_named("height").unwrap());
+    // The crossing is at offset 0.125; the seed reaches 0.0625 past it.
+    let seed = RangeSeed {
+        lo: 0.0,
+        hi: 0.1875,
+    };
+    let derived = derive(&doc, &field, seed, tol()).expect("admitted");
+    let analyzed = analyzed_box(&derived.doc, &AnalysisPolicy::default());
+    let level = DriveConfig {
+        max_depth: 5,
+        ..DriveConfig::default()
+    };
+    let stop = editor_core::Stop::default();
+    let verdict = editor_core::drive::drive(&derived.doc, &analyzed, &level, &stop, tol())
+        .expect("the notched square builds");
+    let mut named = 0;
+    let mut unnamed = 0;
+    for leaf in verdict.refused() {
+        match &leaf.reason {
+            RefusalReason::FlipCrossing { flipped } if flipped.is_empty() => unnamed += 1,
+            RefusalReason::FlipCrossing { flipped } => {
+                named += 1;
+                if named == 1 {
+                    println!("REVIEW first named flip: {:?}", flipped.verdicts);
+                }
+            }
+            other => println!("REVIEW refused {}: {:?}", other.class().name(), leaf.box_),
+        }
+    }
+    println!(
+        "REVIEW notch with hole: certified {} named flips {named} unnamed flips {unnamed} of {} \
+         refused",
+        verdict.certified().len(),
+        verdict.refused().len()
+    );
+    assert!(
+        !verdict.certified().is_empty(),
+        "no leaf short of the crossing certifies"
+    );
+    assert!(named > 0, "no leaf past the crossing is a named flip");
+    assert_eq!(unnamed, 0, "a flip crossing names nothing");
+}
