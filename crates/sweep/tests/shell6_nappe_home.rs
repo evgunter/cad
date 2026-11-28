@@ -142,7 +142,7 @@ fn both_doors_mint_the_turned_offset_on_both_nappes() {
                 "{what}: {door}: half-angle carried"
             );
             assert_eq!(
-                topo::validate_geometric(&work, tol),
+                topo::test_support::validate_completed(&work, tol),
                 Ok(()),
                 "{what}: the {door} door's own output must validate"
             );
@@ -358,7 +358,7 @@ fn a_chart_whose_faces_disagree_refuses_at_both_doors() {
         (0.0, 3.0 * H),
     ]);
     let group = cone_faces(&body);
-    assert_eq!(group.len(), 4, "two cone charts, two bands each");
+    assert_eq!(group.len(), 2, "two cone charts, one band each");
     reanchor_cone(&mut body, &group, 1.5 * H);
     let (mut lower, mut upper) = (Vec::new(), Vec::new());
     for &f in &group {
@@ -367,7 +367,7 @@ fn a_chart_whose_faces_disagree_refuses_at_both_doors() {
             Nappe::Opening => upper.push(f),
         }
     }
-    assert_eq!((lower.len(), upper.len()), (2, 2));
+    assert_eq!((lower.len(), upper.len()), (1, 1));
 
     for (order, faces) in [
         ("mirror first", [lower.clone(), upper.clone()].concat()),

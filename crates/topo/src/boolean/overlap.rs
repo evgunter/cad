@@ -312,7 +312,7 @@ pub(crate) fn overlap_as<T: Decide>(
     for (body, face) in [a, b] {
         let f = body.face(face).ok_or(OverlapRefusal::StaleFace { face })?;
         if matches!(
-            f.surface().kind(),
+            f.expect_described().kind(),
             geom::SurfaceKind::Nurbs | geom::SurfaceKind::Approx
         ) {
             return Err(OverlapRefusal::SplineCarrier { face });
@@ -786,7 +786,9 @@ mod piece_ranking {
     use super::{OverlapRefusal, OverlapUnread, keep_piece_refusal};
 
     fn in_band() -> OverlapRefusal {
-        OverlapRefusal::Placement(super::super::ContainError::RayExhausted)
+        OverlapRefusal::Placement(super::super::ContainError::RayExhausted(
+            crate::entity::LoopKey::default(),
+        ))
     }
 
     fn unread() -> OverlapRefusal {

@@ -55,7 +55,7 @@ fn a_curved_keel_in_the_plane_splits_sound_and_sections_with_no_spur() {
     // Pinned red at 1e-6: with the tip 0.6 ε off the plane the halves
     // hold 5.2e-7 less than the body, where the row wants them to keep
     // its volume to 1e-9 of it
-    // (`work/onedoor/main-red-four-sweep-rows-hold-volumes-the-one-surface-record-moves-at-1e-6.md`).
+    // (`work/onedoor/a-planar-faces-volume-term-reads-its-unweighted-mean-vertex-so-in-band-vertices-lever-over-the-face.md`).
     test_utils::pinned_red::row(
         tol().eps(),
         &[1e-6],

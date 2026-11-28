@@ -51,12 +51,11 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::{PI, SQRT_2};
-use std::collections::BTreeSet;
 
 use geom_core::{Point2, Tol};
 use sweep::Revolution;
+use sweep::blend::FILLET3_SEAM_VERTEX_RECOURSE;
 use sweep::blend::build::fillet_edges;
-use sweep::blend::{BlendError, FILLET3_SEAM_VERTEX_RECOURSE, UnbuiltEnd};
 use sweep::test_support::{assert_promises_either_side, revolved_about_y, rim_arcs_at, waisted};
 use topo::{Body, EdgeKey, validate_geometric};
 
@@ -200,7 +199,7 @@ fn the_lip_bands_removed_volume_matches_a_hand_quadrature() {
     let before = volume(&source);
     for r in [0.02, 0.05, 0.08] {
         let arcs = rim_arcs_at(&source, LIP_R, TOP);
-        assert_eq!(arcs.len(), 2, "the lip rim is seam-split");
+        assert_eq!(arcs.len(), 1, "the lip rim is one closed edge");
         let out = fillet_edges(&source, &arcs, r, tol())
             .unwrap_or_else(|e| panic!("the lip fillets at r={r}, got {e:?}"));
         let removed = before - volume(&out.body);
@@ -244,32 +243,6 @@ fn the_same_hand_quadrature_holds_for_the_one_edge_twin() {
 // Planted violations of the seam-split resolution checks.
 // ------------------------------------------------------------------
 
-/// **A STRICT SUBSET of a seam-split rim's arcs must refuse.** One arc
-/// of a two-arc rim is an OPEN chain terminating at two seam vertices,
-/// which is exactly the shape ARMS-3 refuses — the door this PR builds
-/// must not have widened that into half a band.
-#[test]
-fn a_strict_subset_of_a_seam_split_rims_arcs_refuses_typed() {
-    let source = sweep::test_support::finished("source", lantern(), tol());
-    for (name, rr, ry) in [
-        ("neck", 1.0, 0.0),
-        ("shoulder", SHOULDER.0, SHOULDER.1),
-        ("lip", LIP_R, TOP),
-    ] {
-        let arcs = rim_arcs_at(&source, rr, ry);
-        assert_eq!(arcs.len(), 2, "{name} is seam-split");
-        for one in &arcs {
-            match fillet_edges(&source, &[*one], 0.05, tol()).map_err(|r| r.error) {
-                Err(BlendError::UnbuiltEnd(UnbuiltEnd::Seam { .. })) => {}
-                Err(other) => {
-                    panic!("{name}: one arc alone should refuse at the seam vertex, got {other:?}")
-                }
-                Ok(_) => panic!("{name}: one arc alone must NOT carve"),
-            }
-        }
-    }
-}
-
 /// **Two rims sharing a wall, in ONE call, carve** — FLIPPED
 /// DELIBERATELY at #935 (BLEND-2). The reviewer pinned the upfront
 /// refusal this request met at BLEND-1's merge; the seam-key refresh
@@ -283,7 +256,7 @@ fn two_rims_sharing_a_wall_in_one_call_carve_both_bands() {
     let source = lantern();
     let mut both = rim_arcs_at(&source, 1.0, 0.0);
     both.extend(rim_arcs_at(&source, SHOULDER.0, SHOULDER.1));
-    assert_eq!(both.len(), 4, "two seam-split rims are four arcs");
+    assert_eq!(both.len(), 2, "two rims, one edge each");
     let out = fillet_edges(
         &sweep::test_support::at_rest(&source, tol()),
         &both,
@@ -293,26 +266,6 @@ fn two_rims_sharing_a_wall_in_one_call_carve_both_bands() {
     .unwrap_or_else(|e| panic!("the shared-wall pair carves in one call (#935), got {e:?}"));
     assert_eq!(out.band_faces.len(), 2, "one band per rim");
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("tier 3, got {e:?}"));
-}
-
-/// **Arcs from two DIFFERENT rims are not one rim.** One arc of the
-/// neck and one of the shoulder: a request the resolver must not read
-/// as a closed chain of one rim.
-#[test]
-fn arcs_of_two_different_rims_refuse_typed() {
-    let source = lantern();
-    let neck = rim_arcs_at(&source, 1.0, 0.0);
-    let shoulder = rim_arcs_at(&source, SHOULDER.0, SHOULDER.1);
-    let mixed = [neck[0], shoulder[0]];
-    match fillet_edges(
-        &sweep::test_support::at_rest(&source, tol()),
-        &mixed,
-        0.05,
-        tol(),
-    ) {
-        Err(e) => println!("mixed-rim refusal: {e:?}"),
-        Ok(_) => panic!("one arc of each of two rims must not carve"),
-    }
 }
 
 // ------------------------------------------------------------------
@@ -511,7 +464,7 @@ fn a_cylinder_capped_both_ends_carves_both_seam_split_rims() {
     let mut bands = 0;
     for (name, ry) in [("base", 0.0), ("top", 1.0)] {
         let arcs = rim_arcs_at(&body, 1.0, ry);
-        assert_eq!(arcs.len(), 2, "{name} rim is seam-split");
+        assert_eq!(arcs.len(), 1, "{name} rim is one closed edge");
         let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, r, tol())
             .unwrap_or_else(|e| panic!("{name} rim fillets, got {e:?}"));
         bands += out.band_faces.len();
@@ -533,13 +486,11 @@ fn a_cylinder_capped_both_ends_carves_both_seam_split_rims() {
     );
 }
 
-/// **The `UnbuiltEnd::Seam` recourse names a door that answers.** At a site
-/// where the tag fires — one arc of a capped cylinder's base rim — the
-/// request the recourse names ("the rim whole") must then CARVE, which
-/// is the standard the A3-2 correction set and the thing this PR
-/// claims to have made true.
+/// **A capped cylinder's base rim carves whole**, the request the
+/// `UnbuiltEnd::Seam` recourse names: on a full revolve the rim is one
+/// closed edge, so it is the whole request as built.
 #[test]
-fn the_seam_vertex_recourse_names_a_door_that_answers() {
+fn a_capped_cylinders_base_rim_carves_whole() {
     let source = sweep::test_support::finished(
         "source",
         revolved_about_y(
@@ -555,27 +506,8 @@ fn the_seam_vertex_recourse_names_a_door_that_answers() {
         tol(),
     );
     let arcs = rim_arcs_at(&source, 1.0, 0.0);
-    assert_eq!(
-        arcs.len(),
-        2,
-        "a full revolve's one seam splits the rim into two arcs"
-    );
-    // The refusal fires...
-    let refused = fillet_edges(&source, &arcs[..1], 0.1, tol()).map_err(|r| r.error);
-    match refused {
-        Err(e @ BlendError::UnbuiltEnd(UnbuiltEnd::Seam { .. })) => {
-            let msg = e.render(geom_brep::recourse::Reading::Build);
-            println!("recourse: {msg}");
-            assert!(
-                msg.contains("rim whole"),
-                "the recourse names the whole-rim request, got {msg}"
-            );
-        }
-        other => panic!("one arc alone refuses at the seam vertex, got {other:?}"),
-    }
-    // ...and the door it names answers.
-    let out =
-        fillet_edges(&source, &arcs, 0.1, tol()).expect("the recourse's own request must carve");
+    assert_eq!(arcs.len(), 1, "a full revolve's rim is one closed edge");
+    let out = fillet_edges(&source, &arcs, 0.1, tol()).expect("the whole rim carves");
     assert_eq!(out.band_faces.len(), 1);
     validate_geometric(&out.body, tol()).expect("tier-3 valid");
 }
@@ -594,7 +526,7 @@ fn the_waisted_bodys_convex_rims_carve_so_its_concave_row_is_not_vacuous() {
     let source = sweep::test_support::finished("source", waisted(tol()), tol());
     for (name, ry) in [("base", 0.0), ("top", 1.0)] {
         let arcs = rim_arcs_at(&source, 1.0, ry);
-        assert_eq!(arcs.len(), 2, "{name} rim is seam-split");
+        assert_eq!(arcs.len(), 1, "{name} rim is one closed edge");
         let out = fillet_edges(&source, &arcs, 0.05, tol())
             .unwrap_or_else(|e| panic!("{name} rim of the waisted body carves, got {e:?}"));
         assert_eq!(out.band_faces.len(), 1);
@@ -602,8 +534,8 @@ fn the_waisted_bodys_convex_rims_carve_so_its_concave_row_is_not_vacuous() {
     }
 }
 
-/// **The composed honesty pin: the recourse is TRUE at every site the
-/// tag fires.**
+/// **The composed honesty pin: the recourse's request carves on both
+/// material sides.**
 ///
 /// `is_seam_vertex` classifies purely on INCIDENCE (two rim arcs on one
 /// support pair plus two co-surface seams) and never reads convexity,
@@ -639,40 +571,14 @@ fn the_seam_vertex_recourse_is_true_at_every_site_the_tag_fires() {
         ("the convex top", 1.0, 1.0, true),
     ] {
         let arcs = rim_arcs_at(&source, rim_r, rim_y);
-        assert_eq!(arcs.len(), 2, "{name} is seam-split");
+        assert_eq!(arcs.len(), 1, "{name} is one closed edge");
 
-        // Half one: the tag fires, and shows the sentence.
-        let Err(one) = fillet_edges(&source, &arcs[..1], 0.05, tol()).map_err(|r| r.error) else {
-            panic!("{name}: one arc stops at a seam vertex and must refuse")
-        };
-        assert!(
-            matches!(one, BlendError::UnbuiltEnd(UnbuiltEnd::Seam { .. })),
-            "{name}: the incidence-only tag fires on both material sides, got {one:?}"
-        );
-        let shown = one.render(geom_brep::recourse::Reading::Build);
-        assert!(
-            shown.contains(FILLET3_SEAM_VERTEX_RECOURSE),
-            "{name}: the seam recourse is the one appended: {shown}"
-        );
-
-        // Half two: the request that sentence names, made the way the
-        // sentence says to make it — `rim_of` on the very arc that just
-        // refused — and answered with the carve it promises, on either
-        // side. The recourse is followed THROUGH the door it names, so
-        // a door that stopped handing back the whole rim would red here
-        // and not only in the door's own suite.
+        // The request the sentence names, made the way it says to make
+        // it — `rim_of` on the rim — and answered with the carve it
+        // promises, on either side.
         let whole = topo::query::rim_of(&source, arcs[0])
-            .unwrap_or_else(|e| panic!("{name}: the refusing arc names its rim, got {e}"));
-        assert_eq!(
-            whole.len(),
-            2,
-            "{name}: the door hands back every arc the seam split it into"
-        );
-        assert_eq!(
-            whole.iter().copied().collect::<BTreeSet<_>>(),
-            arcs.iter().copied().collect::<BTreeSet<_>>(),
-            "{name}: and exactly those arcs"
-        );
+            .unwrap_or_else(|e| panic!("{name}: the rim names itself, got {e}"));
+        assert_eq!(whole, arcs, "{name}: the door hands back the one rim edge");
         let arcs = whole;
         let out = fillet_edges(&source, &arcs, 0.05, tol())
             .unwrap_or_else(|e| panic!("{name}: the promised carve happens, got {e:?}"));

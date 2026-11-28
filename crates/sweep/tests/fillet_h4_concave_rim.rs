@@ -15,13 +15,13 @@
 //! back to the bare sense bit, and every convex twin beside it stays
 //! green — which is what makes the twins evidence and not decoration.
 //!
-//! - **The waist** (the ANNULUS door, a seam-split rim between two
+//! - **The waist** (the ANNULUS door, a one-edge rim between two
 //!   cones): one band, tier-3 valid, and the volume is the source's plus
 //!   the Pappus fill derived in the row, with `volume_pad == 0.0`.
 //! - **The convex twin** on the same body cuts, `V₁ < V₀`, so the two
 //!   signs sit side by side over one fixture.
 //! - **The boss** `cube ∪ ball` (the LADDER door: a ring of the top
-//!   plane, two ring-free half-caps) — the concave twin of the die's pip,
+//!   plane, one ring-free cap) — the concave twin of the die's pip,
 //!   whose spherical-cap fill is a washer integral in closed form and is
 //!   the pip's own cut with its sign flipped.
 //! - **Naming totality** on the concave band, in all three directions,
@@ -68,22 +68,16 @@ fn volume(body: &Body<f64>) -> f64 {
     props.enclosure.volume
 }
 
-/// The census delta a two-crossing rim band leaves, on either door.
+/// The census delta a one-crossing rim band leaves, on either door: a
+/// full revolve's rim is one closed edge, crossed once, at its seam.
 ///
-/// Vertices `+2`: four feet minted (a host and a mate foot per
-/// crossing) and the two rim vertices retired. Edges `+3`: four seam
-/// splits and four trimlines minted; the two rim arcs, the two host
-/// rim-side seam pieces and the carry-through crossing's mate piece
-/// retired (the closure crossing's mate piece survives as the band's
-/// slit). Faces `+1`: four strips minted, three merged away — the band.
-/// This is the annulus band's whole delta.
-const TWO_CROSSING_DELTA: (usize, usize, usize) = (2, 3, 1);
-
-/// [`TWO_CROSSING_DELTA`] for a LADDER band, less its closing join
-/// (`docs/DESIGN.md`, maximal edges): its two host trimlines lie on one
-/// circle and meet at the host foot the band's slit does not reach,
-/// which the join takes, one vertex and one edge.
-const LADDER_DELTA: (usize, usize, usize) = (1, 2, 1);
+/// Vertices `+1`: two feet minted (a host and a mate foot at the
+/// crossing) and the rim vertex retired. Edges `+2`: two seam splits and
+/// two trimlines minted; the rim and the host's rim-side seam piece
+/// retired (the mate piece survives as the band's slit). Faces `+1`:
+/// the band. A ladder band's two trimlines are closed circles with no
+/// join to take, so the ladder door leaves the same delta.
+const ONE_CROSSING_DELTA: (usize, usize, usize) = (1, 2, 1);
 
 fn assert_delta(
     before: (usize, usize, usize),
@@ -94,7 +88,7 @@ fn assert_delta(
     assert_eq!(
         (after.0 - before.0, after.1 - before.1, after.2 - before.2),
         want,
-        "{what}: census {before:?} → {after:?} is the two-crossing band's delta"
+        "{what}: census {before:?} → {after:?} is the one-crossing band's delta"
     );
 }
 
@@ -108,13 +102,13 @@ fn assert_delta(
 const WAIST_R: f64 = 0.05;
 
 /// **The waist carves**: one annulus band, tier-3 valid, the
-/// two-crossing census delta, and `V₁ = V₀ + ΔV` with `ΔV` the Pappus
+/// one-crossing census delta, and `V₁ = V₀ + ΔV` with `ΔV` the Pappus
 /// fill above — `V₁ > V₀` is the point.
 #[test]
 fn the_waist_carves_one_annulus_band_and_adds_the_pappus_fill() {
     let source = waisted(tol());
     let arcs = rim_arcs_at(&source, 0.5, 0.5);
-    assert_eq!(arcs.len(), 2, "the waist rim is seam-split into two arcs");
+    assert_eq!(arcs.len(), 1, "the waist rim is one closed edge");
     let v0 = volume(&source);
     assert!(
         (v0 - 7.0 * PI / 12.0).abs() < 1e-12,
@@ -133,7 +127,7 @@ fn the_waist_carves_one_annulus_band_and_adds_the_pappus_fill() {
     assert_delta(
         census(&source),
         census(&out.body),
-        TWO_CROSSING_DELTA,
+        ONE_CROSSING_DELTA,
         "the waist",
     );
 
@@ -160,13 +154,13 @@ fn the_convex_twin_of_the_same_body_cuts() {
     let v0 = volume(&source);
     for (name, rim_y) in [("the base", 0.0), ("the top", 1.0)] {
         let arcs = rim_arcs_at(&source, 1.0, rim_y);
-        assert_eq!(arcs.len(), 2, "{name} rim is seam-split into two arcs");
+        assert_eq!(arcs.len(), 1, "{name} rim is one closed edge");
         let out = fillet_edges(&source, &arcs, WAIST_R, tol())
             .unwrap_or_else(|e| panic!("{name} rim carves, got {e:?}"));
         assert_eq!(out.band_faces.len(), 1, "{name}: one annulus band");
         validate_geometric(&out.body, tol())
             .unwrap_or_else(|e| panic!("{name}: tier-3 valid, got {e:?}"));
-        assert_delta(census(&source), census(&out.body), LADDER_DELTA, name);
+        assert_delta(census(&source), census(&out.body), ONE_CROSSING_DELTA, name);
         let v1 = volume(&out.body);
         assert!(
             v1 < v0,
@@ -223,7 +217,7 @@ fn top_face(body: &Body<f64>) -> FaceKey {
     body.faces()
         .find(|(fk, _)| {
             matches!(body.face_surface(*fk),
-                Some(Surface::Plane { frame, .. })
+                Ok(Surface::Plane { frame, .. })
                     if (frame.origin().z - SLAB).abs() < 1e-12 && frame.axis().z > 0.5)
         })
         .map(|(k, _)| k)
@@ -298,13 +292,13 @@ fn boss_fill(z_p: f64, z_c: f64, big_r: f64, r: f64) -> f64 {
 /// **The boss carves through the LADDER door and adds its cap fill.**
 ///
 /// The die's pips are `slab ∖ ball` and route to the ladder (the rim is
-/// a ring of the top plane, the cap two ring-free half-caps); the boss
+/// a ring of the top plane, the cap one ring-free face); the boss
 /// `slab ∪ ball` is the same shape with the sphere's material on the
 /// other side, so the rim is CONCAVE. It reaches the same door — the
 /// top face keeps exactly one ring across the carve, the plane's hole
 /// having WIDENED from the rim circle to the trim circle, which for a
 /// boss means the band rests outside the boss's footprint — carves
-/// tier-3 valid with the two-crossing delta, and its `ΔV` is the washer
+/// tier-3 valid with the one-crossing delta, and its `ΔV` is the washer
 /// closed form above. The pip is carved beside it: the two bodies are
 /// mirror images through the top plane, so the boss's fill is the pip's
 /// cut with its sign flipped, and both signs sit side by side.
@@ -317,11 +311,7 @@ fn the_boss_carves_a_concave_ladder_band_and_adds_the_cap_fill() {
     let mut delta = Vec::with_capacity(2);
     for (name, body, concave) in [("the boss", &boss, true), ("the pip", &pip, false)] {
         let arcs = plane_sphere_rim(body);
-        assert_eq!(
-            arcs.len(),
-            2,
-            "{name}'s rim is two arcs across the cap's seam"
-        );
+        assert_eq!(arcs.len(), 1, "{name}'s rim is one closed edge");
         let top = top_face(body);
         assert!(
             (ring_radius(body, top) - rim_r).abs() < 1e-12,
@@ -338,11 +328,11 @@ fn the_boss_carves_a_concave_ladder_band_and_adds_the_cap_fill() {
         assert_eq!(out.band_faces.len(), 1, "{name}: one ladder band");
         validate_geometric(&out.body, tol())
             .unwrap_or_else(|e| panic!("{name}: tier-3 valid, got {e:?}"));
-        assert_delta(census(body), census(&out.body), LADDER_DELTA, name);
+        assert_delta(census(body), census(&out.body), ONE_CROSSING_DELTA, name);
         // The ladder's signature, PROVED off the body rather than inferred
         // from the widening: the band's neighbours are exactly one plane
         // face — the top, its key kept, its one ring now the (wider) trim
-        // circle — and two ring-free half-caps.
+        // circle — and the ring-free cap.
         let trim_r = ring_radius(&out.body, top);
         assert!(
             trim_r > rim_r,
@@ -353,14 +343,14 @@ fn the_boss_carves_a_concave_ladder_band_and_adds_the_cap_fill() {
         for f in &around {
             let fd = out.body.get_face(*f).unwrap();
             match out.body.face_surface(*f) {
-                Some(Surface::Plane { .. }) => {
+                Ok(Surface::Plane { .. }) => {
                     planes += 1;
                     assert_eq!(*f, top, "{name}: the plane beside the band is the top face");
                     assert_eq!(fd.rings.len(), 1, "{name}: the top face keeps one ring");
                 }
-                Some(Surface::Sphere { .. }) => {
+                Ok(Surface::Sphere { .. }) => {
                     spheres += 1;
-                    assert!(fd.rings.is_empty(), "{name}: a half-cap is ring-free");
+                    assert!(fd.rings.is_empty(), "{name}: the cap is ring-free");
                 }
                 other => panic!(
                     "{name}: a ladder band's neighbour is the plane or the cap, got {other:?}"
@@ -369,8 +359,8 @@ fn the_boss_carves_a_concave_ladder_band_and_adds_the_cap_fill() {
         }
         assert_eq!(
             (planes, spheres),
-            (1, 2),
-            "{name}: the LADDER — one plane, two half-caps"
+            (1, 1),
+            "{name}: the LADDER — one plane, one cap"
         );
         let v1 = volume(&out.body);
         if concave {
@@ -426,18 +416,18 @@ fn a_concave_band_records_every_birth_and_every_death() {
     let rec = out.naming.as_ref().expect("recorded");
     assert_eq!(
         rec.rim_feet.len(),
-        2,
-        "one host foot per crossing, and this rim has two"
+        1,
+        "one host foot per crossing, and this rim has one"
     );
     assert_eq!(
         rec.meridian_splits.len(),
-        2,
-        "one mate foot per crossing, and this rim has two"
+        1,
+        "one mate foot per crossing, and this rim has one"
     );
     assert_eq!(
         rec.dead.vertices.len(),
-        2,
-        "both seam vertices are retired, and nothing else is"
+        1,
+        "the seam vertex is retired, and nothing else is"
     );
     assert_eq!(rec.bands.len(), 1, "one band row");
     assert_eq!(

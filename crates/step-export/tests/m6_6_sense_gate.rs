@@ -44,7 +44,7 @@ use topo::{Body, FaceKey, ValidationError, validate_geometric};
 fn faces_where(body: &Body<f64>, pred: fn(&Surface<f64>) -> bool) -> Vec<(FaceKey, bool)> {
     body.faces()
         .filter_map(|(k, f)| {
-            let s = body.face_surface(k)?;
+            let s = body.face_surface(k).ok()?;
             pred(s).then_some((k, f.sense))
         })
         .collect()
@@ -254,7 +254,9 @@ fn donut_torus_flips_refuse() {
 /// simply a different one.
 #[test]
 fn ball_half_flip_is_caught_at_the_shared_edge() {
-    let body = ball();
+    // The ball cut into two lunes: a full revolve's ball is one face.
+    let mut body = ball();
+    sweep::test_support::two_lunes(&mut body, Tol::witness());
     assert!(
         validate_geometric(&body, Tol::witness()).is_ok(),
         "honest ball green"
@@ -347,19 +349,21 @@ fn planar_control_unchanged() {
 ///
 /// `cut_cylinder`'s wall is trimmed by a tilted-section ELLIPSE, so its
 /// flux is quadrature-owned (winding-derived, bit-free) and its
-/// boundary parse refuses typed — the curved sense arm EXEMPTS it by
-/// the inherited posture. Flipping ONE wall is caught by tier 3's
-/// material-wedge arm one dimension down: the two trimmed walls share
-/// a cylinder, so their material sides oppose along the two edges they
-/// share while their jets osculate exactly — a lamina
-/// (`ValidationError::LaminaWedge`).
+/// boundary parse refuses typed, so the curved sense arm reads its side
+/// off the quadrature lane's signed chart area instead
+/// (`QuadLaneOf::material_sign`). Flipping ONE wall is caught there
+/// (`CurvedSenseInverted` on that wall) and by tier 3's material-wedge
+/// arm one dimension down: the two trimmed walls share a cylinder, so
+/// their material sides oppose along the two edges they share while
+/// their jets osculate exactly — a lamina (`ValidationError::LaminaWedge`).
 ///
 /// The WHOLE-BODY inversion leaves no pair's material sides in
 /// disagreement, so the wedge arm has nothing to say, and the volume
-/// stays positive. What refuses it is check 6's planar arm, once per
-/// planar face: at the bottom cap, whose loop rides circle arcs, and at
-/// the section face, whose loop rides the `Ellipse` — one
-/// `LoopRoleInverted` each, and nothing else.
+/// stays positive. What refuses it is check 6, once per face: the
+/// planar arm at the bottom cap, whose loop rides circle arcs, and at
+/// the section face, whose loop rides the `Ellipse` (`LoopRoleInverted`
+/// each), and the curved arm at each wall (`CurvedSenseInverted`), and
+/// nothing else.
 #[test]
 fn cut_cylinder_conic_trim_wall_flip_is_caught_and_the_inversion_refuses_at_both_planes() {
     let body = cut_cylinder();
@@ -376,9 +380,16 @@ fn cut_cylinder_conic_trim_wall_flip_is_caught_and_the_inversion_refuses_at_both
         let errs = validate_geometric(&flipped, Tol::witness())
             .expect_err("a lone conic-trimmed wall flip is a lamina at its shared edges");
         assert!(
+            errs.iter().all(|e| match e {
+                ValidationError::CurvedSenseInverted { face } => *face == k,
+                _ => matches!(e, ValidationError::LaminaWedge { .. }),
+            }),
+            "the material-wedge arm and the curved arm's lane reading catch it: {errs:?}"
+        );
+        assert!(
             errs.iter()
-                .all(|e| matches!(e, ValidationError::LaminaWedge { .. })),
-            "the material-wedge arm is what catches it: {errs:?}"
+                .any(|e| matches!(e, ValidationError::CurvedSenseInverted { face } if *face == k)),
+            "the curved arm reads the flipped wall's side off its chart area: {errs:?}"
         );
     }
     // The planar faces, split by whether their outer loop rides the
@@ -416,19 +427,27 @@ fn cut_cylinder_conic_trim_wall_flip_is_caught_and_the_inversion_refuses_at_both
     let inverted = flip_all(&body);
     let errs = validate_geometric(&inverted, Tol::witness())
         .expect_err("the whole-body inversion is refused at the planar faces");
-    let mut named: Vec<FaceKey> = errs
-        .iter()
-        .map(|e| match e {
-            ValidationError::LoopRoleInverted { face, .. } => *face,
-            other => panic!("only check 6's planar arm refuses the inversion, got {other:?}"),
-        })
-        .collect();
+    let (mut named, mut curved): (Vec<FaceKey>, Vec<FaceKey>) = (Vec::new(), Vec::new());
+    for e in &errs {
+        match e {
+            ValidationError::LoopRoleInverted { face, .. } => named.push(*face),
+            ValidationError::CurvedSenseInverted { face } => curved.push(*face),
+            other => panic!("only check 6's two arms refuse the inversion, got {other:?}"),
+        }
+    }
     named.sort();
+    curved.sort();
     let mut planar: Vec<FaceKey> = caps.iter().chain(&section).copied().collect();
     planar.sort();
     assert_eq!(
         named, planar,
         "exactly the circle-bounded cap and the ellipse-bounded section face refuse, once each"
+    );
+    let mut wall_keys: Vec<FaceKey> = walls.iter().map(|&(k, _)| k).collect();
+    wall_keys.sort();
+    assert_eq!(
+        curved, wall_keys,
+        "the curved arm reads each inverted wall's side off its chart area, once each"
     );
     // Raw door: the measured body is a body whose loop roles are inverted, which tier 3 refuses (LoopRoleInverted).
     let v = topo::test_support::measure_unvalidated(
@@ -450,13 +469,15 @@ fn cut_cylinder_conic_trim_wall_flip_is_caught_and_the_inversion_refuses_at_both
 /// **A one-face conic-trimmed wall's flip refuses too.** The washer's
 /// bore and outer wall are each one face with a self-mated seam; split
 /// by a plane tilted 0.3 rad off the axis, each half's two walls are
-/// trimmed by section ellipses, and the curved arm exempts them as it
-/// does `cut_cylinder`'s. No second wall shares either cylinder, so the
-/// wedge arm has no lamina to see; the lone flip refuses all the same,
-/// by check 7 (`NegativeVolume`) on the outer wall and at the bore's
-/// pinch corners (`PinchCornerCrossed`), and on either wall by the region
-/// arm (`CycleOffFaceSide`): a flipped face's two rims each lie off its
-/// side of the other.
+/// trimmed by section ellipses, which no closed form parses, so the
+/// curved arm reads each wall's side off the quadrature lane's signed
+/// chart area, as it does `cut_cylinder`'s. No second wall shares either
+/// cylinder, so the wedge arm has no lamina to see; the lone flip is
+/// named by the curved arm (`CurvedSenseInverted`), and may also
+/// refuse at the bore's pinch corners (`PinchCornerCrossed`) and on
+/// either wall by the region arm (`CycleOffFaceSide`): a flipped face's
+/// two rims each lie off its side of the other. Check 7 does not run:
+/// it reads the volume only of a body check 6 passes.
 #[test]
 fn a_one_face_conic_trimmed_wall_flip_refuses() {
     use topo::splitting::{SplitPart, split};
@@ -491,13 +512,19 @@ fn a_one_face_conic_trimmed_wall_flip_refuses() {
                 .expect_err("a lone one-face conic-trimmed wall flip refuses");
             assert!(
                 errs.iter().all(|e| match e {
-                    ValidationError::CycleOffFaceSide { face, .. } => *face == k,
-                    _ if sense => matches!(e, ValidationError::NegativeVolume { .. }),
+                    ValidationError::CycleOffFaceSide { face, .. }
+                    | ValidationError::CurvedSenseInverted { face } => *face == k,
                     _ => {
                         matches!(e, ValidationError::PinchCornerCrossed { face, .. } if *face == k)
                     }
                 }),
                 "{name}: the wall of sense {sense}: {errs:?}"
+            );
+            assert!(
+                errs.iter().any(
+                    |e| matches!(e, ValidationError::CurvedSenseInverted { face } if *face == k)
+                ),
+                "{name}: the curved arm reads the flipped wall's side off its chart area: {errs:?}"
             );
         }
     }

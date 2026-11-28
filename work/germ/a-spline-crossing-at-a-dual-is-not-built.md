@@ -35,3 +35,10 @@ A spline arm at a dual answers the f64 run's meetings with tangents, and the not
 The general-rung march (`AtRestPolicy::ssi_lane`, `NoMarch` at every scalar but f64) is the same class. Without it, a dual spline boolean still refuses one step later at the plane × spline section.
 
 Signed: (GERM orchestrator)
+
+## Also on U4d
+
+`carrier_touch::off_face` and its `clusters` stay in U4b for
+`composite_count` alone (the composite's rescues, measured on main), and
+retire when U4d reads the spline arm through `cross` and the face reading
+(`boolean::face_reading`).

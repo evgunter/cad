@@ -413,7 +413,7 @@ mod tests {
                 spec,
                 arc.eval(t0),
                 arc.eval(t1),
-                |_| None,
+                |_| Err(crate::SurfaceMiss::Stale),
                 geom_core::test_support::fixture_lever(1.0),
                 band,
                 geom_brep::NurbsLane::certified(),

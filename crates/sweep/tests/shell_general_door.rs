@@ -82,7 +82,7 @@ fn a_spline_capped_box_moves_every_chart_onto_its_closed_form() {
     assert_eq!(corners, 8, "eps {eps:e}: the offset box has eight corners");
     let cap_key = body.get_face(cap).expect("the cap survives").surface;
     assert!(
-        matches!(body.get_surface(cap_key), Some(geom::Surface::Approx(_))),
+        matches!(body.get_surface(cap_key), Ok(geom::Surface::Approx(_))),
         "eps {eps:e}: the moved cap wears its offset fit"
     );
     let sections = body
@@ -96,7 +96,7 @@ fn a_spline_capped_box_moves_every_chart_onto_its_closed_form() {
                 *c.description(),
                 geom_brep::EdgeDescription::Intersection { pair, .. }
                     if pair.other(cap_key).is_some_and(|side| {
-                        matches!(body.get_surface(side), Some(geom::Surface::Plane { .. }))
+                        matches!(body.get_surface(side), Ok(geom::Surface::Plane { .. }))
                     })
             ) && matches!(c.carrier(), geom::Curve3::Nurbs(_))
         })
@@ -144,7 +144,7 @@ fn a_curved_spline_cap_moves_with_its_sides_where_its_certificates_hold() {
 fn a_curved_spline_cap_moves_with_its_sides_where_its_certificates_hold_row() {
     let eps = Tol::witness().eps();
     let (mut body, cap) = box_with_bumped_cap(0.01);
-    let Some(geom::Surface::Nurbs(bump)) = body.face_surface(cap).cloned() else {
+    let Ok(geom::Surface::Nurbs(bump)) = body.face_surface(cap).cloned() else {
         panic!("the cap wears its spline chart");
     };
     let moves = inward(&body, T);
@@ -360,7 +360,7 @@ fn a_collapse_names_the_move_that_made_it() {
         .find(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(geom::Surface::Plane { frame, .. })
+                Ok(geom::Surface::Plane { frame, .. })
                     if frame.axis().x.abs() > 0.5 && frame.origin().x.abs() < 0.5
             )
         })

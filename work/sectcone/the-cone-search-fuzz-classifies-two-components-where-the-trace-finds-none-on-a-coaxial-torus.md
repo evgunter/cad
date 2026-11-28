@@ -4,6 +4,7 @@ kind: issue
 title: The cone search's fuzz classifies two components where the traced section is empty, on a coaxial torus (seed 0x748fbae93496066c)
 status: open
 opened: 2026-11-15
+priority: P2
 ---
 
 

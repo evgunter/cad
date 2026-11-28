@@ -2,11 +2,12 @@
 id: root-slack-meters-roots-outside-the-arc
 kind: issue
 title: The subdivision's root-slack meter charges every root round the turn, so a root off the arc that it cannot place refuses an arc it does not touch
-status: open
+status: closed
 opened: 2026-10-06
 priority: P3
 cost: M
 refs: [degree-2-subdivision-doors-carry-no-root-slack-meter, 4135]
+closed: 2026-11-23
 ---
 
 
@@ -39,3 +40,15 @@ quadric door's cone arm (`conic_quadric_cone_root_slack`) meter every
 root.
 
 Moved from HONEROOT to GERM on 2026-11-20, by `git mv`, when HONEROOT merged into GERM: HONEROOT held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one GERM carries.
+
+## Closed by U4a (`germ/u4a-local-windows`)
+
+The walk reads past a refused piece and records it as a window
+(`half_angle::certified_subdivision_past`); a window that misses the arc
+is dropped with the meetings it could hold, where the method's answer is
+read (`curve_face::cross::Walked::on_span`), so a refusal off the arc
+refuses nothing, through `cross` and the sweep's wrappers alike. Rows:
+`curve_face::window_rows::a_touch_off_the_arc_leaves_the_arc_answered`
+(the measured case, `[1, 2]` answered at ε 1e-6, 1e-9, 1e-12, `[−0.5, 0.5]`
+still refusing) and
+`a_first_harmonics_refused_slack_is_local_and_refuses_nothing_off_the_arc`.

@@ -172,7 +172,7 @@ fn every_edge_selected_builds_what_the_selection_without_the_meridians_builds() 
         .expect("the cavity contributes FromB edges");
     let mut meridians = die_composed::excluded_meridians(&doc.doc, &ev0, ball, target);
     meridians.sort();
-    assert_eq!(meridians.len(), 2, "the cavity has two meridians");
+    assert_eq!(meridians.len(), 1, "the cavity has one meridian");
     let every = editor_core::all_edges(&ev0, target);
     assert!(
         meridians.iter().all(|m| every.contains(m)),
@@ -276,17 +276,13 @@ fn the_selection_is_every_target_edge_except_the_cavity_meridians() {
     let live: BTreeSet<StableName> = edge_names(&ev, target).into_iter().collect();
     let selection = selection_of(&doc.doc, fillet);
     let chosen: BTreeSet<StableName> = selection.iter().cloned().collect();
-    assert_eq!(
-        selection.len(),
-        14,
-        "twelve box edges and the rim's two arcs"
-    );
+    assert_eq!(selection.len(), 13, "twelve box edges and the rim");
     assert!(
         chosen.is_subset(&live),
         "every selected name is a live edge"
     );
     let left_out: Vec<_> = live.difference(&chosen).cloned().collect();
-    assert_eq!(left_out.len(), 2, "exactly the two cavity meridians");
+    assert_eq!(left_out.len(), 1, "exactly the cavity's one meridian");
     let tool = tool_read(&doc.doc, target);
     for n in &left_out {
         assert!(
@@ -363,9 +359,11 @@ fn the_surgery_names_every_entity_of_the_composed_die() {
         other => panic!("a non-fillet role leaked into the fillet's table: {other:?}"),
     };
     let seen: BTreeSet<&str> = table.iter().map(|(n, _)| role(n)).collect();
+    // Every role but "joined": the pip's band crosses its one-edge rim
+    // once, so no two of its trims meet at a foot for the closing join.
     assert_eq!(
         seen.len(),
-        14,
+        13,
         "every fillet role the composed die can produce is produced, got {seen:?}"
     );
 }

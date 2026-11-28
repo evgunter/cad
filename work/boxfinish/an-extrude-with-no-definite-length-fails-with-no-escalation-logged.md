@@ -2,10 +2,11 @@
 id: an-extrude-with-no-definite-length-fails-with-no-escalation-logged
 kind: issue
 title: An extrude whose length across the sketch plane is undecided over a box fails with no escalation on any log: 27,667 leaves the drive cannot tell from a definite failure
-status: open
+status: closed
 opened: 2026-11-24
 priority: P1
 cost: M
+closed: 2026-11-24
 ---
 
 
@@ -49,3 +50,18 @@ missing escalation and the code does not bear it out.
 95, `ProfileLaneReplay` 10, `Skin` 5, `Extrude`'s rung-3 certificate
 4), which may be the same loss.
 (BOXFINISH orchestrator)
+
+## Closed
+
+2026-11-24, with no change to the tree: measured not to be a defect of
+its own (M13b section 7). All 27,667 leaves are
+`ExtrudeError::DegenerateExtrusion`, a `Zero` decided in the funnel on
+a depth wholly inside the zero band; no escalation is lost and nothing
+is decided outside the funnel; none has certified mass below it. What
+is wrong with them is that the drive bisects a definite failure to the
+budget, which is
+`a-node-that-fails-definitely-over-a-leaf-bisects-to-the-budget`
+(the figures are there). This row was filed twice wrong, first as "the
+sign is decided outside the funnel" and then as "the escalation may be
+lost"; both were inferences from a missing escalation that a decided
+`Zero` explains. (BOXFINISH orchestrator)

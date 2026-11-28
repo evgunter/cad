@@ -15,8 +15,8 @@
 use super::search_kit::band;
 use core::f64::consts::TAU;
 use geom::{Curve3, Frame, Line, Surface};
-use geom_brep::curve_face::{circle_torus, conic_quadric, line_quadric, pose};
-use geom_brep::roots::Roots;
+use geom_brep::curve_face::{MeetingKind, OnSpan, Pose, cross, pose};
+use geom_brep::curve_pair::Span;
 use geom_core::{Point3, UnitVec3, Vec3};
 
 /// What a door answered of a span, as the sweep reads it: silent (a
@@ -30,20 +30,31 @@ enum Read {
     Refused,
 }
 
-fn read_roots<C, E, U, const N: usize>(
-    got: Result<Result<Roots<f64, N, C>, U>, E>,
-    (t0, t1): (f64, f64),
-) -> Read {
-    match got {
-        Ok(Ok(Roots::Miss)) => Read::Silent,
-        Ok(Ok(Roots::Certified(found))) => {
-            if found.roots().iter().any(|&t| t0 < t && t < t1) {
+/// What `cross` answered of `carrier`'s `span` against `s`: a refusal
+/// (a window), the span on the carrier, or a touch keeps the door; a
+/// crossing strictly inside the span is an event; anything else (`Apart`,
+/// or meetings only at an end) is silent.
+fn read_cross(carrier: &Curve3<f64>, span: (f64, f64), s: &Surface<f64>) -> Read {
+    match cross(&Span::new(carrier, span), s, band()) {
+        Err(_) => Read::Refused,
+        Ok(got) if matches!(got.pose, Pose::Lies) => Read::Refused,
+        Ok(got) => {
+            if got
+                .meetings
+                .iter()
+                .any(|m| matches!(m.kind, MeetingKind::Touch { .. }))
+            {
+                Read::Refused
+            } else if got
+                .meetings
+                .iter()
+                .any(|m| matches!(m.on_span, OnSpan::Inside { .. }))
+            {
                 Read::Event
             } else {
                 Read::Silent
             }
         }
-        Ok(Ok(Roots::On(_)) | Err(_)) | Err(_) => Read::Refused,
     }
 }
 
@@ -79,11 +90,7 @@ fn line_read(at: Point3<f64>, d: Vec3<f64>, half: f64, s: &Surface<f64>) -> Read
         origin: at - d.normalize() * half,
         dir: UnitVec3::squared(d),
     };
-    let span = (0.0, 2.0 * half);
-    match line_quadric::line_quadric_roots(line, span, s, band()) {
-        Ok(Some(got)) => read_roots(Ok::<_, ()>(got), span),
-        Ok(None) | Err(_) => Read::Refused,
-    }
+    read_cross(&Curve3::Line(line), (0.0, 2.0 * half), s)
 }
 
 /// A whole circle about `c`, normal `n`, of radius `rad`.
@@ -101,18 +108,8 @@ fn doors_at(g: f64) -> Vec<(&'static str, Read)> {
     // spread of its roots there, `±√(r·g)` and more.
     let inside = 0.01 * eps.sqrt();
     let turn = (0.0, TAU);
-    let circle_torus = |c: &Curve3<f64>| {
-        read_roots(
-            circle_torus::circle_torus_roots(c, 0.0, TAU, &donut(), band()),
-            turn,
-        )
-    };
-    let conic_quadric = |c: &Curve3<f64>, s: &Surface<f64>| {
-        read_roots(
-            conic_quadric::conic_quadric_roots(c, 0.0, TAU, s, band()),
-            turn,
-        )
-    };
+    let circle_torus = |c: &Curve3<f64>| read_cross(c, turn, &donut());
+    let conic_quadric = |c: &Curve3<f64>, s: &Surface<f64>| read_cross(c, turn, s);
     let mut out = vec![
         (
             "line × torus inside, along the axis",
@@ -190,8 +187,8 @@ fn doors_at(g: f64) -> Vec<(&'static str, Read)> {
     out.push((
         "circle × plane",
         match pose::pose(&span, &plane, band()) {
-            Ok(pose::Pose::Apart) => Read::Silent,
-            Ok(pose::Pose::Tangent(_)) | Err(_) => Read::Refused,
+            Ok(Pose::Apart) => Read::Silent,
+            Ok(Pose::Tangent(_)) | Err(_) => Read::Refused,
             Ok(_) => Read::Event,
         },
     ));

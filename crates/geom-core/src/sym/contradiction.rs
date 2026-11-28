@@ -130,7 +130,14 @@ pub fn check(decisions: &[Decision]) -> Option<Report> {
         if sess.budget.max_terms == 0 {
             return None;
         }
-        let counts = sess.counts;
+        // The instrument runs after the build, with no node's scope
+        // open, and asks its door question under every identity the
+        // replay's nodes registered: a state of its own, put aside
+        // when it is done.
+        let open = core::mem::take(&mut sess.node);
+        for (a, b) in sess.stated.clone() {
+            let _ = sess.record_identity(a, b);
+        }
         let cap = sess.retry.max_forms;
         sess.retry.max_forms = cap.min(INSTRUMENT_RETRY_FORMS);
         let withheld = sess.withheld;
@@ -145,7 +152,7 @@ pub fn check(decisions: &[Decision]) -> Option<Report> {
             let Some(sign @ (Sign::Positive | Sign::Negative)) = d.sign else {
                 continue;
             };
-            if !sess.nodes.contains_key(&d.node) {
+            if sess.node_of(d.node).is_none() {
                 report.absent += 1;
                 continue;
             }
@@ -162,7 +169,7 @@ pub fn check(decisions: &[Decision]) -> Option<Report> {
                             },
                             at,
                         )),
-                        None if door && !sess.registry.is_empty() => {
+                        None if door && !sess.node.registry.is_empty() => {
                             ladder(sess, d.node, Path::Decision).map(|at| (Event::Registration, at))
                         }
                         None => None,
@@ -179,7 +186,7 @@ pub fn check(decisions: &[Decision]) -> Option<Report> {
                 });
             }
         }
-        sess.counts = counts;
+        sess.node = open;
         sess.retry.max_forms = cap;
         report.withheld = sess.withheld - withheld;
         Some(report)

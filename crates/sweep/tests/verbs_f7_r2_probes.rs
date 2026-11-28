@@ -38,7 +38,7 @@ fn face_of(b: &Body<f64>, he: HalfEdgeKey) -> FaceKey {
 }
 
 fn is_plane(b: &Body<f64>, f: FaceKey) -> bool {
-    matches!(b.face_surface(f), Some(geom::Surface::Plane { .. }))
+    matches!(b.face_surface(f), Ok(geom::Surface::Plane { .. }))
 }
 
 /// Dumps every valence-2 vertex whose two edges separate the same face
@@ -103,7 +103,7 @@ fn planar_same_key(b: &Body<f64>) -> usize {
 #[test]
 fn r2_cone_carries_its_cap_whole() {
     let c = cone();
-    assert_eq!(counts(&c), (3, 4, 3, 0));
+    assert_eq!(counts(&c), (2, 2, 2, 0));
     assert_eq!(planar_same_key(&c), 0, "no pole-split cap");
     dump_poles(&c, "cone");
     let c = sweep::test_support::finished("the cone", c, Tol::witness());

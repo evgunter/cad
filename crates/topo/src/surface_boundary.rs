@@ -38,11 +38,12 @@
 //! side keep them as the datum of that side: tier 3's check 6
 //! (`geom_brep::props::boundary_material_sign_holding`), the closed-form
 //! lane's cross-check of the bit (`geom_brep::props::curved_face_holding`)
-//! and the mass-property doors' seam refusals (`props::face_tips`). Two
-//! readers of a sphere face do not: a boolean's sphere window, which
-//! reads a face holding a pole as the whole ball's box, and the seam
-//! region's reader, which refuses a region holding a tip
-//! (`work/nearpoint/a-seam-region-holding-a-wrap-tip-is-never-read`).
+//! the mass-property doors' seam refusals (`props::face_tips`) and a
+//! sphere face's cover window (`cover::sphere_window`, through
+//! `props::image_with_tips`), which reads a wrap-tip cap as its
+//! latitude zone and not the whole ball. One reader of a sphere face
+//! does not: the seam region's reader, which refuses a region holding a
+//! tip (`work/nearpoint/a-seam-region-holding-a-wrap-tip-is-never-read`).
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};

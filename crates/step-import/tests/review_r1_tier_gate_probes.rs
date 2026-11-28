@@ -141,7 +141,7 @@ fn multi_cube(doctors: &[Doctor<'_>]) -> String {
 fn r1_control_single_inverted_cube_refuses_negative_volume() {
     let text = multi_cube(&[(1000, &invert)]);
     let e = import_step(&text, &ImportOptions::default(), Tol::witness()).unwrap_err();
-    let StepImportError::TierInvalid { solid, errors } = &e else {
+    let StepImportError::TierInvalid { solid, errors, .. } = &e else {
         panic!("want the gate's refusal, got: {e:?}");
     };
     assert_eq!(*solid, None, "a one-solid file's subject is the whole body");
@@ -180,7 +180,7 @@ fn r1_multisolid_cannot_smuggle_an_inverted_solid_at_any_position() {
         let text = multi_cube(&doctors);
         let e = import_step(&text, &ImportOptions::default(), Tol::witness())
             .expect_err("an inverted solid must refuse whichever position it occupies");
-        let StepImportError::TierInvalid { solid, errors } = &e else {
+        let StepImportError::TierInvalid { solid, errors, .. } = &e else {
             panic!("want the gate's typed refusal, got: {e:?}");
         };
         // multi_cube renumbers the MSB (#150 in cube.step) by the offset.
@@ -236,7 +236,7 @@ fn a_one_solid_file_past_the_session_box_refuses_outside_it_alone() {
         let text = multi_cube(&[(1000, doctor)]);
         let e = import_step(&text, &ImportOptions::default(), Tol::witness())
             .expect_err("a cube 2 km out lies past the session box");
-        let StepImportError::TierInvalid { solid, errors } = &e else {
+        let StepImportError::TierInvalid { solid, errors, .. } = &e else {
             panic!("{what}: want the gate's refusal, got: {e:?}");
         };
         assert_eq!(

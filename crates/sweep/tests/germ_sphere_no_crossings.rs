@@ -14,8 +14,9 @@
 //!   the donut's hole, a ball around the whole donut, a ball inside the
 //!   tube. Each union is checked against its closed-form volume and
 //!   `point_in_solid`. A ball scraping the tube in an oval interior to
-//!   both faces refuses R-loop, typed as the fallback's extent refusal
-//!   naming the torus face.
+//!   both faces is certified a loop inside both (R-loop), and builds
+//!   through a cut-in of the ball's face whose cut the output stage
+//!   closes (`topo::boolean::slit`).
 //! - **Sphere × cone** is examined by the pass: a ball strictly inside
 //!   the cone is certified apart, and a ball meeting the lateral face in
 //!   a loop with no crossing refuses R-loop, naming the cone face. The
@@ -201,39 +202,62 @@ fn a_ball_inside_the_tube_unions_to_the_donut() {
 /// `(0, 0, 2.7)`): it meets the torus in one oval, interior to both
 /// faces — clear of the donut's seams and parallels, and of the ball's
 /// own meridians in the plane `z = 2.7`. No crossing sees it, and the
-/// certificate proves it a loop inside both faces: R-loop, refused as
-/// the fallback's extent refusal naming the torus face. The witness
-/// point `(0, 0, 2.45)` is inside both operands, so a union that
-/// answered would count that lens twice.
+/// certificate proves it a loop inside both faces (R-loop). The ball's
+/// face is cut in along a meridian of its chart the oval's tube is read
+/// crossing, the op re-enters on the crossings, and the output
+/// stage closes the cut (`topo::boolean::slit`). Every op builds in both operand orders, with
+/// no trace of the cut. The lens is the intersection: the union and the
+/// differences answer the operands' closed forms with it, and it answers
+/// its integral over slices across the donut's axis
+/// (`sweep::test_support::lens`) within the volume claim and ten times
+/// the integral's estimated error. (A result is not
+/// read by `point_in_solid`, which refuses the ball's face bounded by the
+/// oval: `work/inside/point-in-solid-refuses-a-sphere-face-bounded-by-a-spline-chord.md`.)
 #[test]
-fn a_ball_scraping_the_tube_refuses_as_an_interior_loop() {
+fn a_ball_scraping_the_tube_builds_through_a_cut_in() {
     let (d, b) = (donut(), ball_at(0.3, Vec3::new(0.0, 0.0, 2.7)));
-    let q = Point3::new(0.0, 0.0, 2.45);
-    assert_eq!(pis(&d, q), SolidContainment::In);
-    assert_eq!(pis(&b, q), SolidContainment::In);
-    for (x, y, operand) in [(&d, &b, topo::Operand::A), (&b, &d, topo::Operand::B)] {
-        match topo::union(x, y, Tol::witness()) {
-            Err(BooleanError::FallbackExtentUnsupported {
-                operand: o,
-                face,
-                what,
-            }) => {
-                assert_eq!(o, operand);
-                let torus = if operand == topo::Operand::A { x } else { y };
-                assert!(
-                    matches!(torus.face_surface(face), Some(geom::Surface::Torus { .. })),
-                    "the refusal names the torus face"
-                );
-                assert!(
-                    what.contains("closed loop interior to both faces"),
-                    "{what}"
-                );
-            }
-            Err(e) => panic!("refused, but not as an interior loop: {e:?}"),
-            Ok(r) => panic!(
-                "answered a body of volume {:?}",
-                r.body().map(|b| volume(&b.body))
+    let (vd, vb) = (DONUT_VOLUME, ball_volume(0.3));
+    // The lens over slices across the donut's axis (major radius 2,
+    // tube 1/2, about `y`), the ball's centre 2.7 off it at height 0.
+    let (slice, ends) = sweep::test_support::lens::torus_slice(2.0, 0.5);
+    let (integral, error) =
+        sweep::test_support::lens::ball_in_revolved(0.3, (2.7, 0.0), (slice, &ends), 2000);
+    let claim = 1e-6 * (vd + vb);
+    for (x, y, order) in [(&d, &b, "d, b"), (&b, &d, "b, d")] {
+        let built = |op: BooleanOp, r: Result<topo::BooleanResult<f64>, BooleanError>| {
+            let label = format!("{order}, {op:?}");
+            let r = r.unwrap_or_else(|e| panic!("{label}: the op builds, got {e:?}"));
+            sweep::test_support::cut_trace::assert_no_cut_trace(&label, &r, [x, y]);
+            let v = volume(&r.body().expect("a body").body);
+            (label, v)
+        };
+        let lens = built(BooleanOp::Intersect, topo::intersect(x, y, Tol::witness()));
+        let l = lens.1;
+        assert!(
+            (l - integral).abs() <= claim + 10.0 * error,
+            "{}: the lens {l} against its integral {integral} ± {error}",
+            lens.0
+        );
+        let (vx, vy) = if order == "d, b" { (vd, vb) } else { (vb, vd) };
+        for ((label, v), want) in [
+            (
+                built(BooleanOp::Union, topo::union(x, y, Tol::witness())),
+                vd + vb - l,
             ),
+            (lens, l),
+            (
+                built(BooleanOp::Subtract, topo::subtract(x, y, Tol::witness())),
+                vx - l,
+            ),
+            (
+                built(BooleanOp::Subtract, topo::subtract(y, x, Tol::witness())),
+                vy - l,
+            ),
+        ] {
+            assert!(
+                (v - want).abs() <= claim,
+                "{label}: {v} against the closed forms with the lens, {want}"
+            );
         }
     }
 }
@@ -276,7 +300,7 @@ fn refused_by_the_pass_on_the_cone(cone: &Body<f64>, ball: &Body<f64>, what: &st
             }) => {
                 assert_eq!(o, operand, "{what}");
                 assert!(
-                    matches!(cone.face_surface(face), Some(geom::Surface::Cone { .. })),
+                    matches!(cone.face_surface(face), Ok(geom::Surface::Cone { .. })),
                     "{what}: the refusal names the cone face"
                 );
                 assert!(why.contains(why_has), "{what}: {why}");
@@ -307,7 +331,7 @@ fn a_ball_against_a_cone_face_is_the_section_passs() {
         );
     }
     let cone_face =
-        |f: topo::FaceKey| matches!(cone.face_surface(f), Some(geom::Surface::Cone { .. }));
+        |f: topo::FaceKey| matches!(cone.face_surface(f), Ok(geom::Surface::Cone { .. }));
     let pairs: Vec<String> = topo::test_support::no_crossings_section_report(
         BooleanOp::Union,
         &cone,

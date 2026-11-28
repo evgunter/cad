@@ -57,9 +57,9 @@ fn two_bricks<
         Tol::witness(),
     );
     let red = reduce_ok(op, &a, &b);
-    assert_eq!(red.contacts.vv.len(), 0);
-    assert_eq!(red.contacts.a_on_b.len(), 3);
-    assert_eq!(red.contacts.b_on_a.len(), 3);
+    assert_eq!(red.contacts.vv().count(), 0);
+    assert_eq!(red.contacts.on(topo::Operand::A).count(), 3);
+    assert_eq!(red.contacts.on(topo::Operand::B).count(), 3);
     assert_eq!(red.null_pairs.len(), 6);
     assert_eq!(red.null_edges.len(), 12);
     assert_eq!(red.pierce_rings.len(), 6);
@@ -70,9 +70,8 @@ fn two_bricks<
     // own: a ring of one mints where a per-pierce ring did.
     let pierces: Vec<_> = red
         .contacts
-        .a_on_b
-        .iter()
-        .chain(&red.contacts.b_on_a)
+        .on(topo::Operand::A)
+        .chain(red.contacts.on(topo::Operand::B))
         .map(|c| vec![c.vertex])
         .collect();
     assert_eq!(
@@ -134,9 +133,9 @@ fn stacked_bricks<
         Tol::witness(),
     );
     let red = reduce_ok(op, &a, &b);
-    assert_eq!(red.contacts.vv.len(), 4);
-    assert_eq!(red.contacts.a_on_b.len(), 0);
-    assert_eq!(red.contacts.b_on_a.len(), 0);
+    assert_eq!(red.contacts.vv().count(), 4);
+    assert_eq!(red.contacts.on(topo::Operand::A).count(), 0);
+    assert_eq!(red.contacts.on(topo::Operand::B).count(), 0);
     assert_eq!(
         !red.null_pairs.is_empty(),
         expect_pairs_nonzero,
@@ -175,7 +174,7 @@ fn corner_kiss<
     );
     for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
         let red = reduce_ok(op, &a, &b);
-        assert_eq!(red.contacts.vv.len(), 1);
+        assert_eq!(red.contacts.vv().count(), 1);
         assert!(red.null_pairs.is_empty());
         assert!(red.null_edges.is_empty());
     }
@@ -208,8 +207,8 @@ fn corner_kiss_touch_and_near_miss() {
         Tol::witness(),
     );
     let red = boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness()).unwrap();
-    assert!(red.contacts.vv.is_empty());
-    assert!(red.contacts.a_on_b.is_empty());
+    assert!(red.contacts.vv().next().is_none());
+    assert!(red.contacts.on(topo::Operand::A).next().is_none());
     assert!(red.null_edges.is_empty());
 }
 
@@ -233,9 +232,9 @@ fn skew_edge_cross<
         Tol::witness(),
     );
     let red = reduce_ok(op, &a, &b);
-    assert_eq!(red.contacts.vv.len(), 2, "op {op:?}");
-    assert_eq!(red.contacts.a_on_b.len(), 1);
-    assert_eq!(red.contacts.b_on_a.len(), 1);
+    assert_eq!(red.contacts.vv().count(), 2, "op {op:?}");
+    assert_eq!(red.contacts.on(topo::Operand::A).count(), 1);
+    assert_eq!(red.contacts.on(topo::Operand::B).count(), 1);
     red
 }
 
@@ -280,8 +279,8 @@ fn vertex_on_face_tangential_rest() {
     for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
         let red = reduce_ok(op, &a, &b);
         // All four bottom corners of B rest on A's face.
-        assert_eq!(red.contacts.b_on_a.len(), 4, "op {op:?}");
-        assert_eq!(red.contacts.vv.len(), 0);
+        assert_eq!(red.contacts.on(topo::Operand::B).count(), 4, "op {op:?}");
+        assert_eq!(red.contacts.vv().count(), 0);
         // ∩/∖: tangential — no surgery. ∪: the resting wall is a
         // boundary crossing of the merged solid (⁻ row lumps In).
         if matches!(op, BooleanOp::Intersect | BooleanOp::Subtract) {
@@ -325,9 +324,9 @@ fn collinear_edge_overlap() {
         // edges (split → v-v); B bottom corners (1,0,2),(1,2,2) lie ON
         // A-top edges (split → v-v). The y-running edges at x ∈ [1,2]
         // are collinear overlaps bounded by those pairs.
-        assert_eq!(red.contacts.vv.len(), 4, "op {op:?}");
-        assert!(red.contacts.a_on_b.is_empty());
-        assert!(red.contacts.b_on_a.is_empty());
+        assert_eq!(red.contacts.vv().count(), 4, "op {op:?}");
+        assert!(red.contacts.on(topo::Operand::A).next().is_none());
+        assert!(red.contacts.on(topo::Operand::B).next().is_none());
         if matches!(op, BooleanOp::Union) {
             assert!(!red.null_pairs.is_empty());
         } else {

@@ -216,7 +216,7 @@ pub fn dag_size(margin: MarginDiag) -> Option<DagSize> {
             if !seen.insert(id) {
                 continue;
             }
-            let Some(n) = sess.nodes.get(&id) else {
+            let Some(n) = sess.node_of(id) else {
                 continue;
             };
             size.nodes += 1;

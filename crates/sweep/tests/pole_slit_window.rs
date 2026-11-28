@@ -2,15 +2,14 @@
 //! never excludes the `f64` replay's branch, and containment answers the
 //! same.**
 //!
-//! The dome is a unit hemisphere revolved about `y`: a flat base and two
-//! π-band sphere faces meeting along two meridians at the pole. Merging
-//! the base and killing one meridian leaves ONE sphere face whose loop
-//! runs the surviving meridian up into the pole and straight back down
-//! it — a slit, the pole a valence-1 strut tip (tier 2 names it; tier 1
-//! holds). Killed from its minus half, the surviving face's walk crosses
-//! the slit mid-walk: it enters the pole along the meridian and leaves
-//! along the same one, so the face wraps the pole and the strictly-next
-//! branch is the previous one a whole turn on, a literal at every scalar.
+//! The dome is a unit hemisphere revolved about `y`: a flat base and ONE
+//! sphere face whose loop runs its seam meridian up into the pole and
+//! straight back down it. Restated as a plain chart image rather than
+//! the face's wrap edge, that meridian is a slit, the pole a valence-1
+//! strut tip (tier 2 names it; tier 1 holds). The face's walk enters the
+//! pole along the meridian and leaves along the same one, so the face
+//! wraps the pole and the strictly-next branch is the previous one a
+//! whole turn on, a literal at every scalar.
 //!
 //! The window row holds the interval walk against the `f64` window on
 //! every slit: the interval window encloses the replay's, each end a
@@ -68,44 +67,51 @@ fn dome<T: Decide + topo::AtRestPolicy>() -> Body<T> {
     body
 }
 
-/// Every slit of the dome: each meridian between the two sphere bands,
-/// killed from each of its halves.
+/// The dome's slit: its seam meridian restated as a plain chart image.
 fn slits<T: Decide + topo::AtRestPolicy>() -> Vec<Body<T>> {
     slits_of(&dome::<T>(), 1)
 }
 
-/// Every slit of `body`: each meridian between its two sphere bands,
-/// killed from each of its halves.
+/// `body`'s slit: its one sphere meridian, the wall's wrap edge, restated
+/// as a plain chart image of the sphere, so the face walks it out to the
+/// pole and back with no wrap edge to make the pole a tip — a strut.
 fn slits_of<T: Decide + topo::AtRestPolicy>(body: &Body<T>, struts: usize) -> Vec<Body<T>> {
     let on_sphere = |he| {
         body.face_of_half_edge(he)
-            .and_then(|face| body.face_surface(face))
+            .and_then(|face| body.face_surface(face).ok())
             .is_some_and(|s| matches!(s, geom::Surface::Sphere { .. }))
     };
     let meridians: Vec<_> = body
         .edges()
         .filter(|(_, e)| on_sphere(e.he_plus) && on_sphere(e.he_minus))
-        .map(|(_, e)| (e.he_plus, e.he_minus))
+        .map(|(k, e)| (k, e.he_plus))
         .collect();
-    assert_eq!(meridians.len(), 2, "the dome's two band meridians");
-    meridians
-        .into_iter()
-        .flat_map(|(plus, minus)| [plus, minus])
-        .map(|he| {
-            let mut slit = body.clone();
-            slit.kef(he).expect("the meridian kills");
-            assert_eq!(validate(&slit), Ok(()), "tier 1 holds on the slit");
-            let tier2 = validate_closed(&slit).expect_err("the slit is scaffolding");
-            assert!(
-                tier2.len() == struts
-                    && tier2
-                        .iter()
-                        .all(|e| matches!(e, ValidationError::ScaffoldingStrutVertex { .. })),
-                "the slit's poles are its {struts} strut tips: {tier2:?}"
-            );
-            slit
-        })
-        .collect()
+    assert_eq!(meridians.len(), 1, "the sphere's one seam meridian");
+    let (seam, plus) = meridians[0];
+    let sphere = body
+        .get_face(body.face_of_half_edge(plus).unwrap())
+        .unwrap()
+        .surface;
+    let mut slit = body.clone();
+    let mut spec = slit
+        .get_curve_geom(slit.get_edge(seam).unwrap().curve)
+        .unwrap()
+        .certified()
+        .unwrap()
+        .restated_spec();
+    spec.description = geom_brep::EdgeDescriptionSpec::chart(sphere);
+    slit.set_edge_curve(seam, spec, Tol::witness())
+        .expect("the seam restates as a plain chart image");
+    assert_eq!(validate(&slit), Ok(()), "tier 1 holds on the slit");
+    let tier2 = validate_closed(&slit).expect_err("the slit is scaffolding");
+    assert!(
+        tier2.len() == struts
+            && tier2
+                .iter()
+                .all(|e| matches!(e, ValidationError::ScaffoldingStrutVertex { .. })),
+        "the slit's poles are its {struts} strut tips: {tier2:?}"
+    );
+    vec![slit]
 }
 
 /// Points against the unit dome `{ y ≥ 0, |p| ≤ 1 }`, with the answer.
@@ -152,7 +158,7 @@ fn window<T: Decide>(slit: &Body<T>) -> Result<Option<(T, T)>, topo::ChartWindow
     let band = Band::linear(Tol::witness()).expect("the witness band");
     let mut spheres = slit
         .faces()
-        .filter(|(fk, _)| matches!(slit.face_surface(*fk), Some(geom::Surface::Sphere { .. })));
+        .filter(|(fk, _)| matches!(slit.face_surface(*fk), Ok(geom::Surface::Sphere { .. })));
     let (face, _) = spheres.next().expect("the slit sphere face");
     assert!(spheres.next().is_none(), "one sphere face after the kill");
     face_azimuth_window_traces(slit, face, band)

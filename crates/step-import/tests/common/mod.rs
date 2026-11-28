@@ -197,7 +197,7 @@ pub fn halfcap_with_its_arc_through_the_pole(tol: Tol) -> Body<f64> {
     let (centre, axis, radius) = body
         .faces()
         .find_map(|(fk, _)| match body.face_surface(fk) {
-            Some(geom::Surface::Sphere { frame, radius, .. }) => {
+            Ok(geom::Surface::Sphere { frame, radius, .. }) => {
                 let (center, axis) = (frame.origin(), frame.axis());
                 Some((center, axis, *radius))
             }
@@ -370,4 +370,51 @@ pub fn corner_names(body: &Body<f64>) -> std::collections::BTreeMap<topo::FaceKe
 /// A point rounded to the micrometre.
 pub fn micrometres(p: [f64; 3]) -> [i64; 3] {
     p.map(|c| (c * 1e6).round() as i64)
+}
+
+/// **Every chart singularity a body reaches is a vertex of it, in one of
+/// the two forms the kernel admits**: the tip of ONE wrap edge, which a
+/// single face walks out and back (one half-edge leaves the vertex), or
+/// the meeting of two edges each with a face of its own on either side.
+/// Panics, naming `name`, on anything else: a doubled tip, a third edge.
+pub fn assert_singular_points_are_vertices(name: &str, b: &Body<f64>) {
+    let points: Vec<_> = b.vertex_points().collect();
+    let wraps = |edge: topo::EdgeKey| {
+        let e = b.get_edge(edge).unwrap();
+        b.face_of_half_edge(e.he_plus) == b.face_of_half_edge(e.he_minus)
+    };
+    for (fk, _) in b.faces() {
+        let singular: Vec<geom_core::Point3<f64>> = match *b.face_surface(fk).unwrap() {
+            geom::Surface::Sphere { frame, radius } => {
+                let (center, axis) = (frame.origin(), frame.axis());
+                vec![center + axis * radius, center - axis * radius]
+            }
+            geom::Surface::Cone { frame, .. } => vec![frame.origin()],
+            _ => continue,
+        };
+        for s in singular {
+            let Some((v, _)) = points.iter().find(|(_, p)| (*p - s).norm() <= 1e-9) else {
+                continue;
+            };
+            let leaving: Vec<topo::EdgeKey> = b
+                .edges()
+                .flat_map(|(_, e)| [e.he_plus, e.he_minus])
+                .filter_map(|h| {
+                    let he = b.get_half_edge(h).unwrap();
+                    (he.start == *v).then_some(he.edge)
+                })
+                .collect();
+            match leaving.as_slice() {
+                [e] => assert!(
+                    wraps(*e),
+                    "{name}: one edge ends at {s:?}, and it is not a wrap edge"
+                ),
+                [a, b_] => assert!(
+                    !wraps(*a) && !wraps(*b_),
+                    "{name}: a wrap edge ends at {s:?} beside another edge"
+                ),
+                _ => panic!("{name}: {} edges end at {s:?}", leaving.len()),
+            }
+        }
+    }
 }

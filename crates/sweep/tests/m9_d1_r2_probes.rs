@@ -128,9 +128,9 @@ fn full_two_segment_axis_run_exports_run_ends_and_only_run_ends() {
     assert_pole_at(&t, 0, top, Point2::new(0.0, 2.0));
     assert!(t.poles[0][mid].is_none(), "run interior vertex is deleted");
     assert!(t.poles[0][off].is_none(), "off-axis vertex is not a pole");
-    // No live body vertex is unaccounted: 2 poles + 2 copies (seam/π)
-    // of the single off-axis vertex.
-    assert_eq!(counts(&t.body).0, 4);
+    // No live body vertex is unaccounted: 2 poles + the single off-axis
+    // vertex, on its rim.
+    assert_eq!(counts(&t.body).0, 3);
 }
 
 /// A partial revolve with a HOLE loop: the outer loop's axis run still

@@ -176,7 +176,7 @@ fn a_seam_inside_a_chart_a_hair_wider_takes_its_interior_column() {
         .faces()
         .filter(|(f, _)| *f != arc)
         .find_map(|(f, _)| match body.face_surface(f) {
-            Some(Surface::Nurbs(n)) if n.control().iter().all(|p| p.y == 0.0) => {
+            Ok(Surface::Nurbs(n)) if n.control().iter().all(|p| p.y == 0.0) => {
                 Some((f, Arc::clone(n)))
             }
             _ => None,
@@ -391,7 +391,7 @@ fn flat_wall_shifted_in_v(body: &Body<f64>) -> (Body<f64>, FaceKey) {
         .faces()
         .filter(|(f, _)| *f != arc)
         .find_map(|(f, _)| match body.face_surface(f) {
-            Some(Surface::Nurbs(n)) if n.control().iter().all(|p| p.y == 0.0) => Some(f),
+            Ok(Surface::Nurbs(n)) if n.control().iter().all(|p| p.y == 0.0) => Some(f),
             _ => None,
         })
         .expect("the prism has a flat wall on y = 0");

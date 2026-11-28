@@ -115,8 +115,8 @@ CERT_FILES_SUBJECT='a file listed as certification code, whose generic items thi
 # A file that holds both a body's data and its certification is not
 # listed until the two are apart, since a dual body holds the data.
 CERT_FILES=(
-  # The spline x analytic-face crossings `NurbsLane::surface_crossings`
-  # runs: an isolation in certification arithmetic and its settle.
+  # The ring composite's chart framing in certification arithmetic
+  # (`framed_form`), the patch carrier's operands.
   crates/geom-brep/src/curve_face/composite.rs
   # Importers of the `Interval` certification doors
   # (`certification-doors.sh`'s list) that declare a generic item and

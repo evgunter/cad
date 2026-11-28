@@ -1,39 +1,40 @@
 # EMBEDWALK — plan
 
-**Dispatchable now** (none has a lane):
+**No P0 or P1 row is dispatchable.** The one live P1,
+`a-failed-local-certificate-answers-split-with-no-ground`, is parked on
+EMBED's P0 `a-plane-faces-corner-that-is-not-strictly-convex-is-read-at-no-depth`
+(in flight as PR 7627, `embed/corner-pieces`). The row's measurement
+of 2026-11-25 puts almost every split of a refusing ask in
+`present_plane`'s corner reading, whose lean is read off the edges'
+whole segments and not off the cell, and finds every straddling
+distance pair the neighbourhood of a touching pair whose certificate
+failed. When that row lands, re-measure with the instrument on
+`embedwalk/split-ground-instrument` (`46dac1094`): what is left decides
+whether a split still needs to carry its ground (`[one-way.readings]`),
+and whether that is a design fork, which goes to designers first.
 
-1. `share-nothing-face-pairs-are-halved-over-their-carriers-crossing-off-the-faces`
-   (P0, M). It is on `origin/embed/gate` (7951bfdfb6) and arrives in
-   `work/embed/` when that branch lands; move it here then, or cut the
-   unit from the branch's copy now. Measured by EMBED's gate lane: the
-   faces are 1.4 to 5.5 cm apart; the sub-millimetre points are carrier
-   points in cells holding no point of a face; `sphere_face_region` and
-   `torus_face_region` answer nothing for a face with an edge that is
-   not a circle (or a spiric), so no cell is dropped. The owed reading
-   is the sphere and torus regions for faces bounded by spline section
-   edges, or a cell clipped to its trim by another route
-   (`cell_region_lifted` already holds the arcs). The at-rest gate's
-   landing waits on it.
-2. `a-spindle-sheet-or-an-approximated-face-has-no-window-in-the-injectivity-engine`
-   (P0, H). 27 census tests.
-3. `a-failed-local-certificate-answers-split-with-no-ground` (P1, H).
-   Ev's ruling on PR 7309 (an ask stops at its first finding) is built
-   by EMBED's PR 7319; this row is what makes the later step (stop only
-   at a crossing) possible. Read fork-log row 296 first.
+**The tail** (P2, P3), each dispatchable:
 
-**Arriving from EMBED's lanes when their PRs land** (filed on lane
-branches, in `work/embed/` until moved here):
-
-- from `embed/nested-tori` (PR 7119): `coaxial-cone-walls-a-thin-gap-apart-have-no-depth-that-parts-them`,
-  `the-depth-gap-is-asked-of-whole-faces-not-of-cells`,
+- the window: `the-walk-drops-no-cell-of-a-cylinder-or-cone-face-a-spline-edge-bounds`
+  (the ruled region admits no spline edge; the sphere and torus halves
+  landed with PR 7772), `the-window-builders-remaining-refusals-have-no-row-that-drives-them`;
+- the depth gap: `the-depth-gap-is-asked-of-whole-faces-not-of-cells`,
   `the-depth-gap-lives-in-the-census-and-its-pad-is-not-derived-for-the-clearance-engine`,
-  `the-depth-gaps-f64-rounding-is-of-the-pads-order-near-the-least-tolerance`,
-  `a-side-read-through-a-motion-is-not-asked-its-depths`;
-- from `embed/first-finding` (PR 7319): `three-refusal-sites-of-the-embedding-ask-are-reached-by-no-built-body`;
-- from `embed/lune` (PR 7113): the `unplaced_line` reading it adds bears
-  on `a-coordinate-line-on-a-face-of-unknown-extent-is-unplaced`.
+  `the-depth-gaps-f64-rounding-is-of-the-pads-order-near-the-least-tolerance`
+  (design open; it now carries the placed motion's measured f64 term),
+  `coaxial-cone-walls-a-thin-gap-apart-have-no-depth-that-parts-them`;
+- the extent and sheets: `a-coordinate-line-on-a-face-of-unknown-extent-is-unplaced`,
+  `spiric-extent-overshoots-the-sheet-slack-at-interval`,
+  `a-face-whose-loop-holds-a-free-form-row-places-no-seam-line`,
+  `a-face-with-no-line-on-a-periodic-axis-reads-its-sheet-off-the-stored-lift-unchecked`,
+  `a-contradicted-extent-refuses-with-no-typed-cause`,
+  `an-analytic-face-may-cover-its-carrier-more-than-once`;
+- the rest: `the-mirrored-rim-band-at-interval-runs-out-of-depth-in-the-distance-arm`,
+  `one-face-torus-cut-refuses-across-its-meridian`,
+  `three-refusal-sites-of-the-embedding-ask-are-reached-by-no-built-body`.
 
-EMBED's orchestrator moves each when its PR merges and notes it on this
-log.
-
-**The tail** (P2, P3): the extent and sheet rows moved with the cut.
+**A lesson of the 2026-11-25 sitting, for whoever dispatches here:** a
+window or a carried site that is too narrow is a wrong `Embedded`, and
+five of the sitting's lanes shipped rows that could not see one (each
+caught by its review). Brief every lane on this ground to land a row
+that goes red under a few percent of narrowing.

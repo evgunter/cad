@@ -17,8 +17,9 @@
 //! - **The routing boundary** (claim 2): what a multi-link closed chain
 //!   that is NOT a seam-split rim meets, now that the two refusals the
 //!   issue measured became the routing test.
-//! - **Resolution violations** (claim 4): a planted ring on a half-band
-//!   support; a request that adds a seam meridian to the rim's arcs.
+//! - **Resolution violations** (claim 4): the neck rim, one closed edge
+//!   on one plane support; a request that adds a seam meridian to the
+//!   rim's arcs.
 //!
 //! Authored in the review lane and ADOPTED into the unit at its fix
 //! pass, so the findings below are re-taken by the suite on every run
@@ -30,12 +31,12 @@ use core::f64::consts::SQRT_2;
 
 use geom_core::{Point2, Point3, Tol};
 use sweep::Revolution;
+use sweep::blend::FILLET3_SEAM_VERTEX_RECOURSE;
 use sweep::blend::build::fillet_edges;
-use sweep::blend::{BlendError, FILLET3_SEAM_VERTEX_RECOURSE, UnbuiltEnd};
 use sweep::test_support::{
     assert_promises_either_side, cube, revolved_about_y, rim_arcs_at, waisted,
 };
-use topo::{Body, EdgeKey, FaceKey, SurfaceKey, validate_geometric};
+use topo::{Body, EdgeKey, FaceKey, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -85,10 +86,6 @@ fn bored_lantern() -> Body<f64> {
     )
 }
 
-fn surface_of(body: &Body<f64>, f: FaceKey) -> SurfaceKey {
-    body.get_face(f).unwrap().surface
-}
-
 fn faces_of(body: &Body<f64>, e: EdgeKey) -> (FaceKey, FaceKey) {
     let ed = body.get_edge(e).unwrap();
     let f = |he| {
@@ -130,22 +127,18 @@ fn volume(body: &Body<f64>) -> f64 {
 /// this row pins the premise it argues from.
 #[test]
 fn p1_the_seam_vertex_tag_fires_without_reading_convexity() {
-    // A CONCAVE seam-split rim, and a CONVEX one on the same body.
+    // A CONCAVE rim and a CONVEX one on the same body: each is one closed
+    // edge on a full revolve, and the whole-rim request the tag's
+    // recourse names carves on both material sides.
     let body = sweep::test_support::finished("body", waisted(tol()), tol());
     for (name, rim_r, rim_y) in [
         ("the concave waist", 0.5, 0.5),
         ("the convex base", 1.0, 0.0),
     ] {
         let arcs = rim_arcs_at(&body, rim_r, rim_y);
-        assert_eq!(arcs.len(), 2, "{name} is seam-split");
-        match fillet_edges(&body, &arcs[..1], 0.05, tol()).map_err(|r| r.error) {
-            Err(BlendError::UnbuiltEnd(end)) => assert!(
-                matches!(end, UnbuiltEnd::Seam { .. }),
-                "{name}: the classifier reads incidence and tags the seam vertex, \
-                 got {end}"
-            ),
-            other => panic!("{name}: one arc stops at a seam vertex, got {other:?}"),
-        }
+        assert_eq!(arcs.len(), 1, "{name} is one closed edge");
+        fillet_edges(&body, &arcs, 0.05, tol())
+            .unwrap_or_else(|e| panic!("{name}: the whole rim carves, got {e:?}"));
     }
     // So the sentence the tag carries has to hold on both sides, and it
     // does: the one door it names serves both configurations. The
@@ -173,7 +166,7 @@ fn p2_the_lip_rim_removal_matches_a_hand_pappus_closed_form() {
     let r = 0.05;
     let source = lantern();
     let arcs = rim_arcs_at(&source, LIP_R, TOP);
-    assert_eq!(arcs.len(), 2, "the lip rim is seam-split");
+    assert_eq!(arcs.len(), 1, "the lip rim is one closed edge");
     let out = fillet_edges(
         &sweep::test_support::at_rest(&source, tol()),
         &arcs,
@@ -311,30 +304,22 @@ fn p3_a_petrie_hexagon_cycle_never_assembles_into_a_closed_chain() {
 }
 
 // ------------------------------------------------------------------
-// P4 — a planted ring on a half-band support (claim 4).
+// P4 — the neck rim on its one plane support (claim 4).
 // ------------------------------------------------------------------
 
-/// **The lantern's neck rim CARVES, and a SUBSET of it refuses
-/// followably** — measured on the body a consumer holds. A full revolve
-/// builds each cap whole (`crates/sweep/README.md`, "Walls: one per
-/// run"), so the neck rim is two arcs on ONE plane face, in that face's
-/// own OUTER cycle, with TRIVALENT crossings — the shape `resolve_rim`
-/// routes to the annulus with hostless crossings, whose host feet are
-/// the ladder's struts.
-///
-/// The composed pin the seam-vertex family owes: one arc alone refuses
-/// at a `UnbuiltEnd::Seam` (the mate's seam cut the rim; the plane carries
-/// both arcs and has no seam), and the whole-rim request that refusal
-/// names is then followed to a carve here. Both halves matter — a
-/// recourse that names a door has to reach one.
+/// **The lantern's neck rim CARVES** — measured on the body a consumer
+/// holds. A full revolve builds each wall whole, so the neck rim is one
+/// closed edge on ONE plane face, in that face's own OUTER cycle, its
+/// vertex holding the rim and the mate's seam — the shape `resolve_rim`
+/// routes to the annulus with a hostless crossing, whose host foot is
+/// the ladder's strut.
 #[test]
-fn p4_the_lantern_neck_rim_carves_and_one_arc_refuses_followably() {
+fn p4_the_lantern_neck_rim_carves() {
     let source = sweep::test_support::finished("source", lantern(), tol());
     let arcs = rim_arcs_at(&source, 1.0, 0.0);
-    assert_eq!(arcs.len(), 2, "the neck rim is two arcs");
-    let (a0, b0) = faces_of(&source, arcs[0]);
-    let (a1, b1) = faces_of(&source, arcs[1]);
-    let planes: Vec<FaceKey> = [a0, b0, a1, b1]
+    assert_eq!(arcs.len(), 1, "the neck rim is one closed edge");
+    let (a, b) = faces_of(&source, arcs[0]);
+    let planes = [a, b]
         .into_iter()
         .filter(|f| {
             matches!(
@@ -342,39 +327,22 @@ fn p4_the_lantern_neck_rim_carves_and_one_arc_refuses_followably() {
                 geom::Surface::Plane { .. }
             )
         })
-        .collect();
-    assert_eq!(planes[0], planes[1], "one plane face hosts both arcs");
-    // Every crossing is TRIVALENT: the plane has no seam, so only the
-    // mate's meridian is left beside the two arcs. That is what makes
-    // the host foot a strut rather than a seam split.
-    for &arc in &arcs {
-        let ed = source.get_edge(arc).unwrap();
-        for he in [ed.he_plus, ed.he_minus] {
-            let v = source.get_half_edge(he).unwrap().start;
-            let inc = source.edges_of_vertex(v).unwrap();
-            assert_eq!(inc.len(), 3, "a whole-cap rim crossing is trivalent");
-        }
-    }
+        .count();
+    assert_eq!(planes, 1, "one plane face hosts the rim");
+    // The rim's vertex holds the rim and the mate's seam alone: the
+    // plane has no seam, so the host foot is a strut, not a seam split.
+    let ed = source.get_edge(arcs[0]).unwrap();
+    let v = source.get_half_edge(ed.he_plus).unwrap().start;
+    assert_eq!(
+        source.edges_of_vertex(v).unwrap().len(),
+        2,
+        "the rim's crossing holds the rim and one seam"
+    );
 
-    // ONE ARC: refused at the seam vertex, whose recourse names the
-    // whole rim.
-    match fillet_edges(&source, &arcs[..1], 0.05, tol()).map_err(|r| r.error) {
-        Err(BlendError::UnbuiltEnd(end)) => {
-            assert!(
-                matches!(end, UnbuiltEnd::Seam { .. }),
-                "a trivalent rim crossing is a seam vertex: {end}"
-            );
-        }
-        other => panic!("one arc refuses at a corner door, got {other:?}"),
-    }
-
-    // THE WHOLE RIM CARVES — the recourse that subset refusal names,
-    // followed here rather than read. One band over both arcs, tier-3
-    // valid, closed-form mass properties.
     let out = fillet_edges(&source, &arcs, 0.05, tol())
         .expect("the whole neck rim carves through the hostless-crossing annulus");
     validate_geometric(&out.body, tol()).expect("the neck carve is tier-3 valid");
-    assert_eq!(out.band_faces.len(), 1, "ONE band over both arcs");
+    assert_eq!(out.band_faces.len(), 1, "ONE band over the rim");
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
         tol(),
@@ -400,14 +368,14 @@ fn p4_the_lantern_neck_rim_carves_and_one_arc_refuses_followably() {
 fn p5_the_rim_arcs_plus_a_seam_meridian_carve_the_rim_and_leave_the_seam() {
     let body = lantern();
     let mut req = rim_arcs_at(&body, SHOULDER.0, SHOULDER.1);
-    assert_eq!(req.len(), 2);
-    // A co-surface edge: same surface on both sides.
+    assert_eq!(req.len(), 1);
+    // A seam: one curved face on both sides.
     let seam = body
         .edges()
         .map(|(k, _)| k)
         .find(|&k| {
             let (a, b) = faces_of(&body, k);
-            a != b && surface_of(&body, a) == surface_of(&body, b)
+            a == b && !matches!(body.face_surface(a).unwrap(), geom::Surface::Plane { .. })
         })
         .expect("a full revolve of a pole-touching profile has seam meridians");
     req.push(seam);

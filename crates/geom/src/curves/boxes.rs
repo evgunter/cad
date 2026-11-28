@@ -45,7 +45,6 @@ use geom_core::{Bounds, Interval, Point3, Real, Vec3};
 
 use crate::curves::nurbs::NurbsCurve3;
 use crate::curves::{Conic, Curve3};
-use crate::net;
 
 /// A bracket as the certified scalar's enclosure of it. The box doors
 /// read only the result's bounds, never its decoration, so the
@@ -400,13 +399,11 @@ pub fn conic_arc_aabb<T: Bounds>(
 /// later sharpening; a wider box still contains the locus). No
 /// arithmetic — brackets only — so no rounding to pad.
 ///
-/// **A net carrying poison ANYWHERE yields the poison box**, which
-/// overlaps everything, a net poisoned in one channel of one point as
-/// much as an all-poison one. The screen is `net::any_poison`, whose
-/// docs carry why a box asks the wider question than the state
-/// discriminator does.
+/// **A net that is not finite yields the poison box**, which overlaps
+/// everything ([`NurbsCurve3::is_finite`]; the surface box's docs say
+/// why).
 pub fn nurbs_curve_aabb<T: Bounds>(curve: &NurbsCurve3<T>) -> Aabb {
-    if net::any_poison(curve.control()) {
+    if !curve.is_finite() {
         return Aabb::poison();
     }
     Aabb::from_points(curve.control().iter().copied()).unwrap_or_else(Aabb::poison)

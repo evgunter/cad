@@ -33,13 +33,13 @@ use super::shell7_common::*;
 use sweep::test_support::finished;
 
 /// **Drum, stage by stage.** The door's cavity re-certifies edge for
-/// edge, and so does its `revert()`: the two half-circles of the
-/// latitude ring — the only `Chart` images on the PLANE with a
-/// non-zero `v` channel, and the two edges that refused `ChartResidual`
-/// at sample 1 while the reversal left them unmirrored — carry the
-/// mirrored image now, and the void door, which carries each
-/// certificate through the graft verbatim, takes the cavity. The plane
-/// edges are four: the two radial lines and the ring's two halves.
+/// edge, and so does its `revert()`: the latitude ring — the only
+/// `Chart` image on the PLANE, its `v` channel non-zero, the edge that
+/// refused `ChartResidual` at sample 1 while the reversal left it
+/// unmirrored — carries the mirrored image now, and the void door, which
+/// carries each certificate through the graft verbatim, takes the
+/// cavity. A full revolve's plane wall is one face with no radial seam,
+/// so the ring is the plane's one image.
 #[test]
 fn drum_reverted_cavity_re_certifies_and_the_void_door_takes_it() {
     let t = 0.05;
@@ -67,12 +67,8 @@ fn drum_reverted_cavity_re_certifies_and_the_void_door_takes_it() {
             matches!(c.carrier(), geom::Curve3::Circle(..))
         })
         .count();
-    assert_eq!(circles, 2, "the two half-circles of the latitude ring");
-    assert_eq!(
-        on_plane.len(),
-        4,
-        "two radial lines and the ring's two halves"
-    );
+    assert_eq!(circles, 1, "the latitude ring's one circle");
+    assert_eq!(on_plane.len(), 1, "the ring is the plane's one image");
     // The same insertion `shell` runs, by hand: taken.
     let mut out = body.clone();
     let solids: Vec<_> = body.solids().map(|(k, _)| k).collect();
@@ -143,7 +139,7 @@ fn drum_reverted_plane_circle_image_is_the_one_a_fresh_derivation_gives() {
         let geom_brep::EdgeDescription::Chart(c) = curve.description() else {
             continue;
         };
-        if !matches!(reverted.get_surface(c.surface), Some(Surface::Plane { .. }))
+        if !matches!(reverted.get_surface(c.surface), Ok(Surface::Plane { .. }))
             || !matches!(curve.carrier(), geom::Curve3::Circle(..))
         {
             continue;
@@ -191,16 +187,16 @@ fn drum_reverted_plane_circle_image_is_the_one_a_fresh_derivation_gives() {
             );
         }
     }
-    assert_eq!(circles, 2, "the latitude ring's two half-circles");
+    assert_eq!(circles, 1, "the latitude ring's one circle");
 }
 
-/// **Sphere, the closing mint.** The grafted body is tier-3 valid on
-/// the rows the graft carried, and the closing `mint_pcurves` pass —
-/// which `shell` runs on the body it assembles, the `Transfers` row's
-/// contract for a producer — clears and re-derives them, leaving the
-/// body tier-3 valid at the thin solid's closed form: the verb's
-/// result carries exactly the rows the hand re-mint of the same graft
-/// carries, key for key and bit for bit.
+/// **Sphere, the carried rows against a hand re-mint.** The grafted
+/// body is tier-3 valid on the rows the graft carried, and a
+/// `mint_pcurves` pass over it clears and re-derives them, leaving the
+/// body tier-3 valid at the thin solid's closed form. `shell` keeps the
+/// carried rows (its finish completes, never replaces), and its result
+/// carries exactly the rows the hand re-mint of the same graft carries,
+/// key for key and bit for bit: the carried rows are the derived ones.
 #[test]
 fn sphere_grafted_body_is_tier_3_valid_before_and_after_the_closing_mint_which_shell_runs() {
     let (r, t) = (1.0, 0.05);
@@ -235,11 +231,11 @@ fn sphere_grafted_body_is_tier_3_valid_before_and_after_the_closing_mint_which_s
         props.enclosure.volume_pad
     );
     let shelled = topo::shell(&finished("the operand", body.clone(), tol()), t, tol())
-        .expect("shell runs the closing mint");
+        .expect("shell takes the sphere");
     assert!(!rows(&out).is_empty(), "the sphere's faces carry rows");
     assert_eq!(
         rows(&shelled.body),
         rows(&out),
-        "the verb's rows are the re-mint's"
+        "the verb's carried rows are the hand re-mint's"
     );
 }

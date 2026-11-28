@@ -200,7 +200,8 @@ fn assert_section(part: &Body<f64>, tilted: bool, what: &str) {
             .pcurves()
             .filter(|(_, cache)| matches!(cache.pcurve(), Pcurve::FocalSection(_)))
             .count();
-        assert!(images >= 2, "{what}: {images} focal-section images");
+        // The section is one closed edge, its image on the cone face.
+        assert!(images >= 1, "{what}: {images} focal-section images");
     }
 }
 

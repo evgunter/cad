@@ -54,7 +54,6 @@ from pncad import (
     circle,
     CapEnd,
     band,
-    band_pi,
     band_rim,
     circle_split,
     deg,
@@ -771,8 +770,8 @@ class TestSnowman(unittest.TestCase):
 
     The waist is where the row earns its star. The scene says it by
     description, `(Sphere, Sphere)`, and that description also names
-    every seam meridian, because a full revolve leaves each ball as
-    two half-bands on one sphere. The scene drops the meridians
+    each ball's seam meridian, because a full revolve leaves each ball
+    one face across one seam on its sphere. The scene drops the meridians
     through `rim_of`'s `CoSurface` refusal, which has no document
     spelling, and no selector atom says "two different surfaces"
     (work/tquery/adjacent-kinds-cannot-tell-a-crease-from-a-co-surface-seam.md).
@@ -874,18 +873,18 @@ class TestSnowman(unittest.TestCase):
         described = ev.select_where(union, edges, [spheres])
         self.assertEqual(
             (len(described), len(ev.all_edges(union))),
-            (6, 6),
-            "(Sphere, Sphere) names every edge: two waist arcs, four meridians",
+            (3, 3),
+            "(Sphere, Sphere) names every edge: the waist rim and two meridians, one a ball",
         )
         seams = Selector.of(NamePat.of_kind(EntityKind.Edge).seg(SegPat.tag(SegTag.Seam)))
         waist = ev.select_where(union, seams, [spheres])
-        self.assertEqual(len(waist), 2)
+        self.assertEqual(len(waist), 1)
         self.assertEqual(
             sorted(waist),
             sorted(ev.select(union, seams)),
             "the description keeps every one of the boolean's seam arcs",
         )
-        self.assertTrue(set(waist) < set(described), "and they are two of the six")
+        self.assertTrue(set(waist) < set(described), "and it is one of the three")
 
         # The description alone hands the roller the meridians too,
         # whose two sides are one sphere: smooth seams it leaves as they
@@ -1784,8 +1783,8 @@ class TestDiecomposed(DieScene, unittest.TestCase):
 
         # Blend 2 — the pip rims, said by ADJACENT KINDS: the edges
         # whose two faces are a plane (the shrunk cap) and a sphere
-        # (the pip cavity), unordered. A full revolve's band is two
-        # half-faces, so each rim is two arcs: 21 × 2 = 42 names. The
+        # (the pip cavity), unordered. A full revolve's band is one
+        # face, so each rim is one closed edge: 21 names. The
         # cavity meridians (sphere on BOTH sides — no dihedral wedge,
         # unfilletable at any radius) match neither filter, exactly as
         # in the Rust scene.
@@ -1794,7 +1793,7 @@ class TestDiecomposed(DieScene, unittest.TestCase):
             edges,
             [GeomPred.adjacent_kinds(SurfaceKind.Plane, SurfaceKind.Sphere)],
         )
-        self.assertEqual(len(rims), 42)
+        self.assertEqual(len(rims), 21)  # one closed rim a pip
         composed = doc.insert(Node.fillet(blank, Formula.length_in(self.RIM_R, m), rims))
 
         want = self.blank_volume() - 21.0 * (
@@ -1843,9 +1842,9 @@ class TestDiechamferDie(DieScene, unittest.TestCase):
         # The scene's own census for the chamfered BOX, plus the 21
         # pip cavities carried through: the box contributes 26 faces
         # (6 shrunk supports + 12 strips + 8 corner patches) and each
-        # pip cavity is a sphere in two half-faces.
+        # pip cavity is one sphere face.
         faces = evaluate(doc).all_faces(chamfered)
-        self.assertEqual(len(faces), 26 + 21 * 2)
+        self.assertEqual(len(faces), 26 + 21)
 
 
 class TestTiltedcut(unittest.TestCase):
@@ -2639,9 +2638,11 @@ class TestTeapot(unittest.TestCase):
     SPOUT_ROOT: ClassVar[tuple] = (-1.0 / 32.0, 3.0 / 64.0, 0.0)
     SPOUT_DIR: ClassVar[tuple] = (-0.8, 0.6, 0.0)
     HANDLE_R: ClassVar[float] = 6.0 / 256.0
-    HANDLE_TUBE: ClassVar[float] = 1.0 / 128.0
+    #: Half the wall, so the roots end inside it (the Rust scene's
+    #: `HANDLE_OVER` says why).
+    HANDLE_TUBE: ClassVar[float] = 1.0 / 256.0
     HANDLE_C: ClassVar[tuple] = (5.0 / 64.0, 4.0 / 64.0, 0.0)
-    HANDLE_OVER: ClassVar[float] = 0.5
+    HANDLE_OVER: ClassVar[float] = 0.24
 
     # ---- the closed forms, from the constants above ----
 
@@ -2859,8 +2860,7 @@ class TestTeapot(unittest.TestCase):
 
     def seg_faces(self, ev, node, tag):
         """The revolve's faces of one band role, in the order `select`
-        answers in (name order: a `Band` and its `BandPi` half share an
-        index)."""
+        answers in (name order)."""
         return ev.select(
             node, Selector.of(NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(tag)))
         )
@@ -2898,13 +2898,7 @@ class TestTeapot(unittest.TestCase):
         bands = self.in_program_order(
             doc, vessel, pot, band, self.seg_faces(ev, pot, SegTag.Band)
         )
-        bands_pi = self.in_program_order(
-            doc, vessel, pot, band_pi, self.seg_faces(ev, pot, SegTag.BandPi)
-        )
         self.assertEqual(len(bands), 4, "one band per meridian segment that sweeps")
-        self.assertEqual(
-            len(bands_pi), 2, "the two CURVED walls' [pi, 2pi) halves; the discs are whole"
-        )
         # The mouth is the mouth-disc segment's ONE face.
         seg_mouth = self.mouth_segment(ev, pot, bands)
         self.assertEqual(
@@ -2993,7 +2987,7 @@ class TestTeapot(unittest.TestCase):
             props.surface_area, self.pot_area(0.0) + self.pot_area(self.WALL), "sealed pot A"
         )
         self.assertEqual(props.volume_pad, 0.0, "closed forms need no pad")
-        self.assertEqual(len(ev.all_faces(sealed)), 12, "the operand's 6 faces, twice")
+        self.assertEqual(len(ev.all_faces(sealed)), 8, "the operand's 4 faces, twice")
 
         # The cup: the sealed wall LESS the plug the rim lift opens,
         # which over that slab is the belly SPHERE rather than a
@@ -3013,24 +3007,20 @@ class TestTeapot(unittest.TestCase):
             cup, Selector.of(NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.Rim)))
         )
         self.assertEqual(len(rim), 1, "one designated chart, one rim")
-        self.assertEqual(len(ev.all_faces(cup)), 11, "5 outer + the rim + 5 cavity")
+        self.assertEqual(len(ev.all_faces(cup)), 7, "3 outer + the rim + 3 cavity")
 
     def test_the_mouths_designation_is_ONE_face_and_the_rim_wears_its_name(self):
-        """A full revolve sweeps the mouth disc whole, so the mouth's
-        chart is ONE face, its `Band`, and has no `BandPi` half. (The
-        rows that measured a half-chart refusal and the meaning of the
-        designation ORDER over two half-discs have no shape left to
-        measure: there is one face to designate.)"""
+        """A full revolve sweeps every wall whole, so the mouth's chart is
+        ONE face, its `Band`. (The rows that measured a half-chart
+        refusal and the meaning of the designation ORDER over two
+        half-discs have no shape left to measure: there is one face to
+        designate.)"""
         doc = Doc()
         pot = fully_revolved(doc, teapot_axis(), self.vessel_meridian())
         ev = evaluate(doc)
         bands = self.seg_faces(ev, pot, SegTag.Band)
         seg = self.mouth_segment(ev, pot, bands)
         mouth = bands[seg]
-        for name in self.seg_faces(ev, pot, SegTag.BandPi):
-            self.assertNotEqual(
-                ev.face_carrier_kind(pot, name), SurfaceKind.Plane, "no planar pi half"
-            )
 
         node = doc.insert(Node.shell(doc.output(pot, 0), Formula.length_in(self.WALL, m), [mouth]))
         ev = evaluate(doc)
@@ -3285,8 +3275,7 @@ class TestTeapot(unittest.TestCase):
         joined_body.validate()
         # Held to what a union must satisfy, from the operands' own
         # readings: no smaller than either, and short of their sum by
-        # a real overlap (the handle's roots stand 11.2 mm into the
-        # wall).
+        # a real overlap (the handle's roots are set into the wall).
         v_join = pinned(joined_body).volume
         v_cup = pinned(ev.value(cup).body()).volume
         v_handle = pinned(ev.value(handle).body()).volume
@@ -3452,8 +3441,8 @@ class TestTorusvessel(unittest.TestCase):
                     [GeomPred.surface_kind(SurfaceKind.Torus)],
                 )
             ),
-            2,
-            "one band, cut at the two seam meridians into a pair of half-walls",
+            1,
+            "one band, one face across its one seam meridian",
         )
 
         v_cav, a_cav = self.boundary(self.WALL)
@@ -3464,13 +3453,13 @@ class TestTorusvessel(unittest.TestCase):
         self.assertLess(
             abs((props_s.surface_area - (a_out + a_cav)) / (a_out + a_cav)), 1e-12
         )
-        # The operand's 10 faces twice (its planar walls swept whole, its
-        # curved ones in half-walls): the cavity is that same boundary
-        # offset inward, inserted whole through the shared void door.
-        self.assertEqual(len(ev.all_faces(operand)), 10)
-        self.assertEqual(len(ev.all_faces(sealed)), 20)
-        self.assertEqual(len(ev.all_vertices(sealed)), 24)
-        self.assertEqual(len(ev.all_edges(sealed)), 36)
+        # The operand's 7 faces twice (every wall swept whole): the
+        # cavity is that same boundary offset inward, inserted whole
+        # through the shared void door.
+        self.assertEqual(len(ev.all_faces(operand)), 7)
+        self.assertEqual(len(ev.all_faces(sealed)), 14)
+        self.assertEqual(len(ev.all_vertices(sealed)), 12)
+        self.assertEqual(len(ev.all_edges(sealed)), 18)
 
 
 class TestTwopeg(unittest.TestCase):
@@ -4041,9 +4030,9 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # set), so the module-level absence below is shape, not gap.
         # `StableName` stays, and for a sharper reason than "nothing
         # spells it": a name is `str` on this side, so there is no
-        # name TYPE and no grammar to half-parse. The six role-name
-        # doors — `band`, `band_pi`, `band_rim`, `band_rim_pi`,
-        # `meridian_vertex`, `carried` — do not change that: each MINTS a name by naming
+        # name TYPE and no grammar to half-parse. The four role-name
+        # doors — `band`, `band_rim`, `meridian_vertex`, `carried` — do
+        # not change that: each MINTS a name by naming
         # a ROLE and answers the same opaque text a materializer
         # answers, which is why they are module doors and not methods
         # on a name class.

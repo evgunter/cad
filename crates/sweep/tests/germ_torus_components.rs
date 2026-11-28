@@ -100,7 +100,6 @@ fn stop(got: &Result<BooleanResult<f64>, BooleanError>, kind: Option<geom::Surfa
             },
             other => format!("result {other:?}"),
         },
-        Err(BooleanError::GermSectionSpiric { .. }) => "spiric".to_owned(),
         Err(BooleanError::CurvedPairUnsupported {
             site: topo::PairRefusalSite::InteriorLoopGuard,
             kind,

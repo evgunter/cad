@@ -78,7 +78,6 @@ fn run(tag: &str, operand: &AtRestBody<f64>, origin: V3, normal: V3) -> bool {
                 SplitError::Reduce(_) => "reduce",
                 SplitError::Join(_) => "join",
                 SplitError::Finish(_) => "finish",
-                SplitError::Pcurves(_) => "pcurves",
                 _ => "other",
             };
             format!(

@@ -124,30 +124,29 @@ fn chart_line(p: Point3<f64>, q: Point3<f64>, surface: SurfaceKey) -> EdgeCurveS
 }
 
 /// Cuts a latitude ring of radius `rr` into a full revolve's whole cap
-/// at height `h` (rim radius `r`, about `+y`): a radial line from each
-/// rim vertex in to the ring and the ring's two half-circles, every
-/// edge a `Chart` image on the cap's plane and every new face on it.
+/// at height `h` (rim radius `r`, about `+y`): a radial line from the rim
+/// vertex in to the ring, the ring a whole circle from there round to
+/// itself, and the radial line killed into the ring it separates, so the
+/// cap is an annulus beside a disc, every edge a `Chart` image on the
+/// cap's plane and every new face on it.
 pub fn ring_on_cap(body: &mut Body<f64>, h: f64, r: f64, rr: f64) {
     let tol = Tol::witness();
     let cap = body
         .faces()
         .find(|(fk, _)| {
             matches!(body.face_surface(*fk),
-                Some(Surface::Plane { frame, .. }) if (frame.origin().y - h).abs() <= 1e-12)
+                Ok(Surface::Plane { frame, .. }) if (frame.origin().y - h).abs() <= 1e-12)
         })
         .expect("the cap")
         .0;
     let plane = body.get_face(cap).unwrap().surface;
-    let (rim_a, rim_b) = (Point3::new(r, h, 0.0), Point3::new(-r, h, 0.0));
-    let (a, b) = (Point3::new(rr, h, 0.0), Point3::new(-rr, h, 0.0));
-    let (va, vb) = (vertex_at(body, rim_a), vertex_at(body, rim_b));
+    let rim_a = Point3::new(r, h, 0.0);
+    let a = Point3::new(rr, h, 0.0);
+    let va = vertex_at(body, rim_a);
     let from_a = leaving(body, cap, va);
-    let side = {
-        let e = body
-            .get_edge(body.get_half_edge(from_a).unwrap().edge)
-            .unwrap();
-        let c = body.get_curve_geom(e.curve).unwrap().certified().unwrap();
-        c.mid_point().z.signum()
+    let normal = match body.face_surface(cap) {
+        Ok(Surface::Plane { frame, .. }) => frame.axis().y.signum(),
+        _ => unreachable!("the cap is a plane"),
     };
     let spoke = body
         .mev(
@@ -160,56 +159,47 @@ pub fn ring_on_cap(body: &mut Body<f64>, h: f64, r: f64, rr: f64) {
             tol,
         )
         .expect("the radial line in from the rim");
-    let ring = body
-        .mev(
-            MevSite::Fan {
-                he1: spoke.he_minus,
-                he2: spoke.he_minus,
-            },
-            b,
-            half_circle(h, rr, side, plane),
-            tol,
-        )
-        .expect("the ring's first half");
-    let from_b = leaving(body, cap, vb);
     body.mef(
         MefSite::Chords {
-            he1: ring.he_minus,
-            he2: from_b,
+            he1: spoke.he_minus,
+            he2: spoke.he_minus,
         },
-        chart_line(b, rim_b, plane),
+        EdgeCurveSpec {
+            description: EdgeDescriptionSpec::chart(plane),
+            carrier: Curve3::circle(
+                Point3::new(0.0, h, 0.0),
+                Vec3::new(0.0, -normal, 0.0),
+                rr,
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
+            param_start: 0.0,
+            param_end: core::f64::consts::TAU,
+        },
         FaceSurface::Inherit,
         tol,
     )
-    .expect("the radial line out to the rim");
-    let inner = body.face_of_half_edge(ring.he_plus).unwrap();
-    let to_rim = leaving(body, inner, ring.vertex);
-    body.mef(
-        MefSite::Chords {
-            he1: ring.he_plus,
-            he2: to_rim,
-        },
-        half_circle(h, rr, -side, plane),
-        FaceSurface::Inherit,
-        tol,
-    )
-    .expect("the ring's second half");
+    .expect("the ring round from the spoke's end");
+    let e = body.get_edge(spoke.edge).unwrap();
+    let (hp, hm) = (e.he_plus, e.he_minus);
+    body.kemr(hp, hm)
+        .or_else(|_| body.kemr(hm, hp))
+        .expect("the radial line dies into the ring it separates");
 }
 
 /// Cuts a latitude ring at height `h` into a full revolve's curved wall
-/// on `surface` (a cylinder or a cone about `+y`, split by its two
-/// line meridians into half-bands): each meridian split at its middle,
-/// and each half-band split there by a half-circle `Chart` image on the
-/// wall, so the wall is one surface in four faces.
+/// on `surface` (a cylinder or a cone about `+y`, one band whose seam is
+/// a line meridian): the seam split at its middle, and the wall split
+/// there by a whole circle `Chart` image, so the wall is one surface in
+/// two faces.
 pub fn ring_on_wall(body: &mut Body<f64>, surface: SurfaceKey) {
     ring_on_wall_where(body, surface, |_, t0, t1| Some(0.5 * (t0 + t1)), true);
 }
 
-/// [`ring_on_wall`] at height `y`, on any wall whose meridians climb
-/// monotonically in `y` (a cylinder, a cone, a sphere's pole-to-pole
-/// half-bands), and again on a wall a ring already cut: the two
-/// meridian pieces that cross `y` split there, and the two faces that
-/// then hold both new vertices split between them.
+/// [`ring_on_wall`] at height `y`, on any wall whose seam climbs
+/// monotonically in `y` (a cylinder, a cone, a sphere pole to pole), and
+/// again on a wall a ring already cut: the seam piece that crosses `y`
+/// splits there, and the face that then holds the new vertex on both
+/// sides of its seam splits there.
 pub fn ring_on_wall_at(body: &mut Body<f64>, surface: SurfaceKey, y: f64) {
     ring_on_wall_where(body, surface, crossing(y), true);
 }
@@ -235,10 +225,10 @@ fn crossing(y: f64) -> impl Fn(&Curve3<f64>, f64, f64) -> Option<f64> {
     }
 }
 
-/// The shared cut: `at(carrier, t0, t1)` picks each meridian's split
-/// parameter, `None` for a meridian piece the ring does not cross;
-/// with `halves`, each face then holding both new vertices splits
-/// between them by a half-circle `Chart` image.
+/// The shared cut: `at(carrier, t0, t1)` picks the seam meridian's
+/// split parameter, `None` for a meridian piece the ring does not cross;
+/// with `halves`, the face then holding the new vertex twice (once on
+/// each side of its seam) splits there by a whole circle `Chart` image.
 fn ring_on_wall_where(
     body: &mut Body<f64>,
     surface: SurfaceKey,
@@ -259,48 +249,65 @@ fn ring_on_wall_where(
             at(c.carrier(), t0, t1).map(|t| (k, t))
         })
         .collect();
-    assert_eq!(meridians.len(), 2, "the ring crosses two meridians");
-    let mut mids = Vec::new();
-    for (m, t) in meridians {
-        mids.push(
-            body.split_edge(m, t, tol)
-                .expect("the meridian splits")
-                .vertex,
-        );
-    }
+    let [(seam, t)] = meridians[..] else {
+        panic!("the ring crosses the wall's one seam: {meridians:?}")
+    };
+    let mid = body
+        .split_edge(seam, t, tol)
+        .expect("the seam splits")
+        .vertex;
     if !halves {
         return;
     }
-    let point = |b: &Body<f64>, v: VertexKey| *b.get_point(b.get_vertex(v).unwrap().point).unwrap();
-    // Angle 0 (`+x`) first.
-    if point(body, mids[0]).x < point(body, mids[1]).x {
-        mids.swap(0, 1);
-    }
-    let (p0, h) = (point(body, mids[0]), point(body, mids[0]).y);
-    let holds = |b: &Body<f64>, f: FaceKey, v: VertexKey| {
-        b.half_edges()
-            .any(|(h, he)| he.start == v && b.face_of_half_edge(h) == Some(f))
-    };
-    let bands: Vec<FaceKey> = body
+    let p = *body.get_point(body.get_vertex(mid).unwrap().point).unwrap();
+    let rr = (p.x * p.x + p.z * p.z).sqrt();
+    let face = body
         .faces()
-        .filter(|(k, f)| {
-            f.surface == surface && holds(body, *k, mids[0]) && holds(body, *k, mids[1])
-        })
         .map(|(k, _)| k)
+        .find(|&f| {
+            body.get_face(f).unwrap().surface == surface
+                && body
+                    .half_edges()
+                    .filter(|(h, he)| he.start == mid && body.face_of_half_edge(*h) == Some(f))
+                    .count()
+                    == 2
+        })
+        .expect("the wall face holds the new vertex on both sides of its seam");
+    // The half-edge leaving the vertex up the seam, then the one leaving
+    // it down: the circle between them parts the wall below from above.
+    let mut out: Vec<HalfEdgeKey> = body
+        .half_edges()
+        .filter(|(h, he)| he.start == mid && body.face_of_half_edge(*h) == Some(face))
+        .map(|(h, _)| h)
         .collect();
-    for band in bands {
-        let side = wall_side(body, band, h, p0.x);
-        body.mef(
-            MefSite::Chords {
-                he1: leaving(body, band, mids[0]),
-                he2: leaving(body, band, mids[1]),
-            },
-            half_circle(h, p0.x, side, surface),
-            FaceSurface::Inherit,
-            tol,
-        )
-        .expect("the half-band splits at the ring");
-    }
+    let rises = |b: &Body<f64>, h: HalfEdgeKey| {
+        let next = b
+            .get_half_edge(b.get_half_edge(h).unwrap().next)
+            .unwrap()
+            .start;
+        b.get_point(b.get_vertex(next).unwrap().point).unwrap().y > p.y
+    };
+    out.sort_by_key(|&h| rises(body, h));
+    body.mef(
+        MefSite::Chords {
+            he1: out[0],
+            he2: out[1],
+        },
+        EdgeCurveSpec {
+            description: EdgeDescriptionSpec::chart(surface),
+            carrier: Curve3::circle(
+                Point3::new(0.0, p.y, 0.0),
+                Vec3::new(0.0, 1.0, 0.0),
+                rr,
+                Vec3::new(p.x / rr, 0.0, p.z / rr),
+            ),
+            param_start: 0.0,
+            param_end: core::f64::consts::TAU,
+        },
+        FaceSurface::Inherit,
+        tol,
+    )
+    .expect("the ring splits the wall");
 }
 
 /// The unit sphere authored as two cocircular arcs meeting at the
@@ -325,7 +332,7 @@ pub fn two_arc_sphere() -> Body<f64> {
     );
     let sphere = body
         .faces()
-        .find(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Sphere { .. })))
+        .find(|(fk, _)| matches!(body.face_surface(*fk), Ok(Surface::Sphere { .. })))
         .expect("the sphere")
         .1
         .surface;
@@ -334,20 +341,19 @@ pub fn two_arc_sphere() -> Body<f64> {
 }
 
 /// The axial door's cavity of `body` at wall thickness `t` — every
-/// chart moved inward through `offset_charts_together` — asserted
-/// tier-3 valid, which is the door's own contract and the premise of
-/// every row that reverts or grafts the cavity.
+/// chart moved inward through `offset_charts_together` — finished, its
+/// rows completed, which is the premise of every row that reverts or
+/// grafts the cavity.
 pub fn door_cavity(body: &Body<f64>, t: f64) -> Body<f64> {
     let mut cavity = body.clone();
     let band = geom_core::Band::linear(Tol::witness()).expect("band");
     topo::offset_charts_together(&mut cavity, &hollow_moves(body, t), band, Tol::witness())
         .expect("the door takes it");
-    assert_eq!(
-        topo::validate_geometric(&cavity, Tol::witness()),
-        Ok(()),
-        "cavity tier 3"
-    );
-    cavity
+    // The finish completes the rows the door left for it, as the shell
+    // completes its cavity before it is grafted.
+    let cavity =
+        topo::finish(cavity, Tol::witness()).unwrap_or_else(|e| panic!("cavity tier 3: {e:?}"));
+    topo::FinishedBody::into_body(cavity)
 }
 
 /// Every edge of `body` re-certified as `graft_solid`'s re-certifying
@@ -413,7 +419,7 @@ pub fn plane_images(body: &Body<f64>) -> Vec<(EdgeKey, Pcurve<f64>)> {
         .filter_map(|(k, e)| {
             let curve = body.get_curve_geom(e.curve)?.certified()?;
             let c = curve.description().chart()?;
-            matches!(body.get_surface(c.surface), Some(Surface::Plane { .. }))
+            matches!(body.get_surface(c.surface), Ok(Surface::Plane { .. }))
                 .then(|| (k, c.pcurve.clone()))
         })
         .collect()
@@ -453,7 +459,26 @@ fn latitude_arc(
         })
         .expect("a wall face holds the latitude's midpoint")
         .0;
-    let (he1, he2) = (leaving(body, face, va), leaving(body, face, vb));
+    let (he1, he2) = if va == vb {
+        // A whole circle from the seam vertex round to itself: the face
+        // leaves the vertex up its seam and down it.
+        let mut out: Vec<HalfEdgeKey> = body
+            .half_edges()
+            .filter(|(h, he)| he.start == va && body.face_of_half_edge(*h) == Some(face))
+            .map(|(h, _)| h)
+            .collect();
+        let y = |b: &Body<f64>, h: HalfEdgeKey| {
+            let next = b
+                .get_half_edge(b.get_half_edge(h).unwrap().next)
+                .unwrap()
+                .start;
+            b.get_point(b.get_vertex(next).unwrap().point).unwrap().y
+        };
+        out.sort_by(|&a, &b| y(body, a).total_cmp(&y(body, b)));
+        (out[0], out[1])
+    } else {
+        (leaving(body, face, va), leaving(body, face, vb))
+    };
     let (sin, cos) = from.sin_cos();
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Scaffold(geom_brep::MappedCurve::whole(
@@ -495,15 +520,13 @@ fn latitude_arc(
 }
 
 /// Cuts the latitude a full revolve about `+y` (sketch plane `xy`)
-/// would have struck at `station` into its curved wall on `surface`,
-/// split by its two meridians into π-bands: each meridian split at the
-/// station, then one half-period [`latitude_arc`] per band, as the
-/// revolve declares its two rims.
+/// would have struck at `station` into its curved wall on `surface`, one
+/// band whose seam is its meridian: the seam split at the station, then
+/// one full-period [`latitude_arc`] round the wall, as the revolve
+/// declares its rim.
 pub fn latitude_on_full_wall(body: &mut Body<f64>, surface: SurfaceKey, station: Point2<f64>) {
     ring_on_wall_where(body, surface, crossing(station.y), false);
-    let pi = core::f64::consts::PI;
-    latitude_arc(body, surface, station, 0.0, pi);
-    latitude_arc(body, surface, station, pi, pi);
+    latitude_arc(body, surface, station, 0.0, core::f64::consts::TAU);
 }
 
 /// Cuts the latitude a partial revolve about `+y` (sketch plane `xy`)

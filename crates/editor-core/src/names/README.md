@@ -320,6 +320,20 @@ walls"):
   the new pairing.
   Setting the degree slot to 1 or from 1 changes the walls the body has,
   so the names of the other degree's walls vanish.
+  A segment the loft cuts at its sub-arc joints (`crates/sweep/README.md`,
+  "Walls") names each piece after the name of the whole: its wall
+  `[LoftWall(..), SubArc(q)]`, its rims `[RimEdge(end, ..), SubArc(q)]`
+  and its interior sections' edges `[LoftSectionEdge(..), SubArc(q)]`,
+  piece `q` counting from zero along the segment. The joint between
+  pieces `q − 1` and `q` is `SubArcJoint(q)` after the same heads: after
+  `LoftWall` the seam edge between the two walls, after `RimEdge` its
+  cap vertex, after `LoftSectionEdge` its interior section's vertex. A
+  segment of one piece carries neither, so a polygon's names are
+  unchanged. The pieces follow the sub-arc ceiling, so an edit that
+  changes any section's sub-arc count renumbers them. A selector's path is
+  matched at its exact length, so a one-segment pattern on `LoftWall` or
+  `RimEdge` does not match a piece of a cut segment
+  (`work/refs/an-exact-length-selector-misses-a-loft-walls-sub-arc-pieces.md`).
 - **Swept walls over a run.** Extrude and revolve build one wall per run of
   profile pieces on one carrier (`crates/sweep/README.md`, "Walls"). The
   wall's role-path segment (`Lateral` for extrude, `Band` for revolve) holds
@@ -332,7 +346,7 @@ walls"):
   is not a merge and never `Merged`.
   Covers and offers (N3) read one constituents view shared by every row
   that holds a set of names — a `Merged` face, and a run held by
-  `Lateral`, `RimEdge(end, ·)`, `Band`, `BandPi`, `Meridian(end, ·)` or
+  `Lateral`, `RimEdge(end, ·)`, `Band`, `Meridian(end, ·)` or
   `AxisEdge`: `Lateral([p0, p1])` covers `Lateral([p0])`, so a selection made before a station was inserted
   is offered the run wall, and an edit that breaks a run offers its pieces'
   walls. A `LoftWall` holds one locator per section of ONE wall, not a set
@@ -566,6 +580,29 @@ lies under the face that cites it.
 A two-member union or intersect is the union with one step, and the subtract
 names its faces by the same rule over its two operands: a tool face lying over
 a face of `from` is held by that face.
+
+**A conventional vertex.** A closed edge's conventional vertex
+(`topo::is_conventional_vertex`: its only edge is that edge, at both its
+ends) has no identity of its own (`crates/topo/README.md`, maximal edges): its
+position is the kernel's convention, so no member, position or fold step it
+was met at may stand in its name. It is named for its edge alone,
+`ConventionalVertex(edge)` under the edge's node, which every emitter writes
+once its edges are named, through the one door that then runs its
+totality check (`emit::finish`); a vertex the emission tied leaves the tie,
+and vertices on two edges sharing one tied name tie. Nothing cites it: a piece's `Ends` skip it, so a closed piece's name
+reads none of its vertex, and no member- or operand-vertex reading takes it.
+So a later cut through its point reads the edge's interior: where the op's
+vertex there is no longer conventional, it is named as the crossing a cut a
+hair away leaves, by one condition the pair boolean's and the split's vertex
+carries both read (`emit::cut_through_conventional`), and the
+totality check refuses any vertex that carries a conventional vertex's name
+and is none. A reference to its name, and a pick at it, resolve to the edge
+(`names::resolves_as`), and no listing or selector hands the name out
+(`names::binds`). A construction's own rim self-loop vertex, `MeridianVertex`
+at the seam, is that construction's and keeps its name. A table names alike
+in every member order, up to which point of each closed edge holds its
+vertex, so an order row compares a conventional vertex by its edge, not its
+point.
 
 **Verdicts and ties.** The verdicts run through `k_stats`, so fragment
 identity changes only at a recorded flip. An in-band margin refuses

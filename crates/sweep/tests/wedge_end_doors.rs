@@ -133,7 +133,7 @@ fn a_split_tangent_to_a_hole_wall_refuses_the_knife_edge_it_would_mint() {
         let wall = body.face_surface(knife.wall);
         assert_eq!(
             wall.map(geom::Surface::kind),
-            Some(geom::SurfaceKind::Cylinder),
+            Ok(geom::SurfaceKind::Cylinder),
             "normal {normal}: the hole's wall"
         );
         let KnifeEdgeSite::Edge(seam) = knife.at else {
@@ -560,7 +560,7 @@ fn cap_at(piece: &Body<f64>, height: f64) -> topo::FaceKey {
         .filter(|(fk, _)| {
             matches!(
                 piece.face_surface(*fk),
-                Some(geom::Surface::Plane { frame, .. })
+                Ok(geom::Surface::Plane { frame, .. })
                     if frame.axis().z.abs() > 0.5 && (frame.origin().z - height).abs() < tol().eps()
             )
         })
@@ -600,7 +600,7 @@ fn an_offset_cap_re_asks_the_shoulder_pair_over_its_new_length() {
             topo::replace_faces_offset(&mut body, &[cap_at(&wall, height)], d, tol())
                 .unwrap_or_else(|e| panic!("{label}: the offset builds, got {e:?}"));
             assert_eq!(
-                topo::validate_geometric(&body, tol()),
+                topo::test_support::validate_completed(&body, tol()),
                 Ok(()),
                 "{label}: the body is valid at rest"
             );
@@ -1029,7 +1029,7 @@ fn a_conventional_form_stated_over_a_determinate_tangency_is_a_defect() {
     let plane = pair
         .keys()
         .into_iter()
-        .find(|&k| matches!(wall.get_surface(k), Some(geom::Surface::Plane { .. })))
+        .find(|&k| matches!(wall.get_surface(k), Ok(geom::Surface::Plane { .. })))
         .expect("the cut's plane is one side of the seam");
     assert!(!curve.authority().is_declared(), "the seam is derived");
     for (form, spec) in [

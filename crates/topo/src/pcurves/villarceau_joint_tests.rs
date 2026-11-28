@@ -26,7 +26,7 @@ fn a_whole_turn_decides_one_period_on_each_channel() {
         major_radius: big,
         minor_radius: r,
     };
-    let chart = DescribedChart::of(&surface).unwrap();
+    let chart = DescribedChart::of(&surface);
     let tilt = (r / big).asin();
     let mut cases = 0;
     for phi in [0.0_f64, 1.0, 2.5, -2.0] {

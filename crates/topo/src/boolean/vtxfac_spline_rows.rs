@@ -18,6 +18,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::boolean::{BooleanError, BooleanOp, GluedPairs, Operand, ReductionContacts, SideCode};
+use crate::test_support_fixtures::{dome, domed_cube};
 use crate::{Body, FaceKey, VertexKey};
 use geom_core::{Band, Point3, Tol};
 
@@ -237,81 +238,6 @@ fn a_pierce_on_a_crease_of_the_pierced_chart_refuses_by_name() {
         ),
         "{got:?}"
     );
-}
-
-/// The biquadratic net over the unit square (`x = u`, `y = v`) with its
-/// boundary rows flat at `z = 1` and its centre control point raised to
-/// `1.4`, so the cube's top edges lie on it.
-fn dome() -> geom::NurbsSurface<f64> {
-    use geom_core::spline::KnotVector;
-    let k = || KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
-    let control: Vec<_> = [0.0, 0.5, 1.0]
-        .iter()
-        .flat_map(|&x| {
-            [0.0, 0.5, 1.0].map(move |y| {
-                let z = if x == 0.5 && y == 0.5 { 1.4 } else { 1.0 };
-                Point3::new(x, y, z)
-            })
-        })
-        .collect();
-    geom::NurbsSurface::new(k(), k(), control, vec![1.0; 9]).unwrap()
-}
-
-/// The unit cube with its top on [`dome`], minted, and the top face.
-fn domed_cube() -> (Body<f64>, FaceKey) {
-    let cube = crate::test_support_fixtures::prism::<f64>(
-        &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
-        1.0,
-        Tol::witness(),
-    );
-    let mut body = cube.body;
-    // Each top edge, re-described on the side plane it keeps.
-    let outer = body.get_face(cube.top_face).unwrap().outer;
-    let crate::entity::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary
-    else {
-        unreachable!("the cube's top is a cycle")
-    };
-    let redescriptions: Vec<_> = body
-        .loop_cycle(first)
-        .unwrap()
-        .into_iter()
-        .map(|he| {
-            let h = body.get_half_edge(he).unwrap();
-            let edge = body.get_edge(h.edge).unwrap();
-            let mate = if edge.he_plus == he {
-                edge.he_minus
-            } else {
-                edge.he_plus
-            };
-            let side = body
-                .get_loop(body.get_half_edge(mate).unwrap().parent_loop)
-                .unwrap()
-                .face;
-            let point = |he| {
-                let v = body.get_half_edge(he).unwrap().start;
-                *body.get_point(body.get_vertex(v).unwrap().point).unwrap()
-            };
-            let mut spec =
-                geom_brep::EdgeCurveSpec::line_between(point(edge.he_plus), point(edge.he_minus));
-            spec.description =
-                geom_brep::EdgeDescriptionSpec::chart(body.get_face(side).unwrap().surface);
-            (h.edge, spec)
-        })
-        .collect();
-    body.lifting_rechart_refusals_for_tests(|b| {
-        b.set_face_surfaces_describing(
-            vec![crate::construction::Rechart::new(
-                geom::Surface::Nurbs(std::sync::Arc::new(dome())),
-                cube.top_face,
-                true,
-            )],
-            &redescriptions,
-            Tol::witness(),
-        )
-    })
-    .unwrap();
-    crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
-    (body, cube.top_face)
 }
 
 /// Every row `face` stores, image and joint element by half-edge, in

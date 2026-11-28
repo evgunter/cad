@@ -77,7 +77,7 @@ fn chart_of(body: &Body<f64>, face: FaceKey) -> Vec<FaceKey> {
 fn z_chart(body: &Body<f64>, at: f64) -> Vec<FaceKey> {
     let mut found: Vec<FaceKey> = Vec::new();
     for (k, _) in body.faces() {
-        let Some(geom::Surface::Plane { frame, .. }) = body.face_surface(k) else {
+        let Ok(geom::Surface::Plane { frame, .. }) = body.face_surface(k) else {
             continue;
         };
         let (origin, normal) = (frame.origin(), frame.axis());
@@ -165,7 +165,7 @@ fn r2_e2e_box_beside_vessel_opened_on_the_vessels_void_ceiling() {
     assert!((volume(&hollow.body) - want1).abs() < 1e-9);
 
     // The vessel top's void twin, named through the record; the whole
-    // chart it wears (a full revolve's cap is two half-discs).
+    // chart it wears (a full revolve's cap is one disc).
     let ceiling = hollow
         .naming
         .inner_of(top[0])
@@ -369,7 +369,8 @@ fn r2_e2e_axial_door_names_one_solid_while_the_other_is_unmintable() {
 /// carries none.
 #[test]
 fn r2_subset_pass_leaves_a_retired_half_edges_row_and_the_whole_pass_drops_it() {
-    let mut b = vessel(1.0, 2.0);
+    // The disc drum: two wall faces on one cylinder, parted by struts.
+    let mut b = crate::common::shell_operands::disc_drum(1.0, 2.0);
     topo::mint_pcurves(&mut b, tol()).expect("mints");
     assert_eq!(dead_rows(&b), 0);
     let total = b.pcurves().count();
@@ -386,7 +387,7 @@ fn r2_subset_pass_leaves_a_retired_half_edges_row_and_the_whole_pass_drops_it() 
                 b.get_face(fa).unwrap().surface,
                 b.get_face(fb).unwrap().surface,
             );
-            fa != fb && sa == sb && !matches!(b.get_surface(sa), Some(geom::Surface::Plane { .. }))
+            fa != fb && sa == sb && !matches!(b.get_surface(sa), Ok(geom::Surface::Plane { .. }))
         })
         .map(|(_, e)| e.he_plus)
         .expect("a wall seam");
@@ -438,8 +439,9 @@ fn r2_subset_pass_leaves_a_retired_half_edges_row_and_the_whole_pass_drops_it() 
     );
     assert_eq!(dead_rows(&whole), 0, "the whole-body pass clears first");
 
-    // The verb: its rim surgery retires half-edges, its closing mint is
-    // whole-body, so the result carries no retired row.
+    // The verb: its rim surgery retires half-edges, and the finish's
+    // completion drops every row on a dead half-edge, so the result
+    // carries no retired row.
     let ves = vessel(1.0, 2.0);
     let shell = ves.shells().next().unwrap().0;
     let top = cap(&ves, shell, Vec3::new(0.0, 1.0, 0.0), 2.0);

@@ -2,12 +2,13 @@
 id: a-pipe-does-not-union-with-an-elbow-revolved-off-its-own-cap
 kind: issue
 title: A pipe does not union with an elbow revolved off its own end cap: the union refuses a recorded contact as undecided at a margin of -7.07
-status: review
+status: closed
 opened: 2026-11-21
 priority: P0
 cost: H
 branch: heldrecords/elbow
 pr: 7432
+closed: 2026-11-24
 ---
 
 
@@ -339,6 +340,55 @@ Measured after it:
   as `a-junction-under-subtract-or-intersect-refuses-at-the-fallbacks-extent.md`.
 - Inward poses are unchanged: they are no junction.
 
+## 2026-11-22 — PR 3's stage, located
+
+The stand-in survives in the describe pass, `ops::describe_edges`. Its
+smooth-seam arm restates a seam's description where it is stale or
+where the must-carry rule reads it intrinsic:
+- `JetDeterminate` restates it as `TangentIntersection`;
+- `UnderDetermined` restates it at rest (`rest_locus`) only if stale.
+
+A `Scaffold` description counts as stale only between two faces of a
+recorded merge skip (`recorded_skip`, "any other scaffold stays one, and
+tier 3 refuses it"). The junction's rim reads `UnderDetermined`,
+because the bend's neutral points are not jet-determinate. It is not a
+recorded skip, so the scaffold rests, and tier 3 refuses it
+(`ScaffoldAtRest`).
+
+The stand-in itself is `MappedCurve { RevolvedPoint … }` about the cap
+circle's own axis. Neither operand carries it in. Both bodies' rim
+edges are at rest as `Intersection { pair: {cap plane, wall}, … }`,
+measured by printing every edge's description of the pipe and of the
+elbow before the union. So the stand-in is minted inside the boolean:
+the zip's scaffolding `mekr`/`mef` carriers, the coplanar caps' merge,
+or the graft. Not yet traced: which of these. That decides the fix:
+either the stage that fuses the rim keeps an at-rest description, or
+`describe_edges` describes a scaffold that rests between a glued
+junction's two faces where it lies.
+
+## 2026-11-23 — PR 3's fix pass: the walk certified, the stand-in fixed where it is minted
+
+- **The bend is determinate only where it is certified.** The reviews
+  found the sign rule both too strong and too weak: a neutral point in
+  a half-rim's end gap, or two zeros π apart outside the seven
+  stations, read `JetDeterminate`, and the must-carry rule demanded a
+  `TangentIntersection` its certificate refuses. `second_order_walk`
+  now ends `Determinate` only where the least `|κ_rel|` over its
+  stations and the span's ends, less `kappa_drift`, decides positive
+  under the certificate's own `tangent_tube_margin`
+  (`dihedral::tube_separation`). Otherwise it is `Separated` and the
+  seam is described at rest. The material fold keeps reading the
+  stations, so an opposed contact whose end flips stays `Mixed`.
+- **The stand-in is gone at its minter.** `chord_join::along_edge_spec`
+  re-minted a copied circle edge as `arc_of_circle`'s scaffold (and a
+  copied line as `line_between`'s); the copy now restates the edge's
+  own at-rest spec, so the zip's seam reaches the describe pass as
+  `Intersection { cap plane, wall }`, and `describe_edges_seamed` is
+  gone: a scaffold rests only on a recorded merge skip.
+- **Pinned:** R1's converse arc, R2's end-gap rows and dome in
+  `dihedral::bend_rows`; R2's end-gap poses (δ = 1.15, 1.18, ±1.21,
+  hollow and rod) unioning at the closed form.
+
 ## 2026-11-23 — Fix pass on the end-root door (PR 7463's two reviews)
 
 - **`whole` past a quarter turn.** A circle's window starts from a
@@ -375,3 +425,19 @@ Measured after it:
   through the other torus. Two coplanar rings tangent at the junction
   meet again only after one tube curls through the other's volume, and a
   second root off the face reads the same either way at union level.
+
+## Closed (2026-11-24, HELDRECORDS orchestrator)
+
+**A pipe unions with an elbow revolved off its own end cap.** The outward poses, the rod, turned axes up to ±1.22 rad and the hooked elbow build at their closed-form volumes and pass t3 and t3′ at three ε. It took a stack of three PRs, each dual-reviewed by two Opus reviewers and merged on local evidence (Ev, 2026-11-23):
+- **PR 7432** (`9863cf938e`): the glue door reads a rim both faces end on as a `Junction`, glued only on Seam with Opposite departures and both rim edges `Crease{Convex}`; everything else takes main's path.
+- **PR 7463** (`09be7534f2`): the crossing layer reads an edge ending on a glued junction by its end root (deflated, its order decided, its side decided on the glued stretch), refusing typed at a reflex corner.
+- **PR 7471** (`fa133fb26b`): the seam's description is `TangentIntersection` only where |κ_rel| is certified along the edge; the stand-in is fixed at its minter; the rim routing reads an aligned in-band bend as the π seam.
+
+**Residue, each on its own row:**
+- inward poses (`tang/an-elbow-bent-back-into-its-pipe-meets-it-along-a-rim-and-a-crossing`, P1);
+- the refusal belt near a neutral point (`the-junction-end-window-refuses-in-a-belt-around-a-neutral-point`, P1);
+- the side margin's full bends (P2);
+- the junction sector arms, which now refuse typed;
+- n-ary rim junctions (P2);
+- SELECT's drift P1, wedge-end P2 and in-band P2;
+- ONECOPY's composite P1.

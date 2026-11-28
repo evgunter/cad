@@ -225,4 +225,4 @@ buckets of the census (Departure/Edge plane/cyl, cyl/plane, cyl/cyl:
   `present_curved` or `graph`; listed on the same rows.
 - One test past its refusal now reads `Crosses` at a line contact its
   body holds unrecorded
-  (`work/contacthold/a-ringed-walls-pocketed-pair-against-the-plate-holds-its-line-contact-unrecorded.md`).
+  (`work/heldrecords/a-ringed-walls-pocketed-pair-against-the-plate-holds-its-line-contact-unrecorded.md`).

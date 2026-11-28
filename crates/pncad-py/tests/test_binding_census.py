@@ -925,7 +925,7 @@ BOUND_AS = {
     # `NormalizationKind::ChartSingularityVertex`'s payload, at the same
     # spelling one attribute over: where the file put the pole or apex
     # import made a vertex, as `singularity` beside the `kind` word
-    # (`interior`, `inside_edge`, `valence_one_vertex`; `None` on every
+    # (`interior`, `inside_edge`; `None` on every
     # other arm), the way `promoted_to` carries `surface_promotion`'s.
     "SingularityFound": "StructureNormalization.singularity",
     # `NormalizationKind::Snapped`'s payload, at the same spelling: which
@@ -1123,7 +1123,7 @@ BOUND_AS = {
     # `MateFault` arm that carries it (`mate_unleverable`), and its
     # discriminant is the word that arm publishes: why one mated
     # part's reach was not in hand (`part_unresolved`, `face_unbounded`,
-    # `malformed_body`, `no_extent`, `no_finite_bound`), or why the
+    # `face_pending`, `malformed_body`, `no_extent`, `no_finite_bound`), or why the
     # lever the two form is out of the format's range (`out_of_range`)
     # or under the band's zero threshold (`below_zero_band`). The
     # instance a part's refusal is about crosses as
@@ -3510,9 +3510,9 @@ NOT_BOUND = {
     # already having a spelling; `BOUND_AS` says how, and
     # `tests/test_validate.py` is the positive form.
     # B-NAME-BUILDERS IS GONE FROM THIS ROSTER, closed at LIB-PYNAMES,
-    # and the id is gone from `FAMILIES` with it. All five names left
+    # and the id is gone from `FAMILIES` with it. All four names left
     # and none needed a `BOUND_AS`: `pncad.pyi` declares `band`,
-    # `band_pi`, `band_rim`, `meridian_vertex` and `carried` at those
+    # `band_rim`, `meridian_vertex` and `carried` at those
     # exact spellings, so rule 1 accounts them. It is B-FORMAT's case
     # with one difference worth the line: the family was chartered
     # over a door's ANSWER rather than its argument — the name TEXT
@@ -4011,6 +4011,7 @@ MEMBERS_BOUND_AS = {
     "ReadbackError::Dangling": "ReadbackError.variant",
     "ReadbackError::NoCanonicalFrame": "ReadbackError.variant",
     "ReadbackError::NoCarrier": "ReadbackError.variant",
+    "ReadbackError::PendingSurface": "ReadbackError.variant",
     # The VERDICT's three arms are `status`, not `variant`: `variant`
     # beside it is the failure's own arm, which is why the two words
     # are separate here (`ResolveError`/`ResolveIndeterminate` in
@@ -4071,7 +4072,6 @@ MEMBERS_BOUND_AS = {
     "StepImportError::Adoption": "StepImportError.variant",
     "StepImportError::WallColumnStructure": "StepImportError.variant",
     "StepImportError::RecognitionAmbiguous": "StepImportError.variant",
-    "StepImportError::Pcurves": "StepImportError.variant",
     "StepImportError::Join": "StepImportError.variant",
     "StepImportError::Interpretation": "StepImportError.variant",
     "StepImportError::SingularityUndecided": "StepImportError.variant",

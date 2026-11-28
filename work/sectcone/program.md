@@ -2,7 +2,7 @@
 id: sectcone
 kind: program
 title: SECTCONE — the cone on the section value: its implicit enclosure and metres conversion, and the cone pairs' section and join reading
-status: active
+status: ready
 opened: 2026-11-03
 group: kernel/boolean/join
 prefix: sectcone/

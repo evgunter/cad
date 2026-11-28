@@ -19,10 +19,6 @@
 # editor-core trace: resolve_chain's steps, each read from the pen the
 # step before left: NOT A SEARCH.
 crates/editor-core/src/trace.rs 4
-# curve_face pose: line_cone_read's apex end (1): WHICH, the end the apex
-# is decided at is the root whose spread is read next, so an end in band
-# ahead of it refuses (the `place_off` ruling; the site says so).
-crates/geom-brep/src/curve_face/pose.rs 1
 # props curved: pole_turning (1) sums every arc's turning: NOT A SEARCH.
 # (sphere_region_material_sign and pole_side climb their arcs; pose's
 # one_line reads one identity.)
@@ -46,6 +42,9 @@ crates/geom-brep/src/ssi/march.rs 1
 crates/geom-brep/src/ssi/refine.rs 1
 # attach: unvouched reads every edge: NOT A SEARCH.
 crates/topo/src/attach.rs 1
+# interior_cuts: cut_ins' cut_in over every refusing pair, each pair's
+# sphere faces all cut or none: NOT A SEARCH.
+crates/topo/src/boolean/ops/interior_cuts.rs 1
 # contain: boundary_pre_pass's per-loop place_off: WHICH (its doc says so).
 crates/topo/src/contain.rs 1
 # edge_join: joinable's regularity read over the two surfaces: HAND-ROLLED
@@ -67,6 +66,10 @@ crates/topo/src/boolean/fate.rs 2
 crates/topo/src/boolean/insert.rs 1
 # join: bool_connect's partners, every segment's: NOT A SEARCH.
 crates/topo/src/boolean/join.rs 1
+# face_reading: face_crossings' meetings, a touch's arc inside the span
+# (1), an end-touch's arc's stretch inside it (1) and a crossing's
+# placement (1), which meeting the face holds first is the event: WHICH.
+crates/topo/src/boolean/face_reading.rs 3
 # boolean mod: vertex_at, which vertex is at the point: WHICH.
 crates/topo/src/boolean/mod.rs 1
 # overlap: overlap_as's edge_witness `?` carries only refusals of the
@@ -74,11 +77,11 @@ crates/topo/src/boolean/mod.rs 1
 crates/topo/src/boolean/overlap.rs 1
 # recl: recl_edges classifies every mention pair: NOT A SEARCH.
 crates/topo/src/boolean/recl.rs 3
-# reduce: arc_chain_reaches' walk (1): NOT A SEARCH; spline_interior (2),
-# spline_wall_event (1) and wall_crossing (1), which crossing is the
-# event: WHICH. (first_unsupported_pair's two box reads left with main's
-# operand gate, e4516384d5.)
-crates/topo/src/boolean/reduce.rs 5
+# reduce: arc_chain_reaches' walk (1): NOT A SEARCH; spline_interior (2)
+# and spline_wall_event (1), which crossing is the event: WHICH.
+# (first_unsupported_pair's two box reads left with main's operand gate,
+# e4516384d5; wall_crossing's went to face_reading with its meetings.)
+crates/topo/src/boolean/reduce.rs 4
 # rim_wedge: departures's two cover reads: WHICH, the first piece whose
 # covers settle the kind (EdgeKindUnread, Mixed, NoEdge) answers, and
 # pieces can answer different kinds (QML T4; the site says so); reach's
@@ -87,8 +90,13 @@ crates/topo/src/rim_wedge.rs 6
 # sectors: closed_reach (2), which face holds the reach: WHICH.
 # (crescent climbs its bound pairs, rays_within its sectors.)
 crates/topo/src/boolean/sectors.rs 2
-# slit: slot_from_far_end, which slot: WHICH.
-crates/topo/src/boolean/slit.rs 1
+# slit: slot_from_far_end, which slot: WHICH; close_cuts' part_cut (1),
+# every piece of a cut is closed, so a refusal on one is the op's: NOT A
+# SEARCH.
+crates/topo/src/boolean/slit.rs 2
+# pcurves: completion's fill walk derives every rowless half's image of
+# the loop it walks, each one the loop's closure needs: NOT A SEARCH.
+crates/topo/src/pcurves/complete.rs 1
 # pcurves: site_rows reads every half's pcurve: NOT A SEARCH.
 crates/topo/src/pcurves/site.rs 1
 # containment: place_off (WHICH, ruled). arc_crossings reads its roots

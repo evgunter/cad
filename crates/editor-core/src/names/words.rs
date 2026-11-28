@@ -433,6 +433,18 @@ struct Cites<'p, 'd, 's> {
 }
 
 impl<'s> Cites<'_, '_, 's> {
+    /// Whether `leaf`'s words end in its node already: a conventional
+    /// vertex cites its closed edge, of the same node, opened in full,
+    /// so saying the node again after it would say it twice.
+    fn said_whole_within(&self, leaf: &StableName) -> bool {
+        let [RoleSeg::ConventionalVertex(edge)] = leaf.path.as_slice() else {
+            return false;
+        };
+        let mut pos = self.pos.to_vec();
+        pos.push(self.next);
+        edge.node == leaf.node && self.detail.opens(&pos)
+    }
+
     fn at(&mut self) -> Pos {
         let mut pos = self.pos.to_vec();
         pos.push(self.next);
@@ -616,8 +628,11 @@ fn expand<'n, 's>(
             items.push(text("("));
         }
     }
+    let said_whole = cites.said_whole_within(leaf);
     items.extend(head(leaf, by, &mut cites));
-    items.push(text(sentence!(" of ", by.node(leaf.node))));
+    if !said_whole {
+        items.push(text(sentence!(" of ", by.node(leaf.node))));
+    }
     for (k, (joins, level)) in levels.iter().enumerate().rev() {
         if k < last {
             items.push(text(")"));
@@ -733,7 +748,6 @@ fn meridian(e: MeridianEnd) -> &'static str {
         MeridianEnd::Start => "start",
         MeridianEnd::End => "end",
         MeridianEnd::Seam => "seam",
-        MeridianEnd::Pi => "half-turn",
     }
 }
 
@@ -843,6 +857,14 @@ fn head<'n, 's>(
     let (lead, segs) = match path {
         [] => return vec![text(format!("the {}", leaf.kind.noun()))],
         [seg] => return role(seg, leaf, by, cites),
+        // A sub-arc piece or joint of a loft entity, said before the
+        // whole it cuts.
+        [whole, part @ (RoleSeg::SubArc(_) | RoleSeg::SubArcJoint(_))] => {
+            let mut items = role(part, leaf, by, cites);
+            items.push(text(" "));
+            items.extend(role(whole, leaf, by, cites));
+            return items;
+        }
         many if many.iter().all(|s| matches!(s, RoleSeg::Seam { .. })) => {
             ("the junction of ", many)
         }
@@ -955,10 +977,14 @@ fn role<'n, 's>(
             ),
             vertex(v, f, by)
         )),
+        RoleSeg::SubArc(q) => one(Sentence::from(format!("sub-arc {} of", u64::from(*q) + 1))),
+        RoleSeg::SubArcJoint(q) => one(Sentence::from(format!(
+            "the joint of sub-arcs {} and {} of",
+            q,
+            u64::from(*q) + 1
+        ))),
         RoleSeg::Band(r) => one(sentence!("the band face over ", run(r, f, by))),
         RoleSeg::BandRim(v) => one(sentence!("the band rim over ", vertex(v, f, by))),
-        RoleSeg::BandRimPi(v) => one(sentence!("the second band rim over ", vertex(v, f, by))),
-        RoleSeg::BandPi(r) => one(sentence!("the second band face over ", run(r, f, by))),
         RoleSeg::Meridian(m, r) => one(sentence!(
             format_args!("the {} meridian edge over ", meridian(*m)),
             run(r, f, by)
@@ -1049,6 +1075,9 @@ fn role<'n, 's>(
             cites.one(edge),
         ],
         RoleSeg::Mitre { vertex } => vec![text("the mitre at "), cites.one(vertex)],
+        RoleSeg::ConventionalVertex(edge) => {
+            vec![text("the conventional vertex of "), cites.one(edge)]
+        }
         RoleSeg::TurnFoot { vertex } => vec![text("the turn foot at "), cites.one(vertex)],
         RoleSeg::BandSection { vertex } => vec![text("the band section at "), cites.one(vertex)],
         RoleSeg::HostFoot { vertex, edge } => vec![

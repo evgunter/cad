@@ -95,9 +95,9 @@ fn revolve_y() -> sweep::RevolveAxis<f64> {
     }
 }
 
-/// A revolved unit ball — ONE `Surface::Sphere` carrying two half-bands
-/// (V2 E2 F2), the seam meridian and its π copy as `Circle` carriers,
-/// the poles as ordinary vertices. Exact volume 4π/3.
+/// A revolved unit ball — ONE `Surface::Sphere` worn by one face
+/// (V2 E1 F1), its seam meridian a `Circle` carrier whose two ends are
+/// the poles, its wrap tips. Exact volume 4π/3.
 pub fn ball() -> Body<f64> {
     use profile::test_support::bulge_loop;
     use sweep::{Revolution, revolve};
@@ -790,7 +790,7 @@ pub fn composed_die() -> Body<f64> {
     .expect("the box edges blend in place")
     .body;
     let is_kind = |b: &Body<f64>, f: topo::FaceKey, want_plane: bool| -> bool {
-        b.face_surface(f).is_some_and(|s| {
+        b.face_surface(f).is_ok_and(|s| {
             if want_plane {
                 matches!(s, geom::Surface::Plane { .. })
             } else {

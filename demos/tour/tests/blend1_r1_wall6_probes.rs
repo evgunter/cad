@@ -26,7 +26,7 @@ use demo_tour::booleans::at_rest;
 use pncad::authoring::{p2, validated};
 use pncad::geom::Curve3;
 use pncad::geom_core::{Tol, Vec2};
-use pncad::prelude::{BlendError, Open, Start, fillet_edges};
+use pncad::prelude::{Open, Start, fillet_edges};
 use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane};
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
 use pncad::topo::{AtRestBody, Body, EdgeKey};
@@ -167,7 +167,7 @@ fn t2_the_three_convex_rims_fillet_whole_at_the_named_radii() {
         ("the throat rim", throat),     // ~0.052
     ] {
         let arcs = rim_at(&lant, rim_r, rim_y, Seeds::TwoSided);
-        assert_eq!(arcs.len(), 2, "{name} is seam-split into two arcs");
+        assert_eq!(arcs.len(), 1, "{name} is one closed edge");
         let out = fillet_edges(&finished("lant", lant.clone(), tol), &arcs, 0.02, tol)
             .unwrap_or_else(|e| panic!("{name} fillets whole at r = 0.02, got {e:?}"));
         pncad::topo::validate_geometric(&out.body, tol)
@@ -188,7 +188,7 @@ fn t3_the_mouth_rim_carves_and_adds_material() {
     let (lant, rims) = lily_lantern(tol);
     let (r_mouth, y_mouth) = rims[2];
     let arcs = rim_at(&lant, r_mouth, y_mouth, Seeds::TwoSided);
-    assert_eq!(arcs.len(), 2, "the mouth rim is seam-split too");
+    assert_eq!(arcs.len(), 1, "the mouth rim is one closed edge too");
     // A separate claim, with its own window, and taken off the BODY: the
     // arc the scan selected really carries the ~0.253 radius this row is
     // named for, to the three digits the name states. Red if the fixture
@@ -214,46 +214,6 @@ fn t3_the_mouth_rim_carves_and_adds_material() {
         props.enclosure.volume > v0,
         "a concave band ADDS material: {} must exceed {v0}",
         props.enclosure.volume
-    );
-}
-
-/// **The recourse is true at a REACHABLE concave site.** One arc of the
-/// lily's own concave mouth rim refuses `SeamVertex` — the tag reads
-/// incidence and never convexity — and t3 above is the whole-rim request
-/// it names, which CARVES. This row was the r1 review's consumer-side
-/// witness while the sentence over-promised a carve the door then
-/// refused; the sentence now promises the carve on either material side
-/// and the door keeps the promise, so this row pins the two together on
-/// a body a real user holds rather than only on a synthetic fixture.
-#[test]
-fn t4_one_mouth_arc_gets_the_recourse_whose_request_carves() {
-    let tol = Tol::witness();
-    let (lant, rims) = lily_lantern(tol);
-    let (r_mouth, y_mouth) = rims[2];
-    let arcs = rim_at(&lant, r_mouth, y_mouth, Seeds::TwoSided);
-    assert_eq!(arcs.len(), 2);
-    match fillet_edges(&finished("lant", lant.clone(), tol), &arcs[..1], 0.02, tol)
-        .map_err(|r| r.error)
-    {
-        Err(BlendError::UnbuiltEnd(end)) => {
-            let shown = format!("{end}");
-            assert!(
-                shown.contains("seam"),
-                "one mouth arc stops at a seam vertex, got {shown}"
-            );
-        }
-        other => panic!("one mouth arc refuses SeamVertex, got {other:?}"),
-    }
-    // And the sentence it carries names the request t3 EXECUTES — the
-    // rim whole — and promises it on either material side. The
-    // hedge-shape pin has one home, `sweep::test_support::assert_promises_either_side`,
-    // which the tour (a consumer, outside the kernel's test-support
-    // door) does not reach; what the tour pins is that the sentence is
-    // followed here: t3 is the whole-rim request, and it carves.
-    let shown = pncad::sweep::blend::FILLET3_SEAM_VERTEX_RECOURSE;
-    assert!(
-        shown.contains("rim whole") && shown.contains("either material side"),
-        "the sentence names the whole-rim request t3 takes, on both sides: {shown}"
     );
 }
 

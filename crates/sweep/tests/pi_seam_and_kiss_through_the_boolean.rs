@@ -56,7 +56,7 @@ const H: f64 = 2.0;
 
 fn faces_of(b: &Body<f64>, kind: SurfaceKind) -> Vec<FaceKey> {
     b.faces()
-        .filter(|(fk, _)| b.face_surface(*fk).map(geom::Surface::kind) == Some(kind))
+        .filter(|(fk, _)| b.face_surface(*fk).map(geom::Surface::kind) == Ok(kind))
         .map(|(k, _)| k)
         .collect()
 }
@@ -66,7 +66,7 @@ fn planes_at_z(b: &Body<f64>, z: f64) -> Vec<FaceKey> {
         .filter(|(fk, _)| {
             matches!(
                 b.face_surface(*fk),
-                Some(geom::Surface::Plane { frame, .. })
+                Ok(geom::Surface::Plane { frame, .. })
                     if (frame.origin().z - z).abs() < 1e-9 && frame.axis().z.abs() > 0.5
             )
         })
@@ -254,8 +254,8 @@ fn the_sphere_capped_tube_builds_as_a_seam() {
         );
         assert_eq!(
             c,
-            (5, 8, 5, 1),
-            "{label}: two walls, two sphere faces, the floor disc"
+            (4, 7, 5, 1),
+            "{label}: two walls, one sphere face, the floor disc"
         );
         assert_eq!(records, [0; 6], "{label}: no contact survives a union");
         let rims = tangent_intersections(&body);
@@ -314,8 +314,8 @@ fn in_tube_and_half_ball(p: Point3<f64>) -> Option<bool> {
 }
 
 /// **The sphere-capped tube builds with its hemisphere turned about the
-/// axis**, in both member orders and with the pair spun. Turned, each rim semicircle of one
-/// operand ends inside a rim arc of the other, so the rim is four arcs.
+/// axis**, in both member orders and with the pair spun. Turned, the
+/// operands' rim vertices fall apart, so the rim is cut at each of them.
 /// Each tube seam ruling ends on the rim beside a sphere face it does
 /// not touch, and that face's reach over its azimuth window clears the
 /// pair. The body is the tube and the half ball at every turn, by
@@ -355,9 +355,9 @@ fn the_sphere_capped_tube_builds_with_its_hemisphere_turned() {
         let tube = turned(&rod_z(R, 0.0, H), spin);
         let hemi = turned(&hemisphere, spin + deg);
         let rims = if deg == 0.0 {
-            (5, 8, 5, 1)
+            (4, 7, 5, 1)
         } else {
-            (5, 10, 7, 1)
+            (4, 8, 6, 1)
         };
         for (order, x, y) in [("tube ∪ cap", &tube, &hemi), ("cap ∪ tube", &hemi, &tube)] {
             let label = format!("spun {spin}°, turned {deg}°, {order}");
@@ -408,19 +408,13 @@ fn the_sphere_capped_tube_builds_with_its_hemisphere_turned() {
 /// by how far its rim vertices sit apart. Inside the zero band it is the
 /// aligned body. Where the rim vertices sit in the sliver band apart,
 /// the glue door reads the shared rim and escalates the seam cover's
-/// order there, in both operand orders. From there to about
-/// `√(70·ε·R)` apart, the tube's seam ruling, whose top
-/// end lies on the hemisphere's rim just outside one sphere face, keeps
-/// the covered line rung's door against that face
-/// (`a-covered-line-ending-just-off-the-face-keeps-the-door`): the
-/// face's reach clears the ruling by `R·(1 − cos θ)`, which is inside
-/// the sweep's pad. Further apart the reach clears the pair, and it
-/// builds.
+/// order there, in both operand orders. Further apart it builds: the
+/// hemisphere is one sphere face, so the tube's seam ruling ends on that
+/// face's own rim rather than just outside a half-face beside it.
 #[test]
 fn the_sphere_capped_tube_turned_within_a_hair_of_aligned() {
     enum Expect {
         Builds((usize, usize, usize, usize)),
-        RulingDoor,
         /// The glue door's rim routing escalates.
         RimDoor,
     }
@@ -434,22 +428,16 @@ fn the_sphere_capped_tube_turned_within_a_hair_of_aligned() {
     // `apart² / 2R`, against the sweep's pad `escalate + 2·zero` on each
     // side.
     for (apart, expect) in [
-        (0.01 * zero, Expect::Builds((5, 8, 5, 1))),
+        (0.01 * zero, Expect::Builds((4, 7, 5, 1))),
         (2.0 * (zero * escalate).sqrt(), Expect::RimDoor),
-        (5.0 * escalate, Expect::RulingDoor),
-        ((R * escalate).sqrt(), Expect::RulingDoor),
-        (-(R * escalate).sqrt(), Expect::RulingDoor),
-        (
-            (2000.0 * R * escalate).sqrt(),
-            Expect::Builds((5, 10, 7, 1)),
-        ),
+        (5.0 * escalate, Expect::Builds((4, 8, 6, 1))),
+        ((R * escalate).sqrt(), Expect::Builds((4, 8, 6, 1))),
+        (-(R * escalate).sqrt(), Expect::Builds((4, 8, 6, 1))),
+        ((2000.0 * R * escalate).sqrt(), Expect::Builds((4, 8, 6, 1))),
     ] {
         let deg = (apart / R).to_degrees();
         let hemi = turned(&hemisphere, deg);
-        for (order, x, y, tube_is) in [
-            ("tube ∪ cap", &tube, &hemi, topo::Operand::A),
-            ("cap ∪ tube", &hemi, &tube, topo::Operand::B),
-        ] {
+        for (order, x, y) in [("tube ∪ cap", &tube, &hemi), ("cap ∪ tube", &hemi, &tube)] {
             let label = format!("turned {deg}°, {order}");
             let r = topo::union(x, y, tol);
             match expect {
@@ -469,16 +457,6 @@ fn the_sphere_capped_tube_turned_within_a_hair_of_aligned() {
                         diag.predicate,
                         Some("seam_cover_order"),
                         "{label}: the seam cover's order: {r:?}"
-                    );
-                }
-                Expect::RulingDoor => {
-                    let Err(BooleanError::CurvedPierceUnsupported { operand, edge, .. }) = r else {
-                        panic!("{label}: the covered line rung's door: {r:?}");
-                    };
-                    assert_eq!(operand, tube_is, "{label}: an edge of the tube");
-                    assert!(
-                        matches!(carrier_of(&tube, edge), geom::Curve3::Line(_)),
-                        "{label}: the tube's seam ruling"
                     );
                 }
             }
@@ -512,7 +490,11 @@ fn the_sphere_capped_tube_is_its_seam() {
     let (cap_t, cap_h) = (planes_at_z(&tube, H), planes_at_z(&hemi, H));
     assert_eq!((cap_t.len(), cap_h.len()), (1, 1), "one cap disc each");
 
-    assert_eq!((cyl.len(), sph.len()), (2, 2), "two wall faces each");
+    assert_eq!(
+        (cyl.len(), sph.len()),
+        (2, 1),
+        "the tube's two wall faces, the hemisphere's one"
+    );
     seam_builds("hemisphere", &tube, &hemi);
 }
 
@@ -547,9 +529,9 @@ fn a_dome_abutting_on_the_rim_at_a_transverse_corner_builds() {
     // Each rim's two semicircles are one seam each; turned, each runs
     // along two of the other's arcs, splitting at their seam vertices.
     for (label, tube, cap, want_census) in [
-        ("dome", &tube, &dome, (5, 8, 5, 1)),
-        ("dome turned", &tube, &turned, (5, 10, 7, 1)),
-        ("revolved tube", &revolved, &dome, (5, 8, 5, 1)),
+        ("dome", &tube, &dome, (4, 7, 5, 1)),
+        ("dome turned", &tube, &turned, (4, 8, 6, 1)),
+        ("revolved tube", &revolved, &dome, (3, 4, 3, 1)),
     ] {
         for (order, r) in unions_both_ways(tube, cap).into_iter().enumerate() {
             let b = match r {
@@ -622,7 +604,7 @@ fn a_lens_of_two_domes_builds() {
         };
         topo::validate_geometric(&b, tol)
             .unwrap_or_else(|e| panic!("order {order}: tier 3: {e:?}"));
-        assert_eq!(census(&b), (4, 6, 4, 1), "order {order}: F, E, V, shells");
+        assert_eq!(census(&b), (2, 3, 3, 1), "order {order}: F, E, V, shells");
         assert!(
             (volume(&b) - want).abs() <= 1e-12 * want,
             "order {order}: the two domes: {} vs {want}",
@@ -645,7 +627,7 @@ fn a_lens_of_two_domes_builds() {
             let (v, c, k) = built(&label, r);
             assert_eq!(k, [0; 6], "{label}: no contact records");
             // Each dome's two rim vertices and pole: minimal.
-            assert_eq!(c, (4, 8, 6, 1), "{label}: F, E, V, shells");
+            assert_eq!(c, (2, 4, 4, 1), "{label}: F, E, V, shells");
             assert!(
                 (v - want).abs() <= 1e-12 * want,
                 "{label}: the two domes: {v} vs {want}"
@@ -730,7 +712,7 @@ fn a_rim_in_band_of_the_partners_wall_escalates() {
 ///   the tube's by a lamina of no volume.
 /// - `k = ±0.9`: the dome's meridian meets the tube's wall `√2·|k|·zero`
 ///   along its arc from the rim, and the crossing layer escalates on that
-///   arc length, both orders
+///   arc length (located at the edge and the face it reads), both orders
 ///   (`work/germ/boolean-in-span-readings-of-grazing-roots-are-levered-by-arc-length.md`).
 /// - `k = ±1.1, ±2`: in band, both orders escalate. Which question
 ///   escalates first follows the operand walked first.
@@ -767,7 +749,7 @@ fn a_rim_offset_inside_the_zero_band_answers_alike_in_both_member_orders() {
                 };
                 topo::validate_geometric(&b, tol)
                     .unwrap_or_else(|e| panic!("{label}: tier 3: {e:?}"));
-                assert_eq!(census(&b), (5, 8, 5, 1), "{label}: F, E, V, shells");
+                assert_eq!(census(&b), (4, 7, 5, 1), "{label}: F, E, V, shells");
                 let kept = [tube_rim, dome_rim][order];
                 assert_eq!(
                     rim_radius(&b),
@@ -789,6 +771,7 @@ fn a_rim_offset_inside_the_zero_band_answers_alike_in_both_member_orders() {
                     matches!(
                         &e,
                         BooleanError::Escalated { diag, .. }
+                        | BooleanError::CurvedPierceEscalated { diag, .. }
                             if diag.predicate == Some("curve_pair_span_end_chord")
                                 && matches!(
                                     diag.margin.diagnostic_f64_for_error_text(),
@@ -801,7 +784,10 @@ fn a_rim_offset_inside_the_zero_band_answers_alike_in_both_member_orders() {
                      √2·0.9·zero: {e:?}"
                 ),
                 _ => assert!(
-                    matches!(e, BooleanError::Escalated { .. }),
+                    matches!(
+                        e,
+                        BooleanError::Escalated { .. } | BooleanError::CurvedPierceEscalated { .. }
+                    ),
                     "{label}: in band: {e:?}"
                 ),
             }
@@ -870,7 +856,7 @@ fn a_cap_abutting_on_the_rim_glues_a_seam_or_a_continuation_undeclared() {
             (v - want).abs() <= 1e-12 * want,
             "frustum, order {order}: the tube and the frustum: {v} vs {want}"
         );
-        assert_eq!(c, (6, 10, 6, 1), "frustum, order {order}: F, E, V, shells");
+        assert_eq!(c, (5, 8, 5, 1), "frustum, order {order}: F, E, V, shells");
         assert_eq!(k, [0; 6], "frustum, order {order}: no contact records");
     }
 }
@@ -1360,7 +1346,7 @@ fn a_dome_sunk_into_the_tube_builds_undeclared() {
                 (v - want).abs() <= 1e-12 * want,
                 "{label}: the tube and the cap above it: {v} vs {want}"
             );
-            assert_eq!(c, (6, 10, 7, 1), "{label}: F, E, V, shells");
+            assert_eq!(c, (5, 8, 6, 1), "{label}: F, E, V, shells");
         }
     }
 }
@@ -1429,8 +1415,8 @@ fn a_dome_sunk_across_the_tubes_seam_rulings_builds_every_op_undeclared() {
     let rho = 2.0_f64.sqrt() * R;
     let (tube, quartered) = (rod_z(R, 0.0, H), quartered_tube());
     // `[∪, d ∖ t, ∩]`; `t ∖ d` refuses ([`refuses_the_rims_slit`]).
-    let off: Censuses = [(6, 10, 7, 1), (3, 4, 3, 1), (4, 6, 4, 1)];
-    let four: Censuses = [(8, 16, 11, 1), (3, 4, 3, 1), (4, 6, 4, 1)];
+    let off: Censuses = [(5, 8, 6, 1), (2, 2, 2, 1), (3, 3, 2, 1)];
+    let four: Censuses = [(7, 14, 10, 1), (2, 2, 2, 1), (3, 3, 2, 1)];
     let rows = [
         ("two walls", &tube, 1.0 / 12.0, off),
         ("two walls", &tube, 1.0 / 8.0, off),
@@ -1545,35 +1531,35 @@ fn a_tube_through_the_domes_base_builds_every_op_undeclared() {
             "t ∪ d",
             topo::union(&tall, &dome, tol),
             tube + above,
-            (6, 10, 7, 1),
+            (5, 8, 6, 1),
             [0; 6],
         ),
         (
             "d ∪ t",
             topo::union(&dome, &tall, tol),
             tube + above,
-            (6, 10, 7, 1),
+            (5, 8, 6, 1),
             [0; 6],
         ),
         (
             "d ∖ t",
             topo::subtract(&dome, &tall, tol),
             above,
-            (3, 4, 3, 1),
+            (2, 2, 2, 1),
             [0; 6],
         ),
         (
             "t ∩ d",
             topo::intersect(&tall, &dome, tol),
             inside,
-            (4, 6, 4, 1),
+            (3, 3, 2, 1),
             [0; 6],
         ),
         (
             "d ∩ t",
             topo::intersect(&dome, &tall, tol),
             inside,
-            (4, 6, 4, 1),
+            (3, 3, 2, 1),
             [0; 6],
         ),
     ] {
@@ -1628,11 +1614,11 @@ fn a_g1_joint_authored_inside_one_profile_is_the_seams_union() {
     .volume;
     let want = tube_and_half_ball_volume();
     assert!((v - want).abs() <= 1e-12 * want, "{v} vs {want}");
-    assert_eq!(census(&capsule), (5, 8, 5, 1), "the seam union's census");
+    assert_eq!(census(&capsule), (3, 4, 3, 1), "the seam union's census");
     assert_eq!(
         tangent_intersections(&capsule).len(),
-        2,
-        "the authored joint, minted as two semicircles"
+        1,
+        "the authored joint, minted as one circle"
     );
 }
 
@@ -1694,8 +1680,11 @@ fn quarter_rod_of(side: f64, len: f64, tol: Tol) -> AtRestBody<f64> {
 /// line the plate's bottom leaves on `y < 0`, though every boundary
 /// vertex and arc midpoint reads `y ≥ 0`. A quarter rod on `y > 0` leaves it on the other side, a seam:
 /// the boolean verifies it, and the union goes on past it. The square
-/// plate, which lies on `y < 0` everywhere, is the control. Both member
-/// orders.
+/// plate, which lies on `y < 0` everywhere, is the control. The dodge
+/// plate also reaches over the rod, and that crossing passes the crossing
+/// layer: it builds, its volume read by inclusion and exclusion, or a
+/// later door refuses the pair typed (`CurvedPairUnsupported`, at
+/// `ε = 1e-6`). Both member orders.
 #[test]
 fn a_line_seam_is_read_where_the_faces_leave_the_line() {
     let tol = Tol::witness();
@@ -1743,11 +1732,30 @@ fn a_line_seam_is_read_where_the_faces_leave_the_line() {
                 assert!((v - want).abs() <= 1e-12, "{label}: {v} vs {want}");
             } else {
                 // The dodge plate's outline also reaches over the rod on
-                // `y > 0`, and that crossing stops at the crossing layer,
-                // past the seam.
+                // `y > 0`: the crossing layer reads it through the face,
+                // and the union builds, sound, with the overlap the
+                // intersect builds (`V(A ∪ B) + V(A ∩ B) = V(A) + V(B)`;
+                // the overlap, about 0.005 m³, read independently on a
+                // grid of the dodge profile against the quarter disc).
+                let vol = |b: &AtRestBody<f64>| {
+                    topo::test_support::pinned_volume("an operand", b, tol).volume
+                };
+                // Past the crossing layer a later door may still refuse
+                // the pair typed (at `ε = 1e-6`, the interior loop's
+                // guard on the two walls); where it builds, it is sound.
+                if let Err(BooleanError::CurvedPairUnsupported { .. }) = r {
+                    continue;
+                }
+                let (union, _, _) = built(label, r);
+                let (overlap, _, _) = built(label, topo::intersect(x, y, tol));
                 assert!(
-                    matches!(r, Err(BooleanError::CurvedPierceUnsupported { .. })),
-                    "{label}: the crossing layer: {r:?}"
+                    overlap > 1e-3,
+                    "{label}: the plate reaches over the rod: {overlap}"
+                );
+                let sum = vol(&plate) + vol(&rod);
+                assert!(
+                    (union + overlap - sum).abs() <= 1e-9 * sum,
+                    "{label}: {union} + {overlap} against {sum}"
                 );
             }
         }
@@ -2036,7 +2044,7 @@ fn a_turned_rim_on_a_wall_bounded_by_an_ellipse_builds_every_op_undeclared() {
                 topo::transform_rigid(&sunk, &geom_core::test_support::rigid(&spin, tol)).unwrap(),
                 tol,
             );
-            let (whole, common) = ((6, 10, 7, 1), (4, 6, 4, 1));
+            let (whole, common) = ((5, 8, 6, 1), (3, 3, 2, 1));
             refuses_the_rims_slit(
                 &format!("dz = {dz}, turn {turn}: t ∖ d"),
                 topo::subtract(&tube, &d, tol),
@@ -2060,7 +2068,7 @@ fn a_turned_rim_on_a_wall_bounded_by_an_ellipse_builds_every_op_undeclared() {
                     "d ∖ t",
                     topo::subtract(&d, &tube, tol),
                     above,
-                    (3, 4, 3, 1),
+                    (2, 2, 2, 1),
                     [0; 6],
                 ),
                 (
@@ -2153,14 +2161,14 @@ fn a_rod_rim_on_the_dome_across_its_seam_meridian_builds_every_op_undeclared() {
                 "a ∪ d",
                 topo::union(&a, &dome, tol),
                 va + vd - i,
-                (6, 10, 7, 1),
+                (5, 8, 6, 1),
                 [0; 6],
             ),
             (
                 "d ∪ a",
                 topo::union(&dome, &a, tol),
                 va + vd - i,
-                (6, 10, 7, 1),
+                (5, 8, 6, 1),
                 [0; 6],
             ),
             (

@@ -120,7 +120,7 @@ fn ellipse_edges(body: &Body<f64>) -> Vec<EdgeKey> {
 
 fn faces_where(body: &Body<f64>, kind: fn(&geom::Surface<f64>) -> bool) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(fk, _)| body.face_surface(*fk).is_some_and(kind))
+        .filter(|(fk, _)| body.face_surface(*fk).is_ok_and(kind))
         .map(|(k, _)| k)
         .collect()
 }
