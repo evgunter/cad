@@ -310,7 +310,8 @@ The Q1-promised driver, built as an analysis-lane service on the
 drive(doc, box) -> ParamBoxVerdict {
   certified: [ Leaf { box, verdict_vector_key, results } ],
   refused:   [ Leaf { box, reason: SliverTerminal { predicate }
-               | FlipCrossing { flipped predicates }  // no-flips v1
+               | FlipCrossing { flipped predicates, never none }  // no-flips v1
+               | Parted { node, step }  // the vectors differ, no decision turned
                | Bifurcation(WitnessBifurcation) | Infeasible  // E8
                | Budget { depth/work bound hit }
                | ReadsNoVariable { node, undecided | failed } } ],
@@ -324,12 +325,18 @@ drive(doc, box) -> ParamBoxVerdict {
 box (parameters = intervals; witness data verbatim per E8).
 
 - Every predicate definite AND the verdict vector matching the
-  witness branch's → leaf **certified**; lineage-scoped key identity
-  (Q1 PR 8) means the leaf shares the nominal build's topology;
-  Measure enclosures are containment-true over the whole leaf.
+  witness branch's → leaf **certified**: the leaf takes the nominal
+  build's decisions, each answered alike, and only dimensions move;
+  Measure enclosures are containment-true over the whole leaf. The
+  witness and a zero-width replay of it record alike: a kernel rule,
+  held by a test over the driven witnesses.
 - **No-flips v1 (adopted round 3; Ev's proposal)**: a leaf
-  definite on a *different* verdict vector is **refused mass**
-  (`FlipCrossing`, flipped predicates named) — no branch
+  definite on a *different* verdict vector is **refused mass**.
+  Where a decision is answered with the other definite sign it is
+  `FlipCrossing`, that decision named, a node that fails on a decided
+  answer where the witness builds included. Where the vectors differ
+  and no decision turned it is `Parted`, naming the node and step:
+  not proven either way, never a flip, not bisected. No branch
   enumeration, no analysis of the far side. Topology change under
   tolerance is usually the reported defect itself; near a flip,
   subdivision only localizes the boundary to shrink refused mass.
