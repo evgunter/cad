@@ -936,6 +936,10 @@ fn the_directed_search_proves_ground_on_the_plate_the_level_drive_cannot() {
 /// walls, whose closed-form premises each lane logs where its role walk
 /// decides them and nowhere else.
 ///
+/// It says that the drive certifies and no more: what the certificate
+/// is worth at the leaf's members is `witness_premises_rows`'
+/// `members_of_the_plates_certified_leaf_build_as_the_witness_did`.
+///
 /// Red where the `f64` lane's interval re-read of a curved face runs on
 /// the log (`topo::props`' `lifted_closed_form` without its `unlogged`
 /// scope): the witness records each premise once more than the leaf,

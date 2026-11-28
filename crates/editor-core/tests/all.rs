@@ -819,6 +819,8 @@ mod wire_rv_bytes;
 mod wire_rv_unknown;
 #[path = "wire_selection_kind_doors.rs"]
 mod wire_selection_kind_doors;
+#[path = "witness_premises_rows.rs"]
+mod witness_premises_rows;
 
 #[path = "a_cut_through_a_conventional_vertex_reads_its_edge.rs"]
 mod a_cut_through_a_conventional_vertex_reads_its_edge;
