@@ -9,10 +9,8 @@
 //!
 //! Each of the six runs (∪, ∩ and both differences in both operand
 //! orders) builds at the closed-form volume
-//! (`crate::cylinder_sphere_frame::at_its_volume`), as the single-ball
-//! poses do: no legal operand, since a later boolean's point-in-solid
-//! walk cannot read a chorded sphere face
-//! (`work/inside/point-in-solid-refuses-a-sphere-face-bounded-by-a-spline-chord.md`).
+//! (`crate::cylinder_sphere_frame::at_its_volume`), a legal operand, as
+//! the single-ball poses do.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -76,7 +74,7 @@ fn a_wall_holding_one_balls_ring_is_divided_by_the_others_chord() {
             label,
             run(op, x, y),
             want,
-            Ends::Builds,
+            Ends::Sound,
             ceiling,
             &RINGED_PAD_GUARDS,
         ));

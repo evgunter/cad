@@ -55,7 +55,8 @@ use crate::blend::reach::{EDGE_SAMPLES, sure};
 use crate::blend::surgery::{
     ContactCarrier, Piece, SourceFaces, SplitFragments, arc_window, chord_site, disagrees,
     face_of_half, halves_of, op, piece_along, piece_distance, point_of, retire_fragment,
-    split_fragment, split_param_in_span, stored_piece, unbuilt_end, unbuilt_geometry, unresolved,
+    split_fragment, split_param_in_span, stored_piece, surface_missed, unbuilt_end,
+    unbuilt_geometry, unresolved,
 };
 use crate::blend::{BlendDecision, BlendError, BlendSite, UnbuiltEnd, classify};
 
@@ -134,12 +135,9 @@ impl<T: Decide + Bounds> EndCut<T> {
         let (rim_a, rim_b, face) = end_rims(body, vertex, crease, face_a, face_b)?;
         // The end plane, from the STORED surface — the battery's
         // classification read the same one.
-        let stored = body.face_surface(face).ok_or_else(|| {
-            unresolved(
-                EntityId::Face(face),
-                "a cut-off's end face's stored surface",
-            )
-        })?;
+        let stored = body
+            .face_surface(face)
+            .map_err(|miss| surface_missed(face, "a cut-off's end face's stored surface", miss))?;
         let Surface::Plane {
             frame: carrier_frame,
             ..

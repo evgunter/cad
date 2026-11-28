@@ -792,7 +792,7 @@ fn an_undecided_pair_beside_the_press_fit_keeps_it_loud() {
         let body = &assembly.body;
         matches!(
             body.face_surface(f),
-            Some(geom::Surface::Cylinder { radius, .. }) if (radius - 0.05).abs() < 1e-12
+            Ok(geom::Surface::Cylinder { radius, .. }) if (radius - 0.05).abs() < 1e-12
         )
     };
     let beside = finding.evidence.iter().any(|e| {

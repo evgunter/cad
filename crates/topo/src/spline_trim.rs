@@ -931,15 +931,14 @@ pub(crate) fn ring_decks<T: Decide>(
     rings: &[(LoopKey, &Lift<T>)],
     band: Band,
 ) -> Result<Vec<Deck>, RingPlacementError> {
-    let surface = body.proven_face(face).surface();
+    let unread =
+        |ring: Option<LoopKey>| move |cause| RingPlacementError::SplineTrimUnread { ring, cause };
+    let Ok(surface) = body.proven_face(face).surface() else {
+        return Err(unread(None)(SplineTrimGap::Placeholder));
+    };
     let Some(chart) = surface.spline_chart() else {
         unreachable!("the spline arm is reached on a spline chart")
     };
-    let unread =
-        |ring: Option<LoopKey>| move |cause| RingPlacementError::SplineTrimUnread { ring, cause };
-    if surface.is_placeholder_chart() {
-        return Err(unread(None)(SplineTrimGap::Placeholder));
-    }
     let cells =
         bezier_cells(&chart.value_view()).ok_or_else(|| unread(None)(SplineTrimGap::NoCells))?;
     let sheet = TrimChart::of(surface, chart, band).map_err(unread(None))?;
@@ -979,7 +978,7 @@ impl Trim {
         band: Band,
     ) -> Option<Self> {
         let view = body.proven_face(face);
-        let sheet = TrimChart::of(view.surface(), chart, band).ok()?;
+        let sheet = TrimChart::of(view.surface().ok()?, chart, band).ok()?;
         let mut chains = Vec::new();
         for (lk, _, _) in view.loops() {
             let lift = Lift::read_past_placeholders(body, lk).ok()?;

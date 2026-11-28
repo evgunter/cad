@@ -2,10 +2,12 @@
 id: a-moved-rims-radius-is-positive-by-agreement-not-by-a-decision
 kind: issue
 title: transport_curve and offset_axial add the offset to a rim circle's radius with no decision, so a collapsing rim panics in Circle::new
-status: open
+status: closed
 opened: 2026-11-20
 priority: P2
 cost: M
+closed: 2026-11-26
+pr: 7658
 ---
 
 A rim circle moved by an offset is built as `Curve3::circle(.., radius + d, ..)` with no decision on the sum, so an offset that takes a rim's radius definitely negative panics in `geom::Circle::new` (it panics where the radius is not a finite length or is definitely negative) on an input path, where the surface beside it refuses typed. Found by the review of PR 7143 (`oneround/lever-doors`).
@@ -21,3 +23,16 @@ A rim circle moved by an offset is built as `Curve3::circle(.., radius + d, ..)`
 So a rim's radius is non-negative by agreement with the surface's floor, not by a decision where it is formed. Where the agreement fails (a rim whose radius is not the surface's, or a caller that moves a curve without the surface's floor having run), the failure is a panic at the constructor.
 
 **Wanted:** the rim's moved radius is decided where it is formed and refuses typed, or the mover takes the floor's verdict as an argument so the tie is in the signature.
+
+**Closed by GERM's PR 7658** (the conic-constructions audit), which
+decides each sum above where it is formed:
+`topo::replace_face::moved_radius` (`offset_moved_radius`) decides the
+size the image stores (`ρ + d`, `ρ·k`, `ρ + d·cos v`, `r + d`, and the
+cone's `|v'·sin α|`), and `offset_axial::moved_seam` reads it for both
+seams. Decided not positive, the edge refuses typed as
+`ReplaceFaceError::MovedCircleCollapses`, a limit whose lever is the
+distance; in band, or with no bounded value (read through
+`geom::conic_size_read`, the constructors' own predicate), it
+escalates. Rows: `replace_face::moved_radius_rows`,
+`offset_axial::latitude_radius_rows`, and `sweep`'s
+`conic_sizes_are_decided`.

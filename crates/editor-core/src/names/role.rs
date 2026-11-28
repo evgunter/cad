@@ -958,8 +958,6 @@ pub enum MeridianEnd {
     End,
     /// Full: the `u = 0` seam chain (F13 seam role).
     Seam,
-    /// Full, wire case only: the angle-π copies (not a seam).
-    Pi,
 }
 
 /// A split output half, by the tool plane's orientation (the plane's
@@ -1259,6 +1257,20 @@ pub enum RoleSeg {
     /// A vertex of an interior section: the section's id, and the
     /// profile vertex it lies on there.
     LoftSectionVertex(SectionId, ProfileVertexRef),
+    /// **One sub-arc piece of a loft entity**, composed AFTER the
+    /// segment that names the whole (`[LoftWall(..), SubArc(q)]` a face,
+    /// `[RimEdge(..), SubArc(q)]` or `[LoftSectionEdge(..), SubArc(q)]`
+    /// an edge): piece `q`, counting from zero along the segment, of a
+    /// segment the loft cuts at its wall's sub-arc joints
+    /// (`crates/sweep/README.md`, "Walls"). A segment of one piece
+    /// carries none.
+    SubArc(u32),
+    /// **A sub-arc joint of a loft entity**, composed after the segment
+    /// that names the whole, as [`RoleSeg::SubArc`]: the joint between
+    /// pieces `q − 1` and `q`. After `LoftWall` it is the seam edge
+    /// between those two walls, after `RimEdge` the cap vertex, and
+    /// after `LoftSectionEdge` the interior section's vertex.
+    SubArcJoint(u32),
 
     // ---- Revolve (M2 band/pole/seam taxonomy) ----
     /// A wall (band) face swept from a run of profile pieces on one
@@ -1267,11 +1279,6 @@ pub enum RoleSeg {
     /// A latitude (rim) edge at a profile vertex (partial: wedge
     /// arcs; full: full-period rims).
     BandRim(ProfileVertexRef),
-    /// Full, wire case: the π…2π band's latitude half-rim.
-    BandRimPi(ProfileVertexRef),
-    /// Full, wire case: a CURVED wall's π…2π band face. A plane wall is
-    /// built whole and named by [`RoleSeg::Band`] alone.
-    BandPi(PieceRun),
     /// A meridian edge (per meridian, per wall run).
     Meridian(MeridianEnd, PieceRun),
     /// A meridian vertex: the copy of a profile vertex on a wedge
@@ -1618,6 +1625,13 @@ pub enum RoleSeg {
         /// The source pair edge whose band ends at the foot.
         edge: NameRef,
     },
+
+    // ---- Any op (appended: a variant's index feeds a name's hash) ----
+    /// **A closed edge's conventional vertex** (`topo::is_conventional_vertex`),
+    /// named for that edge alone: the vertex has no identity of its own
+    /// (`names/README.md`, "A conventional vertex"), so its name cites
+    /// no member, position or fold step, and it resolves to the edge.
+    ConventionalVertex(NameRef),
 }
 
 /// **Where a member stands in its family** ([`RoleSeg::Member`]): each
@@ -1647,19 +1661,6 @@ pub fn band(node: RecipeNodeId, piece: ProfileEdgeRef) -> StableName {
     }
 }
 
-/// **The `[π, 2π)` band face swept from the profile piece `piece`** —
-/// [`band`]'s twin in the wire case, where a full revolve emits a
-/// curved wall as two faces ([`RoleSeg::BandPi`]); a plane wall is one.
-/// [`EntityKind::Face`], as [`band`] is.
-#[must_use]
-pub fn band_pi(node: RecipeNodeId, piece: ProfileEdgeRef) -> StableName {
-    StableName {
-        kind: EntityKind::Face,
-        node,
-        path: vec![RoleSeg::BandPi(piece.into())],
-    }
-}
-
 /// **The latitude rim at the profile vertex `vertex`** —
 /// [`RoleSeg::BandRim`], the edge between the bands of the piece
 /// ending there and the piece starting there. An [`EntityKind::Edge`].
@@ -1669,20 +1670,6 @@ pub fn band_rim(node: RecipeNodeId, vertex: ProfileVertexRef) -> StableName {
         kind: EntityKind::Edge,
         node,
         path: vec![RoleSeg::BandRim(vertex)],
-    }
-}
-
-/// **The `[π, 2π)` latitude rim at the profile vertex `vertex`** —
-/// [`band_rim`]'s twin on a full revolve whose profile touches the
-/// axis, where each rim is two half-arcs between the seam vertices
-/// ([`RoleSeg::BandRimPi`]); an annular profile's rim is one.
-/// An [`EntityKind::Edge`], as [`band_rim`] is.
-#[must_use]
-pub fn band_rim_pi(node: RecipeNodeId, vertex: ProfileVertexRef) -> StableName {
-    StableName {
-        kind: EntityKind::Edge,
-        node,
-        path: vec![RoleSeg::BandRimPi(vertex)],
     }
 }
 
@@ -1769,7 +1756,8 @@ pub(crate) fn read_edge(seg: &RoleSeg) -> Option<VarId> {
         | RoleSeg::Inner(_)
         | RoleSeg::Rim(_)
         | RoleSeg::HoleRim { .. }
-        | RoleSeg::Member { .. } => None,
+        | RoleSeg::Member { .. }
+        | RoleSeg::ConventionalVertex(_) => None,
     }
 }
 
@@ -1778,7 +1766,7 @@ pub(crate) fn read_edge(seg: &RoleSeg) -> Option<VarId> {
 /// below keeps its original minter. Which edge it is decides which of
 /// the input's names come through.
 #[derive(Debug)]
-pub(crate) enum VerbatimEdge<'a> {
+pub enum VerbatimEdge<'a> {
     /// The entities of the split target the split leaves intact: a
     /// [`Node::Split`](crate::node::Node::Split). Which ones those are
     /// is the geometry's answer, not the recipe's: a walk that holds a
@@ -1815,7 +1803,8 @@ impl VerbatimEdge<'_> {
     /// **The read whose names the edge carries**: the split's target,
     /// the mirror's body, the copy's source; `None` for an instance,
     /// whose names are its part's and are read in no body here.
-    pub(crate) fn carried_read(&self) -> Option<crate::VarId> {
+    #[must_use]
+    pub fn carried_read(&self) -> Option<crate::VarId> {
         match *self {
             Self::Intact { target } => Some(target),
             Self::Reflected { body, .. } => Some(body),
@@ -1848,7 +1837,8 @@ impl VerbatimEdge<'_> {
 /// heads every row itself. Every node kind the corpus can evaluate is sampled
 /// with rows, except the kinds that publish none at all, which that
 /// suite names and holds at zero.
-pub(crate) fn verbatim_edge<P>(node: &crate::node::Node<P>) -> Option<VerbatimEdge<'_>> {
+#[must_use]
+pub fn verbatim_edge<P>(node: &crate::node::Node<P>) -> Option<VerbatimEdge<'_>> {
     use crate::node::Node;
     match node {
         Node::Split { target, .. } => Some(VerbatimEdge::Intact {
@@ -1932,6 +1922,8 @@ macro_rules! inert_seg {
             | $crate::names::RoleSeg::RevolveCap(_)
             | $crate::names::RoleSeg::SplitBody
             | $crate::names::RoleSeg::SectionFace
+            | $crate::names::RoleSeg::SubArc(_)
+            | $crate::names::RoleSeg::SubArcJoint(_)
     };
 }
 
@@ -1954,8 +1946,6 @@ macro_rules! locator_seg {
             | $crate::names::RoleSeg::LoftSectionVertex(..)
             | $crate::names::RoleSeg::Band(_)
             | $crate::names::RoleSeg::BandRim(_)
-            | $crate::names::RoleSeg::BandRimPi(_)
-            | $crate::names::RoleSeg::BandPi(_)
             | $crate::names::RoleSeg::Meridian(..)
             | $crate::names::RoleSeg::MeridianVertex(..)
             | $crate::names::RoleSeg::Pole(_)
@@ -2326,8 +2316,6 @@ impl RoleSeg {
             R::LoftSectionVertex(s, v) => R::LoftSectionVertex(w.section(*s)?, w.vertex(*v)?),
             R::Band(run) => R::Band(run.try_map(|e| w.edge(e))?),
             R::BandRim(v) => R::BandRim(w.vertex(*v)?),
-            R::BandRimPi(v) => R::BandRimPi(w.vertex(*v)?),
-            R::BandPi(run) => R::BandPi(run.try_map(|e| w.edge(e))?),
             R::Meridian(m, run) => R::Meridian(*m, run.try_map(|e| w.edge(e))?),
             R::MeridianVertex(m, v) => R::MeridianVertex(*m, w.vertex(*v)?),
             R::Pole(v) => R::Pole(w.vertex(*v)?),
@@ -2384,6 +2372,7 @@ impl RoleSeg {
                 of: rewrite_ref(of, w)?,
             },
             R::BlendFace(n) => R::BlendFace(rewrite_ref(n, w)?),
+            R::ConventionalVertex(n) => R::ConventionalVertex(rewrite_ref(n, w)?),
             R::CornerFace(n) => R::CornerFace(rewrite_ref(n, w)?),
             R::TrimEdge { edge, support } => R::TrimEdge {
                 edge: rewrite_ref(edge, w)?,
@@ -2634,6 +2623,17 @@ impl SegRewrite for Locators<'_> {
 }
 
 impl RoleSeg {
+    /// **The profile pieces this segment's own locators rest on**: the
+    /// run a swept wall, rim, meridian or axis edge is built over, the
+    /// piece that starts at a corner it sits at, the pieces a loft
+    /// pairs; none for a segment that carries no locator. The cited
+    /// names a segment carries (a `From`'s, a `Merged` set's) are not
+    /// this segment's locators, and are not walked.
+    #[must_use]
+    pub fn pieces(&self) -> Vec<ProfileEdgeRef> {
+        self.referents().iter().flat_map(Referent::pieces).collect()
+    }
+
     /// **What this segment's own profile locators denote** ([`Referent`]):
     /// a run-carrying segment its run, a vertex an extrude or a revolve
     /// builds only at a corner that corner, a loft's pairings their
@@ -2645,13 +2645,11 @@ impl RoleSeg {
             R::Lateral(run)
             | R::RimEdge(_, run)
             | R::Band(run)
-            | R::BandPi(run)
             | R::Meridian(_, run)
             | R::AxisEdge(run) => vec![Referent::Wall(run.clone())],
             R::LateralEdge(v)
             | R::CapVertex(_, v)
             | R::BandRim(v)
-            | R::BandRimPi(v)
             | R::MeridianVertex(_, v)
             | R::Pole(v) => vec![Referent::Corner(*v)],
             R::LoftWall(es) => es.iter().map(|&(_, e)| Referent::Piece(e)).collect(),
@@ -2687,7 +2685,8 @@ impl RoleSeg {
             | R::Inner(_)
             | R::Rim(_)
             | R::HoleRim { .. }
-            | R::Member { .. } => Vec::new(),
+            | R::Member { .. }
+            | R::ConventionalVertex(_) => Vec::new(),
         }
     }
 }
@@ -2728,10 +2727,10 @@ macro_rules! never_in_a_boolean_table {
             | $crate::names::RoleSeg::LoftSeam(_)
             | $crate::names::RoleSeg::LoftSectionEdge(..)
             | $crate::names::RoleSeg::LoftSectionVertex(..)
+            | $crate::names::RoleSeg::SubArc(_)
+            | $crate::names::RoleSeg::SubArcJoint(_)
             | $crate::names::RoleSeg::Band(_)
             | $crate::names::RoleSeg::BandRim(_)
-            | $crate::names::RoleSeg::BandRimPi(_)
-            | $crate::names::RoleSeg::BandPi(_)
             | $crate::names::RoleSeg::Meridian(..)
             | $crate::names::RoleSeg::MeridianVertex(..)
             | $crate::names::RoleSeg::RevolveCap(_)
@@ -2771,7 +2770,7 @@ pub(crate) use never_in_a_boolean_table;
 mod tests {
     use super::{
         EntityKind, MeridianEnd, NameRef, PieceRole, ProfileEdgeRef, RoleSeg, SectionCircle,
-        StableName, band, band_pi, band_rim, band_rim_pi, carried, meridian_vertex,
+        StableName, band, band_rim, carried, meridian_vertex,
     };
     use crate::node::{RecipeNodeId, StepId};
 
@@ -2813,20 +2812,6 @@ mod tests {
     }
 
     #[test]
-    fn band_pi_mints_the_hand_spelled_face() {
-        for e in edges() {
-            assert_eq!(
-                band_pi(N, e),
-                StableName {
-                    kind: EntityKind::Face,
-                    node: N,
-                    path: vec![RoleSeg::BandPi(e.into())],
-                }
-            );
-        }
-    }
-
-    #[test]
     fn band_rim_mints_the_hand_spelled_edge() {
         for e in edges() {
             assert_eq!(
@@ -2835,20 +2820,6 @@ mod tests {
                     kind: EntityKind::Edge,
                     node: N,
                     path: vec![RoleSeg::BandRim(e.start())],
-                }
-            );
-        }
-    }
-
-    #[test]
-    fn band_rim_pi_mints_the_hand_spelled_edge() {
-        for e in edges() {
-            assert_eq!(
-                band_rim_pi(N, e.start()),
-                StableName {
-                    kind: EntityKind::Edge,
-                    node: N,
-                    path: vec![RoleSeg::BandRimPi(e.start())],
                 }
             );
         }
@@ -2949,13 +2920,11 @@ mod tests {
                 vec![wall.clone()],
             ),
             (RoleSeg::Band(run.clone()), vec![wall.clone()]),
-            (RoleSeg::BandPi(run.clone()), vec![wall.clone()]),
             (RoleSeg::Meridian(M::Start, run.clone()), vec![wall.clone()]),
             (RoleSeg::AxisEdge(run.clone()), vec![wall.clone()]),
             (RoleSeg::LateralEdge(v), vec![corner.clone()]),
             (RoleSeg::CapVertex(CapEnd::Start, v), vec![corner.clone()]),
             (RoleSeg::BandRim(v), vec![corner.clone()]),
-            (RoleSeg::BandRimPi(v), vec![corner.clone()]),
             (RoleSeg::MeridianVertex(M::End, v), vec![corner.clone()]),
             (RoleSeg::Pole(v), vec![corner]),
             (

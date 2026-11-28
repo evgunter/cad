@@ -33,18 +33,22 @@ use geom_core::{Band, Decide, Margin, Real};
 
 use crate::dihedral::{
     Convexity, Dihedral, JetStation, MaterialPairing, MixedStations, SecondOrderWalk, Station,
-    StationHook, Tangency, WedgeEnd, WedgeEscalation, WedgeRung, classify_levered,
+    StationHook, Tangency, WalkSpan, WedgeEnd, WedgeEscalation, WedgeRung, classify_levered,
     decide_nonzero_reported, interior_stations, material_kappa_rel, second_order_walk,
 };
 
 /// Whether two faces that meet smoothly along an edge separate at second
-/// order at every station: the surfaces determine the locus.
+/// order along the whole edge: the surfaces determine the locus.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Bend {
-    /// Every station's second-order separation read definitely positive.
+    /// Every station's second-order separation read definitely positive,
+    /// and `|κ_rel|` is certified bounded away from zero between them
+    /// (`second_order_walk`'s span).
     Determinate,
-    /// A station's read definitely zero or negative: a G2 join, a
-    /// same-surface split, coplanar planes.
+    /// A station's read definitely zero or negative (a G2 join, a
+    /// same-surface split, coplanar planes), or every station's read
+    /// positive and the span not certified (a bend whose `κ_rel` crosses
+    /// zero between stations).
     UnderDetermined,
 }
 
@@ -63,8 +67,12 @@ pub enum Bend {
 /// | [`End`](Self::End) (`Slit`) | 2π | legal iff jet-determinate |
 /// | [`Lamina`](Self::Lamina) | 0 or 2π, osculating | refused |
 ///
-/// The fold hands out an end only over a jet-determinate tangency, so an
-/// end it returns is legal. In-band readings escalate
+/// The fold hands out an end only over a tangency whose jets separate at
+/// every station, and "jet-determinate" here is read at the stations: an
+/// end it returns is legal. Whether that separation is certified along
+/// the whole edge is the end's and the seam's [`Bend`], which decides the
+/// description they store and not their legality
+/// (`work/select/a-wedge-end-is-legal-by-its-stations-not-certified-along-the-edge.md`). In-band readings escalate
 /// ([`InBand`](Self::InBand)); stations that disagree are
 /// [`Mixed`](Self::Mixed).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -97,6 +105,9 @@ pub enum WedgeVerdict {
     End {
         /// Which end every station decided.
         end: WedgeEnd,
+        /// Whether the separation is certified along the whole edge, as
+        /// [`Seam`](Self::Seam)'s.
+        bend: Bend,
         /// The margin the first station's end was decided on
         /// ([`crate::MATERIAL_CUSP_SIDE`]).
         margin: geom_core::MarginDiag,
@@ -129,7 +140,10 @@ pub enum WedgeClass {
         margin: Option<geom_core::MarginDiag>,
     },
     /// [`WedgeVerdict::End`], of either side.
-    End,
+    End {
+        /// As [`WedgeVerdict::End`]'s.
+        bend: Bend,
+    },
     /// [`WedgeVerdict::Lamina`].
     Lamina,
     /// [`WedgeVerdict::Mixed`].
@@ -143,7 +157,7 @@ impl From<WedgeVerdict> for WedgeClass {
         match verdict {
             WedgeVerdict::Crease { .. } => Self::Crease,
             WedgeVerdict::Seam { bend, margin } => Self::Seam { bend, margin },
-            WedgeVerdict::End { .. } => Self::End,
+            WedgeVerdict::End { bend, .. } => Self::End { bend },
             WedgeVerdict::Lamina => Self::Lamina,
             WedgeVerdict::Mixed(stations) => Self::Mixed(stations),
             WedgeVerdict::InBand(escalation) => Self::InBand(escalation),
@@ -172,6 +186,9 @@ pub struct WedgeWalk<'a, T: Real> {
     /// The curve the stations lie on, and the span they are read over.
     carrier: &'a geom::Curve3<T>,
     span: (T, T),
+    /// A closed rim's phase step, where the stations go all the way
+    /// round, with no end; `None` across an edge's span.
+    around: Option<T>,
     first: (u32, Station<T>),
     rest: Vec<(u32, Station<T>)>,
 }
@@ -201,6 +218,7 @@ impl<'a, T: Decide> WedgeWalk<'a, T> {
             minus,
             carrier,
             span: (t0, t1),
+            around: None,
             first,
             rest,
         }
@@ -219,15 +237,17 @@ impl<'a, T: Decide> WedgeWalk<'a, T> {
         circle: &'a geom::Curve3<T>,
         n: core::num::NonZeroU32,
     ) -> Self {
-        let phase = |i: u32| {
+        let at = |i: u32| {
             let phase = core::f64::consts::TAU * (f64::from(i) / f64::from(n.get()));
-            Station::on(circle, T::from_f64(phase))
+            T::from_f64(phase)
         };
+        let phase = |i: u32| Station::on(circle, at(i));
         Self {
             plus,
             minus,
             carrier: circle,
             span: (T::from_f64(0.0), T::from_f64(core::f64::consts::TAU)),
+            around: Some(at(1)),
             first: (0, phase(0)),
             rest: (1..n.get()).map(|i| (i, phase(i))).collect(),
         }
@@ -236,6 +256,17 @@ impl<'a, T: Decide> WedgeWalk<'a, T> {
     /// The stations in schedule order, each with its sample.
     fn stations(&self) -> impl Iterator<Item = (u32, Station<T>)> + '_ {
         core::iter::once(self.first).chain(self.rest.iter().copied())
+    }
+
+    /// The span the second-order walk certifies the bend over: an edge's
+    /// at the certification schedule, ends included; a rim's at its
+    /// phases' own step, all the way round.
+    fn walk_span(&self) -> WalkSpan<T> {
+        let (s1, s2) = (self.plus.surface, self.minus.surface);
+        match self.around {
+            None => WalkSpan::along(s1, s2, self.carrier, self.span.0, self.span.1),
+            Some(step) => WalkSpan::around(s1, s2, self.carrier, step),
+        }
     }
 
     /// **What the walked edge stores, by its wedge** (D2's
@@ -264,7 +295,7 @@ impl<'a, T: Decide> WedgeWalk<'a, T> {
         let bend = match class {
             WedgeClass::Crease => None,
             WedgeClass::Seam { bend, .. } => Some(bend),
-            WedgeClass::End => Some(Bend::Determinate),
+            WedgeClass::End { bend } => Some(bend),
             WedgeClass::Lamina => Some(Bend::UnderDetermined),
             WedgeClass::Mixed(stations) => return Err(WedgeRefusal::Mixed(stations)),
             WedgeClass::InBand(escalation) => return Err(WedgeRefusal::InBand(escalation)),
@@ -293,7 +324,8 @@ enum Read<T: Real> {
 /// metered second-order: an escalation anywhere is the verdict, else a
 /// disagreement anywhere, and only an edge tangent at every station
 /// descends into the second-order walk, where the first station not
-/// positive decides.
+/// positive decides the material verdict and the certified span the
+/// bend.
 #[must_use]
 pub fn edge_wedge_over<T: Decide>(
     walk: &WedgeWalk<'_, T>,
@@ -320,6 +352,41 @@ pub fn edge_wedge_over_as<T: Decide>(
     reach: geom_core::Lever<T>,
     band: Band,
     side: Role,
+) -> WedgeVerdict {
+    fold(walk, reach, band, side, BendInBand::Refuses)
+}
+
+/// **The fold a rim's routing reads** ([`edge_wedge_over_as`] at
+/// [`Role::Check`]), where a bend in band at a station is an undecided
+/// bend and not an undecided wedge: two faces whose outward normals are
+/// aligned at every station meet at π whatever their bend, so the
+/// routing reads that π seam, its bend under-determined. The routing
+/// stores nothing; every reader that stores or judges a description
+/// reads [`edge_wedge_over_as`], where the bend in band refuses.
+#[must_use]
+pub fn rim_routing_wedge<T: Decide>(
+    walk: &WedgeWalk<'_, T>,
+    reach: geom_core::Lever<T>,
+    band: Band,
+) -> WedgeVerdict {
+    fold(walk, reach, band, Role::Check, BendInBand::SeamStands)
+}
+
+/// What an aligned pair's bend in band reads as ([`material_outcome`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum BendInBand {
+    /// The bend's escalation is the verdict.
+    Refuses,
+    /// The seam stands, its bend under-determined.
+    SeamStands,
+}
+
+fn fold<T: Decide>(
+    walk: &WedgeWalk<'_, T>,
+    reach: geom_core::Lever<T>,
+    band: Band,
+    side: Role,
+    in_band: BendInBand,
 ) -> WedgeVerdict {
     let (plus, minus) = (walk.plus, walk.minus);
     let senses = [plus.sense, minus.sense];
@@ -372,22 +439,22 @@ pub fn edge_wedge_over_as<T: Decide>(
         })
         .collect();
     let mut reads = MaterialReads::new(plus.sense, senses, band, side);
-    let bend = match second_order_walk(
+    let separation = match second_order_walk(
         plus.surface,
         minus.surface,
         tangents,
+        &walk.walk_span(),
         reach,
         band,
         &mut reads,
     ) {
-        SecondOrderWalk::Determinate => Bend::Determinate,
-        SecondOrderWalk::UnderDetermined => Bend::UnderDetermined,
-        SecondOrderWalk::InBand(cause) => {
-            return WedgeVerdict::InBand(WedgeEscalation::at(WedgeRung::Bend, cause));
-        }
+        SecondOrderWalk::Determinate => Separation::Certified,
+        SecondOrderWalk::Separated => Separation::AtStations,
+        SecondOrderWalk::UnderDetermined => Separation::None,
+        SecondOrderWalk::InBand(cause) => Separation::Undecided(cause),
         SecondOrderWalk::Stopped(escalation) => return WedgeVerdict::InBand(escalation),
     };
-    material_outcome(&reads.pairings, bend, &reads.ends, margin)
+    material_outcome(&reads.pairings, separation, &reads.ends, margin, in_band)
 }
 
 /// One station's class read.
@@ -516,22 +583,60 @@ impl<T: Decide> StationHook<T> for MaterialReads {
 /// none read means no station's bend decided positive.
 pub(crate) fn material_outcome(
     pairings: &[(u32, MaterialPairing)],
-    bend: Bend,
+    separation: Separation,
     ends: &[(u32, WedgeEnd, geom_core::MarginDiag)],
     margin: Option<geom_core::MarginDiag>,
+    in_band: BendInBand,
 ) -> WedgeVerdict {
     let decided: Vec<_> = ends.iter().map(|&(i, end, _)| (i, end)).collect();
     if let Some(mixed) = MixedStations::pairing(pairings) {
         return WedgeVerdict::Mixed(mixed);
     }
+    let bend = separation.bend();
+    let aligned = matches!(pairings.first(), Some((_, MaterialPairing::Aligned)));
     match pairings.first() {
+        // An undecided bend: facing each other it is an undecided wedge
+        // (an end where the jets separate, the lamina where they
+        // osculate); facing one way, an undecided description, which
+        // only the routing reads past.
+        _ if let Separation::Undecided(cause) = separation
+            && !(aligned && in_band == BendInBand::SeamStands) =>
+        {
+            WedgeVerdict::InBand(WedgeEscalation::at(WedgeRung::Bend, cause))
+        }
         Some((_, MaterialPairing::Aligned)) => WedgeVerdict::Seam { bend, margin },
-        _ if bend == Bend::UnderDetermined => WedgeVerdict::Lamina,
+        _ if separation == Separation::None => WedgeVerdict::Lamina,
         _ => match (MixedStations::end(&decided), ends.first()) {
             (Some(mixed), _) => WedgeVerdict::Mixed(mixed),
-            (None, Some(&(_, end, margin))) => WedgeVerdict::End { end, margin },
+            (None, Some(&(_, end, margin))) => WedgeVerdict::End { end, bend, margin },
             (None, None) => WedgeVerdict::Lamina,
         },
+    }
+}
+
+/// **How far a tangency's jets separate**, as the second-order walk read
+/// it: the material verdict reads the stations (the lamina is a station
+/// that osculates), the bend the certified span.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum Separation {
+    /// Every station positive, and the span certified.
+    Certified,
+    /// Every station positive, the span not certified.
+    AtStations,
+    /// A station read zero or negative.
+    None,
+    /// A station's bend in band, none zero or negative: a seam's bend is
+    /// under-determined, an opposed contact's wedge undecided.
+    Undecided(geom_core::Indeterminate),
+}
+
+impl Separation {
+    /// The bend it leaves: determinate only where certified.
+    const fn bend(&self) -> Bend {
+        match self {
+            Self::Certified => Bend::Determinate,
+            Self::AtStations | Self::None | Self::Undecided(_) => Bend::UnderDetermined,
+        }
     }
 }
 
@@ -595,17 +700,22 @@ mod tests {
         use WedgeEnd::{Cusp, Slit};
         use WedgeVerdict as V;
         let (det, under) = (Bend::Determinate, Bend::UnderDetermined);
+        let (certified, stations, none) = (
+            Separation::Certified,
+            Separation::AtStations,
+            Separation::None,
+        );
         type Row<'a> = (
             &'a [(u32, MaterialPairing)],
-            Bend,
+            Separation,
             &'a [(u32, WedgeEnd, MarginDiag)],
             V,
         );
         let m = MarginDiag::value(1e-3);
-        let rows: [Row<'_>; 9] = [
+        let rows: [Row<'_>; 13] = [
             (
                 &[(1, Aligned), (2, Aligned)],
-                det,
+                certified,
                 &[(1, Cusp, m)],
                 V::Seam {
                     bend: det,
@@ -614,7 +724,7 @@ mod tests {
             ),
             (
                 &[(1, Aligned)],
-                under,
+                none,
                 &[],
                 V::Seam {
                     bend: under,
@@ -623,51 +733,82 @@ mod tests {
             ),
             (
                 &[(1, Opposed), (2, Opposed)],
-                det,
+                certified,
                 &[(1, Cusp, m), (2, Cusp, m)],
                 V::End {
                     end: Cusp,
+                    bend: det,
                     margin: m,
                 },
             ),
             (
                 &[(1, Opposed)],
-                det,
+                certified,
                 &[(1, Slit, m)],
                 V::End {
                     end: Slit,
+                    bend: det,
                     margin: m,
                 },
             ),
-            (&[(1, Opposed)], under, &[], V::Lamina),
+            (&[(1, Opposed)], none, &[], V::Lamina),
             (
                 &[(1, Opposed), (2, Opposed)],
-                under,
+                none,
                 &[(1, Cusp, m)],
                 V::Lamina,
             ),
             (
                 &[(1, Opposed), (2, Opposed)],
-                det,
+                certified,
                 &[(1, Slit, m), (2, Cusp, m)],
                 V::Mixed(MixedStations::End { cusp: 2, slit: 1 }),
             ),
-            (&[(1, Opposed)], det, &[], V::Lamina),
+            (&[(1, Opposed)], certified, &[], V::Lamina),
             (
                 &[(1, Opposed), (2, Aligned)],
-                det,
+                certified,
                 &[(1, Cusp, m)],
                 V::Mixed(MixedStations::Pairing {
                     aligned: 2,
                     opposed: 1,
                 }),
             ),
+            // Separated at every station, the span not certified (a
+            // `κ_rel` crossing zero between stations): the material verdict
+            // is the stations', and only the bend is under-determined.
+            (
+                &[(1, Aligned)],
+                stations,
+                &[],
+                V::Seam {
+                    bend: under,
+                    margin: None,
+                },
+            ),
+            (
+                &[(1, Opposed), (2, Opposed)],
+                stations,
+                &[(1, Cusp, m), (2, Cusp, m)],
+                V::End {
+                    end: Cusp,
+                    bend: under,
+                    margin: m,
+                },
+            ),
+            (
+                &[(1, Opposed), (2, Opposed)],
+                stations,
+                &[(1, Cusp, m), (2, Slit, m)],
+                V::Mixed(MixedStations::End { cusp: 1, slit: 2 }),
+            ),
+            (&[(1, Opposed)], stations, &[], V::Lamina),
         ];
-        for (pairings, bend, ends, want) in rows {
+        for (pairings, separation, ends, want) in rows {
             assert_eq!(
-                material_outcome(pairings, bend, ends, None),
+                material_outcome(pairings, separation, ends, None, BendInBand::Refuses),
                 want,
-                "{pairings:?} {bend:?} {ends:?}"
+                "{pairings:?} {separation:?} {ends:?}"
             );
         }
     }

@@ -607,7 +607,7 @@ fn a_plane_section_of_a_curved_fit_certifies_as_the_fits() {
             },
             a,
             b,
-            move |k| arena.get(k).cloned(),
+            move |k| arena.get(k).cloned().ok_or(geom_brep::SurfaceMiss::Stale),
             geom_core::test_support::fixture_lever(1.0),
             band(),
             geom_brep::NurbsLane::certified(),

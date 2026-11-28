@@ -11,11 +11,10 @@
 //!   the double-cone carrier first, then the face's OWN region, read from
 //!   its boundary edges (`topo::ruled_region`), never its
 //!   surface group's — and the rows hold what a wrong
-//!   answer would break: two half-bands of one frustum PARTITION their
+//!   answer would break: a full frustum's one wall face holds its
 //!   wall, a quarter cone holds its quadrant and not the others, the
 //!   mirror nappe and the carrier past the slant window are outside,
-//!   and the apex-closed bands of one full cone partition their wall
-//!   too.
+//!   and the apex-closed face of one full cone holds its wall too.
 //! - **The C5 gate** asks the arm about the pose, not only the kind
 //!   pair. A quarter cone's wedge cap passes through the apex, where the
 //!   plane×cone arm serves the generator pair; offset, it stands off the
@@ -95,7 +94,7 @@ fn quarter_cone() -> Body<f64> {
 
 fn faces_where(body: &Body<f64>, pred: impl Fn(&geom::Surface<f64>) -> bool) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(fk, _)| body.face_surface(*fk).is_some_and(&pred))
+        .filter(|(fk, _)| body.face_surface(*fk).is_ok_and(&pred))
         .map(|(k, _)| k)
         .collect()
 }
@@ -118,23 +117,22 @@ fn contain(body: &Body<f64>, f: FaceKey, q: Point3<f64>) -> Option<FaceContainme
 // Face containment on a cone face.
 // -------------------------------------------------------------------
 
-/// **The frustum's two bands partition their wall, and nothing else is
-/// in either.** Every carrier point strictly inside the wall, away from
-/// the seam meridians, is `In` exactly one band and `Out` of the other;
-/// the same azimuth on the MIRROR nappe above the virtual apex, the
-/// carrier past the slant window, and a point a millimetre off the
-/// carrier are `Out` of both.
-///
-/// This is the row a group-scoped trim breaks: the two bands form one
-/// wrapped surface group, and reading the GROUP's window for either
-/// band puts every wall point in both. A trim on the wrong nappe, or a
-/// carrier test that read only one nappe as the surface, moves a
-/// mirror or off-carrier point into a band.
+/// **The frustum's one wall face holds its wall, and nothing else.**
+/// Every carrier point strictly inside the wall, at every azimuth, is
+/// `In` the face; the same azimuth on the MIRROR nappe above the virtual
+/// apex, the carrier past the slant window, and a point a millimetre off
+/// the carrier are `Out`. A trim on the wrong nappe, or a carrier test
+/// that read only one nappe as the surface, moves a mirror or
+/// off-carrier point into the face.
 #[test]
-fn the_frustum_bands_partition_their_wall_under_face_containment() {
+fn the_frustum_wall_face_holds_its_wall_under_face_containment() {
     let body = frustum();
     let bands = cone_faces(&body);
-    assert_eq!(bands.len(), 2, "a full revolve splits its cone wall in two");
+    assert_eq!(
+        bands.len(),
+        1,
+        "a full revolve sweeps its cone wall as one face"
+    );
     for k in 0..12 {
         let phi = 0.1 + f64::from(k) * core::f64::consts::TAU / 12.0;
         for y in [0.1, 0.5, 0.9] {
@@ -148,7 +146,7 @@ fn the_frustum_bands_partition_their_wall_under_face_containment() {
                 .iter()
                 .filter(|v| **v == Some(FaceContainment::Out))
                 .count();
-            assert_eq!((ins, outs), (1, 1), "phi {phi}, y {y}: {verdicts:?}");
+            assert_eq!((ins, outs), (1, 0), "phi {phi}, y {y}: {verdicts:?}");
             for q in [
                 // The mirror nappe: `ρ = (y − 2)/2` above the apex.
                 at(0.5 * (3.0 - y), 5.0 - y, phi),
@@ -205,73 +203,28 @@ fn the_quarter_cone_face_holds_its_quadrant_and_no_other() {
     }
 }
 
-/// **The apex-closed bands of one full cone partition their wall, each
-/// holding its own half.** The two bands meet at the apex, where every
-/// azimuth lands; the apex closure pins each band's own half-period
-/// window there. A carrier point away from the seam meridians is `In`
-/// the band whose rim arc passes over it — read off the rim's own
-/// carrier, independently of any trim — and `Out` of the other. A walk
-/// that read either band as a full period answers `None` for both; one
-/// that handed each band the other's window answers the swapped band.
-/// The carrier test still runs FIRST: a point off the cone is `Out` of
-/// both bands whatever the trim can say.
+/// **The apex-closed face of one full cone holds its whole wall.** The
+/// face reaches the apex by its one wrap edge, where every azimuth
+/// lands; the apex closure pins its full-period window there. A carrier
+/// point at every azimuth is `In` the face. The carrier test still runs
+/// FIRST: a point off the cone is `Out` whatever the trim can say.
 #[test]
-fn the_apex_closed_bands_partition_their_wall() {
+fn the_apex_closed_face_holds_its_wall() {
     let body = cone();
-    let bands = cone_faces(&body);
-    assert_eq!(bands.len(), 2);
-    let rim_azimuth = |f: FaceKey| -> f64 {
-        let topo::LoopBoundary::Cycle { first } = body
-            .get_loop(body.get_face(f).unwrap().outer)
-            .unwrap()
-            .boundary
-        else {
-            panic!("a band's outline is a cycle")
-        };
-        let rims: Vec<f64> = body
-            .loop_cycle(first)
-            .unwrap()
-            .into_iter()
-            .filter_map(|he| {
-                let e = body.get_edge(body.get_half_edge(he).unwrap().edge).unwrap();
-                let c = body
-                    .get_curve_geom(e.curve)
-                    .and_then(topo::CurveGeom::certified)?;
-                let geom::Curve3::Circle(..) = c.carrier() else {
-                    return None;
-                };
-                let (t0, t1) = c.params();
-                let m = c.carrier().eval(0.5 * (t0 + t1));
-                Some(m.z.atan2(m.x))
-            })
-            .collect();
-        let [phi] = rims[..] else {
-            panic!("one rim arc per band: {rims:?}")
-        };
-        phi
+    let [f] = cone_faces(&body)[..] else {
+        panic!("a full revolve sweeps its cone wall as one face");
     };
-    let mids: Vec<f64> = bands.iter().map(|&f| rim_azimuth(f)).collect();
     for k in 0..6 {
         let phi = 0.1 + f64::from(k) * core::f64::consts::TAU / 6.0;
-        let p = at(0.5, 0.5, phi);
-        for (&f, &mid) in bands.iter().zip(&mids) {
-            let d = (phi - mid).rem_euclid(core::f64::consts::TAU);
-            let holds = d.min(core::f64::consts::TAU - d) < core::f64::consts::FRAC_PI_2;
-            let want = if holds {
-                FaceContainment::In
-            } else {
-                FaceContainment::Out
-            };
-            assert_eq!(
-                contain(&body, f, p),
-                Some(want),
-                "phi {phi}: the band whose rim runs over {mid}"
-            );
-            assert_eq!(
-                contain(&body, f, at(0.5 + 1e-3, 0.5, phi)),
-                Some(FaceContainment::Out)
-            );
-        }
+        assert_eq!(
+            contain(&body, f, at(0.5, 0.5, phi)),
+            Some(FaceContainment::In),
+            "phi {phi}"
+        );
+        assert_eq!(
+            contain(&body, f, at(0.5 + 1e-3, 0.5, phi)),
+            Some(FaceContainment::Out)
+        );
     }
 }
 
@@ -443,7 +396,7 @@ fn an_offset_axis_normal_cap_passes_the_pose_gate() {
     )[..] else {
         panic!("one base disc");
     };
-    let Some(geom::Surface::Plane { frame, .. }) = body.face_surface(disc).cloned() else {
+    let Ok(geom::Surface::Plane { frame, .. }) = body.face_surface(disc).cloned() else {
         unreachable!("the disc is a plane")
     };
     let (origin, normal) = (frame.origin(), frame.axis());

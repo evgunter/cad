@@ -57,8 +57,13 @@ def moved(pins, counts):
 
 
 def raised(pins, origins, base_file, renames_file=None, kinds=None):
-    """`RAISED` lines: the pins, summed per origin, against the base's."""
-    base, _, _, _ = read_pins(base_file, kinds)
+    """`RAISED` lines: the pins, summed per origin, against the base's,
+    summed the same way, so a split the base already carries is no rise."""
+    base_pins, base_origins, _, _ = read_pins(base_file, kinds)
+    base = {}
+    for key, pin in base_pins.items():
+        target = (key[0], base_origins.get(key, key[1]))
+        base[target] = base.get(target, 0) + pin
     if renames_file:
         with open(renames_file, encoding='utf-8') as fh:
             went = dict(line.split()[:2] for line in fh if len(line.split()) >= 2)

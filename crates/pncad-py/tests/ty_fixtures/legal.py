@@ -132,9 +132,7 @@ from pncad import (
     rad,
     enforce_checks,
     band,
-    band_pi,
     band_rim,
-    band_rim_pi,
     carried,
     evaluate,
     meridian_vertex,
@@ -1085,9 +1083,7 @@ _carrier: AuthoredStep = circle((2 * m, 1 * m), 0.5 * m).step
 _first: Piece = _names_doc.piece(_names_profile, 0, _carrier.piece(0))
 _second: Piece = Piece(_names_doc.step(_names_profile, 0, _carrier), Role.piece(1))
 minted_band: str = band(_revolved, _first)
-minted_half: str = band_pi(_revolved, _pieces[0][0])
 minted_rim: str = band_rim(_revolved, _second)
-minted_rim_half: str = band_rim_pi(_revolved, _second)
 minted_vertex: str = meridian_vertex(MeridianEnd.Seam, _revolved, _second)
 _revolved_read = _names_doc.output(_revolved, 0)
 assert _revolved_read is not None
@@ -1096,7 +1092,7 @@ _blended: NodeId = _names_doc.insert(
     Node.fillet(_revolved, Formula.length_in(0.1, m), [minted_rim])
 )
 _hollowed: NodeId = _names_doc.insert(
-    Node.shell(_revolved, Formula.length_in(0.1, m), [minted_band, minted_half])
+    Node.shell(_revolved, Formula.length_in(0.1, m), [minted_band])
 )
 
 # INTENT-LITERALS Q9: a slot takes a variable, a formula, or a value of

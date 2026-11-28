@@ -130,7 +130,12 @@ fn a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim() {
         // pcurve door the mint runs, so four of these are that second
         // derivation; handing the edge's certificate to the mint
         // (`work/pcert/a-stated-spline-image-is-certified-twice-by-the-edge-certificate-and-the-mint.md`)
-        // brings the count back to 62.
+        // brings the count back to 62. Since PR 7440 the interior-loop
+        // guard's section walk (`crossings_section_pairs`) reads every
+        // pair where it stopped at the first refusing one, so the pairs
+        // after this union's first refusal certify their sections too:
+        // 34 more, measured by stopping the walk again (66)
+        // (`work/topo/the-interior-loop-guards-section-walk-reads-every-pair-past-the-first-refusal.md`).
         assert_eq!(
             read.recorded()
                 .verdicts
@@ -138,7 +143,7 @@ fn a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim() {
                 .filter(|v| v.predicate == "pcurve_iso_boundary")
                 .filter(|v| v.sign == geom_core::Sign::Zero)
                 .count(),
-            66,
+            100,
             "{what}: each arc rim's on-row checks are read once"
         );
         let err = err.expect_err(what);
@@ -166,7 +171,6 @@ fn a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim() {
         // The cap read on the way: every spline edge of A, against every
         // plane face of B, through the arm the planar lane reads, crosses
         // nothing inside itself.
-        let lane = geom_brep::NurbsLane::<f64>::certified();
         let band = Band::linear(tol).expect("the run's tolerance forms a band");
         let mut read = 0;
         for (_, edge) in a.edges() {
@@ -176,17 +180,27 @@ fn a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim() {
             else {
                 continue;
             };
-            let geom::Curve3::Nurbs(net) = curve.carrier() else {
+            if !matches!(curve.carrier(), geom::Curve3::Nurbs(_)) {
                 continue;
-            };
+            }
             for (fk, _) in b.faces() {
-                let Some(plane @ geom::Surface::Plane { .. }) = b.face_surface(fk) else {
+                let Ok(plane @ geom::Surface::Plane { .. }) = b.face_surface(fk) else {
                     continue;
                 };
-                let roots = lane.surface_crossings(net, curve.params(), plane, band);
+                let span = geom_brep::curve_pair::Span::new(curve.carrier(), curve.params());
+                let found = geom_brep::curve_face::cross(&span, plane, band);
+                let inside = found.as_ref().map(|found| {
+                    found
+                        .meetings
+                        .iter()
+                        .filter(|m| {
+                            matches!(m.on_span, geom_brep::curve_face::OnSpan::Inside { .. })
+                        })
+                        .count()
+                });
                 assert!(
-                    matches!(roots.as_ref().map(Vec::len), Ok(0)),
-                    "{what}: a seam of A crosses a cap of B: {roots:?}"
+                    matches!(inside, Ok(0)),
+                    "{what}: a seam of A crosses a cap of B: {found:?}"
                 );
                 read += 1;
             }
@@ -240,7 +254,7 @@ fn the_guard_reads_the_walls_with_their_shared_rims_handed_in() {
     );
     let spline = |b: &topo::AtRestBody<f64>, f| {
         b.face_surface(f)
-            .is_some_and(|s| s.kind() == geom::SurfaceKind::Nurbs)
+            .is_ok_and(|s| s.kind() == geom::SurfaceKind::Nurbs)
     };
     let walls = report
         .iter()

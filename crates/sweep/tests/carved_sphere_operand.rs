@@ -11,7 +11,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
-use topo::construction::Construct;
 
 use geom_core::{Band, Point2, Point3, Tol, Vec3};
 use sweep::Revolution;
@@ -219,7 +218,8 @@ type Operand = (&'static str, f64, Vec3<f64>, bool);
 type Cut = (&'static str, (f64, f64), f64, [Operand; 3]);
 
 /// **A ball cut by planes tilted against its chart is an operand.** The
-/// `y`-poled unit ball, whose seam meridians lie in `z = 0`, less two
+/// `y`-poled unit ball, its one sphere face's seam meridian in `z = 0`
+/// on the `+x` side, less two
 /// boxes, each against the ball's and the box's own point tests and then
 /// against a ball nested in the cut, one disjoint from it, and one inside
 /// it across a cutting plane where no face of the box is, each against its
@@ -227,7 +227,7 @@ type Cut = (&'static str, (f64, f64), f64, [Operand; 3]);
 ///
 /// - the box `[0.5, 3] × [−2, 2] × [0, 2]` (`tilted_sphere_pair.rs`'s
 ///   pose), whose face `x = 0.5` crosses the chart and keeps the half of
-///   the cap beyond it below `z = 0`. Two sphere faces are left;
+///   the cap beyond it below `z = 0`. One sphere face is left;
 /// - the slab `[−0.2, 0.2] × [−2, 2] × [0, 2]`, whose faces `x = ±0.2`
 ///   cut a slot in the `z > 0` half: ONE sphere face is left, whose
 ///   complement is the slot and not another face, so a region read the
@@ -283,13 +283,9 @@ fn a_tilted_cut_of_a_ball_is_an_operand() {
             .clone();
         let sphere_faces = cut
             .faces()
-            .filter(|(fk, _)| matches!(cut.face_surface(*fk), Some(geom::Surface::Sphere { .. })))
+            .filter(|(fk, _)| matches!(cut.face_surface(*fk), Ok(geom::Surface::Sphere { .. })))
             .count();
-        assert_eq!(
-            sphere_faces,
-            if x0 < 0.0 { 1 } else { 2 },
-            "{pose}: sphere faces left"
-        );
+        assert_eq!(sphere_faces, 1, "{pose}: sphere faces left");
         assert_lattice(
             pose,
             &cut,
@@ -354,9 +350,9 @@ fn a_point_whose_antipode_is_a_face_vertex_is_read() {
     }
 }
 
-/// **A face whose only edge is a seam is the whole sphere.** Killing one
-/// of a ball's two meridians (`kef`) leaves ONE sphere face whose loop
-/// runs the other meridian pole to pole and back: both half-edges of
+/// **A face whose only edge is a seam is the whole sphere.** A full
+/// revolve's ball is ONE sphere face whose loop runs its one meridian
+/// pole to pole and back: both half-edges of
 /// that edge are the face's, so it bounds nothing, and every point of the
 /// sphere off it is in the face. Every great circle through such a point
 /// crosses the meridian once, at a crossing the loop holds twice, so a
@@ -366,15 +362,13 @@ fn a_point_whose_antipode_is_a_face_vertex_is_read() {
 fn a_face_whose_only_edge_is_a_seam_is_the_whole_sphere() {
     let tol = Tol::witness();
     let band = Band::linear(tol).unwrap();
-    let mut slit = revolved_about_y(
+    let slit = revolved_about_y(
         vec![(Point2::new(0.0, -1.0), 1.0), (Point2::new(0.0, 1.0), 0.0)],
         Revolution::Full,
         tol,
     );
-    let meridian = slit.edges().next().map(|(_, e)| e.he_plus).unwrap();
-    slit.kef(meridian).expect("one meridian kills");
     let faces: Vec<_> = slit.faces().map(|(k, _)| k).collect();
-    assert_eq!(faces.len(), 1, "one sphere face is left");
+    assert_eq!(faces.len(), 1, "one sphere face");
     for (x, y, z) in [
         (0.6, 0.0, 0.8),
         (-0.6, 0.0, -0.8),

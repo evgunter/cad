@@ -2,11 +2,12 @@
 id: a-taint-induced-freeze-under-a-hit-still-reads-by-order
 kind: issue
 title: A taint-induced freeze under a memo hit is still read by order
-status: open
+status: closed
 priority: P2
 cost: D
 opened: 2026-09-22
 refs: [SYM-13, 3054]
+closed: 2026-11-22
 ---
 
 Filed by SYM-13 as it landed the leaf receipt's NEED column, against
@@ -82,3 +83,29 @@ this row adds is the one shape where the column moves alone.
   lane's.
 
 - 2026-11-02 — moved from RULES to SYM by `git mv` when RULES merged into SYM, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and RULES had fallen far under it).
+
+## Closed: the reading is gone; what is left is stated elsewhere (BOXFINISH session-state unit, 2026-11-23)
+
+The expression table belongs to the drive (`geom_core::sym::memo`): a
+leaf resolves an id through its own cache and then through the drive's
+table, so a node one leaf recorded is no longer absent from another.
+An id in no table of the drive was minted outside every session on it.
+It is an unknown in that leaf (`Session::unknown`): its form and every
+plain form built over it are neither published to the drive's table
+nor left in the caches the drive keeps warm, and a leaf's `frozen`
+column is the drive's frozen set inside the closure of its roots plus
+the unknowns under them. A freeze under a hit is therefore never an
+unknown's: the table serves nothing built over one.
+
+What is left of the order between leaves is a different thing and is
+not this row: once any leaf has minted the same content inside a
+session, a leaf handed it from outside resolves it
+(`geom-core/tests/a_drives_table_and_what_is_outside_it.rs`,
+`an_outside_value_resolves_once_a_leaf_has_minted_its_content`; the
+question is on `work/boxfinish/a-drive-keeps-no-node-result-from-one-leaf-to-the-next`).
+
+The pin `sym_drive_memo::a_taint_induced_freeze_under_a_hit_is_read_by_order`
+is removed with six sibling rows that planted an unrecorded node; PR
+7492's body pairs each with what pins its claim now, and names the two
+claims no row pins (that the `frozen` column stands still across the
+order above, and `an_inherited_form_does_not_move_the_leafs_need`).

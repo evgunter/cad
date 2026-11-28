@@ -483,23 +483,25 @@ fn a_surface_two_voids_cite_is_two_records() {
     );
 }
 
-/// **A pinch**: opposite facings meeting at an edge. The ball's two
-/// bands on one sphere, one cited reversed: a lamina at their shared
-/// edges, refused at tier 3 on its geometry. Stated on two records of
-/// one sphere, the edge between them refuses first, at the build.
+/// **A pinch**: opposite facings meeting at an edge. A ball stated as
+/// two lunes of one sphere (`fixtures/seam-region/two_lunes.step`), one
+/// cited reversed: a lamina at their shared edges, refused at tier 3 on
+/// its geometry. Stated on two records of one sphere, the edge between
+/// them refuses first, at the build.
 #[test]
 fn a_pinch_is_refused_at_tier_3_on_one_record_or_two() {
-    // The first of the two meridians the bands meet along.
+    // The first of the two meridians the lunes meet along.
     const BAND_EDGE: u64 = 15;
     let text = std::fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../step-export/tests/fixtures/ball.step"
+        "/tests/fixtures/seam-region/two_lunes.step"
     ))
     .unwrap();
     let citing = faces_citing(&text);
     let [(first, sphere), (_, again)] = citing[..] else {
-        panic!("the ball is two bands: {citing:?}")
+        panic!("the ball is two lunes: {citing:?}")
     };
+    assert!(imported("as stated", &text).is_ok(), "the two lunes import");
     assert_eq!(sphere, again, "one sphere entity, cited twice");
     let flip = |s: &str| {
         if s.ends_with(".T.);") {

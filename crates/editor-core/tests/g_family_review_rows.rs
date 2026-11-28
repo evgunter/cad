@@ -214,16 +214,13 @@ fn cut_family_n(overlap_kept_first: bool, product_plain: bool, n: i64) -> usize 
     let rt = fixture::body_read(&doc, tool.into());
     let node = fixture::place_node(&doc, BodyRead::plain(rt), placed.bundle());
     let (doc, tools) = insert(doc, node);
-    // One cut per member: the tool read at `k`, so the cut is a family.
-    let tool = match doc.var_named("k") {
-        Some(k) => BodyRead::indexed(tools, vec![Formula::var(k, editor_core::Dimension::Count)]),
-        None => BodyRead::plain(Operand::Node(tools)),
-    };
+    // One cut per member: the tool placed at `k` is read at the binder's
+    // own key, so the cut reads `k` and is a family.
     let (doc, cut) = insert(
         doc,
         Node::Subtract {
             from: BodyRead::plain(Operand::Node(asm)),
-            tool: tool.into(),
+            tool: BodyRead::plain(Operand::Node(tools)).into(),
         },
     );
     // Each member's cut is the binder's yield, `{k: asm − tools}`.

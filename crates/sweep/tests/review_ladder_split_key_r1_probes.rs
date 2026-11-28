@@ -120,12 +120,12 @@ fn r1_a_pip_and_a_boss_on_the_slabs_underside_carve_naming_total() {
         let ball = ball_poled_z(PIP_R, Vec3::new(0.5, 0.5, -(PIP_R - PIP_H)), tol());
         let source = realized(op, &slab, &ball, tol());
         let rim = plane_sphere_rim(&source);
-        assert_eq!(rim.len(), 2, "{name}: the rim is two arcs across the seam");
+        assert_eq!(rim.len(), 1, "{name}: the rim is one closed edge");
         let keeps = rim_side_keeps_the_source_key(&source, &rim);
         assert_eq!(
             keeps.len(),
-            2,
-            "{name}: two rim vertices, one per seam crossing"
+            1,
+            "{name}: one rim vertex, at the seam crossing"
         );
         assert_eq!(
             keeps,
@@ -165,7 +165,7 @@ fn r1_the_bosss_sequential_recourse_is_naming_total_at_both_steps() {
             .merge_coplanar_faces(tol())
             .expect("the pole-split caps repair");
         let ladder = rim_arcs_at(&source, 0.5, 1.0);
-        assert_eq!(ladder.len(), 2, "{name}: the dome rim is two arcs");
+        assert_eq!(ladder.len(), 1, "{name}: the dome rim is one closed edge");
         let first = fillet_edges(
             &sweep::test_support::at_rest(&source, tol()),
             &ladder,

@@ -215,3 +215,7 @@ geometry (every wall cut) is fixed; it is P0 again the day the at-rest
 gate asks the embedding question in a split. The admission's body pins
 land with PR 7605 (cone-image), where a cut cone holds.
 
+## 2026-11-27: on one band (PR 7414, re-measured in PR 7826)
+
+A full revolve's wall is one band, so a cone's cut through the wall alone states its section as one closed ellipse and no pair reaches `one_stated_conic`: both wall cuts are embedded at `f64` and at `Interval` in all four placements. A cut out through a cap still states two arcs where the wall's wrap edge cuts its wall arc: of 288 such cuts, 111 state two arcs, 58 a quarter turn and 53 a half (`a-sections-two-arcs-seamed-a-quarter-turn-apart-are-two-statements-a-rounding-apart`, which carries the scan). The scan figures above (864 wall-alone half turns, 26 and 40 of 66 cap cuts) predate one band. The owed body rows now stand where a cap cut's two arcs hold: a cut cone whose wall cut holds reads no admission.
+

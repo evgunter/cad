@@ -494,3 +494,9 @@ row's touching half, not a decided failure: no error but
 (`Reads::Undecided`). Designer C had read it as `t3p=false` on main;
 designer B as `CensusUndecidable`; the latter is what the census
 returns.
+
+## 2026-11-26 — two poses decided (INSIDE orchestrator)
+
+Since PR 7801, the census reads cylinder × sphere results' spline chords through `curve_face::cross`. Two poses that pinned this row's `CensusUndecidable { MayOverlap }` now pass tier 3′, and are re-pinned SOUND: `cylinder_sphere_frame::a_ball_across_a_cylinder_wall_in_two_loops` and `…_turned` (A ∖ B). The census now tells the drum's two parts apart. Whether other poses this row holds have moved is not measured. `a_closed_conic_in_the_partners_face.rs` still pins `Ends::PartsUndecided` for its own run.
+
+**2026-11-27, from LATHE's one-band full revolve (PR 7414).** The tube instance decides too: `sweep/tests/a_closed_conic_in_the_partners_face.rs`'s `a_tube_through_a_ball_across_its_wrap_edge_builds_every_op`, whose `A ∖ B` cuts the one-seam tube in two, passes tier 3′ outright (`validate_pseudomanifold` is `Ok`) on main at `1ec3a6a6c0` and on PR 7414 alike, and is pinned `Ends::Sound`. No row pins `Ends::PartsUndecided` any longer, and the variant is gone. The shell results this row measured were still not re-run.

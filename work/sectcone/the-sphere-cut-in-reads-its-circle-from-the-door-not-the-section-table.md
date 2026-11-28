@@ -4,6 +4,7 @@ kind: issue
 title: The sphere cut-in reads its pair's circle from the door, not from the section table that now holds it
 status: open
 opened: 2026-11-21
+priority: P3
 ---
 
 

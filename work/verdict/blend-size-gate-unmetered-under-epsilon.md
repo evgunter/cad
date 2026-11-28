@@ -74,3 +74,13 @@ skipped.
 ## Pointer (FILLET sweep, 2026-09-06)
 
 Former `refs` `fillet-nonpositive-radius-false-fact-refusal` named FILLET items now deleted with that program's directory: `fillet-nonpositive-radius-false-fact-refusal` — FILLET E1, closed (PR 1743). Recoverable at the sweep SHA in `docs/DOC-LEDGER.md` (sweep 7).
+
+## Note (GERM `[sizes]` build spec, 2026-11-26)
+
+`docs/GERM-SIZES-BUILD-SPEC.md` (ruled Q8) mints the blend corner torus
+(`sweep/src/blend/open/planar.rs:430`) through `RingTorus::of` on the
+run's band, and the corner spheres (`planar.rs:249`, `reach.rs:1780`)
+through the radius witness's band mint. A positive blend size below the
+band then refuses at the corner, after the battery has passed. That is
+this row's question met at a new site; the spec adds no second decision
+for it.

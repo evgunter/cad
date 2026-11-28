@@ -87,6 +87,20 @@ impl<'b, T: geom_core::Real> Seat<'b, T> {
         }
     }
 
+    /// **The map from `other`'s body coordinates into this one's**,
+    /// through the reader's frame the two seats share
+    /// ([`RigidMotion::relative`]).
+    ///
+    /// # Errors
+    ///
+    /// The inverse's or the composition's overflow.
+    pub(crate) fn relative(
+        &self,
+        other: &Seat<'_, T>,
+    ) -> Result<Option<RigidMotion<T>>, RigidMotionError> {
+        RigidMotion::relative(self.at.as_ref(), other.at.as_ref())
+    }
+
     /// **A point of the reader's frame, in the body's own coordinates**:
     /// where a reading within the body (a vertex's link) is asked about
     /// another operand's point. The inverse is taken here, so a reader

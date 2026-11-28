@@ -276,7 +276,9 @@ impl HitTestError {
 impl core::error::Error for HitTestError {}
 
 /// One entity's name out of one node's table — the lookup itself,
-/// with the node's standing already settled by [`Evaluation::usable`].
+/// with the node's standing already settled by [`Evaluation::usable`]
+/// — or, for a closed edge's conventional vertex, the edge's name: a
+/// pick there resolves to the edge (`names::resolves_as`).
 ///
 /// # Errors
 ///
@@ -288,6 +290,7 @@ pub(super) fn lookup<T: topo::AtRestPolicy + Decide>(
 ) -> Result<&StableName, UnnamedEntity> {
     eval.entity_read(node, entity)
         .and_then(|(var, ent)| eval.table(var)?.name_of(&ent))
+        .map(crate::names::resolves_as)
         .ok_or(UnnamedEntity { node, entity })
 }
 

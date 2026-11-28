@@ -391,7 +391,9 @@ use core::fmt;
 use geom_core::UnitVec3;
 use std::borrow::Cow;
 
-use geom::{NetState, Surface};
+use geom::Surface;
+
+use crate::SurfaceSlot;
 use geom_brep::recourse::{Reading, Refused, RefusedArm, RefusedSide, SizedDecision, SizedPass};
 use geom_brep::{CertCheck, CertifyError};
 use geom_core::one_line::on_one_line;
@@ -805,7 +807,7 @@ impl EdgeTangentUnread {
 /// the refusals into "the geometry cannot be decided" and "the
 /// schedule stopped", because that partition is not clean:
 /// [`MissingCache`](ChartRegionError::MissingCache) is a fact about
-/// the BODY (re-mint its pcurves),
+/// the BODY (complete its rows: finish it),
 /// [`Corrupt`](ChartRegionError::Corrupt) is a kernel-invariant
 /// violation, and [`RayExhausted`](ChartRegionError::RayExhausted) is
 /// named for exhaustion and is not one.
@@ -1142,21 +1144,16 @@ pub enum ValidationError {
         /// The dangling surface reference.
         to: GeomRef,
     },
-    /// Tier 3: a face's surface is a `Nurbs` net in
-    /// [`geom::NetState::Placeholder`] at rest, which must be replaced
-    /// via `Body::set_face_surface` before rest.
+    /// Tier 3: a face's surface slot is pending
+    /// ([`crate::SurfaceSlot::Pending`]) at rest; a describing door
+    /// (`Body::set_face_surface`) must give it a surface before rest.
     UncertifiableSurface {
-        /// The face whose surface is the placeholder.
+        /// The face whose surface is pending.
         face: FaceKey,
     },
-    /// Tier 3: a face's surface is a `Nurbs` net in
-    /// [`geom::NetState::Poisoned`] — a description that claims a locus
-    /// and cannot evaluate one.
-    ///
-    /// A different STATE from [`ValidationError::UncertifiableSurface`],
-    /// not a different symptom; `NetState`'s docs are where the three
-    /// states are defined and this pair of variants is check 1's
-    /// answer to two of them.
+    /// Tier 3: a face's surface is a `Nurbs` net that is not finite
+    /// ([`geom::NurbsSurface::is_finite`]) — a description that claims a
+    /// locus and cannot evaluate one.
     PoisonedSurfaceDescription {
         /// The face whose surface net carries the poison.
         face: FaceKey,
@@ -1267,10 +1264,8 @@ pub enum ValidationError {
     ///
     /// **The analytic kinds' answer to `geom`'s totality-and-poison
     /// rule, and not [`ValidationError::PoisonedSurfaceDescription`]**:
-    /// that variant is check 1's answer to a NET's state
-    /// ([`geom::NetState::Poisoned`], paired with the placeholder's
-    /// [`ValidationError::UncertifiableSurface`]) and carries only the
-    /// face, because a net's poison sits in no one named field. An
+    /// that variant is check 1's answer to a NET that is not finite
+    /// and carries only the face, because a net's poison sits in no one named field. An
     /// analytic surface's datums are named fields, so this refusal
     /// names the one that failed, and the kind that carries it.
     ///
@@ -1689,14 +1684,18 @@ pub enum ValidationError {
     /// in volume (executed truth table, M6-6 substrate — washer walls,
     /// cone laterals, torus bands all certified green before this arm),
     /// and on a sphere face bounded by circles the closed form's flux
-    /// refuses the same face (`PropsError::SenseContradicted`). A sphere
-    /// face trimmed by a chord measures through the rotational lane, which
-    /// reads the bit with no cross-check (a loop on a sphere bounds a face
-    /// on each side): under a flipped bit it certifies the complement,
-    /// and this arm exempts it (below); the flipped face then meets its
-    /// neighbours along a wedge of no angle, which check 4 refuses
-    /// ([`Self::LaminaWedge`]; `sweep/tests/verbs_cylsph_opening.rs`,
-    /// `a_flipped_chorded_sphere_face_is_refused_as_a_lamina`).
+    /// refuses the same face (`PropsError::SenseContradicted`). A
+    /// cylinder or sphere face trimmed by a curve no closed form parses
+    /// (a section of two surfaces) is read through the rotational lane's
+    /// Green form instead (`geom_brep::props::quad::rotational_material_sign`):
+    /// a cylinder wall's side off its signed chart area, a sphere face's
+    /// off the poles it holds as wrap tips, the datum of its side. The
+    /// lane's measurement of such a sphere face reads the bit with no
+    /// cross-check (a loop on a sphere bounds a face on each side), so
+    /// under a flipped bit it certifies the complement, and at every edge
+    /// the flipped face is a different legal wedge: this reading is what
+    /// refuses it (`sweep/tests/verbs_cylsph_opening.rs`,
+    /// `a_flipped_curved_face_of_the_transversal_union_is_refused`).
     ///
     /// The comparison is **combinatorial** — two exact ±1s, no
     /// comparand, no new margin: the derived side reuses the flux
@@ -1730,7 +1729,16 @@ pub enum ValidationError {
     ///   pole that is not its vertex, so its loop says nothing about
     ///   the bit; the chart-singularity arm refuses the face
     ///   ([`Self::ChartSingularityNotAVertex`]);
-    /// * conic-trimmed faces the quadrature lane owns, and NURBS.
+    /// * a sphere face whose trims no closed form parses and which holds
+    ///   no pole as a wrap tip off its loops: no datum says its side, and
+    ///   where its bit is flipped it describes the complement, which
+    ///   holds a pole that is no vertex of it or bounds another valid
+    ///   body (check 7 reads an inside-out one);
+    /// * a face the rotational lane does not read either (a torus face
+    ///   no closed form parses, a refusal or an escalation of the lane),
+    ///   and NURBS. A cylinder or sphere face whose trims no closed form
+    ///   parses (a section curve, an ellipse) is otherwise read through
+    ///   the lane.
     ///
     /// S11's honest `sense: false` faces (a washer's bore, a die's
     /// dimples) PASS: their traversals already place the material on
@@ -2715,7 +2723,7 @@ pub enum ValidationError {
     /// A finished body an isometry could not move
     /// ([`crate::FinishedBody::moved`]): the data map met a state the
     /// gate refuses (a reference that does not resolve, a null scaffold,
-    /// a placeholder net), which a finished body never holds.
+    /// a pending surface), which a finished body never holds.
     Unmovable {
         /// What the map met, as a clause.
         found: &'static str,
@@ -3464,6 +3472,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         CertifyError::StatedImageUnsettled => {
             geom_core::undecided!("whether the chart image it states follows it")
         }
+        CertifyError::PendingSurface { .. } => geom_brep::PENDING_SURFACE,
         CertifyError::ChartImageUnavailable { .. }
         | CertifyError::UnresolvedSurface { .. }
         | CertifyError::IntersectionSameSurface { .. }
@@ -3587,9 +3596,6 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             "its curve's parameter range cannot carry the curve's image on its spline face"
         }
         CertifyError::PlaneNurbs(P::ChartSpeed(r)) => chart_speed_reason(*r),
-        CertifyError::PlaneNurbs(P::PlaceholderWall) => {
-            "its face has no real surface yet, only the placeholder a construction starts from"
-        }
         CertifyError::PlaneNurbs(P::CarrierEnclosure(_))
         | CertifyError::AnalyticRung3(A::CarrierEnclosure(_)) => CARRIER_ENCLOSURE,
         CertifyError::Unimplemented
@@ -3647,6 +3653,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             | CertifyError::IntersectionSameSurface { .. }
             | CertifyError::PeriodicView(_)
             | CertifyError::WrapOnNonPeriodic => DEFECT,
+            CertifyError::PendingSurface { .. } => crate::pcurves::PLACEHOLDER_RECOURSE,
             CertifyError::Unimplemented
             | CertifyError::Row {
                 refusal: geom_brep::RowRefusal::OffSide | geom_brep::RowRefusal::Singular,
@@ -3996,6 +4003,10 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
         M::Corrupt { .. } | M::NullScaffoldEdge { .. } => {
             reading("its structure is incomplete", DEFECT.into())
         }
+        M::PendingFace { .. } => reading(
+            geom_brep::PENDING_SURFACE,
+            crate::pcurves::PLACEHOLDER_RECOURSE.into(),
+        ),
         M::NoOutline(_) => reading(LONE_LOOP, DEFECT.into()),
         M::ResolutionFinerThanEps { .. } => reading(
             "a measurement was asked for finer than the tolerance",
@@ -4061,6 +4072,12 @@ fn incidence_ending(read: geom_brep::IncidenceRead) -> (&'static str, Cow<'stati
     )
 }
 
+/// Whether `at` is the at-rest door, whose ending a pcurve finding takes
+/// from the table ([`classify_pcurve`]).
+fn read_at_rest(at: geom_brep::recourse::ReadAt) -> bool {
+    at == geom_brep::recourse::ReadAt::Run(Reading::AtRest)
+}
+
 fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'static, str>) {
     use crate::pcurves::PcurveMintError as M;
     use geom_brep::PcurveCertifyError as C;
@@ -4072,7 +4089,8 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
         | M::LoopNotClosed { .. }
         | M::MissingCache { .. }
         | M::RowInterval { .. } => (WRONG, DEFECT),
-        // Every row derives and certifies; the producer did not mint.
+        // Every row derives and certifies; the body reached tier 3
+        // without the finish that completes it.
         M::Unminted { .. } => (
             "a curved face stores no certified boundary description",
             DEFECT,
@@ -4098,10 +4116,10 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
         // Never produced at rest: the pass takes no key from a caller,
         // so a key it named that did not resolve would be its own.
         M::Stale { .. } => ("a key the boundary names does not resolve", DEFECT),
-        // Never produced at rest (the pass skips a placeholder face);
+        // Never produced at rest (the pass skips a pending face);
         // classified as its Display states it.
         M::PlaceholderChart { .. } => (
-            geom::PLACEHOLDER_SURFACE,
+            geom_brep::PENDING_SURFACE,
             crate::pcurves::PLACEHOLDER_RECOURSE,
         ),
         M::Certify { error, .. } => {
@@ -4112,7 +4130,6 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
                 | C::IsoUnsupported { .. }
                 | C::ChartWindingUnsupported
                 | C::NoGeneralLane { .. } => KIND,
-                C::PlaceholderChart => geom::PLACEHOLDER_SURFACE,
                 C::SectorRefused { .. } => {
                     "a stored boundary image runs into its chart's singular set (a pole, the \
                      apex or the tube's core), where it has no one branch"
@@ -4169,7 +4186,7 @@ fn classify_contain(e: &ContainError) -> (Cow<'static, str>, Cow<'static, str>) 
             escalation,
             diag,
         } => close_to_boundary(*decision, *escalation, diag),
-        ContainError::RayExhausted => (GRAZED.into(), geom_core::MOVE_RECOURSE.into()),
+        ContainError::RayExhausted(_) => (GRAZED.into(), geom_core::MOVE_RECOURSE.into()),
         ContainError::StaleFace(_) => (
             "a face the check asked about does not resolve in the body".into(),
             DEFECT.into(),
@@ -4277,10 +4294,14 @@ pub(crate) fn classify_point_in_solid(
             )
             .into(),
         ),
-        S::RayExhausted | S::Loop(L::RayExhausted { .. }) => {
+        S::RayExhausted | S::RegionRayExhausted { .. } | S::Loop(L::RayExhausted { .. }) => {
             (GRAZED.into(), geom_core::MOVE_RECOURSE.into())
         }
         S::Loop(L::CorruptLoop { .. }) => (UNWALKABLE.into(), DEFECT.into()),
+        S::PendingFace { .. } => (
+            geom_brep::PENDING_SURFACE.into(),
+            crate::pcurves::PLACEHOLDER_RECOURSE.into(),
+        ),
         S::Loop(L::LoneLoop { .. }) => (LONE_LOOP.into(), DEFECT.into()),
         S::Loop(L::Uncrossable(u)) | S::EdgeCarrierUnsupported { cause: u, .. } => {
             (uncrossable(u), NOT_YET_ENDING.into())
@@ -4338,6 +4359,7 @@ pub(crate) fn classify_point_in_solid(
         S::PartialSphereFace { .. }
         | S::PartialConeFace { .. }
         | S::PartialTorusFace { .. }
+        | S::PartialSplineFace { .. }
         | S::WallOutlineUnsupported { .. } => (
             "a curved face's trim is one the check cannot yet read".into(),
             NOT_YET_ENDING.into(),
@@ -4406,6 +4428,10 @@ fn classify_chart_region(e: &ChartRegionError) -> (Cow<'static, str>, Cow<'stati
         ChartRegionError::MissingCache { .. } | ChartRegionError::Corrupt => {
             ("a face's stored boundary is incomplete", DEFECT)
         }
+        ChartRegionError::PendingFace { .. } => (
+            geom_brep::PENDING_SURFACE,
+            crate::pcurves::PLACEHOLDER_RECOURSE,
+        ),
         ChartRegionError::NoOutline(_) => (LONE_LOOP, DEFECT),
         ChartRegionError::FaceUncovered(_) => (
             "a face's region cannot be bounded (its carrier or a boundary edge has no cover)",
@@ -4615,8 +4641,8 @@ impl ValidationError {
             ),
             Self::UncertifiableSurface { .. } => write!(
                 f,
-                "a face has no real surface yet, only the placeholder a construction starts \
-                 from"
+                "a face has no surface yet: it is still pending the description a \
+                 construction gives it"
             ),
             Self::PoisonedSurfaceDescription { .. } => write!(
                 f,
@@ -4980,7 +5006,15 @@ impl ValidationError {
                 )
             }
             Self::Pcurve { finding } => {
-                let (why, recourse) = classify_pcurve(finding);
+                let (why, at_rest) = classify_pcurve(finding);
+                // Read at another door — a build's, or the import door,
+                // where a row derived from the file is the file's (D4 ¶1
+                // (iv)) — the finding ends by its own ending there; a
+                // torn arm, which has none, by the table's.
+                let recourse = match at {
+                    Some(at) if !read_at_rest(at) => finding.ending(at).map_or(at_rest, Cow::Owned),
+                    _ => at_rest,
+                };
                 write!(
                     f,
                     "a face's boundary could not be mapped onto its surface: {why}. {recourse}"
@@ -5975,13 +6009,11 @@ pub(crate) fn closed_by_tier<T: Real>(
 /// tier's start): all of tier 2 ([`validate_closed`]), then the
 /// geometric re-checks at rest, in documented order:
 ///
-/// 1. **Surface implementedness** (faces, arena order): a `Nurbs`
-///    payload's [`geom::NetState`] is read and each state answered —
-///    `Placeholder` reports [`ValidationError::UncertifiableSurface`],
-///    `Poisoned` — and a `Described` net carrying a control point that
-///    is not a finite number — report
-///    [`ValidationError::PoisonedSurfaceDescription`], any other
-///    `Described` net passes; every analytic surface's stored datums
+/// 1. **Surface implementedness** (faces, arena order): a pending
+///    slot reports [`ValidationError::UncertifiableSurface`], a `Nurbs`
+///    net carrying a control point that is not a finite number reports
+///    [`ValidationError::PoisonedSurfaceDescription`], any other net
+///    passes; every analytic surface's stored datums
 ///    are numbers, and none of its directions is the zero vector
 ///    ([`ValidationError::PoisonedSurfaceDatum`]); each datum lies
 ///    inside its convention
@@ -6201,14 +6233,11 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///     or NURBS edge, where a ring crossing its outer loop at a point no
 ///     vertex carries is not seen;
 ///   - the curved arm's documented residuals: the rimless sphere band;
-///     NURBS faces; the quadrature-owned conic-trimmed walls, whose
-///     boundary parse refuses typed and is therefore exempt here. Such
-///     a body's flips are refused by other arms: a lone flip by the
-///     material wedge (`LaminaWedge`, two walls on one cylinder) or by
-///     check 7 and the pinch corners (a wall that is one face), and the
-///     whole-body inversion by check 6's planar arm at the planar faces
-///     (`step-export`'s `m6_6_sense_gate` rows on the tilted-section
-///     cylinder and the tilted-split washer).
+///     NURBS faces; a torus face no closed form parses; a cylinder or
+///     sphere face whose trims no closed form parses where the
+///     rotational lane refuses or escalates its side too (elsewhere the
+///     lane reads it: `step-export`'s `m6_6_sense_gate` rows on the
+///     tilted-section cylinder and the tilted-split washer).
 /// - **A chart singularity the reading cannot place** (check 6's
 ///   chart-singularity arm, exempt where
 ///   `geom_brep::chart_singularity::place_on_boundary` answers neither a
@@ -7109,9 +7138,11 @@ fn plus_v_errors<T: Decide>(
 /// Pure, so that every verdict's finding is pinned by calling it,
 /// including the pairing and end disagreements no certified geometry is
 /// known to reach (`wedge_reading_table`). A settled wedge is legal at
-/// rest — the crease, the seam, and the two ends because the fold hands
-/// one out only over a jet-determinate tangency — and the lamina and
-/// every mixed edge refuse. A mixed edge refuses rather than falls
+/// rest — the crease, the seam, and the two ends, which the fold hands
+/// out only where the jets separate at every station — and the lamina
+/// and every mixed edge refuse. An end's legality is read at the
+/// stations, not certified along the edge
+/// (`work/select/a-wedge-end-is-legal-by-its-stations-not-certified-along-the-edge.md`). A mixed edge refuses rather than falls
 /// silent: silence would validate a wedge end on an edge whose own
 /// stations disagreed.
 pub(crate) fn wedge_reading(
@@ -7129,8 +7160,15 @@ pub(crate) fn wedge_reading(
             bend: Bend::Determinate,
             ..
         }
-        | V::End { .. } => ContactMark::Tangent,
+        | V::End {
+            bend: Bend::Determinate,
+            ..
+        } => ContactMark::Tangent,
         V::Seam {
+            bend: Bend::UnderDetermined,
+            ..
+        }
+        | V::End {
             bend: Bend::UnderDetermined,
             ..
         }
@@ -7380,8 +7418,8 @@ pub(crate) fn is_direction<T: Real>(v: &geom_core::Vec3<T>) -> bool {
 /// direction (`normal`, `axis`, `u_ref`) that is the zero vector, in
 /// field order. Empty for a surface whose every datum is a number and
 /// every direction a direction — and for the spline kinds, whose datum
-/// is a net that check 1 reads through [`geom::NetState`] and
-/// [`net_is_finite`] instead.
+/// is a net that check 1 reads through [`geom::NurbsSurface::is_finite`]
+/// instead.
 ///
 /// Asked through the value channel ([`geom_core::is_finite_length`]),
 /// with no bracket read and no threshold: whether a stored number is a
@@ -7424,10 +7462,9 @@ pub(crate) fn poisoned_datums<T: Real>(surface: &Surface<T>) -> Vec<geom::Surfac
 /// a point, a circle or ellipse whose `axis` or `u_ref` is zero is a
 /// segment or a point, and a datum that is not a number describes
 /// nothing. A `Nurbs` carrier's datum is its control net, read through
-/// [`net_is_finite`] exactly as a described surface net is: a control
-/// point that is not a finite number (NaN or `±∞`) is `Control`. There
-/// is no placeholder state to tell apart here — no certified carrier
-/// can be one, because certification evaluates it.
+/// [`geom::NurbsCurve3::is_finite`] exactly as a surface net is: a
+/// control point that is not a finite number (NaN or `±∞`) is
+/// `Control`.
 ///
 /// The fields are [`geom::Curve3::data`]'s, as the surface half's are
 /// [`geom::Surface::data`]'s.
@@ -7435,7 +7472,7 @@ pub(crate) fn poisoned_curve_datums<T: Real>(curve: &geom::Curve3<T>) -> Vec<geo
     let data = match curve.data() {
         geom::CurveData::Analytic(data) => data,
         geom::CurveData::Nurbs(net) => {
-            return if net_is_finite(net.control()) {
+            return if net.is_finite() {
                 Vec::new()
             } else {
                 vec![geom::CurveDatum::Control]
@@ -7444,7 +7481,7 @@ pub(crate) fn poisoned_curve_datums<T: Real>(curve: &geom::Curve3<T>) -> Vec<geo
         // The base opening's net is an affine image of the cyclic one,
         // so one is finite exactly where the other is.
         geom::CurveData::Periodic(p) => {
-            return if net_is_finite(p.whole_loop().control()) {
+            return if p.whole_loop().is_finite() {
                 Vec::new()
             } else {
                 vec![geom::CurveDatum::Control]
@@ -7464,30 +7501,6 @@ fn datum_is_number<T: Real>(value: geom::DatumValue<T>) -> bool {
         geom::DatumValue::Direction(v) => is_direction(&v),
         geom::DatumValue::Scalar(x) => geom_core::is_finite_length(x),
     }
-}
-
-/// **Is every control point of a net a finite number?** — check 1's
-/// answer to `geom`'s totality-and-poison rule for a NET, surface or
-/// carrier,
-/// read exactly as [`poisoned_datums`] reads an analytic datum
-/// ([`geom_core::is_finite_length`], per coordinate).
-///
-/// [`geom::NetState`] discriminates on the SCALAR's poison
-/// ([`geom_core::Real::is_poison`]), and `±∞` is not `f64` poison, so a
-/// net of infinities is [`geom::NetState::Described`]. That
-/// discriminator answers a different question — placeholder or not,
-/// which every consumer that treats "no description yet" benignly has
-/// to ask — and it stays as it is. The question here is check 1's own:
-/// does the stored datum describe a locus? An infinite control point
-/// does not, exactly as an infinite radius does not, so a described
-/// net that fails this read is refused as
-/// [`ValidationError::PoisonedSurfaceDescription`] on a face, the net's
-/// poison verdict, and as [`ValidationError::PoisonedCurveDatum`] naming
-/// `Control` on an edge carrier ([`poisoned_curve_datums`]). Weights need
-/// no read: every door into a net refuses one that is non-finite on its
-/// value channel at construction (`SplineError::NonFiniteWeight`).
-fn net_is_finite<T: Real>(control: &[geom_core::Point3<T>]) -> bool {
-    control.iter().all(is_finite_point)
 }
 
 /// Check 1's datum findings on one analytic surface, named for `face`
@@ -7619,10 +7632,10 @@ pub(crate) fn tier3_local_checks_marked<
     // Tier 3, check 1: surface implementedness (face-arena order).
     //
     // This is the consumer's described arm for a face's SURFACE, which
-    // `geom`'s totality-and-poison rule requires to exist: the three
-    // states a control net can be in are `NetState`'s, defined there,
-    // and each is answered below; an analytic surface's stored datums
-    // are answered by name, poison first.
+    // `geom`'s totality-and-poison rule requires to exist: a pending
+    // slot is refused, a net that is not finite is refused as corrupt,
+    // and an analytic surface's stored datums are answered by name,
+    // poison first.
     //
     // An analytic surface is implemented only inside its datum
     // conventions — a radius that is positive, a cone half-angle inside
@@ -7640,27 +7653,18 @@ pub(crate) fn tier3_local_checks_marked<
     // ------------------------------------------------------------------
     for (face_key, face) in body.faces.iter() {
         match body.surfaces.get(face.surface) {
-            Some(Surface::Nurbs(payload)) => match payload.net_state() {
-                NetState::Placeholder => {
-                    errors.push(ValidationError::UncertifiableSurface { face: face_key });
-                }
-                NetState::Poisoned => {
+            Some(SurfaceSlot::Pending) => {
+                errors.push(ValidationError::UncertifiableSurface { face: face_key });
+            }
+            // A net is real geometry only if every control point is a
+            // finite number; one that is not describes no locus, exactly
+            // as an infinite radius does not. Real geometry's checks are
+            // elsewhere — its seams at check 2, its flux at check 7.
+            Some(SurfaceSlot::Described(Surface::Nurbs(payload))) => {
+                if !payload.is_finite() {
                     errors.push(ValidationError::PoisonedSurfaceDescription { face: face_key });
                 }
-                // A described net is real geometry only if every control
-                // point is a number: `NetState` reads the scalar's poison,
-                // and `±∞` is not `f64` poison, so a net of infinities
-                // arrives here. It describes no locus, exactly as an
-                // infinite radius does not (`net_is_finite`), and is
-                // refused as the poisoned net it is.
-                NetState::Described if !net_is_finite(payload.control()) => {
-                    errors.push(ValidationError::PoisonedSurfaceDescription { face: face_key });
-                }
-                // Real geometry, and the checks that examine it are
-                // elsewhere — its seams at check 2, its flux at check
-                // 7. Nothing else about the payload is a tier-3 fact.
-                NetState::Described => {}
-            },
+            }
             // The approximating surface's re-derivation (O5): the
             // two-limb certificate is recomputed from the stored
             // description and fit on EVERY call, and the stored
@@ -7680,7 +7684,7 @@ pub(crate) fn tier3_local_checks_marked<
             // Nor its band: the door meters at `Band::linear(tol)`,
             // which it derives itself, NOT at this battery's `band`
             // (the split the function's docs state).
-            Some(Surface::Approx(approx)) => match offset_fit {
+            Some(SurfaceSlot::Described(Surface::Approx(approx))) => match offset_fit {
                 Some(lane) => {
                     if let Err(error) = lane.recertify(approx, tol) {
                         errors.push(ValidationError::ApproxCertification {
@@ -7699,14 +7703,14 @@ pub(crate) fn tier3_local_checks_marked<
             // Every analytic kind: its datums first, then its
             // convention (`analytic_datum_verdicts`), then — for the
             // torus — the one convention that relates two datums.
-            Some(
+            Some(SurfaceSlot::Described(
                 surface @ (Surface::Plane { .. }
                 | Surface::Cylinder { .. }
                 | Surface::Cone { .. }
                 | Surface::Sphere { .. }
                 | Surface::Torus { .. }
                 | Surface::Spindle { .. }),
-            ) => {
+            )) => {
                 let verdicts = surface_datum_errors(face_key, surface, band);
                 if !verdicts.is_empty() {
                     errors.extend(verdicts);
@@ -7830,7 +7834,7 @@ pub(crate) fn tier3_local_checks_marked<
             curve,
             p_start,
             p_end,
-            |k| body.surfaces.get(k).cloned(),
+            |k| body.resolve_surface(k),
             reach,
             band,
             stated.as_ref(),
@@ -7867,7 +7871,7 @@ pub(crate) fn tier3_local_checks_marked<
     // ------------------------------------------------------------------
     for face in body.face_views() {
         let face_key = face.key();
-        let plane @ Surface::Plane { .. } = face.surface() else {
+        let Ok(plane @ Surface::Plane { .. }) = face.surface() else {
             continue;
         };
         for member in face.boundary() {
@@ -7938,9 +7942,10 @@ pub(crate) fn tier3_local_checks_marked<
         };
         let (f_plus, fs_plus) = (sides.plus.face, sides.plus.surface);
         let (f_minus, fs_minus) = (sides.minus.face, sides.minus.surface);
-        let (Some(s_plus), Some(s_minus)) =
-            (body.surfaces.get(fs_plus), body.surfaces.get(fs_minus))
-        else {
+        let (Some(s_plus), Some(s_minus)) = (
+            body.get_surface(fs_plus).ok(),
+            body.get_surface(fs_minus).ok(),
+        ) else {
             continue;
         };
         let (t0, t1) = curve.params();
@@ -8019,7 +8024,7 @@ pub(crate) fn tier3_local_checks_marked<
         // its whole turn, so an arc on the face whose circle leaves it past
         // the arc's ends is on the face.
         for (face_key, surface_key) in adjacent {
-            let Some(plane @ Surface::Plane { .. }) = body.surfaces.get(surface_key) else {
+            let Some(plane @ Surface::Plane { .. }) = body.get_surface(surface_key).ok() else {
                 continue;
             };
             match geom_brep::read_edge_incidence(curve.carrier(), t0, t1, plane, band)
@@ -8117,7 +8122,7 @@ pub(crate) fn tier3_local_checks_marked<
     // be falsified rather than as a sign to be honored.
     // ------------------------------------------------------------------
     for (face_key, face) in body.faces.iter() {
-        let Some(&Surface::Plane { frame, .. }) = body.surfaces.get(face.surface) else {
+        let Some(&Surface::Plane { frame, .. }) = body.get_surface(face.surface).ok() else {
             continue;
         };
         let normal = frame.axis();
@@ -8177,18 +8182,17 @@ pub(crate) fn tier3_local_checks_marked<
     //
     // Posture inherited (check 7): only a DEFINITE disagreement
     // refuses. A failed derivation (escalated classification,
-    // degenerate/out-of-inventory boundary, conic-trimmed faces the
-    // quadrature lane owns, an uncertifiable loop) is EXEMPT here —
-    // corrupt structure is tier 1/2's job, an uncomputable volume is
-    // check 7's. The conic-trim exemption is a RECORDED residual of
-    // this arm, not a covered class: an ellipse-trimmed wall has a
-    // winding-derived (bit-free) quadrature flux AND an exempt parse.
-    // Its flips are refused one layer away — a lone flip by the
-    // material wedge (`LaminaWedge`) or check 7 and the pinch corners,
-    // the whole-body inversion by the planar arm above at the planar
-    // faces (`step-export`'s `m6_6_sense_gate` rows); the arm itself
-    // reads it when the ellipse-rim material-side encoding lands. A
-    // one-loop sphere
+    // degenerate/out-of-inventory boundary, an uncertifiable loop) is
+    // EXEMPT here — corrupt structure is tier 1/2's job, an
+    // uncomputable volume is check 7's. A cylinder or sphere face whose
+    // trims no closed form parses (a section curve, an ellipse) is read
+    // instead through the rotational quadrature lane's Green form
+    // (`quad_lane::material_sign`): its signed chart area on the
+    // cylinder, and on the sphere that area with the poles its wrap tips
+    // hold; it is exempt only where the lane refuses or escalates too,
+    // and on a torus, which the lane does not read for a side
+    // (`step-export`'s `m6_6_sense_gate` rows pin the ellipse-trimmed
+    // walls). A one-loop sphere
     // face with both poles on its loop encodes no side alone
     // (`Unencoded`), and is read through its SEAM REGION: the faces on
     // its surface entity it reaches across shared edges
@@ -8222,8 +8226,9 @@ pub(crate) fn tier3_local_checks_marked<
         }
     }
     for (face_key, face) in body.faces.iter() {
-        let Some(surface) = body.surfaces.get(face.surface) else {
-            continue; // unreachable on tier-1 input
+        // A dangling key is tier 1's; a pending face is check 1's.
+        let Some(surface) = body.get_surface(face.surface).ok() else {
+            continue;
         };
         if matches!(surface, Surface::Plane { .. }) || surface.spline_chart().is_some() {
             // Planar: the Newell arm above. Spline charts: the quadrature lane
@@ -8266,12 +8271,35 @@ pub(crate) fn tier3_local_checks_marked<
             continue; // derivation exempt (posture above)
         };
         let held: Vec<geom_core::Point3<T>> = held.into_iter().flatten().collect();
-        let loops: Vec<&[geom_brep::props::LoopEdge<T>]> = images
+        // The loops that bound area on the chart, read by the closed
+        // form and by the lane alike.
+        let flat: Vec<crate::props::FlatLoop<T>> = images
             .iter()
-            .map(|(edges, _)| edges.as_slice())
-            .filter(|edges| geom_brep::chart_image::bounds_area(edges))
+            .filter(|(edges, _)| geom_brep::chart_image::bounds_area(edges))
+            .cloned()
             .collect();
+        let loops: Vec<&[geom_brep::props::LoopEdge<T>]> =
+            flat.iter().map(|(edges, _)| edges.as_slice()).collect();
         let side = geom_brep::props::boundary_material_sign_holding(surface, &loops, &held, band);
+        // A cylinder or sphere face whose trims no closed form reads is
+        // read through the rotational lane, over the same chart images
+        // and wrap tips (`quad_lane::material_sign`). A sphere face none
+        // of whose loops bounds area is the whole surface, signed by its
+        // sense (DESIGN `[topology.tiers]`): there is nothing to read
+        // against the bit. A refusal or escalation of the lane leaves
+        // the face exempt, as a closed form's does (the posture above;
+        // registered in `scripts/gates/escalation-discards.counts`).
+        let lane_side = || {
+            if flat.is_empty() && matches!(surface, Surface::Sphere { .. }) {
+                return None;
+            }
+            let lane = <T as crate::props::AtRestPolicy>::quad_lane()?;
+            match crate::props::QuadLaneOf::material_sign(lane, body, surface, &flat, &held, band) {
+                Ok(geom_brep::props::MaterialSign::Encoded(side)) => Some(side),
+                Ok(geom_brep::props::MaterialSign::Unencoded) => None,
+                Err(_) => None,
+            }
+        };
         if matches!(surface, Surface::Sphere { .. } | Surface::Cone { .. }) {
             flattened.insert(face_key, full);
         }
@@ -8293,27 +8321,33 @@ pub(crate) fn tier3_local_checks_marked<
                 else {
                     continue; // derivation exempt (posture above)
                 };
-                let region = region.side(band);
-                if let Some(geom_brep::props::MaterialSign::Encoded(side)) = region
+                let region = match region.side(band) {
+                    Some(geom_brep::props::MaterialSign::Encoded(side)) => Some(side),
+                    _ => lane_side(),
+                };
+                if let Some(side) = region
                     && (side == Sign::Positive) != face.sense
                 {
                     errors.push(ValidationError::CurvedSenseInverted { face: face_key });
                 }
             }
-            // A REFUSED derivation is exempt here, never a
-            // disagreement (the posture above, and the contract on
-            // `boundary_material_sign` itself). It is not a discard:
-            // every cause reachable on this arm is a premise the flux
-            // lane runs before it integrates, or a face of no area or
-            // a side read in the band, so a face that refuses here for
-            // a cause the volume needs refuses there and check 7
-            // reports it cause-carrying as
-            // `VolumeUncomputable { source }`. Pushing anything here
-            // would DESTROY that report rather than add to it, check 7
-            // being gated on `errors.is_empty()` — the recorded
-            // exception is the conic-trimmed wall named above, whose
-            // quadrature flux is winding-derived and answers.
-            Err(_) => {}
+            // A REFUSED closed form is read through the rotational lane
+            // instead, whose reading, where it gives one, is held
+            // against the bit as the closed form's is. Where the lane
+            // refuses too the face is exempt, never a disagreement (the
+            // posture above, and the contract on `boundary_material_sign`
+            // itself): a face that refuses here for a cause the volume
+            // needs refuses there, and check 7 reports it cause-carrying
+            // as `VolumeUncomputable { source }`, a report an error
+            // pushed here would pre-empt, check 7 being gated on
+            // `errors.is_empty()`.
+            Err(_) => {
+                if let Some(side) = lane_side()
+                    && (side == Sign::Positive) != face.sense
+                {
+                    errors.push(ValidationError::CurvedSenseInverted { face: face_key });
+                }
+            }
         }
     }
 
@@ -8338,9 +8372,9 @@ pub(crate) fn tier3_local_checks_marked<
     // A sheet apex is read as a pole is: at a vertex passes, inside an
     // edge or the interior refuses. It is stricter only where it is not
     // shown outside the face, which refuses `SheetApexReached` where a
-    // pole is exempt. No door places a point on a sheet, so
-    // its side is the walk of each surface cycle's chart image through
-    // the sheet's chart (`geom_brep::chart_singularity::holds`); not
+    // pole is exempt. The sheet's door leaves a point on its axis unread,
+    // so an apex's side is the walk of each surface cycle's chart image
+    // through the sheet's chart (`geom_brep::chart_singularity::holds`); not
     // shown outside is that walk unread, the boundary placement refusing
     // without a reading in band, or loops that do not flatten. Only a
     // reading in band stays the undecided finding, which carries its
@@ -8351,7 +8385,7 @@ pub(crate) fn tier3_local_checks_marked<
         let Some(surface) = body
             .faces
             .get(face)
-            .and_then(|f| body.surfaces.get(f.surface))
+            .and_then(|f| body.get_surface(f.surface).ok())
         else {
             return;
         };
@@ -8383,7 +8417,7 @@ pub(crate) fn tier3_local_checks_marked<
         let Some(surface) = body
             .faces
             .get(face_key)
-            .and_then(|face| body.surfaces.get(face.surface))
+            .and_then(|face| body.get_surface(face.surface).ok())
         else {
             continue; // unreachable: the curved arm read both
         };
@@ -10233,7 +10267,7 @@ fn plane_gate<T: Real>(
     body: &Body<T>,
     surface: crate::geometry::SurfaceKey,
 ) -> Option<geom::Frame<T>> {
-    match body.surfaces.get(surface) {
+    match body.get_surface(surface).ok() {
         Some(&Surface::Plane { frame, .. }) => Some(frame),
         _ => None,
     }
@@ -10797,10 +10831,11 @@ impl<T: crate::props::AtRestPolicy> AtRestBody<T> {
     ///
     /// # Errors
     ///
-    /// [`crate::MoveError::Map`] where the data map refuses: under a
-    /// reflection a re-minted pcurve row ([`crate::mirror`]).
+    /// [`crate::MoveError::Map`] where the data map refuses.
     /// [`crate::MoveError::NotFinished`] holding the session-box finding,
-    /// or the band's where the tolerance forms none.
+    /// or the band's where the tolerance forms none; under a reflection,
+    /// beside completion's refusal of a row the image derives again
+    /// ([`crate::mirror`] drops the rows).
     pub fn moved_by(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, crate::MoveError>
     where
         T: crate::props::AtRestPolicy,
@@ -11776,6 +11811,25 @@ fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
     }
 }
 
+/// Whether `shell`'s faces of `body` are one component across their
+/// edges: the connectedness tier 2's check 3 reads
+/// ([`ValidationError::ShellDisconnected`]), for a door that takes a body
+/// it has not validated. A shell with no face is not connected.
+pub(crate) fn shell_connected<T: Real>(body: &Body<T>, shell: ShellKey) -> bool {
+    let faces: Vec<FaceKey> = body
+        .faces
+        .iter()
+        .filter(|(_, f)| f.shell == shell)
+        .map(|(k, _)| k)
+        .collect();
+    let Some(&seed) = faces.first() else {
+        return false;
+    };
+    let mut visited: SecondaryMap<FaceKey, ()> = SecondaryMap::new();
+    shell_component(body, shell, seed, &mut visited);
+    faces.iter().all(|f| visited.contains_key(*f))
+}
+
 /// Marks in `visited` every face of `shell`'s connected component that
 /// holds `seed`, by a bounded traversal: a face glues all its loops,
 /// outer and rings, and a cycle loop glues across each edge via **mate**
@@ -12095,7 +12149,7 @@ mod tests {
         shell: crate::entity::ShellKey,
         vertex: VertexKey,
     ) -> LoopKey {
-        let surface = body.add_surface(crate::fixtures::test_surface(anchor()));
+        let surface = body.add_pending_surface();
         let lp = body.add_loop(
             Loop {
                 boundary: LoopBoundary::Empty { vertex },
@@ -12649,7 +12703,7 @@ mod tests {
                 },
                 prov(),
             );
-            let surface = body.add_surface(crate::fixtures::test_surface(anchor()));
+            let surface = body.add_pending_surface();
             let lp = body.add_loop(
                 Loop {
                     boundary: LoopBoundary::Cycle { first: he },
@@ -12857,7 +12911,7 @@ mod tests {
         let c = t
             .body
             .add_curve(crate::fixtures::test_curve(anchor(), Tol::witness()));
-        let s = t.body.add_surface(crate::fixtures::test_surface(anchor()));
+        let s = t.body.add_pending_surface();
         assert_eq!(
             validate(&t.body),
             Err(vec![
@@ -12922,10 +12976,10 @@ mod tests {
                     diag,
                 },
             ),
-            (S::RayExhausted, ContainError::RayExhausted),
+            (S::RayExhausted, ContainError::RayExhausted(r#loop)),
             (
                 S::Loop(L::RayExhausted { r#loop }),
-                ContainError::RayExhausted,
+                ContainError::RayExhausted(r#loop),
             ),
             (
                 S::Loop(L::CorruptLoop { r#loop }),
@@ -12972,7 +13026,7 @@ mod tests {
         // Every ray grazed a point the pre-pass placed off the boundary:
         // nothing about it is close, at either level.
         assert_eq!(
-            top(ContainError::RayExhausted),
+            top(ContainError::RayExhausted(r#loop)),
             (super::GRAZED.into(), geom_core::MOVE_RECOURSE.into())
         );
         assert_eq!(read(S::Loop(L::CorruptLoop { r#loop })).1, super::DEFECT);
@@ -13027,6 +13081,7 @@ mod tests {
             S::PartialSphereFace { face },
             S::PartialConeFace { face },
             S::PartialTorusFace { face },
+            S::PartialSplineFace { face },
             S::WallOutlineUnsupported { face },
         ] {
             assert_eq!(
@@ -15128,7 +15183,7 @@ mod tests {
             spec,
             s,
             t,
-            |_| None,
+            |_| Err(crate::SurfaceMiss::Stale),
             geom_core::test_support::fixture_lever(1.0),
             Band::linear(tol).unwrap(),
             geom_brep::NurbsLane::certified(),
@@ -15161,7 +15216,7 @@ mod tests {
             spec,
             s,
             t,
-            |_| None,
+            |_| Err(crate::SurfaceMiss::Stale),
             geom_core::test_support::fixture_lever(1.0),
             Band::linear(tol).unwrap(),
             geom_brep::NurbsLane::certified(),
@@ -15624,7 +15679,7 @@ mod tests {
             )
         {
             let f = body.get_face(face).unwrap();
-            let Some(&Surface::Plane { frame, .. }) = body.surfaces.get(f.surface) else {
+            let Some(&Surface::Plane { frame, .. }) = body.get_surface(f.surface).ok() else {
                 panic!("a plane")
             };
             let render = |v: RingNestingVerdict| match v {
@@ -15649,7 +15704,7 @@ mod tests {
 
     /// **The gate is shut on a non-planar face, in BOTH directions.**
     /// A body the arm refuses while its face carries a plane goes
-    /// silent when the same face carries the `Nurbs` placeholder — the
+    /// silent when the same face carries a pending slot — the
     /// residue, and the control beside it is what makes the silence a
     /// measurement rather than a vacuum.
     #[test]
@@ -15678,14 +15733,8 @@ mod tests {
         for (name, b) in [("nested", &body), ("inverted", &inverted)] {
             let mut c = b.clone();
             let sense = c.get_face(face).unwrap().sense;
-            c.set_face_surface(
-                face,
-                crate::construction::FaceSurface::New {
-                    surface: geom::Surface::nurbs_placeholder(),
-                    sense,
-                },
-            )
-            .unwrap();
+            c.set_face_surface(face, crate::construction::FaceSurface::Pending { sense })
+                .unwrap();
             let got = nesting_words(&c, tol);
             assert!(got.is_empty(), "non-planar {name}: not silent: {got:?}");
         }
@@ -15852,7 +15901,7 @@ mod tests {
             });
             b.faces.get_mut(face).unwrap().rings.push(lone);
             let f = b.get_face(face).unwrap();
-            let Some(&Surface::Plane { frame, .. }) = b.surfaces.get(f.surface) else {
+            let Some(&Surface::Plane { frame, .. }) = b.get_surface(f.surface).ok() else {
                 panic!("a plane")
             };
             let verdict = ring_nesting(&b, f.outer, lone, frame, band);
@@ -15917,7 +15966,7 @@ mod tests {
             param_start: t0,
             param_end: t1,
         };
-        let surfaces = |key| body.surfaces.get(key).cloned();
+        let surfaces = |key| body.resolve_surface(key);
         let curve = geom_brep::EdgeCurve::certify(
             spec,
             start,
@@ -16518,7 +16567,7 @@ mod tests {
             spec,
             start,
             end,
-            |_| None,
+            |_| Err(crate::SurfaceMiss::Stale),
             geom_core::test_support::fixture_lever(1.0),
             Band::linear(tol).unwrap(),
             geom_brep::NurbsLane::certified(),
@@ -19112,7 +19161,7 @@ mod door_roster {
                 crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
             let face = body.faces().next().unwrap().0;
             let key = body.get_face(face).unwrap().surface;
-            *body.surfaces.get_mut(key).unwrap() = geom::Surface::Spindle {
+            *body.surface_mut(key).unwrap() = geom::Surface::Spindle {
                 frame: geom::Frame::new(
                     geom_core::Point3::new(0.5, 0.5, 0.5),
                     geom_core::Vec3::new(0.0, 0.0, 1.0),
@@ -19175,7 +19224,7 @@ mod door_roster {
             .find(|&k| pick(&corners(&body, k)))
             .unwrap();
         let key = body.get_face(face).unwrap().surface;
-        *body.surfaces.get_mut(key).unwrap() = geom::Surface::Spindle {
+        *body.surface_mut(key).unwrap() = geom::Surface::Spindle {
             frame: geom::Frame::new(
                 center,
                 geom_core::Vec3::new(0.0, 0.0, 1.0),

@@ -420,7 +420,9 @@ fn the_lift_re_authors_only_the_designated_faces_solid() {
         println!(
             "[8] lift scope, {label}: {compared} edges outside the rim's solid, all identical"
         );
-        assert!(compared >= 8, "[8] {label}: only {compared} edges compared");
+        // The other solid's two shells, each a cylinder wall between two
+        // caps: two rims and one seam apiece.
+        assert_eq!(compared, 6, "[8] {label}: {compared} edges compared");
 
         // And deeper: every solid but the rim's is deep-identical to
         // the sealed body's same solid — faces, surfaces, carriers,

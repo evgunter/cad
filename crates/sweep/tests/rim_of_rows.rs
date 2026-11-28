@@ -93,30 +93,19 @@ fn every_arc_of_every_rim_names_the_same_cycle_from_wherever_it_starts() {
     assert_eq!(rims, 10, "the sweep is not vacuous: ten rims measured");
 }
 
-/// **The repaired pole body's plane-hosted rim is still two arcs.** The
-/// door reads SURFACE keys, not face keys, so the repair that merges
-/// each cap's two half-disks into one face — which every consumer who
-/// booleans has to run first — leaves the rim exactly where it was.
-/// A face-keyed door would answer one arc here and be wrong.
+/// **The repaired pole body's plane-hosted rim is still its one edge.**
+/// The door reads SURFACE keys, not face keys, so the repair a boolean
+/// consumer runs first leaves the rim exactly where it was.
 #[test]
-fn the_repaired_pole_bodys_rim_is_two_arcs_on_one_plane_face() {
+fn the_repaired_pole_bodys_rim_is_one_edge_on_one_plane_face() {
     let mut source = lantern(tol());
-    source
-        .merge_coplanar_faces(tol())
-        .expect("the pole-split caps repair");
+    source.merge_coplanar_faces(tol()).expect("the repair runs");
     let arcs = arcs_at(&source, 1.0, 0.0);
-    assert_eq!(arcs.len(), 2, "the neck rim is still two arcs");
-    let faces = |k: EdgeKey| topo::readback::edge_sides(&source, k).unwrap().faces();
-    let (a0, b0) = faces(arcs[0]);
-    let (a1, b1) = faces(arcs[1]);
-    assert!(
-        [a0, b0].contains(&a1) || [a0, b0].contains(&b1),
-        "after the repair one plane FACE hosts both arcs"
-    );
+    assert_eq!(arcs.len(), 1, "the neck rim is one closed edge");
     assert_eq!(
         rim_of(&source, arcs[0]).expect("the repaired rim is one rim"),
-        vec![arcs[0], arcs[1]],
-        "and the door hands back both"
+        arcs,
+        "and the door hands back that edge"
     );
 }
 
@@ -200,7 +189,7 @@ fn the_doors_answer_feeds_fillet_edges_and_carves_on_either_side() {
     ] {
         let seed = arcs_at(&source, r, y)[0];
         let rim = rim_of(&source, seed).unwrap_or_else(|e| panic!("{name}: one rim, got {e}"));
-        assert_eq!(rim.len(), 2, "{name} is seam-split");
+        assert_eq!(rim.len(), 1, "{name} is one closed edge");
         let out = fillet_edges(&source, &rim, 0.05, tol())
             .unwrap_or_else(|e| panic!("{name}: the door's answer carves, got {e:?}"));
         assert_eq!(out.band_faces.len(), 1, "{name}: one annulus band");

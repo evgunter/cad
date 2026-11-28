@@ -160,7 +160,7 @@ fn census(b: &topo::Body<f64>) -> GraftCensus {
         edges: b.edges().count(),
         vertices: b.vertices().count(),
         points: b.points().count(),
-        surfaces: b.surfaces().count(),
+        surfaces: b.surface_slots().count(),
         shell_refs: b.solids().map(|(_, s)| s.shells.len()).sum(),
     }
 }
@@ -488,7 +488,7 @@ fn the_placement_certificate_certifies_and_refuses_by_pair() {
     let mut proto = geometric_cube::<f64>(Tol::witness()).body;
     describe_as_intersections(&mut proto, Tol::witness());
     let sep = topo::Separation::of(&proto, Tol::witness()).expect("the prototype's boxes");
-    let at = |x: f64| Affine3::translation(Vec3::new(x, 0.0, 0.0));
+    let at = |x: f64| geom_core::RigidMotion::translation(Vec3::new(x, 0.0, 0.0)).unwrap();
 
     assert_eq!(
         sep.apart(&[at(0.0), at(10.0), at(20.0)]),

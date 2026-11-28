@@ -171,7 +171,7 @@ pub fn top_face(body: &Body<f64>) -> FaceKey {
         .find(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(Surface::Plane { frame, .. })
+                Ok(Surface::Plane { frame, .. })
                     if frame.axis().z.abs() > 0.5 && frame.origin().z > 0.5
             )
         })
@@ -212,11 +212,8 @@ pub fn pulled_back(wall: &NurbsSurface<f64>, d: f64) -> NurbsSurface<f64> {
 /// on its own chart** — the `Approx`-faced body with ANALYTIC carriers
 /// throughout, and the only shape of one this tree can build today.
 ///
-/// The lofted [`prism`] cannot be moved by `topo::transform_rigid` and
-/// never could: its four vertical wall seams carry `Curve3::Nurbs`,
-/// which that pass refuses (`NurbsPlaceholder`) whether or not any face
-/// is `Approx`. A box's carriers are all `Line`, so this fixture is
-/// what reaches the map's `Approx` arm.
+/// A box's carriers are all `Line`, so this fixture reaches the map's
+/// `Approx` arm with nothing else under test.
 ///
 /// The surgery is the M6-1 order, one face wide: the cap's surface
 /// becomes the certified `Approx` of the cap plane pulled back by `d`
@@ -237,7 +234,7 @@ pub fn pulled_back(wall: &NurbsSurface<f64>, d: f64) -> NurbsSurface<f64> {
 /// halved — and the module's own row checks that against the fit
 /// rather than assuming it.
 ///
-/// It ends with the closing mint: every cap edge's row derives and
+/// It ends with a whole-body mint: every cap edge's row derives and
 /// certifies on the fit's chart, so the body is valid at rest and weighs.
 pub fn box_with_approx_cap(d: f64, target: f64) -> (Body<f64>, FaceKey) {
     let approx = geom_brep::approx_offset_surface_at(
@@ -280,6 +277,7 @@ pub fn box_with_spline_cap(chart: Surface<f64>) -> (Body<f64>, FaceKey) {
 
     let fit = body
         .get_surface(surface)
+        .ok()
         .and_then(Surface::spline_chart)
         .expect("the cap wears a spline chart")
         .clone();
@@ -363,13 +361,11 @@ pub fn box_with_bumped_cap(bump: f64) -> (Body<f64>, FaceKey) {
     box_with_spline_cap(Surface::Nurbs(Arc::new(cap)))
 }
 
-/// Every non-placeholder spline wall of `body`, keyed.
+/// Every NURBS wall of `body`, keyed.
 pub fn nurbs_walls(body: &Body<f64>) -> Vec<(FaceKey, Arc<NurbsSurface<f64>>)> {
     body.faces()
         .filter_map(|(key, _)| match body.face_surface(key) {
-            Some(Surface::Nurbs(payload)) if !payload.is_placeholder() => {
-                Some((key, Arc::clone(payload)))
-            }
+            Ok(Surface::Nurbs(payload)) => Some((key, Arc::clone(payload))),
             _ => None,
         })
         .collect()
@@ -418,7 +414,7 @@ fn iso_residual(body: &Body<f64>, spec: &EdgeCurveSpec<f64>) -> Option<f64> {
         p0.y + pl.y * spec.param_start,
         p0.y + pl.y * spec.param_end,
     );
-    let s = body.get_surface(surface)?;
+    let s = body.get_surface(surface).ok()?;
     let n = f64::from(geom_brep::CERT_SAMPLES - 1);
     let mut worst = 0.0_f64;
     for i in 0..geom_brep::CERT_SAMPLES {

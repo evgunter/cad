@@ -1,12 +1,11 @@
 //! **A pole or a cone's apex reached by one wrap edge** (DESIGN
-//! `[topology]`'s seam clause): a full revolve's two meridians at the
-//! singular point made one by `kef`, restated as the face's wrap edge.
-//! No door mints a tip yet, so the suites that read one build it here.
+//! `[topology]`'s seam clause): a full revolve's curved wall is one band,
+//! its seam meridian the wrap edge and the pole or apex its tip. The
+//! suites that read one take it from the revolve here.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
-use geom_brep::EdgeDescriptionSpec;
-use geom_core::{Band, Point2, Point3, Tol};
+use geom_core::{Point2, Point3, Tol};
 use sweep::Revolution;
 use sweep::test_support::revolved_about_y;
 use topo::construction::Construct;
@@ -19,8 +18,8 @@ fn tol() -> Tol {
 /// The pole, or the apex.
 pub const NORTH: Point3<f64> = Point3::new(0.0, 1.0, 0.0);
 
-/// The unit hemisphere `y ≥ 0` on its base disk: two quarter-sphere lunes
-/// meeting along two meridians at the pole.
+/// The unit hemisphere `y ≥ 0` on its base disk: one cap face, its seam
+/// meridian a wrap edge from the equator to its tip at the pole.
 pub fn hemisphere() -> Body<f64> {
     revolved_about_y(
         vec![
@@ -66,28 +65,30 @@ pub fn leaving(body: &Body<f64>, v: VertexKey) -> Vec<HalfEdgeKey> {
         .collect()
 }
 
-/// **The two meridians at the pole made one wrap edge**: the second is
-/// killed, merging the two lunes into the face it leaves, and the first is
-/// restated as that face's wrap edge. Where `join`, the join then takes
-/// the rim's two arcs back into one closed edge at the vertex the kill
-/// left with nothing else at it; where not, that vertex is left for a
-/// spur to stand on. Returns the face, the wrap edge and its tip.
+/// **The revolve's wrap edge at the pole**: the one edge leaving the tip,
+/// its face, and the tip. Where `join`, the body is the revolve as built;
+/// where not, its rim, the one closed edge besides the wrap edge, is split
+/// at its antipode, leaving a vertex there for a spur to stand on.
+/// Returns the face, the wrap edge and its tip.
 pub fn one_wrap_edge(mut body: Body<f64>, join: bool) -> (Body<f64>, FaceKey, EdgeKey, VertexKey) {
     let tip = vertex_at(&body, NORTH);
     let out = leaving(&body, tip);
-    assert_eq!(out.len(), 2, "two meridians leave the pole");
+    assert_eq!(out.len(), 1, "one wrap edge leaves the pole");
     let wraps = body.get_half_edge(out[0]).unwrap().edge;
-    let face = body.face_of_half_edge(out[0]).unwrap();
-    let surface = body.get_face(face).unwrap().surface;
-    body.kef_describing(
-        out[1],
-        &[(wraps, EdgeDescriptionSpec::wrap(surface))],
-        tol(),
-    )
-    .expect("the survivor restates as the face's wrap edge");
-    if join {
-        body.join_edges(Band::linear(tol()).unwrap(), tol())
-            .expect("the rim joins");
+    if !join {
+        let rim = body
+            .edges()
+            .map(|(e, _)| e)
+            .find(|&e| e != wraps && body.edge_vertices(e).is_some_and(|(a, b)| a == b))
+            .expect("the rim is one closed edge");
+        let (t0, t1) = body
+            .get_curve_geom(body.get_edge(rim).unwrap().curve)
+            .unwrap()
+            .certified()
+            .unwrap()
+            .params();
+        body.split_edge(rim, 0.5 * (t0 + t1), tol())
+            .expect("the rim splits at its antipode");
     }
     let face = body.face_of_half_edge(out[0]).unwrap();
     (body, face, wraps, tip)

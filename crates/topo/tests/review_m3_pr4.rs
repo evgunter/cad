@@ -71,9 +71,9 @@ fn census_two_bricks_independent() {
         let red = reduce_ok(op, &a, &b);
         assert_eq!(
             (
-                red.contacts.vv.len(),
-                red.contacts.a_on_b.len(),
-                red.contacts.b_on_a.len()
+                red.contacts.vv().count(),
+                red.contacts.on(topo::Operand::A).count(),
+                red.contacts.on(topo::Operand::B).count()
             ),
             (0, 3, 3),
             "op {op:?}"
@@ -114,9 +114,9 @@ fn census_post_through_slab() {
         let red = reduce_ok(op, &a, &b);
         assert_eq!(
             (
-                red.contacts.vv.len(),
-                red.contacts.a_on_b.len(),
-                red.contacts.b_on_a.len()
+                red.contacts.vv().count(),
+                red.contacts.on(topo::Operand::A).count(),
+                red.contacts.on(topo::Operand::B).count()
             ),
             (0, 0, 8),
             "op {op:?}"
@@ -182,7 +182,7 @@ fn sign_chain_mirrored_resting() {
     for op in [BooleanOp::Intersect, BooleanOp::Subtract] {
         for other in [&b, &c] {
             let red = reduce_ok(op, &a, other);
-            assert_eq!(red.contacts.b_on_a.len(), 4, "op {op:?}");
+            assert_eq!(red.contacts.on(topo::Operand::B).count(), 4, "op {op:?}");
             assert!(red.null_edges.is_empty(), "op {op:?}: spurious surgery");
             assert!(red.pierce_rings.is_empty());
         }
@@ -214,8 +214,11 @@ fn wedge_touch_no_join_input_any_op() {
     );
     for op in ALL_OPS {
         let red = reduce_ok(op, &a, &b);
-        assert_eq!(red.contacts.vv.len(), 2, "op {op:?}");
-        assert!(red.contacts.a_on_b.is_empty() && red.contacts.b_on_a.is_empty());
+        assert_eq!(red.contacts.vv().count(), 2, "op {op:?}");
+        assert!(
+            red.contacts.on(topo::Operand::A).next().is_none()
+                && red.contacts.on(topo::Operand::B).next().is_none()
+        );
         assert!(
             red.null_pairs.is_empty() && red.null_edges.is_empty() && red.pierce_rings.is_empty(),
             "op {op:?}: pinch context routed into join input"
@@ -242,8 +245,11 @@ fn cross_stack_neighbor_face_catch() {
     );
     for op in ALL_OPS {
         let red = reduce_ok(op, &a, &b);
-        assert_eq!(red.contacts.vv.len(), 4, "op {op:?}");
-        assert!(red.contacts.a_on_b.is_empty() && red.contacts.b_on_a.is_empty());
+        assert_eq!(red.contacts.vv().count(), 4, "op {op:?}");
+        assert!(
+            red.contacts.on(topo::Operand::A).next().is_none()
+                && red.contacts.on(topo::Operand::B).next().is_none()
+        );
         if matches!(op, BooleanOp::Union) {
             assert_eq!(red.null_pairs.len(), 4);
             assert_eq!(red.null_edges.len(), 8);
@@ -275,7 +281,7 @@ fn stacked_double_tie_exact() {
         Tol::witness(),
     );
     let red = reduce_ok(BooleanOp::Union, &a, &b);
-    assert_eq!(red.contacts.vv.len(), 4);
+    assert_eq!(red.contacts.vv().count(), 4);
     assert_eq!(red.null_pairs.len(), 4);
     assert_eq!(red.null_edges.len(), 8);
     assert!(red.null_edges.iter().all(|e| !e.dangling));
@@ -362,7 +368,7 @@ fn reflex_edge_touch_benign() {
         (BooleanOp::Subtract, 3.0),
     ] {
         let red = boolean_reduce(op, &a, &edge, tol).unwrap();
-        assert_eq!(red.contacts.vv.len(), 2, "op {op:?}");
+        assert_eq!(red.contacts.vv().count(), 2, "op {op:?}");
         assert!(
             red.null_pairs.is_empty() && red.null_edges.is_empty(),
             "op {op:?}: seam minted at a touch-only reflex edge"
@@ -449,12 +455,12 @@ fn notch_fill_dense_ties() {
                 validate(&red.b).unwrap();
                 eprintln!(
                     "op {op:?}: vv={} pairs={} edges={} rings={}",
-                    red.contacts.vv.len(),
+                    red.contacts.vv().count(),
                     red.null_pairs.len(),
                     red.null_edges.len(),
                     red.pierce_rings.len()
                 );
-                assert_eq!(red.contacts.vv.len(), 6, "op {op:?}");
+                assert_eq!(red.contacts.vv().count(), 6, "op {op:?}");
             }
             Err(
                 e @ (BooleanError::ClassificationInvariant { .. } | BooleanError::Escalated { .. }),
@@ -629,7 +635,7 @@ fn generic_edge_edge_mixed_order_pair() {
             .count();
         assert_eq!(vv_pairs, 4, "op {op:?}: vertex-vertex seam-pair census");
         let red = reduce_ok(op, &a, &b_touch);
-        assert_eq!(red.contacts.vv.len(), 2, "op {op:?}");
+        assert_eq!(red.contacts.vv().count(), 2, "op {op:?}");
         assert!(
             red.null_pairs.is_empty() && red.null_edges.is_empty(),
             "op {op:?}: non-interleaved touch minted a seam"
@@ -704,7 +710,7 @@ fn not_adjacent_edges(errors: &[topo::ValidationError]) -> Vec<topo::EdgeKey> {
 /// face's first owed one (`topo::pcurves::validate_pcurves`, step 1).
 fn assert_cone_face_refuses_at_rest(b: Body<f64>, face: topo::FaceKey) {
     assert!(
-        matches!(b.face_surface(face), Some(geom::Surface::Cone { .. })),
+        matches!(b.face_surface(face), Ok(geom::Surface::Cone { .. })),
         "the relabelled face carries the cone"
     );
     let (edges, hes) = face_boundary(&b, face);
@@ -759,34 +765,29 @@ fn a_cone_relabelled_brick_clear_of_the_other_operand_is_refused_at_rest() {
     assert_cone_face_refuses_at_rest(b, face);
 }
 
-/// Shape (iii) READINESS at the operand: a brick with one face
-/// relabelled to the placeholder NURBS net does not finish. The
-/// at-rest gate refuses it on that face and nothing else: one
-/// `UncertifiableSurface` naming the face (the placeholder net), and
-/// one `DescriptionNotAdjacent` for each of its four boundary edges,
-/// whose lines lie on no surface the net describes.
+/// Shape (iii) READINESS at the operand: a brick with one face moved
+/// onto a pending slot does not finish. The at-rest gate refuses it on
+/// that face and nothing else: one `UncertifiableSurface` naming the
+/// face, and one `DescriptionNotAdjacent` for each of its four boundary
+/// edges, whose lines lie on no surface the face wears.
 #[test]
-fn a_placeholder_nurbs_wall_is_refused_at_rest() {
+fn a_pending_wall_is_refused_at_rest() {
     let mut b = brick::<f64>((0.5, 1.5), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let (face, _) = b.faces().next().unwrap();
-    // Lifts RechartStrandsDescriptions: the NURBS wall is the at-rest gate's input; its edges are not the row.
+    // Lifts RechartStrandsDescriptions: the pending wall is the at-rest gate's input; its edges are not the row.
     b.set_face_surface_unvouched_for_tests(
         face,
-        topo::construction::FaceSurface::New {
-            surface: geom::Surface::Nurbs(std::sync::Arc::new(geom::NurbsSurface::placeholder())),
-            sense: true,
-        },
+        topo::construction::FaceSurface::Pending { sense: true },
     )
     .unwrap();
     let (edges, _) = face_boundary(&b, face);
     assert_eq!(edges.len(), 4);
-    let errors =
-        topo::finish(b, Tol::witness()).expect_err("a placeholder NURBS wall does not finish");
+    let errors = topo::finish(b, Tol::witness()).expect_err("a pending wall does not finish");
     assert_eq!(errors.len(), 5, "one surface and four edges: {errors:?}");
     assert_eq!(
         errors[0],
         topo::ValidationError::UncertifiableSurface { face },
-        "the placeholder net is named on its face: {errors:?}"
+        "the pending face is named: {errors:?}"
     );
     assert_eq!(not_adjacent_edges(&errors), edges, "{errors:?}");
 }
@@ -812,7 +813,7 @@ fn corrected_subtract_cells_geometric() {
         Tol::witness(),
     );
     let red = reduce_ok(BooleanOp::Subtract, &a, &b);
-    assert_eq!(red.contacts.a_on_b.len(), 4);
+    assert_eq!(red.contacts.on(topo::Operand::A).count(), 4);
     assert!(
         red.null_edges.is_empty() && red.pierce_rings.is_empty(),
         "corrected (∖, A-vs-B, opposite) = No-intersect violated"
@@ -832,7 +833,7 @@ fn corrected_subtract_cells_geometric() {
         Tol::witness(),
     );
     let red = reduce_ok(BooleanOp::Subtract, &a, &b);
-    assert_eq!(red.contacts.a_on_b.len(), 4);
+    assert_eq!(red.contacts.on(topo::Operand::A).count(), 4);
     assert!(
         red.null_edges.is_empty() && red.pierce_rings.is_empty(),
         "corrected (∖, A-vs-B, identical) = No-intersect violated"

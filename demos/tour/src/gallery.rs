@@ -123,8 +123,8 @@ fn write_one(dir: &Path, name: &str, doc: &ProfileDoc, tol: Tol) {
 ///
 /// A count, never a verdict: the registry reports, it does not gate
 /// (`editor_core::checks`), and the scenes that report today —
-/// `checks`, whose finding is its subject, the teapot, four solids
-/// the operand gate cannot join, and the chain, whose joints no mate
+/// `checks`, whose finding is its subject, the teapot, whose spout
+/// the pot cannot join, and the chain, whose joints no mate
 /// declares — are no reason to refuse their files.
 fn advisory(doc: &ProfileDoc, tol: Tol) -> String {
     let evaluation = evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), tol);

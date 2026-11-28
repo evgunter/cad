@@ -77,3 +77,12 @@ and the spline decision.
   undescribed, so the closing mint still closes the state there.
 - `kev-describing-a-null-member-leaves-its-face-missing-its-rows`
   (P3, E).
+
+## Note (2026-11-23, PR 7497)
+
+The producer's closing mint this row reasons from is retired: no producer
+mints to close, and the finish completes a body's rows, keeping every
+stored row and deriving each missing one
+(`crates/topo/src/pcurves/complete.rs`), so a stale row is refused
+there rather than replaced. The reasoning above is the record of its
+time.

@@ -181,6 +181,18 @@ pub struct Evaluation<T: topo::AtRestPolicy + Decide> {
     spaces: Arc<BTreeMap<RecipeNodeId, crate::VarId>>,
     /// The parts this run entered and evaluated, carried for the run
     /// that names it as its prior.
+    /// **What each part run this evaluation made left in the symbolic
+    /// session** ([`geom_core::sym::NodeRecord`]), in the order run: a
+    /// part is built once in a replay however many nodes instantiate
+    /// it, so its decisions are counted here, once, and not on a node.
+    /// A replay's receipt is its nodes' records, these, and its
+    /// product's ([`crate::product::Product::sym`]).
+    pub parts_sym: Vec<Arc<geom_core::sym::NodeRecord>>,
+    /// Which symbolic expression table this evaluation's values were
+    /// built under ([`geom_core::sym::table`]); `None` outside a
+    /// symbolic session. A prior is read only under the table it was
+    /// built under ([`PriorRefusal::Table`]).
+    sym_table: Option<u64>,
     parts: parts::Carried<T>,
     /// The resolver this run crossed the document seam with: what a
     /// replay of the same document at another scalar resolves its parts
@@ -840,6 +852,11 @@ impl OutputNames {
     pub(crate) fn shared_table(&self) -> Arc<NameTable> {
         Arc::clone(&self.table)
     }
+
+    /// The groups, shared.
+    pub(crate) fn shared_groups(&self) -> Arc<crate::names::FragmentGroups> {
+        Arc::clone(&self.groups)
+    }
 }
 
 /// A successful node value (spec D2): the op-appropriate payload plus
@@ -915,6 +932,13 @@ pub struct NodeValue<T: topo::AtRestPolicy + Decide> {
     /// **Not persisted**, like the verdicts and unlike their summary:
     /// an escalation is a fact about one run at one box, read in hand.
     pub escalations: Arc<EscalationLog>,
+    /// **What the node left in the symbolic session**
+    /// ([`geom_core::sym::NodeRecord`]): the identities it registered,
+    /// which the nodes it feeds read, and what its decisions came to,
+    /// which a leaf's receipt sums. Empty at every scalar but a
+    /// symbolic one. Rides the value: a function of the node's inputs,
+    /// like the verdicts. **Not persisted.**
+    pub sym: Arc<geom_core::sym::NodeRecord>,
     /// The candidates the node's pruning queries handed on, placed among
     /// its verdicts ([`geom_core::k_stats::Mark`]): what the first-turn
     /// reading ([`crate::resolve::first_turn`]) reads to tell two runs on
@@ -971,6 +995,7 @@ impl<T: topo::AtRestPolicy + Decide> NodeValue<T> {
             witness: WitnessSlot::default(),
             content_key: ContentKey(0),
             naming_key: NamingKey(0),
+            sym: Arc::default(),
         }
     }
 }
@@ -1002,6 +1027,7 @@ impl NodeValue<f64> {
             witness: WitnessSlot::default(),
             content_key: ContentKey(0),
             naming_key: NamingKey(0),
+            sym: Arc::default(),
         }
     }
 
@@ -1078,6 +1104,8 @@ impl Evaluation<f64> {
             reads: Arc::new(reads),
             sourced: Arc::default(),
             spaces: Arc::default(),
+            parts_sym: Vec::new(),
+            sym_table: geom_core::sym::table(),
             parts: parts::Carried::none(),
             resolver: None,
         }
@@ -1447,6 +1475,9 @@ pub struct NodeError {
     /// channels are two `Arc`s at this seam rather than one record:
     /// the value carries both, the error only this one.
     pub escalations: Arc<EscalationLog>,
+    /// What the node left in the symbolic session on the way to its
+    /// failure ([`NodeValue::sym`]). **Not persisted.**
+    pub sym: Arc<geom_core::sym::NodeRecord>,
 }
 
 /// **An evaluation refusal, carried into a document-layer
@@ -3070,14 +3101,13 @@ pub(crate) mod leaf {
 
     /// A shared memo prior over the nominal box, for the numeric lane.
     ///
-    /// **The symbolic lane has none, deliberately.** A `Sym` value carries
-    /// a DAG node id, its hash-consing table is per session and thread-local
-    /// (`geom_core::sym::with_session`), and a memo built in one session and
-    /// served into another hands the second session ids it has no nodes for.
-    /// The forms would freeze rather than cancel — sound, but it would
-    /// silently switch the tier off for exactly the subgraph the prior was
-    /// built to save. A per-leaf session with no prior costs evaluation time
-    /// and claims nothing false.
+    /// **The symbolic lane has none.** A `Sym` value names nodes of
+    /// the expression table it was built under
+    /// (`geom_core::sym::table`): a prior built under the same drive's
+    /// table would be read, and one built under another is not
+    /// (`PriorRefusal::Table`). No caller hands a symbolic leaf a
+    /// prior of its own drive yet; a leaf with none costs evaluation
+    /// time and claims nothing false.
     pub(crate) enum LeafPrior {
         /// No prior — every leaf evaluates standalone.
         None,
@@ -4156,6 +4186,13 @@ pub enum PriorRefusal {
     /// A caller that wants its prior read hands one made under the same
     /// three; a run handed another recomputes every node.
     Options,
+    /// The prior was built under another expression table than the one
+    /// this run's symbolic session is on, or under none
+    /// ([`Evaluation::sym_table`]): its values name nodes this table
+    /// does not hold, and a result reused from it would be read as
+    /// unknowns. Another leaf of the same drive is another session on
+    /// the same table, and its prior is read.
+    Table,
 }
 
 impl PriorRefusal {
@@ -4194,9 +4231,12 @@ impl PriorRefusal {
             member_budget: _,
         } = opts;
         let twist = RunLane::of(opts).twist;
-        ((prior.lane.twist, prior.lane.symbols, prior.boolean_sweep)
-            != (twist, *symbols, *boolean_sweep))
-            .then_some(Self::Options)
+        if (prior.lane.twist, prior.lane.symbols, prior.boolean_sweep)
+            != (twist, *symbols, *boolean_sweep)
+        {
+            return Some(Self::Options);
+        }
+        (!prior_under_this_table(prior)).then_some(Self::Table)
     }
 }
 
@@ -4484,6 +4524,7 @@ impl RecordBinding {
                 node: id,
                 kind: NodeErrorKind::RecordRefused,
                 escalations: Arc::default(),
+                sym: Arc::default(),
             }),
             reused: false,
         })
@@ -4820,6 +4861,7 @@ where
             reached,
             carried: parts::Carried::none(),
             evaluations: 0,
+            built: Vec::new(),
         },
         (None, None) => unreachable!("a run enters its parts or is handed them"),
     };
@@ -4950,6 +4992,7 @@ where
                     node: id,
                     kind: NodeErrorKind::UnschedulableCycle,
                     escalations: Arc::new(Vec::new()),
+                    sym: Arc::default(),
                 }),
             );
         }
@@ -4979,6 +5022,8 @@ where
         reads: Arc::new(doc.output_ports()),
         sourced: Arc::new(doc.source_ports()),
         spaces: Arc::new(doc.spaces()),
+        parts_sym: entry.built,
+        sym_table: geom_core::sym::table(),
         parts: entry.carried,
         resolver: opts.resolver.clone().map(std::panic::AssertUnwindSafe),
     }
@@ -5237,6 +5282,7 @@ where
                     node: id,
                     kind: kind(),
                     escalations: Arc::new(Vec::new()),
+                    sym: Arc::default(),
                 }),
             )
         })
@@ -5262,6 +5308,8 @@ where
         reads: Arc::new(doc.output_ports()),
         sourced: Arc::new(doc.source_ports()),
         spaces: Arc::new(doc.spaces()),
+        parts_sym: Vec::new(),
+        sym_table: geom_core::sym::table(),
         parts: parts::Carried::none(),
         resolver: opts.resolver.clone().map(std::panic::AssertUnwindSafe),
     }
@@ -5382,6 +5430,7 @@ where
                 node: id,
                 kind: NodeErrorKind::TwoBinders { a: *a, b: *b },
                 escalations: Arc::new(Vec::new()),
+                sym: Arc::default(),
             }),
             reused: false,
         },
@@ -5390,26 +5439,35 @@ where
                 node: id,
                 kind: NodeErrorKind::YieldsNothing { binder: *binder },
                 escalations: Arc::new(Vec::new()),
+                sym: Arc::default(),
             }),
             reused: false,
         },
         Some(Chained::Reached(crate::repetition::Reached::Chain(chain))) if !chain.is_empty() => {
-            members::eval_family(
-                doc,
-                env,
-                id,
-                chain,
-                results,
-                prior,
-                cancel,
-                op_env,
-                |env, results, prior, op_env, at| {
-                    let member = eval_node(doc, env, id, results, prior, op_env, at, tol);
-                    #[cfg(debug_assertions)]
-                    own_bodies(id, &member);
-                    member
-                },
-            )?
+            // The family is a scope of its own, named by the node, and
+            // its members' scopes open inside it: the family's record
+            // holds what every member registered and decided, and what
+            // the schedule decided between them, so a node that reads
+            // the family whole receives all of it.
+            let (family, record) = node_mints(op_env.mints, id, &[]).node([], || {
+                members::eval_family(
+                    doc,
+                    env,
+                    id,
+                    chain,
+                    results,
+                    prior,
+                    cancel,
+                    op_env,
+                    |env, results, prior, op_env, at| {
+                        let member = eval_node(doc, env, id, results, prior, op_env, at, tol);
+                        #[cfg(debug_assertions)]
+                        own_bodies(id, &member);
+                        member
+                    },
+                )
+            });
+            recorded(family?, record)
         }
         _ => eval_node(doc, env, id, results, prior, op_env, &[], tol),
     };
@@ -5489,11 +5547,116 @@ fn node_mints(
     inside.child(&words)
 }
 
-/// Evaluates one node against the results so far: poison propagation,
-/// slot evaluation with (node, slot) context, content key, memo
-/// lookup, and the op wiring.
-#[allow(clippy::too_many_arguments)] // the node, its inputs, and the member it is
+/// **Whether `prior`'s values mean here what they meant where they were
+/// built**: inside a symbolic session, only a prior built under the
+/// same expression table (another leaf of the same drive is another
+/// session and the same table). A value built under another table, or
+/// under none, names nodes this table does not hold, and a result
+/// reused from it would be read as unknowns. Such a prior is not read:
+/// the evaluation builds as it does with none.
+fn prior_under_this_table<T: topo::AtRestPolicy + Decide>(prior: &Evaluation<T>) -> bool {
+    geom_core::sym::table().is_none_or(|table| prior.sym_table == Some(table))
+}
+
+/// **The open node scope reads what `reads` see and what else
+/// `stands`** ([`geom_core::sym::reads`]): the record of each value a
+/// read sees ([`wire::SeenRead`]: the entry that stands, the family
+/// whole, or the member its index picks), in field order, then the
+/// record of each upstream operation no read is of (a measured value an
+/// assertion reads), in node-id order. Each record brings the records
+/// it was itself built over, so what reaches a node through another is
+/// what that other's value read.
+///
+/// Called once the reads are known, which is after the node's slots are
+/// evaluated: slot evaluation decides nothing.
+fn read_records<T: topo::AtRestPolicy + Decide>(
+    reads: &[wire::SeenRead<'_, T>],
+    stands: &BTreeMap<RecipeNodeId, &NodeValue<T>>,
+) {
+    // No session, no record: every scalar but a symbolic one, and a
+    // symbolic one outside a replay.
+    if !geom_core::sym::session_installed() {
+        return;
+    }
+    let read: std::collections::BTreeSet<RecipeNodeId> = reads.iter().map(|r| r.at).collect();
+    geom_core::sym::reads(
+        reads.iter().map(|r| &r.value.sym).chain(
+            stands
+                .iter()
+                .filter(|(at, _)| !read.contains(at))
+                .map(|(_, value)| &value.sym),
+        ),
+    );
+}
+
+/// Evaluates one node against the results so far ([`eval_node_in`]),
+/// as the node its mint scope names: a value with no expression minted
+/// on its behalf is named by the node and its place in the node's own
+/// walk, and what it decides at a symbolic scalar reads the identities
+/// its upstream nodes registered and no other node's. What the node
+/// left in the session rides its result.
+#[allow(clippy::too_many_arguments)] // `eval_node_in`'s
 fn eval_node<T>(
+    doc: &Doc<ProfileProgram>,
+    env: &crate::expr::VarEnv<T>,
+    id: RecipeNodeId,
+    results: &BTreeMap<RecipeNodeId, NodeResult<T>>,
+    prior: Option<&NodeValue<T>>,
+    op_env: &wire::OpEnv<'_, T>,
+    at: &[(crate::VarId, i64)],
+    tol: Tol,
+) -> NodeStep<T>
+where
+    T: EvalScalar,
+{
+    // A node that instantiates a part reads the part's row: the
+    // identities the part's run registered are among what it reads,
+    // and ride its own record to whatever reads it. The part's counts
+    // stay the part's (`Evaluation::parts_sym`).
+    let part = geom_core::sym::session_installed()
+        .then(|| parts::instantiated(doc, id))
+        .flatten()
+        .and_then(|doc_ref| op_env.parts.get(&doc_ref, tol).ok())
+        .map(|row| Arc::new(row.sym.identities_alone()))
+        .filter(|record| record.registrations() > 0);
+    let (step, record) = node_mints(op_env.mints, id, at).node(part.as_deref(), || {
+        eval_node_in(doc, env, id, results, prior, op_env, at, tol)
+    });
+    // A step served an earlier run's value keeps that run's record
+    // (`recorded`). The scope this one closed inside (a family's, where
+    // this is a member) holds the member as that run left it, so that a
+    // reader of the family whole reads a served member's identities as
+    // it reads a rebuilt one's.
+    if let (true, NodeResult::Ok(held)) = (step.reused, &step.result) {
+        geom_core::sym::carry(&held.sym, &record);
+    }
+    let record = match &part {
+        Some(part) => geom_core::sym::NodeRecord::gather([&**part, &record]),
+        None => record,
+    };
+    recorded(step, record)
+}
+
+/// `step` with what its scope left in the symbolic session written on
+/// the result it made. A reused value keeps the record of the run that
+/// built it.
+fn recorded<T: topo::AtRestPolicy + Decide>(
+    mut step: NodeStep<T>,
+    record: geom_core::sym::NodeRecord,
+) -> NodeStep<T> {
+    match &mut step.result {
+        NodeResult::Ok(value) if !step.reused => value.sym = Arc::new(record),
+        NodeResult::Failed(error) => error.sym = Arc::new(record),
+        NodeResult::Ok(_) | NodeResult::Poisoned { .. } => {}
+    }
+    step
+}
+
+/// One node against the results so far: poison propagation, slot
+/// evaluation with (node, slot) context, content key, memo lookup, and
+/// the op wiring.
+#[allow(clippy::too_many_arguments)] // the node, its inputs, and the member it is
+fn eval_node_in<T>(
     doc: &Doc<ProfileProgram>,
     env: &crate::expr::VarEnv<T>,
     id: RecipeNodeId,
@@ -5523,10 +5686,6 @@ where
     let m9 = geom_core::k_stats::probe_tally::m8()
         .then(|| (std::time::Instant::now(), geom_core::sym::probe_counts()));
     let bracket = geom_core::k_stats::Bracket::open();
-    // A value with no expression minted on this node's behalf, in its
-    // slots or its op, is named by the node, the member and its place
-    // in their walk.
-    let _mints = node_mints(op_env.mints, id, at).enter();
     // A failure carries what the frame recorded on the way to it,
     // whether or not the op ran.
     let fail = |bracket: geom_core::k_stats::Bracket, kind: NodeErrorKind| NodeStep {
@@ -5534,6 +5693,7 @@ where
             node: id,
             kind,
             escalations: Arc::new(bracket.finish().escalations),
+            sym: Arc::default(),
         }),
         reused: false,
     };
@@ -5772,6 +5932,9 @@ where
     // ([`wire::SeenRead`]), whose keys are the ones hashed. Every
     // operation here has its result (above).
     let reads = wire::seen_reads(id, node, doc, &stands, &slot_values, env);
+    // The node's scope reads the records of what its reads see, before
+    // anything below decides.
+    read_records(&reads, &stands);
     let content_key = content_key(
         node,
         &crate::param_source::definitions_of(doc),
@@ -5889,6 +6052,7 @@ where
                 witness: WitnessSlot {},
                 content_key,
                 naming_key,
+                sym: Arc::default(),
             }),
             reused: false,
         },
@@ -5899,6 +6063,7 @@ where
                 node: id,
                 kind,
                 escalations,
+                sym: Arc::default(),
             }),
             reused: false,
         },
@@ -7777,10 +7942,10 @@ fn seg_content_tag(tag: SegTag) -> u8 {
         S::LoftSeam => 46,
         S::LoftSectionEdge => 55,
         S::LoftSectionVertex => 56,
+        S::SubArc => 62,
+        S::SubArcJoint => 61,
         S::Band => 7,
         S::BandRim => 8,
-        S::BandRimPi => 9,
-        S::BandPi => 10,
         S::Meridian => 11,
         S::MeridianVertex => 12,
         S::RevolveCap => 13,
@@ -7807,6 +7972,7 @@ fn seg_content_tag(tag: SegTag) -> u8 {
         S::TurnFoot => 50,
         S::BandSection => 58,
         S::HostFoot => 59,
+        S::ConventionalVertex => 60,
         S::BandFace => 34,
         S::BandTrim => 35,
         S::BandFoot => 36,
@@ -7835,7 +8001,6 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
         MeridianEnd::Start => 1u8,
         MeridianEnd::End => 2,
         MeridianEnd::Seam => 3,
-        MeridianEnd::Pi => 4,
     };
     let rim = |s: crate::names::RimSupport| match s {
         crate::names::RimSupport::Host => 1u8,
@@ -7958,17 +8123,14 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
             h.write_id(s.0);
             pv(h, *v);
         }
+        RoleSeg::SubArc(q) | RoleSeg::SubArcJoint(q) => {
+            h.write_u64(u64::from(*q));
+        }
         RoleSeg::Band(r) => {
             run(h, r);
         }
         RoleSeg::BandRim(v) => {
             pv(h, *v);
-        }
-        RoleSeg::BandRimPi(v) => {
-            pv(h, *v);
-        }
-        RoleSeg::BandPi(r) => {
-            run(h, r);
         }
         RoleSeg::Meridian(m, r) => {
             h.write_tag(mer(*m));
@@ -8078,7 +8240,7 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
             h.name(edge);
             h.write_tag(rim(*support));
         }
-        RoleSeg::BandFoot(n) => {
+        RoleSeg::BandFoot(n) | RoleSeg::ConventionalVertex(n) => {
             h.name(n);
         }
         RoleSeg::BandCut(n) => {

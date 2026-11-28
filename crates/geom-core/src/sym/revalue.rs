@@ -154,7 +154,7 @@ pub fn revalue(node: SymId, env: &dyn Fn(ParamSymbol) -> Option<f64>) -> Option<
             if memo.contains_key(&id) {
                 continue;
             }
-            let Some(n) = sess.nodes.get(&id) else {
+            let Some(n) = sess.node_of(id) else {
                 memo.insert(id, None);
                 continue;
             };
@@ -173,7 +173,7 @@ pub fn revalue(node: SymId, env: &dyn Fn(ParamSymbol) -> Option<f64>) -> Option<
                 SymOp::Sub => Some(kid(0)? - kid(1)?),
                 // `Div` mints `Mul(a, Inv(b))` with the quotient as its
                 // value; re-value it as the quotient it was.
-                SymOp::Mul => match sess.nodes.get(&n.kids[1]) {
+                SymOp::Mul => match sess.node_of(n.kids[1]) {
                     Some(inv) if inv.op == SymOp::Inv => {
                         Some(kid(0)? / memo.get(&inv.kids[0]).copied().flatten()?)
                     }

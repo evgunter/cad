@@ -247,6 +247,37 @@ fn rim_angle() -> f64 {
     (RIM / R1).acos()
 }
 
+/// **Each lens cap's cover is its zone**, from the rim to its own
+/// pole, not its ball: the box the rows below lean on. Each cap is one
+/// face whose loop is the rim and its seam out to the pole tip and
+/// back; the cover reads its side with that tip (`topo::cover::sphere_window`).
+#[test]
+fn each_lens_caps_cover_is_its_zone() {
+    let band = Band::linear(Tol::witness()).unwrap();
+    let slack = 1e-6;
+    let lens = lens();
+    let mut caps = 0;
+    for (face, _) in lens.faces() {
+        let Ok(geom::Surface::Sphere { frame, radius }) = lens.face_surface(face).cloned() else {
+            continue;
+        };
+        caps += 1;
+        let b = lens.face_cover(face, band).unwrap().aabb(0.0);
+        let (lo, hi) = if frame.origin().y < RIM {
+            (RIM, R1)
+        } else {
+            (D - radius, RIM)
+        };
+        assert!(
+            b.min_y >= lo - slack && b.max_y <= hi + slack,
+            "the radius-{radius} cap's cover y ∈ [{}, {}], its zone [{lo}, {hi}]",
+            b.min_y,
+            b.max_y
+        );
+    }
+    assert_eq!(caps, 2, "the lens has two sphere caps");
+}
+
 /// **Just outside the face, clear of its rim by three balls**: no event.
 #[test]
 fn a_touch_just_outside_the_lens_face_builds() {
@@ -267,7 +298,7 @@ fn a_touch_just_inside_the_lens_face_refuses() {
 /// rim**: the touch's ball reaches the rim, so the face is not cleared
 /// of it (`topo::boolean::carrier_touch::off_face`), but the pair never
 /// reaches that door. The face holds the cap `y ≥ RIM`, and its box is
-/// its chart rectangle (`topo::boxes::sphere_window`), floored
+/// its chart rectangle (`topo::cover::sphere_window`), floored
 /// at `RIM − pad`, `pad = escalate + 2·zero` (the sweep's). The edge
 /// runs along x at `y = cos θ`, θ the rim's angle plus `0.3·reach`, so
 /// it lies `RIM − cos θ ≈ sin(rim)·0.3·reach ≈ 0.168·reach` below the

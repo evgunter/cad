@@ -2695,6 +2695,10 @@ impl Real for Probe {
         ))
     }
 
+    fn quartic_sign_algebra(p: Self, q_hat: Self, s: Self) -> [Self; 2] {
+        f64::quartic_sign_algebra(p.0, q_hat.0, s.0).map(Self)
+    }
+
     fn abs(self) -> Self {
         Self(Real::abs(self.0))
     }

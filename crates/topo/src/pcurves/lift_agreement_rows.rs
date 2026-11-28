@@ -111,10 +111,17 @@ fn the_decided_lift_is_the_read_lift_through_a_twin_and_a_pole() {
         for face in body.face_views() {
             let outer = face.record().outer;
             let cycle = loop_rows(&body, outer);
-            let decided = Lift::decided(&body, face.key(), face.surface(), &cycle, true, band)
-                .unwrap_or_else(|refusal| {
-                    panic!("vertex at the pole {vertex_at_pole}: the decided lift: {refusal:?}")
-                });
+            let decided = Lift::decided(
+                &body,
+                face.key(),
+                face.surface().unwrap(),
+                &cycle,
+                true,
+                band,
+            )
+            .unwrap_or_else(|refusal| {
+                panic!("vertex at the pole {vertex_at_pole}: the decided lift: {refusal:?}")
+            });
             let read = Lift::read(&body, outer).unwrap();
             let chain = |lift: &Lift<f64>| -> Vec<_> {
                 lift.rows()
@@ -182,8 +189,15 @@ fn a_split_at_the_pole_decides_its_childrens_turn() {
         let outer = face.record().outer;
         let cycle = loop_rows(&body, outer);
         assert_eq!(cycle.len(), 3, "two children and the equator's half");
-        let decided = Lift::decided(&body, face.key(), face.surface(), &cycle, true, band)
-            .unwrap_or_else(|refusal| panic!("the decided lift: {refusal:?}"));
+        let decided = Lift::decided(
+            &body,
+            face.key(),
+            face.surface().unwrap(),
+            &cycle,
+            true,
+            band,
+        )
+        .unwrap_or_else(|refusal| panic!("the decided lift: {refusal:?}"));
         let read = Lift::read(&body, outer).unwrap();
         let chain = |lift: &Lift<f64>| -> Vec<_> {
             lift.rows()
@@ -284,7 +298,13 @@ fn no_file_outside_the_mint_pins_a_chart_branch() {
         ),
     ];
     // (file, constructions of an element from a deck, what they are).
-    const MAKERS: [(&str, usize, &str); 3] = [
+    const MAKERS: [(&str, usize, &str); 4] = [
+        (
+            "topo/src/boolean/ops_gate_finding_set_rows.rs",
+            1,
+            "a row that states a stale element, a period off, for completion to keep and the \
+             gate to refuse with the finish's finding set",
+        ),
         (
             "topo/src/joint.rs",
             5,
@@ -483,8 +503,15 @@ fn an_edge_ending_on_the_pole_lifts_and_derives_as_minted() {
     for face in body.face_views() {
         let outer = face.record().outer;
         let cycle = loop_rows(&body, outer);
-        let decided = Lift::decided(&body, face.key(), face.surface(), &cycle, true, band)
-            .unwrap_or_else(|refusal| panic!("the decided lift: {refusal:?}"));
+        let decided = Lift::decided(
+            &body,
+            face.key(),
+            face.surface().unwrap(),
+            &cycle,
+            true,
+            band,
+        )
+        .unwrap_or_else(|refusal| panic!("the decided lift: {refusal:?}"));
         let read = Lift::read(&body, outer).unwrap();
         let chain = |lift: &Lift<f64>| -> Vec<_> {
             lift.rows()

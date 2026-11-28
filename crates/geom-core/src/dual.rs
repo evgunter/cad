@@ -578,6 +578,17 @@ impl<T: KinkJacobian> Real for Dual<T> {
         }
     }
 
+    /// The value `T`'s ([`Real::quartic_sign_algebra`]); the derivative
+    /// the plain formulas' chain rule.
+    fn quartic_sign_algebra(p: Self, q_hat: Self, s: Self) -> [Self; 2] {
+        let plain = crate::real::plain_quartic_sign_algebra(p, q_hat, s);
+        let value = T::quartic_sign_algebra(p.value, q_hat.value, s.value);
+        [0, 1].map(|i| Self {
+            value: value[i],
+            deriv: plain[i].deriv,
+        })
+    }
+
     /// `(√a, a' / (r + r))` where `r = √a` — the value-channel root is
     /// computed once and reused; the doubling `r + r` is exact at `f64`
     /// and tight at intervals. At the kink `a = 0` the derivative channel

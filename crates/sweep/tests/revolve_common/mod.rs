@@ -14,7 +14,7 @@ use geom_core::{Point2, Point3, Vec2};
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop};
 use sweep::RevolveAxis;
 use topo::readback::{EulerCounts, euler_counts};
-use topo::{Body, EdgeKey, LoopBoundary, LoopKey, validate, validate_closed, validate_geometric};
+use topo::{Body, EdgeKey, LoopBoundary, LoopKey, validate, validate_closed};
 
 pub fn eps() -> f64 {
     Tol::witness().get().eps
@@ -42,6 +42,33 @@ pub fn donut_profile() -> ProfileLoop<f64> {
     bulge_loop(vec![
         (Point2::new(2.0, -0.5), 1.0),
         (Point2::new(2.0, 0.5), 1.0),
+    ])
+}
+
+/// The football of the spindle sheet `(R, r)` about the sketch `y` axis,
+/// its centre `by` up the axis: the arc from its lower apex to its upper
+/// through the circle's widest point, closed down the axis. Revolved
+/// whole, two sheet faces, each a π-band between meridians ending at
+/// both apexes.
+pub fn football(big: f64, r: f64, by: f64) -> ProfileLoop<f64> {
+    let h = ((r - big) * (r + big)).sqrt();
+    let v_star = (-big / r).acos();
+    bulge_loop(vec![
+        (Point2::new(0.0, by - h), (v_star / 2.0).tan()),
+        (Point2::new(0.0, by + h), 0.0),
+    ])
+}
+
+/// A horn's needle tip: the horn of radius 1 (its centre `(1, 0)`, its
+/// cusp at the origin) reached at its cusp from one side, its arc
+/// `sweep` radians of the circle from the cusp, closed by a line to the
+/// axis and down it. At `sweep = π/2` the arc meets the disc tangent.
+pub fn needle_tip(sweep: f64) -> ProfileLoop<f64> {
+    let (s, c) = sweep.sin_cos();
+    bulge_loop(vec![
+        (Point2::new(0.0, 0.0), -(sweep / 4.0).tan()),
+        (Point2::new(1.0 - c, s), 0.0),
+        (Point2::new(0.0, s), 0.0),
     ])
 }
 
@@ -73,7 +100,10 @@ pub fn axis_y() -> RevolveAxis<f64> {
 pub fn assert_all_tiers(body: &Body<f64>) {
     assert_eq!(validate(body), Ok(()));
     assert_eq!(validate_closed(body), Ok(()));
-    assert_eq!(validate_geometric(body, Tol::witness()), Ok(()));
+    assert_eq!(
+        topo::test_support::validate_completed(body, Tol::witness()),
+        Ok(())
+    );
 }
 
 /// (v, e, f, r) of a body.
@@ -239,8 +269,9 @@ pub fn signed_volume(body: &Body<f64>) -> f64 {
 /// happens by two DISTINCT mechanisms — the second one cost a row its
 /// meaning before it was named:
 ///
-/// * **Coplanar boundary.** The two-band sphere/cone patches, whose two
-///   meridians lie in one plane, so every fan triangle is degenerate.
+/// * **Coplanar boundary.** The one-band sphere/cone faces, each bounded
+///   by its one wrap meridian walked out and back, so the loop lies in
+///   one plane and every fan triangle is degenerate.
 /// * **Mirror-paired faces.** The donut's two half-tori are bounded by
 ///   the same pair of full-period rims plus the two halves of one seam
 ///   meridian, so their fans are mirror images and cancel each other
@@ -318,7 +349,7 @@ pub fn dump(t: &sweep::Revolved<f64>) -> String {
             None => s.push_str(&format!("{k:?} {c:?}\n")),
         }
     }
-    for (k, srf) in t.body.surfaces() {
+    for (k, srf) in t.body.described_surfaces() {
         s.push_str(&format!("{k:?} {srf:?}\n"));
     }
     for (k, f) in t.body.faces() {
@@ -396,6 +427,23 @@ pub fn full_pappus_y(t: &sweep::Revolved<f64>) -> f64 {
         Point3::origin(),
         geom_core::Vec3::new(0.0, 1.0, 0.0),
     )
+}
+
+/// **A body's volume, signed**: the kernel's mass properties at
+/// `Tol::witness()`, which reads each face's flux under its stored sense,
+/// so an inverted body reads negative (or is refused) where a Pappus
+/// oracle over the meridian (`full_pappus_y`, unsigned) still reads the
+/// magnitude.
+pub fn measured_volume(body: &Body<f64>) -> f64 {
+    let tol = geom_core::Tol::witness();
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", Body::clone(body), tol),
+        tol,
+        topo::test_support::pinned_resolution(tol),
+    )
+    .unwrap_or_else(|e| panic!("the body measures: {e:?}"))
+    .enclosure
+    .volume
 }
 
 /// **The containment suites' probe offset**, in one home.

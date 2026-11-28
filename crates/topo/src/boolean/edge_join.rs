@@ -1,7 +1,8 @@
 //! **The join**: a vertex of valence 2 whose two edges lie on one
-//! structural carrier between the same two faces is no corner, so the
-//! two edges are one edge cut for no reason (`docs/DESIGN.md`, maximal
-//! edges). The join kills the vertex and makes the two edges one.
+//! structural carrier between the same two faces, or are both the wrap
+//! edge of one face, is no corner, so the two edges are one edge cut for
+//! no reason (`docs/DESIGN.md`, maximal edges). The join kills the
+//! vertex and makes the two edges one.
 //!
 //! **The join door** ([`Body::join_edges`](crate::construction::Construct::join_edges)) is the one public spelling:
 //! every door that finishes a body ends with it (`docs/DESIGN.md`, the
@@ -26,8 +27,11 @@
 //! (`[coincidence.door]`).
 //!
 //! Joinable is one predicate ([`joinable`]), shared by the join and by
-//! [`joinable_vertices`]. The two edges' face pairs are one pair of
-//! distinct faces, and the edges lie on one carrier by structure:
+//! [`joinable_vertices`]. The two edges' face pairs are one pair: two
+//! distinct faces, or one face both edges are the wrap edge of, a
+//! station on that face's seam (DESIGN `[topology]`'s seam clause), the
+//! one loop passing the vertex twice and the kill taking both of its
+//! visits. The edges lie on one carrier by structure:
 //! - **planar**: both faces on `Plane` carriers of distinct keys, both
 //!   edges certified lines described as the `Intersection` of those
 //!   keys. Two planes that cross meet in one line; two that do not
@@ -112,7 +116,7 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Real, Sign, Tol};
 use super::ops::{Descendants, describe_minted_edges};
 use super::{BooleanError, Cell};
 use crate::body::Body;
-use crate::entity::{EdgeKey, EntityId, HalfEdgeKey, VertexKey};
+use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::geometry::PointKey;
 use crate::live::proven;
 use crate::readback::edge_sides_of;
@@ -588,7 +592,10 @@ fn joinable<T: Decide>(
         if f <= g { (f, g) } else { (g, f) }
     };
     let (f, g) = pair(s1);
-    if f == g || pair(s2) != (f, g) {
+    // One face on both sides: a station only where both pieces are its
+    // wrap edge, so the joined edge's wrap claim holds over its span.
+    let wrap_station = || crate::validate::wraps(body, e1) && crate::validate::wraps(body, e2);
+    if pair(s2) != (f, g) || (f == g && !wrap_station()) {
         return Ok(None);
     }
     let Some(he) = body.mate(*h1) else {
@@ -615,11 +622,12 @@ fn joinable<T: Decide>(
         }))
     };
     let (sf, sg) = s1.surfaces();
-    let surface = |side: crate::readback::EdgeSide| {
-        let face = body.proven_face(side.face);
-        face.surface()
+    let surface = |side: crate::readback::EdgeSide| body.proven_face(side.face).surface().ok();
+    // A pending face carries no description a join could keep: the
+    // validator and the merge door read this over bodies mid-build.
+    let (Some(surf_f), Some(surf_g)) = (surface(s1.plus), surface(s1.minus)) else {
+        return Ok(None);
     };
-    let (surf_f, surf_g) = (surface(s1.plus), surface(s1.minus));
     let planar = |s: &geom::Surface<T>| matches!(s, geom::Surface::Plane { .. });
     if planar(surf_f) && planar(surf_g) {
         // One carrier by structure: both edges certified as the
@@ -820,8 +828,8 @@ pub(super) fn join_stage<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<(Vec<EdgeJoin>, Vec<ClassZero>), BooleanError> {
-    // The boolean's own surgery body, re-minted whole after the carry:
-    // no staging and no re-mint here.
+    // The boolean's own surgery body, its rows completed at the gate
+    // after the carry: no staging and no mint here.
     let free = free_vertices(body, recorded);
     let (joined, _, zeros) = join_all(body, band, tol, &|_| true, &free)?;
     for j in &joined {
@@ -1019,14 +1027,8 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
         // Staged: a refusal past the first kill leaves `self` as found.
         let mut work = self.clone();
         let mut staged = work.begin_surgery();
-        let (joined, _, _) = join_all(&mut staged, band, tol, &|_| true, &BTreeSet::new())?;
-        // A kill leaves the rows keyed by its half-edges; a body that
-        // carried rows has them re-derived whole (`pcurves::mint_pcurves`
-        // clears the map first), so none is left keyed by a dead cell.
-        if !staged.pcurves.is_empty() || !staged.joints.is_empty() {
-            crate::pcurves::mint_pcurves(&mut staged, tol)
-                .map_err(|source| BooleanError::Pcurves { source })?;
-        }
+        let (joined, dead, _) = join_all(&mut staged, band, tol, &|_| true, &BTreeSet::new())?;
+        staged.drop_rows(dead);
         staged.sweep_and_close();
         self.adopt(work);
         Ok(joined)
@@ -1047,19 +1049,7 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
             // call has no postcondition to sweep.
             return Ok(joined);
         }
-        if !(body.pcurves.is_empty() && body.joints.is_empty()) {
-            body.drop_rows(dead);
-            let mut faces = BTreeSet::new();
-            for j in &joined {
-                if let Some(e) = body.get_edge(j.kept) {
-                    faces.extend(body.face_of_half_edge(e.he_plus));
-                    faces.extend(body.face_of_half_edge(e.he_minus));
-                }
-            }
-            let faces: Vec<_> = faces.into_iter().collect();
-            crate::pcurves::mint_pcurves_of(&mut body, &faces, tol)
-                .map_err(|source| BooleanError::Pcurves { source })?;
-        }
+        body.drop_rows(dead);
         body.sweep_and_close();
         Ok(joined)
     }
@@ -1103,6 +1093,7 @@ fn join_all<T: Decide + crate::props::AtRestPolicy>(
             dead.extend([gone.he_plus, gone.he_minus]);
         }
         join_one(body, w, &join, band, tol)?;
+        complete_kept_faces(body, join.kept, tol);
         // A closed join's survivor is conventional unless another edge
         // still ends there (a seam strut on the rim it closed).
         let conventional =
@@ -1114,6 +1105,40 @@ fn join_all<T: Decide + crate::props::AtRestPolicy>(
             conventional,
         });
     }
+}
+
+/// **The faces `kept` bounds, completed afresh** after a join grew it:
+/// the join re-describes `kept` over the two edges' interval
+/// (`kev_describing`), and the site rows that description writes or
+/// keeps can stand over the interval `kept` had — on a sphere's two
+/// faces a joined meridian's half reads `LoopDiscontinuity` at tier 3
+/// (`two_rims_review_probes::a_ball_segment_inside_its_ball_builds_every_op`,
+/// through the Boolean fallback's join stage). So each such face's rows
+/// are dropped and derived whole again (`crate::pcurves`' completion,
+/// over those faces alone): current, or — where the derivation refuses —
+/// absent, for the finish to report. Every other face keeps its rows.
+fn complete_kept_faces<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    kept: EdgeKey,
+    tol: Tol,
+) {
+    let Some(edge) = body.get_edge(kept) else {
+        return;
+    };
+    let faces: Vec<FaceKey> = [edge.he_plus, edge.he_minus]
+        .into_iter()
+        .filter_map(|he| body.face_of_half_edge(he))
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    let halves: Vec<HalfEdgeKey> = faces
+        .iter()
+        .flat_map(|&face| body.proven_face(face).half_edges())
+        .collect();
+    body.drop_rows(halves);
+    // A face whose derivation refuses stays rowless: absent, which the
+    // finish completes or refuses with every other finding.
+    let _rowless = crate::pcurves::complete_faces(body, &faces, tol).err();
 }
 
 /// **`gone`'s far parameter, carried**: where `gone` is `kept`'s carrier
@@ -1144,41 +1169,56 @@ fn carried_far<T: Decide>(
     matches!(pick, geom_core::k_stats::Pick::Positive).then_some(gx)
 }
 
-/// **`gone`'s far end read off `kept`'s carrier**: the parameter of
-/// `gone`'s middle near `tw`, then of `far` near that, so the reading
-/// walks from the vertex along `gone`. A closed form inverts in closed
-/// form; a periodic cubic by its foot ([`geom::Curve3::foot`]), which is
-/// the one reading of a far end on a loop that [`carried_far`] does not
-/// carry: an arc stated a whole turn away across the loop's seat, an
-/// arc stated on the loop run back, and one whose parameter at the
-/// vertex is not the kept edge's bit for bit. Where `gone` lies on the very
-/// carrier ([`carried_far`]), this names `gx`'s point, and the two
-/// spellings agree up to rounding (ledger row F39).
+/// **`gone`'s far end read off `kept`'s carrier**, walking from the
+/// vertex along `gone`, whose parameters `(gw, gf)` are at the vertex
+/// and at its far end. A closed form inverts in closed form: `gone`'s
+/// middle near `tw`, then `far` near that. A periodic cubic inverts by
+/// its foot ([`geom::Curve3::foot`]), the one reading of a far end on a
+/// loop that [`carried_far`] does not carry: an arc stated a whole turn
+/// away across the loop's seat, an arc stated on the loop run back, and
+/// one whose parameter at the vertex is not the kept edge's bit for bit.
+/// That foot is polished from its seed, and a seed a long arc away can
+/// settle on a nearer local minimum of the distance, so the walk reads
+/// `gone`'s point at each eighth of its span in turn, each seeded at the
+/// last, then `far`, each in the turn nearest the parameter walked from.
+/// Where `gone` lies on the very carrier ([`carried_far`]), this names
+/// `gx`'s point, and the two spellings agree up to rounding (ledger row
+/// F39).
 fn read_far<T: Decide>(
     carrier: &geom::Curve3<T>,
     gone: &geom::Curve3<T>,
-    (g0, g1): (T, T),
+    (gw, gf): (T, T),
     far: geom_core::Point3<T>,
     tw: T,
 ) -> Option<T> {
-    // A periodic cubic inverts by its foot, read in the turn nearest the
-    // parameter walked from.
     if let Some(p) = carrier.as_periodic() {
         let turn = geom_core::period::Period::new(p.period());
         let near = |q: geom_core::Point3<T>, from: T| turn.near(carrier.foot(q, from).seed(), from);
-        return Some(near(far, near(gone.mid_point(g0, g1), tw)));
+        let half = T::one() / (T::one() + T::one());
+        let mut stations = vec![gw, gf];
+        for _ in 0..3 {
+            stations = stations
+                .windows(2)
+                .flat_map(|w| [w[0], (w[0] + w[1]) * half])
+                .chain([gf])
+                .collect();
+        }
+        let inner = &stations[1..stations.len() - 1];
+        let t = inner.iter().fold(tw, |from, &g| near(gone.eval(g), from));
+        return Some(near(far, t));
     }
     carrier
-        .param_near(gone.mid_point(g0, g1), tw)
+        .param_near(gone.mid_point(gw, gf), tw)
         .and_then(|tm| carrier.param_near(far, tm))
 }
 
 /// The joined edge's spec: `kept`'s carrier over its interval run on
 /// through `w` to `gone`'s far end, its description restated over the
-/// new interval. The far end's parameter is `gone`'s own where `gone`
-/// lies on `kept`'s very carrier ([`carried_far`]); otherwise it is read
-/// off the carrier: a whole period where the join closes, the point's
-/// parameter ([`geom::Curve3::param_near`]) where it does not.
+/// new interval. The far end's parameter is a whole period on where the
+/// join closes on a periodic carrier; otherwise `gone`'s own where `gone`
+/// lies on `kept`'s very carrier ([`carried_far`]), or, where the join
+/// does not close, the point's parameter read off the carrier
+/// ([`read_far`]).
 fn joined_spec<T: Decide>(
     body: &Body<T>,
     w: VertexKey,
@@ -1207,35 +1247,85 @@ fn joined_spec<T: Decide>(
     let gone_from_w = body.get_half_edge(gd.record().he_plus).map(|h| h.start) == Some(w);
     let at_w = if gone_from_w { (g0, g1) } else { (g1, g0) };
     let carried = carried_far(carrier, tw, backward, gone.stored_carrier(), at_w);
-    let tx = if let Some(tx) = carried {
-        tx
-    } else if join.closed {
-        // The carrier's own period (`Curve3::period`), which a closed
-        // join runs once round: at `Interval`, τ's enclosure.
-        match carrier.period() {
-            Some(period) => {
-                if backward {
-                    t1 - period.length()
-                } else {
-                    t0 + period.length()
-                }
+    // A closed join on a periodic carrier runs once round, so its far end
+    // is a whole period on, by the carrier's own period (`Curve3::period`;
+    // at `Interval`, τ's enclosure), even where `gone` is on the very
+    // carrier: its own far end names the same point only up to rounding,
+    // and a span a unit in the last place past a turn is no view of the
+    // loop. A carrier with no period closes where `gone` does.
+    let tx = match (join.closed, carrier.period()) {
+        (true, Some(period)) => {
+            if backward {
+                t1 - period.length()
+            } else {
+                t0 + period.length()
             }
-            None => {
+        }
+        _ => match carried {
+            Some(tx) => tx,
+            None if join.closed => {
                 return Err(BooleanError::JoinCarrierUnsupported {
                     edge: join.kept,
                     carrier: carrier.kind(),
                     closed: true,
                 });
             }
-        }
-    } else {
-        read_far(carrier, gone.stored_carrier(), (g0, g1), far, tw).ok_or(
-            BooleanError::JoinCarrierUnsupported {
-                edge: join.kept,
-                carrier: carrier.kind(),
-                closed: false,
-            },
-        )?
+            None => {
+                let read = read_far(carrier, gone.stored_carrier(), at_w, far, tw).ok_or(
+                    BooleanError::JoinCarrierUnsupported {
+                        edge: join.kept,
+                        carrier: carrier.kind(),
+                        closed: false,
+                    },
+                )?;
+                // A join that is not closed spans less than a turn of a loop. A
+                // far end read past a turn is held to the turn only where it is
+                // the kept edge's own far end, the rounding of a walk that came
+                // round to it; anything else read past a turn refuses.
+                match carrier.period() {
+                    Some(period) => {
+                        let (turn, past) = if backward {
+                            let turn = t1 - period.length();
+                            (turn, turn - read)
+                        } else {
+                            let turn = t0 + period.length();
+                            (turn, read - turn)
+                        };
+                        let back_at_start = || {
+                            let start = carrier.eval(if backward { t1 } else { t0 });
+                            matches!(
+                                geom_core::k_stats::decide(
+                                    "edge_join_far_a_turn_on",
+                                    Margin::of((far - start).norm()),
+                                    band
+                                ),
+                                Ok(geom_core::Sign::Zero)
+                            )
+                        };
+                        let short = matches!(
+                            geom_core::k_stats::decide(
+                                "edge_join_far_short_of_a_turn",
+                                Margin::of(past),
+                                band
+                            ),
+                            Ok(geom_core::Sign::Negative)
+                        );
+                        if short {
+                            read
+                        } else if back_at_start() {
+                            turn
+                        } else {
+                            return Err(BooleanError::JoinCarrierUnsupported {
+                                edge: join.kept,
+                                carrier: carrier.kind(),
+                                closed: false,
+                            });
+                        }
+                    }
+                    None => read,
+                }
+            }
+        },
     };
     let (a, b) = if backward { (tx, t1) } else { (t0, tx) };
     // A declaration's parameter is affine in the carrier's, so the kept

@@ -107,6 +107,7 @@ fn a_node_the_record_refused_is_refused_at_the_dual() {
             node: first,
             kind: NodeErrorKind::MissingInput { input: first },
             escalations: Default::default(),
+            sym: std::sync::Arc::default(),
         }),
     );
     let bound = dual(&doc, &record);

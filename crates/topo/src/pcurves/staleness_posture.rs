@@ -3,12 +3,9 @@
 /// Which of this module's four postures a mutation door holds.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum Posture {
-    /// Clears and re-mints before returning — over the whole body
-    /// or over exactly the faces it wrote. Read out of the source
-    /// (a `mint_pcurves` or `mint_pcurves_of` call in the door's
-    /// own body); an entry declares it only when the re-mint is one
-    /// delegation away, which a source read cannot see, or is an
-    /// Euler operator's site mint ([`super::site_rows`]).
+    /// Re-mints what it wrote before returning: the minting pass
+    /// itself and the fixture builders that call it, and an Euler
+    /// operator's site mint ([`super::site_rows`]).
     ///
     /// **The site mint is not the subset pass, and differs from it
     /// in two places.** What it shares with the pass is that no row
@@ -24,13 +21,12 @@ pub(crate) enum Posture {
     /// it had.
     /// Where the pass would MINT — a face storing no row, or one
     /// half-minted any other way — an operator's site mint leaves
-    /// the face as found: the pass owns it. Where the pass would
-    /// REFUSE — a loop that does not close, a branch that meets no
-    /// neighbour, a certification that refuses — the site mint
+    /// the face as found: the finish completes it. Where the pass
+    /// would REFUSE — a loop that does not close, a branch that meets
+    /// no neighbour, a certification that refuses — the site mint
     /// clears the face and the operator returns `Ok`: it runs
     /// mid-surgery, on states a later door finishes describing, and
-    /// the producer's final pass is where a finished state is
-    /// refused.
+    /// the finish is where a finished state is refused.
     Maintains,
     /// Disposes of every row whose KEY or MEANING the door
     /// changed, rather than leaving one behind: moves it onto the
@@ -87,8 +83,8 @@ pub(crate) enum Posture {
     Completes,
 }
 
-/// `(door, posture, note)` — the doors that do NOT re-mint the
-/// map in their own body. The reason a posture is SAFE lives once,
+/// `(door, posture, note)` — every mutation door. The reason a
+/// posture is SAFE lives once,
 /// on the [`Posture`] variant; a note here says only what is
 /// particular to this door.
 ///
@@ -99,60 +95,73 @@ pub(crate) enum Posture {
 pub(crate) const DECLARED: &[(&str, Posture, &str)] = {
     use Posture::{Completes, Maintains, Neither, Transfers};
     &[
-        // ---- Maintains, one delegation away from the re-mint. ----
-        // ---- Maintains: the doors that re-mint their own staged
-        // result. They carry prose here rather than in
-        // `review_m1_pr5_internal::ALLOWED` because they assert
-        // tier 1 through a surgery scope (`crate::surgery`) and so
-        // are no longer allowlisted there; the two tables still
-        // have to cover this one population between them. ----
+        // ---- The doors that write a staged result. They carry prose
+        // here rather than in `review_m1_pr5_internal::ALLOWED`
+        // because they assert tier 1 through a surgery scope
+        // (`crate::surgery`) and so are no longer allowlisted there;
+        // the two tables still have to cover this one population
+        // between them. ----
         (
             "merge_coplanar_faces",
-            Maintains,
-            "calls `merge_coplanar_faces_staged`, which re-mints the staged result \
-                 before it is adopted, whenever the operand carried rows, and ends with \
-                 `join_edges`, which re-mints again where a join moved rows",
+            Transfers,
+            "calls `merge_coplanar_faces_staged`, which drops the merged faces' rows \
+                 (their loops are rebuilt from fragments walked apart), and ends with \
+                 `join_edges`, on that entry's terms",
         ),
         (
             "replace_faces_offset",
-            Maintains,
-            "re-mints the clone whole-body before adopting it",
+            Transfers,
+            "drops the rows of every edge ending at a vertex it moves, and re-charts \
+             through `set_face_surfaces_describing`, on that entry's terms",
         ),
         (
             "offset_planes_together",
-            Maintains,
-            "re-mints the moved faces' rows on the clone (`mint_pcurves_of`) before \
-                 adopting it",
+            Transfers,
+            "re-charts and re-describes through `set_face_surfaces_describing`, on that \
+                 entry's terms",
         ),
         (
             "offset_charts_together",
-            Maintains,
-            "the axial spelling of `offset_planes_together`, with the same re-mint",
+            Transfers,
+            "the axial spelling of `offset_planes_together`, on the same terms",
         ),
         (
             "offset_surfaces_together",
-            Maintains,
-            "runs `replace_faces_offset`'s body over every moving chart, which re-mints \
-                 the clone whole-body before adopting it; with nothing moving it adopts a \
-                 joined clone, whose join re-mints where it moved rows",
+            Transfers,
+            "runs `replace_faces_offset`'s body over every moving chart; with nothing \
+                 moving it adopts a joined clone, on `join_edges`' terms",
         ),
         (
             "replace_face_offset",
-            Maintains,
-            "the one-face spelling of `replace_faces_offset`, which re-mints the clone \
-                 before adopting it",
+            Transfers,
+            "the one-face spelling of `replace_faces_offset`, on its terms",
         ),
         (
             "join_edges",
-            Maintains,
-            "re-mints the staged body whole where it carried rows, before the sweeping \
-                 close adopts it",
+            Completes,
+            "kills through `kev_describing`, on that entry's terms, drops the dead \
+                 cells' rows, and derives the faces the joined edge bounds whole again \
+                 (`complete_kept_faces`): the description's site rows can stand over the \
+                 interval the kept edge had",
         ),
         (
             "join_edges_within",
+            Completes,
+            "`join_edges` over the vertices it is handed, on the same terms",
+        ),
+        // ---- The fixture builders that run the pass over what they
+        // grew. ----
+        (
+            "cyl_wall_sheet",
             Maintains,
-            "re-mints the faces its kills' kept edges bound (`mint_pcurves_of`), after \
-                 dropping the dead cells' rows, before the sweeping close",
+            "a fixture builder: grows the sheet through `cyl_wall_sheet_keyed`, then runs \
+             the pass over it",
+        ),
+        (
+            "set_sheet_sense",
+            Maintains,
+            "a fixture setter: flips a sheet's face sense, then runs the pass over the \
+             sheet",
         ),
         // ---- The pass itself. ----
         (
@@ -206,9 +215,7 @@ pub(crate) const DECLARED: &[(&str, Posture, &str)] = {
             "the void-insertion door: reverts the cavity (`Body::revert` carries every \
              row key for key, the plane faces' rows mirrored with their frames — the \
              module docs' producer position) and grafts through `boolean::combine`, \
-             which remaps the transplanted rows onto fresh keys; every producer's final \
-             mint pass — the boolean's, the revolve's and `shell`'s — re-derives every \
-             row of the merged body",
+             which remaps the transplanted rows onto fresh keys",
         ),
         (
             "split_edge",
@@ -254,9 +261,9 @@ pub(crate) const DECLARED: &[(&str, Posture, &str)] = {
         ("mvfs", Neither, "Euler operator"),
         (
             "merge_unjoined",
-            Maintains,
-            "test support: calls `merge_coplanar_faces_unjoined`, which re-mints the \
-                 staged result before it is adopted",
+            Transfers,
+            "test support: calls `merge_coplanar_faces_unjoined`, which drops the merged \
+                 faces' rows, as `merge_coplanar_faces` does",
         ),
         (
             "mev_null",
@@ -383,9 +390,9 @@ pub(crate) const DECLARED: &[(&str, Posture, &str)] = {
         (
             "mfkrh_plug",
             Transfers,
-            "`mfkrh` with a PLACEHOLDER surface — see `mfkrh`; a placeholder is not a \
-             described surface, so it is not the chart any row was stated in and the \
-             promoted ring's rows always go, with no refusal: it is a spline chart. \
+            "`mfkrh` onto a PENDING surface slot — see `mfkrh`; a pending face has no \
+             surface, so it is not the chart any row was stated in and the promoted \
+             ring's rows always go, with no refusal. \
              Decided by kind, not by the fresh key the sugar happens to mint",
         ),
         (
@@ -488,7 +495,7 @@ pub(crate) const DECLARED: &[(&str, Posture, &str)] = {
              `Body::half_edges_proven_whole` proves). \
              Content staleness alone would be \
              the tier-3 pass's, but only where the NEW surface mints — a swap onto a plane \
-             or a placeholder left a COMPLETE row set stated in the chart the face left, \
+             or a pending slot left a COMPLETE row set stated in the chart the face left, \
              which that pass skips entirely",
         ),
         (
@@ -508,9 +515,9 @@ pub(crate) const DECLARED: &[(&str, Posture, &str)] = {
             Transfers,
             "`set_face_surface`'s swap per face, on its terms: a face's rows are kept \
              across a move onto the same chart and dropped on any other. The edges it \
-             re-describes are the listed certified ones, whose rows it keeps on a face that \
-             keeps its chart, for the tier-3 pass to re-certify against the new carrier \
-             (`work/topo/set-face-surfaces-describing-keeps-a-moved-edges-rows-on-a-kept-chart`)",
+             re-describes are the listed certified ones, whose rows it drops on every \
+             face where the spec moves the carrier or interval they are stated over, \
+             and keeps where it restates both",
         ),
         (
             "one_record_across",
@@ -604,59 +611,36 @@ pub(crate) const DECLARED: &[(&str, Posture, &str)] = {
     ]
 };
 
-/// **The convention at the top of this module, checked rather than
-/// surveyed.** Every public mutation path into a [`crate::Body`] —
-/// `pub fn` taking `&mut self`, plus the free functions taking
-/// `&mut Body<T>` — either re-mints the map in its own body, which
-/// this walk reads directly, or is declared below with its posture
-/// and a note on that door.
+/// **The construction-state posture, checked rather than surveyed.**
+/// Every public mutation path into a [`crate::Body`] — `pub fn` taking
+/// `&mut self`, plus the free functions taking `&mut Body<T>` — is
+/// declared below with its posture and a note on that door: each keeps
+/// a stored row current or drops it, and the finish completes the rest
+/// (`docs/DESIGN.md`, `[one-way.places]`).
 ///
-/// **Why a test and not a list in prose.** A prose index has no way
-/// to notice a door being added, and the previous one did not. This
-/// goes red the day one lands unsorted, which is the rot the prose
-/// could only describe.
-///
-/// **What it checks, exactly.** Three failures, all mechanical: a
-/// door that neither calls the pass — in either spelling,
-/// `mint_pcurves` or `mint_pcurves_of` — nor appears below; a door
-/// whose entry says anything but `Maintains` while its body calls
-/// it; and an entry naming a door that no longer exists.
+/// **What it checks, exactly.** Three failures, all mechanical: a door
+/// with no entry; a door whose body calls the minting pass — in either
+/// spelling, `mint_pcurves` or `mint_pcurves_of` — while its entry says
+/// anything but `Maintains`, which only the pass and a fixture builder
+/// hold by a call; and an entry naming a door that no longer exists.
 ///
 /// **Where the door set comes from, and what it cannot see:**
 /// [`crate::source_walk::mutation_doors`], shared with the tier-1
 /// postcondition guard in [`crate::review_m1_pr5_internal`], which
 /// walks the same population to ask a different question. That
-/// function's docs carry the reason the two tables do not merge
-/// and the whole inherited blind-spot list; this guard does not
-/// restate either.
+/// function's docs carry the reason the two tables do not merge and
+/// the whole inherited blind-spot list; this guard does not restate
+/// either. The body arrives with comments and literals blanked, so a
+/// call is a read of code, not of prose; `source_walk`'s planted rows
+/// pin that read.
 ///
-/// **"Calls `mint_pcurves`" is a read of code, not of prose.** The
-/// body arrives with comments and literals blanked. This guard
-/// used a raw `body.contains`, and a planted door whose body only
-/// *mentioned* `mint_pcurves(` in a comment was counted as
-/// re-minting, in both this guard and the tier-1 one, both green.
-///
-/// **What it does not check.** That a `Maintains` entry is TRUE. A
-/// re-mint reached through a delegate, and an Euler operator's
-/// site mint, are invisible to a source read, so every `Maintains`
-/// entry in `DECLARED` is taken at its word — the guard
-/// establishes that every door is sorted and that no door has
-/// silently started minting, not that each sort is correct.
-///
-/// **Nor which SPELLING of the pass a door calls, nor what it
-/// passes.** A `mint_pcurves_of(` call reads as `Maintains` here
-/// whatever face list it is handed — including an empty one — and
-/// the subset pass's guarantee is strictly weaker than the
-/// whole-body pass's: it cannot reach a row whose half-edge is
-/// dead ([`mint_pcurves_of`]'s docs). So a door that KILLS a
-/// half-edge and closes with the subset pass is classified
-/// `Maintains` by this walk and is not. Nothing in this crate does
-/// today, and a source read has no way to tell; what covers it is
-/// the entry's own text and the SHELL-10 probe rows in `sweep`. The
-/// module docs' *"what the guard does NOT establish"* list carries
-/// this and the rest of the blind spot: delegation, and everything
-/// outside `topo/src`'s `&mut Body` surface. The full inherited
-/// list is on [`crate::source_walk::mutation_doors`].
+/// **What it does not check.** That an entry is TRUE: a drop reached
+/// through a delegate, and an Euler operator's site mint, are invisible
+/// to a source read, so every entry is taken at its word. A door that
+/// leaves a stale row reads loud at the finish, which keeps every row
+/// it reaches and certifies it there. Delegation to the pass through a
+/// private helper is invisible too, and so is everything outside
+/// `topo/src`'s `&mut Body` surface.
 /// **The crate's own ring-promotion doors**, which the public walk
 /// does not reach ([`crate::source_walk::mutation_doors`] reads the
 /// `Construct` surface): `(door, posture, note)` for every function
@@ -718,72 +702,113 @@ fn every_ring_promotion_door_declares_its_posture() {
 #[test]
 fn every_mutation_door_declares_its_pcurve_posture() {
     use Posture::Maintains;
-    let mut minting: Vec<String> = Vec::new();
+    let mut minting: Vec<&str> = Vec::new();
     let mut declared: Vec<&str> = Vec::new();
     let mut undeclared: Vec<String> = Vec::new();
     let mut mislabelled: Vec<String> = Vec::new();
 
     for door in crate::source_walk::mutation_doors() {
         let entry = DECLARED.iter().find(|(n, _, _)| *n == door.name);
-        if door.names("mint_pcurves") || door.names("mint_pcurves_of") {
-            if let Some((_, posture, _)) = entry.filter(|(_, p, _)| *p != Maintains) {
+        let mints = door.names("mint_pcurves") || door.names("mint_pcurves_of");
+        match entry {
+            Some((_, posture, _)) if mints && *posture != Maintains => {
                 mislabelled.push(format!("{} declared {posture:?}", door.name));
             }
-            minting.push(door.name);
-        } else if let Some((n, _, _)) = entry {
-            declared.push(n);
-        } else {
-            undeclared.push(door.site());
+            Some((n, _, _)) => {
+                declared.push(n);
+                if mints {
+                    minting.push(n);
+                }
+            }
+            None => undeclared.push(door.site()),
         }
     }
 
     assert!(
         undeclared.is_empty(),
-        "public mutation path(s) that neither re-mint the pcurve map nor declare a \
-             posture in this test: {undeclared:?}. Either re-mint before returning, or add \
-             the door above with the posture it holds.",
+        "public mutation path(s) that declare no pcurve posture in this test: \
+             {undeclared:?}. Add the door above with the posture it holds.",
     );
     assert!(
         mislabelled.is_empty(),
-        "door(s) whose body now calls `mint_pcurves` but whose entry says otherwise: \
-             {mislabelled:?}. This is the rot the prose index suffered — move the entry to \
-             `Maintains`, or drop it and let the walk classify the door.",
+        "door(s) whose body now calls the minting pass but whose entry says otherwise: \
+             {mislabelled:?}. The pass clears what it re-derives, so a door that closes \
+             with it replaces a stale row rather than refusing it: a door keeps each row \
+             it touches current or drops it, and the finish completes the rest \
+             (`docs/DESIGN.md`, `[one-way.places]`). Only the pass and a fixture builder \
+             are `Maintains` by a call.",
     );
     // The entries rot in the other direction too.
     for (name, _, _) in DECLARED {
         assert!(
-            declared.contains(name) || minting.iter().any(|n| n == name),
+            declared.contains(name),
             "this test declares a posture for `{name}`, which is no longer a public \
                  mutation path — it was renamed or deleted. Drop the entry.",
         );
     }
-    // **Over-stripping is SILENT here**, which is why this pin is
-    // by name rather than a count. A door that stops reading as
-    // calling `mint_pcurves` does not red — it falls into the
-    // `else if let Some(entry)` arm and is accepted as declared.
-    // Only a door with no entry at all reds, and today exactly one
-    // door is classified by its body, so a lexing gap that erased
-    // the needle everywhere would leave this guard green over a
-    // surface it had stopped reading. The walk's own floor is
-    // upstream on `mutation_doors`; this is the needle's.
-    //
-    // **It is exactly one door wide, and that is the whole of it.**
-    // It does not cover the `DECLARED` doors: those land in the
-    // same `else if` arm whether or not their needle survives, so a
-    // declared non-`Maintains` door that STARTS minting while its
-    // call is over-stripped would not reach `mislabelled`. Closing
-    // that needs a second oracle for "does this body call it",
-    // which a source read does not have.
-    assert!(
-        minting.iter().any(|n| n == "join_edges"),
-        "`join_edges` no longer reads as calling `mint_pcurves`. Either the door \
-             stopped re-minting the rows its kills moved — a finding, and its entry \
-             belongs above — or the source read lost the call.",
-    );
+    // **Over-stripping is SILENT here**, which is why this pin is by
+    // name rather than a count. A door that stops reading as calling the
+    // pass does not red — it lands in the declared arm whatever its
+    // body reads as — so a lexing gap that erased the needle everywhere
+    // would leave the `mislabelled` check green over a surface it had
+    // stopped reading. The doors that call the pass today are the
+    // test-support spellings of the pass itself and the two fixture
+    // builders; each must still read as calling it. The walk's own floor
+    // is upstream on `mutation_doors`; this is the needle's.
+    for name in [
+        "mint_pcurves",
+        "mint_pcurves_of",
+        "cyl_wall_sheet",
+        "set_sheet_sense",
+    ] {
+        assert!(
+            minting.contains(&name),
+            "`{name}` no longer reads as calling the minting pass. Either it stopped \
+                 calling it — move its entry, and this pin — or the source read lost the \
+                 call.",
+        );
+    }
     println!(
-        "[pcurve posture] {} door(s): {} re-mint, {} declared",
-        declared.len() + minting.len(),
-        minting.len(),
+        "[pcurve posture] {} door(s) declared, {} calling the pass",
         declared.len(),
+        minting.len()
+    );
+}
+
+/// **No production code in any crate calls the minting pass.** The pass
+/// clears what it re-derives, so a door that closed with it would
+/// replace a stale row rather than refuse it; the finish completes a
+/// body's rows instead. The pass is crate-private and gated to tests and
+/// the `test-support` build, which the compiler holds for every crate's
+/// default build; this row holds it for the code a `test-support` build
+/// compiles too, over every crate's `src/` — the mutation-door walk above
+/// reads `topo/src`'s `&mut Body` surface alone. A test, a `cfg(test)`
+/// item and a `cfg(any(test, …))` item are test code and may call it.
+#[test]
+fn no_production_code_in_any_crate_calls_the_minting_pass() {
+    let crates = test_utils::source::repo_root(env!("CARGO_MANIFEST_DIR")).join("crates");
+    let mut sites = Vec::new();
+    let mut read = 0;
+    for krate in std::fs::read_dir(&crates).expect("the crates directory") {
+        let krate = krate.expect("a crate entry").path();
+        let src = krate.join("src");
+        if !test_utils::source::holds_rust_sources(&src) {
+            continue;
+        }
+        read += 1;
+        for site in test_utils::source::production_sites(&src, &["mint_pcurves", "mint_pcurves_of"])
+        {
+            sites.push(format!("{}/src/{site}", krate.display()));
+        }
+    }
+    // topo, sweep, mesh, step-import, editor-core and the rest: a walk
+    // that read a handful read the wrong tree.
+    assert!(read >= 10, "read {read} crate(s)");
+    // The fixture builders are test-support code mounted as such; their
+    // calls are test code and are not read here.
+    assert!(
+        sites.is_empty(),
+        "production code calls the minting pass: {sites:?}. A door keeps each row it \
+             touches current or drops it, and the finish completes the rest."
     );
 }
