@@ -1625,9 +1625,11 @@ fn resolve(
         .unwrap_or_default()
 }
 
-/// The declared types of an argument EXPRESSION, for the two shapes a
-/// census can honestly type: a binding, and a tuple-struct field of
-/// one. Anything else is undecided and says so.
+/// The declared types of an argument EXPRESSION, for the shapes a
+/// census can honestly type: a binding, and one field of it, by index
+/// on a tuple struct or by name on a named-field struct (through a
+/// `Box`, which the field access derefs), each as the struct declares
+/// it. Anything else is undecided and says so.
 fn expression_type(
     expression: &str,
     lookup: &impl Fn(&str) -> Vec<Typed>,
@@ -1644,25 +1646,37 @@ fn expression_type(
     if base == "self" {
         return field.split('.').next().map(&lookup).unwrap_or_default();
     }
-    let Ok(index) = field.parse::<usize>() else {
+    let field = field.trim_start_matches("r#");
+    if field.is_empty() || !field.chars().all(|c| c.is_alphanumeric() || c == '_') {
         return Vec::new();
-    };
+    }
+    let index = field.parse::<usize>().ok();
     lookup(base.trim_start_matches("r#"))
         .iter()
         .flat_map(|(written_in, base)| {
-            let (head, args) = head_args(base);
+            // A field read through a `Box` is the boxed struct's: field
+            // access derefs it.
+            let (mut head, mut args) = head_args(base);
+            while head == "Box" && args.len() == 1 {
+                (head, args) = head_args(&args[0]);
+            }
             types
                 .lookup(written_in, &head)
                 .1
                 .into_iter()
-                .filter_map(|declaration| match &declaration.shape {
-                    Shape::TupleStruct(elements) => elements.get(index).map(|e| {
-                        (
-                            declaration.module.clone(),
-                            substitute(e, &declaration.params, &args),
-                        )
-                    }),
-                    _ => None,
+                .filter_map(|declaration| {
+                    let element = match (&declaration.shape, index) {
+                        (Shape::TupleStruct(elements), Some(index)) => elements.get(index),
+                        (Shape::NamedStruct(fields), None) => fields
+                            .iter()
+                            .find(|(name, _)| name.trim_start_matches("r#") == field)
+                            .map(|(_, ty)| ty),
+                        _ => None,
+                    }?;
+                    Some((
+                        declaration.module.clone(),
+                        substitute(element, &declaration.params, &args),
+                    ))
                 })
                 .collect::<Vec<_>>()
         })
@@ -1875,13 +1889,6 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
          this renders a brace at `Interval` and prose at `f64`",
     ),
     (
-        "crates/geom-brep/src/offset_fit.rs",
-        "OffsetFitError",
-        POSITIONAL,
-        2,
-        "a positional `{:?}` over an expression this census does not type",
-    ),
-    (
         "crates/topo/src/boolean/mod.rs",
         "BooleanError",
         "curve",
@@ -1929,6 +1936,14 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "crates/topo/src/offset_derive.rs",
         "CornerVerdict",
         "sine",
+        1,
+        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
+         this renders a brace at `Interval` and prose at `f64`",
+    ),
+    (
+        "crates/topo/src/replace_face.rs",
+        "ReplaceFaceError",
+        "distance",
         1,
         "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",

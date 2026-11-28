@@ -336,35 +336,35 @@ fn die_slab_and_ball(h: f64) -> (topo::AtRestBody<f64>, topo::AtRestBody<f64>) {
     )
 }
 
-/// **The die pip's slab cut in a circle by its top refuses at the
-/// interior-loop guard.** The top face meets the ball in the circle
-/// `z = 0.7`, inside the ball's one face and clear of its seam: the
-/// interior-loop guard proves it. The slab's bottom face cuts the same
-/// face in the circle `z = 0`, which crosses it through both poles, so
-/// the face carries a first-pass crossing beside the loop. The output
-/// stage would not close a cut in it (`topo::boolean::slit`'s closing
-/// rests on no first-pass crossing on the cut face), so the crossings
-/// path does not cut in, and the guard's refusal stands in every op
-/// (`work/lathe/close-cuts-is-not-total-on-crossings-path-cut-ins.md`;
-/// the six ops in both orders:
+/// **The die pip's slab cut in a circle by its top builds where its
+/// closing reads a pole, and refuses at the interior-loop guard where it
+/// reads none.** The top face meets the ball in the circle `z = 0.7`,
+/// inside the ball's one face and clear of its seam: the interior-loop
+/// guard proves it, and the crossings path cuts the face in. The slab's
+/// bottom face cuts the same face in the circle `z = 0`, through both
+/// poles. Where the result keeps the band between the two circles,
+/// bounded by them alone (the slab less the ball, and their
+/// intersection), the closing reads no pole beyond either circle and
+/// answers `CutOutlineUndecided`, the op goes on uncut, and the guard's
+/// refusal stands
+/// (`work/lathe/a-section-circle-through-both-chart-poles-leaves-a-cut-face-with-no-pole-to-read.md`).
+/// The ball less the slab and their union build at their closed forms,
+/// `4π/3 − π(0.7 − 0.7³/3)` and `11.2` more (the six ops in both orders:
 /// `a_crossings_path_cut_in_is_made_only_where_its_closing_is_total`).
 #[test]
-fn the_die_slab_cutting_the_ball_in_its_top_refuses_at_the_interior_loop_guard() {
+fn the_die_slab_cutting_the_ball_in_its_top_builds_where_its_closing_reads_a_pole() {
     let (a, b) = die_slab_and_ball(0.7);
+    let band = std::f64::consts::PI * (0.7 - 0.7f64.powi(3) / 3.0);
+    let ball = 4.0 / 3.0 * std::f64::consts::PI;
     for (op, r) in [
         (
             "slab ∖ ball",
             topo::boolean::subtract(&a, &b, Tol::witness()),
         ),
         (
-            "ball ∖ slab",
-            topo::boolean::subtract(&b, &a, Tol::witness()),
-        ),
-        (
             "slab ∩ ball",
             topo::boolean::intersect(&a, &b, Tol::witness()),
         ),
-        ("slab ∪ ball", topo::boolean::union(&a, &b, Tol::witness())),
     ] {
         assert!(
             matches!(
@@ -376,6 +376,33 @@ fn the_die_slab_cutting_the_ball_in_its_top_refuses_at_the_interior_loop_guard()
             ),
             "{op}: the interior-loop guard's refusal, got {:?}",
             r.map(|_| ())
+        );
+    }
+    for (op, r, want) in [
+        (
+            "ball ∖ slab",
+            topo::boolean::subtract(&b, &a, Tol::witness()),
+            ball - band,
+        ),
+        (
+            "slab ∪ ball",
+            topo::boolean::union(&a, &b, Tol::witness()),
+            11.2 + ball - band,
+        ),
+    ] {
+        let out = match r {
+            Ok(topo::BooleanResult::Body(out)) => out,
+            other => panic!("{op}: a body, got {:?}", other.map(|_| ())),
+        };
+        assert_eq!(
+            topo::validate_pseudomanifold(&out.body, &out.contacts, Tol::witness()),
+            Ok(()),
+            "{op}: tier 3′"
+        );
+        let v = topo::test_support::pinned_volume(op, &out.body, Tol::witness()).volume;
+        assert!(
+            (v - want).abs() <= 1e-12 * want,
+            "{op}: its volume {v}, its closed form {want}"
         );
     }
 }
