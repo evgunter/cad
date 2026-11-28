@@ -791,6 +791,31 @@ impl<T: Real> RemovedIn<'_, T> {
     }
 }
 
+/// **A division's minted cells as one reads them**: each read through
+/// `read`, those that read as one of the pieces dropped. A minted cell
+/// a piece's image also names is that piece, not a cell between the
+/// pieces: a chord the output stage's merge took into the fragment it
+/// divides, a vertex a join took into the piece's edge. The boolean's
+/// two readers of minted cells as the cells between the pieces read
+/// through it: `ops::fate_of` states its divisions through it read as
+/// they stand, and [`landings`] reads them through it read through the
+/// joins. Readers that take a division's cells as a set read `minted`
+/// as stated: [`crate::Fate::images`] names every cell a fate names, a
+/// piece the same whether stated once or twice, and
+/// [`crate::Lineage::with_division`] unions two divisions' rows.
+pub(in crate::boolean) fn minted_read(
+    division: &crate::lineage::Division,
+    read: impl Fn(Cell) -> Cell,
+) -> Vec<Cell> {
+    let pieces: Vec<Cell> = division.pieces.iter().map(|&p| read(p)).collect();
+    division
+        .minted
+        .iter()
+        .map(|&m| read(m))
+        .filter(|m| !pieces.contains(m))
+        .collect()
+}
+
 /// **The one carry's placement** (D1): each of `rows`, a record's two
 /// input cells, put on the pairs drawn from its cells' images under
 /// `lineage` that a side holds. Where the lineage kept or substituted
@@ -847,21 +872,12 @@ pub(in crate::boolean) fn landings<'b, T: crate::props::AtRestPolicy>(
     for (k, &cells) in rows.iter().enumerate() {
         let record = super::reduce::index(k);
         let fates = cells.map(|c| lineage.fate(c));
-        // A minted cell an image of the cell's pieces also names (a
-        // vertex a join took into the piece's edge) is that piece.
+        // The minted cells read through the joins, those a piece also
+        // names dropped ([`minted_read`]).
         let minted: [Vec<Cell>; 2] = [0, 1].map(|i| {
-            let pieces: Vec<Cell> = fates[i]
-                .pieces()
-                .iter()
-                .map(|&p| lineage.joined(p))
-                .collect();
             fates[i]
                 .division()
-                .map_or(&[][..], |d| &d.minted)
-                .iter()
-                .map(|&m| lineage.joined(m))
-                .filter(|m| !pieces.contains(m))
-                .collect()
+                .map_or_else(Vec::new, |d| minted_read(d, |c| lineage.joined(c)))
         });
         let images = cells.map(|c| lineage.images(c));
         // An image that does not hold its input cell's geometry, where the

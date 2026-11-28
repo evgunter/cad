@@ -1601,9 +1601,10 @@ pub use solid_contain::{
 // that can hold it: upward layers RE-EXPORT these, never redefine.
 #[cfg(feature = "sweep-testing")]
 pub use boolean::{
-    PlantedDegradation, SharedClass, StagePoints, arm_output_stage_points, forget_branches,
-    swap_split_roles, sweep_records, sweep_split, sweep_traces, sweep_traces_with_pad,
-    take_output_stage_points, take_shared_points,
+    CarriedMinted, PlantedDegradation, SharedClass, StagePoints, arm_carried_minted,
+    arm_output_stage_points, forget_branches, swap_split_roles, sweep_records, sweep_split,
+    sweep_traces, sweep_traces_with_pad, take_carried_minted, take_output_stage_points,
+    take_shared_points,
 };
 pub use chart_window::ChartWindowError;
 #[cfg(feature = "sweep-testing")]

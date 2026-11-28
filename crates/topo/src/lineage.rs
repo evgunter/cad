@@ -329,14 +329,6 @@ impl Fate {
         }
     }
 
-    /// Every image but the minted cells, before the joins.
-    pub(crate) fn pieces(&self) -> Vec<Cell> {
-        match self {
-            Self::Divided(d) => d.pieces.clone(),
-            _ => self.images(),
-        }
-    }
-
     /// The division, where the fate divides its cell.
     pub(crate) fn division(&self) -> Option<&Division> {
         match self {
