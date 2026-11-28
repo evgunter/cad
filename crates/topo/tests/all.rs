@@ -449,6 +449,8 @@ mod lane0_r2_probes;
 mod lane2_r2_probes;
 #[path = "replace_face_band_probes.rs"]
 mod replace_face_band_probes;
+#[path = "review_gather_carries_probes.rs"]
+mod review_gather_carries_probes;
 
 #[path = "a_corner_flat_at_its_short_bounds.rs"]
 mod a_corner_flat_at_its_short_bounds;
