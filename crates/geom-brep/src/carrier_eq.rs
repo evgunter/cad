@@ -587,7 +587,7 @@ fn ladder_reading<T: Decide>(
 
 /// [`carrier_eq_reading`] at the FACE-PAIR door: a coincidence glues
 /// the pair only where the displacement's upper bound over the pair's
-/// extent decides Zero too ([`coincident_over_extent_as`]). A torus pair's
+/// extent decides Zero too ([`coincident_over_extent`]). A torus pair's
 /// coincidence already stands on that bound
 /// ([`crate::tori_coincide`]), and a torus pair the ring reads apart
 /// comes back as such, for the door to ask the faces for a witness
@@ -604,11 +604,12 @@ pub fn pair_door_reading<T: Decide>(
 ) -> Result<PairDoorReading, CarrierEqError> {
     match ladder_reading(c1, c2, extent, band)? {
         PairDoorReading::Verdict(CarrierVerdict::One { relation, margin }) => {
-            let margin = coincident_over_extent_as(c1, c2, extent, (relation, margin), band)
-                .map_err(|diag| CarrierEqError::Undecided {
+            let margin = coincident_over_extent(c1, c2, extent, margin, band).map_err(|diag| {
+                CarrierEqError::Undecided {
                     coincidence: CoincidenceMeasure::not_zero(diag),
                     relation,
-                })?;
+                }
+            })?;
             Ok(PairDoorReading::Verdict(CarrierVerdict::One {
                 relation,
                 margin,
@@ -789,7 +790,7 @@ pub fn consumed_arm<T: geom_core::Real>(
 /// pivot ([`crate::ExtentBall`]'s module docs). Each datum is
 /// decided on its own: a definite one says the carriers differ, and the
 /// face-pair door then reads the data as one sum
-/// ([`coincident_over_extent_as`]).
+/// ([`coincident_over_extent`]).
 ///
 /// - plane — the plane ladder reads the extent itself (offsets at its
 ///   centre, the arm its radius) and the pair passes through;
@@ -858,8 +859,10 @@ fn at_consumed_extent<T: geom_core::Real>(
 /// Per kind (`c` the ball's centre, `R` its radius, `t` the tilt as
 /// [`line_tilt`]'s chord, which bounds how far a unit offset turns):
 ///
-/// - plane — the offset `n̂₁·(o₁ − c) − σ·n̂₂·(o₂ − c)` read at `c`,
-///   plus `|n̂₁ − σ·n̂₂|·R`; σ is the decided orientation;
+/// - plane — the pair's offset read at `c`
+///   ([`crate::plane_eq::pair_offset`]), plus `‖n̂₁ × n̂₂‖·R`, plus
+///   `‖n̂₁ × n̂₂‖²·(|d₁| + |d₂|)` with `dᵢ = n̂ᵢ·(oᵢ − c)`
+///   ([`reading`]);
 /// - sphere — the centre separation plus the radius difference;
 /// - cylinder — the axis offset at `p` (the foot of `c` on the second
 ///   axis) plus `t` times the reach from `p` or from its foot on the
@@ -873,19 +876,15 @@ fn at_consumed_extent<T: geom_core::Real>(
 ///   two angles;
 /// - torus — the pair's coincidence already stands on its own bound
 ///   ([`crate::tori_coincide`]), and reads nothing more here.
-fn coincident_over_extent_as<T: Decide>(
+fn coincident_over_extent<T: Decide>(
     c1: &CarrierDesc<T>,
     c2: &CarrierDesc<T>,
     extent: &ConsumedExtent<T>,
-    (relation, data): (CarrierRelation, MarginDiag),
+    data: MarginDiag,
     band: Band,
 ) -> Result<MarginDiag, Indeterminate> {
-    let sigma = match relation {
-        CarrierRelation::SameOpposite => -T::one(),
-        CarrierRelation::SameOriented | CarrierRelation::Distinct => T::one(),
-    };
     // Two tori's coincidence already stands on this bound.
-    let Some(((row, straddle), upper)) = reading(c1, c2, extent.reach, sigma) else {
+    let Some(((row, straddle), upper)) = reading(c1, c2, extent.reach) else {
         return Ok(data);
     };
     match decide_reported(row, Margin::of(upper), band) {
@@ -907,13 +906,32 @@ const CONE_REACH: (&str, &str) = ("carrier_cone_reach", "carrier_cone_reach_stra
 
 /// The displacement's upper bound between a same-kind, non-torus pair
 /// over `reach`, with its predicate's name and its straddle row's
-/// ([`coincident_over_extent_as`]), the planes' orientation sign `sigma`
-/// decided; `None` for a kind mismatch or two tori.
+/// ([`coincident_over_extent`]); `None` for a kind mismatch or two
+/// tori.
+///
+/// The bound is of the distance from a point of either carrier in the
+/// ball to the other carrier, and is the same with the two exchanged.
+/// At `f64` it is that bound to rounding; at `Interval` its upper end
+/// is a certified bound for every pose the descriptions admit. At a
+/// symbolic scalar the plane arm is zero as an expression where the
+/// normals' cross product is and either mirror offset is; the cylinder
+/// and cone arms read the axes' chord under the nearer sign
+/// ([`line_tilt`]), which is zero as an expression only where both axes
+/// carry one sign spelling.
+///
+/// The plane arm, in the terms of [`crate::plane_eq`]'s module docs: a
+/// point `x` of the second plane in the ball stands
+/// `|n₁·(x − f₂) + e₁₂|` off the first, and `x − f₂` lies in the second
+/// plane no longer than `R`, so that is at most `‖n₁ × n₂‖·R + |e₁₂|`;
+/// a point of the first stands off the second by at most
+/// `‖n₁ × n₂‖·R + |e₂₁|`. The pair's offset is no less than the smaller
+/// of `|e₁₂|` and `|e₂₁|`, which differ by no more than
+/// `‖n₁ × n₂‖²·max(|d₁|, |d₂|)`, so with the third term the one sum
+/// bounds both.
 fn reading<T: Decide>(
     c1: &CarrierDesc<T>,
     c2: &CarrierDesc<T>,
     reach: crate::ExtentBall<T>,
-    sigma: T,
 ) -> Option<((&'static str, &'static str), T)> {
     Some(match (*c1, *c2) {
         (
@@ -927,9 +945,14 @@ fn reading<T: Decide>(
             }),
         ) => {
             let centre = reach.center();
-            let offset = n1.dot(o1 - centre) - sigma * n2.dot(o2 - centre);
-            let swing = Margin::levered((n1 - n2 * sigma).norm(), reach.lever()).value();
-            (PLANE_REACH, offset.abs() + swing)
+            let (d1, d2) = (n1.dot(o1 - centre), n2.dot(o2 - centre));
+            let cross = n1.cross(n2);
+            let offset = crate::plane_eq::pair_offset(d1, d2, n1.dot(n2));
+            let swing = Margin::levered(cross.norm(), reach.lever()).value();
+            (
+                PLANE_REACH,
+                offset + swing + cross.norm_squared() * (d1.abs() + d2.abs()),
+            )
         }
         (
             CarrierDesc::Sphere {
@@ -1531,7 +1554,7 @@ mod tests {
         for (a, b) in [(&one, &other), (&other, &one)] {
             let arm = consumed_arm(a, b, ball).length();
             assert!((arm - 6.0).abs() < 1e-9, "{arm}");
-            let (_, upper) = reading(a, b, ball, 1.0).expect("two cones");
+            let (_, upper) = reading(a, b, ball).expect("two cones");
             let want = 34.0_f64.sqrt() + 0.01 * 6.0;
             assert!((upper - want).abs() < 1e-9, "{upper} against {want}");
         }
@@ -1559,7 +1582,7 @@ mod tests {
         else {
             unreachable!("two cylinders")
         };
-        let (_, upper) = reading(&first, &second, ball, 1.0).expect("two cylinders");
+        let (_, upper) = reading(&first, &second, ball).expect("two cylinders");
         let want = 1.0 + line_tilt(a1.get(), a2.get()) * (5.0_f64.sqrt() + 1.0);
         assert!((upper - want).abs() < 1e-9, "{upper} against {want}");
     }
@@ -1770,6 +1793,67 @@ mod tests {
             carrier_eq(&p, &c, &ConsumedExtent::arm(1.0), band()).unwrap(),
             CarrierRelation::Distinct
         );
+    }
+
+    /// **The plane pair's bound holds from either plane, and is no
+    /// looser than it says.** Two planes at tilts up to past a right
+    /// angle and offsets up to most of the ball's radius from its
+    /// centre, each origin stated three radii along its plane, in both
+    /// operand orders. The exact largest distance from a point of either
+    /// plane's disc in the ball to the other plane is `|e| + ρ·sin` for
+    /// that plane's mirror offset `e` and disc radius `ρ`: the bound is
+    /// no less than it, exceeds it by no more than `sin·(R − ρ)` and the
+    /// second-order term, and is the same number in both orders. Red
+    /// without the second-order term (below the exact distance, the
+    /// first plane through the centre and the second half a radius off
+    /// it, a radian apart), and red where the bound is inflated.
+    #[test]
+    fn the_plane_bound_holds_from_either_plane_and_is_no_looser() {
+        let ball = unit_ball([0.0; 3]);
+        let offsets = [0.0, 0.5, -0.7];
+        for theta in [1e-9, 1e-3, 0.3, 1.0, 2.5] {
+            let (s, c) = f64::sin_cos(theta);
+            for (d1, d2) in offsets.into_iter().flat_map(|a| offsets.map(|b| (a, b))) {
+                let flat = (Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0), d1);
+                let leant = (Vec3::new(s, 0.0, c), Vec3::new(c, 0.0, -s), d2);
+                let desc = |(n, u, d): (Vec3<f64>, Vec3<f64>, f64)| PlaneDesc {
+                    origin: Point3::origin() + n * d + u * 3.0,
+                    normal: n,
+                };
+                let upper = |x, y| {
+                    reading(
+                        &CarrierDesc::Plane(desc(x)),
+                        &CarrierDesc::Plane(desc(y)),
+                        ball,
+                    )
+                    .expect("two planes")
+                    .1
+                };
+                let got = upper(flat, leant);
+                assert_eq!(
+                    got.to_bits(),
+                    upper(leant, flat).to_bits(),
+                    "tilt {theta}, offsets ({d1}, {d2}): one bound in both orders"
+                );
+                // Each plane's disc: its farthest point from the other plane.
+                let sin = flat.0.cross(leant.0).norm();
+                let exact = [(flat, leant), (leant, flat)]
+                    .map(|((n, _, d), other)| {
+                        let foot = Point3::origin() + n * d;
+                        let other = desc(other);
+                        other.normal.dot(foot - other.origin).abs() + (1.0 - d * d).sqrt() * sin
+                    })
+                    .into_iter()
+                    .fold(0.0, f64::max);
+                let least_disc = (1.0 - d1.abs().max(d2.abs()).powi(2)).sqrt();
+                let slack = sin * (1.0 - least_disc) + sin * sin * (d1.abs() + d2.abs());
+                assert!(
+                    exact <= got + 1e-12 && got <= exact + slack + 1e-12,
+                    "tilt {theta}, offsets ({d1}, {d2}): the bound {got} against the exact \
+                     distance {exact} and a slack of {slack}"
+                );
+            }
+        }
     }
 
     /// The plane arm is the plane ladder's: `carrier_eq` on two plane

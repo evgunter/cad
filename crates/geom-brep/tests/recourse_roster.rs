@@ -112,7 +112,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("bound_as"),
     NameCarrier::Call("classify_len_as"),
     NameCarrier::Call("closed_form_shown"),
-    NameCarrier::Call("coincident_over_extent_as"),
+    NameCarrier::Call("coincident_over_extent"),
     NameCarrier::Call("cone_cylinder_section"),
     NameCarrier::Call("constant_as"),
     NameCarrier::Call("cylinder_radius_decided"),

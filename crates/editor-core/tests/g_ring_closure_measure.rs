@@ -184,7 +184,8 @@ struct Seat {
 
 /// The ring's side seats (its `SameOpposite` rows), member pair
 /// ordered, with the door's verdict on each, and the seconds the door
-/// took over all of them.
+/// took over all of them. Each seat is asked twice, its two cells
+/// exchanged the second time: red if the verdict follows the order.
 fn side_seats(doc: &ProfileDoc, members: &[RecipeNodeId]) -> (Vec<Seat>, f64) {
     let ev = fixture::run(doc, &Default::default());
     let product = editor_core::product_recorded(doc, &ev, Tol::witness()).expect("gathers");
@@ -202,19 +203,28 @@ fn side_seats(doc: &ProfileDoc, members: &[RecipeNodeId]) -> (Vec<Seat>, f64) {
         }
         let (a, b) = &r.copies;
         let node = doc.operation_of(a.var).expect("a copy's placement");
-        let rows = [r.row.clone()];
-        let proof = editor_core::coincide::prove(
-            doc,
-            &[(node, &rows[..])],
-            None,
-            Tol::witness(),
-            &editor_core::Stop::default(),
-        )
-        .expect("door");
+        // The row as recorded, then with its two cells exchanged.
+        let mut exchanged = r.row.clone();
+        exchanged.cells.reverse();
+        let [proven, proven_exchanged] = [r.row.clone(), exchanged].map(|row| {
+            let proof = editor_core::coincide::prove(
+                doc,
+                &[(node, &[row][..])],
+                None,
+                Tol::witness(),
+                &editor_core::Stop::default(),
+            )
+            .expect("door");
+            matches!(proof[0][0], editor_core::Proof::Structural(_))
+        });
         let (x, y) = (at(a.var), at(b.var));
+        assert_eq!(
+            proven, proven_exchanged,
+            "members {x} and {y}: the seat proves alike whichever cell is read first"
+        );
         seats.push(Seat {
             members: (x.min(y), x.max(y)),
-            proven: matches!(proof[0][0], editor_core::Proof::Structural(_)),
+            proven,
         });
     }
     seats.sort();
@@ -395,6 +405,87 @@ fn a_seat_between_two_constructions_of_one_carrier_proves() {
     assert_eq!(
         (spun.as_slice(), control.as_slice()),
         (&proven[..], &proven[..])
+    );
+}
+
+/// A rectangle verb's block on a table polygon's block, each placed
+/// unturned: the rectangle's lower wall and the polygon's upper wall
+/// lie on the plane `y = -h/2`, the rectangle's side spanning `w` and
+/// the polygon's `v`, two variables of one value. Their one side seat.
+fn a_rectangle_on_a_table_polygon() -> Vec<Seat> {
+    let mut doc = ProfileDoc::empty_derived("g-rect-on-table", Tol::witness());
+    let mut params = BTreeMap::new();
+    for (name, value) in [("w", 2.0), ("v", 2.0), ("h", 1.0), ("t", 1.0)] {
+        doc = declare(doc, name, Dimension::Length, value);
+        params.insert(VarName::new(name).unwrap(), Dimension::Length);
+    }
+    let f = |text: &str| editor_core::parse_formula(text, &params).unwrap();
+    let zero = || Formula::zero(Dimension::Length);
+    let loops = [
+        LoopProgram::Rectangle {
+            centre: [f("w / 2"), zero()],
+            width: f("w"),
+            height: f("h"),
+        },
+        LoopProgram::Chain(vec![
+            ProgramStep::At([zero(), f("0 * h - h / 2 - t")]),
+            ProgramStep::LineTo(ProgramTarget::Point([f("v"), f("0 * h - h / 2 - t")])),
+            ProgramStep::LineTo(ProgramTarget::Point([f("v"), f("0 * h - h / 2")])),
+            ProgramStep::LineTo(ProgramTarget::Point([zero(), f("0 * h - h / 2")])),
+            ProgramStep::LineTo(ProgramTarget::Start),
+        ]),
+    ];
+    let mut members = Vec::new();
+    for loop_ in loops {
+        let (d, profile) = insert(
+            doc,
+            Node::Profile(ProfileProgram {
+                loops: vec![loop_],
+                ids: Vec::new(),
+                on: None,
+            }),
+        );
+        let (d, block) = insert(
+            d,
+            Node::Extrude {
+                profile: profile.into(),
+                distance: len(1.0),
+            },
+        );
+        let body = d.output(block, 0).unwrap();
+        let placed = editor_core::Placed::of(
+            &d,
+            Vec::new(),
+            vec![(
+                Coord::Spin(Some(TargetAxis::Z)),
+                Formula::zero(Dimension::Angle),
+            )],
+        );
+        let node = fixture::place_node(
+            &d,
+            editor_core::BodyRead::plain(Operand::Var(body)),
+            placed.bundle(),
+        );
+        let (d, p) = insert(d, node);
+        doc = fixture::assemble_world_copies(d);
+        members.push(p);
+    }
+    side_seats(&doc, &members).0
+}
+
+/// **A rectangle verb's wall on a table polygon's wall is one plane by
+/// construction.** The two walls' normals are spelled through two
+/// different sides (`w` and `v`), so the seat proves only where the
+/// one-plane reading is zero whichever way each normal is spelled. Red
+/// if the reading multiplies a normal by the orientation it decided.
+#[test]
+fn a_rectangle_verbs_wall_on_a_table_polygons_wall_proves_its_seat() {
+    assert_eq!(
+        a_rectangle_on_a_table_polygon(),
+        [Seat {
+            members: (0, 1),
+            proven: true,
+        }]
     );
 }
 
