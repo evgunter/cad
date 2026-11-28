@@ -7,8 +7,10 @@
 //! inside both faces, which no event marks: the interior-loop guard
 //! proves it, the crossings path cuts the sphere face in along the
 //! meridian of its chart through the circle and re-enters, and the output
-//! stage closes the cut (`topo::boolean::slit`), which the crossings path
-//! checks it can before it cuts in (`interior_cuts::closing_holds`). On a sphere every same-face edge the cut
+//! stage closes the cut (`topo::boolean::slit`), whose meridian the
+//! crossings path chooses off the face's first-pass sections before it
+//! cuts in (`interior_cuts::closing_meridians`). On a sphere every
+//! same-face edge the cut
 //! leaves that is no spur is a bridge, whatever the face holds: a pole
 //! and its wrap edge (a band), the seam from rim to rim (a zone), or no
 //! seam at all (an annulus clear of it). The rows:

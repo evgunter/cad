@@ -637,7 +637,12 @@ mass has no valid build" — is not sayable about any macroscopic box.
   where widening cannot hide it.
 - **The two channels are checked where an answer is returned.** A
   definite numeric sign is the answer, and the tier is asked nothing
-  about it. Where the tier answers `Zero` at an exact witness
+  about it. Where the value reads no definite sign over the box at an
+  exact witness, the margin's expression is enclosed once more with
+  each parameter at one fixed point of the box: an enclosure that
+  excludes 0 there proves the margin is no identity over the box, so
+  the tier is asked nothing and the decision stays undecided. Where
+  the tier answers `Zero` at an exact witness
   (`Sym<Interval>`), a `debug_assert!` checks that the certified
   enclosure contains 0 (DESIGN [failure.taxonomy] row 5: a kernel bug
   only a re-derivation detects); it leaves out
@@ -704,10 +709,12 @@ number.
 
   **TAKEN (M10-9, 2026-09-06)**, on the family M10-7's census and
   M10-8's measurement showed: `geom_core::sym::Sym::register_equal`,
-  a session-level record that two DAG NODES denote one function of the
+  a record that two DAG NODES denote one function of the
   parameters — equal at every parameter value, not only where a
   decision of the registrant came out as it did — made by the site
-  that guarantees it. A fact that holds only past a decision is not
+  that guarantees it, and read by the decisions of the document node
+  that made it and of the nodes it feeds, to which it travels with
+  the node's value. A fact that holds only past a decision is not
   registered: the construction spells that decision as a literal sign
   (`4·atan(σ·b)`, a radius `σ·ρ`), and the fact is then an identity of
   the expressions it built. A zero through it

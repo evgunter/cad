@@ -370,13 +370,33 @@ pub(super) struct Closed {
     den: Poly,
 }
 
+/// The closed forms of one argument as held in the session's memo:
+/// under the rules and the ring bound they were built under, a refusal
+/// included.
+pub(super) struct Held {
+    rules: super::SymRules,
+    bits: u64,
+    forms: Option<Rc<Closed>>,
+}
+
 fn closed_forms(arg: &Form, sess: &mut Session) -> Option<Rc<Closed>> {
-    let key = arg.digest();
-    if let Some(hit) = sess.trig_closed.get(&key) {
-        return hit.clone();
+    // Keyed by the rules and the ring bound beside the argument, as
+    // `Session::reductions` is: a retry attempt builds under its own,
+    // and a refusal is kept.
+    let (key, rules, bits) = (arg.digest(), sess.rules, super::rational::coeff_bound());
+    if let Some(held) = sess
+        .trig_closed
+        .get(&key)
+        .and_then(|held| held.iter().find(|h| h.rules == rules && h.bits == bits))
+    {
+        return held.forms.clone();
     }
     let built = build_closed_forms(arg, sess).map(Rc::new);
-    sess.trig_closed.insert(key, built.clone());
+    sess.trig_closed.entry(key).or_default().push(Held {
+        rules,
+        bits,
+        forms: built.clone(),
+    });
     built
 }
 
@@ -458,6 +478,34 @@ mod tests {
             );
         }
         sess
+    }
+
+    /// **A closed form refused under one ring bound is not the answer
+    /// under another.** `sin` and `cos` of `¾·atan X` asked first at a
+    /// ring bound of one bit, where the build refuses, and then at the
+    /// ring's own bound, where it builds: a retry attempt runs its walks
+    /// at its own bound and under its own rules, and what it built or
+    /// was refused is its own.
+    ///
+    /// Mutant: a memo keyed by the argument alone serves the first
+    /// ask's refusal to the second.
+    #[test]
+    fn a_closed_form_is_held_under_the_rules_and_ring_bound_it_was_built_under() {
+        let x = Form::poly(Poly::indet(7));
+        let atan = indet_atom(SymOp::Atan.tag(), 0, &[x.digest()]);
+        let atan2 = indet_atom(SymOp::Atan2.tag(), 0, &[x.digest(), x.digest()]);
+        let mut sess = session_with(&x, atan, atan2);
+        let mut arg = Poly::zero();
+        arg.insert(vec![(atan, 1)], Rat::new(3, 4, 0).unwrap())
+            .unwrap();
+        let arg = Form::poly(arg);
+        let narrow =
+            crate::sym::rational::with_coeff_bound(1, || closed_forms(&arg, &mut sess).is_some());
+        assert!(!narrow, "at one bit the build refuses");
+        assert!(
+            closed_forms(&arg, &mut sess).is_some(),
+            "at the ring's own bound it builds, whatever was refused before"
+        );
     }
 
     /// The argument reader takes exactly `q · atan(X)` with a dyadic

@@ -4768,6 +4768,22 @@ pub enum BooleanError {
         /// The edge it lies on both sides of.
         edge: crate::entity::EdgeKey,
     },
+    /// A chart cut's piece parts a sphere face bounded by section circles
+    /// alone, and neither part has the chart's pole beyond one of its
+    /// circles, so which part keeps the face's outline is not decided
+    /// (`slit::close_cuts`, `slit::part_cut`): a circle through the
+    /// chart's poles leaves none to read
+    /// (`work/lathe/a-section-circle-through-both-chart-poles-leaves-a-cut-face-with-no-pole-to-read.md`).
+    /// A crossings-path cut-in answering it leaves the op uncut, and the
+    /// interior-loop guard's refusal stands (`ops::interior_cuts`); the
+    /// no-crossings path's cut-ins hold the pole by construction. A
+    /// construction gap, with no lever.
+    ///
+    /// A limit: the closing's outline read off the pole alone.
+    CutOutlineUndecided {
+        /// The cut face, in the result's keys.
+        face: FaceKey,
+    },
     /// The result keeps a face on both sides of part of an operand's
     /// slit or zero-area ring, between stretches of it the result keeps:
     /// the zip glues the slit's two edges into one edge of that face
@@ -5029,6 +5045,8 @@ pub enum BooleanErrorKind {
     SlitFaceGlued,
     /// [`BooleanError::CurvedFaceClosesAcrossSlit`].
     CurvedFaceClosesAcrossSlit,
+    /// [`BooleanError::CutOutlineUndecided`].
+    CutOutlineUndecided,
     /// [`BooleanError::SlitFaceClosesMidSlit`].
     SlitFaceClosesMidSlit,
     /// [`BooleanError::LineWedges`].
@@ -5305,6 +5323,7 @@ impl BooleanError {
             Self::SlitLineCrossed { .. } => BooleanErrorKind::SlitLineCrossed,
             Self::SlitFaceGlued { .. } => BooleanErrorKind::SlitFaceGlued,
             Self::CurvedFaceClosesAcrossSlit { .. } => BooleanErrorKind::CurvedFaceClosesAcrossSlit,
+            Self::CutOutlineUndecided { .. } => BooleanErrorKind::CutOutlineUndecided,
             Self::SlitFaceClosesMidSlit { .. } => BooleanErrorKind::SlitFaceClosesMidSlit,
             Self::LineWedges { .. } => BooleanErrorKind::LineWedges,
         }
@@ -5425,6 +5444,7 @@ impl BooleanError {
             | Self::SlitLineCrossed { .. }
             | Self::SlitFaceGlued { .. }
             | Self::CurvedFaceClosesAcrossSlit { .. }
+            | Self::CutOutlineUndecided { .. }
             | Self::SlitFaceClosesMidSlit { .. }
             | Self::LineWedges { .. }
             | Self::TouchesItself { .. }
@@ -6497,6 +6517,13 @@ impl BooleanError {
                 "the result keeps curved face {face:?} on both sides of edge {edge:?}, where an \
                  operand's slit or zero-area ring lay, so the face closes across it, and \
                  deleting such an edge with a free end from a curved face is not built. {}",
+                geom_core::NOT_YET_ENDING
+            ),
+            Self::CutOutlineUndecided { face } => write!(
+                f,
+                "a cut the Boolean made across sphere face {face:?} parts a face bounded by \
+                 section circles alone, and neither part is read with the face's chart pole \
+                 beyond it, so which part keeps the face's outline is not decided. {}",
                 geom_core::NOT_YET_ENDING
             ),
             Self::SlitFaceClosesMidSlit { face, edge } => write!(
@@ -10633,6 +10660,7 @@ mod tests {
                 BooleanErrorKind::SlitLineCrossed => "SlitLineCrossed",
                 BooleanErrorKind::SlitFaceGlued => "SlitFaceGlued",
                 BooleanErrorKind::CurvedFaceClosesAcrossSlit => "CurvedFaceClosesAcrossSlit",
+                BooleanErrorKind::CutOutlineUndecided => "CutOutlineUndecided",
                 BooleanErrorKind::SlitFaceClosesMidSlit => "SlitFaceClosesMidSlit",
                 BooleanErrorKind::LineWedges => "LineWedges",
             }

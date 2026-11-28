@@ -2,10 +2,11 @@
 id: the-embedding-census-is-undecided-on-a-tilted-moving-cap
 kind: issue
 title: Tier 3′'s embedding census is undecided on a brick whose moving cap is tilted, from a box of ± 0.05
-status: open
+status: parked
 opened: 2026-11-24
 priority: P1
 cost: M
+blocked_on: [a-margin-definite-at-every-member-of-a-box-reads-no-sign-where-its-value-reads-the-box-twice]
 ---
 
 
@@ -41,3 +42,21 @@ carry the box.
 Ground: `crates/topo/src/census.rs` and `census/` (ATREST, CONTACTHOLD,
 HELDRECORDS and ONEDOOR claim it); filed here because the box drive's
 measurement found it. (BOXFINISH orchestrator)
+
+## Traced (M15, 2026-11-28)
+
+`probe/M15-REPORT.md` on `boxfinish/probe-side-reading` at
+`e77112350a`. It is dependency on the value channel and no zero
+crossing: the edge-against-face residual reads the cap's height
+through two stored vertices and encloses ± 0.094, where the margin's
+expression is a parameter-free constant of rounding size (the tilted
+normal is three `f64` numbers, so the vertex is on the plane to
+6.6e-19 and not as an identity). The tier proves only a zero form and
+answers nothing; the vertex contact is asked only because the residual
+is undecided. Neither predicate escalates at a box of no width.
+
+The class has its own row, with the design question:
+`a-margin-definite-at-every-member-of-a-box-reads-no-sign-where-its-value-reads-the-box-twice`.
+This row waits on it.
+(BOXFINISH orchestrator)
+
