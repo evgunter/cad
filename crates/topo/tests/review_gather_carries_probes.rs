@@ -199,3 +199,26 @@ fn probe_the_trait_method_finishes_a_body_it_was_not_the_graft_of() {
         "the forged body reports the small brick's volume: {v}"
     );
 }
+
+/// Claim 3/8: the same public trait method panics on input a caller
+/// can write: no part at all (`unreachable!` in `KeptSign::gathered`).
+#[test]
+#[should_panic(expected = "a gather grafts at least one part")]
+fn probe_the_trait_method_panics_on_no_part() {
+    use topo::FinishedBody;
+    let any = common::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol());
+    let _ = <AtRestBody<f64> as FinishedBody>::gathered(any, &[], &[]);
+}
+
+/// ... and on keys that are not the part's graft's
+/// (`unreachable!` in `KeptSign::rekeyed`).
+#[test]
+#[should_panic(expected = "a graft maps every face of its source")]
+fn probe_the_trait_method_panics_on_keys_of_another_graft() {
+    use topo::FinishedBody;
+    let d = drum();
+    let (_, keys) = topo::boolean::gather_finished(&[Placed::own(&d)], tol()).unwrap();
+    let b = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
+    let any = common::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol());
+    let _ = <AtRestBody<f64> as FinishedBody>::gathered(any, &[&b], &keys);
+}
