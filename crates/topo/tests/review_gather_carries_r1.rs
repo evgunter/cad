@@ -303,3 +303,31 @@ fn at_interval_an_unmoved_gather_carried_beside_derived() {
         }
     }
 }
+
+/// **Can a mirrored map reach `Placed`?** `Placed` takes a
+/// `RigidMotion`, whose fields are private, but `RigidMotion::map_scalar`
+/// is public and carries each entry through any closure between two
+/// scalars of one witness kind: negating every entry of the identity is
+/// the point inversion, an improper map, typed as a rigid motion. This
+/// prints what the gather and the derived finish make of it.
+#[test]
+fn a_point_inversion_typed_as_a_rigid_motion_reaches_the_gather() {
+    let tol = Tol::witness();
+    let a = fin(brick::<f64>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0)));
+    let inversion = RigidMotion::<f64>::identity().map_scalar(|x| -x);
+    let p = inversion.transform_point(geom_core::Point3::new(1.0, 2.0, 3.0));
+    eprintln!("the map sends (1, 2, 3) to {p:?}");
+    let gathered = topo::boolean::gather_finished(&[Placed::own(&a), Placed::at(&a, inversion)], tol);
+    match gathered {
+        Err(e) => eprintln!("the gather refuses the inversion: {e:?}"),
+        Ok((g, _)) => {
+            let carried = g.measure(resolution()).map(|m| m.enclosure.volume);
+            let derived = topo::finish(g.into_body(), tol).map(|_| ());
+            let derived = format!("{derived:?}");
+            eprintln!(
+                "the gather CARRIES under the inversion: carried volume {carried:?}; the derived finish: {}",
+                &derived[..derived.len().min(500)]
+            );
+        }
+    }
+}
