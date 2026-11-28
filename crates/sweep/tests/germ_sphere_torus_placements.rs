@@ -100,21 +100,6 @@ fn outcome(got: &Result<topo::BooleanResult<f64>, BooleanError>) -> String {
 /// (`work/spiricarm/the-general-pose-torus-germ-unions-that-build-have-no-volume-truth.md`).
 #[test]
 fn a_ball_against_a_donut_carries_onto_the_torus_and_builds() {
-    // Pinned red at every ε: the spline edge's placement, a section loop
-    // inside the one-band ball and the one-band donut, refuses
-    // `RingHomingAmbiguous` once its cut-in is built
-    // (`work/lathe/a-section-loop-inside-two-one-band-curved-faces-refuses-at-the-section-certificate.md`).
-    // The other three placements are read first, so they still run.
-    test_utils::pinned_red::row(
-        Tol::witness().eps(),
-        &test_utils::pinned_red::EVERY_ROW,
-        "a ball against a donut at four placements",
-        &["a spline edge in a torus ring's run", "RingHomingAmbiguous"],
-        placements_build,
-    );
-}
-
-fn placements_build() {
     let tol = Tol::witness();
     let origin = Vec3::new(0.0, 0.0, 0.0);
     let (ball0, donut0) = (
@@ -165,4 +150,61 @@ fn placements_build() {
         assert_eq!(end, "builds", "{what}: {got:#?}");
         assert!(floor.is_none(), "{what}: {floor:?}");
     }
+}
+
+/// **The spline edge's placement holds one meet under every op**: the
+/// ball turned and moved against the donut at the origin, where a
+/// section loop lies inside the one-band ball and the one-band donut and
+/// its cut-in leaves a strut ring on the donut's torus face that no path
+/// places. Each op, in both operand orders, builds or refuses typed and
+/// never as a kernel invariant, and the ops that build agree on one
+/// `V(O ∩ B)` by inclusion–exclusion
+/// ([`crate::common::op_census::assert_one_meet`]). The pose has no
+/// independent volume, so the agreement is the oracle. Both unions build.
+#[test]
+fn the_spline_edge_placement_holds_one_meet_under_every_op() {
+    use crate::common::op_census::{
+        assert_one_meet, kernel_invariant, measure, result_volume, six_runs,
+    };
+    let origin = Vec3::new(0.0, 0.0, 0.0);
+    let donut0 = placed(&donut(), Vec3::unit_x(), 0.0, origin);
+    let moved = placed(
+        &ball(),
+        Vec3::new(0.3, 1.0, 0.2),
+        1.1,
+        Vec3::new(0.42, -0.15, 0.3),
+    );
+    let (vo, pad_o) = measure("the donut", &donut0);
+    let (vb, _) = measure("the ball", &moved);
+    let mut implied = Vec::new();
+    let mut lines = Vec::new();
+    for run in six_runs(&donut0, &moved) {
+        match &run.got {
+            Ok(r) => {
+                let (v, pad) = result_volume(run.op, r);
+                implied.push((run.op, run.keep.meet(vo, vb, v), pad));
+                lines.push(format!("{}: builds V = {v} ± {pad:e}", run.op));
+            }
+            Err(e) => {
+                assert!(
+                    !kernel_invariant(e),
+                    "{}: a kernel invariant: {e:?}",
+                    run.op
+                );
+                lines.push(format!("{}: refuses {e:?}", run.op));
+            }
+        }
+    }
+    for line in &lines {
+        println!("{line}");
+    }
+    for op in ["O∪B", "B∪O"] {
+        assert!(
+            lines
+                .iter()
+                .any(|l| l.starts_with(&format!("{op}: builds"))),
+            "{op} builds: {lines:#?}"
+        );
+    }
+    assert_one_meet("donut ∪ the moved ball", &implied, vo, pad_o, vb);
 }

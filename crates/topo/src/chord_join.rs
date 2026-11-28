@@ -300,13 +300,12 @@ pub enum JoinError {
     RingHoming(PointInLoopError),
     /// No vertex of a ring says which side of the run dividing its face
     /// off it is on: every vertex is ON the run (a ring an
-    /// ill-conditioned operand put there), or, on a wall's chart, no
-    /// vertex's ray is decided. A pierce ring on a plane with every
-    /// vertex on the run is deferred instead ([`ChordJoiner`]'s pending
-    /// rings), and refuses this way only if its join cannot place it
-    /// either: it meets a pending ring in another face, a polygon
-    /// completes inside it, or it is still pending when either sweep is
-    /// done.
+    /// ill-conditioned operand put there), or, on a curved face, no
+    /// path from a vertex is decided. A pierce ring no join has reached
+    /// is deferred instead ([`ChordJoiner`]'s pending rings), and
+    /// refuses this way only if its join cannot place it either: it
+    /// meets a pending ring in another face, a polygon completes inside
+    /// it, or it is still pending when either sweep is done.
     RingHomingAmbiguous {
         /// The undecidable ring.
         ring: LoopKey,
@@ -5675,15 +5674,19 @@ impl ChordJoiner {
     /// tested: a ring-lane remainder is geometrically coincident with
     /// the run and would land `OnBoundary`.
     ///
-    /// A pierce ring on a plane every vertex of which is decided ON the
-    /// run ([`RingSide::OnRun`]) is a strut at a pinch the run passes
-    /// through: no point of it says which side it is on, but its own
-    /// polygon will, so it is left pending ([`Self::place_pending`]). Its
-    /// point stays on the boundary of the face holding it, so a later
-    /// division of that face reads it on the run again or out, and
-    /// never moves it. Any other ring on the run, and any ring no vertex
-    /// of which is decided (a curved face's ring whose every path ends on
-    /// the run or grazes it), refuses.
+    /// A pierce ring no join has reached yet (a strut, its vertices all
+    /// copies of its pierce point) whose side no reading decides is left
+    /// pending ([`Self::place_pending`]): on a plane every vertex decided
+    /// ON the run ([`RingSide::OnRun`]), on a curved face every path
+    /// ending on the run or grazing it ([`RingSide::Undecided`]). No
+    /// point of it says which side it is on, but its own polygon will:
+    /// that join moves it into the face of the ring it meets, and a ring
+    /// still pending when the sweep is done refuses ([`Self::finish`]).
+    /// Until then it sits in `oldf`, its point outside `newf`'s region or
+    /// on its boundary, so a later division of the face holding it reads
+    /// it outside, on the run or undecided, and never moves it; a reading
+    /// inside is a kernel defect and refuses as one. Any other ring no
+    /// reading places refuses.
     fn rehome_rings<T: Decide>(
         &mut self,
         body: &mut Body<T>,
@@ -5728,9 +5731,19 @@ impl ChordJoiner {
                 }
             };
             match side {
+                // A pending ring's point lies outside `oldf`'s region or
+                // on its boundary, so a run walled off `oldf` never holds
+                // it: only its own polygon's join moves it.
+                RingSide::In if self.pending.contains_key(ring) => {
+                    return Err(JoinError::SectionInvariant {
+                        face: oldf,
+                        what: "a pending pierce ring reads inside a later run of the face \
+                               holding it",
+                    });
+                }
                 RingSide::In => body.ring_move(ring, newf)?,
                 RingSide::Out => {}
-                RingSide::OnRun if is_pierce_ring(body, ring)? => {
+                RingSide::OnRun | RingSide::Undecided if is_pierce_ring(body, ring)? => {
                     self.pending.insert(ring, ());
                 }
                 RingSide::OnRun | RingSide::Undecided => {
