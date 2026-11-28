@@ -2051,6 +2051,55 @@ Flagged, NOT fixed here (dispositions):
   `fitted_defects`, runs both ways). **Carried as
   `k_stats::unlogged("F47", ..)`**. Not a `decide_flagged` site;
   `LEDGER_FLAGGED_SITES` does not move.
+- **F48** (added by BOXFINISH's witness-premises unit, PR 7716) every
+  `props_*` premise and classification of a closed-form face asked a
+  second time — `topo/src/props.rs` `lifted_closed_form`, whose whole
+  body is the unlogged scope, so both its callers (`rederive_faces` and
+  the test door `closed_form_reads`) read it alike. At a scalar whose
+  sums round (`f64`), check 7's certified read runs a curved face's
+  closed form again at the interval scalar over the face's geometry
+  lifted (`closed_form_or_carried` → `quad_lane::closed_form` →
+  `closed_form_of::<Interval>`). The predicates are the role walk's
+  own, on the same face at the same node (the same function,
+  `closed_form_of`, runs both ways), so the log loses no kind of
+  premise, only the repeat.
+
+  **What keeps it off the log**: a scalar whose sums are enclosures
+  takes the walk's sums and asks nothing again (`walked_closed_form`),
+  so a logged repeat is recorded by the `f64` witness and by no
+  interval leaf, and the two verdict vectors part at it with no
+  decision differing.
+
+  **What its decisions still steer**, each off the log:
+  1. *A refusal refuses the face.* It is returned by value
+     (`MassPropsError::Face`, the refusal's own payload) and the role
+     is `VolumeUncomputable`, as before.
+  2. *A first refusal about the shell's reference is swallowed.*
+     `closed_form_or_carried` then reads the face about the world
+     origin and carries it, answering `moved = false`; that is
+     `Rederived::recentred`, whose `false` is `SignLimit::WorldOrigin`,
+     on which `certify_role` reads again tight and, the sign still
+     unread, answers `Unresolved` where it would answer `Open`. The
+     escalation that first refusal logged is dropped with the scope.
+  3. *Its enclosure is the value `positive_volume_exact` is decided
+     on* at such a scalar. That decision is logged, by its own door.
+
+  **Why no reader loses by it.** The log has two readers
+  (`k_stats::unlogged`'s contract): the verdict-diff engine and the
+  subdivision driver. Both read LEAVES, and a leaf is replayed only at
+  an exact-witness scalar, where this pass is not run at all: nothing
+  it would have logged can be on a leaf's log. Of the witness's log the
+  engine reads the verdicts, which F48 makes the leaf's; a witness's
+  escalations are read by no one — `drive::classify_replay`, the one
+  reader of a node's escalation log that acts on it, is called on
+  leaves. So outcome 2's dropped escalation was a cue no driver took,
+  and outcomes 1 and 3 reach the log by their own doors (the node's
+  failure, and `positive_volume_exact`).
+
+  The margins and their dimensions are the logged checks' own.
+  **Carried as `k_stats::unlogged("F48", ..)`**. Not a `decide_flagged`
+  site; `LEDGER_FLAGGED_SITES` does not move. Rows:
+  `topo` `props::lifted_pass_rows`.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a

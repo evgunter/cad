@@ -929,6 +929,50 @@ fn the_directed_search_proves_ground_on_the_plate_the_level_drive_cannot() {
     );
 }
 
+/// **The plate's narrow `hole_r` leaves certify against their witness**:
+/// over `[0, ε/4]` and `[0, ε/8]` the one leaf of a depth-0 drive takes
+/// every decision the `f64` witness took, check for check, so its
+/// verdict vector is the witness's. The plate's holes are cylinder
+/// walls, whose closed-form premises each lane logs where its role walk
+/// decides them and nowhere else.
+///
+/// It says that the drive certifies and no more: what the certificate
+/// is worth at the leaf's members is `witness_premises_rows`'
+/// `members_of_the_plates_certified_leaf_build_as_the_witness_did`.
+///
+/// Red where the `f64` lane's interval re-read of a curved face runs on
+/// the log (`topo::props`' `lifted_closed_form` without its `unlogged`
+/// scope): the witness records each premise once more than the leaf,
+/// and the leaf is refused `flip_crossing` with no turn named.
+#[test]
+fn the_plates_narrow_hole_radius_leaves_certify_against_their_witness() {
+    let (doc, field, _) = plate();
+    let stop = editor_core::Stop::default();
+    for narrow in [4.0, 8.0] {
+        let seed = RangeSeed {
+            lo: 0.0,
+            hi: tol().eps() / narrow,
+        };
+        let derived = derive(&doc, &field, seed, tol()).expect("admitted");
+        let analyzed = analyzed_box(&derived.doc, &AnalysisPolicy::default());
+        let level = DriveConfig {
+            max_depth: 0,
+            ..DriveConfig::default()
+        };
+        let verdict = editor_core::drive::drive(&derived.doc, &analyzed, &level, &stop, tol())
+            .expect("the plate builds");
+        assert!(
+            verdict.certified().len() == 1 && verdict.refused().is_empty(),
+            "over [0, ε/{narrow}] the plate's one leaf does not certify: refused {:?}",
+            verdict
+                .refused()
+                .iter()
+                .map(|leaf| leaf.reason.class().name())
+                .collect::<Vec<_>>()
+        );
+    }
+}
+
 /// **The per-replay cost on the corpus documents**, printed: the
 /// measurement `range.rs`'s module docs record. Asserts nothing, so it
 /// is not a gate:

@@ -1799,30 +1799,36 @@ fn walked_closed_form<T: geom_core::Certifies>(
 /// **A closed-form face's flux and area read again at the interval
 /// scalar** about the point its run was read about, with its region's
 /// carry ([`closed_form_or_carried`]), and whether it was read there.
+///
+/// It is read off the log, for every caller: ledger row F48
+/// (`docs/predicate-dimension-audit.md`) says why, and what its
+/// decisions still steer.
 fn lifted_closed_form<T: geom_core::Certifies>(
     body: &Body<T>,
     band: Band,
     lane: QuadLane<T>,
     run: &FaceRun<T>,
 ) -> Result<((Interval, Interval), bool), MassPropsError> {
-    let face = body.proven_face(run.face);
-    let (c, moved) = closed_form_or_carried(
-        |surface, loops, points, same_sense, band, about, cap| {
-            (lane.closed_form)(surface, loops, points, same_sense, band, about, cap)
-        },
-        face.expect_described(),
-        &face_loops(face)?,
-        &face_tips(face)?,
-        face.sense(),
-        band,
-        corner_of(lane, run),
-    )
-    .map_err(|source| MassPropsError::Face {
-        face: run.face,
-        source,
-    })?;
-    let carry = run.about.carry().unwrap_or_else(Interval::zero);
-    Ok(((c.flux + carry, c.area), moved))
+    geom_core::k_stats::unlogged("F48", || {
+        let face = body.proven_face(run.face);
+        let (c, moved) = closed_form_or_carried(
+            |surface, loops, points, same_sense, band, about, cap| {
+                (lane.closed_form)(surface, loops, points, same_sense, band, about, cap)
+            },
+            face.expect_described(),
+            &face_loops(face)?,
+            &face_tips(face)?,
+            face.sense(),
+            band,
+            corner_of(lane, run),
+        )
+        .map_err(|source| MassPropsError::Face {
+            face: run.face,
+            source,
+        })?;
+        let carry = run.about.carry().unwrap_or_else(Interval::zero);
+        Ok(((c.flux + carry, c.area), moved))
+    })
 }
 
 /// A face's loops as their vertex points, in traversal order, the outer
@@ -9900,5 +9906,115 @@ mod review_7437_probe {
             refusal.contains("Corrupt") && refusal.contains("curve key does not resolve"),
             "the raw door refuses a removed curve Corrupt: {refusal}"
         );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod lifted_pass_rows {
+    use super::*;
+
+    /// The role walk's runs over the seamless drum at `f64`, and the lane
+    /// they were read through.
+    fn drum_runs(tol: Tol) -> (Body<f64>, Band, QuadLane<f64>, Vec<FaceRun<f64>>) {
+        let band = Band::linear(tol).unwrap();
+        let body = crate::test_support_fixtures::seamless_drum::<f64>(0.8125, 1.0, tol);
+        let faces = crate::query::all_faces(&body);
+        let lane = QuadLane::<f64>::certified();
+        let hook = round_hook(Some(lane));
+        let refs = References::of(&body, faces.iter().copied(), band, Some(lane));
+        let runs = decide_faces_serially(&faces, |&f| {
+            face_flux(
+                &body,
+                f,
+                band,
+                &hook,
+                tol,
+                RoundWindow::SCHEDULE,
+                &refs,
+                Some(crate::test_support::pinned_len(tol)),
+            )
+        })
+        .unwrap();
+        (body, band, lane, runs)
+    }
+
+    /// **The re-derivation states nothing on the log at a scalar that
+    /// rounds** (ledger row F48): the drum's wall is read again at the
+    /// interval scalar and none of its premises is recorded. That the
+    /// read is taken at all is the next row's.
+    ///
+    /// Red where the lifted pass runs on the log (`unlogged` taken out
+    /// of `lifted_closed_form`): the wall's premises are recorded,
+    /// `props_circle_axis_class` first.
+    #[test]
+    fn the_lifted_pass_records_nothing_on_the_log() {
+        let tol = Tol::witness();
+        let (body, band, lane, runs) = drum_runs(tol);
+        let (read, log) =
+            geom_core::k_stats::detached(|| rederive(&body, band, tol, lane, &runs, true));
+        let recorded = log.recorded();
+        assert!(
+            recorded.verdicts.is_empty() && recorded.escalations.is_empty(),
+            "the re-derivation recorded {:?}",
+            recorded.verdicts
+        );
+        read.unwrap();
+    }
+
+    /// `quad_lane::closed_form`, refusing every curved face by a payload
+    /// of its own.
+    fn refusing_curved_faces(
+        surface: &Surface<f64>,
+        loops: &[Vec<LoopEdge<f64>>],
+        held: &[Point3<f64>],
+        sense: bool,
+        band: Band,
+        centre: Point3<Interval>,
+        measured: Option<((Interval, Interval), Point3<Interval>)>,
+    ) -> Result<(FaceContribution<Interval>, bool), PropsError> {
+        if !matches!(surface, Surface::Plane { .. }) {
+            return Err(PropsError::OffSurface {
+                what: "the row's planted refusal of the lifted pass",
+            });
+        }
+        quad_lane::closed_form(surface, loops, held, sense, band, centre, measured)
+    }
+
+    /// **The lifted pass is run on a curved face, and a refusal inside
+    /// it refuses the face by its own payload**: a lane whose closed
+    /// form refuses the drum's wall refuses the re-derivation at that
+    /// face, with the refusal it was handed.
+    ///
+    /// Red where the re-derivation answers a refused lifted pass some
+    /// other way (the walk's sums in its place): it reads a volume.
+    #[test]
+    fn a_refusal_in_the_lifted_pass_refuses_the_face_by_its_payload() {
+        let tol = Tol::witness();
+        let (body, band, lane, runs) = drum_runs(tol);
+        let lane = QuadLane {
+            closed_form: refusing_curved_faces,
+            ..lane
+        };
+        let wall = runs
+            .iter()
+            .find(|run| {
+                !matches!(
+                    body.proven_face(run.face).expect_described(),
+                    Surface::Plane { .. }
+                )
+            })
+            .unwrap()
+            .face;
+        match rederive(&body, band, tol, lane, &runs, true) {
+            Err(MassPropsError::Face {
+                face,
+                source: PropsError::OffSurface { what },
+            }) => {
+                assert_eq!(face, wall, "the refused face is the wall");
+                assert_eq!(what, "the row's planted refusal of the lifted pass");
+            }
+            other => panic!("the re-derivation did not refuse the wall by its payload: {other:?}"),
+        }
     }
 }
