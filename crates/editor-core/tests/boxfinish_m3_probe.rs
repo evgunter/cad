@@ -98,7 +98,9 @@ fn report(label: &str, doc: &ProfileDoc) {
     );
     let mut classes = std::collections::BTreeMap::new();
     for leaf in v.refused() {
-        *classes.entry(format!("{:?}", leaf.reason.class())).or_insert(0usize) += 1;
+        *classes
+            .entry(format!("{:?}", leaf.reason.class()))
+            .or_insert(0usize) += 1;
     }
     eprintln!("[m3] {label}: refused classes {classes:?}");
     for leaf in v.refused().iter().take(3) {

@@ -6010,8 +6010,12 @@ where
     // alike, definite or escalated — follow the pre-key ones in the
     // frame opened above, which closes once the op returns.
     // PROBE (M8): the op's wall time and the finishes inside it.
-    let m8 = geom_core::k_stats::probe_tally::m8()
-        .then(|| (std::time::Instant::now(), geom_core::k_stats::probe_tally::finish_ns()));
+    let m8 = geom_core::k_stats::probe_tally::m8().then(|| {
+        (
+            std::time::Instant::now(),
+            geom_core::k_stats::probe_tally::finish_ns(),
+        )
+    });
     let m9_pre = m9.as_ref().map(|(t, _)| t.elapsed().as_secs_f64() * 1e3);
     let op = wire::run_op(id, &input, doc, results, &slot_values, op_env, tol);
     if let (Some((_, c0)), Some(pre)) = (&m9, m9_pre) {
@@ -6019,7 +6023,9 @@ where
         let delta = match (c0, c1) {
             (Some(a), Some(b)) => format!(
                 "sym+{},num+{},retried+{},reg_refused+{}",
-                b.symbolic - a.symbolic, b.numeric - a.numeric, b.retried - a.retried,
+                b.symbolic - a.symbolic,
+                b.numeric - a.numeric,
+                b.retried - a.retried,
                 b.registrations_refused - a.registrations_refused,
             ),
             _ => "none".to_owned(),

@@ -4365,7 +4365,8 @@ fn form_in(
             let made = combined.filter(|f| within(budget, f));
             if let Some(t) = probe_t0 {
                 crate::k_stats::probe_tally::walk_node(
-                    made.as_deref().map(|f| f.num.terms().len() + f.den.terms().len()),
+                    made.as_deref()
+                        .map(|f| f.num.terms().len() + f.den.terms().len()),
                     t.elapsed().as_nanos(),
                     refusal == Some(form::Refusal::Ring),
                 );
@@ -4966,7 +4967,11 @@ pub fn probe_opaque_of(ids: &[u128]) -> Vec<u128> {
         };
         ids.iter()
             .copied()
-            .filter(|x| sess.nodes.get(&SymId(*x)).is_some_and(|n| n.op == SymOp::Opaque))
+            .filter(|x| {
+                sess.nodes
+                    .get(&SymId(*x))
+                    .is_some_and(|n| n.op == SymOp::Opaque)
+            })
             .collect()
     })
 }
@@ -5016,9 +5021,9 @@ fn m11_stage(stage: &str, t: std::time::Instant, form: Option<&Form>, note: &str
 /// PROBE (M11): the installed session's table sizes (nodes, forms, atoms).
 pub fn probe_session_sizes() -> (usize, usize, usize) {
     SESSION.with(|s| {
-        s.borrow()
-            .as_ref()
-            .map_or((0, 0, 0), |sess| (sess.nodes.len(), sess.forms.len(), sess.atoms.len()))
+        s.borrow().as_ref().map_or((0, 0, 0), |sess| {
+            (sess.nodes.len(), sess.forms.len(), sess.atoms.len())
+        })
     })
 }
 
@@ -5035,7 +5040,15 @@ fn ladder(sess: &mut Session, id: SymId, path: Path) -> Option<(Rung, u8)> {
     if let Some(rung) = rungs(sess, id, &plain, 0, first, path) {
         return Some((rung, 0));
     }
-    m11_stage("first-attempt-ended-unproven", std::time::Instant::now(), None, &format!("retry_attempts_offered={}", sess.retry.attempts(sess.rules).count()));
+    m11_stage(
+        "first-attempt-ended-unproven",
+        std::time::Instant::now(),
+        None,
+        &format!(
+            "retry_attempts_offered={}",
+            sess.retry.attempts(sess.rules).count()
+        ),
+    );
     for (attempt, rules, bits) in sess.retry.attempts(sess.rules) {
         // **The GROWTH GUARD** (`SymRetry::max_forms`), checked BEFORE
         // the attempt is walked: an attempt whose memos are at the cap
@@ -5097,7 +5110,12 @@ fn rungs(
         });
         #[cfg(feature = "sym-profile-testing")]
         profile::reduce_top_done(t0);
-        m11_stage("top", std::time::Instant::now(), reduced.as_ref(), &format!("attempt={attempt} (ms not timed)"));
+        m11_stage(
+            "top",
+            std::time::Instant::now(),
+            reduced.as_ref(),
+            &format!("attempt={attempt} (ms not timed)"),
+        );
         if reduced.as_ref().is_some_and(|f| f.is_zero()) {
             return Some(Rung::Top);
         }

@@ -518,7 +518,11 @@ pub mod probe_tally {
     pub fn rss_kb() -> u64 {
         std::fs::read_to_string("/proc/self/statm")
             .ok()
-            .and_then(|s| s.split_whitespace().nth(1).and_then(|p| p.parse::<u64>().ok()))
+            .and_then(|s| {
+                s.split_whitespace()
+                    .nth(1)
+                    .and_then(|p| p.parse::<u64>().ok())
+            })
             .map_or(0, |pages| pages * 4)
     }
 
@@ -565,13 +569,21 @@ pub mod probe_tally {
         if first == text {
             return None;
         }
-        let i = first.bytes().zip(text.bytes()).position(|(a, b)| a != b).unwrap_or(first.len().min(text.len()));
+        let i = first
+            .bytes()
+            .zip(text.bytes())
+            .position(|(a, b)| a != b)
+            .unwrap_or(first.len().min(text.len()));
         let cut = |t: &str| {
             let lo = i.saturating_sub(160);
             let hi = (i + 120).min(t.len());
             t.get(lo..hi).unwrap_or("?").to_owned()
         };
-        Some(format!("at byte {i}: FIRST ..{}.. THIS ..{}..", cut(first), cut(text)))
+        Some(format!(
+            "at byte {i}: FIRST ..{}.. THIS ..{}..",
+            cut(first),
+            cut(text)
+        ))
     }
     pub fn hash_text(s: &str) -> u64 {
         hash_of(s)
@@ -661,8 +673,7 @@ pub mod probe_tally {
             if ring {
                 v.ring += 1;
                 if v.first_ring_ns.is_none() {
-                    v.first_ring_ns =
-                        WALK_START.with(Cell::get).map(|s| s.elapsed().as_nanos());
+                    v.first_ring_ns = WALK_START.with(Cell::get).map(|s| s.elapsed().as_nanos());
                 }
             }
             w.set(v);
@@ -673,7 +684,8 @@ pub mod probe_tally {
     /// appended to `BOXFINISH_S2_FILE` when the thread ends.
     pub fn s2_file() -> Option<&'static str> {
         static F: OnceLock<Option<String>> = OnceLock::new();
-        F.get_or_init(|| std::env::var("BOXFINISH_S2_FILE").ok()).as_deref()
+        F.get_or_init(|| std::env::var("BOXFINISH_S2_FILE").ok())
+            .as_deref()
     }
     struct S2 {
         tally: BTreeMap<(String, &'static str), u64>,
@@ -682,7 +694,11 @@ pub mod probe_tally {
     fn s2_append(text: &str) {
         use std::io::Write;
         if let Some(path) = s2_file() {
-            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+            if let Ok(mut f) = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(path)
+            {
                 let _ = f.write_all(text.as_bytes());
             }
         }
@@ -767,13 +783,17 @@ pub mod probe_tally {
         let phase = PHASE.with(Cell::get);
         REC.with(|r| {
             let mut r = r.borrow_mut();
-            let gap = r.last.map_or(0, |l| entered.saturating_duration_since(l).as_nanos());
+            let gap = r
+                .last
+                .map_or(0, |l| entered.saturating_duration_since(l).as_nanos());
             let e = r.time.entry((phase, name)).or_default();
             e.0 += 1;
             e.1 += gap;
             e.2 += (t1 - t0).as_nanos();
             *r.full.entry((phase, name, hash_of(text))).or_default() += 1;
-            *r.val.entry((phase, name, hash_of(&strip_nodes(text)))).or_default() += 1;
+            *r.val
+                .entry((phase, name, hash_of(&strip_nodes(text))))
+                .or_default() += 1;
             r.last = Some(std::time::Instant::now());
         });
     }
@@ -894,10 +914,21 @@ fn classify_quoting<T: Decide, A: MarginTerms>(
         let text = probe_tally::strip_nodes(&text);
         eprintln!(
             "[m11-disc] name={name} scalar={} outcome={} ms={:.2} forms={} largest_terms={} made_ms={:.1} refused_nodes={} ring={} decision_ladders={} margin={}",
-            core::any::type_name::<T>().rsplit("::").next().unwrap_or("?"),
-            match &outcome { Ok(d) => format!("{:?}", d.sign), Err(_) => "Indeterminate".to_owned() },
+            core::any::type_name::<T>()
+                .rsplit("::")
+                .next()
+                .unwrap_or("?"),
+            match &outcome {
+                Ok(d) => format!("{:?}", d.sign),
+                Err(_) => "Indeterminate".to_owned(),
+            },
             t.elapsed().as_secs_f64() * 1e3,
-            w.forms, w.largest, w.ns_made as f64 / 1e6, w.refused, w.ring, w.decision_ladders,
+            w.forms,
+            w.largest,
+            w.ns_made as f64 / 1e6,
+            w.refused,
+            w.ring,
+            w.decision_ladders,
             text.chars().take(600).collect::<String>(),
         );
     }
@@ -909,10 +940,20 @@ fn classify_quoting<T: Decide, A: MarginTerms>(
             let w = probe_tally::walk_take();
             eprintln!(
                 "[bf-slow] {name} ms={ms:.1} outcome={} forms={} largest_terms={} made_ms={:.1} refused_nodes={} refused_ms={:.1} ring={} first_ring_ms={} decision_ladders={} contradiction_ladders={}",
-                match &outcome { Ok(d) => format!("{:?}", d.sign), Err(_) => "Indeterminate".to_owned() },
-                w.forms, w.largest, w.ns_made as f64 / 1e6, w.refused, w.ns_refused as f64 / 1e6, w.ring,
-                w.first_ring_ns.map_or("none".to_owned(), |n| format!("{:.2}", n as f64 / 1e6)),
-                w.decision_ladders, w.contradiction_ladders,
+                match &outcome {
+                    Ok(d) => format!("{:?}", d.sign),
+                    Err(_) => "Indeterminate".to_owned(),
+                },
+                w.forms,
+                w.largest,
+                w.ns_made as f64 / 1e6,
+                w.refused,
+                w.ns_refused as f64 / 1e6,
+                w.ring,
+                w.first_ring_ns
+                    .map_or("none".to_owned(), |n| format!("{:.2}", n as f64 / 1e6)),
+                w.decision_ladders,
+                w.contradiction_ladders,
             );
         }
     }
