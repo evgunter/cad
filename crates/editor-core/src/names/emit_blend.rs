@@ -33,7 +33,7 @@
 //! that is neither — a key minted without a record — has no upstream
 //! name and surfaces as
 //! [`NamingError::MissingUpstream`], loudly, rather than being guessed
-//! around. The final [`check_total`] closes the other direction.
+//! around. The final totality check ([`super::emit::finish`]) closes the other direction.
 //!
 //! One guard sits between those two cases, because "keeps its source
 //! arena key" is a claim about NUMBERING and nothing here re-checks
@@ -77,7 +77,7 @@ use topo::{Body, EdgeKey, FaceKey, VertexKey};
 
 use super::canonical;
 use super::defer::{TieRows, put as put_row, upstream_name};
-use super::emit::{NamingError, check_total, ent, name1};
+use super::emit::{NamingError, ent, name1};
 use super::role::{EntityKind, RimSupport, RoleSeg, StableName, edge_line};
 use super::table::{EntityKey, NameTable};
 use crate::node::RecipeNodeId;
@@ -388,7 +388,7 @@ pub(super) fn name_blend<T: geom_core::Real>(
     // ONE stage, so one flush — and it must precede the totality
     // check, which reads the table this drains into.
     tie.flush(&mut t)?;
-    check_total(&t, body, 0)?;
+    let t = super::emit::finish(t, body, 0)?;
     Ok(Arc::new(t))
 }
 

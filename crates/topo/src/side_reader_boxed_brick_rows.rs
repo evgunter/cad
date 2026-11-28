@@ -54,7 +54,7 @@ fn brick_at<T: Decide + crate::props::AtRestPolicy>(
         let Surface::Plane {
             frame: carrier_frame,
             ..
-        } = *twin.proven_face(face).surface()
+        } = *twin.proven_face(face).expect_described()
         else {
             panic!("a brick's face is planar");
         };

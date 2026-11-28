@@ -31,13 +31,13 @@ pub(crate) fn unencoded(body: &Body<f64>, key: FaceKey, tol: Tol) -> bool {
     };
     let band = geom_core::Band::linear(tol).unwrap();
     f.loops().count() == 1
-        && geom_brep::props::boundary_material_sign(f.surface(), &outer, band)
+        && geom_brep::props::boundary_material_sign(f.surface().unwrap(), &outer, band)
             == Ok(geom_brep::props::MaterialSign::Unencoded)
 }
 
 pub(crate) fn sphere_faces(body: &Body<f64>) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Sphere { .. })))
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Ok(Surface::Sphere { .. })))
         .map(|(k, _)| k)
         .collect()
 }
@@ -155,7 +155,7 @@ pub(crate) fn assert_refused(
 /// The sphere `key` lies on: centre, radius and unit polar axis.
 pub(crate) fn sphere_of(body: &Body<f64>, key: FaceKey) -> (Point3<f64>, f64, Vec3<f64>) {
     match body.face_surface(key) {
-        Some(&Surface::Sphere { frame, radius, .. }) => {
+        Ok(&Surface::Sphere { frame, radius, .. }) => {
             let (center, axis) = (frame.origin(), frame.axis());
             (center, radius, axis.normalize())
         }
@@ -195,6 +195,12 @@ pub(crate) fn split_at_meridian(body: &mut Body<f64>, key: FaceKey, dir: Vec3<f6
         tol,
     )
     .unwrap();
+}
+
+/// Splits a full revolve's one-face ball into its two lunes
+/// ([`sweep::test_support::two_lunes`]).
+pub(crate) fn two_lunes(body: &mut Body<f64>, tol: Tol) {
+    sweep::test_support::two_lunes(body, tol);
 }
 
 // Splits of the review of PR 5516 (R2), lifted into rows.

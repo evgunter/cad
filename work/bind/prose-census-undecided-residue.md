@@ -134,3 +134,9 @@ you except where this note says Ev answered it.
 `error-census-keyed-on-bare-type-name` was dropped from this row's `refs` because the row closed with **FIX**, which left the tracker at sweep 18 — `work/fix/` is deleted and `docs/DOC-LEDGER.md` is its done-state of record. The finding is unchanged and still readable: `git show 6f0e04ce1534:work/fix/error-census-keyed-on-bare-type-name.md`.
 
 Moved from CENSUS to BIND on 2026-11-20, by `git mv`, when CENSUS merged into BIND: CENSUS held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one BIND carries.
+
+2026-11-28 (LATHE, `lathe/prose-census-red`): the resolver now types
+one named field of a binding (`ident.field`, through a `Box`) as the
+struct declares it, beside `ident.0`. That decided `ContainError`'s
+three new field renderings and `OffsetFitError`'s two (`window.u`,
+`window.v`), whose roster line is gone.

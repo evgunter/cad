@@ -312,7 +312,7 @@ fn a_sphere_zone_beside_a_band_is_metered_by_its_own_extent() {
         .iter()
         .flat_map(|&(r, y)| rim_arcs_at(&body, r, y))
         .collect();
-    assert_eq!(edges.len(), 6, "three rims, two half-arcs each");
+    assert_eq!(edges.len(), 3, "three rims, one edge each");
     let f = fillet_edges(
         &sweep::test_support::at_rest(&body, tol()),
         &edges,

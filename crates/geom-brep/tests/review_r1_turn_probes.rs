@@ -83,7 +83,12 @@ impl Steep {
             spec,
             e.eval(t0),
             e.eval(t1),
-            |k| self.surfaces.get(k).cloned(),
+            |k| {
+                self.surfaces
+                    .get(k)
+                    .cloned()
+                    .ok_or(geom_brep::SurfaceMiss::Stale)
+            },
             geom_core::test_support::fixture_lever(1.0),
             band,
             geom_brep::NurbsLane::certified(),
@@ -294,7 +299,12 @@ fn r1_spiric_whole_ovals_certify_whole() {
                 spec,
                 carrier.eval(t0),
                 carrier.eval(t1),
-                |k| surfaces.get(k).cloned(),
+                |k| {
+                    surfaces
+                        .get(k)
+                        .cloned()
+                        .ok_or(geom_brep::SurfaceMiss::Stale)
+                },
                 geom_core::test_support::fixture_lever(1.0),
                 band,
                 geom_brep::NurbsLane::certified(),

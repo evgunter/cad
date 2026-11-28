@@ -51,6 +51,30 @@ fn revolved(session: &mut DocSession, x0: f64, w: f64, h: f64, angle: f64) -> Re
     )
 }
 
+/// A circle of radius `SIDE / 2` drawn as two arcs, extruded `SIDE`:
+/// each cap circle is a closed rim of two arcs, the shape a whole-rim
+/// pick joins. (A full revolve's rims are one closed edge each.)
+fn extruded_disc(session: &mut DocSession) -> RecipeNodeId {
+    let profile = session_insert(
+        session,
+        SessionOp::AddProfile {
+            loops: vec![common::circle_at([0.0, 0.0], SIDE * 0.5)],
+        },
+    );
+    session_insert(
+        session,
+        SessionOp::AddExtrude {
+            profile,
+            distance: len(SIDE),
+        },
+    )
+}
+
+/// Whether `edge` is one arc of a closed rim of two or more.
+fn on_a_rim(index: &PickIndex, edge: &EdgeSelection) -> bool {
+    index.whole_edge(edge).is_ok_and(|whole| whole.len() > 1)
+}
+
 fn drawn(index: &PickIndex, node: RecipeNodeId, body: u32) -> Vec<EdgeSelection> {
     index
         .edges_in(node, body)
@@ -63,12 +87,8 @@ fn drawn(index: &PickIndex, node: RecipeNodeId, body: u32) -> Vec<EdgeSelection>
         .collect()
 }
 
-fn is_rim_arc(name: &StableName, pi: bool) -> bool {
-    match name.path.as_slice() {
-        [.., RoleSeg::BandRim(_)] => !pi,
-        [.., RoleSeg::BandRimPi(_)] => pi,
-        _ => false,
-    }
+fn is_rim(name: &StableName) -> bool {
+    matches!(name.path.as_slice(), [.., RoleSeg::BandRim(_)])
 }
 
 fn click(
@@ -160,19 +180,19 @@ fn an_annular_full_revolves_rims_stand_alone() {
     }
 }
 
-/// **All edges of an axis cylinder count each cap circle once**, and
-/// hold every arc.
+/// **All edges of an extruded two-arc disc count each cap circle once**,
+/// and hold every arc.
 #[test]
 fn loading_every_edge_counts_each_drawn_circle_once() {
     let tol = Tol::witness();
     let mut session = session(tol);
-    let node = revolved(&mut session, 0.0, SIDE * 0.5, SIDE, core::f64::consts::TAU);
+    let node = extruded_disc(&mut session);
     session.pump();
     let node = common::drawn_node(session.committed_doc(), node);
     let index = plate_index(&session);
     let edges = drawn(&index, node, 0);
-    let rims = edges.iter().filter(|e| is_rim_arc(&e.name, false)).count();
-    assert_eq!(rims, 2, "two cap circles: {edges:?}");
+    let arcs = edges.iter().filter(|e| on_a_rim(&index, e)).count();
+    assert_eq!(arcs, 4, "two cap circles, two arcs each: {edges:?}");
     let mut tools = Tools::new();
     tools.open(ToolKind::Blend);
     let (doc, eval) = session.landed_pair().expect("landed");
@@ -184,7 +204,7 @@ fn loading_every_edge_counts_each_drawn_circle_once() {
     assert_eq!(loaded, None);
     let tool = blend(&tools);
     assert_eq!(tool.selection().len(), edges.len(), "every arc is held");
-    assert_eq!(tool.count(), edges.len() - rims, "each circle counts once");
+    assert_eq!(tool.count(), edges.len() - 2, "each circle counts once");
     assert_eq!(tool.count(), picks_by_index(tool, &index));
 }
 
@@ -194,15 +214,12 @@ fn loading_every_edge_counts_each_drawn_circle_once() {
 fn an_unindexed_arc_pick_is_refused_and_an_indexed_one_holds_the_circle() {
     let tol = Tol::witness();
     let mut session = session(tol);
-    let node = revolved(&mut session, 0.0, SIDE * 0.5, SIDE, core::f64::consts::TAU);
+    let node = extruded_disc(&mut session);
     session.pump();
     let node = common::drawn_node(session.committed_doc(), node);
     let index = plate_index(&session);
     let edges = drawn(&index, node, 0);
-    let a = edges
-        .iter()
-        .find(|e| is_rim_arc(&e.name, false))
-        .expect("an arc");
+    let a = edges.iter().find(|e| on_a_rim(&index, e)).expect("an arc");
     let whole = index.whole_edge(a).expect("the index answers the rim");
     let b = edges
         .iter()
@@ -258,8 +275,9 @@ fn an_unindexed_arc_pick_is_refused_and_an_indexed_one_holds_the_circle() {
 }
 
 /// **A held rim through an edit that makes the revolve partial**: the
-/// survival step drops what stopped being an edge, and the count and
-/// the held names still agree with the index of the new picture.
+/// full revolve's one-edge rim keeps its name as the partial's arc, so
+/// the survival step drops nothing, and the count and the held names
+/// still agree with the index of the new picture.
 #[test]
 fn a_held_rim_through_an_edit_that_makes_the_revolve_partial() {
     let tol = Tol::witness();
@@ -269,17 +287,15 @@ fn a_held_rim_through_an_edit_that_makes_the_revolve_partial() {
     let node = common::drawn_node(session.committed_doc(), feature);
     let index = plate_index(&session);
     let edges = drawn(&index, node, 0);
-    let a = edges
-        .iter()
-        .find(|e| is_rim_arc(&e.name, false))
-        .expect("an arc");
+    let a = edges.iter().find(|e| is_rim(&e.name)).expect("an arc");
     let mut tools = Tools::new();
     tools.open(ToolKind::Blend);
     let doc = session.committed_doc().clone();
     assert!(click(&mut tools, &doc, Ok(&index), a).is_empty());
+    // A full revolve's rim is one closed edge: one pick, one name.
     assert_eq!(
         (blend(&tools).count(), blend(&tools).selection().len()),
-        (1, 2)
+        (1, 1)
     );
 
     let outcome = session.perform(SessionOp::SetSlot {
@@ -292,13 +308,12 @@ fn a_held_rim_through_an_edit_that_makes_the_revolve_partial() {
     let notices = tools.reconcile(session.doc(), session.landed_pair());
     let index = plate_index(&session);
     let tool = blend(&tools);
-    match notices.as_slice() {
-        [ToolNotice::Blend(BlendEvent::EdgesLost { names, kept, .. })] => {
-            assert_eq!(names.len(), 1, "the BandRimPi arc went: {names:?}");
-            assert_eq!(*kept, 1);
-        }
-        other => panic!("one strand event: {other:?}"),
-    }
+    // The rim's name is the partial revolve's arc too, so nothing held
+    // stopped being an edge.
+    assert!(
+        notices.is_empty(),
+        "the held rim survives as the partial's arc: {notices:?}"
+    );
     assert_eq!(
         tool.count(),
         picks_by_index(tool, &index),
@@ -323,10 +338,7 @@ fn a_held_rim_through_an_undo_that_removes_the_body() {
     let node = common::drawn_node(session.committed_doc(), feature);
     let index = plate_index(&session);
     let edges = drawn(&index, node, 0);
-    let a = edges
-        .iter()
-        .find(|e| is_rim_arc(&e.name, false))
-        .expect("an arc");
+    let a = edges.iter().find(|e| is_rim(&e.name)).expect("an arc");
     let mut tools = Tools::new();
     tools.open(ToolKind::Blend);
     let doc = session.committed_doc().clone();
@@ -358,9 +370,9 @@ fn a_held_rim_through_an_undo_that_removes_the_body() {
 /// **A full revolve cut across its axis by a split**: the two halves
 /// are bodies 0 and 1 of one node (one table, two windows, through
 /// `body_read_of`'s split arm), and the cut adds a circle the seam
-/// meridian splits for a reason of its own. Every drawn circle's whole
-/// edge is in its own half's window, and every drawn edge on a closed
-/// circle answers two arcs or more.
+/// meridian does not split: each half's cap circle and the cut circle
+/// are one closed edge each, so no drawn edge answers more than itself,
+/// and every whole edge is in its own half's window.
 #[test]
 fn a_split_revolves_circles_stay_in_their_own_half() {
     let tol = Tol::witness();
@@ -418,8 +430,8 @@ fn a_split_revolves_circles_stay_in_their_own_half() {
         }
     }
     assert_eq!(
-        circles, 8,
-        "each half: its cap circle and the cut circle, two arcs each"
+        circles, 0,
+        "each half: its cap circle and the cut circle, one closed edge each"
     );
 }
 
@@ -481,7 +493,7 @@ fn the_teapot_lids_three_rims_roll_from_one_click_each() {
     assert_the_old_walk_agrees(&session, &index);
     let mut arcs: Vec<EdgeSelection> = drawn(&index, node, 0)
         .into_iter()
-        .filter(|e| is_rim_arc(&e.name, false))
+        .filter(|e| is_rim(&e.name))
         .collect();
     // Authored order: the rims at meridian vertices 1, 2, 3, 4.
     arcs.sort_by(|a, b| a.name.cmp(&b.name));
@@ -493,7 +505,11 @@ fn the_teapot_lids_three_rims_roll_from_one_click_each() {
         assert!(click(&mut tools, &doc, Ok(&index), &arcs[at]).is_empty());
     }
     assert_eq!(blend(&tools).count(), 3, "three clicks, three rims");
-    assert_eq!(blend(&tools).selection().len(), 6, "six arcs held");
+    assert_eq!(
+        blend(&tools).selection().len(),
+        3,
+        "three arcs held: a full turn's rim is one closed arc"
+    );
     let op = blend(&tools).fillet_op(len(ROLL)).expect("commits");
     let fillet = session_insert(&mut session, op);
     tools.close();

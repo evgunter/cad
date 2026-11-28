@@ -280,7 +280,22 @@ impl ImplicitForm {
             Form::Sphere { radius } => radial + q.z.sqr() - radius.sqr(),
             Form::Torus { major, minor } => {
                 let shifted = radial + q.z.sqr() + major.sqr() - minor.sqr();
-                shifted.sqr() - Interval::point(4.0) * major.sqr() * radial
+                let expanded = shifted.sqr() - Interval::point(4.0) * major.sqr() * radial;
+                // The same quartic as `(D² − r²)(D′² − r²)`, `D` and `D′`
+                // the distances to the core circle's near and far points
+                // in the box's meridian plane. The expanded form cancels
+                // two terms of size `4R⁴`, so over a box of width `w` it
+                // spreads by about `16R³w` where the quartic varies by
+                // `8R²r·w`; the near factor reads its variation at the
+                // tube's own scale. Each spelling encloses the quartic, so
+                // their meet does, and the expanded one is the tighter
+                // over a box thin across the meridian. Over a box with an
+                // uncertified component the meet refuses.
+                let rho = radial.sqrt();
+                let cross = q.z.sqr() - minor.sqr();
+                let near = (rho - major).sqr() + cross;
+                let far = (rho + major).sqr() + cross;
+                expanded.meet(near * far)
             }
         }
     }
@@ -299,12 +314,10 @@ impl ImplicitForm {
             Form::Torus { major, minor } => {
                 let shifted = q.x.sqr() + q.y.sqr() + q.z.sqr() + major.sqr() - minor.sqr();
                 let four = Interval::point(4.0) * shifted;
-                let eight = Interval::point(8.0) * major.sqr();
-                Vec3::new(
-                    four * q.x - eight * q.x,
-                    four * q.y - eight * q.y,
-                    four * q.z,
-                )
+                // One factor times `x`: `4s·x − 8R²·x` read as two terms
+                // spreads three times as wide, both of size `8R³`.
+                let radial = four - Interval::point(8.0) * major.sqr();
+                Vec3::new(radial * q.x, radial * q.y, four * q.z)
             }
         }
     }
@@ -802,6 +815,133 @@ mod tests {
             floor.hi() <= off * (1.0 + 1e-6) && floor.lo() > 0.0,
             "the floor {floor:?} against the distance {off:e}"
         );
+    }
+
+    /// **The torus's form over a box holds the quartic at the box's
+    /// points, and certifies wherever the expanded quartic alone does.**
+    /// Seeded frame boxes on four tori, from a box `1e-12` wide to one
+    /// `1e150` wide, many straddling the axis (the radial enclosure's
+    /// lower end exactly zero): each box's value meets both spellings'
+    /// own point enclosures at its 27 corner, edge and centre points, so
+    /// no slack enters. Red against either factor read without its `z²`,
+    /// and against a meet that refuses or keeps a `Trv` root at the axis.
+    #[test]
+    fn a_torus_form_over_a_box_holds_its_points_at_every_scale() {
+        use geom_core::Interval;
+        use geom_core::interval::certification::Certification;
+        let mut state: u64 = 0x2545_f491_4f6c_dd1d;
+        let mut next = move || {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            (state >> 11) as f64 / (1u64 << 53) as f64 * 2.0 - 1.0
+        };
+        let expanded = |major: f64, minor: f64, q: Vec3<Interval>| {
+            let (major, minor) = (Interval::point(major), Interval::point(minor));
+            let radial = q.x.sqr() + q.y.sqr();
+            let s = radial + q.z.sqr() + major.sqr() - minor.sqr();
+            s.sqr() - Interval::point(4.0) * major.sqr() * radial
+        };
+        let overlaps = |a: Interval, b: Interval| a.lo() <= b.hi() && b.lo() <= a.hi();
+        let mut axial = 0;
+        for (big, small) in [(5.0, 0.06), (1.0, 0.9), (1e-6, 1e-8), (1e3, 1.0)] {
+            let form = ImplicitForm::of(&torus(big, small)).expect("a ring torus");
+            for scale in [1e-12, 1e-3, 1.0, 1e3, 1e150] {
+                for _ in 0..100 {
+                    let side = |c: f64, w: f64| {
+                        let w = w.abs() * scale;
+                        Interval::from_bounds(c - w, c + w)
+                    };
+                    let reach = big + small;
+                    let q = Vec3::new(
+                        side(next() * reach * 1.5, next()),
+                        side(next() * reach * 1.5, next()),
+                        side(next() * small * 2.0, next()),
+                    );
+                    let f = form.value(q);
+                    let e = expanded(big, small, q);
+                    assert_eq!(f.is_certified(), e.is_certified(), "{q:?}: {f:?} vs {e:?}");
+                    if !f.is_certified() {
+                        continue;
+                    }
+                    if q.x.lo() <= 0.0 && 0.0 <= q.x.hi() && q.y.lo() <= 0.0 && 0.0 <= q.y.hi() {
+                        axial += 1;
+                    }
+                    let ends = |i: Interval| [i.lo(), i.hi(), 0.5 * i.lo() + 0.5 * i.hi()];
+                    for x in ends(q.x) {
+                        for y in ends(q.y) {
+                            for z in ends(q.z) {
+                                let p = Vec3::new(
+                                    Interval::point(x),
+                                    Interval::point(y),
+                                    Interval::point(z),
+                                );
+                                for at in [expanded(big, small, p), form.value(p)] {
+                                    assert!(
+                                        at.is_certified() && overlaps(f, at),
+                                        "({x:e}, {y:e}, {z:e}) reads {at:?} outside {f:?}"
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert!(
+            axial > 100,
+            "only {axial} certified boxes straddle the axis"
+        );
+    }
+
+    /// **A thin torus's form clears a box at the box's own distance.**
+    /// Lily wall 8's stem, `R = 5`, `r = 0.06` (`R/r ≈ 83`): a cube of
+    /// side `w` centred `d = 1 cm` outside the tube on the outer equator
+    /// and one `d` inside it on the inner equator. Each excludes zero
+    /// once `w` is a fifth of `d`, where the expanded quartic's spread of
+    /// about `16R³w` swallows `8R²r·d` until `w ≲ d/170`. Each box's
+    /// enclosure holds the quartic at a 9³ grid of its points. Red under
+    /// the expanded quartic alone.
+    #[test]
+    fn a_thin_torus_form_clears_a_box_at_its_own_distance() {
+        let (big, small) = (5.0, 0.06);
+        let form = ImplicitForm::of(&torus(big, small)).expect("a ring torus");
+        let quartic = |p: Point3<f64>| {
+            let radial = p.x * p.x + p.y * p.y;
+            let s = radial + p.z * p.z + big * big - small * small;
+            s * s - 4.0 * big * big * radial
+        };
+        let (d, w) = (0.01, 0.01 / 5.0);
+        for (centre, sign) in [
+            (Point3::new(big + small + d, 0.0, 0.0), 1.0),
+            (Point3::new(big - small + d, 0.0, 0.0), -1.0),
+        ] {
+            let side = |c: f64| geom_core::Interval::from_bounds(c - w / 2.0, c + w / 2.0);
+            let b = super::Box3 {
+                x: side(centre.x),
+                y: side(centre.y),
+                z: side(centre.z),
+            };
+            let f = form.value(form.framed(b));
+            assert!(
+                f.is_certified() && f.lo() * sign > 0.0 && f.hi() * sign > 0.0,
+                "the box {d:e} off the tube at {centre:?} does not exclude zero: {f:?}"
+            );
+            for i in 0..9 {
+                for j in 0..9 {
+                    for k in 0..9 {
+                        let at = |c: f64, n: usize| c - w / 2.0 + w * n as f64 / 8.0;
+                        let p = Point3::new(at(centre.x, i), at(centre.y, j), at(centre.z, k));
+                        let truth = quartic(p);
+                        let slack = 1e-13 * 4.0 * big.powi(4);
+                        assert!(
+                            f.lo() - slack <= truth && truth <= f.hi() + slack,
+                            "{truth:e} at {p:?} lies outside {f:?}"
+                        );
+                    }
+                }
+            }
+        }
     }
 
     /// **A partner form reads a stored frame on its polar factor**

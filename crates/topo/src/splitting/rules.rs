@@ -286,7 +286,7 @@ pub(super) fn apply_rule_a<T: Decide>(
                     // refusal (the surfaces under-determine the
                     // contact — never guess); in-band escalates (F6:
                     // an osculating pair is a sliver at this ε).
-                    let surface = body.proven_face(face).surface();
+                    let surface = body.proven_face(face).expect_described();
                     let p_base = body.resolve_vertex_point(vertex, Proven);
                     let kappa = geom_brep::implicit_max_normal_curvature(surface, p_base);
                     // Ledger row F11: the sagitta is metered at the
@@ -540,7 +540,7 @@ fn edge_wedge<T: Decide>(
         face: mate_face,
         reading: SectorReading::Escalated(diag),
     };
-    let sector_surface = |f| body.proven_face(f).surface();
+    let sector_surface = |f| body.proven_face(f).expect_described();
     let (s_own, s_mate) = (sector_surface(own_face), sector_surface(mate_face));
     let along = star.bounds[k].ray();
     let edge = proven(&body.half_edges, star.bounds[k].he, EntityId::HalfEdge).edge;

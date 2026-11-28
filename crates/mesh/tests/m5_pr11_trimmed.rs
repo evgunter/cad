@@ -262,12 +262,7 @@ fn a_wall_wound_against_its_sense_refuses_typed() {
     let (above, _) = halves();
     let wall = above
         .faces()
-        .find(|(fk, _)| {
-            matches!(
-                above.face_surface(*fk),
-                Some(geom::Surface::Cylinder { .. })
-            )
-        })
+        .find(|(fk, _)| matches!(above.face_surface(*fk), Ok(geom::Surface::Cylinder { .. })))
         .map(|(k, _)| k)
         .expect("the trimmed wall");
     let flipped = above

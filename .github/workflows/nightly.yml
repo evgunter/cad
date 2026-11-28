@@ -390,6 +390,25 @@ jobs:
             echo "::error title=demo-tour certified::red at eps$red"
             exit 1
           fi
+      # `teapot::wall3_reversed_probe` is a nextest row, not a certified
+      # cell, so the step above never reaches it; the suite step runs it
+      # at the default ε only.
+      - name: teapot wall 3, the spout first, at the other ε rows
+        if: '!cancelled() && matrix.row == ''release-default'''
+        run: |
+          set -uo pipefail
+          cd demos/tour
+          red=""
+          for eps in 1e-6 1e-12; do
+            echo "== wall_3_stops_where_it_does_with_the_spout_first at eps = $eps"
+            CAD_TOLERANCE_EPS=$eps cargo nextest run --release --no-fail-fast \
+              -E 'test(=teapot::wall_probes_run_here::wall_3_stops_where_it_does_with_the_spout_first)' \
+              || red="$red $eps"
+          done
+          if [ -n "$red" ]; then
+            echo "::error title=teapot wall 3 reversed::red at eps$red"
+            exit 1
+          fi
       - name: the tour die corpus is regenerable byte-for-byte
         if: '!cancelled() && matrix.row == ''release-default'''
         run: |

@@ -14,3 +14,13 @@ Found by `one-chart-table-and-the-lane-takes-every-analytic-chart` (branch `tess
 `mesh::trimmed::singular_row_shape` states the sphere arm's pole-side refusals once for every chart row with a singular row (`mesh::chart_table`): a sphere's poles, a cone's apex, a spindle sheet's apexes. It raises `TessellateError::SphereTrimShape { cause: PastPole | SeamTwice | BothNappes | SingularUndecided }` (a loop round a singular point inside the face, once `PoleInside`, now refuses `DomainUnread` at the ring door), and `chords::FaceLattice::speeds` raises `SphereTrimShape { cause: ThroughPole }` for an image through a singular row on any of those charts. The variant's name and `SphereTrimCause`'s say sphere and pole; on a cone face the row is the apex.
 
 The variant is public: `crates/pncad-py/src/py/mesh.rs` and `crates/pncad-py/src/tags.rs` (`"sphere_trim_shape"`) project it, `scripts/payload-rung-sweep.py` names `SphereTrimCause`, and `crates/mesh/tests/errors.rs`, `crates/sweep/tests/tilted_sphere_pair.rs` and `crates/sweep/tests/spheres_crossing_off_every_edge.rs` match it. A rename to a chart-neutral name (and `ChordBudget` staying the sphere's) is a public-surface change with a binding tag, not done in the unit that widened what the variant covers; the variant's docs say what it covers now.
+
+## `SeamTwice` is gone (LATHE, 2026-11-23)
+
+`SphereTrimCause::SeamTwice` no longer exists (branch
+`lathe/seam-twice-remnant`): off a singular point, a vertex at two chart
+locations is one vertex on the chart's cut met from both sides, which
+every analytic arm now meshes, and `trimmed::repeat_columns` keeps
+#678's one-column shape off it. The causes this row would rename are
+`PastPole | BothNappes | SingularUndecided`, plus `ThroughPole`,
+`ChordBudget` and `DevelopedMerge`.

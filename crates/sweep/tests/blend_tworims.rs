@@ -106,14 +106,14 @@ fn volume(body: &Body<f64>) -> f64 {
 
 /// Fillet the lantern's rims one call per rim, in the given selector
 /// order, and return the final volume.
-fn lantern_sequential(order: &[(f64, f64)], r: f64) -> f64 {
+fn lantern_sequential(order: &[(f64, f64)], r: f64) -> (f64, topo::readback::EulerCounts) {
     let mut body = lantern();
     for &(rim_r, rim_y) in order {
         let arcs = rim_arcs_at(&body, rim_r, rim_y);
         assert_eq!(
             arcs.len(),
-            2,
-            "each lantern rim is its seam's two arcs before its carve"
+            1,
+            "each lantern rim is one closed edge before its carve"
         );
         body = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, r, tol())
             .unwrap_or_else(|e| {
@@ -123,7 +123,7 @@ fn lantern_sequential(order: &[(f64, f64)], r: f64) -> f64 {
             .into_body();
     }
     validate_geometric(&body, tol()).unwrap_or_else(|e| panic!("sequential tier 3, got {e:?}"));
-    volume(&body)
+    (volume(&body), topo::readback::euler_counts(&body))
 }
 
 // ------------------------------------------------------------------
@@ -174,40 +174,56 @@ fn the_request_order_of_a_shared_wall_pair_is_structurally_inert() {
     assert!(va == vb, "volumes bit-equal: {va:.17e} vs {vb:.17e}");
 }
 
-/// **A seam-split rim pair on shared HALF-BAND walls composes in one
-/// call**, bit-equal to the sequential composition in both orders —
-/// the multi-arc twin of the zone row, on BLEND-1's rim shape. The
-/// shared wall is TWO faces of one sphere here, and each rim's two
-/// crossings sit on the wall's two seam meridians, both of which the
-/// earlier band splits.
+/// Two volumes of one construction, summed over its faces in two
+/// orders: equal to a few ulps of the volume.
+fn summation_close(a: f64, b: f64) -> bool {
+    (a - b).abs() <= 4.0 * f64::EPSILON * a.abs()
+}
+
+/// **A lantern rim pair on a shared wall composes in one call**, equal
+/// to the sequential composition in both orders to within the
+/// integrator's summation order: one sphere face carries both rims, and
+/// each rim's crossing sits on the wall's one seam, which the earlier
+/// band splits. The composition is the same construction either way;
+/// the order the faces' terms are summed in is not part of it, so the
+/// volume is pinned to a few ulps, not to the bit (`docs/KERNEL-VERBS.md`,
+/// "one integrator summation ulp off where not").
 #[test]
-fn a_seam_split_rim_pair_on_shared_half_band_walls_composes_in_one_call() {
+fn a_lantern_rim_pair_on_a_shared_wall_composes_in_one_call() {
     let r = 0.05;
     let body = lantern();
     let mut both = rim_arcs_at(&body, LANTERN_RIMS[0].0, LANTERN_RIMS[0].1);
     both.extend(rim_arcs_at(&body, LANTERN_RIMS[1].0, LANTERN_RIMS[1].1));
-    assert_eq!(both.len(), 4, "two rims, two arcs each");
+    assert_eq!(both.len(), 2, "two rims, one edge each");
     let one = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &both, r, tol())
         .unwrap_or_else(|e| panic!("neck + shoulder build in one call, got {e:?}"));
     assert_eq!(one.band_faces.len(), 2, "one band per rim");
     validate_geometric(&one.body, tol()).unwrap_or_else(|e| panic!("tier 3, got {e:?}"));
-    let v1 = volume(&one.body);
-    let v_ns = lantern_sequential(&[LANTERN_RIMS[0], LANTERN_RIMS[1]], r);
-    let v_sn = lantern_sequential(&[LANTERN_RIMS[1], LANTERN_RIMS[0]], r);
+    let (v1, cells) = (volume(&one.body), topo::readback::euler_counts(&one.body));
+    let (v_ns, cells_ns) = lantern_sequential(&[LANTERN_RIMS[0], LANTERN_RIMS[1]], r);
+    let (v_sn, cells_sn) = lantern_sequential(&[LANTERN_RIMS[1], LANTERN_RIMS[0]], r);
+    assert_eq!(
+        cells, cells_ns,
+        "one call == neck-then-shoulder, cell for cell"
+    );
+    assert_eq!(
+        cells, cells_sn,
+        "one call == shoulder-then-neck, cell for cell"
+    );
     assert!(
-        v1 == v_ns,
+        summation_close(v1, v_ns),
         "one call == neck-then-shoulder: {v1:.17e} vs {v_ns:.17e}"
     );
     assert!(
-        v1 == v_sn,
+        summation_close(v1, v_sn),
         "one call == shoulder-then-neck: {v1:.17e} vs {v_sn:.17e}"
     );
 }
 
 /// **Three rims whose sharing CHAINS carve in one call** — the middle
 /// rim shares a wall with each of the other two, so the refresh runs
-/// against a body carrying one and then two earlier bands. Bit-equal
-/// to the three sequential calls.
+/// against a body carrying one and then two earlier bands. Equal to
+/// the three sequential calls to within the summation order.
 #[test]
 fn three_chained_shared_wall_rims_carve_in_one_call() {
     let r = 0.05;
@@ -216,15 +232,16 @@ fn three_chained_shared_wall_rims_carve_in_one_call() {
     for (rim_r, rim_y) in LANTERN_RIMS {
         all.extend(rim_arcs_at(&body, rim_r, rim_y));
     }
-    assert_eq!(all.len(), 6, "three rims, two arcs each");
+    assert_eq!(all.len(), 3, "three rims, one edge each");
     let one = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &all, r, tol())
         .unwrap_or_else(|e| panic!("all three lantern rims build in one call, got {e:?}"));
     assert_eq!(one.band_faces.len(), 3, "one band per rim");
     validate_geometric(&one.body, tol()).unwrap_or_else(|e| panic!("tier 3, got {e:?}"));
-    let v1 = volume(&one.body);
-    let v3 = lantern_sequential(&LANTERN_RIMS, r);
+    let (v1, cells) = (volume(&one.body), topo::readback::euler_counts(&one.body));
+    let (v3, cells3) = lantern_sequential(&LANTERN_RIMS, r);
+    assert_eq!(cells, cells3, "one call == three sequential, cell for cell");
     assert!(
-        v1 == v3,
+        summation_close(v1, v3),
         "one call == three sequential: {v1:.17e} vs {v3:.17e}"
     );
 }
@@ -334,9 +351,9 @@ fn a_seam_two_bands_split_is_named_after_its_source_by_every_row() {
     .expect("the lantern triple builds");
     assert_eq!(
         twice_split_seams(&lantern_body, &lantern_out),
-        2,
-        "the lantern's shared walls are half-band pairs, and one of them is \
-         both its bands' MATE: its two seams are each split by both"
+        1,
+        "the lantern's shared walls are one band each, and one of them is \
+         both its bands' MATE: its one seam is split by both"
     );
 }
 

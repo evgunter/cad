@@ -26,7 +26,7 @@ use core::f64::consts::PI;
 use sweep::ExtrudeSide;
 
 use crate::common::crossed_cylinders::{self as crossed, Cylinder, Op};
-use crate::common::differential::{Budget, VOLUME_CLAIM, Verdict, judged_at_resolution};
+use crate::common::differential::{Budget, Verdict, judged_at_resolution};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::finished;
@@ -141,7 +141,7 @@ fn circle_wall_events(a: &Body<f64>, b: &Body<f64>) -> (usize, usize) {
                         .and_then(|e| x.get_curve_geom(e.curve))
                         .and_then(topo::CurveGeom::certified)
                         .is_some_and(|c| matches!(c.carrier(), topo::Curve3::Circle(..)));
-                    let wall = matches!(y.face_surface(*f), Some(topo::Surface::Cylinder { .. }));
+                    let wall = matches!(y.face_surface(*f), Ok(topo::Surface::Cylinder { .. }));
                     circle && wall
                 })
                 .count()
@@ -298,14 +298,11 @@ fn a_stop_short_of_the_resolution_is_held_to_its_guard() {
 /// certifies, and the two walls' axes are skew, a pair the join reads on
 /// its section value and carries, marched; every operation builds, its
 /// spline-chorded walls measured by the rotational lane, at the crossed
-/// cylinders' sliced volume (`common::crossed_cylinders`). ∖ and ∩ are
+/// cylinders' sliced volume (`common::crossed_cylinders`). Every op is
 /// SOUND, or UNMET off the witness ε where the measurement stops at the
-/// work wall (every op at 1e-12, under `TILTED_ROD_WALL_GUARD`); ∪'s
-/// tier 3′ refuses at the census, whose edge-in-curved-face
-/// lane reads the rod's ruling inside a chorded cylinder face through a
-/// containment door that does not read its trim
-/// (`work/inside/the-census-reads-no-ruling-inside-a-chorded-cylinder-face.md`),
-/// and its volume is held to the oracle all the same.
+/// work wall (every op at 1e-12, under `TILTED_ROD_WALL_GUARD`): ∪'s
+/// census reads the rod's ruling inside a chorded cylinder face through
+/// the ruled region, which reads its spline chords.
 ///
 /// The enclosure is read against the resolution's ceiling ([`judged_at_resolution`]) over the operands'
 /// area: each chorded wall's rule accepts its first round inside the
@@ -352,6 +349,7 @@ fn a_tilted_rod_through_a_rim_builds_at_its_sliced_volume() {
     // ([`judged_at_resolution`]).
     let off_witness = tol.eps() != 1e-9;
     for (label, op, r) in [
+        ("∪", Op::Union, topo::union(&a, &rod, tol)),
         ("∖", Op::Subtract, topo::subtract(&a, &rod, tol)),
         ("∩", Op::Intersect, topo::intersect(&a, &rod, tol)),
     ] {
@@ -367,48 +365,6 @@ fn a_tilted_rod_through_a_rim_builds_at_its_sliced_volume() {
             read.pad
         );
     }
-    let union = topo::union(&a, &rod, tol);
-    let census = union.as_ref().ok().and_then(|r| r.body()).map(|bb| {
-        matches!(
-            topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol)
-                .as_ref()
-                .map_err(Vec::as_slice),
-            Err([topo::ValidationError::CensusUnsupported {
-                cause: topo::CensusUnsupportedCause::ContactLane(
-                    topo::ContactRefusal::NotCertifiable { what }
-                ),
-                ..
-            }]) if what.starts_with("a line edge on a curved face's ruling")
-        )
-    });
-    let read = judged_at_resolution(
-        union,
-        Some(truth(Op::Union)),
-        tol,
-        area,
-        TILTED_ROD_WALL_GUARD,
-    );
-    // Tier 3′ refuses the union at the census, so its line reads `BAD`;
-    // the volume is held to the budget's ceiling at its stop all the same.
-    let held = read
-        .volume
-        .zip(read.pad)
-        .zip(read.ceiling)
-        .is_some_and(|((v, pad), ceiling)| {
-            (v - truth(Op::Union)).abs() <= VOLUME_CLAIM + pad
-                && pad <= ceiling
-                && (off_witness || read.stop == Some(topo::Stop::Met))
-                && (tol.eps() != 1e-9 || pad <= TILTED_ROD_PAD_GUARD)
-        });
-    assert!(
-        census == Some(true)
-            && held
-            && read
-                .line
-                .contains("t2=true t3p=false cert=true operand=true"),
-        "∪: tier 3′ refuses at the census and nothing else, the volume holds: {}",
-        read.line
-    );
 }
 
 /// **A rim circle on a parallel wall tangent to its own, or crossing or

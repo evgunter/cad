@@ -1479,8 +1479,8 @@ pub enum Breach {
     /// touch, a chain across two shells.
     Disagrees,
     /// The entity is construction scaffolding a finished body does not
-    /// hold: an edge with no certified carrier (a null edge), or a
-    /// lone-vertex cycle. The one breach with a way through, and it is
+    /// hold: an edge with no certified carrier (a null edge), a
+    /// lone-vertex cycle, or a face with no surface yet. The one breach with a way through, and it is
     /// the advice every door gives an operand with scaffolding at rest
     /// ([`topo::SCAFFOLDING_RECOURSE`]): a direct battery
     /// caller hands in a body no door gated.
@@ -1823,6 +1823,19 @@ pub enum BlendError {
         /// straddling or poisoned enclosure reports the end that fails.
         size: f64,
     },
+    /// **The band's size is positive and beyond the representable
+    /// range**: its bracket's upper end is not finite. A limit (D2
+    /// addendum row 1(b)), not invalid input: the request is a size,
+    /// and the kernel's arms build their conics from it and from sums
+    /// of it, which no unbounded length is. Its lever is the size
+    /// itself. Checked at the door with [`Self::NonpositiveSize`], and
+    /// for the reason that variant gives: it is a fact about the
+    /// request.
+    SizeBeyondRange {
+        /// The size as handed in, meters: its bracket's upper end, the
+        /// end that fails.
+        size: f64,
+    },
     /// **Frontier** (D2 addendum row 2): a property of the requested
     /// CHAIN puts it outside the built door.
     ///
@@ -1985,18 +1998,6 @@ pub enum BlendError {
         /// own region's boundary.
         margin: ClassifiedMargin,
     },
-    /// **The result's pcurve caches could not be re-minted** after the
-    /// surgery ([`topo::mint_pcurves`]'s refusal, forwarded) — a chart
-    /// image outside a derivation route, a loop that does not close in
-    /// the chart, or a cache that fails its certification.
-    ///
-    /// The pass's own typed refusal is nested whole: it names the
-    /// half-edge or face at fault and its own reason, which no
-    /// rendering of this error has to reconstruct.
-    PcurveMint {
-        /// The pcurve pass's typed refusal.
-        source: topo::PcurveMintError,
-    },
     /// **An Euler operator refused during assembly.**
     ///
     /// The operator's own refusal is nested whole — `Argument`,
@@ -2106,9 +2107,9 @@ impl BlendError {
             | Self::UnbuiltEnd(_)
             | Self::Escalated { .. }
             | Self::NonpositiveSize { .. }
+            | Self::SizeBeyondRange { .. }
             | Self::NotFinished { .. }
             | Self::RingClearance { .. }
-            | Self::PcurveMint { .. }
             | Self::Op { .. }
             | Self::Join { .. } => None,
         }
@@ -2312,6 +2313,11 @@ impl BlendError {
                 "the band size {size} m is not definitely positive. Recourse: supply a \
                  positive radius or setback"
             ),
+            Self::SizeBeyondRange { size } => write!(
+                f,
+                "the band size {size} m is beyond the representable range. Recourse: supply a \
+                 finite radius or setback"
+            ),
             Self::UnsupportedChain { detail, .. } => {
                 write!(f, "{detail}. Recourse: {FILLET3_ASSEMBLY_RECOURSE}")
             }
@@ -2391,11 +2397,6 @@ impl BlendError {
                      {FILLET3_INSIDE_RECOURSE}"
                 )
             }
-            Self::PcurveMint { source } => write!(
-                f,
-                "pcurve re-mint after surgery — {}",
-                geom_brep::recourse::read_at(source, door)
-            ),
             Self::Op { site, source } => {
                 write!(
                     f,
@@ -2612,11 +2613,12 @@ mod recourse_tests {
             // Invalid input (row 1), and the two forwarding variants.
             BlendError::RepeatedEdge { .. } => Recourse::None,
             BlendError::NonpositiveSize { .. } => Recourse::None,
+            // A limit whose own Display ends on its lever, the size.
+            BlendError::SizeBeyondRange { .. } => Recourse::None,
             BlendError::BodyNotIntact { .. } => Recourse::None,
             BlendError::NotFinished { .. } => Recourse::None,
             // The surgery's own invariant (row 4, announced).
             BlendError::SurgeryInvariant { .. } => Recourse::None,
-            BlendError::PcurveMint { .. } => Recourse::None,
             BlendError::Op { .. } => Recourse::None,
             // The join's refusal carries its own ending.
             BlendError::Join { .. } => Recourse::None,
@@ -2747,6 +2749,9 @@ mod recourse_tests {
                 edge: EdgeKey::default(),
             },
             BlendError::NonpositiveSize { size: 0.0 },
+            BlendError::SizeBeyondRange {
+                size: f64::INFINITY,
+            },
             BlendError::UnsupportedChain {
                 edge: EdgeKey::default(),
                 detail: "a chain shape that is not built",
@@ -2802,11 +2807,6 @@ mod recourse_tests {
                 at: EntityId::Face(FaceKey::default()),
                 chain: Convexity::Convex,
                 margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
-            },
-            BlendError::PcurveMint {
-                source: topo::PcurveMintError::LoopNotClosed {
-                    face: FaceKey::default(),
-                },
             },
             BlendError::Op {
                 site: "strut mev",

@@ -24,7 +24,8 @@
 //! traced: an offset inside the band's Zero (a quarter of it) must
 //! refuse R-tan (the plane's aperture answers its Zero class, the
 //! parabola's); one between must answer — R-tan only within a few
-//! escalation widths — with every witness on both carriers. The class
+//! escalation widths, among them a cone that reads as its axis across
+//! a region the offset's size — with every witness on both carriers. The class
 //! at small offsets is the closed form's, in the near-axis search
 //! below: a ball centred a hair off a tilted axis, at scales to 1 km,
 //! against the extreme generators' distances.

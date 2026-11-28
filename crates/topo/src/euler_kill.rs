@@ -420,7 +420,7 @@ pub struct MfkrhCreated {
     /// The new face (outer loop = the promoted ring; same shell as the
     /// ring's former face).
     pub face: FaceKey,
-    /// The new face's fresh placeholder surface (see the
+    /// The new face's fresh pending surface slot (see the
     /// [module docs](self) on why sharing cannot be restored).
     pub surface: SurfaceKey,
 }
@@ -1792,7 +1792,7 @@ impl<T: Decide> Body<T> {
         // the last reference — the issue #86 cascade); `f1_data`
         // resolved at entry, so a now-missing key means THIS call
         // removed it — report the kill through either door.
-        let cascade_took_surface = self.get_surface(f1_data.surface).is_none();
+        let cascade_took_surface = self.surface_slot(f1_data.surface).is_none();
         let killed_surface = (self.remove_surface_if_orphaned(f1_data.surface)
             || cascade_took_surface)
             .then_some(f1_data.surface);
@@ -2016,10 +2016,7 @@ impl<T: Decide> Body<T> {
         let before = self.arena_counts();
         let created = self.mfkrh_with(
             ring,
-            FaceSurface::New {
-                surface: geom::Surface::nurbs_placeholder(),
-                sense,
-            },
+            FaceSurface::Pending { sense },
             ParentSide::Against,
             None,
             RechartDoor::MfkrhPlug,
@@ -2743,7 +2740,7 @@ mod tests {
             .unwrap()
             .surface;
         assert_ne!(elsewhere.surface, own);
-        assert!(body.get_surface(elsewhere.surface).is_some());
+        assert!(body.surface_slot(elsewhere.surface).is_some());
         let before = deep_snapshot(&body);
         let mut spec = EdgeCurveSpec::line_between(p(0.0), p(2.0));
         spec.description = geom_brep::EdgeDescriptionSpec::chart(elsewhere.surface);
@@ -3400,7 +3397,7 @@ mod tests {
             },
             prov(),
         );
-        let surface = body.add_surface(crate::fixtures::test_surface(p(0.0)));
+        let surface = body.add_pending_surface();
         let one_half_loop = |body: &mut Body<f64>| {
             let l = body.add_loop(
                 Loop {
@@ -3656,10 +3653,8 @@ mod tests {
 
     #[test]
     fn mfkrh_rejects_a_stale_shared_surface() {
-        // The M1 surface-anchor chain retired with the placeholder
-        // surfaces (M2 PR 3); the geometry precondition is now the
-        // FaceSurface::Shared key. A stale key must fail loudly and
-        // atomically.
+        // The geometry precondition is the FaceSurface::Shared key. A
+        // stale key must fail loudly and atomically.
         let (mut body, _split, kill) = pillow_with_empty_ring();
         let stale = crate::geometry::SurfaceKey::default();
         assert_err_deep_unchanged(

@@ -369,8 +369,9 @@ fn probe_h_door_a_closed_tool() {
     assert!((got - want).abs() <= 1e-9 * want, "{got} vs {want}");
 }
 
-/// PROBE I: the full 21-pip tool against the blank — the exact door-A
-/// refusal variant, faithfully replicated from the die test.
+/// PROBE I: the full 21-pip tool against the blank — the pose door A
+/// refused while each pip was two half-bands, replicated from the die
+/// test. It subtracts now.
 #[test]
 fn probe_i_door_a_full_tool() {
     let c = cube::<f64>(1.0, Tol::witness());
@@ -464,7 +465,10 @@ fn probe_i_door_a_full_tool() {
         .body
         .clone();
     }
-    let err = boolean_op_with(
+    // With each pip one band, the tool's balls' seams no longer meet the
+    // blank in the pose door A refused: the full tool subtracts, and the
+    // die it cuts is valid at tier 3.
+    let die = boolean_op_with(
         BooleanOp::Subtract,
         &blank,
         &tool,
@@ -472,29 +476,12 @@ fn probe_i_door_a_full_tool() {
         SweepStrategy::Realized,
         Tol::witness(),
     )
-    .map(|_| ())
-    .expect_err("door A full");
-    println!("PROBE I: {err:?}");
-    for (body, tag) in [(&blank, "blank"), (&tool, "tool")] {
-        for (k, _) in body.faces() {
-            if format!("{k:?}").starts_with("FaceKey(9v") {
-                println!(
-                    "PROBE I: {tag} face {k:?} surface {:?}",
-                    body.face_surface(k)
-                );
-            }
-        }
-        for (k, e) in body.edges() {
-            if format!("{k:?}").starts_with("EdgeKey(15v") {
-                let cg = body.get_curve_geom(e.curve).and_then(|c| c.certified());
-                println!(
-                    "PROBE I: {tag} edge {k:?} carrier {:?} params {:?}",
-                    cg.map(geom_brep::EdgeCurve::carrier),
-                    cg.map(geom_brep::EdgeCurve::params)
-                );
-            }
-        }
-    }
+    .expect("door A: the full 21-pip tool subtracts")
+    .body()
+    .expect("a body")
+    .body
+    .clone();
+    topo::validate_geometric(&die, Tol::witness()).expect("the die is tier-3 valid");
 }
 
 /// PROBE F: skinny triangular prism — is the consumption sweep's

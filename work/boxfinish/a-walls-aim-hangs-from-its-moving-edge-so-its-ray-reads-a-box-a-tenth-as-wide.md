@@ -2,10 +2,11 @@
 id: a-walls-aim-hangs-from-its-moving-edge-so-its-ray-reads-a-box-a-tenth-as-wide
 kind: issue
 title: A wall's aim hangs a fixed step under its moving top edge, so its ray reads only a box a tenth of the height wide
-status: open
+status: parked
 opened: 2026-11-15
 priority: P1
 cost: M
+blocked_on: [the-side-readers-ray-rides-the-body-it-reads-over-a-box]
 ---
 
 
@@ -54,7 +55,7 @@ bottom cap's to `± 0.46`.
   nothing else (`crates/geom-core/src/sym.rs`);
 - a wall's aim stepped from an edge that does not move. That changes
   where aims land at `f64`, which is SIDETIES's ground
-  (`work/sideties/`).
+  (now HONEJOIN's: SIDETIES merged into it on 2026-11-20, `work/honejoin/program.md`).
 
 **Who it holds.** No red row: a prism reads by its caps. It bounds a
 body none of whose planar faces is square to the moving direction, and

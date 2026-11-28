@@ -143,6 +143,20 @@ the tree):
   convention is
   `work/restfront/unlevered-frame-conventions-are-uncertified-at-rest.md`'s.
 
+## 2026-11-23 — evidence: PR 7471 moves two of these receipts again (HELDRECORDS)
+
+On `heldrecords/elbow-seams` (origin/main `dc263f8553` merged), both
+still red as on main, each by a few more decisions: the second-order
+walk now decides the tangency's tube (`tangent_tube_margin`) once per
+walk that reads every station positive.
+
+- `m10_9_pins_interval::m10_9_the_pad_at_both_rule_f_dials`: main
+  `(1483, 1711, 1967)`, head `(1483, 1719, 1991)`.
+- `sym_9_retry_interval::sym_9_the_drive_writes_the_ladders_receipt`:
+  main `[1390, 1803, 0]`, head `[1390, 1811, 0]`.
+
+Whoever re-pins these after the stack lands reads the head's values.
+
 ## Weighed (2026-11-24): two designers agree after two rounds; the build goes ahead in two units
 
 The question as this row asked it (which spelling of a direction a

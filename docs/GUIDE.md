@@ -1270,9 +1270,9 @@ The scene below is the composed die's shape in miniature: a cube
 with one spherical pip cut into its top face, then ONE fillet whose
 selection is said twice geometrically — the box edges by carrier
 kind, the pip rim by the plane/sphere pair across it. What is NOT
-selected is the point: the cavity's two meridian seams are sphere on
-BOTH sides (no dihedral wedge — a fillet would leave them as they
-are), and they match neither filter, so the exclusion falls out of
+selected is the point: the cavity's meridian seam is sphere on BOTH
+sides (no dihedral wedge — a fillet would leave it as it is), and it
+matches neither filter, so the exclusion falls out of
 the geometry.
 
 ```python
@@ -1359,13 +1359,13 @@ rims = ev.select_where(
     pipped, edges, [GeomPred.adjacent_kinds(SurfaceKind.Plane, SurfaceKind.Sphere)]
 )
 assert len(straight) == 12  # the box edges the subtraction kept
-assert len(rims) == 2       # the pip rim is two arcs, not one circle
+assert len(rims) == 1       # the pip rim is one circle
 
 # The excluded remainder, BY GEOMETRY: sphere-on-both-sides.
 meridians = ev.select_where(
     pipped, edges, [GeomPred.adjacent_kinds(SurfaceKind.Sphere, SurfaceKind.Sphere)]
 )
-assert len(meridians) == 2 and len(ev.all_edges(pipped)) == 16
+assert len(meridians) == 1 and len(ev.all_edges(pipped)) == 14
 
 # One fillet takes both selections — stored, frozen, never re-queried.
 blended = doc.insert(Node.fillet(pipped, Formula.length_in(0.05, m), straight + rims))
@@ -1609,15 +1609,11 @@ recipe there is nothing to select against, and a name you cannot name
 is a name you would have to hand-write — the serialized form, field by
 field, with no compiler and no door checking any of it.
 
-So a revolve's roles have MINTING doors, the same six `pncad::select`
+So a revolve's roles have MINTING doors, the same four `pncad::select`
 gives Rust: `band(node, piece)` is the face swept from a meridian
-piece and `band_pi(node, piece)` its `[pi, 2pi)` half where a full
-revolve splits a CURVED wall in two (a planar wall is one face, its
-`band`), `band_rim(node, piece)`
-is the latitude rim standing at the vertex the piece starts at and
-`band_rim_pi(node, piece)` its `[pi, 2pi)` half-arc where a full
-revolve of a profile touching the axis splits every rim in two (a
-blend over the whole rim names both),
+piece (on a full revolve, the whole turn's one face), `band_rim(node, piece)`
+is the latitude rim standing at the vertex the piece starts at (on a
+full revolve, the whole circle),
 `meridian_vertex(end, node, piece)` is that vertex itself, and
 `carried(node, read, inner)` is the name a survivor of `node` wears
 one op later, carried in through the read `read`. Each answers the

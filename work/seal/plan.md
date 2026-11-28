@@ -29,7 +29,7 @@ with a dated `## Slate triage` note. Nothing is dispatched.
 | P3 | open | `three-escalation-endings-route-by-the-predicate-name` | E | filed by PR 6673 |
 | P3 | open | `an-all-on-crossing-record-ends-as-an-invariant` | M | filed by PR 6693's delta review |
 | P3 | open | `a-seat-held-apart-across-two-shells-of-one-solid-passes-the-gate` | E | filed by the curved-seat lane |
-| P1 | parked | `the-indeterminate-seal` | M | only the funnel builds an Indeterminate: non_exhaustive, MarginDiag::INVALID crate-private, a test-support constructor, invalid_margin.rs deleted (mints step 5) |
+| P1 | parked | `the-indeterminate-seal` | M | only the funnel builds an Indeterminate: non_exhaustive, MarginDiag::INVALID crate-private, a test-support constructor, invalid_margin.rs deleted (mints step 5; the file went in ORBIT's PR 7713, 2026-11-24) |
 | P1 | parked | `topo-mints-indeterminates-outside-the-funnel` | M | topo mints Indeterminates outside the funnel after a definite sign, in two spellings, at eleven shipped sites |
 
 ## Exit criteria

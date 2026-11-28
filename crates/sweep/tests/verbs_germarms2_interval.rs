@@ -276,12 +276,16 @@ fn the_meeting_axes_pose_builds_at_the_certified_scalar() {
         assert!(
             matches!(
                 &direct,
-                Err(BooleanError::Pcurves { source })
-                    if crate::common::frame_cost::pcurve_escalates(
-                        source,
-                        "pcurve_envelope",
-                        MEETING_AXES_FRAME_COST,
-                    )
+                Err(BooleanError::ResultInvalid { findings })
+                    if findings.as_slice().iter().any(|f| matches!(
+                        f,
+                        topo::ValidationError::Pcurve { finding }
+                            if crate::common::frame_cost::pcurve_escalates(
+                                finding,
+                                "pcurve_envelope",
+                                MEETING_AXES_FRAME_COST,
+                            )
+                    ))
             ),
             "the meeting-axes pose: pinned to escalate pcurve_envelope in \
              {MEETING_AXES_FRAME_COST:?} at the result's pcurve pass, at ε 1e-12: {direct:?}"

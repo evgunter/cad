@@ -542,6 +542,71 @@ fn the_sphere_less_a_tilted_disc_holds_both_poles() {
     }
 }
 
+/// **The poles a face holds say which side of its loops it lies on**
+/// ([`rotational_material_sign`]): the north cap's rim winds the axis
+/// once, so a face holding one pole lies on the side it winds about it;
+/// a tilted disc's circle winds nothing, so a face holding both poles or
+/// neither lies on the side its chain's area says. Read as holding the
+/// poles the other side holds, each reads the other side: what the face
+/// would claim with its bit flipped.
+#[test]
+fn the_poles_a_face_holds_say_which_side_of_its_loops_it_lies_on() {
+    use crate::props::MaterialSign::{Encoded, Unencoded};
+    use geom_core::Sign::{Negative, Positive};
+    let ball = Ball::tilted(Point3::new(0.4, -0.2, 0.3), 0.7);
+    let about = Point3::new(0.1, 0.5, -0.2);
+    let band = Band::linear(Tol::witness()).unwrap();
+    let side = |loops: &[Vec<SphereEdge>], poles: Option<[bool; 2]>| {
+        rotational_material_sign::<f64>(
+            &sphere_face(ball, true, loops, about, Name::Own).unwrap(),
+            poles,
+            band,
+        )
+        .unwrap()
+    };
+    let cap = |forward| north_cap(ball, 0.4, forward, true);
+    let disc = |forward| vec![vec![tilted(ball, (1.0, 0.2), 0.5, forward)]];
+    let (north, south, both, neither) = (
+        Some([true, false]),
+        Some([false, true]),
+        Some([true, true]),
+        Some([false, false]),
+    );
+    for (label, loops, poles, want) in [
+        ("the cap", cap(true), north, Encoded(Positive)),
+        (
+            "the cap holding the south pole",
+            cap(true),
+            south,
+            Encoded(Negative),
+        ),
+        ("the rest", cap(false), south, Encoded(Positive)),
+        (
+            "the rest holding the north pole",
+            cap(false),
+            north,
+            Encoded(Negative),
+        ),
+        (
+            "the sphere less the disc",
+            disc(false),
+            both,
+            Encoded(Positive),
+        ),
+        (
+            "the sphere less the disc holding neither",
+            disc(false),
+            neither,
+            Encoded(Negative),
+        ),
+        ("the disc", disc(true), neither, Encoded(Positive)),
+        ("the disc holding both", disc(true), both, Encoded(Negative)),
+        ("a pole on a loop", disc(true), None, Unencoded),
+    ] {
+        assert_eq!(side(&loops, poles), want, "{label}");
+    }
+}
+
 /// **Rings**: a zone between two rims, either swapped (its loops wind
 /// the axis once each way, and it holds neither pole), and the sphere
 /// less the north cap and a tilted disc (a pole held, the face's two
@@ -1071,9 +1136,8 @@ fn two_holes_hold_their_closed_forms() {
 /// **A flipped sense bit certifies the complement**: the north cap's
 /// loop under the inward sense is the southern rest, a valid face of its
 /// own, which the lane cannot tell from a cap whose bit was flipped (the
-/// body's tier 3 refuses the flip,
-/// `sweep/tests/verbs_cylsph_opening.rs`,
-/// `a_flipped_chorded_sphere_face_is_refused_as_a_lamina`).
+/// body's tier 3 refuses the flip off the poles the face holds,
+/// [`rotational_material_sign`]).
 #[test]
 fn a_flipped_bit_reads_the_complement() {
     let ball = Ball::tilted(Point3::new(0.4, -0.2, 0.3), 0.7);

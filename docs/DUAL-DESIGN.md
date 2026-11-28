@@ -97,8 +97,10 @@ certified gates: the evaluation service gains a scalar-policy seam
 — certified validation (the product gather's `validate_geometric`,
 the offset fit's `OffsetFitLane::recertify`, the fitted pcurves'
 `FittedLane` — the door their certificate is derived through, which
-no `Dual` can hold, so the pcurve mint and the tier-3 pcurve pass
-refuse typed at the check that asks for it — the hollowing verb's
+no `Dual` can hold, so the pcurve door is two functions as the edge
+door is, a dual derives the images construction can derive and holds no
+pcurve certificate, and the tier-3 pcurve pass has no dual caller — the
+hollowing verb's
 `ShellDoor`, the census door, and the whole edge certificate at every
 door that attaches an edge, the Euler attach gate included: a dual's
 door mints and never checks) runs

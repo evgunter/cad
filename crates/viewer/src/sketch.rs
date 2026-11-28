@@ -60,7 +60,6 @@ use pncad::quantity::UnitDef;
 
 use crate::frame::Tone;
 use crate::props::{Notation, WorkingNotation as _};
-use crate::session::refuse::{NodeKindWanted, admits};
 
 /// **A step of `verb` with the editor's starting numbers** — what
 /// a row becomes when its verb is picked.
@@ -1970,6 +1969,17 @@ pub struct CommittedProfile {
     /// Whether this is a datum's square rather than a profile's loops:
     /// what a pick of it is ([`crate::pickindex::PickedKind::Datum`]).
     pub datum: bool,
+    /// The space whose picture this drawing is in — the node's own, or
+    /// the one a copy showing it is drawn in — `None` for a node in no
+    /// space: what its display frame and a space's hide are read off
+    /// ([`crate::display::DisplayView::outline`]).
+    pub space: Option<pncad::document::VarId>,
+    /// The copy whose motion carries this drawing into `space` — the
+    /// outermost of the copies showing it ([`crate::world::Showing`]) —
+    /// `None` where its space is drawn itself: what the placement
+    /// editor's carry of that copy is read off, as for the copy's body
+    /// ([`crate::display::DisplayView::outline`]).
+    pub copy: Option<RecipeNodeId>,
 }
 
 /// **What the landed evaluation's profiles came to as drawings**: the
@@ -2025,9 +2035,14 @@ pub fn committed(
         if Some(node) == except {
             continue;
         }
-        let drawn = match datum_drawing(doc, evaluation, node) {
-            Some(drawn) => drawn,
-            None => match drawing(doc, evaluation, chord, node) {
+        let kind = doc.node(node).and_then(crate::world::outline_kind);
+        let drawn = match kind {
+            Some(crate::world::OutlineKind::Datum) => match datum_drawing(doc, evaluation, node) {
+                Some(drawn) => drawn,
+                None => continue,
+            },
+            Some(crate::world::OutlineKind::Profile) => match drawing(doc, evaluation, chord, node)
+            {
                 Some(Ok(drawn)) => drawn,
                 Some(Err(())) => {
                     out.undrawn.push(node);
@@ -2035,13 +2050,17 @@ pub fn committed(
                 }
                 None => continue,
             },
+            None => continue,
         };
-        for placing in shown_placings(doc, evaluation, &shown, doc.node_space(node)) {
+        for (space, copy, placing) in shown_placings(doc, evaluation, &shown, doc.node_space(node))
+        {
             let Ok(frame) = placing.compose(drawn.plane.frame()) else {
                 continue;
             };
             out.drawn.push(CommittedProfile {
                 plane: SketchPlane::from_frame(frame),
+                space,
+                copy,
                 ..drawn.clone()
             });
         }
@@ -2049,40 +2068,38 @@ pub fn committed(
     out
 }
 
-/// **Where the picture shows the space `space`**: the identity where it
-/// shows the space itself (or the node stands in none), else each
-/// copy out of it, carried on through the copies showing the copy's own
-/// space; the identity where nothing shows it, so a drawing in a space
-/// no body is drawn in still stands where its space is.
+/// **Where the picture shows the space `space`**
+/// ([`crate::world::showings`]), each with the outermost copy carrying
+/// a drawing there and the motion it is carried by: the copies' motions
+/// composed, the outermost first.
 fn shown_placings(
     doc: &Doc<ProfileProgram>,
     evaluation: &Evaluation<f64>,
     shown: &std::collections::BTreeSet<pncad::document::VarId>,
     space: Option<pncad::document::VarId>,
-) -> Vec<pncad::geom_core::RigidMotion<f64>> {
+) -> Vec<(
+    Option<pncad::document::VarId>,
+    Option<RecipeNodeId>,
+    pncad::geom_core::RigidMotion<f64>,
+)> {
     let identity = pncad::geom_core::RigidMotion::identity;
-    let Some(space) = space.filter(|space| !shown.contains(space)) else {
-        return vec![identity()];
-    };
-    let through: Vec<_> = doc
-        .copies()
+    crate::world::showings(doc, shown, space)
         .into_iter()
-        .filter(|&copy| doc.copied_read(copy).and_then(|read| doc.space_of(read)) == Some(space))
-        .flat_map(|copy| {
-            let motion = evaluation
-                .value(copy)
-                .and_then(|value| value.motion)
-                .unwrap_or_else(identity);
-            shown_placings(doc, evaluation, shown, doc.node_space(copy))
-                .into_iter()
-                .filter_map(move |outer| outer.compose(motion).ok())
+        .filter_map(|showing| {
+            let motion = showing
+                .through
+                .iter()
+                .rev()
+                .try_fold(identity(), |outer, &copy| {
+                    let motion = evaluation
+                        .value(copy)
+                        .and_then(|value| value.motion)
+                        .unwrap_or_else(identity);
+                    outer.compose(motion).ok()
+                })?;
+            Some((showing.space, showing.through.last().copied(), motion))
         })
-        .collect();
-    if through.is_empty() {
-        vec![identity()]
-    } else {
-        through
-    }
+        .collect()
 }
 
 /// **Half the side of the square a datum is drawn as**, metres: a
@@ -2092,16 +2109,14 @@ pub const DATUM_HALF: f64 = 0.01;
 /// **A datum's picture** (D10 `[placement.datums]`), a display aid in
 /// its space: its xy plane as a square about its origin, its x and y
 /// axes across it, drawn on the plane its frame is, so the pick index
-/// measures a cursor against the same outline. `None` for a node that
-/// is no datum or has no value.
+/// measures a cursor against the same outline. `None` for a node with
+/// no datum value; [`committed`] asks it of a datum
+/// ([`crate::world::outline_kind`]).
 fn datum_drawing(
     doc: &Doc<ProfileProgram>,
     evaluation: &Evaluation<f64>,
     node: RecipeNodeId,
 ) -> Option<CommittedProfile> {
-    if !doc.node(node)?.is_datum() {
-        return None;
-    }
     let pncad::document::ValuePayload::Datum(frame) = &evaluation.value(node)?.payload else {
         return None;
     };
@@ -2125,20 +2140,20 @@ fn datum_drawing(
             open(vec![[0.0, 0.0], [0.0, h]]),
         ],
         datum: true,
+        space: doc.node_space(node),
+        copy: None,
     })
 }
 
-/// `node`'s drawing: `None` for a node that is no profile or has no
-/// validated value, `Err` for one whose loops cannot be flattened.
+/// `node`'s drawing: `None` for a node with no validated profile
+/// value, `Err` for one whose loops cannot be flattened; [`committed`]
+/// asks it of a profile ([`crate::world::outline_kind`]).
 fn drawing(
     doc: &Doc<ProfileProgram>,
     evaluation: &Evaluation<f64>,
     chord: f64,
     node: RecipeNodeId,
 ) -> Option<Result<CommittedProfile, ()>> {
-    if !admits(doc, node, NodeKindWanted::Profile) {
-        return None;
-    }
     let ValuePayload::Profile(profile) = &evaluation.value(node)?.payload else {
         return None;
     };
@@ -2165,6 +2180,8 @@ fn drawing(
                 plane: *profile.validated.plane(),
                 loops,
                 datum: false,
+                space: doc.node_space(node),
+                copy: None,
             })
             .map_err(|_| ()),
     )
@@ -2349,14 +2366,33 @@ fn refusal(loop_: usize, error: &ReplayError<f64>) -> PreviewError {
     }
 }
 
-/// **The most points one flattened arc is allowed.**
+/// **The most points one flattened arc is allowed**, which is a cap
+/// an ordinary arc reaches: a full circle needs `π·√(r / 2δ)` points
+/// to sag less than `δ`, so at the δ a session opens on
+/// ([`crate::scene::INITIAL_DELTA`]) every circle of radius past about
+/// 21 m is drawn at the cap, and sags more than `δ`.
 ///
-/// A cap, not a budget: the count comes from the chord tolerance, and
-/// this only stops a radius large enough to make that arithmetic ask
-/// for a million points from doing so. At 256 a full circle is drawn
-/// with under a degree and a half between points, which is finer than
-/// any preview pane resolves.
-const MAX_ARC_POINTS: usize = 256;
+/// **What it substitutes, and why that is the lesser failure.** A
+/// capped circle sags `r·(1 − cos(π/N))`, about `4.7e-6·r` — a
+/// fraction of its own radius, whatever δ asked for. The other
+/// failure is a count that grows as `√r` with nothing bounding it,
+/// paid every frame the committed profiles are drawn and again by the
+/// pick index built from them, which no triangle budget prices.
+///
+/// **The nominal case, and the two it does not cover.** The cap is
+/// sized so the sag it permits is under a pixel on an 8K window at the
+/// closest the camera dollies to a scene framed around the circle, at
+/// the target's depth;
+/// `a_capped_arc_sags_under_a_pixel_at_the_closest_seat` measures that
+/// against the camera's own band and field of view, so a change to
+/// either that spends the margin reds there. It does not hold when the
+/// camera's scene radius was fitted before the arc was drawn (a fit is
+/// owed only to the first body and to Zoom to fit, so a circle sketched
+/// far larger than a framed body is seen from a band sized for the
+/// body), nor for points of the arc nearer the eye than the target,
+/// which are magnified toward the near plane. Both are
+/// `work/vgeom/a-capped-arc-sags-past-a-pixel-from-a-stale-fit.md`.
+const MAX_ARC_POINTS: usize = 1024;
 
 /// **Whether a flattened point is a place**: both coordinates finite.
 ///
@@ -2468,10 +2504,10 @@ fn flatten(
 /// other direction and reached the cap, and its points are `±inf` or
 /// `NaN` however many of them are drawn.
 ///
-/// [`MAX_ARC_POINTS`] is still the answer for a genuinely coarse
-/// request, and `1` for a genuinely flat one; `None` is neither, which
-/// is the whole point of it being a third answer rather than one of
-/// those two.
+/// [`MAX_ARC_POINTS`] is still the answer for a request finer than the
+/// cap can honour, and `1` for one coarse enough that the chord is the
+/// arc; `None` is neither, which is the whole point of it being a third
+/// answer rather than one of those two.
 fn arc_points(radius: f64, theta: f64, chord: f64) -> Option<usize> {
     if !(radius.is_finite() && theta.is_finite() && chord.is_finite()) {
         return None;
@@ -2596,7 +2632,7 @@ mod tests {
     /// `0`, so a subdivision that could not be computed used to arrive
     /// as the one-segment floor — indistinguishable from the arc that
     /// genuinely needs one segment. An infinite radius arrived as the
-    /// cap, indistinguishable from the arc that genuinely needs 256.
+    /// cap, indistinguishable from an arc fine enough to need it.
     ///
     /// What this row holds is that DISTINCTION, not the absence of a
     /// `NaN`: the poisoned answer is compared against one of each
@@ -2637,6 +2673,46 @@ mod tests {
         // All three pairs. A set of three has three of them, and
         // checking the two adjacent ones leaves this one unread.
         assert_ne!(floor, cap, "the floor and the cap");
+    }
+
+    /// **The cap is reached at an ordinary δ, and what it costs is
+    /// under a pixel where the camera can look closest.**
+    ///
+    /// A circle far past the cap's reach at the opening δ, framed
+    /// alone so the scene's sphere is the circle's own box, viewed
+    /// from the band's floor on a window 4320 pixels tall: one chord's
+    /// sag, read in that seat's pixels at the target's depth.
+    #[test]
+    fn a_capped_arc_sags_under_a_pixel_at_the_closest_seat() {
+        const WINDOW_HEIGHT_PX: f64 = 4320.0;
+        let radius = 1.0e3;
+        let count = arc_points(radius, core::f64::consts::TAU, crate::scene::INITIAL_DELTA);
+        assert_eq!(
+            count,
+            Some(super::MAX_ARC_POINTS),
+            "a {radius} m circle at the opening δ is drawn at the cap"
+        );
+        let box_ = bvh::Aabb {
+            min_x: -radius,
+            min_y: -radius,
+            min_z: 0.0,
+            max_x: radius,
+            max_y: radius,
+            max_z: 0.0,
+        };
+        let camera = crate::camera::Camera::default()
+            .fitted(Some(box_), 16.0 / 9.0)
+            .expect("a circle frames");
+        let metres_per_px =
+            2.0 * camera.min_distance() * (camera.fov_y() * 0.5).tan() / WINDOW_HEIGHT_PX;
+        #[allow(clippy::cast_precision_loss)]
+        let half_chord = core::f64::consts::PI / super::MAX_ARC_POINTS as f64;
+        let sag = radius * (1.0 - half_chord.cos());
+        assert!(
+            sag < metres_per_px,
+            "a capped circle sags {sag:e} m, {:.2} px at the closest seat",
+            sag / metres_per_px
+        );
     }
 
     /// A drawn loop over three points, ending as asked.

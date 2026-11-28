@@ -54,17 +54,10 @@ fn shell_faces(t: &Revolved<f64>, shell: topo::ShellKey) -> BTreeSet<FaceKey> {
         .collect()
 }
 
-/// The walls loop 0's canonical segments `segs` sweep, with their π
-/// twins.
+/// The walls loop 0's canonical segments `segs` sweep.
 fn walls_of(t: &Revolved<f64>, segs: &[usize]) -> BTreeSet<FaceKey> {
-    let RevolvedKind::Full { pi_walls, .. } = &t.kind else {
-        panic!("a full revolve")
-    };
     let walls = t.walls();
-    segs.iter()
-        .flat_map(|&s| [walls[0][s], pi_walls[s]])
-        .flatten()
-        .collect()
+    segs.iter().filter_map(|&s| walls[0][s]).collect()
 }
 
 /// The cylinder radii among a shell's walls.
@@ -255,7 +248,7 @@ fn three_runs_close_two_cavities_in_axial_order() {
 }
 
 /// **A half-annulus between radii 1 and 2**: a hollow ball, each shell
-/// one sphere in two π-bands with its poles on the axis.
+/// one sphere face whose one meridian runs pole to pole on the axis.
 #[test]
 fn a_half_annulus_revolves_to_a_hollow_ball() {
     let lp = bulge_loop(vec![
@@ -269,8 +262,8 @@ fn a_half_annulus_revolves_to_a_hollow_ball() {
     assert_all_tiers(&t.body);
     assert_eq!(t.body.shells().count(), 2);
     let cavity = t.cavity(CavityOrigin::Pocket { gap: 0 }).unwrap();
-    // Two sphere shells: two poles, two meridians, two bands each.
-    assert_eq!(counts(&t.body), (4, 4, 4, 0));
+    // Two sphere shells: two poles, one meridian, one face each.
+    assert_eq!(counts(&t.body), (4, 2, 2, 0));
     assert_eq!(
         t.poles[0].iter().flatten().count(),
         4,
@@ -624,7 +617,7 @@ fn cone_tips_and_arc_pockets_beside_a_hole() {
 }
 
 /// **Every handle map of loop 0 spans the canonical loop**, and loop
-/// 0's bands and π walls together name every face of the body.
+/// 0's bands name every face of the body.
 #[test]
 fn loop_zeros_maps_cover_every_face() {
     let pts = notched_pts(1.0, 5.0, &[(0.5, 1.0, 2.0), (0.25, 3.0, 4.0)]);
@@ -636,28 +629,17 @@ fn loop_zeros_maps_cover_every_face() {
         Tol::witness(),
     )
     .unwrap();
-    let RevolvedKind::Full {
-        meridians,
-        pi_walls,
-        pi_meridians,
-        pi_rims,
-        ..
-    } = &t.kind
-    else {
+    let RevolvedKind::Full { meridians, .. } = &t.kind else {
         panic!("a full revolve")
     };
     for (what, len) in [
         ("meridians", meridians[0].len()),
-        ("pi_walls", pi_walls.len()),
-        ("pi_meridians", pi_meridians.len()),
-        ("pi_rims", pi_rims.len()),
         ("rims", t.rims[0].len()),
         ("poles", t.poles[0].len()),
     ] {
         assert_eq!(len, n, "{what}");
     }
-    let mut named: BTreeSet<FaceKey> = t.bands[0].iter().map(|b| b.face).collect();
-    named.extend(pi_walls.iter().flatten().copied());
+    let named: BTreeSet<FaceKey> = t.bands[0].iter().map(|b| b.face).collect();
     let all: BTreeSet<FaceKey> = t.body.faces().map(|(f, _)| f).collect();
     assert_eq!(named, all);
 }

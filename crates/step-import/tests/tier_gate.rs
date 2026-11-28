@@ -566,9 +566,9 @@ const CORPUS: &[(&str, Disposition)] = &[
     ),
     (
         "tests/fixtures/freecad/compound_two.step",
-        Pass(2, 2, 8, 14, 10),
+        Pass(2, 2, 7, 13, 10),
     ),
-    ("tests/fixtures/freecad/cone_apex.step", Pass(1, 1, 3, 4, 3)),
+    ("tests/fixtures/freecad/cone_apex.step", Pass(1, 1, 2, 2, 2)),
     (
         "tests/fixtures/freecad/cone_trunc.step",
         Pass(1, 1, 3, 3, 2),
@@ -578,11 +578,11 @@ const CORPUS: &[(&str, Disposition)] = &[
         "tests/fixtures/freecad/fuse_boxes.step",
         Pass(1, 1, 14, 32, 20),
     ),
-    ("tests/fixtures/freecad/sphere.step", Pass(1, 1, 2, 2, 2)),
+    ("tests/fixtures/freecad/sphere.step", Pass(1, 1, 1, 1, 2)),
     ("tests/fixtures/freecad/torus.step", Pass(1, 1, 1, 2, 1)),
     (
         "tests/fixtures/freecad/twobody_importexport.step",
-        Pass(2, 2, 8, 14, 10),
+        Pass(2, 2, 7, 13, 10),
     ),
     // -- tests/fixtures/cert1-r1/ (reviewer probes, adopted) ----------
     // R1's adversarial near-polar variants of the halfcap generator:
@@ -707,12 +707,12 @@ const CORPUS: &[(&str, Disposition)] = &[
     // -- tests/fixtures/occ/ ------------------------------------------
     // Open CASCADE's own statements of a sphere face reaching a pole
     // (`gen_occ.py`): a cap and a side-cut ball, each a seam ending at a
-    // pole vertex of valence 1, which import completes into the pole
-    // form (`chart_singularity_vertex.rs`); and the side-cut ball whose
+    // pole vertex of valence 1, the wrap tip, which import adopts as
+    // stated (`chart_singularity_vertex.rs`); and the side-cut ball whose
     // cut misses OCC's seam, stated as a vertex loop beside the cut
     // circle, which no re-mint covers.
-    ("tests/fixtures/occ/cap.step", Pass(1, 1, 3, 4, 3)),
-    ("tests/fixtures/occ/side_cut.step", Pass(1, 1, 3, 5, 4)),
+    ("tests/fixtures/occ/cap.step", Pass(1, 1, 2, 2, 2)),
+    ("tests/fixtures/occ/side_cut.step", Pass(1, 1, 2, 4, 4)),
     (
         "tests/fixtures/occ/side_cut_ring.step",
         Refused("mixing a VERTEX_LOOP with other bounds"),
@@ -724,54 +724,79 @@ const CORPUS: &[(&str, Disposition)] = &[
     ),
     (
         "tests/fixtures/occ_voids/cylinder_sphere_cavity.step",
-        Pass(1, 2, 5, 5, 4),
+        Pass(1, 2, 4, 4, 4),
     ),
     (
         "tests/fixtures/occ_voids/two_cavities.step",
         Pass(1, 3, 18, 36, 24),
     ),
     // -- tests/fixtures/rim-only-cap/ ---------------------------------
-    // A sphere pole or cone apex in a face's closure that the file does
-    // not state as a pole-form vertex: inside the face (one rim, a
-    // tilted rim, a cone's rim, a rim wearing a meridian spur that stops
-    // short of the pole), or at the tip of a seam that is its only edge. Import makes each a vertex with two meridians
-    // (`chart_singularity_vertex.rs`), so each ships the census of a
-    // cap cut in two along them.
+    // A sphere pole or cone apex in a face's closure: inside the face
+    // (one rim, a tilted rim, a cone's rim, a rim wearing a meridian spur
+    // that stops short of the pole), where import mints one wrap edge to
+    // it, or at the tip of a seam that is its only edge, the wrap tip as
+    // stated (`chart_singularity_vertex.rs`). Each ships a revolved cap's
+    // census: the face and its disc, the rim and the wrap edge.
     (
         "tests/fixtures/rim-only-cap/conecap.step",
-        Pass(1, 1, 3, 4, 3),
+        Pass(1, 1, 2, 2, 2),
     ),
     (
         "tests/fixtures/rim-only-cap/rimonly1.step",
-        Pass(1, 1, 3, 4, 3),
+        Pass(1, 1, 2, 2, 2),
     ),
     (
         "tests/fixtures/rim-only-cap/rimonly2.step",
-        Pass(1, 1, 3, 4, 3),
+        Pass(1, 1, 2, 2, 2),
     ),
     (
         "tests/fixtures/rim-only-cap/seamed.step",
-        Pass(1, 1, 3, 4, 3),
+        Pass(1, 1, 2, 2, 2),
     ),
-    ("tests/fixtures/rim-only-cap/spur.step", Pass(1, 1, 3, 4, 3)),
+    ("tests/fixtures/rim-only-cap/spur.step", Pass(1, 1, 2, 2, 2)),
     (
         "tests/fixtures/rim-only-cap/tilted.step",
-        Pass(1, 1, 3, 4, 3),
+        Pass(1, 1, 2, 2, 2),
     ),
     // -- tests/fixtures/seam-region/ ---------------------------------
     // A ball with the cap x > 8 cut away and its sphere split at the
     // equator into two faces of one surface, each holding a chart pole
-    // inside it, which import makes a vertex by cutting the face in two
+    // inside it, which import makes the tip of one wrap edge
     // (`poles_inside_a_seam_region.rs`). Its twin splits the lower face
     // along the meridian through the south pole, which import splits
     // there.
     (
         "tests/fixtures/seam-region/side_cut_equator_split.step",
-        Pass(1, 1, 5, 10, 7),
+        Pass(1, 1, 3, 7, 6),
     ),
     (
         "tests/fixtures/seam-region/side_cut_meridian_split.step",
-        Pass(1, 1, 5, 10, 7),
+        Pass(1, 1, 4, 9, 7),
+    ),
+    // -- tests/fixtures/wrap-tip-review/ (PR 7774's review witnesses,
+    // `wrap_tip_review_witnesses.rs`): a cap cut from a ball on a tilted
+    // chart, refused on a NaN distance
+    // (`work/importgate/a-nan-distance-reaches-a-band-read-on-a-tilted-axis-sphere.md`);
+    // a cone walking two struts to its apex, refused `internal:`
+    // (`work/importgate/a-two-strut-cone-apex-reports-an-internal-message-a-file-reaches.md`);
+    // and a hole a micrometre from a pole, each pole a wrap tip.
+    (
+        "tests/fixtures/wrap-tip-review/hole_on_a_tilted_axis_sphere.step",
+        Refused("the distance NaN m (step_built_sense)"),
+    ),
+    (
+        "tests/fixtures/wrap-tip-review/cone_with_two_struts_to_its_apex.step",
+        Refused("internal: a built vertex with no built fan anchor"),
+    ),
+    (
+        "tests/fixtures/wrap-tip-review/hole_grazing_the_pole.step",
+        Pass(1, 1, 2, 4, 4),
+    ),
+    // A ball stated as two lunes of one sphere, its poles each where
+    // the two meridians meet (`records_follow_the_file.rs`'s pinch).
+    (
+        "tests/fixtures/seam-region/two_lunes.step",
+        Pass(1, 1, 2, 2, 2),
     ),
     // #653's import route: one D-prism, stated four ways. The two
     // `split_*` files state the cylindrical face's vertical boundary as
@@ -896,7 +921,7 @@ const CORPUS: &[(&str, Disposition)] = &[
     ),
     (
         "../step-export/tests/fixtures/ball.step",
-        Pass(1, 1, 2, 2, 2),
+        Pass(1, 1, 1, 1, 2),
     ),
     (
         "../step-export/tests/fixtures/boss_union.step",
@@ -904,11 +929,11 @@ const CORPUS: &[(&str, Disposition)] = &[
     ),
     (
         "../step-export/tests/fixtures/composed_die.step",
-        Pass(1, 1, 89, 174, 108),
+        Pass(1, 1, 68, 132, 87),
     ),
     (
         "../step-export/tests/fixtures/cone.step",
-        Pass(1, 1, 3, 4, 3),
+        Pass(1, 1, 2, 2, 2),
     ),
     (
         "../step-export/tests/fixtures/cube.step",
@@ -924,7 +949,7 @@ const CORPUS: &[(&str, Disposition)] = &[
     ),
     (
         "../step-export/tests/fixtures/die_pips.step",
-        Pass(1, 1, 48, 96, 71),
+        Pass(1, 1, 27, 54, 50),
     ),
     (
         "../step-export/tests/fixtures/donut.step",
@@ -944,7 +969,7 @@ const CORPUS: &[(&str, Disposition)] = &[
     ),
     (
         "../step-export/tests/fixtures/lily_lantern.step",
-        Pass(1, 1, 6, 10, 6),
+        Pass(1, 1, 4, 5, 3),
     ),
     (
         "../step-export/tests/fixtures/loft_prism.step",
@@ -1412,7 +1437,7 @@ fn the_refusal_carries_the_kernels_verdicts() {
     )
     .unwrap();
     let e = import_step(&text, &ImportOptions::default(), Tol::witness()).unwrap_err();
-    let StepImportError::TierInvalid { solid, errors } = &e else {
+    let StepImportError::TierInvalid { solid, errors, .. } = &e else {
         panic!("expected the gate's typed refusal, got: {e:?}");
     };
     assert_eq!(

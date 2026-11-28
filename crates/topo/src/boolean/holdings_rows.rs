@@ -233,7 +233,7 @@ fn facing_at(body: &Body<f64>, axis: usize, at: f64) -> Vec<FaceKey> {
             let n = n.vec();
             [n.x, n.y, n.z][axis] > 0.5
                 && matches!(body.get_surface(f.surface),
-                    Some(crate::Surface::Plane { frame, .. }) if (coord(frame.origin()) - at).abs() < 1e-9)
+                    Ok(crate::Surface::Plane { frame, .. }) if (coord(frame.origin()) - at).abs() < 1e-9)
         })
         .map(|(k, _)| k)
         .collect()
@@ -541,7 +541,7 @@ fn a_unions_holdings_read_alike_in_every_member_order() {
 fn plane_of(body: &Body<f64>, face: FaceKey) -> ([f64; 3], [f64; 3]) {
     let f = body.get_face(face).expect("the face resolves");
     match body.get_surface(f.surface) {
-        Some(crate::Surface::Plane { frame, .. }) => {
+        Ok(crate::Surface::Plane { frame, .. }) => {
             let (origin, normal) = (frame.origin(), frame.axis());
             let n = normal.normalize();
             ([origin.x, origin.y, origin.z], [n.x, n.y, n.z])

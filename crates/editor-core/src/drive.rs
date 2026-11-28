@@ -161,25 +161,24 @@ pub struct DriveConfig {
     /// run; the verdict is bit-identical either way, which is what the
     /// differential row pins.
     pub parallel: bool,
-    /// **Whether the drive's leaves share one plain-form memo**
-    /// (`geom_core::sym::DriveMemo`) — on by default, and a
-    /// PERFORMANCE dial only.
+    /// **Whether the drive's leaves share one table**
+    /// (`geom_core::sym::DriveMemo`): the expression table, the plain
+    /// forms and the atom records. On by default, and a PERFORMANCE
+    /// dial only.
     ///
-    /// A node's plain form is a function of its content-hashed id, the
-    /// budget and the tier's dials, so a form one leaf built is the
-    /// form every other leaf of this drive would build; the memo hands
-    /// it back instead of rebuilding it, which on the M10-3 slab is a
-    /// walk the tier otherwise repeats once per leaf. Every verdict and
-    /// every decision count is the same either way, and so is the
-    /// `frozen` column on both receipts — the drive's is the DISTINCT
-    /// nodes frozen over the drive, which the memo counts whether or
-    /// not it is serving forms, and a leaf's is its NEED against that
-    /// same set, which is what it reached and not what it computed
-    /// (`geom_core::SymCounts::frozen` argues the column).
+    /// Each entry is a function of its key, the budget and the tier's
+    /// dials, so what one leaf made is what every other leaf of this
+    /// drive would make; the table hands it back instead of having it
+    /// rebuilt, and a leaf starts from the caches an earlier leaf left.
+    /// Every verdict and every decision count is the same either way,
+    /// and so is the `frozen` column on both receipts: the drive's is
+    /// the DISTINCT nodes frozen over the drive, which the table counts
+    /// whether or not it is serving, and a leaf's is its NEED against
+    /// that same set (`geom_core::SymCounts::frozen` argues the column).
     ///
     /// Off is the differential lane the pins compare against, in
-    /// `parallel`'s own mould: a dial whose effect on a document is a
-    /// measurement rather than an assumption.
+    /// `parallel`'s own mould: every leaf builds its own tables and
+    /// drops them.
     pub plain_memo: bool,
     /// Whether certified leaves are additionally replayed at the
     /// K-telemetry recording scalar, so driver-path predicate margins
@@ -809,12 +808,14 @@ impl ParamBoxVerdict {
         &self.accounting
     }
 
-    /// **What the drive's plain memo came to** at its end
-    /// (`DriveConfig::plain_memo`): the forms and atoms it held and an
-    /// estimate of the heap they occupied.
+    /// **What the drive's table came to** at its end
+    /// (`DriveConfig::plain_memo`): the nodes, plain forms and atom
+    /// records it held and an estimate of the heap they occupied. The
+    /// leaves' warm caches of it are not in the estimate
+    /// (`geom_core::sym::MemoSize::bytes_estimate`).
     ///
-    /// With the dial OFF the memo serves no form, so `forms` and
-    /// `atoms` are zero — but `frozen` is not, and neither is
+    /// With the dial OFF the table serves nothing, so `nodes`, `forms`
+    /// and `atoms` are zero — but `frozen` is not, and neither is
     /// `bytes_estimate`: the off lane still collects the drive's
     /// distinct freezes, which is what keeps the receipt's `frozen`
     /// column the same column in both lanes (the plate reads
@@ -1364,20 +1365,18 @@ pub fn drive(
     let mut refused: Vec<RefusedLeaf> = Vec::new();
     let mut splits = 0usize;
     let mut decisions = SymCounts::default();
-    // **The drive's plain-form memo**, created before the level loop and
-    // dropped after it, so it holds nothing of the next drive. Shared
-    // across the rayon workers rather than one per worker: the `frozen`
-    // column it answers is the distinct nodes frozen over the DRIVE, and
-    // a per-worker memo would make that a function of the schedule.
-    // With the dial off it serves no form and only counts the freezes,
-    // so the column is the same column in both lanes.
+    // **The drive's table**, created before the level loop and dropped
+    // after it, so it holds nothing of the next drive. One for the
+    // drive and not one per worker: the `frozen` column it answers is
+    // the distinct nodes frozen over the DRIVE, and a value one leaf
+    // built is read in another through it. With the dial off it serves
+    // nothing and only counts the freezes, so the column is the same
+    // column in both lanes.
     //
     // Built even with the tier OFF or at a zero-term budget, where no
-    // session is installed and nothing ever reaches it: an empty
-    // `RwLock` and two empty maps cost one allocation per drive, and the
-    // alternative is an `Option` that every call site below would have
-    // to open for a case that is already answered by `symbolic.enabled`
-    // three lines down.
+    // session is installed and nothing reaches it: the alternative is
+    // an `Option` every call site below would open for a case
+    // `symbolic.enabled` already answers.
     let memo = drive_memo(config.plain_memo, config.symbolic);
 
     // A level-synchronous frontier, so the sequential and the parallel
@@ -1615,14 +1614,14 @@ pub(crate) enum LeafVerdict {
 /// which is why `SymbolicDials::off()` is a byte-exact reproduction of
 /// the pre-E12 driver rather than an approximation of it.
 ///
-/// The session is per-CALL, so its hash-consing table is per leaf and is
-/// dropped with the leaf; under the parallel schedule each leaf runs
-/// wholly on one rayon thread, and the session is thread-local, so no
-/// table is ever shared. Node ids are content hashes, so the two
-/// schedules build identical DAGs anyway (D9). The one piece of state
-/// that does cross the leaf is `memo`, the drive's plain forms, and it
-/// is shared across the workers rather than per worker for exactly that
-/// reason (`DriveConfig::plain_memo`, `geom_core::sym::DriveMemo`).
+/// The session is per-CALL and thread-local, and under the parallel
+/// schedule each leaf runs wholly on one rayon thread. What a leaf
+/// holds of its own is its box's brackets, the caches valid for that
+/// box, and each node's state while the node runs
+/// (`geom_core::sym::MintScope::node`); the expression table, the
+/// plain forms and the atom records are the drive's (`memo`,
+/// `DriveConfig::plain_memo`, `geom_core::sym::DriveMemo`), shared
+/// across the workers and the same whichever leaf wrote them.
 ///
 /// **The f64 witness pass is untouched.** A point residual is tight, so
 /// the witness still catches a constructor that does not build what it
@@ -2339,7 +2338,7 @@ mod tests {
             spec,
             p0,
             p1,
-            |k| arena.get(k).cloned(),
+            |k| arena.get(k).cloned().ok_or(geom_brep::SurfaceMiss::Stale),
             geom_core::test_support::fixture_lever(lift(1.0)),
             band(),
             geom_brep::NurbsLane::certified(),
@@ -2430,6 +2429,7 @@ mod tests {
                     input: slab.profile,
                 },
                 escalations: Arc::new(Vec::new()),
+                sym: std::sync::Arc::default(),
             }),
         );
         (slab, analyzed, built)

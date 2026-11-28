@@ -76,3 +76,17 @@ row of its own.
 - Re-pin whatever moves.
 
 Expect fewer examined cells on single-span walls.
+
+## A second reader (2026-11-23, the `sectarms/rim-pad-cells` lane)
+
+A rim arc's cells (`pair_section::spline_implicit::cells`) are imaged
+by `rect_box`, so each cell's image is as wide as its chart extent
+times the span cell's fastest speed, not the speed where it stands. On
+a one-span wall whose `v` speed runs from 0.6 to 3.4, a tube window
+whose true image is 0.3 rung across is enclosed a full rung across
+(pad 1.06 rungs, as on a wall of even speed). The cells stay sound and
+still narrow as they are halved; they are wider than the wall there by
+the wall's speed spread. That reader tightens with this row's first
+step, and its pad tripwires
+(`carry_rows::a_rim_arc_is_carried_as_its_reading_fitted_it_with_its_pad_in_metres`)
+are among what moves.

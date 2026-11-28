@@ -517,3 +517,41 @@ fn coaxial_cones_a_hair_apart_refuse_on_the_sweep() {
         }
     }
 }
+
+/// **Coaxial cones whose apexes stand a hair apart, read over a region
+/// the hair's size, refuse R-tan on the narrow cone's aperture**: the
+/// pose `cone_search` drew (seed `0x520d16ca1fc9237e`), at about `80` m
+/// from the origin, the partner's apex `1.5` band zeros up the axis and
+/// the region the ball about the apex that holds the parallels, its
+/// radius so small that the narrow cone stands within half the band's
+/// zero of its axis across it. The value refuses the cone on its
+/// convention's edge there (`ConeAtTheBand`), a margin a tighter band
+/// may part. A reading that refuses it as a pose with no arm
+/// (`Intractable`), or answers: red.
+#[test]
+fn coaxial_cones_a_hair_apart_over_a_hair_wide_region_refuse_on_the_aperture() {
+    let b = band();
+    let (alpha, wide) = (0.2677, 1.1632);
+    let apex = p(42.50, -65.96, -10.29);
+    let axis = v(-0.909, -0.139, -0.393).normalize();
+    let narrow = cone_about(apex, axis, alpha);
+    let partner = cone_about(apex + axis * (1.5 * b.zero()), axis, wide);
+    let region = 0.5 * b.zero() / alpha.sin();
+    let reach = geom_brep::Reach::Ball(geom_brep::ExtentBall::fixture(apex, 5.0 * 80.0));
+    let read = |f: &Surface<f64>, g: &Surface<f64>| {
+        super::classify(
+            f,
+            g,
+            &reach,
+            Some(geom_brep::ExtentBall::fixture(apex, region)),
+            Some(geom_brep::SsiLane::marched()),
+            b,
+        )
+    };
+    for s in [read(&narrow, &partner), read(&partner, &narrow)] {
+        assert!(
+            matches!(s, Section::Tangent("section_cone_at_the_band")),
+            "a cone on its convention's edge over the region: {s:?}"
+        );
+    }
+}

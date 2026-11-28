@@ -27,7 +27,7 @@ interiors meet is recorded") is never asked, and keeps one edge even
 where both its faces go into the face's material. The record producers
 mint the e-f record for a line between two recorded bounds in a plane
 face (`boolean::ops::record_spans`) and none for a curved face
-(`work/contacthold/a-line-edge-in-a-curved-faces-interior-is-recorded-at-its-ends-only.md`),
+(`work/censusread/a-line-edge-in-a-curved-faces-interior-is-recorded-at-its-ends-only.md`),
 so the gap is the producers' as much as the reading's.
 
 ## Fix
@@ -74,7 +74,7 @@ the final state; it implements D1's record sentence and
   parts silently what no record backs.
 - **Order:** planes first; curved faces keep their geometric reading
   until the curve-touch lane lands
-  (`work/contacthold/an-edge-face-record-off-a-line-and-a-plane-has-no-curve-touch-lane.md`).
+  (`work/censusread/an-edge-face-record-off-a-line-and-a-plane-has-no-curve-touch-lane.md`).
   (PARTING orchestrator)
 
 ## 2026-11-01 — the blocker's residue in `ops` (PARTING, `parting/sweep-records-edge-in-face`)

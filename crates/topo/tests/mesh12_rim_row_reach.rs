@@ -221,7 +221,7 @@ fn the_remint_admits_every_gap_the_certifying_doors_build() {
                 return None;
             };
             let face = body.face_of_half_edge(he)?;
-            let sphere = body.face_surface(face)?;
+            let sphere = body.face_surface(face).ok()?;
             let shifted = row.pcurve().translate(0.0, 100.0 * eps / RS);
             let (t0, t1) = row.params();
             Some(geom_brep::PcurveCache::certify(

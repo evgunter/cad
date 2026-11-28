@@ -68,8 +68,9 @@ pub enum Section<T: Real> {
         /// The nappe, on a cone (`true` the opening one).
         opening: Option<bool>,
     },
-    /// A plane square to a torus's axis: the parallel on the tube side
-    /// `toward`, a unit along the radial component of the tube angle.
+    /// A plane square to a torus's or a spindle sheet's axis: the parallel
+    /// on the tube side `toward`, a unit along the radial component of the
+    /// tube angle.
     TubeSide {
         /// The tube side's unit direction.
         toward: Azimuth<T>,
@@ -141,12 +142,14 @@ pub enum Family {
     /// A cylinder's or a cone's parallel: its plane square to the axis
     /// meets the surface square all along it.
     Parallel,
-    /// A torus's parallel: its plane is square to the axis, tangent to the
-    /// torus along the crest parallels (its top and bottom circles) and
-    /// all but tangent along the parallels near them.
+    /// A torus's or a spindle sheet's parallel: its plane is square to the
+    /// axis, tangent to the surface along the crest parallels (its top and
+    /// bottom circles, which a lemon has none of) and all but tangent along
+    /// the parallels near them.
     TorusParallel,
-    /// A torus's or a sphere's meridian: its plane holds the axis and is
-    /// normal to the surface everywhere.
+    /// A torus's, a spindle sheet's or a sphere's meridian: its plane holds
+    /// the axis and is normal to the surface everywhere but at a sheet's
+    /// apexes, where the surface has no normal.
     Meridian,
     /// A cylinder's or a cone's ruling through a chart point.
     Ruling,
@@ -429,9 +432,10 @@ impl<T: Decide> SurfaceCurve<T> {
         }
     }
 
-    /// **The parallel through `uv`** on a cylinder, a cone or a torus,
-    /// run `forward` (right-handed about the axis) or back, starting at
-    /// the point `uv` names: at the surface's own radius there.
+    /// **The parallel through `uv`** on a cylinder, a cone, a torus or a
+    /// spindle sheet, run `forward` (right-handed about the axis) or back,
+    /// starting at the point `uv` names: at the surface's own radius
+    /// there, which is zero at a sheet's apex.
     ///
     /// # Errors
     ///
@@ -458,7 +462,7 @@ impl<T: Decide> SurfaceCurve<T> {
                     Section::Whole,
                 )
             }
-            ChartArm::Torus { major, minor } => {
+            ChartArm::Torus { major, minor } | ChartArm::Spindle { major, minor } => {
                 let (sin, cos) = uv.y.sin_cos();
                 // The tube side `uv` lies on, as a unit: a root's `ρ − R`
                 // is read along it in metres.
@@ -479,9 +483,12 @@ impl<T: Decide> SurfaceCurve<T> {
         ))
     }
 
-    /// **A meridian through `uv`**: a torus's tube circle at `uv`'s
-    /// azimuth, or a sphere's great circle through its poles there, run
-    /// `forward` (the second chart angle increasing) or back.
+    /// **A meridian through `uv`**: a torus's or a spindle sheet's tube
+    /// circle at `uv`'s azimuth, or a sphere's great circle through its
+    /// poles there, run `forward` (the second chart angle increasing) or
+    /// back. A sheet's tube circle leaves the sheet at its apexes, and
+    /// runs past them on the spindle's other sheet: a reader that walks
+    /// it stops at the apex.
     ///
     /// # Errors
     ///
@@ -500,7 +507,9 @@ impl<T: Decide> SurfaceCurve<T> {
             opening: None,
         };
         let (center, radius) = match chart.arm() {
-            ChartArm::Torus { major, minor } => (f.origin() + radial * major, minor),
+            ChartArm::Torus { major, minor } | ChartArm::Spindle { major, minor } => {
+                (f.origin() + radial * major, minor)
+            }
             ChartArm::Sphere { radius } => (f.origin(), radius),
             _ => return Err(Self::refused("meridian", surface)),
         };
@@ -787,6 +796,20 @@ impl<T: Decide> SurfaceCurve<T> {
         self.plane
     }
 
+    /// **The curve's plane as a surface**, charted along the curve: a
+    /// circle's reference, or a line's direction, each in its plane. The
+    /// plane an edge is read across ([`OnSurface::across`]).
+    pub fn plane_surface(&self) -> geom::Surface<T> {
+        let (origin, normal) = self.plane;
+        let u_ref = match self.shape {
+            Shape::Circle(c) => c.u_ref(),
+            Shape::Line(l) => l.dir.get(),
+        };
+        geom::Surface::Plane {
+            frame: geom::Frame::new(origin, normal, u_ref),
+        }
+    }
+
     /// Which curve of its plane's section of the surface it is.
     pub fn section(&self) -> Section<T> {
         self.section
@@ -822,6 +845,7 @@ impl<T: Decide> SurfaceCurve<T> {
             ChartArm::Cylinder { .. } => ChartChannels::Cylinder,
             ChartArm::Sphere { .. } => ChartChannels::Sphere,
             ChartArm::Torus { major, .. } => ChartChannels::Torus { major },
+            ChartArm::Spindle { major, .. } => ChartChannels::Spindle { major },
             ChartArm::Cone { half_angle } => {
                 let mirror = match decide(row, Margin::of(h), band)? {
                     Sign::Zero => return Ok(Sign::Positive),
@@ -834,17 +858,17 @@ impl<T: Decide> SurfaceCurve<T> {
                 let (sin, cos) = half_angle.sin_cos();
                 ChartChannels::Cone { sin, cos, mirror }
             }
-            ChartArm::Plane | ChartArm::Spindle { .. } => {
-                unreachable!("no surface curve is built on a plane or a spindle")
-            }
+            ChartArm::Plane => unreachable!("no surface curve is built on a plane"),
         };
-        let want = match self.section {
-            Section::TubeSide { .. } => ChartAngle::Tube,
-            _ => ChartAngle::Azimuth,
-        };
+        let tube = matches!(self.section, Section::TubeSide { .. });
         let mut read = None;
         channels.read((x, yy, h), |angle, direction| {
-            if angle == want {
+            let wanted = match angle {
+                ChartAngle::Tube | ChartAngle::SheetTube => tube,
+                ChartAngle::Azimuth => !tube,
+                ChartAngle::Latitude => false,
+            };
+            if wanted {
                 read = Some(direction);
             }
             T::zero()
@@ -903,6 +927,12 @@ pub struct CoMeeting<T: Real> {
     /// Its place on the edge's span: inside at the edge's parameter, or
     /// at an end.
     pub on_edge: OnSpan<T>,
+    /// `false` where the section reading could not tell the curve from
+    /// another of its plane's at the point (a point both share: the axis,
+    /// where a chart's angle has no direction). Such a meeting may be
+    /// none of the curve's: the caller reads it where its own reach
+    /// decides it, and otherwise sets it aside.
+    pub sided: bool,
 }
 
 /// **Where an edge on a surface meets a curve on it, read by the direction
@@ -933,9 +963,8 @@ pub enum MeetRefusal<T: Real> {
         /// The stretches not read.
         windows: Vec<crate::curve_face::Undecided<T, crate::curve_face::CrossWhy>>,
     },
-    /// A meeting's section of its plane read in band (`Some`), or could
-    /// not be told from the plane's other curve (`None`).
-    Section(Option<Indeterminate>),
+    /// A meeting's section of its plane read in band.
+    Section(Indeterminate),
     /// A meeting's place on the edge's span read in band.
     Place(Indeterminate),
     /// The pair is on two records ([`AcrossRefusal::OffRecord`]).
@@ -1006,17 +1035,11 @@ impl<'a, T: Decide> OnSurface<'a, T> {
         if direction(curve.family(), self.carrier.kind()) != Read::EdgeOverLeg {
             return Err(AcrossRefusal::AgainstTheTable);
         }
-        let (origin, normal) = curve.plane();
-        // The plane is charted along the curve: a circle's reference, or a
-        // line's direction, each in its plane.
-        let u_ref = match curve.shape {
-            Shape::Circle(c) => c.u_ref(),
-            Shape::Line(l) => l.dir.get(),
-        };
-        let plane = geom::Surface::Plane {
-            frame: geom::Frame::new(origin, normal, u_ref),
-        };
-        co_surface(&super::Span::new(self.carrier, self.span), &plane, band)
+        co_surface(
+            &super::Span::new(self.carrier, self.span),
+            &curve.plane_surface(),
+            band,
+        )
     }
 
     /// **The plane the edge's carrier lies in**, as a frame whose axis is
@@ -1101,7 +1124,8 @@ impl<'a, T: Decide> OnSurface<'a, T> {
     ///
     /// Each meeting is kept where it lies on both curves' own sections of
     /// their planes: the read curve's by construction, the other's decided
-    /// on `row`. It is then placed on the edge's span by the span's own
+    /// on `row`, and one that reading cannot tell kept unsided
+    /// ([`CoMeeting::sided`]) for the caller to place. It is then placed on the edge's span by the span's own
     /// reading, and a meeting past the span is none. `span` gives the
     /// curve's span and whether it is a whole turn with no ends; it is
     /// asked only where the curve is read across the edge's plane.
@@ -1136,11 +1160,11 @@ impl<'a, T: Decide> OnSurface<'a, T> {
                     Read::EdgeOverLeg => curve.section_of(m.point, row, band),
                     Read::LegOverEdge => self.section().of_its_own(m.point, row, band),
                 };
-                match own.map_err(|diag| MeetRefusal::Section(Some(diag)))? {
-                    Sign::Positive => {}
+                let sided = match own.map_err(MeetRefusal::Section)? {
+                    Sign::Positive => true,
                     Sign::Negative => continue,
-                    Sign::Zero => return Err(MeetRefusal::Section(None)),
-                }
+                    Sign::Zero => false,
+                };
                 let on_edge = match read {
                     Read::EdgeOverLeg => m.on_span,
                     Read::LegOverEdge => match self.place(m.point, band)? {
@@ -1151,6 +1175,7 @@ impl<'a, T: Decide> OnSurface<'a, T> {
                 out.push(CoMeeting {
                     point: m.point,
                     on_edge,
+                    sided,
                 });
             }
             Ok(out)

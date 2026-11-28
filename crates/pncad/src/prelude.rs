@@ -384,10 +384,9 @@ pub use sweep::blend::{BlendDecision, BlendSite, Breach, OddEdge, UnbuiltEnd, Un
 // ratified case split (the revolve module docs), which is not a label
 // on one shape but two disjoint sets of handles. A `Partial`
 // revolution has wedge CAPS (`start_cap`, `end_cap`) and both
-// meridian chains; a `Full` one has no caps at all, one seam chain,
-// and — in the wire case, where the profile touches the axis — a
-// second π-band whose walls, meridians and rims are four more fields
-// that exist on no other arm. So "which faces did my revolve make,
+// meridian chains; a `Full` one has no caps at all and one seam
+// chain, its `wire` flag saying whether the profile touches the axis.
+// So "which faces did my revolve make,
 // and which can I fillet" is answered by branching on this
 // discriminant and by nothing else: the fields are not `Option`s on
 // one struct that a caller could probe, they are arms.

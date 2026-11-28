@@ -23,7 +23,7 @@ use core::f64::consts::PI;
 use sweep::ExtrudeSide;
 use topo::construction::Construct;
 
-use crate::common::shell_operands::{tube, vessel};
+use crate::common::shell_operands::{disc_drum, tube, vessel};
 use geom::Surface;
 use geom_brep::{EdgeDescription, EdgeDescriptionSpec, MappedCurve, MappedSource};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
@@ -75,7 +75,7 @@ fn authority_census(body: &Body<f64>) -> Vec<(EdgeKey, bool)> {
 ///   scaffold reached rest and validation cannot see it.
 fn fence_crosscheck(body: &Body<f64>, ctx: &str) {
     let scaffolds = scaffold_edges(body);
-    let verdict = topo::validate_geometric(body, Tol::witness());
+    let verdict = topo::test_support::validate_completed(body, Tol::witness());
     match (scaffolds.is_empty(), verdict) {
         (true, Ok(())) => {}
         (true, Err(errs)) => panic!("{ctx}: tier 3 refuses a scaffold-free body: {errs:?}"),
@@ -405,7 +405,7 @@ fn fillet_products_carry_no_scaffold_at_rest() {
 fn plane_face_at(body: &Body<f64>, y: f64) -> topo::FaceKey {
     body.faces()
         .find(|(fk, _)| {
-            matches!(body.face_surface(*fk), Some(Surface::Plane { frame, .. }) if (frame.origin().y - y).abs() < 1e-9)
+            matches!(body.face_surface(*fk), Ok(Surface::Plane { frame, .. }) if (frame.origin().y - y).abs() < 1e-9)
         })
         .map(|(k, _)| k)
         .unwrap_or_else(|| panic!("no planar face at y = {y}"))
@@ -414,7 +414,7 @@ fn plane_face_at(body: &Body<f64>, y: f64) -> topo::FaceKey {
 fn cylinder_face_at(body: &Body<f64>, radius: f64) -> topo::FaceKey {
     body.faces()
         .find(|(fk, _)| {
-            matches!(body.face_surface(*fk), Some(Surface::Cylinder { radius: r, .. }) if (*r - radius).abs() < 1e-9)
+            matches!(body.face_surface(*fk), Ok(Surface::Cylinder { radius: r, .. }) if (*r - radius).abs() < 1e-9)
         })
         .map(|(k, _)| k)
         .unwrap_or_else(|| panic!("no cylinder face at r = {radius}"))
@@ -425,13 +425,15 @@ fn cylinder_face_at(body: &Body<f64>, radius: f64) -> topo::FaceKey {
 /// silently in either direction.
 #[test]
 fn offsets_preserve_the_authority_census() {
-    // Cap offset: rigid translation. The vessel's declared edge is its
-    // wall's angle-π meridian, which the cap's move re-anchors.
+    // Cap offset: rigid translation. The vessel declares nothing (its
+    // wall's one meridian is the chart's derived seam, and the planar
+    // door refuses to redraw a declared cap arc), so the row holds that
+    // no derived edge turns declared across the move.
     let mut body = vessel(0.5, 0.4);
     let before = authority_census(&body);
     assert!(
-        before.iter().any(|(_, d)| *d),
-        "the vessel must carry declared edges for this row to mean anything"
+        before.iter().all(|(_, d)| !*d),
+        "the vessel declares nothing"
     );
     let cap = plane_face_at(&body, 0.4);
     topo::replace_face_offset(&mut body, cap, 0.05, Tol::witness()).expect("the cap offsets");
@@ -547,9 +549,9 @@ fn uncarriable_declarations_refuse_loudly_instead_of_flipping() {
         "(a) the meter names it, on a chart image over a cylinder: {err:?}"
     );
 
-    // (b) Give the vessel's declared meridian, a chart image on its
+    // (b) Give the disc drum's declared strut, a chart image on its
     // wall, a rotation-family declaration off its carrier.
-    let mut body = vessel(0.5, 0.4);
+    let mut body = disc_drum(0.5, 0.4);
     let seam = body
         .edges()
         .find(|(_, e)| {
@@ -560,7 +562,7 @@ fn uncarriable_declarations_refuse_loudly_instead_of_flipping() {
                 })
         })
         .map(|(k, _)| k)
-        .expect("the vessel's declared meridian");
+        .expect("the drum's declared strut");
     let curve = body
         .get_edge(seam)
         .and_then(|e| body.get_curve_geom(e.curve))

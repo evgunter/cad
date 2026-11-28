@@ -49,7 +49,7 @@ fn tilted<T: Decide + crate::props::AtRestPolicy>(
     );
     let sign = if inside_out { -1.0 } else { 1.0 };
     for (face, _) in twin.faces() {
-        let Surface::Plane { frame, .. } = *twin.proven_face(face).surface() else {
+        let Ok(&Surface::Plane { frame, .. }) = twin.proven_face(face).surface() else {
             panic!("a brick's face is planar");
         };
         let (mut normal, mut u_ref) = (frame.axis(), frame.u_ref());
