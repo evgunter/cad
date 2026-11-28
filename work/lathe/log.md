@@ -109,3 +109,8 @@ Signed: (CARVE orchestrator)
     - `NoNormalAt::UnreadKind` now carries its `SurfaceKind`, so `of_declined_normal` no longer re-resolves the face.
     - The onedoor P2 item is re-scoped: `leave_on` is gated by `splitting::classify::carrier_gate`, and five of its eleven hits are test code.
     - One try at a `sheets_part` witness under a declared cover did not reach it; the item says so.
+- 2026-11-28 — **(LATHE prose-census lane) The prose census's main red** (P1 `main-red-the-prose-census-cannot-decide-contain-and-replace-face-sites`, branch `lathe/prose-census-red`).
+  - **Bisected** with one census binary over main's first-parent trees. The causes are PR 7748 (`ContainError`, 11-25) and PR 7658 (`ReplaceFaceError.distance`, 11-26), not the one-band stack.
+  - **The nightly never ran the row.** The 11-27 nightly's full-suite shards were skipped when its build-once job failed.
+  - **Fixed:** the resolver now types `ident.field`, through a `Box`. That decides the three `ContainError` sites, and also `OffsetFitError`'s two, whose roster line is removed.
+  - **Rostered:** `distance` is named with its siblings' `Real`-scalar reason.
