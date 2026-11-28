@@ -24,9 +24,8 @@
 //! compiles, and the hook in `Sym::sign_within` is absent.
 
 use std::cell::RefCell;
-use std::collections::HashMap;
 
-use super::{ParamSymbol, SESSION, SymId, SymOp};
+use super::{ParamSymbol, SESSION, SymId};
 use crate::Real;
 use crate::predicate::{Decided, Indeterminate, Sign};
 
@@ -147,59 +146,21 @@ pub fn revalue(node: SymId, env: &dyn Fn(ParamSymbol) -> Option<f64>) -> Option<
     SESSION.with(|s| {
         let s = s.borrow();
         let sess = s.as_ref()?;
-        let mut memo: HashMap<SymId, Option<f64>> = HashMap::new();
-        // Post-order without recursion: a margin's DAG can be deep.
-        let mut stack = vec![(node, false)];
-        while let Some((id, expanded)) = stack.pop() {
-            if memo.contains_key(&id) {
-                continue;
+        // A point: its `select` takes one arm, or reads both at `NaN`.
+        let arms = |d: Option<f64>| -> &'static [usize] {
+            match d {
+                None => &[],
+                Some(d) if d <= 0.0 => &[1],
+                Some(d) if d > 0.0 => &[2],
+                Some(_) => &[1, 2],
             }
-            let Some(n) = sess.node_of(id) else {
-                memo.insert(id, None);
-                continue;
-            };
-            if !expanded {
-                stack.push((id, true));
-                stack.extend(n.kids().iter().map(|k| (*k, false)));
-                continue;
-            }
-            let kid = |i: usize| memo.get(&n.kids[i]).copied().flatten();
-            let v = match n.op {
-                SymOp::Param => env(ParamSymbol(n.payload)),
-                SymOp::Opaque | SymOp::Hull | SymOp::Free => None,
-                SymOp::Lit => Some(f64::from_bits(n.payload)),
-                SymOp::Pi => Some(f64::pi()),
-                SymOp::Add => Some(kid(0)? + kid(1)?),
-                SymOp::Sub => Some(kid(0)? - kid(1)?),
-                // `Div` mints `Mul(a, Inv(b))` with the quotient as its
-                // value; re-value it as the quotient it was.
-                SymOp::Mul => match sess.node_of(n.kids[1]) {
-                    Some(inv) if inv.op == SymOp::Inv => {
-                        Some(kid(0)? / memo.get(&inv.kids[0]).copied().flatten()?)
-                    }
-                    _ => Some(kid(0)? * kid(1)?),
-                },
-                SymOp::Neg => Some(-kid(0)?),
-                SymOp::Powi => Some(Real::powi(kid(0)?, n.payload as u32 as i32)),
-                SymOp::Inv => Some(1.0 / kid(0)?),
-                SymOp::Sqrt => Some(Real::sqrt(kid(0)?)),
-                SymOp::Abs => Some(Real::abs(kid(0)?)),
-                SymOp::Sin => Some(Real::sin_cos(kid(0)?).0),
-                SymOp::Cos => Some(Real::sin_cos(kid(0)?).1),
-                SymOp::Tan => Some(Real::tan(kid(0)?)),
-                SymOp::Asin => Some(Real::asin(kid(0)?)),
-                SymOp::Acos => Some(Real::acos(kid(0)?)),
-                SymOp::Atan => Some(Real::atan(kid(0)?)),
-                SymOp::Floor => Some(Real::floor(kid(0)?)),
-                SymOp::LessSin => Some(Real::less_sin(kid(0)?)),
-                SymOp::Atan2 => Some(Real::atan2(kid(0)?, kid(1)?)),
-                SymOp::Min => Some(Real::min(kid(0)?, kid(1)?)),
-                SymOp::Max => Some(Real::max(kid(0)?, kid(1)?)),
-                SymOp::Copysign => Some(Real::copysign(kid(0)?, kid(1)?)),
-                SymOp::Select => Some(Real::select_le_zero(kid(0)?, kid(1)?, kid(2)?)),
-            };
-            memo.insert(id, v);
-        }
-        memo.get(&node).copied().flatten()
+        };
+        super::point::evaluate(
+            sess,
+            &mut Default::default(),
+            node,
+            &|symbol| env(ParamSymbol(symbol)),
+            &arms,
+        )
     })
 }

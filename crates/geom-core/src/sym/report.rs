@@ -62,8 +62,10 @@ pub struct DecisionShape {
     pub predicate: &'static str,
     /// How it was answered.
     pub outcome: ShapeOutcome,
-    /// The residual's PLAIN normal form, for a decision that stayed
-    /// numeric without a definite sign — `None` otherwise, and `None`
+    /// The residual's PLAIN normal form, for a decision the tier was
+    /// asked and left numeric without a definite sign — `None`
+    /// otherwise: a definite sign, a proof, a decision the point reading
+    /// refuted (the tier is asked nothing there, `sym::point`), and
     /// outside a session. This text, [`Self::early_form`] and
     /// [`Self::explain`] together take at most [`RENDER_BUDGET`] bytes.
     /// A form too large to spell to the full depth NAMES the atoms it

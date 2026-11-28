@@ -20,7 +20,9 @@
 //!   drive's dials and asks the instrument there.
 //!
 //! Each asserts it asked (definite decisions on nodes the session holds)
-//! and found nothing. The measured documents' drives, the rest of the
+//! and found nothing. Beside it, the refuter's instrument
+//! (`geom_core::sym::point::check`) climbs every undecided decision the
+//! point reading refuted, and a `Zero` there is a kernel defect. The measured documents' drives, the rest of the
 //! corpus and `Sym<f64>` over it are not asked
 //! (`work/sym/the-contradiction-instrument-asks-no-corpus-drive-and-no-point-lane.md`
 //! holds the measurements that cut them).
@@ -36,20 +38,21 @@ use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use editor_core::{CancelToken, EvalOptions, Evaluation, ProfileDoc, evaluate};
 use geom_core::sym::contradiction::{self, Report};
+use geom_core::sym::point::{self, Refuted};
 use geom_core::sym::revalue::record;
 use geom_core::{Interval, Sym, SymBudget, SymCounts, Tol};
 
 use crate::m10_9_pins_interval::measured_studies;
 
 /// `doc` built at `Sym<Interval>` over `box_` inside an eager session at
-/// `dials`, with the session's counts and the instrument's report of its
-/// decisions.
+/// `dials`, with the session's counts and the two instruments' reports of
+/// its decisions.
 fn instrumented(
     doc: &ProfileDoc,
     box_: ParamBox,
     dials: &SymbolicDials,
     tol: Tol,
-) -> (SymCounts, Report) {
+) -> (SymCounts, Report, Refuted) {
     let opts = EvalOptions {
         param_box: Some(Arc::new(box_)),
         ..EvalOptions::default()
@@ -64,14 +67,18 @@ fn instrumented(
                 let _: Evaluation<Sym<Interval>> =
                     evaluate(doc, None, &CancelToken::new(), &opts, tol);
             });
-            contradiction::check(&decisions).expect("inside the session")
+            (
+                contradiction::check(&decisions).expect("inside the session"),
+                point::check(&decisions).expect("inside the session"),
+            )
         });
-    (counts, report)
+    (counts, report.0, report.1)
 }
 
-/// What `report` says is wrong with `what`, if anything: nothing asked,
-/// a node it could not read, or a contradiction.
-fn findings(what: &str, report: &Report) -> Vec<String> {
+/// What `report` and `refuted` say is wrong with `what`, if anything:
+/// nothing asked, a node it could not read, a contradiction, or a refuted
+/// margin the tier proves zero.
+fn findings(what: &str, report: &Report, refuted: &Refuted) -> Vec<String> {
     let mut found = Vec::new();
     if report.checked == 0 {
         found.push(format!("{what}: no definite decision was asked"));
@@ -80,6 +87,13 @@ fn findings(what: &str, report: &Report) -> Vec<String> {
         found.push(format!(
             "{what}: {} definite decisions on nodes the session does not hold",
             report.absent
+        ));
+    }
+    for (predicate, node) in &refuted.zeros {
+        found.push(format!(
+            "{what}: `{predicate}` was refuted at the point and the tier proves it zero \
+             (node {:032x})",
+            node.bits()
         ));
     }
     for c in &report.contradictions {
@@ -97,13 +111,16 @@ fn findings(what: &str, report: &Report) -> Vec<String> {
 fn the_measured_documents_contradict_nothing_at_sym_interval() {
     let tol = Tol::witness();
     let mut found = Vec::new();
+    let mut asked_refuted = 0;
     for study in measured_studies(tol) {
         let doc = (study.at)(study.certifies_at * tol.eps());
         let box_ = ParamBox::of(&analyzed_box(&doc, &AnalysisPolicy::default()));
-        let (counts, report) = instrumented(&doc, box_, &SymbolicDials::default(), tol);
-        println!("  {}: {counts:?} | {report:?}", study.name);
-        found.extend(findings(study.name, &report));
+        let (counts, report, refuted) = instrumented(&doc, box_, &SymbolicDials::default(), tol);
+        println!("  {}: {counts:?} | {report:?} | {refuted:?}", study.name);
+        found.extend(findings(study.name, &report, &refuted));
+        asked_refuted += refuted.refuted;
     }
+    assert!(asked_refuted > 0, "no refuted decision was climbed");
     assert!(
         found.is_empty(),
         "the instrument found the two channels in contradiction, or asked nothing:\n{}",
@@ -145,14 +162,14 @@ fn the_slabs_drives_contradict_nothing_leaf_by_leaf() {
             );
         let mut asked = 0;
         for (n, (box_, drove)) in leaves_of.enumerate() {
-            let (counts, report) = instrumented(&doc, box_, &config.symbolic, tol);
+            let (counts, report, refuted) = instrumented(&doc, box_, &config.symbolic, tol);
             let what = format!("{leaves}-leaf drive at {terms}/{degree}, leaf {n}");
             assert_eq!(
                 (counts.symbolic, counts.numeric),
                 (drove.symbolic, drove.numeric),
                 "{what}: the replay decided as the drive's leaf did"
             );
-            found.extend(findings(&what, &report));
+            found.extend(findings(&what, &report, &refuted));
             asked += 1;
         }
         println!(

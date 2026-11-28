@@ -747,7 +747,8 @@
 //!
 //! **Who asks for the forms.** The `Decide` impl has two callers of
 //! the walks and only one is the tier deciding: its DECISION path asks
-//! a form only where the numeric channel cannot answer, and the shape
+//! a form only where the numeric channel cannot answer and the point
+//! reading ([`point`]) does not refute the margin, and the shape
 //! report, when installed, renders blocked residuals through the walks.
 //! A definite numeric sign asks the tier nothing; the test instrument
 //! (`sym::contradiction`) walks the margins a build decided definite,
@@ -1051,6 +1052,10 @@ pub mod memo;
 /// on the minting thread and the value's ordinal there.
 #[path = "sym/mint.rs"]
 pub mod mint;
+/// The point reading: the refuter a decision at `Sym<Interval>` asks
+/// before the tier, and its test-only instrument.
+#[path = "sym/point.rs"]
+pub mod point;
 #[cfg(feature = "sym-profile-testing")]
 pub mod profile;
 /// The structural question: whether an expression is zero as a function
@@ -2415,7 +2420,7 @@ struct Session {
     /// The `f64` bracket of each document parameter this leaf was
     /// evaluated over, by the parameter's indeterminate id — recorded
     /// by [`Sym::param_over`] and read by the decision read
-    /// ([`signed`]) alone.
+    /// ([`signed`]) and the point reading ([`point`]).
     params: IndetMap<(f64, f64)>,
     /// The count each closed mint scope stopped at, by the scope's
     /// name, so a scope opened again in this session mints on from
@@ -2491,6 +2496,12 @@ struct Session {
     /// back to the drive. It decides nothing symbolically that the node
     /// itself would not: the unknown is an indeterminate of its own.
     unknown: IdSet,
+    /// **The point reading of each node this leaf read** ([`point`]):
+    /// its certified enclosure with every parameter at the leaf's point,
+    /// `None` where it declines. A function of the node and the
+    /// brackets, so a bracket recorded or moved clears it
+    /// ([`Sym::param_over`]).
+    points: IdMap<Option<crate::interval::Interval>>,
     /// Times the retry ladder's growth guard withheld an attempt (read
     /// by the contradiction instrument's report).
     #[cfg(feature = "sym-revalue-testing")]
@@ -3106,6 +3117,7 @@ impl Session {
             budget_frozen: IdSet::default(),
             unknown: IdSet::default(),
             table,
+            points: IdMap::default(),
             #[cfg(feature = "sym-revalue-testing")]
             withheld: 0,
             #[cfg(feature = "sym-revalue-testing")]
@@ -5150,16 +5162,19 @@ impl<T> Sym<T> {
     /// [`Self::param`] over the bracket `[lo, hi]` the value was built
     /// from — the analysis box's own two `f64`s, which the caller that
     /// mints a parameter axis already holds. The bracket is recorded in
-    /// the installed session for the decision read ([`signed`]); it is
-    /// the ONLY value the symbolic tier ever reads, and it is read as
-    /// two floats through a certification enclosure, never as the lane
-    /// scalar.
+    /// the installed session for the decision read ([`signed`]) and the
+    /// point reading ([`point`]); it is the ONLY value either reads, as
+    /// two floats through a certification enclosure (the point reading
+    /// at one point of it), never as the lane scalar. A bracket that is
+    /// new or moved clears the leaf's point readings.
     /// Outside a session the bracket is dropped and this is `param`.
     #[must_use]
     pub fn param_over(symbol: ParamSymbol, value: T, lo: f64, hi: f64) -> Self {
         SESSION.with(|s| {
             if let Some(sess) = s.borrow_mut().as_mut() {
-                sess.params.insert(indet_param(symbol.0), (lo, hi));
+                if sess.params.insert(indet_param(symbol.0), (lo, hi)) != Some((lo, hi)) {
+                    sess.points.clear();
+                }
                 if !sess.outer.is_empty() {
                     // One scope holds at most one environment (a part's
                     // run builds its own once), and an environment binds
@@ -5799,6 +5814,13 @@ impl<T: SpanLocate> SpanLocate for Sym<T> {
 /// retry's and the registry door's included ([`Witness`](crate::Witness);
 /// the assertion's site argues it).
 ///
+/// **Where the value reads no definite sign at an exact witness, the
+/// margin is read at one point of the box before the tier is asked**
+/// ([`point`]): an enclosure there that excludes 0 proves it no identity
+/// over the box, the tier is asked nothing, and the numeric reading is
+/// the answer (ERROR-DESIGN E12). A reading that holds 0, or declines,
+/// leaves the ask as it was.
+///
 /// Everything else is `T::sign_within` verbatim.
 impl<T: Decide> Decide for Sym<T> {
     fn sign_within(self, band: Band) -> Result<Decided, Indeterminate> {
@@ -5854,7 +5876,13 @@ impl<T: Decide> Sym<T> {
             return numeric;
         }
         let domain_violation = matches!(&numeric, Err(e) if e.margin.is_invalid());
-        let answered = if domain_violation {
+        // A margin the point reading refutes is no identity, and the tier
+        // is asked nothing: the numeric answer below is what a climb that
+        // proved nothing returns.
+        let refuted = !domain_violation
+            && matches!(T::WITNESS, crate::Witness::Exact)
+            && point::refutes(self.node);
+        let answered = if domain_violation || refuted {
             None
         } else {
             discharge_checked(self.node, self.value.enclosure_probe())
@@ -5876,8 +5904,11 @@ impl<T: Decide> Sym<T> {
         }
         // The shape report wants the residual that BLOCKED — rendered
         // only when the instrument is installed, so an ordinary replay
-        // never pays for it.
-        if report::active() {
+        // never pays for it. A refuted margin has none: no form blocked
+        // it, and the report records its numeric outcome alone.
+        if report::active() && refuted {
+            report::record(&numeric, false, None, self.value.enclosure_probe());
+        } else if report::active() {
             #[cfg(feature = "sym-profile-testing")]
             let origin = profile::set_origin(profile::Origin::Report);
             let text = report::render_node(self.node);
