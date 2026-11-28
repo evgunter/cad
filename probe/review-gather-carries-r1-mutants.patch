@@ -1,0 +1,79 @@
+diff --git a/crates/editor-core/src/eval/framed.rs b/crates/editor-core/src/eval/framed.rs
+index 01d9a95252..c542cc18e9 100644
+--- a/crates/editor-core/src/eval/framed.rs
++++ b/crates/editor-core/src/eval/framed.rs
+@@ -576,9 +576,10 @@ impl<T: topo::AtRestPolicy> Held<T> {
+     /// box scalars' leaf is finished too ([`topo::LEAVES_ARE_FINISHED`]),
+     /// so no lane carries what another derives.
+     fn gathers_finished(&self) -> bool {
++        let m = std::env::var("RG_MUT").unwrap_or_default();
+         match self {
+-            Self::Finished(_) => true,
+-            Self::Leaf(_) => topo::LEAVES_ARE_FINISHED,
++            Self::Finished(_) => m != "finlane" || !T::TAKE_FINISHES,
++            Self::Leaf(_) => topo::LEAVES_ARE_FINISHED || m == "leaves_true",
+         }
+     }
+ }
+diff --git a/crates/editor-core/src/product.rs b/crates/editor-core/src/product.rs
+index 2cc537bf80..1b0553e4a7 100644
+--- a/crates/editor-core/src/product.rs
++++ b/crates/editor-core/src/product.rs
+@@ -1474,7 +1474,13 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
+     let recorded = topo::record_at_rest(
+         &aggregate,
+         &contacts,
+-        |records| T::census_at_rest(&aggregate, records, tol),
++        |records| {
++            if std::env::var("RG_MUT").as_deref() == Ok("nocensus") {
++                Vec::new()
++            } else {
++                T::census_at_rest(&aggregate, records, tol)
++            }
++        },
+         &|solid| groups.get(&solid).copied(),
+         0,
+     );
+diff --git a/crates/editor-core/tests/corpus_finish_count.rs b/crates/editor-core/tests/corpus_finish_count.rs
+index 9af24e93e6..39efbf0f50 100644
+--- a/crates/editor-core/tests/corpus_finish_count.rs
++++ b/crates/editor-core/tests/corpus_finish_count.rs
+@@ -39,6 +39,9 @@ fn finishes() -> Vec<(&'static str, u64)> {
+ fn the_corpus_runs_its_pinned_count_of_finishes() {
+     let per_document = finishes();
+     let total: u64 = per_document.iter().map(|(_, n)| n).sum();
++    if std::env::var("RG_PRINT").is_ok() {
++        eprintln!("RG_PRINT {total}: {per_document:?}");
++    }
+     assert_eq!(
+         total, PINNED,
+         "the corpus ran {total} finishes, pinned {PINNED}: {per_document:?}"
+diff --git a/crates/topo/src/finish.rs b/crates/topo/src/finish.rs
+index 26ed23adee..b13aaecfe0 100644
+--- a/crates/topo/src/finish.rs
++++ b/crates/topo/src/finish.rs
+@@ -183,6 +183,10 @@ impl<T: AtRestPolicy<Finished = Self>> FinishedBody for AtRestBody<T> {
+         parts: &[&Self],
+         keys: &[crate::GraftKeys],
+     ) -> Result<Self, NotFinished> {
++        let m = std::env::var("RG_MUT").unwrap_or_default();
++        if m == "derive" || (m == "lane" && !T::TAKE_FINISHES) {
++            return T::finish(aggregate, Tol::witness());
++        }
+         Ok(AtRestBody::gathered(aggregate, parts, keys))
+     }
+ }
+diff --git a/crates/topo/src/props.rs b/crates/topo/src/props.rs
+index f345baf346..cbf153131e 100644
+--- a/crates/topo/src/props.rs
++++ b/crates/topo/src/props.rs
+@@ -2371,6 +2371,9 @@ impl<T: AtRestPolicy> KeptSign<T> {
+             ..first.clone()
+         };
+         for (part, keys) in parts {
++            if std::env::var("RG_MUT").as_deref() == Ok("droprun") {
++                break;
++            }
+             debug_assert!(
+                 part.band == gathered.band,
+                 "a gather's parts share one band"

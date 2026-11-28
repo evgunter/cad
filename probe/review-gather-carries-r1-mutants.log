@@ -1,0 +1,110 @@
+##### build
+    Finished `test` profile [optimized + debuginfo] target(s) in 15m 19s
+  Executable tests/all.rs (/home/user/review-gather-target/debug/deps/all-af62fccaa52004cb)
+  Executable tests/all.rs (/home/user/review-gather-target/debug/deps/all-ba757dd00084f2fb)
+##### TOPO RG_MUT=none
+test a_gather_carries_its_finished_members_verdicts::a_gather_under_a_boxed_turn_finishes_at_interval_where_a_finish_from_values_refuses ... ok
+test a_gather_carries_its_finished_members_verdicts::a_gather_logs_the_same_verdicts_at_every_lane ... ok
+test a_gather_carries_its_finished_members_verdicts::at_f64_a_carried_gather_is_what_a_finish_derives ... ok
+test a_gather_carries_its_finished_members_verdicts::a_gather_under_a_symbolic_turn_finishes_and_measures_its_members_volume ... ok
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 1291 filtered out; finished in 0.11s
+##### TOPO RG_MUT=derive
+test a_gather_carries_its_finished_members_verdicts::a_gather_logs_the_same_verdicts_at_every_lane ... ok
+test a_gather_carries_its_finished_members_verdicts::a_gather_under_a_boxed_turn_finishes_at_interval_where_a_finish_from_values_refuses ... FAILED
+test a_gather_carries_its_finished_members_verdicts::at_f64_a_carried_gather_is_what_a_finish_derives ... ok
+test a_gather_carries_its_finished_members_verdicts::a_gather_under_a_symbolic_turn_finishes_and_measures_its_members_volume ... FAILED
+thread 'a_gather_carries_its_finished_members_verdicts::a_gather_under_a_boxed_turn_finishes_at_interval_where_a_finish_from_values_refuses' (5029) panicked at crates/topo/tests/a_gather_carries_its_finished_members_verdicts.rs:60:14:
+thread 'a_gather_carries_its_finished_members_verdicts::a_gather_under_a_symbolic_turn_finishes_and_measures_its_members_volume' (5034) panicked at crates/topo/tests/a_gather_carries_its_finished_members_verdicts.rs:93:18:
+test result: FAILED. 2 passed; 2 failed; 0 ignored; 0 measured; 1291 filtered out; finished in 0.36s
+##### TOPO RG_MUT=droprun
+test a_gather_carries_its_finished_members_verdicts::a_gather_logs_the_same_verdicts_at_every_lane ... ok
+test a_gather_carries_its_finished_members_verdicts::a_gather_under_a_boxed_turn_finishes_at_interval_where_a_finish_from_values_refuses ... ok
+test a_gather_carries_its_finished_members_verdicts::at_f64_a_carried_gather_is_what_a_finish_derives ... FAILED
+test a_gather_carries_its_finished_members_verdicts::a_gather_under_a_symbolic_turn_finishes_and_measures_its_members_volume ... FAILED
+thread 'a_gather_carries_its_finished_members_verdicts::at_f64_a_carried_gather_is_what_a_finish_derives' (5052) panicked at crates/topo/tests/a_gather_carries_its_finished_members_verdicts.rs:138:9:
+thread 'a_gather_carries_its_finished_members_verdicts::a_gather_under_a_symbolic_turn_finishes_and_measures_its_members_volume' (5051) panicked at crates/topo/tests/a_gather_carries_its_finished_members_verdicts.rs:101:5:
+test result: FAILED. 2 passed; 2 failed; 0 ignored; 0 measured; 1291 filtered out; finished in 0.14s
+##### TOPO RG_MUT=lane
+test a_gather_carries_its_finished_members_verdicts::a_gather_under_a_boxed_turn_finishes_at_interval_where_a_finish_from_values_refuses ... ok
+test a_gather_carries_its_finished_members_verdicts::a_gather_under_a_symbolic_turn_finishes_and_measures_its_members_volume ... ok
+test a_gather_carries_its_finished_members_verdicts::at_f64_a_carried_gather_is_what_a_finish_derives ... ok
+test a_gather_carries_its_finished_members_verdicts::a_gather_logs_the_same_verdicts_at_every_lane ... FAILED
+thread 'a_gather_carries_its_finished_members_verdicts::a_gather_logs_the_same_verdicts_at_every_lane' (5062) panicked at crates/topo/tests/a_gather_carries_its_finished_members_verdicts.rs:169:5:
+test result: FAILED. 3 passed; 1 failed; 0 ignored; 0 measured; 1291 filtered out; finished in 0.15s
+##### EDITOR RG_MUT=none
+test a_gather_carries_its_finished_members::a_gather_of_finished_members_logs_one_vector_at_every_lane ... ok
+test a_gather_carries_its_finished_members::a_product_of_sweeps_is_finished_whole_while_their_leaves_are_not_finished ... ok
+test a_gather_carries_its_finished_members::carrying_the_members_verdicts_does_not_certify_them_apart ... ok
+test a_gather_carries_its_finished_members::a_product_of_finished_members_under_a_boxed_joint_finishes_at_the_box_scalars ... ok
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 3417 filtered out; finished in 0.44s
+##### EDITOR RG_MUT=lane
+test a_gather_carries_its_finished_members::a_gather_of_finished_members_logs_one_vector_at_every_lane ... FAILED
+test a_gather_carries_its_finished_members::a_product_of_sweeps_is_finished_whole_while_their_leaves_are_not_finished ... ok
+test a_gather_carries_its_finished_members::carrying_the_members_verdicts_does_not_certify_them_apart ... ok
+test a_gather_carries_its_finished_members::a_product_of_finished_members_under_a_boxed_joint_finishes_at_the_box_scalars ... ok
+thread 'a_gather_carries_its_finished_members::a_gather_of_finished_members_logs_one_vector_at_every_lane' (5100) panicked at crates/editor-core/tests/a_gather_carries_its_finished_members.rs:211:5:
+test result: FAILED. 3 passed; 1 failed; 0 ignored; 0 measured; 3417 filtered out; finished in 0.59s
+##### EDITOR RG_MUT=finlane
+test a_gather_carries_its_finished_members::a_product_of_finished_members_under_a_boxed_joint_finishes_at_the_box_scalars ... FAILED
+test a_gather_carries_its_finished_members::a_gather_of_finished_members_logs_one_vector_at_every_lane ... FAILED
+test a_gather_carries_its_finished_members::a_product_of_sweeps_is_finished_whole_while_their_leaves_are_not_finished ... ok
+test a_gather_carries_its_finished_members::carrying_the_members_verdicts_does_not_certify_them_apart ... ok
+thread 'a_gather_carries_its_finished_members::a_product_of_finished_members_under_a_boxed_joint_finishes_at_the_box_scalars' (5118) panicked at crates/editor-core/tests/a_gather_carries_its_finished_members.rs:123:5:
+thread 'a_gather_carries_its_finished_members::a_gather_of_finished_members_logs_one_vector_at_every_lane' (5117) panicked at crates/editor-core/tests/a_gather_carries_its_finished_members.rs:211:5:
+test result: FAILED. 2 passed; 2 failed; 0 ignored; 0 measured; 3417 filtered out; finished in 0.28s
+##### EDITOR RG_MUT=leaves_true
+test a_gather_carries_its_finished_members::a_gather_of_finished_members_logs_one_vector_at_every_lane ... ok
+test a_gather_carries_its_finished_members::a_product_of_sweeps_is_finished_whole_while_their_leaves_are_not_finished ... FAILED
+test a_gather_carries_its_finished_members::carrying_the_members_verdicts_does_not_certify_them_apart ... ok
+test a_gather_carries_its_finished_members::a_product_of_finished_members_under_a_boxed_joint_finishes_at_the_box_scalars ... ok
+thread 'a_gather_carries_its_finished_members::a_product_of_sweeps_is_finished_whole_while_their_leaves_are_not_finished' (5141) panicked at crates/editor-core/tests/a_gather_carries_its_finished_members.rs:158:5:
+test result: FAILED. 3 passed; 1 failed; 0 ignored; 0 measured; 3417 filtered out; finished in 0.52s
+##### EDITOR RG_MUT=nocensus
+test a_gather_carries_its_finished_members::a_gather_of_finished_members_logs_one_vector_at_every_lane ... ok
+test a_gather_carries_its_finished_members::a_product_of_sweeps_is_finished_whole_while_their_leaves_are_not_finished ... ok
+test a_gather_carries_its_finished_members::carrying_the_members_verdicts_does_not_certify_them_apart ... FAILED
+test a_gather_carries_its_finished_members::a_product_of_finished_members_under_a_boxed_joint_finishes_at_the_box_scalars ... ok
+thread 'a_gather_carries_its_finished_members::carrying_the_members_verdicts_does_not_certify_them_apart' (5159) panicked at crates/editor-core/tests/a_gather_carries_its_finished_members.rs:228:5:
+test result: FAILED. 3 passed; 1 failed; 0 ignored; 0 measured; 3417 filtered out; finished in 0.45s
+##### EDITOR RG_MUT=derive
+test a_gather_carries_its_finished_members::a_gather_of_finished_members_logs_one_vector_at_every_lane ... ok
+test a_gather_carries_its_finished_members::a_product_of_sweeps_is_finished_whole_while_their_leaves_are_not_finished ... ok
+test a_gather_carries_its_finished_members::carrying_the_members_verdicts_does_not_certify_them_apart ... ok
+test a_gather_carries_its_finished_members::a_product_of_finished_members_under_a_boxed_joint_finishes_at_the_box_scalars ... FAILED
+thread 'a_gather_carries_its_finished_members::a_product_of_finished_members_under_a_boxed_joint_finishes_at_the_box_scalars' (5170) panicked at crates/editor-core/tests/a_gather_carries_its_finished_members.rs:102:9:
+test result: FAILED. 3 passed; 1 failed; 0 ignored; 0 measured; 3417 filtered out; finished in 0.22s
+##### EDITOR RG_MUT=droprun
+test a_gather_carries_its_finished_members::a_gather_of_finished_members_logs_one_vector_at_every_lane ... ok
+test a_gather_carries_its_finished_members::a_product_of_sweeps_is_finished_whole_while_their_leaves_are_not_finished ... ok
+test a_gather_carries_its_finished_members::carrying_the_members_verdicts_does_not_certify_them_apart ... ok
+test a_gather_carries_its_finished_members::a_product_of_finished_members_under_a_boxed_joint_finishes_at_the_box_scalars ... ok
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 3417 filtered out; finished in 0.46s
+##### CORPUS head
+test corpus_finish_count::the_corpus_runs_its_pinned_count_of_finishes has been running for over 60 seconds
+RG_PRINT 375: [("die", 71), ("corner_table", 18), ("heat_sink", 37), ("crossing_slots", 10), ("nested_islands_105", 7), ("nested_islands_106_depth1", 7), ("nested_islands_106_depth2", 9), ("declared_tangency", 4), ("kitchen_sink", 14), ("cut_cylinder", 6), ("measured_web", 4), ("boss_union", 3), ("die_fillet", 2), ("die_chamfer", 2), ("die_pips", 6), ("heat_sink_fins", 5), ("die_tool", 21), ("face_sketch", 3), ("part_select", 6), ("symmetric_plate", 6), ("loft_prism", 2), ("die_composed", 8), ("die_composed_tour", 73), ("plate_param", 3), ("kiss_carry", 10), ("tube_ring", 2), ("tube_arc", 2), ("hollow_tube_elbow", 2), ("hollow_tube_ring", 2), ("reshaped_rod", 4), ("pin_in_bore", 6), ("axis_projection", 5), ("blocks_on_one_floor", 9), ("revolves_on_one_axis", 6)]
+test corpus_finish_count::the_corpus_runs_its_pinned_count_of_finishes ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3420 filtered out; finished in 80.68s
+##### CORPUS derive
+test corpus_finish_count::the_corpus_runs_its_pinned_count_of_finishes has been running for over 60 seconds
+RG_PRINT 399: [("die", 72), ("corner_table", 19), ("heat_sink", 37), ("crossing_slots", 11), ("nested_islands_105", 8), ("nested_islands_106_depth1", 8), ("nested_islands_106_depth2", 10), ("declared_tangency", 4), ("kitchen_sink", 14), ("cut_cylinder", 9), ("measured_web", 4), ("boss_union", 4), ("die_fillet", 3), ("die_chamfer", 3), ("die_pips", 7), ("heat_sink_fins", 6), ("die_tool", 22), ("face_sketch", 4), ("part_select", 6), ("symmetric_plate", 7), ("loft_prism", 2), ("die_composed", 9), ("die_composed_tour", 74), ("plate_param", 4), ("kiss_carry", 11), ("tube_ring", 2), ("tube_arc", 2), ("hollow_tube_elbow", 2), ("hollow_tube_ring", 2), ("reshaped_rod", 5), ("pin_in_bore", 6), ("axis_projection", 6), ("blocks_on_one_floor", 9), ("revolves_on_one_axis", 7)]
+test corpus_finish_count::the_corpus_runs_its_pinned_count_of_finishes ... FAILED
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3420 filtered out; finished in 80.97s
+##### PFO
+test product_finishes_once::a_copy_moved_past_the_box_refuses_at_the_box ... ok
+test product_finishes_once::a_member_past_the_box_refuses_at_its_placement_before_the_product ... ok
+test product_finishes_once::a_gather_over_mapped_sources_finishes_once ... ok
+test product_finishes_once::a_product_over_copies_past_the_box_apart_refuses_as_its_aggregate ... ok
+test product_finishes_once::a_moved_leaf_runs_one_finish ... ok
+test product_finishes_once::a_sub_assembly_placed_far_out_is_asked_once_where_it_stands ... ok
+test product_finishes_once::an_operation_over_copies_computes_in_its_first_operands_frame_bit_for_bit ... ok
+test product_finishes_once::copies_either_side_of_the_origin_refuse_to_assemble ... ok
+test product_finishes_once::copies_either_side_of_the_origin_refuse_to_subtract ... ok
+test product_finishes_once::copies_either_side_of_the_origin_refuse_to_unite ... ok
+test product_finishes_once::a_product_in_one_shared_frame_localizes_in_it_moving_no_copy ... ok
+test product_finishes_once::a_mirror_and_a_twist_of_a_finished_value_run_no_finish ... ok
+test product_finishes_once::the_gather_finishes_the_aggregate_once ... ok
+test product_finishes_once::the_census_runs_in_the_gather_and_never_at_the_check ... ok
+test product_finishes_once::a_union_across_two_frames_runs_one_finish ... ok
+test product_finishes_once::localizing_takes_each_copy_once ... ok
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 3405 filtered out; finished in 0.25s
+##### DONE
