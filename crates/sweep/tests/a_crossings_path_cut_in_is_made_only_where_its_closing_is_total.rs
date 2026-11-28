@@ -311,7 +311,7 @@ fn inclusion_exclusion(
         topo::test_support::pinned_volume(name, other, tol()),
     );
     let bound = if marched {
-        topo::test_support::pinned_len(tol()) * (ball.area + other.area)
+        topo::test_support::pinned_len(tol()) * (ball.surface_area + other.surface_area)
     } else {
         1e-9 * ball.volume
     };
@@ -330,8 +330,8 @@ fn inclusion_exclusion(
     let close = |what: &str, v: f64, w: f64| {
         println!("[oracle] {name}, {what}: {v} against {w}, off {:e}", v - w);
         assert!(
-            (v - w).abs() <= 1e-9 * ball,
-            "{name}, {what}: {v} against {w}"
+            (v - w).abs() <= bound,
+            "{name}, {what}: {v} against {w}, past {bound:e}"
         );
     };
     for i in 0..2 {
