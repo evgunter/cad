@@ -250,7 +250,7 @@ const SECTION_WITHIN_CAUSE: &str =
     "The section curve's own rounding over this edge can account for this miss.";
 
 /// Typed failure of the joining step.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum JoinError {
     /// The join order escalated: building its frame, or comparing two
     /// section points in it ([`OrderDecision`]).
@@ -2790,7 +2790,7 @@ pub(crate) fn apex_section_ruling<T: Decide>(
 /// driver that nudges a part one way on `ClosedOffApex` and another on
 /// `NoRulingInside`. Then carry it and delete this paragraph and the
 /// disposition row with it.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ApexSectionReading {
     /// The table reads the plane's section of the cone as a closed
     /// conic, standing off the apex.

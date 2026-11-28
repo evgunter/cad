@@ -246,7 +246,7 @@ impl<T: topo::AtRestPolicy> Lofted<T, Body<T>> {
 }
 
 /// Typed refusal of the loft/sweep body assembly (closed enum, D4 ¶3).
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum LoftError {
     /// The run's tolerance could not form a classification band.
     Band(BandError),

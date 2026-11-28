@@ -213,7 +213,7 @@ fn driven(doc: &ProfileDoc, parallel: bool, plain_memo: bool, tol: Tol) -> Param
         &DriveConfig {
             max_leaves: 8,
             parallel,
-            plain_memo,
+            memo: table_dial(plain_memo),
             ..DriveConfig::default()
         },
         &editor_core::Stop::default(),
@@ -794,4 +794,14 @@ fn a_family_with_a_member_taken_from_an_earlier_leaf_carries_that_members_record
         record(&fresh),
         "the family's record is the same served or built"
     );
+}
+
+/// The drive's table serving or not, its node store off: the dial these
+/// rows compare.
+fn table_dial(serves: bool) -> editor_core::MemoDial {
+    if serves {
+        editor_core::MemoDial::Table
+    } else {
+        editor_core::MemoDial::Off
+    }
 }

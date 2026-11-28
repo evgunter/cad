@@ -3230,7 +3230,7 @@ impl SectionUnbuilt {
 geom_brep::ended_by_write!(SectionUnbuilt);
 
 /// Typed failure of [`boolean_reduce`]; the operands are never touched.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum BooleanError {
     /// The run's tolerance cannot form a valid band (D4 residue).
     ///
@@ -9445,7 +9445,7 @@ pub(in crate::boolean) fn validate_carried<T: Real>(
 }
 
 /// **Why a cut's tool's fuse refused** ([`BooleanError::ToolFuseRefused`]).
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ToolFuseRefusal {
     /// The union's own refusal at a fold step, its operands the fold's
     /// accumulation and the solid it joins, each in the keys of `B`'s
@@ -9473,7 +9473,7 @@ mod join_lift {
 
     /// A chord-join refusal the Boolean nests whole: any
     /// [`JoinError`] but a lineage row.
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct BooleanJoin(JoinError);
 
     impl BooleanJoin {
@@ -9515,7 +9515,7 @@ mod merge_lift {
 
     /// A merge-door refusal the Boolean nests whole: any
     /// [`MergeCoplanarError`] but a kept boundary left undescribed.
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct BooleanMerge(MergeCoplanarError);
 
     impl BooleanMerge {

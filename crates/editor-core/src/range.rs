@@ -183,7 +183,7 @@ use crate::distribution::Distribution;
 use crate::doc::{Doc, FreeVar};
 use crate::drive::{
     BudgetKind, DriveConfig, DriveRefusal, FlipEvidence, LeafVerdict, RefusalReason, SymbolicDials,
-    VerdictVector, VerdictVectorKey, certifying_vector, classify, does_not_build, drive_memo,
+    VerdictVector, VerdictVectorKey, certifying_vector, classify, does_not_build, DriveMemos,
     witness_build,
 };
 use crate::edit::{DocEdit, EditError, apply};
@@ -1009,9 +1009,8 @@ pub struct RangeBudget {
     pub max_depth: u32,
     /// The leaf protocol's symbolic tier ([`DriveConfig::symbolic`]).
     pub symbolic: SymbolicDials,
-    /// Whether the replays share one plain-form memo
-    /// ([`DriveConfig::plain_memo`]).
-    pub plain_memo: bool,
+    /// What the replays share ([`DriveConfig::memo`]).
+    pub memo: crate::drive::MemoDial,
 }
 
 impl RangeBudget {
@@ -1023,7 +1022,7 @@ impl RangeBudget {
             max_replays,
             max_depth,
             symbolic: leaf.symbolic,
-            plain_memo: leaf.plain_memo,
+            memo: leaf.memo,
         }
     }
 
@@ -1309,7 +1308,7 @@ pub struct RangeSearch {
     witness: Evaluation<f64>,
     witness_vector: VerdictVector,
     witness_key: VerdictVectorKey,
-    memo: Arc<geom_core::sym::DriveMemo>,
+    memo: DriveMemos,
     /// Whether each node reads the varying axis ([`Doc::free_reads`]).
     reads_axis: BTreeSet<RecipeNodeId>,
     /// The low side, then the high side.
@@ -1371,7 +1370,7 @@ impl RangeSearch {
             witness_key: witness_vector.key(),
             witness_vector,
             witness,
-            memo: drive_memo(budget.plain_memo, budget.symbolic),
+            memo: DriveMemos::new(&derived.doc, budget.memo, budget.symbolic),
             reads_axis: derived
                 .doc
                 .free_reads()
@@ -1441,7 +1440,7 @@ impl RangeSearch {
         let mut axes = self.root.axes().clone();
         axes.insert(self.derived.axis, axis);
         let box_ = ParamBox::from_axes_in(axes, self.root.order());
-        let (verdict, _) = classify(
+        let (verdict, _, _) = classify(
             &self.derived.doc,
             &box_,
             &self.witness,

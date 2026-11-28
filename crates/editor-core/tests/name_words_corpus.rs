@@ -406,6 +406,7 @@ fn slot_rows(docs: &[corpus::CorpusDoc], evals: &[Evaluation<f64>]) -> Vec<(&'st
         },
         escalations: Default::default(),
         sym: std::sync::Arc::default(),
+        keys: None,
     }
     .spoken(doc, ev);
     assert!(
@@ -515,6 +516,7 @@ fn refusals(
                 },
                 escalations: Default::default(),
                 sym: std::sync::Arc::default(),
+                keys: None,
             }
             .spoken(doc, tables)
             .to_string(),
@@ -1071,6 +1073,7 @@ fn a_failed_row_said_within_the_largest_table_is_cheap_again() {
             },
             escalations: Default::default(),
             sym: std::sync::Arc::default(),
+            keys: None,
         }
         .spoken(doc, &ev)
     };

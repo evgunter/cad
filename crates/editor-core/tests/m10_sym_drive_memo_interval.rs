@@ -102,7 +102,7 @@ fn ceiling(label: &str, doc: &ProfileDoc, max_leaves: usize) {
     // run that does the recomputing. The profile is thread-local, so
     // the sequential schedule is also the only one it sees whole.
     let cfg = DriveConfig {
-        plain_memo: false,
+        memo: editor_core::MemoDial::Off,
         ..config(max_leaves)
     };
     start_profile();
@@ -158,7 +158,7 @@ fn on_and_off(
             &analyzed,
             &DriveConfig {
                 max_leaves,
-                plain_memo,
+                memo: table_dial(plain_memo),
                 ..DriveConfig::default()
             },
             &editor_core::Stop::default(),
@@ -347,7 +347,7 @@ fn a_freezing_drive_is_identical_across_schedules_and_the_dial() {
             &DriveConfig {
                 max_leaves: FREEZING_LEAVES,
                 parallel,
-                plain_memo,
+                memo: table_dial(plain_memo),
                 ..DriveConfig::default()
             },
             &editor_core::Stop::default(),
@@ -445,7 +445,7 @@ fn racing_config(r: &Racing, parallel: bool, plain_memo: bool) -> DriveConfig {
     DriveConfig {
         max_leaves: r.leaves,
         parallel,
-        plain_memo,
+        memo: table_dial(plain_memo),
         symbolic: editor_core::drive::SymbolicDials {
             max_terms: r.terms,
             max_degree: r.degree,
@@ -589,7 +589,7 @@ fn a_freezing_drive_is_identical_across_thread_counts_too() {
                 &DriveConfig {
                     max_leaves: PIN_LEAVES,
                     parallel,
-                    plain_memo,
+                    memo: table_dial(plain_memo),
                     ..DriveConfig::default()
                 },
                 &editor_core::Stop::default(),
@@ -725,7 +725,7 @@ fn plain_memo_wall_times() {
                 let cfg = DriveConfig {
                     max_leaves,
                     parallel,
-                    plain_memo,
+                    memo: table_dial(plain_memo),
                     ..DriveConfig::default()
                 };
                 let t0 = Instant::now();
@@ -775,7 +775,7 @@ fn sym_memo_callgrind_drive() {
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let cfg = DriveConfig {
         max_leaves,
-        plain_memo,
+        memo: table_dial(plain_memo),
         ..DriveConfig::default()
     };
     let t0 = Instant::now();
@@ -837,7 +837,7 @@ fn the_leaf_column_across_schedules_probe() {
             &DriveConfig {
                 max_leaves,
                 parallel,
-                plain_memo,
+                memo: table_dial(plain_memo),
                 symbolic: dials,
                 ..DriveConfig::default()
             },
@@ -889,4 +889,14 @@ fn the_leaf_column_across_schedules_probe() {
     }
     let off = run(false, false);
     report("seq off", &off, Some(&seq));
+}
+
+/// The drive's table serving or not, its node store off: the dial these
+/// rows compare.
+fn table_dial(serves: bool) -> editor_core::MemoDial {
+    if serves {
+        editor_core::MemoDial::Table
+    } else {
+        editor_core::MemoDial::Off
+    }
 }

@@ -442,7 +442,7 @@ impl core::fmt::Display for KnifeEdge {
 
 /// Typed failure of [`split_reduce`]; the returned operand clone is
 /// dropped, the operand itself was never touched.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum SplitReduceError {
     /// The run's tolerance cannot form a valid band (D4 residue).
     Band(BandError),
@@ -1153,7 +1153,7 @@ pub(crate) fn reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
 
 /// Typed failure of the public [`split`] op (and [`plane_section`]):
 /// each stage's errors pass through whole.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum SplitError {
     /// The reduction/classification stage refused (M3 PR 2's typed
     /// surface, unchanged).

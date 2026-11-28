@@ -184,8 +184,11 @@ impl DriveMemo {
         }
     }
 
-    /// This table's token.
-    pub(super) fn token(&self) -> u64 {
+    /// **This table's token** (`super::table`): the token every session
+    /// on this table answers, so a holder of results built under it
+    /// can tell them from results built under another.
+    #[must_use]
+    pub fn token(&self) -> u64 {
         self.token
     }
 

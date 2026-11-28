@@ -2352,6 +2352,7 @@ mod tests {
                 kind: crate::eval::NodeErrorKind::EmptyOperand { input: slab.block },
                 escalations: std::sync::Arc::new(Vec::new()),
                 sym: std::sync::Arc::default(),
+                keys: None,
             }),
         );
         let mentions = |said: &crate::Sentence| {
@@ -2444,6 +2445,7 @@ mod tests {
                 },
                 escalations: std::sync::Arc::new(Vec::new()),
                 sym: std::sync::Arc::default(),
+                keys: None,
             }),
         );
         let outcome = record

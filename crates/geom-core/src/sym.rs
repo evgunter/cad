@@ -2558,17 +2558,10 @@ struct NodeState {
     /// this scope's record (`over`) and not in its registry: a family's
     /// value is built over what its members read.
     over_inside: EachOnce,
-    /// **What the records carried into this scope came to** ([`carry`]):
-    /// the counts of units inside it that were served and did not run.
-    /// On the scope's record, and not in the session's receipt, which
-    /// counts what ran.
-    carried: SymCounts,
-    /// What ran on behalf of a unit whose held record is carried
-    /// instead ([`carry`]): in the session's receipt, and taken off the
-    /// scope's record, where the held record already holds it.
-    unrecorded: SymCounts,
-    /// The roots of the records carried into this scope.
-    carried_roots: Vec<SymId>,
+    /// **The record of an earlier run this scope's unit is served**
+    /// ([`serve`]): the scope then closes as that run's scope closed,
+    /// and what ran in it before it was served is dropped.
+    served: Option<Arc<NodeRecord>>,
 }
 
 /// **Records, each once**, in the order first put: one record reached
@@ -2588,21 +2581,6 @@ impl EachOnce {
             self.list.push(Arc::clone(record));
         }
         new
-    }
-}
-
-impl NodeState {
-    /// Adds what a scope opened inside this one came to: its counts
-    /// and its roots.
-    fn absorb(&mut self, inner: &NodeState) {
-        self.counts = with_work(self.counts, inner.counts);
-        for id in inner.plain_roots.keys() {
-            self.plain_roots.insert(*id, ());
-        }
-        self.carried.absorb(inner.carried);
-        self.unrecorded.absorb(inner.unrecorded);
-        self.carried_roots
-            .extend(inner.carried_roots.iter().copied());
     }
 }
 
@@ -2827,51 +2805,58 @@ impl NodeGuard {
             let mut inner = core::mem::replace(&mut sess.node, outer);
             #[cfg(feature = "sym-profile-testing")]
             profile::retry_memos(&inner.retries.iter().map(RetryMemo::len).collect::<Vec<_>>());
-            // What the scope read, and what the scopes inside it read.
-            let mut over = core::mem::take(&mut inner.over);
-            for read in &core::mem::take(&mut inner.over_inside).list {
-                over.put(read);
+            // A served scope closes as the run it was served closed: its
+            // record is that run's, and what ran in it before it was
+            // served (the work that found its key) is dropped.
+            let record = match inner.served.take() {
+                Some(held) => NodeRecord::clone(&held),
+                None => {
+                    let mut over = core::mem::take(&mut inner.over);
+                    for read in &core::mem::take(&mut inner.over_inside).list {
+                        over.put(read);
+                    }
+                    let mut roots: Vec<SymId> = inner.plain_roots.keys().copied().collect();
+                    roots.sort_unstable_by_key(|id| id.bits());
+                    NodeRecord {
+                        brackets: core::mem::take(&mut inner.brackets),
+                        identities: core::mem::take(&mut inner.identities),
+                        counts: SymCounts {
+                            frozen: 0,
+                            ..inner.counts
+                        },
+                        roots,
+                        over: over.list,
+                    }
+                }
+            };
+            // The enclosing scope absorbs the record: its counts and its
+            // roots, and where that scope is a node's, what the record
+            // registered, bracketed and was built over. What a scope
+            // opened inside a node's scope registered is on that node's
+            // RECORD (a family holds its members', a part's run its
+            // nodes'), and in nobody's registry: a scope reads the
+            // records it is opened over and nothing else. `frozen` is the
+            // work column inside a session and rides the counts.
+            sess.node.counts = with_work(
+                sess.node.counts,
+                SymCounts {
+                    frozen: inner.counts.frozen,
+                    ..record.counts
+                },
+            );
+            for id in &record.roots {
+                sess.node.plain_roots.insert(*id, ());
             }
-            sess.node.absorb(&inner);
-            // What a scope opened inside a node's scope registered is
-            // on that node's RECORD (a family holds its members', a
-            // part's run its nodes'), and in nobody's registry: a scope
-            // reads the records it is opened over and nothing else.
             if !sess.outer.is_empty() {
                 sess.node
                     .identities
-                    .extend(inner.identities.iter().copied());
-                sess.node.brackets.extend(inner.brackets.iter().copied());
-                for read in &over.list {
+                    .extend(record.identities.iter().copied());
+                sess.node.brackets.extend(record.brackets.iter().copied());
+                for read in &record.over {
                     sess.node.over_inside.put(read);
                 }
             }
-            let mut roots: Vec<SymId> = inner
-                .plain_roots
-                .keys()
-                .copied()
-                .chain(inner.carried_roots.iter().copied())
-                .collect();
-            roots.sort_unstable_by_key(|id| id.bits());
-            roots.dedup();
-            // What ran, less what ran for a unit whose held record is
-            // carried, plus what the carried records hold.
-            let ran = inner.counts;
-            let (held, twice) = (inner.carried, inner.unrecorded);
-            Some(NodeRecord {
-                brackets: inner.brackets,
-                identities: inner.identities,
-                counts: SymCounts {
-                    frozen: 0,
-                    symbolic: (ran.symbolic + held.symbolic).saturating_sub(twice.symbolic),
-                    numeric: (ran.numeric + held.numeric).saturating_sub(twice.numeric),
-                    retried: (ran.retried + held.retried).saturating_sub(twice.retried),
-                    registrations_refused: (ran.registrations_refused + held.registrations_refused)
-                        .saturating_sub(twice.registrations_refused),
-                },
-                roots,
-                over: over.list,
-            })
+            Some(record)
         })
     }
 }
@@ -2904,40 +2889,38 @@ pub fn reads<'a>(records: impl IntoIterator<Item = &'a Arc<NodeRecord>>) {
     });
 }
 
-/// **The open scope's record carries `held` in place of `ran`**: a unit
-/// inside the scope (a member of a family) was served the result of an
-/// earlier run, whose record is `held`, and its own scope has just
-/// closed here having run only `ran` (what it did before it was
-/// served). The scope's record holds the unit as a run of it would have
-/// left it: `held`'s identities and brackets at the unit's place in the
-/// order, its counts and roots, and the records it was built over.
+/// **The open node scope's unit is served `held`**, the record of an
+/// earlier run of it: the scope closes as that run's closed, with
+/// `held` as its record and its counts, roots, identities, brackets and
+/// what it was built over absorbed where that run's were, and what ran
+/// inside it before this call (the work that found the unit's key) is
+/// dropped. So a leaf served a node's result counts and reads what a
+/// leaf that ran it counts and reads, and nothing is subtracted.
 ///
-/// The session's receipt is not moved: it counts what ran, and `ran`
-/// ran. Nothing where no node scope is open (the root scope leaves no
+/// Nothing where no node scope is open (the root scope leaves no
 /// record), or outside a session.
-pub fn carry(held: &Arc<NodeRecord>, ran: &NodeRecord) {
+pub fn serve(held: &Arc<NodeRecord>) {
     SESSION.with(|s| {
         let mut slot = s.borrow_mut();
         let Some(sess) = slot.as_mut() else { return };
         if sess.outer.is_empty() {
             return;
         }
-        let node = &mut sess.node;
-        // `ran`'s scope closed inside this one and left its identities
-        // and brackets last.
-        let kept = node.identities.len().saturating_sub(ran.identities.len());
-        node.identities.truncate(kept);
-        node.identities.extend(held.identities.iter().copied());
-        let kept = node.brackets.len().saturating_sub(ran.brackets.len());
-        node.brackets.truncate(kept);
-        node.brackets.extend(held.brackets.iter().copied());
-        node.carried.absorb(held.counts);
-        node.unrecorded.absorb(ran.counts);
-        node.carried_roots.extend(held.roots.iter().copied());
-        for read in &held.over {
-            node.over_inside.put(read);
-        }
+        debug_assert!(
+            sess.node.served.is_none(),
+            "one node scope was served twice"
+        );
+        sess.node.served = Some(Arc::clone(held));
     });
+}
+
+/// **Whether the installed session defers its decisions**
+/// ([`deferred::with_deferred_session`]): a margin it calls `Zero`
+/// names an entry of this session's list, so a result built under it
+/// is read only in it. `false` outside a session.
+#[must_use]
+pub fn deferring() -> bool {
+    SESSION.with(|s| s.borrow().as_ref().is_some_and(|s| s.deferred.is_some()))
 }
 
 impl Drop for NodeGuard {
@@ -3494,7 +3477,16 @@ pub fn session_counts() -> Option<SymCounts> {
 /// `f64`, and the test reads the thread's state rather than the type.
 #[must_use]
 pub fn decisions_are_thread_portable() -> bool {
-    !session_installed() && !report::active()
+    !session_installed() && !reports_decisions()
+}
+
+/// **Whether the shape report is recording this thread's decisions**
+/// ([`report`]): a row is pushed as a decision is taken, so a result
+/// handed over from an earlier run pushes none, and whatever serves
+/// results reads this before it serves one.
+#[must_use]
+pub fn reports_decisions() -> bool {
+    report::active()
 }
 
 /// **Which expression table the installed session's nodes are in**: a

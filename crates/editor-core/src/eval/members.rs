@@ -300,13 +300,13 @@ pub(super) fn eval_family<T: topo::AtRestPolicy + Decide>(
     id: RecipeNodeId,
     chain: &[VarId],
     results: &BTreeMap<RecipeNodeId, NodeResult<T>>,
-    prior: Option<&NodeValue<T>>,
+    prior: super::NodePrior<'_, T>,
     cancel: &super::CancelToken,
     op_env: &super::wire::OpEnv<'_, T>,
     eval_member: impl Fn(
         &crate::expr::VarEnv<T>,
         &BTreeMap<RecipeNodeId, NodeResult<T>>,
-        Option<&NodeValue<T>>,
+        super::NodePrior<'_, T>,
         &super::wire::OpEnv<'_, T>,
         &[(VarId, i64)],
     ) -> NodeStep<T>,
@@ -317,6 +317,7 @@ pub(super) fn eval_family<T: topo::AtRestPolicy + Decide>(
             kind,
             escalations: Arc::new(Vec::new()),
             sym: Arc::default(),
+            keys: None,
         }),
         reused: false,
     };
@@ -330,7 +331,12 @@ pub(super) fn eval_family<T: topo::AtRestPolicy + Decide>(
             doc.bind_member(nominal, at);
         },
     );
-    let prior_members = prior.and_then(|p| p.members.as_ref());
+    // Each member is looked up at its own keys: in the evaluation's
+    // family value by its values, or in the drive's store.
+    let prior_members = match prior {
+        super::NodePrior::Value(p) => p.members.as_ref(),
+        super::NodePrior::None | super::NodePrior::Store(..) => None,
+    };
     let mut members = Vec::new();
     let mut reused = true;
     for member in listed {
@@ -369,7 +375,12 @@ pub(super) fn eval_family<T: topo::AtRestPolicy + Decide>(
             mints: op_env.mints,
         };
         let over = overlay(results, &bound);
-        let prior_member = prior_members.and_then(|m| m.at(&narrow));
+        let prior_member = match prior {
+            super::NodePrior::Store(..) => prior,
+            super::NodePrior::None | super::NodePrior::Value(_) => prior_members
+                .and_then(|m| m.at(&narrow))
+                .map_or(super::NodePrior::None, super::NodePrior::Value),
+        };
         let step = eval_member(&member_env, &over, prior_member, &member_op_env, &at);
         reused &= step.reused;
         match step.result {
@@ -591,7 +602,7 @@ mod tests {
             id,
             &[k],
             &BTreeMap::new(),
-            None,
+            crate::eval::NodePrior::None,
             cancel,
             &op_env,
             |_, _, _, _, at| {

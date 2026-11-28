@@ -854,7 +854,7 @@ impl core::fmt::Display for FinishDesync {
 }
 
 /// Typed failure of the finish step.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum SplitFinishError {
     /// The body to split holds no solid, so there is nothing to cut. A
     /// caller reaches it by handing [`super::split`] an empty body.

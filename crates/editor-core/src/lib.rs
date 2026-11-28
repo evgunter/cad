@@ -131,9 +131,10 @@ pub use doc::{
 };
 pub use drive::{
     BudgetKind, CertifiedLeaf, DEFAULT_MAX_DEPTH, DEFAULT_MAX_LEAVES, DriveConfig, DriveRefusal,
-    FlipEvidence, LeafResults, MeasureAccounting, ParamBoxVerdict, ReasonClass, Receipt,
+    FlipEvidence, LeafResults, MeasureAccounting, MemoDial, ParamBoxVerdict, ReasonClass, Receipt,
     RefusalReason, RefusedLeaf, StructureFlip, Unsettled, drive,
 };
+pub use eval::store::NodeStoreSize;
 pub use edit::{
     Applied, CarryForwardDoor, DEFINITION_NODE_BOUND, DocEdit, DrawnOnFace, EditError, EditRecord,
     FaceUnread, IndexFault, LoftFault, Maintenance, MaintenanceNet, MeasureOutcome, Measured,

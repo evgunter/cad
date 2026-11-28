@@ -35,6 +35,7 @@ pub(crate) fn as_the_viewer_shows_it(kind: NodeErrorKind) -> String {
         kind,
         escalations: std::sync::Arc::new(Vec::new()),
         sym: std::sync::Arc::default(),
+        keys: None,
     }
     .to_string()
 }
@@ -1414,6 +1415,7 @@ fn drawn_lines(kind: NodeErrorKind) -> Vec<String> {
         kind,
         escalations: std::sync::Arc::new(Vec::new()),
         sym: std::sync::Arc::default(),
+        keys: None,
     };
     core::iter::once(error.to_string())
         .chain(

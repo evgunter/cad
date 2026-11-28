@@ -34,6 +34,7 @@ use crate::sentence;
 pub use parts::PartFault;
 pub(crate) mod schedule;
 pub(crate) mod slots;
+pub(crate) mod store;
 mod wire;
 pub(crate) use wire::pose::{read_directly_off, read_off_cell, read_pose};
 pub(crate) use wire::{DECISION_WORDS, EVAL_DIRECTION_NORM};
@@ -751,7 +752,7 @@ pub enum EvalOutcome {
 }
 
 /// One node's outcome (F2 verbatim, spec D2).
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum NodeResult<T: topo::AtRestPolicy + Decide> {
     /// The node evaluated to a value.
     Ok(NodeValue<T>),
@@ -1450,7 +1451,7 @@ pub use crate::pose::PoseValue;
 /// A node's typed failure: the wrapped cause plus the node it happened
 /// at (spec D2's context contract; slot context lives in
 /// [`NodeErrorKind::Expr`] — the PR 1 `NonFiniteResult` obligation).
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct NodeError {
     /// The node that failed.
     pub node: RecipeNodeId,
@@ -1478,6 +1479,12 @@ pub struct NodeError {
     /// What the node left in the symbolic session on the way to its
     /// failure ([`NodeValue::sym`]). **Not persisted.**
     pub sym: Arc<geom_core::sym::NodeRecord>,
+    /// **The keys the node failed under**: its content and naming keys
+    /// where the op ran and refused, as [`NodeValue::content_key`] and
+    /// [`NodeValue::naming_key`] name a value; `None` for a failure
+    /// before them (an input, a slot, a cycle). A drive serves a refusal
+    /// under them and counts it once. **Not persisted.**
+    pub keys: Option<(ContentKey, NamingKey)>,
 }
 
 /// **An evaluation refusal, carried into a document-layer
@@ -1522,7 +1529,7 @@ fn failed_line(
 
 /// The closed set of node-evaluation failures. Kernel errors are
 /// carried UNALTERED (spec D2: no stringification).
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum NodeErrorKind {
     /// An expression slot failed to evaluate — (node, slot) context
     /// around [`EvalError`], including `NonFiniteResult` (the PR 1
@@ -1782,7 +1789,7 @@ pub enum NodeErrorKind {
     /// **An operand that does not finish where this operation takes a
     /// finished body**: a leaf ([`topo::AtRestPolicy::leaf`], the switch:
     /// tier 2 alone at the box scalars); the operation that takes it
-    /// runs tier 3 on it ([`super::Held::finished`]).
+    /// runs tier 3 on it ([`super::NodePrior::finished`]).
     ///
     /// Where the operation placed the operand in another operand's frame
     /// (a union's or an intersect's fold, or a subtract, computes in one
@@ -2176,7 +2183,7 @@ pub enum NodeErrorKind {
 }
 
 impl NodeErrorKind {
-    /// **A taker's refusal** ([`Held::finished`]):
+    /// **A taker's refusal** ([`NodePrior::finished`]):
     /// `input`'s body does not finish where a node takes it. A node's
     /// own finish of what it produced names [`NodeErrorKind::NotFinished`].
     pub(crate) fn unfinished(input: RecipeNodeId) -> impl FnOnce(topo::NotFinished) -> Self {
@@ -3748,7 +3755,7 @@ pub fn evaluate_running_pass_two<T: OwnRecord>(
 ) -> Evaluation<T> {
     let mut ev = evaluate_at_descent(
         doc,
-        None,
+        Prior::None,
         &CancelToken::new(),
         opts,
         None,
@@ -4193,16 +4200,54 @@ pub enum PriorRefusal {
     /// unknowns. Another leaf of the same drive is another session on
     /// the same table, and its prior is read.
     Table,
+    /// This run's symbolic session defers its decisions
+    /// (`geom_core::sym::deferred`): a margin it calls `Zero` names an
+    /// entry of its own list, and a node's deferred entries do not ride
+    /// its value, so a result taken from a prior would carry none.
+    Deferring,
+}
+
+/// **What a run holds its prior to** ([`PriorRefusal::of`]): the
+/// document it is of, the options an op reads and no key hashes, and the
+/// expression table its values were built under. An evaluation's own
+/// ([`Evaluation`]), or a drive's store's, made from the options its
+/// leaves run at.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct PriorSeat {
+    document: crate::ident::DocumentId,
+    twist: Option<[u64; 7]>,
+    symbols: bool,
+    boolean_sweep: topo::SweepStrategy,
+    table: Option<u64>,
+}
+
+impl PriorSeat {
+    /// The seat of runs of `doc` at `opts` under the table `table`.
+    pub(crate) fn of(doc: &Doc<ProfileProgram>, opts: &EvalOptions, table: Option<u64>) -> Self {
+        Self {
+            document: doc.id(),
+            twist: RunLane::of(opts).twist,
+            symbols: opts.symbols,
+            boolean_sweep: opts.boolean_sweep,
+            table,
+        }
+    }
+
+    fn of_run<T: topo::AtRestPolicy + Decide>(prior: &Evaluation<T>) -> Self {
+        Self {
+            document: prior.document,
+            twist: prior.lane.twist,
+            symbols: prior.lane.symbols,
+            boolean_sweep: prior.boolean_sweep,
+            table: prior.sym_table,
+        }
+    }
 }
 
 impl PriorRefusal {
     /// Why a run of `doc` at `opts` reads nothing of `prior`, if it
     /// does not.
-    fn of<T: topo::AtRestPolicy + Decide>(
-        doc: &Doc<ProfileProgram>,
-        prior: &Evaluation<T>,
-        opts: &EvalOptions,
-    ) -> Option<Self> {
+    fn of(doc: &Doc<ProfileProgram>, prior: &PriorSeat, opts: &EvalOptions) -> Option<Self> {
         if let Some(mispaired) = crate::ident::mispaired(doc.id(), prior.document) {
             return Some(Self::Document(mispaired));
         }
@@ -4231,12 +4276,13 @@ impl PriorRefusal {
             member_budget: _,
         } = opts;
         let twist = RunLane::of(opts).twist;
-        if (prior.lane.twist, prior.lane.symbols, prior.boolean_sweep)
-            != (twist, *symbols, *boolean_sweep)
-        {
+        if (prior.twist, prior.symbols, prior.boolean_sweep) != (twist, *symbols, *boolean_sweep) {
             return Some(Self::Options);
         }
-        (!prior_under_this_table(prior)).then_some(Self::Table)
+        if geom_core::sym::deferring() {
+            return Some(Self::Deferring);
+        }
+        (!prior_under_this_table(prior.table)).then_some(Self::Table)
     }
 }
 
@@ -4351,7 +4397,7 @@ where
     let binding = RecordBinding::of(doc, record, opts, tol);
     let mut ev = evaluate_at_descent(
         doc,
-        prior,
+        Prior::run(prior),
         cancel,
         opts,
         None,
@@ -4525,10 +4571,87 @@ impl RecordBinding {
                 kind: NodeErrorKind::RecordRefused,
                 escalations: Arc::default(),
                 sym: Arc::default(),
+                keys: None,
             }),
             reused: false,
         })
     }
+}
+
+/// **The memo a run is handed** (spec D4): none, an earlier evaluation
+/// of the document, or a drive's node results ([`store::NodeStore`]).
+/// One door ([`PriorRefusal::of`]) and one lookup, at a node's keys
+/// (`eval_node_in`), for each.
+#[derive(Clone, Copy)]
+pub(crate) enum Prior<'a, T: topo::AtRestPolicy + Decide> {
+    None,
+    /// An earlier evaluation: one value per node, served where its keys
+    /// are this run's.
+    Run(&'a Evaluation<T>),
+    /// A drive's store, at this leaf's box.
+    Store(&'a store::NodeStore<T>, &'a crate::analysis::ParamBox),
+}
+
+impl<'a, T: topo::AtRestPolicy + Decide> Prior<'a, T> {
+    fn run(prior: Option<&'a Evaluation<T>>) -> Self {
+        prior.map_or(Self::None, Self::Run)
+    }
+
+    fn seat(&self) -> Option<PriorSeat> {
+        match self {
+            Self::None => None,
+            Self::Run(prior) => Some(PriorSeat::of_run(prior)),
+            Self::Store(store, _) => Some(*store.seat()),
+        }
+    }
+
+    /// The part rows the prior carried (`parts::PartStore`): an
+    /// evaluation's; a store carries none, and a part's run is entered
+    /// in each replay.
+    fn parts(&self) -> Option<&'a parts::Carried<T>> {
+        match self {
+            Self::Run(prior) => Some(&prior.parts),
+            Self::None | Self::Store(..) => None,
+        }
+    }
+}
+
+/// **What one node of a run is handed of the prior**: the value an
+/// evaluation held for it, or the drive's store.
+#[derive(Clone, Copy)]
+pub(crate) enum NodePrior<'a, T: topo::AtRestPolicy + Decide> {
+    None,
+    Value(&'a NodeValue<T>),
+    Store(&'a store::NodeStore<T>, &'a crate::analysis::ParamBox),
+}
+
+/// **A leaf of a drive, served from the drive's store** (`store`): a
+/// node whose keys at `opts`'s box an earlier leaf holds is that leaf's
+/// result, and one it computes is published there. `opts` carries the
+/// leaf's box; a run with none takes nothing from the store
+/// ([`PriorRefusal::Options`]: the store is a prior under a box).
+pub(crate) fn evaluate_served<T: OwnRecord>(
+    doc: &Doc<ProfileProgram>,
+    store: &store::NodeStore<T>,
+    cancel: &CancelToken,
+    opts: &EvalOptions,
+    tol: Tol,
+) -> Evaluation<T> {
+    let Some(box_) = opts.param_box.as_deref() else {
+        let mut ev = evaluate(doc, None, cancel, opts, tol);
+        ev.prior_refused = Some(PriorRefusal::Options);
+        return ev;
+    };
+    evaluate_at_descent(
+        doc,
+        Prior::Store(store, box_),
+        cancel,
+        opts,
+        None,
+        None,
+        PassTwo::SkippedAtF64,
+        tol,
+    )
 }
 
 /// Evaluates the document (spec D2–D6): a TOTAL function — every
@@ -4566,7 +4689,7 @@ where
 {
     let mut ev = evaluate_at_descent(
         doc,
-        prior,
+        Prior::run(prior),
         cancel,
         opts,
         None,
@@ -4617,7 +4740,7 @@ where
 {
     evaluate_at_descent(
         doc,
-        None,
+        Prior::None,
         cancel,
         opts,
         Some((reached, pin)),
@@ -4637,7 +4760,7 @@ pub(crate) fn recorded_at_process_eps<P>(doc: &Doc<P>, tol: Tol) -> bool {
 #[allow(clippy::too_many_arguments)] // the run-tolerance witness and the descent's two seams
 fn evaluate_at_descent<T>(
     doc: &Doc<ProfileProgram>,
-    prior: Option<&Evaluation<T>>,
+    prior: Prior<'_, T>,
     cancel: &CancelToken,
     opts: &EvalOptions,
     reached: Option<(parts::Reached<T>, &crate::ident::ContentPin)>,
@@ -4658,8 +4781,11 @@ where
     // p.nodes.get(&id))`) and the part rows carried from the prior
     // (`parts::PartStore::enter`) reads of a run this one could have
     // been, rather than a check repeated per node.
-    let (prior, prior_refused) = match prior.and_then(|p| PriorRefusal::of(doc, p, opts)) {
-        Some(refused) => (None, Some(refused)),
+    let (prior, prior_refused) = match prior
+        .seat()
+        .and_then(|seat| PriorRefusal::of(doc, &seat, opts))
+    {
+        Some(refused) => (Prior::None, Some(refused)),
         None => (prior, None),
     };
     // The scope this document's nodes mint inside: the caller's, and
@@ -4748,7 +4874,7 @@ where
         geom_core::k_stats::detached(|| {
             evaluate_at_descent::<f64>(
                 doc,
-                None,
+                Prior::None,
                 cancel,
                 &nominal_opts,
                 None,
@@ -4777,7 +4903,7 @@ where
             let ev = geom_core::k_stats::detached(|| {
                 evaluate_at_descent::<f64>(
                     doc,
-                    None,
+                    Prior::None,
                     cancel,
                     &midpoint_opts,
                     None,
@@ -4823,7 +4949,7 @@ where
         parts::PartStore::<T>::new(opts.resolver.as_ref(), opts.boolean_sweep, tol)
             .with_symbols(opts.symbols)
             .with_twist(opts.computing_twist)
-            .with_costs(prior.map(|p| &p.parts))
+            .with_costs(prior.parts())
             .with_record(record.map(|r| Arc::clone(&r.parts)))
     });
     let admitted = admission.admit(|id, remaining| {
@@ -4852,7 +4978,7 @@ where
                     break;
                 }
                 if let Some(part) = parts::instantiated(doc, id) {
-                    store.enter(part, prior.map(|p| &p.parts), cancel, tol);
+                    store.enter(part, prior.parts(), cancel, tol);
                 }
             }
             store.finish()
@@ -4993,6 +5119,7 @@ where
                     kind: NodeErrorKind::UnschedulableCycle,
                     escalations: Arc::new(Vec::new()),
                     sym: Arc::default(),
+                    keys: None,
                 }),
             );
         }
@@ -5283,6 +5410,7 @@ where
                     kind: kind(),
                     escalations: Arc::new(Vec::new()),
                     sym: Arc::default(),
+                    keys: None,
                 }),
             )
         })
@@ -5402,7 +5530,7 @@ fn eval_any<T>(
     id: RecipeNodeId,
     chains: &BTreeMap<RecipeNodeId, Chained>,
     results: &BTreeMap<RecipeNodeId, NodeResult<T>>,
-    prior: Option<&Evaluation<T>>,
+    prior: Prior<'_, T>,
     cancel: &CancelToken,
     op_env: &wire::OpEnv<'_, T>,
     tol: Tol,
@@ -5418,12 +5546,20 @@ where
     // family's listing and its value as well as each member's step,
     // which opens the member's own inside it.
     let _mints = node_mints(op_env.mints, id, &[]).enter();
-    let prior = prior
-        .filter(|p| {
-            parts::instantiated(doc, id)
-                .is_none_or(|part| op_env.parts.carried_from(&p.parts, &part, tol))
-        })
-        .and_then(|p| p.value(id));
+    let prior = match prior {
+        Prior::None => NodePrior::None,
+        Prior::Run(p) => p
+            .value(id)
+            .filter(|_| {
+                parts::instantiated(doc, id)
+                    .is_none_or(|part| op_env.parts.carried_from(&p.parts, &part, tol))
+            })
+            .map_or(NodePrior::None, NodePrior::Value),
+        // A part's run is entered in each replay, and the instance's
+        // keys name the part by reference alone (`store`).
+        Prior::Store(..) if parts::instantiated(doc, id).is_some() => NodePrior::None,
+        Prior::Store(store, box_) => NodePrior::Store(store, box_),
+    };
     let step = match chains.get(&id) {
         Some(Chained::Reached(crate::repetition::Reached::TwoBinders(a, b))) => NodeStep {
             result: NodeResult::Failed(NodeError {
@@ -5431,6 +5567,7 @@ where
                 kind: NodeErrorKind::TwoBinders { a: *a, b: *b },
                 escalations: Arc::new(Vec::new()),
                 sym: Arc::default(),
+                keys: None,
             }),
             reused: false,
         },
@@ -5440,6 +5577,7 @@ where
                 kind: NodeErrorKind::YieldsNothing { binder: *binder },
                 escalations: Arc::new(Vec::new()),
                 sym: Arc::default(),
+                keys: None,
             }),
             reused: false,
         },
@@ -5467,7 +5605,15 @@ where
                     },
                 )
             });
-            recorded(family?, record)
+            // The family's value is built here from its members, served
+            // or run, so its record is this scope's either way.
+            let mut family = family?;
+            match &mut family.result {
+                NodeResult::Ok(value) => value.sym = Arc::new(record),
+                NodeResult::Failed(error) => error.sym = Arc::new(record),
+                NodeResult::Poisoned { .. } => {}
+            }
+            family
         }
         _ => eval_node(doc, env, id, results, prior, op_env, &[], tol),
     };
@@ -5554,8 +5700,8 @@ fn node_mints(
 /// under none, names nodes this table does not hold, and a result
 /// reused from it would be read as unknowns. Such a prior is not read:
 /// the evaluation builds as it does with none.
-fn prior_under_this_table<T: topo::AtRestPolicy + Decide>(prior: &Evaluation<T>) -> bool {
-    geom_core::sym::table().is_none_or(|table| prior.sym_table == Some(table))
+fn prior_under_this_table(prior: Option<u64>) -> bool {
+    geom_core::sym::table().is_none_or(|table| prior == Some(table))
 }
 
 /// **The open node scope reads what `reads` see and what else
@@ -5601,7 +5747,7 @@ fn eval_node<T>(
     env: &crate::expr::VarEnv<T>,
     id: RecipeNodeId,
     results: &BTreeMap<RecipeNodeId, NodeResult<T>>,
-    prior: Option<&NodeValue<T>>,
+    prior: NodePrior<'_, T>,
     op_env: &wire::OpEnv<'_, T>,
     at: &[(crate::VarId, i64)],
     tol: Tol,
@@ -5619,35 +5765,40 @@ where
         .and_then(|doc_ref| op_env.parts.get(&doc_ref, tol).ok())
         .map(|row| Arc::new(row.sym.identities_alone()))
         .filter(|record| record.registrations() > 0);
+    let mut claim = None;
     let (step, record) = node_mints(op_env.mints, id, at).node(part.as_deref(), || {
-        eval_node_in(doc, env, id, results, prior, op_env, at, tol)
+        eval_node_in(doc, env, id, results, prior, op_env, at, &mut claim, tol)
     });
-    // A step served an earlier run's value keeps that run's record
-    // (`recorded`). The scope this one closed inside (a family's, where
-    // this is a member) holds the member as that run left it, so that a
-    // reader of the family whole reads a served member's identities as
-    // it reads a rebuilt one's.
-    if let (true, NodeResult::Ok(held)) = (step.reused, &step.result) {
-        geom_core::sym::carry(&held.sym, &record);
-    }
     let record = match &part {
         Some(part) => geom_core::sym::NodeRecord::gather([&**part, &record]),
         None => record,
     };
-    recorded(step, record)
+    let step = recorded(step, record);
+    // A result this leaf computed for the drive's store goes there with
+    // its record; a claim dropped unpublished (no keyed result) empties
+    // its slot.
+    if let Some(claim) = claim
+        && matches!(step.result, NodeResult::Ok(_) | NodeResult::Failed(_))
+    {
+        claim.publish(&step.result);
+    }
+    step
 }
 
 /// `step` with what its scope left in the symbolic session written on
-/// the result it made. A reused value keeps the record of the run that
-/// built it.
+/// the result it made. A served result keeps the record of the run that
+/// made it, which is what its scope closed with (`geom_core::sym::serve`).
 fn recorded<T: topo::AtRestPolicy + Decide>(
     mut step: NodeStep<T>,
     record: geom_core::sym::NodeRecord,
 ) -> NodeStep<T> {
+    if step.reused {
+        return step;
+    }
     match &mut step.result {
-        NodeResult::Ok(value) if !step.reused => value.sym = Arc::new(record),
+        NodeResult::Ok(value) => value.sym = Arc::new(record),
         NodeResult::Failed(error) => error.sym = Arc::new(record),
-        NodeResult::Ok(_) | NodeResult::Poisoned { .. } => {}
+        NodeResult::Poisoned { .. } => {}
     }
     step
 }
@@ -5656,14 +5807,15 @@ fn recorded<T: topo::AtRestPolicy + Decide>(
 /// evaluation with (node, slot) context, content key, memo lookup, and
 /// the op wiring.
 #[allow(clippy::too_many_arguments)] // the node, its inputs, and the member it is
-fn eval_node_in<T>(
+fn eval_node_in<'a, T>(
     doc: &Doc<ProfileProgram>,
     env: &crate::expr::VarEnv<T>,
     id: RecipeNodeId,
     results: &BTreeMap<RecipeNodeId, NodeResult<T>>,
-    prior: Option<&NodeValue<T>>,
+    prior: NodePrior<'a, T>,
     op_env: &wire::OpEnv<'_, T>,
     at: &[(crate::VarId, i64)],
+    claim: &mut Option<store::Claim<'a, T>>,
     tol: Tol,
 ) -> NodeStep<T>
 where
@@ -5691,6 +5843,7 @@ where
             kind,
             escalations: Arc::new(bracket.finish().escalations),
             sym: Arc::default(),
+            keys: None,
         }),
         reused: false,
     };
@@ -5955,14 +6108,9 @@ where
     // two boxes of a variable no seat reads key alike. So a prior
     // verdict that cites a point is this run's only where the point is;
     // one that cites none reads nothing of the rebuild's point, and is
-    // served across boxes.
-    let prior = prior.filter(|v| match (&input, clearance_point(v)) {
-        (wire::OpInput::Clearance { .. }, Some(point)) => {
-            op_env.lane.witness.is_some_and(|w| w.param == *point)
-        }
-        _ => true,
-    });
-
+    // served across boxes. A drive's store keys a clearance by its whole
+    // box (`store::ReadSets`), so its entries are this run's.
+    //
     // Memo (spec D4 + #95 disposition 2): a content-key match
     // certifies the GEOMETRY; whole-value reuse additionally requires
     // the naming key (names embed node ids the content key excludes).
@@ -5972,33 +6120,65 @@ where
     // geometry bit-identical, so re-running IS "reuse the geometry,
     // re-derive the names", spelled honestly.
     //
-    // `prior` is an evaluation of THIS document: `evaluate_at_descent`
-    // drops a foreign one before the schedule is built (DI3), so this
-    // lookup cannot serve a coincidental id collision from another
-    // document.
-    if let Some(v) = prior
-        && v.content_key == content_key
-        && v.naming_key == naming_key
-    {
+    // `prior` is of THIS document: `evaluate_at_descent` drops a
+    // foreign one before the schedule is built (DI3), so this lookup
+    // cannot serve a coincidental id collision from another document.
+    let held = match prior {
+        NodePrior::None => None,
+        NodePrior::Value(v) => Some(v)
+            .filter(|v| match (&input, clearance_point(v)) {
+                (wire::OpInput::Clearance { .. }, Some(point)) => {
+                    op_env.lane.witness.is_some_and(|w| w.param == *point)
+                }
+                _ => true,
+            })
+            .filter(|v| v.content_key == content_key && v.naming_key == naming_key)
+            .map(|v| NodeResult::Ok(v.clone())),
+        NodePrior::Store(store, box_) => match store.take(id, content_key, naming_key, box_) {
+            store::Taken::Held(result) => Some(result),
+            store::Taken::Claim(taken) => {
+                *claim = Some(taken);
+                None
+            }
+        },
+    };
+    if let Some(result) = held {
         // The profile's f64 precompute ran inside this frame, and the
-        // reused value's log opens with the same decisions. A
+        // served result's log opens with the same decisions. A
         // `Verdict` is (predicate, sign), and the inputs the content
         // key fixes — the resolved program and the tolerance — are
         // exactly what the precompute decides from, so D9 makes the two
         // sequences equal, at every scalar.
-        // The reused value IS the record, so the fresh frame is
-        // finished and dropped rather than spliced in. The prefix
-        // identity is a kernel bug's re-derivation: no input reaches it
-        // while the keys fix what the precompute decides from.
+        // The served result IS the record, so the fresh frame is
+        // finished and dropped rather than spliced in, and its scope
+        // closes with the served record (`geom_core::sym::serve`). The
+        // prefix identity is a kernel bug's re-derivation: no input
+        // reaches it while the keys fix what the precompute decides
+        // from.
         let fresh = bracket.finish();
-        debug_assert!(
-            v.verdicts.starts_with(&fresh.verdicts)
-                && v.escalations.starts_with(&fresh.escalations)
-                && v.marks.starts_with(&fresh.marks),
-            "a memo hit's pre-key decisions differ from the reused log's prefix"
-        );
+        match &result {
+            NodeResult::Ok(v) => {
+                debug_assert!(
+                    v.verdicts.starts_with(&fresh.verdicts)
+                        && v.escalations.starts_with(&fresh.escalations)
+                        && v.marks.starts_with(&fresh.marks),
+                    "a memo hit's pre-key decisions differ from the reused log's prefix"
+                );
+                geom_core::sym::serve(&v.sym);
+            }
+            NodeResult::Failed(e) => {
+                debug_assert!(
+                    e.escalations.starts_with(&fresh.escalations),
+                    "a served refusal's pre-key escalations differ from its log's prefix"
+                );
+                geom_core::sym::serve(&e.sym);
+            }
+            NodeResult::Poisoned { .. } => {
+                unreachable!("a keyed result is a value or a refusal")
+            }
+        }
         return NodeStep {
-            result: NodeResult::Ok(v.clone()),
+            result,
             reused: true,
         };
     }
@@ -6037,6 +6217,7 @@ where
                 kind,
                 escalations,
                 sym: Arc::default(),
+                keys: Some((content_key, naming_key)),
             }),
             reused: false,
         },

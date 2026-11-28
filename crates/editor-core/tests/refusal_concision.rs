@@ -957,6 +957,7 @@ fn as_the_viewer_shows_it(e: topo::BooleanError) -> String {
         kind: editor_core::NodeErrorKind::Boolean(e),
         escalations: std::sync::Arc::new(Vec::new()),
         sym: std::sync::Arc::default(),
+        keys: None,
     }
     .to_string()
 }

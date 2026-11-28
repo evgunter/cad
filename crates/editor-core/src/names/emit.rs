@@ -85,7 +85,7 @@ use crate::node::RecipeNodeId;
 /// the ident adds it to the roster, and the set difference then reds
 /// until it has a rendered case. No step of that chain is green —
 /// measured too.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum NamingError {
     /// A would-be duplicate name outside the tie path (the
     /// no-silent-aliasing guarantee N1 rests on).

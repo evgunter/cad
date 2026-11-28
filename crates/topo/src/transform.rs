@@ -72,7 +72,7 @@ use crate::geometry::{CurveKey, SurfaceSlot};
 use crate::null::CurveGeom;
 
 /// Typed failure of [`transform_rigid`] (closed enum, D4 ¶3).
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum TransformError {
     /// The body carries a null-scaffold edge: what an unfinished edit
     /// leaves behind (a lone `mev_null` on a fresh face, say). At a

@@ -161,25 +161,10 @@ pub struct DriveConfig {
     /// run; the verdict is bit-identical either way, which is what the
     /// differential row pins.
     pub parallel: bool,
-    /// **Whether the drive's leaves share one table**
-    /// (`geom_core::sym::DriveMemo`): the expression table, the plain
-    /// forms and the atom records. On by default, and a PERFORMANCE
-    /// dial only.
-    ///
-    /// Each entry is a function of its key, the budget and the tier's
-    /// dials, so what one leaf made is what every other leaf of this
-    /// drive would make; the table hands it back instead of having it
-    /// rebuilt, and a leaf starts from the caches an earlier leaf left.
-    /// Every verdict and every decision count is the same either way,
-    /// and so is the `frozen` column on both receipts: the drive's is
-    /// the DISTINCT nodes frozen over the drive, which the table counts
-    /// whether or not it is serving, and a leaf's is its NEED against
-    /// that same set (`geom_core::SymCounts::frozen` argues the column).
-    ///
-    /// Off is the differential lane the pins compare against, in
-    /// `parallel`'s own mould: every leaf builds its own tables and
-    /// drops them.
-    pub plain_memo: bool,
+    /// **What the drive's leaves share** ([`MemoDial`]): nothing, the
+    /// expression table, or the table and every node result. The node
+    /// results by default; a PERFORMANCE dial only.
+    pub memo: MemoDial,
     /// Whether certified leaves are additionally replayed at the
     /// K-telemetry recording scalar, so driver-path predicate margins
     /// reach the `k_stats` funnel (E6's T6 obligation). Off by default:
@@ -191,6 +176,50 @@ pub struct DriveConfig {
     /// parameter expressions, and how large a normal form may grow
     /// before it freezes.
     pub symbolic: SymbolicDials,
+}
+
+/// **What one drive's leaves share** ([`DriveConfig::memo`]), each
+/// state the one before it and more. A PERFORMANCE dial: every
+/// verdict, every leaf and its receipt, the drive's total, and so
+/// [`ParamBoxVerdict::serialize`] are the same in all three, on one
+/// thread or many.
+///
+/// The three are one dial and not two switches because node results
+/// cannot be shared without the table: a value one leaf built names
+/// nodes of the table, and a leaf on a table that serves nothing reads
+/// them as unknowns.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MemoDial {
+    /// Every leaf builds its own tables and drops them, and computes
+    /// every node: the differential lane the pins compare against.
+    Off,
+    /// **The drive's table** (`geom_core::sym::DriveMemo`): the
+    /// expression table, the plain forms and the atom records. Each
+    /// entry is a function of its key, the budget and the tier's dials,
+    /// so what one leaf made is what every other leaf of this drive
+    /// would make; the table hands it back instead of having it
+    /// rebuilt, and a leaf starts from the caches an earlier leaf left.
+    /// The `frozen` column is the same on both receipts in every state:
+    /// the drive's is the DISTINCT nodes frozen over the drive, which
+    /// the table counts whether or not it is serving, and a leaf's is
+    /// its NEED against that same set (`geom_core::SymCounts::frozen`
+    /// argues the column).
+    Table,
+    /// **The table, and the drive's node results** (`eval::store`): a
+    /// node whose keys at a leaf's box an earlier leaf holds is served
+    /// that leaf's result, value or refusal, with its record, and does
+    /// not run. A drive installs no store while the shape report records
+    /// decisions (`geom_core::sym::reports_decisions`), since a served
+    /// node records no row; it is then [`Self::Table`].
+    Nodes,
+}
+
+impl MemoDial {
+    /// Whether the drive's table serves its entries.
+    #[must_use]
+    pub fn serves_table(self) -> bool {
+        !matches!(self, Self::Off)
+    }
 }
 
 /// **The symbolic tier's dials** (E12, `geom_core::sym`).
@@ -479,7 +508,7 @@ impl Default for DriveConfig {
             max_depth: DEFAULT_MAX_DEPTH,
             max_leaves: DEFAULT_MAX_LEAVES,
             parallel: false,
-            plain_memo: true,
+            memo: MemoDial::Nodes,
             #[cfg(feature = "probe")]
             k_probe: KProbe::Off,
             symbolic: SymbolicDials::default(),
@@ -788,6 +817,7 @@ pub struct ParamBoxVerdict {
     decisions: SymCounts,
     symbolic: SymbolicDials,
     memo: sym::MemoSize,
+    nodes: crate::eval::store::NodeStoreSize,
     witness_vector: Arc<VerdictVector>,
     root: ParamBox,
 }
@@ -827,6 +857,13 @@ impl ParamBoxVerdict {
     /// than re-derived by instrumenting the tier.
     pub fn plain_memo(&self) -> sym::MemoSize {
         self.memo
+    }
+
+    /// **What the drive's node results came to** ([`MemoDial::Nodes`]):
+    /// the results held, each computed once. Empty with the store off.
+    /// Not part of the receipt: a cost, as [`Self::plain_memo`] is.
+    pub fn node_store(&self) -> crate::eval::store::NodeStoreSize {
+        self.nodes
     }
 
     /// The counting receipt.
@@ -1314,15 +1351,70 @@ pub(crate) fn first_unusable(
     Some((doc.spoken(node), cause))
 }
 
-/// The plain-form memo one drive's leaves share
-/// ([`DriveConfig::plain_memo`]): serving forms, or only counting the
-/// freezes with the dial off.
-pub(crate) fn drive_memo(plain_memo: bool, symbolic: SymbolicDials) -> Arc<sym::DriveMemo> {
-    Arc::new(if plain_memo {
-        sym::DriveMemo::new(symbolic.budget(), symbolic.rules)
-    } else {
-        sym::DriveMemo::counting_only(symbolic.budget(), symbolic.rules)
-    })
+/// **What one drive's leaves share** ([`MemoDial`]): the table, serving
+/// forms or only counting the freezes, and the node results of the lane
+/// the leaves run at, keyed by what each node reads of a box.
+pub(crate) struct DriveMemos {
+    pub(crate) table: Arc<sym::DriveMemo>,
+    reads: Arc<crate::eval::store::ReadSets>,
+    nodes: LaneStore,
+}
+
+/// The node results of one drive, at its leaves' scalar.
+enum LaneStore {
+    None,
+    Sym(crate::eval::store::NodeStore<Sym<Interval>>),
+    Plain(crate::eval::store::NodeStore<Interval>),
+}
+
+impl core::fmt::Debug for DriveMemos {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("DriveMemos")
+            .field("table", &self.table)
+            .field("nodes", &self.size())
+            .finish_non_exhaustive()
+    }
+}
+
+impl DriveMemos {
+    /// The memos of a drive of `doc` at `dial` and `symbolic`.
+    pub(crate) fn new(doc: &Doc<ProfileProgram>, dial: MemoDial, symbolic: SymbolicDials) -> Self {
+        let table = Arc::new(if dial.serves_table() {
+            sym::DriveMemo::new(symbolic.budget(), symbolic.rules)
+        } else {
+            sym::DriveMemo::counting_only(symbolic.budget(), symbolic.rules)
+        });
+        let reads = Arc::new(crate::eval::store::ReadSets::of(doc));
+        let serves = dial == MemoDial::Nodes && !sym::reports_decisions();
+        // The options every leaf runs at (`lane_opts`), and the table its
+        // session is on: a store's results are read only there.
+        let opts = lane_opts(&crate::Stop::default());
+        let nodes = match (serves, symbolic.enabled) {
+            (false, _) => LaneStore::None,
+            (true, true) => LaneStore::Sym(crate::eval::store::NodeStore::new(
+                Arc::clone(&reads),
+                crate::eval::PriorSeat::of(doc, &opts, Some(table.token())),
+            )),
+            (true, false) => LaneStore::Plain(crate::eval::store::NodeStore::new(
+                Arc::clone(&reads),
+                crate::eval::PriorSeat::of(doc, &opts, None),
+            )),
+        };
+        Self {
+            table,
+            reads,
+            nodes,
+        }
+    }
+
+    /// What the node results came to.
+    pub(crate) fn size(&self) -> crate::eval::store::NodeStoreSize {
+        match &self.nodes {
+            LaneStore::None => crate::eval::store::NodeStoreSize::default(),
+            LaneStore::Sym(store) => store.size(),
+            LaneStore::Plain(store) => store.size(),
+        }
+    }
 }
 
 /// **Drives the document over the analyzed box** (E6).
@@ -1353,8 +1445,6 @@ pub fn drive(
     let witness = witness_build(doc, analyzed, None, stop, tol)?;
     let witness_vector = Arc::new(certifying_vector(doc, &witness));
     let witness_key = witness_vector.key();
-    // What each node reads is the document's, so it is taken once.
-    let reads = doc.free_reads();
     // The witness EVALUATION stays alive for the whole drive, not just
     // long enough to take its vector: `diff_verdicts` names a leaf's
     // turns against it, and the engine takes the two evaluations rather
@@ -1364,7 +1454,7 @@ pub fn drive(
     let mut certified: Vec<CertifiedLeaf> = Vec::new();
     let mut refused: Vec<RefusedLeaf> = Vec::new();
     let mut splits = 0usize;
-    let mut decisions = SymCounts::default();
+    let mut total = Total::default();
     // **The drive's table**, created before the level loop and dropped
     // after it, so it holds nothing of the next drive. One for the
     // drive and not one per worker: the `frozen` column it answers is
@@ -1377,7 +1467,7 @@ pub fn drive(
     // session is installed and nothing reaches it: the alternative is
     // an `Option` every call site below would open for a case
     // `symbolic.enabled` already answers.
-    let memo = drive_memo(config.plain_memo, config.symbolic);
+    let memo = DriveMemos::new(doc, config.memo, config.symbolic);
 
     // A level-synchronous frontier, so the sequential and the parallel
     // schedule visit the same boxes in the same order and combine them
@@ -1419,7 +1509,7 @@ pub fn drive(
                 tol,
             )
         };
-        let verdicts: Result<Vec<(LeafVerdict, SymCounts)>, crate::Stopped> = if config.parallel {
+        let verdicts: Result<Vec<(LeafVerdict, SymCounts, Rests)>, crate::Stopped> = if config.parallel {
             // Every leaf is collected before a stop is chosen, so the one
             // reported is the first in frontier order whatever the
             // schedule, as the stackup's and the MC lane's maps do.
@@ -1432,8 +1522,8 @@ pub fn drive(
         let verdicts = verdicts.map_err(DriveRefusal::Stopped)?;
         let mut next = Vec::new();
         let level = frontier.len();
-        for (i, (b, (v, counts))) in frontier.drain(..).zip(verdicts).enumerate() {
-            decisions.absorb(counts);
+        for (i, (b, (v, counts, rests))) in frontier.drain(..).zip(verdicts).enumerate() {
+            total.absorb(counts, rests);
             match v {
                 LeafVerdict::Certified(leaf) => certified.push(leaf),
                 LeafVerdict::Refused(reason) => refused.push(RefusedLeaf {
@@ -1468,13 +1558,13 @@ pub fn drive(
                     // Every node an evaluation orders is a node of the
                     // document, and `free_reads` holds every one.
                     debug_assert!(
-                        reads.contains_key(&deciding),
+                        memo.reads.reads(deciding).is_some(),
                         "the deciding node {deciding:?} is in no read set"
                     );
                     let split = bisect(
                         &b,
                         &root,
-                        reads.get(&deciding).unwrap_or(&BTreeSet::new()),
+                        memo.reads.reads(deciding).unwrap_or(&BTreeSet::new()),
                         config.max_depth,
                     );
                     let reason = match split {
@@ -1539,8 +1629,9 @@ pub fn drive(
     // **The drive's `frozen` column**, and the one place it is written:
     // the DISTINCT nodes frozen over the drive (`SymCounts::frozen`
     // argues the column; `SymCounts::absorb` is why it is not a sum).
+    let mut decisions = total.total();
     if config.symbolic.enabled {
-        decisions.frozen = memo.frozen();
+        decisions.frozen = memo.table.frozen();
     }
     let accounting = account(analyzed, &root, &certified, &refused);
     Ok(ParamBoxVerdict {
@@ -1550,7 +1641,8 @@ pub fn drive(
         receipt,
         decisions,
         symbolic: config.symbolic,
-        memo: memo.size(),
+        memo: memo.table.size(),
+        nodes: memo.size(),
         witness_vector,
         root,
     })
@@ -1642,11 +1734,11 @@ pub(crate) fn classify(
     witness_vector: &VerdictVector,
     witness_key: VerdictVectorKey,
     symbolic: SymbolicDials,
-    memo: &Arc<sym::DriveMemo>,
+    memo: &DriveMemos,
     resolver: Option<&Arc<dyn crate::part::PartResolver>>,
     stop: &crate::Stop,
     tol: Tol,
-) -> Result<(LeafVerdict, SymCounts), crate::Stopped> {
+) -> Result<(LeafVerdict, SymCounts, Rests), crate::Stopped> {
     let opts = EvalOptions {
         param_box: Some(Arc::new(box_.clone())),
         resolver: resolver.cloned(),
@@ -1657,15 +1749,23 @@ pub(crate) fn classify(
             symbolic.budget(),
             symbolic.rules,
             symbolic.retry,
-            memo,
+            &memo.table,
             || {
-                let leaf: Evaluation<Sym<Interval>> = evaluate(doc, None, &stop.cancel, &opts, tol);
+                let leaf: Evaluation<Sym<Interval>> = match &memo.nodes {
+                    LaneStore::Sym(store) => {
+                        crate::eval::evaluate_served(doc, store, &stop.cancel, &opts, tol)
+                    }
+                    LaneStore::None | LaneStore::Plain(_) => {
+                        evaluate(doc, None, &stop.cancel, &opts, tol)
+                    }
+                };
                 leaf
             },
         );
         if let Some(stopped) = crate::Stopped::of(leaf.outcome) {
             return Err(stopped);
         }
+        let rests = rests(&memo.reads, box_, &leaf);
         return Ok((
             classify_replay(
                 doc,
@@ -1677,13 +1777,18 @@ pub(crate) fn classify(
                 counts,
             ),
             counts,
+            rests,
         ));
     }
-    let leaf: Evaluation<Interval> = evaluate(doc, None, &stop.cancel, &opts, tol);
+    let leaf: Evaluation<Interval> = match &memo.nodes {
+        LaneStore::Plain(store) => crate::eval::evaluate_served(doc, store, &stop.cancel, &opts, tol),
+        LaneStore::None | LaneStore::Sym(_) => evaluate(doc, None, &stop.cancel, &opts, tol),
+    };
     if let Some(stopped) = crate::Stopped::of(leaf.outcome) {
         return Err(stopped);
     }
     let counts = SymCounts::default();
+    let rests = rests(&memo.reads, box_, &leaf);
     Ok((
         classify_replay(
             doc,
@@ -1695,7 +1800,92 @@ pub(crate) fn classify(
             counts,
         ),
         counts,
+        rests,
     ))
+}
+
+/// **The node results a leaf's receipt rests on**, each under the key a
+/// drive holds it by (`eval::store::ReadSets::key`), with what its
+/// record counts: every node of the leaf's own document that reached
+/// its keys, built or served. The rest of the receipt (a part's run,
+/// the root scope) is the leaf's alone ([`Total`]).
+pub(crate) type Rests = Vec<(crate::eval::store::StoreKey, SymCounts)>;
+
+fn rests<T: topo::AtRestPolicy + geom_core::Decide>(
+    reads: &crate::eval::store::ReadSets,
+    box_: &ParamBox,
+    leaf: &Evaluation<T>,
+) -> Rests {
+    leaf.order
+        .iter()
+        .filter_map(|&id| {
+            let (keys, record) = match leaf.nodes.get(&id)? {
+                NodeResult::Ok(v) => ((v.content_key, v.naming_key), &v.sym),
+                NodeResult::Failed(e) => (e.keys?, &e.sym),
+                NodeResult::Poisoned { .. } => return None,
+            };
+            Some((reads.key(id, keys.0, keys.1, box_), record.counts()))
+        })
+        .collect()
+}
+
+/// **The drive's `decisions` total** (E6: "the drive's total counts
+/// each distinct node result once"): each distinct node result's
+/// record once, and each leaf's receipt beyond the results it rests on
+/// (a part's run, the root scope) per leaf. Both are read off what each
+/// leaf's results hold, built or served, so the total is the same with
+/// the node store on or off and under either schedule. `frozen` is the
+/// drive's set, written once at the end.
+#[derive(Default)]
+struct Total {
+    distinct: BTreeMap<crate::eval::store::StoreKey, SymCounts>,
+    beyond: SymCounts,
+}
+
+impl Total {
+    fn absorb(&mut self, receipt: SymCounts, rests: Rests) {
+        let mut rested = SymCounts::default();
+        for (key, counts) in rests {
+            rested.absorb(counts);
+            let held = self.distinct.entry(key).or_insert(counts);
+            // One key, one record: the store serves by it, and a leaf
+            // that built the node again built the same record.
+            debug_assert_eq!(*held, counts, "two leaves hold one node result with two counts");
+        }
+        self.beyond.absorb(beyond(receipt, rested));
+    }
+
+    fn total(&self) -> SymCounts {
+        let mut total = self.beyond;
+        for counts in self.distinct.values() {
+            total.absorb(*counts);
+        }
+        total
+    }
+}
+
+/// `receipt` less what its node results' records count, column by
+/// column: a receipt is its nodes' records and what ran outside them,
+/// so no column can go below zero but by a bug.
+fn beyond(receipt: SymCounts, rested: SymCounts) -> SymCounts {
+    let less = |a: u64, b: u64| {
+        debug_assert!(a >= b, "a leaf's node records count more than its receipt");
+        a.saturating_sub(b)
+    };
+    let SymCounts {
+        symbolic,
+        registrations_refused,
+        numeric,
+        retried,
+        frozen,
+    } = receipt;
+    SymCounts {
+        symbolic: less(symbolic, rested.symbolic),
+        registrations_refused: less(registrations_refused, rested.registrations_refused),
+        numeric: less(numeric, rested.numeric),
+        retried: less(retried, rested.retried),
+        frozen,
+    }
 }
 
 /// The classification itself, over an already-replayed leaf — generic
@@ -2430,6 +2620,7 @@ mod tests {
                 },
                 escalations: Arc::new(Vec::new()),
                 sym: std::sync::Arc::default(),
+                keys: None,
             }),
         );
         (slab, analyzed, built)
