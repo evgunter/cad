@@ -6,6 +6,7 @@ status: closed
 opened: 2026-11-28
 priority: P1
 cost: E
+pr: 7833
 branch: lathe/prose-census-red
 closed: 2026-11-28
 ---
@@ -74,4 +75,4 @@ first-parent source trees.
   siblings `gap`, `offset` and `shift` carry: the `Real` scalar
   parameter, a brace at `Interval` and prose at `f64`.
 
-Closed by PR (this branch, `lathe/prose-census-red`).
+Closed by PR 7833.
