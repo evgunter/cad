@@ -230,3 +230,23 @@ fn carrying_the_members_verdicts_does_not_certify_them_apart() {
         "two copies standing in one place are not certified apart: {census:?}"
     );
 }
+
+/// Reviewer probe: what the between-members row's census is, at `f64`
+/// and at `Interval`, for copies in one place, partly overlapping, and
+/// apart. The row above asserts only "not `Ok(empty)`", which an `Err`
+/// satisfies too.
+#[test]
+fn rg_what_the_census_between_members_reads() {
+    let tol = Tol::witness();
+    for (what, at_rest) in [("one place", 0.03), ("overlapping", 0.036), ("apart", -0.03)] {
+        let (doc, _) = product(true, at_rest);
+        let ev: Evaluation<f64> = evaluate(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
+        let census = editor_core::product_recorded(&doc, &ev, tol).map(|p| p.census);
+        let text = format!("{census:?}");
+        eprintln!("RG census f64 {what}: {}", &text[..text.len().min(400)]);
+        let ev: Evaluation<Interval> = evaluate(&doc, None, &CancelToken::new(), &over_the_box(&doc), tol);
+        let census = editor_core::product_recorded(&doc, &ev, tol).map(|p| p.census);
+        let text = format!("{census:?}");
+        eprintln!("RG census Interval {what}: {}", &text[..text.len().min(400)]);
+    }
+}

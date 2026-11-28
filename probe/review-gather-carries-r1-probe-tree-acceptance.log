@@ -1,0 +1,84 @@
+   Compiling demo-tour v0.1.0 (/home/user/rg-probe-tree/demos/tour)
+    Finished `test` profile [optimized + debuginfo] target(s) in 9m 32s
+  Executable tests/all.rs (/home/user/review-gather-target-probe/debug/deps/all-5daf05b734fbb626)
+##### TABLE
+rc 0
+##### LOGS
+RG Interval node ed91a9ce9421: same, 881 verdicts
+RG Interval node 80e171bc7937: same, 56 verdicts
+RG Interval node 87533bd69efb: same, 500 verdicts
+RG Interval node ee9744142abe: same, 56 verdicts
+RG Interval node f1ffbf4c377f: same, 500 verdicts
+RG Interval node 272bfe4af867: same, 1 verdicts
+RG Interval node 6f7d8371a636: same, 1 verdicts
+RG Interval node 2aebddf0717b: same, 1 verdicts
+RG Interval node 26da2253dd9a: same, 56 verdicts
+RG Interval node 5777e6d59100: same, 500 verdicts
+RG Interval node 701741655150: same, 0 verdicts
+RG Interval node 111e1e667832: DIFFERS: f64 2664 verdicts, Interval 2496; first at Some(1313): f64 Some(Verdict { predicate: "props_circle_axis_class", sign: Positive, role: Check }) / Interval Some(Verdict { predicate: "positive_volume_exact", sign: Positive, role: Check })
+RG    props_chart_axis_inside: f64 18, Interval 12
+RG    props_chart_junction_closed: f64 72, Interval 48
+RG    props_chart_loop_turns: f64 18, Interval 12
+RG    props_chart_loop_whole: f64 18, Interval 12
+RG    props_circle_axis_class: f64 36, Interval 24
+RG    props_cylinder_circle_off_axis: f64 36, Interval 24
+RG    props_cylinder_circle_tilt: f64 36, Interval 24
+RG    props_face_extent: f64 18, Interval 12
+RG    props_meridian_axial: f64 36, Interval 24
+RG    props_meridian_on_surface: f64 36, Interval 24
+RG    props_rim_axis_parallel: f64 36, Interval 24
+RG    props_rim_center_on_axis: f64 36, Interval 24
+RG    props_rim_fit: f64 36, Interval 24
+RG    props_rim_span_forward: f64 36, Interval 24
+RG    props_rim_span_winding: f64 36, Interval 24
+RG Interval node 4c5e9092c394: same, 1 verdicts
+RG Interval node 47f063ec64b5: same, 1 verdicts
+RG Sym node e70b9c2996ca: same, 107 verdicts
+RG Sym node ed91a9ce9421: same, 881 verdicts
+RG Sym node 80e171bc7937: same, 56 verdicts
+RG Sym node 87533bd69efb: same, 500 verdicts
+RG Sym node ee9744142abe: same, 56 verdicts
+RG Sym node f1ffbf4c377f: same, 500 verdicts
+RG Sym node 272bfe4af867: same, 1 verdicts
+RG Sym node 6f7d8371a636: same, 1 verdicts
+RG Sym node 2aebddf0717b: same, 1 verdicts
+RG Sym node 26da2253dd9a: same, 56 verdicts
+RG Sym node 5777e6d59100: same, 500 verdicts
+RG Sym node 701741655150: same, 0 verdicts
+RG Sym node 111e1e667832: DIFFERS: f64 2664 verdicts, Sym 2496; first at Some(1313): f64 Some(Verdict { predicate: "props_circle_axis_class", sign: Positive, role: Check }) / Sym Some(Verdict { predicate: "positive_volume_exact", sign: Positive, role: Check })
+RG    props_chart_axis_inside: f64 18, Sym 12
+RG    props_chart_junction_closed: f64 72, Sym 48
+RG    props_chart_loop_turns: f64 18, Sym 12
+RG    props_chart_loop_whole: f64 18, Sym 12
+RG    props_circle_axis_class: f64 36, Sym 24
+RG    props_cylinder_circle_off_axis: f64 36, Sym 24
+RG    props_cylinder_circle_tilt: f64 36, Sym 24
+RG    props_face_extent: f64 18, Sym 12
+RG    props_meridian_axial: f64 36, Sym 24
+RG    props_meridian_on_surface: f64 36, Sym 24
+RG    props_rim_axis_parallel: f64 36, Sym 24
+RG    props_rim_center_on_axis: f64 36, Sym 24
+RG    props_rim_fit: f64 36, Sym 24
+RG    props_rim_span_forward: f64 36, Sym 24
+RG    props_rim_span_winding: f64 36, Sym 24
+RG Sym node 4c5e9092c394: same, 1 verdicts
+RG Sym node 47f063ec64b5: same, 1 verdicts
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 111 filtered out; finished in 0.49s
+##### DONE
+RG ---- 1 link(s), Interval
+RG 1 Interval certifies=true refused=0 first=None
+RG ---- 1 link(s), Sym<Interval>
+RG 1 Sym certifies=true refused=0 first=None
+RG ---- 2 link(s), Interval
+RG 2 Interval certifies=true refused=0 first=None
+RG ---- 2 link(s), Sym<Interval>
+RG 2 Sym certifies=true refused=0 first=None
+RG ---- 3 link(s), Interval
+RG 3 Interval certifies=true refused=0 first=None
+RG ---- 3 link(s), Sym<Interval>
+RG 3 Sym certifies=true refused=0 first=None
+RG ---- 4 link(s), Interval
+RG 4 Interval certifies=true refused=0 first=None
+RG ---- 4 link(s), Sym<Interval>
+RG 4 Sym certifies=true refused=0 first=None
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 111 filtered out; finished in 2.26s

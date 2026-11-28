@@ -1,0 +1,106 @@
+diff --git a/demos/tour/tests/all.rs b/demos/tour/tests/all.rs
+index 8bf085a47a..dd7af04b1e 100644
+--- a/demos/tour/tests/all.rs
++++ b/demos/tour/tests/all.rs
+@@ -20,6 +20,8 @@ mod bracket;
+ mod budfillet_embedding;
+ #[path = "chaintol.rs"]
+ mod chaintol;
++#[path = "rg_gather_acceptance.rs"]
++mod rg_gather_acceptance;
+ #[path = "eps_regression.rs"]
+ mod eps_regression;
+ #[path = "gallery.rs"]
+diff --git a/demos/tour/tests/rg_gather_acceptance.rs b/demos/tour/tests/rg_gather_acceptance.rs
+new file mode 100644
+index 0000000000..6a409bca81
+--- /dev/null
++++ b/demos/tour/tests/rg_gather_acceptance.rs
+@@ -0,0 +1,87 @@
++//! Reviewer acceptance probe (PR 7723 on the box-arm-off probe tree):
++//! the chain table's rows, and where the one-link `f64` witness and the
++//! `Sym<Interval>` leaf log differently.
++
++mod tests {
++    use std::sync::Arc;
++
++    use demo_tour::chain::study;
++    use demo_tour::chaintol::{interval_leaf, sym_leaf};
++    use pncad::analysis::{AnalysisPolicy, DriveConfig, ParamBox, analyzed_box};
++    use pncad::document::{CancelToken, EvalOptions, Evaluation, evaluate};
++    use pncad::geom_core::{Interval, Sym, SymBudget, Tol};
++
++    #[test]
++    fn rg_the_chain_table_rows() {
++        let tol = Tol::witness();
++        let top: usize = std::env::var("RG_LINKS").ok().and_then(|v| v.parse().ok()).unwrap_or(2);
++        for links in 1..=top {
++            let built = study(links, tol);
++            eprintln!("RG ---- {links} link(s), Interval");
++            let i = interval_leaf(links, &built.doc);
++            eprintln!("RG {links} Interval certifies={} refused={} first={:?}", i.certifies, i.refused, i.first.as_deref().map(|s| &s[..s.len().min(300)]));
++            eprintln!("RG ---- {links} link(s), Sym<Interval>");
++            let s = sym_leaf(links, &built.doc);
++            eprintln!("RG {links} Sym certifies={} refused={} first={:?}", s.certifies, s.refused, s.first.as_deref().map(|s| &s[..s.len().min(300)]));
++        }
++    }
++
++    #[test]
++    fn rg_the_one_link_logs_node_by_node() {
++        let tol = Tol::witness();
++        let built = study(1, tol);
++        let doc = &built.doc;
++        let f: Evaluation<f64> = evaluate(doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
++        let analyzed = analyzed_box(doc, &AnalysisPolicy::default());
++        let opts = EvalOptions {
++            param_box: Some(Arc::new(ParamBox::of(&analyzed))),
++            ..EvalOptions::default()
++        };
++        let dials = DriveConfig::default().symbolic;
++        let budget = SymBudget { max_terms: dials.max_terms, max_degree: dials.max_degree };
++        let i: Evaluation<Interval> = evaluate(doc, None, &CancelToken::new(), &opts, tol);
++        let lines = |lane: &str, other: Vec<(String, Vec<pncad::geom_core::k_stats::Verdict>)>| {
++            for (id, theirs) in other {
++                let ours = f.order.iter().find(|n| n.to_string() == id).and_then(|n| f.value(*n)).map(|v| v.verdicts.to_vec()).unwrap_or_default();
++                if ours == theirs {
++                    eprintln!("RG {lane} node {id}: same, {} verdicts", ours.len());
++                } else {
++                    let at = ours.iter().zip(&theirs).position(|(a, b)| a != b);
++                    eprintln!(
++                        "RG {lane} node {id}: DIFFERS: f64 {} verdicts, {lane} {}; first at {:?}: f64 {:?} / {lane} {:?}",
++                        ours.len(), theirs.len(), at,
++                        at.map(|k| &ours[k]), at.map(|k| &theirs[k]),
++                    );
++                    let count = |v: &[pncad::geom_core::k_stats::Verdict]| {
++                        let mut m = std::collections::BTreeMap::new();
++                        for x in v { *m.entry(x.predicate).or_insert(0usize) += 1; }
++                        m
++                    };
++                    let (a, b) = (count(&ours), count(&theirs));
++                    for k in a.keys().chain(b.keys()).collect::<std::collections::BTreeSet<_>>() {
++                        let (x, y) = (a.get(k).copied().unwrap_or(0), b.get(k).copied().unwrap_or(0));
++                        if x != y { eprintln!("RG    {k}: f64 {x}, {lane} {y}"); }
++                    }
++                }
++            }
++        };
++        lines("Interval", i.order.iter().map(|n| (n.to_string(), i.value(*n).map(|v| v.verdicts.to_vec()).unwrap_or_default())).collect());
++        let sym = pncad::geom_core::sym::with_session_rules(budget, dials.rules, || {
++            let s: Evaluation<Sym<Interval>> = evaluate(doc, None, &CancelToken::new(), &opts, tol);
++            s.order.iter().map(|n| (n.to_string(), s.value(*n).map(|v| v.verdicts.to_vec()).unwrap_or_default())).collect::<Vec<_>>()
++        }).0;
++        lines("Sym", sym);
++    }
++
++    #[test]
++    fn rg_the_one_link_drive() {
++        let r = std::panic::catch_unwind(|| demo_tour::chaintol::drive_and_report(1, Tol::witness()));
++        match r {
++            Ok(()) => eprintln!("RG drive(1): ran to its end"),
++            Err(e) => {
++                let text = e.downcast_ref::<String>().cloned().or_else(|| e.downcast_ref::<&str>().map(|s| (*s).to_owned())).unwrap_or_default();
++                eprintln!("RG drive(1) panicked: {}", &text[..text.len().min(900)]);
++            }
++        }
++    }
++}
