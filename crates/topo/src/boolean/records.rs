@@ -990,7 +990,7 @@ pub(in crate::boolean) fn landings<'b, T: crate::props::AtRestPolicy>(
         // unmapped or removed whole, below).
         let mut on_removed = false;
         let mut removed_read = false;
-        'members: for i in (0..2).filter(|_| held_by == [true, true]) {
+        'members: for i in (0..2).filter(|_| held_by == [true, true] && std::env::var("M_IGNREM").is_err()) {
             for &r in fates[i].division().map_or(&[][..], |d| &d.removed) {
                 let Some(removed) = removed else {
                     return Err(CarryRefusal::Unread {

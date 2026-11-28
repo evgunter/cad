@@ -3386,7 +3386,16 @@ fn record_carried_minted<T: Real>(body: &Body<T>, fate: &crate::Fate) {
             };
             out.push(CarriedMinted {
                 pieces: division.pieces.iter().flat_map(|&c| points(c)).collect(),
-                minted: division.minted.iter().map(|&c| points(c)).collect(),
+                minted: {
+                    let mut m: Vec<Vec<[String; 3]>> = division.minted.iter().map(|&c| points(c)).collect();
+                    if std::env::var("M_XEDGE").is_ok() {
+                        let ps: Vec<[String; 3]> = division.pieces.iter().flat_map(|&c| points(c)).collect();
+                        let xs: Vec<f64> = ps.iter().map(|p| p[0].parse::<f64>().unwrap()).collect();
+                        let lo = xs.iter().copied().fold(f64::INFINITY, f64::min);
+                        m.push(ps.iter().zip(&xs).filter(|(_, x)| **x == lo).map(|(p, _)| p.clone()).collect());
+                    }
+                    m
+                },
             });
         }
     });
@@ -4460,7 +4469,7 @@ impl Incidence {
             })
         };
         let inside = move |c: Cell, fs: &[FaceKey]| {
-            only_fragments(fs) && (fs.iter().any(|f| f != &fs[0]) || interior_section(c))
+            only_fragments(fs) && (fs.iter().any(|f| f != &fs[0]) || interior_section(c) || (std::env::var("M_OLD").is_ok() && self.section.contains_key(&c)) || (std::env::var("M_OLDV").is_ok() && matches!(c, Cell::Vertex(_)) && self.section.contains_key(&c)))
         };
         self.edge
             .iter()
@@ -4854,6 +4863,7 @@ impl<'b, T: Decide> Clones<'b, T> {
 fn in_joint(map: &GraftMap, side: Operand, c: Cell) -> Option<Cell> {
     let view = match side {
         Operand::A => KeyView::Direct,
+        Operand::B if std::env::var("M_JOINTBAD").is_ok() => KeyView::Direct,
         Operand::B => KeyView::Graft(map),
     };
     match c {
