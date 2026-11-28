@@ -5,6 +5,7 @@ title: A document's registrations do not reach its product's gather: the gather 
 status: open
 opened: 2026-11-24
 priority: P1
+cost: M
 ---
 
 

@@ -129,6 +129,15 @@ builds the store:**
 - **A gather that refuses drops its record** (`product::gather_sources`
   writes it on `Ok` alone): on
   `work/boxfinish/a-documents-registrations-do-not-reach-its-products-gather`.
+- **`sym::carry` finds the served member's entries by position.** It
+  drops the last `ran.identities.len()` identities and brackets of the
+  open scope's lists, on the premise that the member's scope closed
+  last and left them there, and it joins the counts with a saturating
+  subtraction, which would hide an imbalance and not report it. Sound
+  for the one caller there is; a store that serves through another
+  door should hand the scope the held record in place of running the
+  member, so that nothing is subtracted (the orchestrator's read at
+  merge, 2026-11-28).
 
 **From the node-key unit's fix pass (PR 7470), two things the store
 should know:**

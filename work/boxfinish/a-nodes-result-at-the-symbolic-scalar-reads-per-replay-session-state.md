@@ -2,13 +2,14 @@
 id: a-nodes-result-at-the-symbolic-scalar-reads-per-replay-session-state
 kind: unit
 title: A node's result at the symbolic scalar reads per-replay session state: the expression table, the registry and the retry cap belong to a replay, not to a node or the drive
-status: review
+status: closed
 opened: 2026-11-22
 priority: P1
 cost: H
 parent: a-drive-finishes-a-body-again-in-every-leaf-whose-box-does-not-move-it
 branch: boxfinish/session-state
 pr: 7492
+closed: 2026-11-28
 ---
 
 
@@ -145,3 +146,34 @@ after.
 **The taint and unrecorded branches (item 6)** are removed; the row
 they were filed under is closed with the list of the rows that pinned
 them (`work/sym/a-taint-induced-freeze-under-a-hit-still-reads-by-order`).
+
+## Closed
+
+Landed by PR 7492 (2026-11-28), after a concurrent pair's two rounds
+and two fix passes; the record of both is
+`docs/model-compare-log/rows/PR-7492.md`.
+
+What is true now: every piece of the symbolic session is the drive's,
+a node's or a cache valid for the leaf. A node's value carries its
+record (`geom_core::sym::NodeRecord`: its registrations, brackets,
+counts and roots, and the records it was built over), and a scope
+opens over the records of exactly what it reads and over nothing of
+the scope it is inside. A family's record is its members' gathered; a
+part's run and the product's gather are scopes of their own
+(`sym::apart`). A leaf's receipt is the sum of its nodes', parts' and
+product's records. An absent node is an unknown that is neither
+published nor pooled, and `evaluate` refuses a prior built under
+another drive's table.
+
+What it leaves, each with its own row:
+
+- The product's gather reads no registration of the instances it
+  gathers, and drops its record where it refuses:
+  `a-documents-registrations-do-not-reach-its-products-gather`.
+- The order a reader takes its inputs' records in decides which of
+  two cycle-closing identities it keeps:
+  `work/sym/a-pair-of-registrations-that-closes-a-cycle-is-proved-in-one-read-order-and-not-the-other`.
+- The per-leaf teardown did not move:
+  `a-leaf-rebuilds-and-drops-its-early-forms-though-most-read-no-bracket`.
+- What the store has to hold to, as notes on its row:
+  `a-drive-keeps-no-node-result-from-one-leaf-to-the-next`.

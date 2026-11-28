@@ -5,6 +5,8 @@ title: A pair of registrations that closes a cycle is proved in one read order a
 status: open
 opened: 2026-11-24
 design: true
+priority: P2
+cost: M
 ---
 
 
