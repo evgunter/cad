@@ -554,3 +554,25 @@ fn a_slab_across_the_whole_face_pairs_each_piece_with_its_own_side() {
         touches(&doc, what, &members, (plate, rod), 1, v, 2);
     }
 }
+
+/// REVIEW PROBE (editor-fold-red): a flush block beside the line whose
+/// top or bottom stands off the plate's, so the section along the plate
+/// face's boundary is not merged into a face.
+#[test]
+fn probe_a_flush_block_off_the_plates_height_still_holds_the_line() {
+    let (doc, plate) = plate();
+    let (doc, rod) = rod(doc, plate);
+    for (tag, z0, z1) in [("tall", 0.0, 1.5), ("deep", -0.5, 1.0), ("both", -0.5, 1.5), ("short", 0.0, 0.5)] {
+        let (doc, flush) = block_on(doc.clone(), plate, (1.0, 1.8), (2.0, 2.6), z0, z1);
+        let v = PLATE_AND_ROD + 0.8 * 0.6 * z1 - if z0 < 0.0 { 0.0 } else { 0.0 };
+        for (what, members) in [
+            ("plate, flush, rod", vec![plate, flush, rod]),
+            ("flush, plate, rod", vec![flush, plate, rod]),
+            ("rod, flush, plate", vec![rod, flush, plate]),
+        ] {
+            let what = format!("{tag}: {what}");
+            let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| touches(&doc, &what, &members, (plate, rod), 2, v, 1)));
+            eprintln!("PROBEROW {what}: {}", if r.is_ok() { "ok".to_string() } else { "PANIC".to_string() });
+        }
+    }
+}

@@ -4408,6 +4408,7 @@ pub(super) struct Incidence {
     /// The join's null faces: a division's fragment that became one
     /// holds none of the divided face's region.
     scaffold: BTreeSet<FaceKey>,
+    probe_own: BTreeSet<Cell>,
 }
 
 impl Incidence {
@@ -4435,7 +4436,29 @@ impl Incidence {
             })
         };
         let inside = move |c: Cell, fs: &[FaceKey]| {
-            only_fragments(fs) && (fs.iter().any(|f| f != &fs[0]) || interior_section(c))
+            let oldrule = std::env::var("PROBE_OLDSECT").is_ok();
+            let section = std::env::var("PROBE_NOSECT").is_err()
+                && self.section.contains_key(&c)
+                && (matches!(c, Cell::Edge(_)) || !(std::env::var("PROBE_NOSECTV").is_ok() && PROBE_CARRIED.with(|f| f.get())));
+            let twin_ok = section && (oldrule || interior_section(c));
+            let same = !fs.is_empty() && fs.iter().all(|f| f == &fs[0]);
+            if section && only_fragments(fs) && same {
+                let twins = &self.section[&c];
+                let desc: Vec<String> = twins.iter().map(|&t| {
+                    let f = match t { Cell::Edge(e) => self.edge.get(&e), Cell::Vertex(v) => self.vertex.get(&v), _ => None };
+                    format!("{t:?}:{f:?}:own={}:{}", self.probe_own.contains(&t), f.is_some_and(|f| only_fragments(f)))
+                }).collect();
+                if !interior_section(c) {
+                    eprintln!("TWINX excluded {c:?} fs={fs:?} fragments={fragments:?} twins={desc:?}");
+                    if std::env::var("PROBE_TWINPANIC").is_ok() { panic!("TWINPANIC a section cell the twin rule excludes"); }
+                } else if twins.len() == 1 {
+                    eprintln!("TWIN1 kept-without-twin {c:?} fs={fs:?} fragments={fragments:?}");
+                    if std::env::var("PROBE_TWIN1PANIC").is_ok() { panic!("TWIN1PANIC a section cell with no twin is interior"); }
+                } else if std::env::var("PROBE_TWINLOGALL").is_ok() {
+                    eprintln!("TWINOK {c:?} twins={desc:?}");
+                }
+            }
+            only_fragments(fs) && (fs.iter().any(|f| f != &fs[0]) || twin_ok)
         };
         self.edge
             .iter()
@@ -4495,6 +4518,7 @@ impl Incidence {
                     .push(c);
             }
         }
+        let probe_own: BTreeSet<Cell> = on.values().flatten().copied().filter(|&c| match c { Cell::Edge(e) => cut.get_edge(e).is_some(), Cell::Vertex(v) => cut.get_vertex(v).is_some(), _ => false }).collect();
         let section = section
             .into_iter()
             .map(|c| {
@@ -4510,6 +4534,7 @@ impl Incidence {
             edge,
             section,
             scaffold: scaffold.clone(),
+            probe_own,
         }
     }
 }
@@ -4826,9 +4851,11 @@ impl<'b, T: Decide> Clones<'b, T> {
 }
 
 /// `side`'s clone cell `c` in the joint body ([`Clones::joint`]).
+thread_local! { static PROBE_CARRIED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) }; }
 fn in_joint(map: &GraftMap, side: Operand, c: Cell) -> Option<Cell> {
     let view = match side {
         Operand::A => KeyView::Direct,
+        Operand::B if std::env::var("PROBE_JOINTBAD").is_ok() => KeyView::Direct,
         Operand::B => KeyView::Graft(map),
     };
     match c {
@@ -4887,8 +4914,23 @@ fn operand_fate<T: Real>(
         pieces,
         minted,
         divided,
-    } = clone_cells(desc, incidence, &ledger.mints, (side, Keys::Input), x);
+    } = {
+        PROBE_CARRIED.with(|f| f.set(true));
+        let c = clone_cells(desc, incidence, &ledger.mints, (side, Keys::Input), x);
+        PROBE_CARRIED.with(|f| f.set(false));
+        c
+    };
     let removed = |c: Cell| stated_removed(incidence, discarded, c);
+    let mut pieces = pieces;
+    let gapkind = std::env::var("PROBE_GAP").unwrap_or_default();
+    let is_kind = match x { Cell::Face(_) => gapkind == "face" || gapkind == "any", Cell::Edge(_) => gapkind == "edge" || gapkind == "any", _ => false };
+    if is_kind && pieces.len() >= 2 {
+        if let Some(ix) = pieces.iter().position(|&c| !removed(c)) {
+            let c = pieces.remove(ix);
+            eprintln!("PROBE_GAP dropped {c:?} of {x:?}");
+            super::records::GAPPED.with(|g| g.borrow_mut().insert(x));
+        }
+    }
     let all: Vec<Cell> = pieces.iter().chain(&minted).copied().collect();
     let mut gone = Vec::new();
     let pieces = imaged(
@@ -4925,12 +4967,29 @@ fn operand_fate<T: Real>(
 /// no face is left among it.
 fn fate_of(pieces: Vec<Cell>, minted: Vec<Cell>, divided: bool, gone: Vec<Cell>) -> crate::Fate {
     use crate::lineage::Division;
+    if std::env::var("PROBE_OLDFILTER").is_ok() {
+        let minted: Vec<Cell> = minted.into_iter().filter(|c| !matches!(c, Cell::Face(_))).collect();
+        return match pieces.split_first() {
+            None if minted.is_empty() => crate::Fate::Removed,
+            Some((&at, copies)) if !divided && gone.is_empty() => crate::Fate::Kept { at, copies: copies.to_vec() },
+            _ => crate::Fate::Divided(Division { pieces, minted, removed: gone }),
+        };
+    }
+    let before = minted.clone();
     let mut division = Division {
         pieces,
         minted,
         removed: gone,
     };
     division.minted = super::records::minted_read(&division, |c| c);
+    if division.minted.len() != before.len() {
+        eprintln!("MREAD dropped {:?} pieces={:?}", before.iter().filter(|c| !division.minted.contains(c)).collect::<Vec<_>>(), division.pieces);
+        if std::env::var("PROBE_MREADPANIC").is_ok() { panic!("MREADPANIC"); }
+    }
+    if division.minted.iter().any(|c| matches!(c, Cell::Face(_))) {
+        eprintln!("FACELEFT {division:?}");
+        if std::env::var("PROBE_FACEPANIC").is_ok() { panic!("FACEPANIC a face left among minted"); }
+    }
     debug_assert!(
         !division.minted.iter().any(|c| matches!(c, Cell::Face(_))),
         "a division mints no face but its pieces: {division:?}"
@@ -5026,7 +5085,27 @@ fn face_pieces(
             fragments.push(g);
         }
     }
-    let chords = incidence.chords(&fragments).collect();
+    let chords: Vec<Cell> = incidence.chords(&fragments).collect();
+    {
+        let rows: BTreeMap<FaceKey, FaceKey> = desc.divisions(side, keys).copied().collect();
+        let root = |mut g: FaceKey| { let mut n = 0; while let Some(&h) = rows.get(&g) { g = h; n += 1; if n > 10000 { break; } } g };
+        let rf = root(f);
+        for (&c, twins) in &incidence.section {
+            let fs = match c { Cell::Edge(e) => incidence.edge.get(&e), Cell::Vertex(v) => incidence.vertex.get(&v), _ => None };
+            let Some(fs) = fs else { continue };
+            if fs.is_empty() || !fs.iter().all(|g| fragments.contains(g)) || chords.contains(&c) { continue; }
+            for &t in twins {
+                let tf = match t { Cell::Edge(e) => incidence.edge.get(&e), Cell::Vertex(v) => incidence.vertex.get(&v), _ => None };
+                for &g in tf.into_iter().flatten() {
+                    if !fragments.contains(&g) {
+                        let same = root(g) == rf || root(desc.holding(side, g)) == rf;
+                        eprintln!("TWINROOT {} c={c:?} twin={t:?} face={g:?} f={f:?} own={}", if same {"SAME"} else {"OTHER"}, incidence.probe_own.contains(&t));
+                        if same && std::env::var("PROBE_SAMEPANIC").is_ok() { panic!("SAMEPANIC"); }
+                    }
+                }
+            }
+        }
+    }
     let divided = fragments.len() > 1;
     (
         fragments.into_iter().map(Cell::Face).collect(),
@@ -5985,6 +6064,14 @@ fn place_found<'b, T: Decide + AtRestPolicy>(
                 });
             }
             let removed = |c: Cell| stated_removed(&incidence[at(side)], discarded[at(side)], c);
+            let mut pieces = pieces;
+            if std::env::var("PROBE_GAP").is_ok_and(|g| g == "recut" || g == "any") && pieces.len() >= 2 {
+                if let Some(ix) = pieces.iter().position(|&c| !removed(c)) {
+                    let c = pieces.remove(ix);
+                    eprintln!("PROBE_GAP recut dropped {c:?} of {cell:?}");
+                    super::records::GAPPED.with(|g| g.borrow_mut().insert(cell));
+                }
+            }
             let (view, mut gone, mut back) = (views[at(side)], Vec::new(), Vec::new());
             let all: Vec<Cell> = pieces.iter().chain(&chords).copied().collect();
             let pieces = imaged(
