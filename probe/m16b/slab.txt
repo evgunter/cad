@@ -1,0 +1,47 @@
+== slab: asks 172; today {'undecided': 172}
+   undecided today: 172; plain build 331.4 us/ask; ladder after it 0.90 ms/ask (0.2 s total)
+  step 0  shipped walk (Sqrt/Abs/Min/Max, depth 8)      sign     94  zero     0  sliver    0  straddles      0  declines     78  EMPTY 0  | 8.4 us/ask
+          declines by reason: {'declines:depth': 78}
+  step 1  + Sin/Cos/Tan/Asin/Acos/Atan/Atan2            sign     94  zero     0  sliver    0  straddles      0  declines     78  EMPTY 0  | 3.2 us/ask
+          declines by reason: {'declines:depth': 78}
+  step 3  + Select                                      sign     94  zero     0  sliver    0  straddles      0  declines     78  EMPTY 0  | 4.9 us/ask
+          declines by reason: {'declines:depth': 78}
+  step 7  + Hull                                        sign     94  zero     0  sliver    0  straddles      0  declines     78  EMPTY 0  | 3.5 us/ask
+          declines by reason: {'declines:depth': 78}
+  step 15 + depth 32                                    sign    136  zero     0  sliver    0  straddles     32  declines      4  EMPTY 0  | 37.9 us/ask
+          declines by reason: {'declines:indet:Node(Mul)': 4}
+  step 47 + frozen nodes opened (op over children)      sign    136  zero     0  sliver    0  straddles     36  declines      0  EMPTY 0  | 1758.6 us/ask
+          declines by reason: {}
+  step 111 [alt, sampled] + node values                  sign    118  zero     0  sliver    0  straddles     26  declines      0  EMPTY 0  | 63.6 us/ask
+          declines by reason: {}
+  asks today proves/reads Zero (0), reading at step 15: {}
+  EMPTY intersections: 0
+  by predicate at step 15 (undecided today):
+     bool_ring_run_winding                56  {'sign': 56}  {}
+     side_at_infinity_edge                52  {'straddles': 28, 'sign': 24}  {}
+     side_at_infinity_order               30  {'sign': 30}  {}
+     side_at_infinity_edge_span           20  {'sign': 16, 'straddles': 4}  {}
+     positive_volume                       4  {'sign': 4}  {}
+     positive_volume_enclosure             4  {'sign': 4}  {}
+     side_at_infinity_advance              4  {'declines': 4}  {'declines:indet:Node(Mul)': 4}
+     side_at_infinity_winding              2  {'sign': 2}  {}
+  step-0 indet declines by kind (best of plain/early): []
+  soundness: 136 sampled asks x5 members (reading decides at step 15); differing 0; not evaluable 0
+  still straddling at step 15, by predicate: {'side_at_infinity_edge': 28, 'side_at_infinity_edge_span': 4}
+  by predicate at step 47
+     bool_ring_run_winding                56  {'sign': 56}  {}
+     side_at_infinity_edge                52  {'straddles': 28, 'sign': 24}  {}
+     side_at_infinity_order               30  {'sign': 30}  {}
+     side_at_infinity_edge_span           20  {'sign': 16, 'straddles': 4}  {}
+     positive_volume                       4  {'sign': 4}  {}
+     positive_volume_enclosure             4  {'sign': 4}  {}
+     side_at_infinity_advance              4  {'straddles': 4}  {}
+     side_at_infinity_winding              2  {'sign': 2}  {}
+  straddling at step 47 with sampled members:
+     side_at_infinity_edge          {'members all Positive': 28}
+        e.g. members all Positive ('pop4w|slab|0.488|census', 'band', '1e-9', '1e-8', 'form', '0e0', '1.23375334810356e-1', 'value', '0e0', '2.918388251318987e-1', 'members 2.463e-03..1.234e-01')
+     side_at_infinity_advance       {'members mixed Negative/Positive': 4}
+        e.g. members mixed Negative/Positive ('pop4w|slab|0.9|census', 'band', '1e-9', '1e-8', 'form', '-3.5797348160661646e0', '9.235148089008547e0', 'value', '-3.5797348160661646e0', '1.0553566835218655e1', 'members -7.661e-02..8.172e+00')
+     side_at_infinity_edge_span     {'members mixed Negative/Positive': 4}
+        e.g. members mixed Negative/Positive ('pop4w|slab|0.9|census', 'band', '1e-9', '1e-8', 'form', '-3.5026462331239068e0', '8.926005014479168e0', 'value', '-3.5026462331239068e0', '1.041593880872168e1', 'members -2.963e+00..3.393e+00')
+  soundness at step 47: 136 sampled x5 members; differing 0; not evaluable 0

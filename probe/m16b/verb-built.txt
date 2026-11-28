@@ -1,0 +1,29 @@
+== pop2\|cut\|0\.(05|1|25|45): asks 368; today {'ladder-zero': 360, 'undecided': 8}
+   undecided today: 8; plain build 11.0 us/ask; ladder after it 0.10 ms/ask (0.0 s total)
+  step 0  shipped walk (Sqrt/Abs/Min/Max, depth 8)      sign      0  zero     0  sliver    0  straddles      0  declines      8  EMPTY 0  | 5.4 us/ask
+          declines by reason: {'declines:atom:Cos': 6, 'declines:atom:Sin': 2}
+  step 1  + Sin/Cos/Tan/Asin/Acos/Atan/Atan2            sign      6  zero     0  sliver    0  straddles      2  declines      0  EMPTY 0  | 7.6 us/ask
+          declines by reason: {}
+  step 3  + Select                                      sign      6  zero     0  sliver    0  straddles      2  declines      0  EMPTY 0  | 2.9 us/ask
+          declines by reason: {}
+  step 7  + Hull                                        sign      6  zero     0  sliver    0  straddles      2  declines      0  EMPTY 0  | 2.7 us/ask
+          declines by reason: {}
+  step 15 + depth 32                                    sign      6  zero     0  sliver    0  straddles      2  declines      0  EMPTY 0  | 2.7 us/ask
+          declines by reason: {}
+  step 47 + frozen nodes opened (op over children)      sign      8  zero     0  sliver    0  straddles      0  declines      0  EMPTY 0  | 24.1 us/ask
+          declines by reason: {}
+  step 111 [alt, sampled] + node values                  sign      8  zero     0  sliver    0  straddles      0  declines      0  EMPTY 0  | 11.1 us/ask
+          declines by reason: {}
+  asks today proves/reads Zero (360), reading at step 15: {'Zero': 360}
+  EMPTY intersections: 0
+  by predicate at step 15 (undecided today):
+     bool_join_nearest                     6  {'sign': 6}  {}
+     curve_pair_span_end_chord             2  {'straddles': 2}  {}
+  step-0 indet declines by kind (best of plain/early): []
+  soundness: 118 sampled asks x5 members (reading decides at step 15); differing 0; not evaluable 0
+  still straddling at step 15, by predicate: {'curve_pair_span_end_chord': 2}
+  by predicate at step 47
+     bool_join_nearest                     6  {'sign': 6}  {}
+     curve_pair_span_end_chord             2  {'sign': 2}  {}
+  straddling at step 47 with sampled members:
+  soundness at step 47: 120 sampled x5 members; differing 0; not evaluable 0

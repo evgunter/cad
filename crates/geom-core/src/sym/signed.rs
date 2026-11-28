@@ -757,35 +757,180 @@ mod tests {
     }
 }
 
-// ---- probe (M16): the enclosure walk with its reason for declining ----
+// ---- probe (M16/M16b): the enclosure walk, its reason for declining, and
+// the switchable steps that enter what the shipped walk does not ----
 
-fn m16_indet(
-    id: u128,
-    params: &IndetMap<(f64, f64)>,
-    atoms: &IndetMap<AtomInfo>,
+/// What an indeterminate of the margin's graph is, where it is no
+/// bracketed parameter and no recorded atom.
+#[derive(Clone, Copy, Debug)]
+pub(super) enum M16Kind {
+    Hull,
+    Opaque,
+    Free,
+    BareParam,
+    /// A node standing as its own indeterminate (frozen, or unknown to
+    /// this leaf's tables).
+    Node(SymOp),
+}
+
+pub(super) const M16_TRIG: u8 = 1;
+pub(super) const M16_SELECT: u8 = 2;
+pub(super) const M16_HULL: u8 = 4;
+pub(super) const M16_DEPTH: u8 = 8;
+pub(super) const M16_FROZEN: u8 = 32;
+pub(super) const M16_VALUE: u8 = 64;
+
+pub(super) struct M16Ctx<'a> {
+    pub params: &'a IndetMap<(f64, f64)>,
+    pub atoms: &'a IndetMap<AtomInfo>,
+    pub steps: u8,
+    pub graph: &'a std::collections::HashMap<u128, (M16Kind, u128)>,
+    pub hulls: &'a std::collections::HashMap<u128, [std::sync::Arc<Form>; 2]>,
+    pub values: &'a std::collections::HashMap<u128, (f64, f64)>,
+    /// A frozen node's op, payload and its children's forms.
+    pub frozen: &'a std::collections::HashMap<u128, (SymOp, u64, Vec<std::sync::Arc<Form>>)>,
+    pub memo: std::cell::RefCell<std::collections::HashMap<u128, Interval>>,
+    /// The first frozen node the walk could not enter for want of its children's forms.
+    pub want: std::cell::Cell<Option<u128>>,
+}
+
+fn m16_hull(a: Interval, b: Interval) -> Interval {
+    Interval::from_bounds(a.lo().min(b.lo()), a.hi().max(b.hi()))
+}
+
+fn m16_indet(id: u128, cx: &M16Ctx<'_>, depth: usize) -> Result<Interval, String> {
+    if let Some(&hit) = cx.memo.borrow().get(&id) {
+        return Ok(hit);
+    }
+    let out = m16_indet_raw(id, cx, depth)?;
+    cx.memo.borrow_mut().insert(id, out);
+    Ok(out)
+}
+
+fn m16_frozen(
+    op: SymOp,
+    payload: u64,
+    kids: &[std::sync::Arc<Form>],
+    cx: &M16Ctx<'_>,
     depth: usize,
 ) -> Result<Interval, String> {
+    use crate::real::Real as R;
+    let k = |i: usize| match kids.get(i) {
+        Some(f) => m16_form(f, cx, depth + 1),
+        None => Err(format!("frozen-arity:{op:?}@{depth}")),
+    };
+    let out = match op {
+        SymOp::Add => k(0)? + k(1)?,
+        SymOp::Sub => k(0)? - k(1)?,
+        SymOp::Mul => k(0)? * k(1)?,
+        SymOp::Neg => -k(0)?,
+        SymOp::Inv => Interval::from_bounds(1.0, 1.0) / k(0)?,
+        SymOp::Powi => R::powi(k(0)?, payload as u32 as i32),
+        SymOp::Sqrt => R::sqrt(k(0)?.clamped_to(0.0, f64::INFINITY)),
+        SymOp::Abs => ring_abs(k(0)?),
+        SymOp::Min => ring_min(k(0)?, k(1)?),
+        SymOp::Max => ring_max(k(0)?, k(1)?),
+        SymOp::Sin => R::sin_cos(k(0)?).0,
+        SymOp::Cos => R::sin_cos(k(0)?).1,
+        SymOp::Tan => R::tan(k(0)?),
+        SymOp::Asin => R::asin(k(0)?),
+        SymOp::Acos => R::acos(k(0)?),
+        SymOp::Atan => R::atan(k(0)?),
+        SymOp::Atan2 => R::atan2(k(0)?, k(1)?),
+        SymOp::Select => {
+            let c = k(0)?;
+            if c.hi() <= 0.0 {
+                k(1)?
+            } else if c.lo() > 0.0 {
+                k(2)?
+            } else {
+                m16_hull(k(1)?, k(2)?)
+            }
+        }
+        op => return Err(format!("frozen-op:{op:?}@{depth}")),
+    };
+    if out.is_certified() {
+        Ok(out)
+    } else {
+        Err(format!("poison:frozen:{op:?}@{depth}"))
+    }
+}
+
+fn m16_indet_raw(id: u128, cx: &M16Ctx<'_>, depth: usize) -> Result<Interval, String> {
+    use crate::real::Real as R;
     if id == INDET_PI {
         return Ok(pi_bracket());
     }
-    if let Some(&(lo, hi)) = params.get(&id) {
+    if let Some(&(lo, hi)) = cx.params.get(&id) {
         return Ok(Interval::from_bounds(lo, hi));
     }
-    if depth >= ENCLOSE_DEPTH {
+    let limit = if cx.steps & M16_DEPTH != 0 {
+        32
+    } else {
+        ENCLOSE_DEPTH
+    };
+    if depth >= limit {
         return Err("depth".into());
     }
-    let Some(atom) = atoms.get(&id) else {
-        return Err(format!("unbracketed-indet@{depth}"));
+    let Some(atom) = cx.atoms.get(&id) else {
+        let Some(&(kind, node)) = cx.graph.get(&id) else {
+            return Err(format!("indet:unmapped@{depth}"));
+        };
+        if let (M16Kind::Hull, true) = (kind, cx.steps & M16_HULL != 0) {
+            if let Some([a, b]) = cx.hulls.get(&id) {
+                let out = m16_hull(m16_form(a, cx, depth + 1)?, m16_form(b, cx, depth + 1)?);
+                return if out.is_certified() {
+                    Ok(out)
+                } else {
+                    Err(format!("poison:Hull@{depth}"))
+                };
+            }
+        }
+        if let (M16Kind::Node(_), true) = (kind, cx.steps & M16_FROZEN != 0) {
+            match cx.frozen.get(&node) {
+                Some((op, payload, kids)) => return m16_frozen(*op, *payload, kids, cx, depth),
+                None => {
+                    if cx.want.get().is_none() {
+                        cx.want.set(Some(node));
+                    }
+                }
+            }
+        }
+        if cx.steps & M16_VALUE != 0 {
+            if let Some(&(lo, hi)) = cx.values.get(&node) {
+                return Ok(Interval::from_bounds(lo, hi));
+            }
+            return Err(format!("indet:{kind:?}:no-value@{depth}"));
+        }
+        return Err(format!("indet:{kind:?}@{depth}"));
     };
     let arg = |k: usize| match atom.args[k].as_deref() {
-        Some(f) => m16_form(f, params, atoms, depth + 1),
+        Some(f) => m16_form(f, cx, depth + 1),
         None => Err(format!("atom-arity:{:?}@{depth}", atom.op)),
     };
+    let trig = cx.steps & M16_TRIG != 0;
     let out = match atom.op {
-        SymOp::Sqrt => arg(0)?.clamped_to(0.0, f64::INFINITY).sqrt(),
+        SymOp::Sqrt => R::sqrt(arg(0)?.clamped_to(0.0, f64::INFINITY)),
         SymOp::Abs => ring_abs(arg(0)?),
         SymOp::Min => ring_min(arg(0)?, arg(1)?),
         SymOp::Max => ring_max(arg(0)?, arg(1)?),
+        SymOp::Sin if trig => R::sin_cos(arg(0)?).0,
+        SymOp::Cos if trig => R::sin_cos(arg(0)?).1,
+        SymOp::Tan if trig => R::tan(arg(0)?),
+        SymOp::Asin if trig => R::asin(arg(0)?),
+        SymOp::Acos if trig => R::acos(arg(0)?),
+        SymOp::Atan if trig => R::atan(arg(0)?),
+        SymOp::Atan2 if trig => R::atan2(arg(0)?, arg(1)?),
+        SymOp::Select if cx.steps & M16_SELECT != 0 => {
+            let c = arg(0)?;
+            if c.hi() <= 0.0 {
+                arg(1)?
+            } else if c.lo() > 0.0 {
+                arg(2)?
+            } else {
+                m16_hull(arg(1)?, arg(2)?)
+            }
+        }
         op => return Err(format!("atom:{op:?}@{depth}")),
     };
     if out.is_certified() {
@@ -795,17 +940,12 @@ fn m16_indet(
     }
 }
 
-fn m16_poly(
-    p: &Poly,
-    params: &IndetMap<(f64, f64)>,
-    atoms: &IndetMap<AtomInfo>,
-    depth: usize,
-) -> Result<Interval, String> {
+fn m16_poly(p: &Poly, cx: &M16Ctx<'_>, depth: usize) -> Result<Interval, String> {
     let mut acc = Interval::zero();
     for (m, c) in p.terms() {
         let mut term = rat_enclosure(c);
         for &(id, e) in m {
-            let x = m16_indet(id, params, atoms, depth)?;
+            let x = m16_indet(id, cx, depth)?;
             let e = i32::try_from(e).map_err(|_| format!("exponent@{depth}"))?;
             term = term * x.powi(e);
         }
@@ -818,16 +958,11 @@ fn m16_poly(
     }
 }
 
-pub(super) fn m16_form(
-    f: &Form,
-    params: &IndetMap<(f64, f64)>,
-    atoms: &IndetMap<AtomInfo>,
-    depth: usize,
-) -> Result<Interval, String> {
+pub(super) fn m16_form(f: &Form, cx: &M16Ctx<'_>, depth: usize) -> Result<Interval, String> {
     if f.poisoned {
         return Err(format!("poisoned-form@{depth}"));
     }
-    let q = m16_poly(&f.num, params, atoms, depth)? / m16_poly(&f.den, params, atoms, depth)?;
+    let q = m16_poly(&f.num, cx, depth)? / m16_poly(&f.den, cx, depth)?;
     if q.is_certified() {
         Ok(q)
     } else {

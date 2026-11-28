@@ -139,7 +139,6 @@ fn m16_slabs(tol: Tol, band: Band) {
 fn m16_verbs(tol: Tol, band: Band) {
     use geom_core::Real as _;
     use geom_core::sym::m16;
-    use topo::FinishedBody as _;
     let c = Boxed::from_f64;
     let records = topo::ContactRecords::default();
     for w in [0.0, 0.05, 0.1, 0.25, 0.45] {
@@ -191,10 +190,9 @@ fn m16_verbs(tol: Tol, band: Band) {
                         boxed(0x4d31_3601, 1.5, w),
                     ))
                     .map_err(|e| format!("translation: {e:?}"))?;
-                    let cutter = cutter
-                        .moved(&tilt, tol)
-                        .map_err(|e| format!("tilt refuses: {e}"))?
-                        .moved(&lift, tol)
+                    let cutter = topo::FinishedBody::moved(&cutter, &tilt, tol)
+                        .map_err(|e| format!("tilt refuses: {e}"))?;
+                    let cutter = topo::FinishedBody::moved(&cutter, &lift, tol)
                         .map_err(|e| format!("lift refuses: {e}"))?;
                     let cut = topo::boolean_op_with(
                         topo::BooleanOp::Subtract,

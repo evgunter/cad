@@ -5090,7 +5090,7 @@ impl<T: Copy> Sym<T> {
     }
 }
 
-impl<T> Sym<T> {
+impl<T: 'static> Sym<T> {
     /// This value's DAG node.
     #[must_use]
     pub fn node(self) -> SymId {
@@ -5203,38 +5203,35 @@ impl<T> Sym<T> {
 
     /// Mints the node for a one-child op.
     fn unary(self, value: T, op: SymOp, payload: u64) -> Self {
-        Sym {
-            value,
-            node: intern(SymNode {
-                op,
-                payload,
-                kids: [self.node, SymId::UNRECORDED, SymId::UNRECORDED],
-            }),
-        }
+        let node = intern(SymNode {
+            op,
+            payload,
+            kids: [self.node, SymId::UNRECORDED, SymId::UNRECORDED],
+        });
+        m16::value_note(node, &value);
+        Sym { value, node }
     }
 
     /// Mints the node for a two-child op.
     fn binary(self, other: Self, value: T, op: SymOp) -> Self {
-        Sym {
-            value,
-            node: intern(SymNode {
-                op,
-                payload: 0,
-                kids: [self.node, other.node, SymId::UNRECORDED],
-            }),
-        }
+        let node = intern(SymNode {
+            op,
+            payload: 0,
+            kids: [self.node, other.node, SymId::UNRECORDED],
+        });
+        m16::value_note(node, &value);
+        Sym { value, node }
     }
 
     /// Mints the node for a three-child op ([`SymOp::Select`]).
     fn ternary(self, b: Self, c: Self, value: T, op: SymOp) -> Self {
-        Sym {
-            value,
-            node: intern(SymNode {
-                op,
-                payload: 0,
-                kids: [self.node, b.node, c.node],
-            }),
-        }
+        let node = intern(SymNode {
+            op,
+            payload: 0,
+            kids: [self.node, b.node, c.node],
+        });
+        m16::value_note(node, &value);
+        Sym { value, node }
     }
 }
 

@@ -1,0 +1,62 @@
+== tour: asks 590033; today {'ladder-zero': 552815, 'undecided': 37218}
+   undecided today: 37218; plain build 9.2 us/ask; ladder after it 29.28 ms/ask (1089.7 s total)
+  step 0  shipped walk (Sqrt/Abs/Min/Max, depth 8)      sign      0  zero     0  sliver    0  straddles    812  declines  36406  EMPTY 0  | 19.3 us/ask
+          declines by reason: {'declines:atom:Select': 7875, 'declines:indet:Node(Powi)': 6648, 'declines:atom:Sin': 5056, 'declines:indet:Hull': 3596, 'declines:atom:Atan': 2846, 'declines:atom:Atan2': 2827, 'declines:indet:Node(Mul)': 2500, 'declines:atom:Cos': 2436, 'declines:indet:Node(Add)': 2430}
+  step 1  + Sin/Cos/Tan/Asin/Acos/Atan/Atan2            sign      0  zero     0  sliver    0  straddles    812  declines  36406  EMPTY 0  | 6.6 us/ask
+          declines by reason: {'declines:atom:Select': 9829, 'declines:indet:Hull': 8808, 'declines:indet:Node(Powi)': 7896, 'declines:indet:Node(Mul)': 7179, 'declines:indet:Node(Add)': 2502, 'declines:depth': 192}
+  step 3  + Select                                      sign      0  zero     0  sliver    0  straddles    812  declines  36406  EMPTY 0  | 21.2 us/ask
+          declines by reason: {'declines:indet:Node(Mul)': 11555, 'declines:indet:Node(Powi)': 11222, 'declines:indet:Hull': 8808, 'declines:indet:Node(Add)': 2556, 'declines:depth': 2265}
+  step 7  + Hull                                        sign      0  zero     0  sliver    0  straddles    812  declines  36406  EMPTY 0  | 13.1 us/ask
+          declines by reason: {'declines:indet:Node(Mul)': 11555, 'declines:indet:Node(Powi)': 11222, 'declines:depth': 10937, 'declines:indet:Node(Add)': 2692}
+  step 15 + depth 32                                    sign     42  zero     0  sliver    0  straddles   5612  declines  31564  EMPTY 0  | 46.5 us/ask
+          declines by reason: {'declines:indet:Node(Mul)': 14514, 'declines:indet:Node(Powi)': 14358, 'declines:indet:Node(Add)': 2692}
+  step 47 + frozen nodes opened (op over children)      sign   1964  zero     0  sliver    0  straddles  22812  declines  12442  EMPTY 0  | 39354.5 us/ask
+          declines by reason: {'declines:depth': 6164, 'declines:poison:quotient': 3336, 'declines:poison:Atan2': 2942}
+  step 111 [alt, sampled] + node values                  sign    180  zero     0  sliver    0  straddles    919  declines    366  EMPTY 0  | 2938.3 us/ask
+          declines by reason: {'declines:poison:quotient': 296, 'declines:depth': 56, 'declines:poison:Atan2': 14}
+  asks today proves/reads Zero (552815), reading at step 15: {'Zero': 552815}
+  EMPTY intersections: 0
+  by predicate at step 15 (undecided today):
+     curve_carrier_clear               12536  {'declines': 12536}  {'declines:indet:Node(Powi)': 7024, 'declines:indet:Node(Mul)': 4708, 'declines:indet:Node(Add)': 804}
+     azimuth_near_cut_side              5452  {'declines': 5452}  {'declines:indet:Node(Mul)': 4600, 'declines:indet:Node(Powi)': 648, 'declines:indet:Node(Add)': 204}
+     period_near_mark                   5448  {'declines': 3048, 'straddles': 2400}  {'declines:indet:Node(Powi)': 1968, 'declines:indet:Node(Mul)': 920, 'declines:indet:Node(Add)': 160}
+     curve_carrier_gap                  4816  {'declines': 4816}  {'declines:indet:Node(Powi)': 2910, 'declines:indet:Node(Mul)': 1030, 'declines:indet:Node(Add)': 876}
+     curve_pair_span_end_side           3048  {'straddles': 2400, 'declines': 648}  {'declines:indet:Node(Powi)': 324, 'declines:indet:Node(Mul)': 324}
+     side_at_infinity_winding           2954  {'declines': 2912, 'sign': 42}  {'declines:indet:Node(Mul)': 2912}
+     curve_face_pose_disc               1504  {'declines': 1504}  {'declines:indet:Node(Powi)': 1484, 'declines:indet:Node(Mul)': 20}
+     assert_bound                        812  {'straddles': 812}  {}
+     bool_ruled_region_frame             648  {'declines': 648}  {'declines:indet:Node(Add)': 648}
+  step-0 indet declines by kind (best of plain/early): [('declines:indet:Node(Powi)', 6648, 'curve_face_pose_disc'), ('declines:indet:Hull', 3596, 'period_near_mark'), ('declines:indet:Node(Mul)', 2500, 'curve_carrier_gap'), ('declines:indet:Node(Add)', 2430, 'azimuth_near_cut_side')]
+  soundness: 1808 sampled asks x5 members (reading decides at step 15); differing 0; not evaluable 100
+  still straddling at step 15, by predicate: {'period_near_mark': 2400, 'curve_pair_span_end_side': 2400, 'assert_bound': 812}
+  by predicate at step 47
+     curve_carrier_clear               12536  {'straddles': 7776, 'declines': 4512, 'sign': 248}  {'declines:poison:quotient': 2256, 'declines:depth': 2256}
+     azimuth_near_cut_side              5452  {'straddles': 3876, 'sign': 912, 'declines': 664}  {'declines:depth': 356, 'declines:poison:quotient': 308}
+     period_near_mark                   5448  {'straddles': 4110, 'declines': 1032, 'sign': 306}  {'declines:depth': 648, 'declines:poison:Atan2': 260, 'declines:poison:quotient': 124}
+     curve_carrier_gap                  4816  {'straddles': 2560, 'declines': 2256}  {'declines:depth': 2256}
+     curve_pair_span_end_side           3048  {'straddles': 2400, 'declines': 648}  {'declines:depth': 648}
+     side_at_infinity_winding           2954  {'declines': 2682, 'straddles': 230, 'sign': 42}  {'declines:poison:Atan2': 2682}
+     curve_face_pose_disc               1504  {'straddles': 1048, 'sign': 456}  {}
+     assert_bound                        812  {'straddles': 812}  {}
+     bool_ruled_region_frame             648  {'declines': 648}  {'declines:poison:quotient': 648}
+  straddling at step 47 with sampled members:
+     curve_face_pose_disc           {'members all Positive': 264}
+        e.g. members all Positive ('tour|d0|l0', 'band', '1e-9', '1e-8', 'form', '-1.3782810712873502e-3', '1.3782810712873502e-3', 'value', '-1.3782810712873502e-3', '1.3782810712873502e-3', 'members 4.775e-04..5.010e-04')
+     assert_bound                   {'members all Positive': 126, 'members mixed Positive/Zero': 28, 'members mixed Negative/Zero': 6, 'members all Negative': 48, 'members mixed Negative/Positive/Zero': 11, 'members mixed Negative/Positive': 22}
+        e.g. members all Positive ('tour|d0|l0', 'band', '1e-9', '1e-8', 'form', '-5.99995398540686e-5', '2.599995398540687e-4', 'value', '-5.99995398540686e-5', '2.599995398540687e-4', 'members 6.000e-05..1.400e-04')
+        e.g. members mixed Positive/Zero ('tour|d0|l8', 'band', '1e-9', '1e-8', 'form', '-5.99995398540686e-5', '1.0000000000000091e-4', 'value', '-5.99995398540686e-5', '1.0000000000000091e-4', 'members 2.168e-19..4.000e-05')
+        e.g. members mixed Negative/Zero ('tour|d0|l11', 'band', '1e-9', '1e-8', 'form', '-5.99995398540686e-5', '5.0000000000001215e-5', 'value', '-5.99995398540686e-5', '5.0000000000001215e-5', 'members -1.000e-05..2.168e-19')
+        e.g. members all Negative ('tour|d0|l20', 'band', '1e-9', '1e-8', 'form', '-5.99995398540686e-5', '3.500011503648477e-5', 'value', '-5.99995398540686e-5', '3.500011503648477e-5', 'members -1.500e-05..-1.000e-05')
+        e.g. members mixed Negative/Positive/Zero ('tour|d0|l36', 'band', '1e-9', '1e-8', 'form', '-4.499965489055172e-5', '3.500011503648477e-5', 'value', '-4.499965489055172e-5', '3.500011503648477e-5', 'members -1.500e-05..5.000e-06')
+        e.g. members mixed Negative/Positive ('tour|d0|l191', 'band', '1e-9', '1e-8', 'form', '-1.4999884963517963e-5', '2.1250028759122906e-5', 'value', '-1.4999884963517963e-5', '2.1250028759122906e-5', 'members -3.750e-06..1.000e-05')
+     period_near_mark               {'members not evaluable': 170, 'members all Negative': 35, 'members all Positive': 35}
+        e.g. members all Negative ('tour|d0|l19', 'band', '5e-324', '1e-323', 'form', '-1.3299996120967812e0', '4.9052814520189125e-1', 'value', '-1.3299996120967812e0', '4.9052814520189125e-1', 'members -3.444e-01..-3.444e-01')
+        e.g. members all Positive ('tour|d0|l19', 'band', '5e-324', '1e-323', 'form', '-4.905281452018997e-1', '1.3299996120967825e0', 'value', '-4.905281452018997e-1', '1.3299996120967825e0', 'members 3.444e-01..3.444e-01')
+     curve_carrier_gap              {'members not evaluable': 240}
+     azimuth_near_cut_side          {'members not evaluable': 240}
+     curve_carrier_clear            {'members all Positive': 240}
+        e.g. members all Positive ('tour|d0|l19', 'band', '1e-9', '1e-8', 'form', '0e0', '1.3910020863602211e-2', 'value', '0e0', '1.3910020863602211e-2', 'members 3.868e-03..3.928e-03')
+     curve_pair_span_end_side       {'members not evaluable': 240}
+     side_at_infinity_winding       {'members all Positive': 230}
+        e.g. members all Positive ('tour|d0|l19', 'band', '1e-9', '1e-8', 'form', '-4.791361306176784e-3', '2.1369876772647203e-2', 'value', '-4.791361306176784e-3', '2.1369876772647203e-2', 'members 6.551e-03..6.614e-03')
+  soundness at step 47: 3400 sampled x5 members; differing 0; not evaluable 430

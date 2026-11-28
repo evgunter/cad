@@ -826,3 +826,8 @@ fn render_rat(c: &Rat) -> String {
     }
     format!("{}/{}·2^{}", c.num, c.den, c.exp2)
 }
+
+/// Probe (M16b): a form's text inside an already-borrowed session.
+pub(super) fn m16_render(sess: &Session, f: &Form) -> String {
+    render_form(sess, f, 1500)
+}
