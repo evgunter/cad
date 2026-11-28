@@ -14,14 +14,14 @@
 //! output stage closes the cut ([`super::super::slit`], closing a cut).
 //!
 //! Against a plane or a sphere the loop is the carriers' one circle.
-//! Against a torus or a cylinder it is the march's one loop, and the cut
-//! runs along the meridian through the sum of its carrier's net's points
-//! about the sphere's centre, where the cut-in reads the loop off its
-//! tube ([`super::CutSection::Loop`]). A ball's pair with a cone takes
-//! no cut-in, and its pair's refusal stands. A pair with no
-//! sphere face (two tori, a torus and a cylinder) takes no cut: a torus,
-//! cylinder or cone face is not simply connected, so a cut of it need not
-//! glue back, and the refusal stands.
+//! Against a torus, a cylinder or a cone it is the march's one loop, and
+//! the cut runs along the meridian through the sum of its carrier's net's
+//! points about the sphere's centre, where the cut-in reads the loop off
+//! its tube ([`super::CutSection::Loop`]). A pair with no
+//! sphere face (two tori, a torus and a cylinder) takes no cut: a torus or
+//! cylinder face is not simply connected, so a cut of it need not glue
+//! back, and the cut-in reads only a sphere's meridians, so it cuts no
+//! cone face either; the refusal stands.
 //!
 //! A refusing pair of any other kind, or of any other refusal, keeps its
 //! refusal for the whole op, and so does a cut-in that cannot be made:
@@ -108,13 +108,15 @@ fn cut_in<T: Decide + AtRestPolicy>(
             super::plane_cut_of_sphere((operand, face), center, radius, plane, band)?
         }
         geom::Surface::Sphere { .. } => Some(super::sphere_pair_cut((operand, face), x, y, band)?),
-        geom::Surface::Torus { .. } | geom::Surface::Cylinder { .. } => {
+        // The sphere face is the one cut, and the partner's face is not, so
+        // its topology does not matter: a cone partner takes the cut-in as a
+        // torus or a cylinder does, its loop read off its march
+        // (`a_cone_with_a_ball_or_a_cone_in_every_order`).
+        geom::Surface::Torus { .. }
+        | geom::Surface::Cylinder { .. }
+        | geom::Surface::Cone { .. } => {
             loop_cut_in((operand, face), (center, radius), x, y, sections, band)?
         }
-        // A cone's pair with a ball reaches here, and no cut-in is built
-        // for it: the pair's refusal stands
-        // (work/lathe/a-cone-and-a-one-band-ball-meet-in-a-loop-inside-both-faces-and-refuse-its-cut-in.md,
-        // `a_cone_with_a_ball_or_a_cone_in_every_order`).
         _ => None,
     })
 }

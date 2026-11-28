@@ -7258,7 +7258,9 @@ fn meridian_plane<T: Real>(center: Point3<T>, k: Vec3<T>, h: Vec3<T>) -> geom::F
 /// A marched loop names no crossings ([`CutSection::Loop`]): its tube
 /// is read instead. Every piece lies in the half-plane, a piece lies
 /// wholly on each side of the meridian's plane, so the loop crosses the
-/// half-meridian, and each hit is placed below or above every piece.
+/// half-meridian, and each hit off the axis is placed below or above
+/// every piece; a hit at a pole, the half-meridian's end, is placed by its
+/// own height, past every crossing.
 /// Anything else refuses typed, as does a loop on a face a cut divided.
 ///
 /// A face an earlier cut split is read piece by piece: the later cut
@@ -7539,7 +7541,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         // it, `Positive` above it, `Zero` between. Along the half-meridian
         // height orders latitude, and a loop's heights lie within its
         // tube's.
-        let place = |s: (T, T)| -> Result<Sign, BooleanError> {
+        let place = |s: (T, T), pole: bool| -> Result<Sign, BooleanError> {
             match &bounds {
                 Against::Circle([s1, s2]) => Ok(match (above(s, *s1)?, above(s, *s2)?) {
                     (Sign::Negative, _) => Sign::Negative,
@@ -7547,14 +7549,30 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                     _ => Sign::Zero,
                 }),
                 Against::Tube(corners) => {
-                    interior_cuts::height_against_tube(corners, (cut.center, axis), s.1, band)
-                        .map_err(esc)
+                    // A hit at a pole (read so where it is made,
+                    // `bool_sphere_cut_pole`) is an end of the
+                    // half-meridian. The tube lies decidedly in the open
+                    // half-plane `h` (`interior_cuts::read_loop_tube`'s
+                    // half, read above), so the loop meets the meridian
+                    // off the axis, between the poles: a pole is past every
+                    // crossing, by its own height. The tube's corners are
+                    // not read for it, since a piece's box near the pole
+                    // can reach past the sphere's own height.
+                    if pole {
+                        sign_as("bool_sphere_cut_hit_pole", Margin::of(s.1))
+                    } else {
+                        interior_cuts::height_against_tube(corners, (cut.center, axis), s.1, band)
+                            .map_err(esc)
+                    }
                 }
             }
         };
         // The face's boundary hits on the half-meridian.
         struct Hit<T> {
             s: (T, T),
+            /// Whether the hit is at a pole of the chart
+            /// (`bool_sphere_cut_pole`).
+            pole: bool,
             vertex: Option<VertexKey>,
             /// The arc, the root's parameter, whether the parameter
             /// rises along the arc's edge, and the arc's radius.
@@ -7639,6 +7657,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                         }
                         hits.extend(poles.into_iter().map(|(v, q)| Hit {
                             s: latitude(q),
+                            pole: true,
                             vertex: Some(v),
                             split: None,
                         }));
@@ -7724,6 +7743,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                     };
                     hits.push(Hit {
                         s: latitude(p),
+                        pole: at_pole,
                         vertex,
                         split: vertex.is_none().then_some((edge, theta, rising, cr)),
                     });
@@ -7738,7 +7758,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         hits.retain(|h| h.vertex.is_none_or(|v| at_vertex.insert(v)));
         let (mut belows, mut overs): (Vec<usize>, Vec<usize>) = (Vec::new(), Vec::new());
         for (k, hit) in hits.iter().enumerate() {
-            match place(hit.s)? {
+            match place(hit.s, hit.pole)? {
                 Sign::Negative => belows.push(k),
                 Sign::Positive => overs.push(k),
                 Sign::Zero => {

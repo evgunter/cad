@@ -44,3 +44,5 @@ loop but do not tighten with it. A tighter enclosure of the component
 (the tube's pieces split, or the carrier's own spans with the pad)
 would place the cut on these poses too. The torus scrape and the
 `mesh` ball against a cylinder wall build.
+
+- 2026-11-28 — The same coarseness reaches a cone partner (PR 7839's review, LATHE). A ball whose pole is tilted toward the cone's loop refuses the loop cut-in at `read_loop_tube`'s half check (`LoopTubeRefusal::OffHalf`) with the loop about 7.5° from the pole: the tube's boxes, not the loop, reach across the axis. It is typed and loud, ahead of the pole placement PR 7839 adds, and it is this row's class: a finer tube near the pole would place the cut. Filed here rather than as its own row.

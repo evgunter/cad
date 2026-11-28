@@ -19,9 +19,8 @@
 //!   closes (`topo::boolean::slit`).
 //! - **Sphere × cone** is examined by the pass: a ball strictly inside
 //!   the cone is certified apart, and a ball meeting the lateral face in
-//!   a loop with no crossing refuses R-loop, naming the cone face. The
-//!   rows run the path's two certificates directly, since the operand
-//!   gate keeps every cone pair off the operations.
+//!   a loop with no crossing is certified R-loop and builds through a
+//!   cut-in of the ball's face, as the scraping ball does.
 //!
 //! The mutant is the scan stepping past the pair without the pass
 //! taking it up: then nothing examines the pair, the scraping ball's
@@ -284,40 +283,27 @@ fn quarter_cone() -> Body<f64> {
     .into_body()
 }
 
-/// The path's certificates refuse, naming the cone face, with the
-/// refusal whose sentence contains `why_has`.
-fn refused_by_the_pass_on_the_cone(cone: &Body<f64>, ball: &Body<f64>, what: &str, why_has: &str) {
-    for (a, b, operand) in [
-        (cone, ball, topo::Operand::A),
-        (ball, cone, topo::Operand::B),
-    ] {
-        match topo::test_support::no_crossings_certificates(BooleanOp::Union, a, b, Tol::witness())
-        {
-            Err(BooleanError::FallbackExtentUnsupported {
-                operand: o,
-                face,
-                what: why,
-            }) => {
-                assert_eq!(o, operand, "{what}");
-                assert!(
-                    matches!(cone.face_surface(face), Ok(geom::Surface::Cone { .. })),
-                    "{what}: the refusal names the cone face"
-                );
-                assert!(why.contains(why_has), "{what}: {why}");
-            }
-            other => panic!("{what}: {other:?}"),
-        }
-    }
-}
+/// The lateral ball's eight ops at ε 1e-6 (∩, ∪ and both differences,
+/// the cone first, then the ball first): each escalates, typed, at the
+/// pierce curvature (`BooleanDecision::PierceCurvature`), a margin of
+/// `1.26e-6` read in the band `[1e-6, 1e-5]` on a ball of radius `0.05`.
+/// Measured. Before the cone's cut-in, every op refused at the section
+/// pass at every ε.
+const LATERAL_COARSE: [&str; 8] = ["escalated PierceCurvature at 1.260e-6 in Band { zero: 1e-6, escalate: 9.999999999999999e-6 }";
+    8];
 
 /// **A ball strictly inside the cone, and one meeting its lateral face
 /// in a loop with no crossing.** Both boxes meet the cone face's, so the
 /// pass takes both up. The ball inside meets the double cone nowhere
 /// (W0), and the path certifies it with no re-cut. The ball on the
 /// lateral face meets it in one null loop whose witness lies inside
-/// both faces, with no event: R-loop. The mutant reading that loop's arc
+/// both faces, with no event: R-loop, and the pass asks for one cut-in of
+/// the ball's face, whose every op builds at the volumes a slice-by-slice
+/// integral of the ball's part gives at ε 1e-9 and 1e-12, and escalates,
+/// typed, at 1e-6 ([`LATERAL_COARSE`]). The mutant reading that loop's arc
 /// of generators as the whole circle claims two essential curves, which
-/// W2 clears on the apex-closed face: the certificates pass, red.
+/// W2 clears on the apex-closed face: the certificates pass with no
+/// cut-in, red.
 #[test]
 fn a_ball_against_a_cone_face_is_the_section_passs() {
     let cone = quarter_cone();
@@ -354,10 +340,126 @@ fn a_ball_against_a_cone_face_is_the_section_passs() {
     let h = 0.5_f64.sqrt();
     let foot = Vec3::new(0.45 * h, 0.55, -0.45 * h);
     let centre = foot + Vec3::new(0.5, h, -0.5) * 0.045;
-    refused_by_the_pass_on_the_cone(
-        &cone,
-        &ball_at(0.05, centre),
-        "the ball on the lateral face",
-        "the loop is certified",
+    // The ball on the lateral face: the pass reads its loop (R-loop) and
+    // asks for one cut-in of the ball's face, nothing deferred.
+    let lateral = ball_at(0.05, centre);
+    for (a, b) in [(&cone, &*lateral), (&*lateral, &cone)] {
+        assert_eq!(
+            topo::test_support::no_crossings_certificates(BooleanOp::Union, a, b, Tol::witness())
+                .unwrap(),
+            (1, 0),
+            "the ball on the lateral face is cut in"
+        );
+    }
+    // Every op builds, at the volumes the ball's part of the cone gives,
+    // that part integrated over slices across the cone's axis (the cone's
+    // slice the disc of radius `1 − y`, the quadrant holding the ball's
+    // whole slice).
+    let cone = finished("the quarter cone", cone, Tol::witness());
+    let (vc, vb) = (PI / 12.0, ball_volume(0.05));
+    let e = (centre.x.powi(2) + centre.z.powi(2)).sqrt();
+    let (integral, error) = sweep::test_support::lens::ball_in_revolved(
+        0.05,
+        (e, centre.y),
+        (
+            |y: f64| (0.0..=1.0).contains(&y).then_some((0.0, 1.0 - y)),
+            &[],
+        ),
+        2000,
     );
+    // Each volume is read against its own size: within its pad, the
+    // oracle's error estimate and `1e-9` of itself, so a cut-in losing a
+    // part in a million of the ball's part reds. Each pad is held under
+    // `1e-6` of its volume (the widest measured is `3.4e-7`, ∩ at ε 1e-12).
+    let near =
+        |v: f64, pad: f64, want: f64| (v - want).abs() <= pad + 10.0 * error + 1e-9 * want.abs();
+    let mut got = Vec::new();
+    for (x, y, (vx, vy), order) in [
+        (&cone, &lateral, (vc, vb), "the cone first"),
+        (&lateral, &cone, (vb, vc), "the ball first"),
+    ] {
+        // Each op's volume as its certified bracket, `(volume, pad)` (a
+        // ball this small does not meet the pinned resolution at a fine
+        // ε), or its refusal by kind.
+        let run = |op: &str, r: Result<topo::BooleanResult<f64>, BooleanError>| {
+            let label = format!("{order}, {op}");
+            match r {
+                Ok(r) => {
+                    sweep::test_support::cut_trace::assert_no_cut_trace(&label, &r, [x, y]);
+                    let body = finished(
+                        "the measured body",
+                        r.body().expect("a body").body.clone(),
+                        Tol::witness(),
+                    );
+                    let m = topo::mass_properties(
+                        &body,
+                        Tol::witness(),
+                        topo::test_support::pinned_resolution(Tol::witness()),
+                    )
+                    .unwrap_or_else(|e| panic!("{label}: the body does not measure: {e:?}"))
+                    .enclosure;
+                    assert!(
+                        m.volume_pad <= 1e-6 * m.volume.abs(),
+                        "{label}: the volume {} carries a pad {} past its ceiling",
+                        m.volume,
+                        m.volume_pad
+                    );
+                    (label, Some((m.volume, m.volume_pad)), "built".to_owned())
+                }
+                Err(
+                    e @ (BooleanError::JoinDesync { .. }
+                    | BooleanError::ClassificationInvariant { .. }),
+                ) => {
+                    panic!("{label}: a defect: {e:?}")
+                }
+                // An escalation by its decision, its margin to three
+                // figures, and its band.
+                Err(BooleanError::Escalated { decision, diag }) => {
+                    let shown = format!("{:?}", diag.margin);
+                    let margin: f64 = shown
+                        .split("Value(")
+                        .nth(1)
+                        .and_then(|rest| rest.split([',', ')']).next())
+                        .and_then(|v| v.trim().parse().ok())
+                        .unwrap_or_else(|| panic!("{label}: a margin with a value: {shown}"));
+                    (
+                        label,
+                        None,
+                        format!("escalated {decision:?} at {margin:.3e} in {:?}", diag.band),
+                    )
+                }
+                Err(e) => (label, None, format!("{e:?}")),
+            }
+        };
+        let runs = [
+            run("∩", topo::intersect(x, y, Tol::witness())),
+            run("∪", topo::union(x, y, Tol::witness())),
+            run("x ∖ y", topo::subtract(x, y, Tol::witness())),
+            run("y ∖ x", topo::subtract(y, x, Tol::witness())),
+        ];
+        for (label, v, outcome) in &runs {
+            println!("[lateral] {label}: {outcome} {v:?}");
+            got.push(outcome.clone());
+        }
+        // Every op against the oracle's integral of the ball's part, `I`:
+        // ∩ is `I`, ∪ is `|cone| + |ball| − I`, each difference its first
+        // operand less `I`.
+        let wants = [integral, vc + vb - integral, vx - integral, vy - integral];
+        for ((label, v, _), want) in runs.iter().zip(wants) {
+            if let Some((v, pad)) = *v {
+                assert!(
+                    near(v, pad, want),
+                    "{label}: {v} ± {pad:e} against {want} (the ball's part {integral} ± {error:e})"
+                );
+            }
+        }
+    }
+    // Every op builds at ε 1e-9 and 1e-12; at ε 1e-6 every op escalates,
+    // typed ([`LATERAL_COARSE`]).
+    let want: Vec<String> = if Tol::witness().eps() >= 1e-6 {
+        LATERAL_COARSE.iter().map(|s| (*s).to_owned()).collect()
+    } else {
+        vec!["built".to_owned(); 8]
+    };
+    assert_eq!(got, want, "the ball on the lateral face: each op's outcome");
 }
