@@ -795,10 +795,14 @@ impl<T: Real> RemovedIn<'_, T> {
 /// `read`, those that read as one of the pieces dropped. A minted cell
 /// a piece's image also names is that piece, not a cell between the
 /// pieces: a chord the output stage's merge took into the fragment it
-/// divides, a vertex a join took into the piece's edge. The one home of
-/// that rule: the boolean states its divisions through it read as they
-/// stand (`ops::fate_of`), and [`landings`] reads them through it read
-/// through the joins.
+/// divides, a vertex a join took into the piece's edge. The boolean's
+/// two readers of minted cells as the cells between the pieces read
+/// through it: `ops::fate_of` states its divisions through it read as
+/// they stand, and [`landings`] reads them through it read through the
+/// joins. Readers that take a division's cells as a set read `minted`
+/// as stated: [`crate::Fate::images`] names every cell a fate names, a
+/// piece the same whether stated once or twice, and
+/// [`crate::Lineage::with_division`] unions two divisions' rows.
 pub(in crate::boolean) fn minted_read(
     division: &crate::lineage::Division,
     read: impl Fn(Cell) -> Cell,

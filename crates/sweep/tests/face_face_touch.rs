@@ -1397,12 +1397,13 @@ fn rod_flush_plate(what: &str, z: (f64, f64)) {
 
 /// **A section on the plate face's boundary is no cell of its
 /// division** (`rod_flush_plate`, the flush block taller than the
-/// plate): the cut's section along the face's top and bottom edges is
-/// the face's boundary, which the output stage merges into a face
-/// beyond its pieces, and the rod's record lands on the piece that
-/// holds the line. Red where the division names that section among its
-/// minted cells: the record refuses `Unread` on the rod's wall against
-/// the face the merge took it into.
+/// plate): the cut's section along the face's top and bottom edges lies
+/// on the face's boundary, so the face's division names it nowhere
+/// among its minted cells, and the rod's record lands on the piece that
+/// holds the line. Red where the division names that section: the
+/// output stage merges it into the face beyond the plate's pieces, and
+/// the boolean refuses the division as minting a face
+/// (`JoinDesync`).
 #[test]
 fn a_tall_flush_block_leaves_the_rods_touch_on_the_plates_piece() {
     rod_flush_plate("tall flush (z 0..1.5)", (0.0, 1.5));
@@ -1413,10 +1414,11 @@ fn a_tall_flush_block_leaves_the_rods_touch_on_the_plates_piece() {
 /// patch on the plate's y = 2 face runs from the face's bottom edge to
 /// its top, so the cut's section along z = 0 and z = 1 lies on the
 /// face's boundary, and the plate face's division names only the
-/// patch's two sides (x = 1, x = 1.8) between its pieces. Red where the
-/// section rule (`Incidence::chords`) counts a section cell beside the
-/// face's boundary as interior: the division names an edge along the
-/// face's bottom or top edge.
+/// patch's two sides (x = 1, x = 1.8) between its pieces. Each division
+/// of a face on y = 2 (the plate's, x −2..2 by z 0..1, and the flush
+/// block's, x 1..1.8 by z 0..1.5, both rectangles) is read against its
+/// pieces' extent. Red where a division names a cell on its face's
+/// boundary: an edge along any of the four sides, or a vertex on one.
 #[test]
 fn a_tall_flush_blocks_division_names_no_edge_on_the_plate_faces_boundary() {
     topo::arm_carried_minted();
@@ -1424,28 +1426,57 @@ fn a_tall_flush_blocks_division_names_no_edge_on_the_plate_faces_boundary() {
     let divisions = topo::take_carried_minted().expect("the row arms its thread");
     let at = |c: &[String; 3]| c.clone().map(|x| x.parse::<f64>().expect("a coordinate"));
     let near = |a: f64, b: f64| (a - b).abs() < 1e-9;
-    let edges: Vec<[[f64; 3]; 2]> = divisions
+    // Each division of a face on y = 2, its pieces' x and z extent beside
+    // its minted cells' points.
+    let faces: Vec<([f64; 4], Vec<Vec<[f64; 3]>>)> = divisions
         .iter()
-        .flatten()
-        .map(|[p, q]| [at(p), at(q)])
-        .collect();
-    let on_face = |[p, q]: &[[f64; 3]; 2]| near(p[1], 2.0) && near(q[1], 2.0);
-    assert!(
-        edges
-            .iter()
-            .any(|e| on_face(e) && near(e[0][0], 1.0) && near(e[1][0], 1.0)),
-        "the plate face's division names the patch's side at x = 1: {edges:?}"
-    );
-    let on_boundary = |e: &[[f64; 3]; 2]| {
-        on_face(e)
-            && [0.0, 1.0]
+        .filter_map(|d| {
+            let pieces: Vec<[f64; 3]> = d.pieces.iter().map(at).collect();
+            let minted: Vec<Vec<[f64; 3]>> = d
+                .minted
                 .iter()
-                .any(|&z| near(e[0][2], z) && near(e[1][2], z))
-    };
+                .map(|c| c.iter().map(at).collect())
+                .collect();
+            let on_plane = |ps: &[[f64; 3]]| ps.iter().all(|p| near(p[1], 2.0));
+            let ((x0, x1), (z0, z1)) = (lo_hi(&pieces, 0), lo_hi(&pieces, 2));
+            // A face's pieces span both x and z; an edge's span one.
+            let face = x1 - x0 > 1e-9 && z1 - z0 > 1e-9;
+            (face && on_plane(&pieces) && minted.iter().all(|c| on_plane(c)))
+                .then_some(([x0, x1, z0, z1], minted))
+        })
+        .collect();
+    let extents: Vec<[f64; 4]> = faces.iter().map(|(e, _)| *e).collect();
+    let plate = faces
+        .iter()
+        .find(|(e, _)| near(e[0], -2.0) && near(e[1], 2.0))
+        .unwrap_or_else(|| panic!("the plate's y = 2 face is divided: {extents:?}"));
     assert!(
-        !edges.iter().any(on_boundary),
-        "no division names an edge along the plate face's bottom or top edge: {edges:?}"
+        plate
+            .1
+            .iter()
+            .any(|c| c.len() == 2 && c.iter().all(|p| near(p[0], 1.0))),
+        "the plate face's division names the patch's side at x = 1: {:?}",
+        plate.1
     );
+    for ([x0, x1, z0, z1], minted) in &faces {
+        let sides = [(0, *x0), (0, *x1), (2, *z0), (2, *z1)];
+        let on_boundary =
+            |c: &Vec<[f64; 3]>| sides.iter().any(|&(k, v)| c.iter().all(|p| near(p[k], v)));
+        assert!(
+            !minted.iter().any(on_boundary),
+            "the division of the y = 2 face over x {x0}..{x1}, z {z0}..{z1} names no cell on \
+             the face's boundary: {minted:?}"
+        );
+    }
+}
+
+/// Each coordinate `k`'s least and greatest value over `points`.
+fn lo_hi(points: &[[f64; 3]], k: usize) -> (f64, f64) {
+    points
+        .iter()
+        .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), p| {
+            (lo.min(p[k]), hi.max(p[k]))
+        })
 }
 
 /// As [`a_tall_flush_block_leaves_the_rods_touch_on_the_plates_piece`],

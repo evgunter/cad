@@ -3315,15 +3315,22 @@ pub fn take_output_stage_points() -> Option<Vec<StagePoints>> {
     OUTPUT_STAGE_POINTS.with(|s| s.borrow_mut().as_mut().map(core::mem::take))
 }
 
-/// One carried cell's division as the carry states it: each minted
-/// edge by its two end points, each coordinate its `{:?}` rendering
-/// ([`take_carried_minted`]).
+/// One carried cell's division as the carry states it, each cell by its
+/// points, each coordinate its `{:?}` rendering
+/// ([`take_carried_minted`]): a vertex by its point, an edge by its two
+/// ends, a face by the vertices of its boundary.
 #[cfg(feature = "sweep-testing")]
-pub type CarriedMinted = Vec<[[String; 3]; 2]>;
+#[derive(Clone, Debug)]
+pub struct CarriedMinted {
+    /// Every point of the division's pieces.
+    pub pieces: Vec<[String; 3]>,
+    /// Each minted cell's points.
+    pub minted: Vec<Vec<[String; 3]>>,
+}
 
 #[cfg(feature = "sweep-testing")]
 thread_local! {
-    /// Each divided cell's minted edges as the carry ([`carried`],
+    /// Each divided cell's division as the carry ([`carried`],
     /// [`place_found`]) stated them, while this thread is armed
     /// ([`arm_carried_minted`]); `None` unarmed, and nothing is
     /// recorded.
@@ -3332,7 +3339,7 @@ thread_local! {
 }
 
 /// Arms this thread to record, for every cell a boolean's carry finds
-/// divided, the minted edges its division names
+/// divided, its division's pieces and minted cells
 /// ([`take_carried_minted`]), dropping anything recorded before.
 /// `sweep-testing` only.
 #[cfg(feature = "sweep-testing")]
@@ -3348,8 +3355,8 @@ pub fn take_carried_minted() -> Option<Vec<CarriedMinted>> {
     CARRIED_MINTED.with(|s| s.borrow_mut().as_mut().map(core::mem::take))
 }
 
-/// Records `fate`'s minted edges on an armed thread
-/// ([`arm_carried_minted`]), their ends read in `body`.
+/// Records `fate`'s division on an armed thread
+/// ([`arm_carried_minted`]), its cells' points read in `body`.
 #[cfg(feature = "sweep-testing")]
 fn record_carried_minted<T: Real>(body: &Body<T>, fate: &crate::Fate) {
     let Some(division) = fate.division() else {
@@ -3363,19 +3370,24 @@ fn record_carried_minted<T: Real>(body: &Body<T>, fate: &crate::Fate) {
                     [p.x, p.y, p.z].map(|c| format!("{c:?}"))
                 })
             };
-            out.push(
-                division
-                    .minted
-                    .iter()
-                    .filter_map(|&c| match c {
-                        Cell::Edge(e) => {
-                            let (a, b) = body.edge_vertices(e)?;
-                            Some([point(a)?, point(b)?])
-                        }
-                        _ => None,
-                    })
-                    .collect(),
-            );
+            let points = |c: Cell| -> Vec<[String; 3]> {
+                match c {
+                    Cell::Vertex(v) => point(v).into_iter().collect(),
+                    Cell::Edge(e) => body.edge_vertices(e).map_or_else(Vec::new, |(a, b)| {
+                        [a, b].into_iter().filter_map(point).collect()
+                    }),
+                    Cell::Face(f) => body
+                        .face_views()
+                        .filter(|view| view.key() == f)
+                        .flat_map(|view| view.boundary().map(|m| m.vertex()).collect::<Vec<_>>())
+                        .filter_map(point)
+                        .collect(),
+                }
+            };
+            out.push(CarriedMinted {
+                pieces: division.pieces.iter().flat_map(|&c| points(c)).collect(),
+                minted: division.minted.iter().map(|&c| points(c)).collect(),
+            });
         }
     });
 }
@@ -4409,8 +4421,12 @@ pub(super) struct Incidence {
     vertex: BTreeMap<VertexKey, Vec<FaceKey>>,
     edge: BTreeMap<EdgeKey, Vec<FaceKey>>,
     /// The cells the cut minted beside a null face: the section the join
-    /// cut along, each with its twins, every cell of the clone on the
-    /// same points (the cells across the null faces, itself among them).
+    /// cut along, each with its twins, every cell of the same kind in the
+    /// clone on the same points, itself among them: a vertex on its
+    /// point, an edge on its two ends'. They are read by point key, not
+    /// from the op's records, so they are whatever lies there: the
+    /// section's copy across a null face, or a cell of the operand's own
+    /// that the cut left whole.
     section: BTreeMap<Cell, Vec<Cell>>,
     /// The join's null faces: a division's fragment that became one
     /// holds none of the divided face's region.
@@ -4423,9 +4439,11 @@ impl Incidence {
     /// one and a null face (the section the cut ran along), and each
     /// vertex no face but them bounds (where chords meet inside it), or
     /// them and null faces (the section's). A section cell is in the
-    /// interior only where every twin of it across the null faces also
-    /// bounds only fragments: a section along the face's boundary has a
-    /// twin on the neighbouring face, and is none of its cells.
+    /// interior only where every twin of it (each clone cell on its
+    /// points, `section`) also bounds only fragments: a
+    /// section along the face's boundary lies on the points of a cell of
+    /// the neighbouring face, its copy there or the operand's own
+    /// boundary edge, and is none of the divided face's cells.
     fn chords<'a>(&'a self, fragments: &'a [FaceKey]) -> impl Iterator<Item = Cell> + 'a {
         let only_fragments =
             move |fs: &[FaceKey]| !fs.is_empty() && fs.iter().all(|f| fragments.contains(f));
@@ -4879,7 +4897,8 @@ struct Back {
 /// # Errors
 ///
 /// [`BooleanError::JoinDesync`] for a clone cell the result does not hold
-/// and the op did not discard; as [`Descendants::live`].
+/// and the op did not discard, or a division minting a face
+/// ([`fate_of`]); as [`Descendants::live`].
 fn operand_fate<T: Real>(
     body: &Body<T>,
     ledger: &Ledger,
@@ -4918,19 +4937,28 @@ fn operand_fate<T: Real>(
         &mut gone,
         back,
     )?;
-    Ok((fate_of(pieces, minted, divided, gone), all))
+    Ok((fate_of(pieces, minted, divided, gone)?, all))
 }
 
 /// A cell's fate from its live pieces and minted cells and the clone
 /// cells it lost: removed where none is left, kept where it is neither
 /// divided nor lost any part, and otherwise divided, the lost cells its
-/// removed members. A minted cell whose live image is one of the pieces
-/// (a chord the output stage's merge took into the fragment it divides)
-/// is that piece ([`super::records::minted_read`]).
-/// What is left is the cell's interior between its pieces: the section
-/// rule ([`Incidence::chords`]) mints no cell on the cell's boundary, so
-/// no face is left among it.
-fn fate_of(pieces: Vec<Cell>, minted: Vec<Cell>, divided: bool, gone: Vec<Cell>) -> crate::Fate {
+/// removed members. Minted cells are read as a division's are
+/// ([`super::records::minted_read`]): one whose live image is one of the
+/// pieces is that piece. A face reaches `minted` only that way, where
+/// the output stage's merge took a chord into the fragment it divides;
+/// what the merge leaves is the cell's interior between its pieces.
+///
+/// # Errors
+///
+/// [`BooleanError::JoinDesync`] where a face is left among the minted
+/// cells: a chord imaged to a face that is none of the pieces.
+fn fate_of(
+    pieces: Vec<Cell>,
+    minted: Vec<Cell>,
+    divided: bool,
+    gone: Vec<Cell>,
+) -> Result<crate::Fate, BooleanError> {
     use crate::lineage::Division;
     let mut division = Division {
         pieces,
@@ -4938,16 +4966,17 @@ fn fate_of(pieces: Vec<Cell>, minted: Vec<Cell>, divided: bool, gone: Vec<Cell>)
         removed: gone,
     };
     division.minted = super::records::minted_read(&division, |c| c);
-    debug_assert!(
-        !division.minted.iter().any(|c| matches!(c, Cell::Face(_))),
-        "a division mints no face but its pieces: {division:?}"
-    );
+    if division.minted.iter().any(|c| matches!(c, Cell::Face(_))) {
+        return Err(BooleanError::JoinDesync {
+            what: "a division mints a face that is none of its pieces",
+        });
+    }
     let Division {
         pieces,
         minted,
         removed: gone,
     } = division;
-    match pieces.split_first() {
+    Ok(match pieces.split_first() {
         None if minted.is_empty() => crate::Fate::Removed,
         Some((&at, copies)) if !divided && gone.is_empty() => crate::Fate::Kept {
             at,
@@ -4958,7 +4987,7 @@ fn fate_of(pieces: Vec<Cell>, minted: Vec<Cell>, divided: bool, gone: Vec<Cell>)
             minted,
             removed: gone,
         }),
-    }
+    })
 }
 
 /// What one operand cell became in its clone: its pieces, the cells
@@ -5965,8 +5994,8 @@ struct FoundDivision {
 ///
 /// [`BooleanError::CarryRefused`] ([`super::RefusedRow::Found`]) for a
 /// row the carry refuses; [`BooleanError::JoinDesync`] for a piece the
-/// result does not hold whose removal is not stated; as
-/// [`Descendants::live`].
+/// result does not hold whose removal is not stated, or a division
+/// minting a face ([`fate_of`]); as [`Descendants::live`].
 fn place_found<'b, T: Decide + AtRestPolicy>(
     body: &'b Body<T>,
     (desc, incidence, discarded): (&Descendants, &[Incidence; 2], [&BTreeSet<FaceKey>; 2]),
@@ -6083,7 +6112,7 @@ fn place_found<'b, T: Decide + AtRestPolicy>(
                 }
                 _ => gone,
             };
-            let fate = fate_of(pieces, chords, true, gone);
+            let fate = fate_of(pieces, chords, true, gone)?;
             #[cfg(feature = "sweep-testing")]
             record_carried_minted(body, &fate);
             let lineage = crate::Lineage::new()

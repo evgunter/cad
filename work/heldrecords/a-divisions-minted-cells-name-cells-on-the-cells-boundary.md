@@ -69,26 +69,35 @@ lane's follow-up.
 ## Outcome (`heldrecords/interior-minted`)
 
 - **Step 1.** `Incidence::chords` (`crates/topo/src/boolean/ops.rs`)
-  now names a section cell only when every twin of it across the null
-  faces also bounds only the divided face's fragments. A twin is a
-  clone cell on the same point keys. A section along the face's
-  boundary has a twin on the neighbouring face, so it is none of the
-  face's cells.
+  now names a section cell only when each of its twins also bounds only
+  the divided face's fragments. A twin is any clone cell of the same
+  kind on the same point keys, read by point key rather than from the
+  op's records. On ci it is the section's copy across a null face, or
+  the operand's own cell the cut left whole: 1150 of the 2546 twins
+  that exclude a section cell are of the second kind (review probe). A
+  section along the face's boundary lies on the points of a cell of
+  the neighbouring face, so it is none of the face's cells.
 - **Steps 2 and 4.**
-  - The `fate_of` filter is gone; a debug assertion stands in its place.
+  - The `fate_of` filter is gone. A face left among `minted` after the
+    shared rule below is refused, typed, in every build
+    (`BooleanError::JoinDesync`).
   - What the filter dropped on ci was always one of the division's own
     pieces (a probe panicking on a dropped face outside the pieces
     never fired). Each such face is a chord the merge took into the
-    fragment it divides.
-  - That case now falls under the shared rule below, and a face left
-    among `minted` after it is a debug-assertion failure.
+    fragment it divides; the shared rule drops it as that piece.
+  - The shared rule also drops edges: 20 edges in 6 ci tests, each a
+    minted edge whose live image is one of the pieces.
 - **Step 3.**
-  - The normalisation has one home, `boolean::records::minted_read`
-    (`crates/topo/src/boolean/records.rs`): a minted cell that reads as a piece
-    is that piece.
-  - `fate_of` states its divisions through it, read as they stand, and
-    `place_found` shares this through `fate_of`.
-  - `landings` reads through it, through the joins.
+  - The rule lives in `boolean::records::minted_read`
+    (`crates/topo/src/boolean/records.rs`): a minted cell that reads as
+    a piece is that piece.
+  - Its two readers of minted cells as the cells between the pieces go
+    through it. `fate_of` states its divisions through it, read as they
+    stand, and `place_found` shares this through `fate_of`. `landings`
+    reads through it, through the joins.
+  - `Fate::images` and `Lineage::with_division`'s composition read
+    `minted` as stated. Both take a division's cells as a set, so the
+    claim was narrowed to the two readers rather than rerouting these.
 - **S4.** With minted cells interior-only, four ci tests reach the
   kept-pair `?` in `landings`. Each one pins that `Unread` as
   expected:
@@ -102,7 +111,11 @@ lane's follow-up.
 - **Pin.**
   `sweep face_face_touch::a_tall_flush_blocks_division_names_no_edge_on_the_plate_faces_boundary`
   (`ci`) reads the carry's divisions through the `sweep-testing`
-  recorder `topo::arm_carried_minted`.
+  recorder `topo::arm_carried_minted`, which logs each division's
+  pieces and minted cells by their points. For each division of a face
+  on y = 2 (the plate's and the flush block's), it asserts that no
+  minted cell lies on a side of the face's extent: an edge along any of
+  the four sides, or a vertex on one.
   - It is red in main's state (the old section rule plus the face
     filter), which names the edge (1, 2, 1)–(1.8, 2, 1).
   - The three flush rows stay green in that state.
