@@ -1,0 +1,20 @@
+== pop1 ASK2 rows 398 undecided 329
+  INVALID margins (never reach the tier): 0 {}
+  -- undecided today, reading decides : with a point reading 319 {'P agrees': 295, 'P straddles/differs': 24} | held back, terminal: 24 in 8 leaves {'pm_census_ef_residual_side': 24}
+       carrier_endpoint_end             {'P agrees': 64}
+       pcurve_line_chart_incident       {'P agrees': 32}
+       curve_carrier_gap                {'P agrees': 27}
+       pm_census_ee_span                {'P agrees': 25}
+       pm_census_ef_residual            {'P agrees': 24}
+       pm_census_ef_residual_side       {'P straddles/differs': 24}
+       pcurve_point_chart_incident      {'P agrees': 24}
+       bool_contact_vertex              {'P agrees': 17}
+       bool_ring_run_winding            {'P agrees': 15}
+       curve_carrier_clear              {'P agrees': 14}
+       e.g. differs pm_census_ef_residual_side ('pop1|tilt(0.3,0.2)|0.05|census', 'reading', 'Positive', '6.581305680031509e-19', '6.581305680031541e-19', 'P', ['straddles', '-3.608224830031759e-16', '4.718447854656915e-16'], 'band', 5e-324, 1e-323)
+  -- ladder/value Zero today (sampled) : with a point reading 33 {'P agrees': 33} | held back, terminal: 0 in 0 leaves {}
+       pm_census_ee_span                {'P agrees': 20}
+       pm_census_span_order             {'P agrees': 13}
+  value-signed asks sampled: 302 (x5 members); with a member outside the value enclosure: 0; not evaluable 0
+     by predicate {}
+  unsigned asks with members: 344; with a member outside the value enclosure: 0 {}

@@ -1,0 +1,22 @@
+== tour ASK2 rows 590457 undecided 37227
+  INVALID margins (never reach the tier): 35042 {('curve_carrier_clear', 'undecided'): 13392, ('curve_pair_span_end_chord', 'undecided'): 8928, ('side_at_infinity_winding', 'undecided'): 8258, ('curve_carrier_gap', 'undecided'): 4464}
+  -- undecided today, reading decides : with a point reading 1964 {'P declines': 330, 'P agrees': 1634} | held back, terminal: 0 in 0 leaves {}
+       azimuth_near_cut_side            {'P declines': 320, 'P agrees': 592}
+       curve_face_pose_disc             {'P agrees': 456}
+       period_near_mark                 {'P declines': 10, 'P agrees': 296}
+       curve_carrier_clear              {'P agrees': 248}
+       side_at_infinity_winding         {'P agrees': 42}
+  -- ladder/value Zero today (sampled) : with a point reading 1890 {'P agrees': 1790, 'P declines': 100} | held back, terminal: 0 in 0 leaves {}
+       carrier_endpoint_start           {'P agrees': 100}
+       carrier_endpoint_end             {'P agrees': 100}
+       carrier_matches_mapped_source    {'P agrees': 100}
+       pcurve_line_chart_incident       {'P agrees': 100}
+       pcurve_chart_radial_moving       {'P agrees': 100}
+       pcurve_map_residual              {'P agrees': 100}
+       carrier_on_surface_2             {'P agrees': 100}
+       ssi_hull_sup                     {'P declines': 100}
+       witness_on_surface_2             {'P agrees': 100}
+       carrier_on_surface_1             {'P agrees': 100}
+  value-signed asks sampled: 4767 (x5 members); with a member outside the value enclosure: 0; not evaluable 212
+     by predicate {}
+  unsigned asks with members: 4477; with a member outside the value enclosure: 0 {}

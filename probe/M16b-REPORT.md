@@ -134,11 +134,47 @@ the join and are refused later, `OrientationUndecided` on the volume
 at 15, `sector_arm` [0, 3.0] at 47). The door slab: refuses at 0.488, 0.49, 0.6,
 0.9 off; only at 0.9 on.
 
+## 7. The second round's additions
+
+- **Invalid margins** (`decide_sign`'s `domain_violation` arm; they never reach
+  the tier and are NOT in the 37,218): **35,042** more undecided asks in the
+  drive: `curve_carrier_clear` 13,392; `curve_pair_span_end_chord` 8,928;
+  `side_at_infinity_winding` 8,258; `curve_carrier_gap` 4,464. None in the
+  fixtures, the slab or the verb-built body.
+- **The hull indeterminate**: confirmed as read (`combine`'s `Hull` arm is
+  `Poly::indet(indet_hull(kid0, kid1))`, no atom record), but it is 3,596 of the
+  15,200; the other 11,578 are frozen nodes (`form_in`'s `frozen`:
+  `Poly::indet(id.bits())`). To enter either, the probe walks the margin's node
+  graph (`Session::node_of`), recomputes each hull's indeterminate from its
+  children's ids to map it back, and builds the children's plain forms
+  (`plain_form`, which needs the session mutably) before the walk.
+- **Hold-back** (P = the graph enclosed op by op in `Interval` at the leaf's
+  midpoint, same band; "terminal" = `F ∩ V` wholly within P's width of the band
+  edge it was read against):
+
+| population | reading decides | P agrees | P straddles/differs | of those terminal | P declines |
+|---|---|---|---|---|---|
+| fixtures (topo rows) | 319 | 295 | 24 | 24, in 8 rows | 0 |
+| slab + verb-built | 81 | 81 | 0 | 0 | 0 |
+| tour, first drive | 1,964 | 1,634 | 0 | 0, in 0 leaves | 330 (a hull or free value) |
+
+  The 24 are exactly `pm_census_ef_residual_side` (reading `[6.58e-19]`
+  Positive; P `[−3.6e-16, 4.7e-16]`, least band): the hold-back catches all 17 of
+  M16's differing asks and nothing else. Tour by predicate (agrees / declines):
+  `azimuth_near_cut_side` 592 / 320; `curve_face_pose_disc` 456 / 0;
+  `period_near_mark` 296 / 10; `curve_carrier_clear` 248 / 0;
+  `side_at_infinity_winding` 42 / 0.
+- **`assert_bound`'s 812**: `editor_core::measure`'s measured-versus-bound
+  comparand of a document assertion: a decision (the assertion's verdict), on a
+  measured value against a stated bound; in 67 of 241 sampled the members cross.
+- **Value enclosure ⊇ member `f64`**: 4,767 value-signed asks (tour) + 302 + 529
+  (fixtures, slab/verb), × 5 members, and 5,032 unsigned asks with members:
+  **no member outside the leaf's value enclosure**.
+- **Document replay at `f64` members of ten newly decided leaves: skipped**, no
+  leaf is newly decided (section 6).
+
 ## Not measured
 
-- Whether the residual folds on the verb-built body over ± 0.05 (it builds only
-  with the reading on; its residual forms were not printed in that run).
-- A centred or mean-value form evaluation; node values beyond the sample.
-- The tour beyond its first drive. Members along the box diagonal only.
-- The step-47 time includes re-walking after each frozen node is opened (up to
-  400 rounds), so 39 ms/ask is this probe's cost, not a floor.
+- Whether the residual folds on the verb-built body over ± 0.05; a centred or
+  mean-value form; the tour past its first drive; members off the box diagonal.
+- Step 47's 39 ms/ask includes re-walking per opened node: the probe's cost.

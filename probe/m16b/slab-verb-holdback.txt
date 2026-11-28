@@ -1,0 +1,22 @@
+== slab|pop2 ASK2 rows 459 undecided 99
+  INVALID margins (never reach the tier): 0 {}
+  -- undecided today, reading decides : with a point reading 81 {'P agrees': 81} | held back, terminal: 0 in 0 leaves {}
+       bool_ring_run_winding            {'P agrees': 24}
+       side_at_infinity_order           {'P agrees': 12}
+       side_at_infinity_edge            {'P agrees': 12}
+       positive_volume                  {'P agrees': 8}
+       positive_volume_enclosure        {'P agrees': 8}
+       side_at_infinity_edge_span       {'P agrees': 8}
+       bool_join_nearest                {'P agrees': 6}
+       curve_pair_span_end_chord        {'P agrees': 2}
+       side_at_infinity_winding         {'P agrees': 1}
+  -- ladder/value Zero today (sampled) : with a point reading 112 {'P agrees': 112} | held back, terminal: 0 in 0 leaves {}
+       carrier_endpoint_start           {'P agrees': 20}
+       carrier_endpoint_end             {'P agrees': 20}
+       carrier_matches_mapped_source    {'P agrees': 20}
+       witness_at_mid_parameter         {'P agrees': 20}
+       sector_reflex                    {'P agrees': 20}
+       bool_join_nearest                {'P agrees': 12}
+  value-signed asks sampled: 529 (x5 members); with a member outside the value enclosure: 0; not evaluable 0
+     by predicate {}
+  unsigned asks with members: 211; with a member outside the value enclosure: 0 {}
