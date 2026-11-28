@@ -531,3 +531,85 @@ fn measure_ring_closure() {
         );
     }
 }
+
+/// Review probe (PR 7710): two table polygons stacked on the plane
+/// `y = -h/2`, the seat's two sides both spanning ONE length `span`,
+/// written as a sum of `terms` variables, so both walls' normals carry
+/// one sign factor (`span/√span²`). Their one side seat.
+fn review2_two_polygons_on_one_long_side(terms: usize) -> Vec<Seat> {
+    let mut doc = ProfileDoc::empty_derived("g-review2-long-side", Tol::witness());
+    let mut params = BTreeMap::new();
+    let mut names = vec![("h".to_string(), 1.0), ("t".to_string(), 1.0)];
+    names.extend((0..terms).map(|i| (format!("s{i}"), 0.1 + 0.01 * i as f64)));
+    for (name, value) in &names {
+        doc = declare(doc, name, Dimension::Length, *value);
+        params.insert(VarName::new(name).unwrap(), Dimension::Length);
+    }
+    let span = (0..terms)
+        .map(|i| format!("s{i}"))
+        .collect::<Vec<_>>()
+        .join(" + ");
+    let f = |text: &str| editor_core::parse_formula(text, &params).unwrap();
+    let zero = || Formula::zero(Dimension::Length);
+    let quad = |lo: &str, hi: &str| {
+        LoopProgram::Chain(vec![
+            ProgramStep::At([zero(), f(lo)]),
+            ProgramStep::LineTo(ProgramTarget::Point([f(&span), f(lo)])),
+            ProgramStep::LineTo(ProgramTarget::Point([f(&span), f(hi)])),
+            ProgramStep::LineTo(ProgramTarget::Point([zero(), f(hi)])),
+            ProgramStep::LineTo(ProgramTarget::Start),
+        ])
+    };
+    let loops = [
+        quad("0 * h - h / 2", "h / 2"),
+        quad("0 * h - h / 2 - t", "0 * h - h / 2"),
+    ];
+    let mut members = Vec::new();
+    for loop_ in loops {
+        let (d, profile) = insert(
+            doc,
+            Node::Profile(ProfileProgram {
+                loops: vec![loop_],
+                ids: Vec::new(),
+                on: None,
+            }),
+        );
+        let (d, block) = insert(
+            d,
+            Node::Extrude {
+                profile: profile.into(),
+                distance: len(1.0),
+            },
+        );
+        let body = d.output(block, 0).unwrap();
+        let placed = editor_core::Placed::of(
+            &d,
+            Vec::new(),
+            vec![(
+                Coord::Spin(Some(TargetAxis::Z)),
+                Formula::zero(Dimension::Angle),
+            )],
+        );
+        let node = fixture::place_node(
+            &d,
+            editor_core::BodyRead::plain(Operand::Var(body)),
+            placed.bundle(),
+        );
+        let (d, p) = insert(d, node);
+        doc = fixture::assemble_world_copies(d);
+        members.push(p);
+    }
+    side_seats(&doc, &members).0
+}
+
+/// Review probe (PR 7710): prints, per span size, whether the one seat
+/// between two polygons that share one long side proves. Run on the head
+/// and on the merge base's sources and compare.
+#[test]
+#[ignore = "review probe: run by name"]
+fn review2_a_seat_on_one_long_side_shared_by_both_walls() {
+    for terms in [1, 2, 8, 16, 22, 23, 24, 32] {
+        let seats = review2_two_polygons_on_one_long_side(terms);
+        println!("REVIEW2 span of {terms} terms: {seats:?}");
+    }
+}

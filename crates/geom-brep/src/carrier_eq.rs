@@ -1883,3 +1883,15 @@ mod tests {
         assert_eq!(direct, CarrierRelation::SameOpposite);
     }
 }
+
+#[cfg(test)]
+#[path = "carrier_eq_review_probe.rs"]
+mod review_probe;
+
+#[cfg(test)]
+#[path = "carrier_eq_review_probe2.rs"]
+mod review_probe2;
+
+#[cfg(test)]
+#[path = "carrier_eq_review_probe3.rs"]
+mod review_probe3;
