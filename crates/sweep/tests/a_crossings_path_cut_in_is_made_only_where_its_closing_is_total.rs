@@ -178,6 +178,39 @@ fn same_volume(label: &str, v: f64, w: f64) {
     );
 }
 
+/// **The six runs' volumes against the operands' own**, an oracle
+/// independent of the op: `V(∪) + V(∩) = V(ball) + V(other)`,
+/// `V(ball ∖ other) = V(ball) − V(∩)` and `V(other ∖ ball) = V(other) −
+/// V(∩)`, each in either order, the operands' volumes pinned alone
+/// (`topo::test_support::pinned_volume`). Each holds to `1e-9` of the
+/// ball's volume.
+fn inclusion_exclusion(name: &str, other: &AtRestBody<f64>, runs: &[(BooleanOp, [f64; 2])]) {
+    let (ball, other) = (
+        topo::test_support::pinned_volume("the ball", &ball(), tol()).volume,
+        topo::test_support::pinned_volume(name, other, tol()).volume,
+    );
+    let of = |op: BooleanOp| {
+        runs.iter()
+            .find(|(o, _)| *o == op)
+            .map(|&(_, v)| v)
+            .expect("each op ran")
+    };
+    let (union, meet, less) = (
+        of(BooleanOp::Union),
+        of(BooleanOp::Intersect),
+        of(BooleanOp::Subtract),
+    );
+    let close = |what: &str, v: f64, w: f64| {
+        println!("[oracle] {name}, {what}: {v} against {w}, off {:e}", v - w);
+        assert!((v - w).abs() <= 1e-9 * ball, "{name}, {what}: {v} against {w}");
+    };
+    for i in 0..2 {
+        close("V(∪) + V(∩)", union[i] + meet[i], ball + other);
+    }
+    close("V(ball ∖ other)", less[0], ball - meet[0]);
+    close("V(other ∖ ball)", less[1], other - meet[1]);
+}
+
 /// **Where a first-pass section on the cut face lies in the plane of the
 /// circle's own meridian, the cut runs in another meridian, and the op
 /// builds sound in either order.** The side box's circle `x = −0.9` has
@@ -197,6 +230,7 @@ fn a_cut_turns_off_a_first_pass_section_in_its_own_meridian_plane_and_builds() {
         ("a side box and a corner box", side_and_corner()),
         ("a cap box beside a pole box", cap_beside_pole()),
     ] {
+        let mut runs = Vec::new();
         for (op, [ab, ba]) in both_orders(name, &other) {
             let label = format!("{name}, {op:?}");
             if name.starts_with("a cap box") && op == BooleanOp::Intersect {
@@ -206,6 +240,10 @@ fn a_cut_turns_off_a_first_pass_section_in_its_own_meridian_plane_and_builds() {
             if op != BooleanOp::Subtract {
                 same_volume(&label, v, w);
             }
+            runs.push((op, [v, w]));
+        }
+        if name.starts_with("a side box") {
+            inclusion_exclusion(name, &other, &runs);
         }
     }
 }
@@ -281,13 +319,17 @@ fn the_cap_and_pole_boxes_meet_the_ball_in_two_parts_the_census_cannot_tell_apar
 #[test]
 fn a_section_through_both_poles_far_from_the_cut_does_not_stop_it() {
     let name = "a cap box and a far box";
-    for (op, [ab, ba]) in both_orders(name, &cap_and_far()) {
+    let other = cap_and_far();
+    let mut runs = Vec::new();
+    for (op, [ab, ba]) in both_orders(name, &other) {
         let label = format!("{name}, {op:?}");
         let (v, w) = (sound(&label, &ab), sound(&label, &ba));
         if op != BooleanOp::Subtract {
             same_volume(&label, v, w);
         }
+        runs.push((op, [v, w]));
     }
+    inclusion_exclusion(name, &other, &runs);
 }
 
 /// **The die's slab builds where the closing reads a pole and refuses at
@@ -327,5 +369,87 @@ fn the_die_slab_builds_where_its_closing_reads_a_pole_and_refuses_where_none() {
                 );
             }
         }
+    }
+}
+
+#[test]
+fn zz_probe_pole_vertices() {
+    for (name, x, y, op) in [
+        ("slab ∪ ball", slab(), ball(), BooleanOp::Union),
+        ("ball ∪ slab", ball(), slab(), BooleanOp::Union),
+        ("ball ∖ slab", ball(), slab(), BooleanOp::Subtract),
+    ] {
+        let r = match op {
+            BooleanOp::Union => topo::boolean::union(&x, &y, tol()),
+            _ => topo::boolean::subtract(&x, &y, tol()),
+        };
+        let Ok(BooleanResult::Body(out)) = r else { panic!("{name}") };
+        let pts: Vec<_> = out.body.vertex_points().map(|(_, p)| p).collect();
+        let near = |q: [f64; 3]| pts.iter().filter(|p| ((p.x - q[0]).powi(2) + (p.y - q[1]).powi(2) + (p.z - q[2]).powi(2)).sqrt() < 1e-9).count();
+        let on_circle = pts.iter().filter(|p| p.z.abs() < 1e-9 && ((p.x.powi(2) + p.y.powi(2)).sqrt() - 1.0).abs() < 1e-9).map(|p| format!("({:.3},{:.3})", p.x, p.y)).collect::<Vec<_>>();
+        println!("[probe] {name}: {} vertices; at (0,1,0): {}; at (0,-1,0): {}; on z=0 unit circle: {:?}; tier3' {:?}", pts.len(), near([0.0, 1.0, 0.0]), near([0.0, -1.0, 0.0]), on_circle, topo::validate_pseudomanifold(&out.body, &out.contacts, tol()).map_err(|e| e.len()));
+    }
+}
+
+fn zz_rod(x0: f64, y0: f64, r: f64, z0: f64, h: f64) -> AtRestBody<f64> {
+    finished(
+        "a rod",
+        sweep::test_support::prism_at(
+            vec![(Point2::new(x0 - r, y0), 1.0), (Point2::new(x0 + r, y0), 1.0)],
+            z0,
+            h,
+            tol(),
+        ),
+        tol(),
+    )
+}
+
+fn zz_report(name: &str, other: &AtRestBody<f64>) {
+    let ball = ball();
+    for op in OPS {
+        for (order, x, y) in [("ball first", &ball, other), ("ball second", other, &ball)] {
+            let r = match op {
+                BooleanOp::Union => topo::boolean::union(x, y, tol()),
+                BooleanOp::Intersect => topo::boolean::intersect(x, y, tol()),
+                BooleanOp::Subtract => topo::boolean::subtract(x, y, tol()),
+            };
+            let got = match r {
+                Ok(BooleanResult::Body(out)) => {
+                    let t2 = topo::validate_closed(&out.body).is_ok();
+                    let cert = topo::validate_geometric_certificate(&out.body, tol()).is_ok();
+                    let v = topo::test_support::pinned_volume("probe", &out.body, tol()).volume;
+                    let t3 = topo::validate_pseudomanifold(&out.body, &out.contacts, tol());
+                    format!("BODY v={v} t2={t2} cert={cert} t3'={:?}", t3.map_err(|e| e.iter().map(|f| format!("{f:?}").chars().take(90).collect::<String>()).collect::<Vec<_>>()))
+                }
+                Ok(other) => format!("OTHER {:?}", std::mem::discriminant(&other)),
+                Err(e) => format!("ERR {e:?}").chars().take(300).collect(),
+            };
+            println!("[probe] {name}, {op:?}, {order}: {got}");
+        }
+    }
+}
+
+#[test]
+fn zz_probe_new_arms() {
+    let rod_stub = zz_rod(0.5, 0.0, 0.2, 0.0, 2.0);
+    zz_report("rod stub alone", &rod_stub);
+    zz_report("corner box and rod stub", &joined(&boxed((-2.0, -0.2), (-2.0, -0.7), (-2.0, 0.0)), &rod_stub));
+    zz_report("side, corner and rod stub", &joined(&side_and_corner(), &rod_stub));
+    // A rod whose cap edge crosses the face beside the cap circle.
+    zz_report("cap box and a crossing rod", &joined(&cap_box(), &zz_rod(0.0, -0.5, 0.15, -2.0, 1.2)));
+    // A small ball trimmed by z ≥ 0, crossing the face beside the cap circle.
+    let small = finished(
+        "the small ball",
+        sweep::test_support::ball_poled(0.3, geom_core::Vec3::new(0.9, 0.0, 0.0), geom_core::Vec3::new(0.0, 0.0, 1.0), tol()),
+        tol(),
+    );
+    match topo::boolean::intersect(&small, &boxed((-2.0, 2.0), (-2.0, 2.0), (0.0, 2.0)), tol()) {
+        Ok(BooleanResult::Body(out)) => {
+            let dome = finished("the dome", out.body.into_body(), tol());
+            zz_report("dome alone", &dome);
+            zz_report("cap box and a dome", &joined(&cap_box(), &dome));
+            zz_report("side box and a dome", &joined(&boxed((-2.0, -0.9), (-1.5, 1.5), (-1.5, 1.5)), &dome));
+        }
+        other => println!("[probe] the dome does not build: {:?}", other.map(|_| ())),
     }
 }

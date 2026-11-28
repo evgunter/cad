@@ -7308,34 +7308,34 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         let record =
             geom_brep::curve_pair::on_surface::Charted::record(sphere, face.expect_described());
         let axis = axis.normalize();
+        let read = |name, m: T| decide(name, Margin::of(m), band);
         // The meridian plane through the circle's centre direction, or
-        // through a point of it where the circle is a rim of the chart.
-        let toward = |d: Vec3<T>| axis.cross(d);
-        // Re-read once, not a minimum: a foot on the axis takes the
-        // circle's own point instead, and no two candidates are compared.
-        let mut k = match (cut.meridian, &cut.section) {
+        // through a point of it where the circle is a rim of the chart
+        // ([`interior_cuts::circle_meridian`]); the one the crossings path
+        // chose clear of the face's sections, where it chose one.
+        let k = match (cut.meridian, &cut.section) {
             (Some(chosen), _) => chosen,
-            (None, CutSection::Circle { foot, .. }) => toward(*foot - cut.center),
-            (None, CutSection::Loop { toward: d, .. }) => toward(*d),
-        };
-        if sign_as("bool_sphere_cut_meridian", Margin::of(k.norm()))? == Sign::Zero {
-            let CutSection::Circle {
-                foot, rho, u_ref, ..
-            } = cut.section
-            else {
-                return Err(refuse_at(
-                    cut.face,
-                    "the section loop has no meridian of the face's chart",
-                ));
-            };
-            k = toward(foot + u_ref * rho - cut.center);
-            if sign_as("bool_sphere_cut_meridian", Margin::of(k.norm()))? == Sign::Zero {
-                return Err(refuse_at(
-                    cut.face,
-                    "the section circle has no meridian of the face's chart",
-                ));
+            (None, CutSection::Circle { foot, rho, u_ref, .. }) => {
+                interior_cuts::circle_meridian((cut.center, axis), (*foot, *rho, *u_ref), read)
+                    .map_err(esc)?
+                    .ok_or_else(|| {
+                        refuse_at(
+                            cut.face,
+                            "the section circle has no meridian of the face's chart",
+                        )
+                    })?
             }
-        }
+            (None, CutSection::Loop { toward: d, .. }) => {
+                let k = axis.cross(*d);
+                if sign_as("bool_sphere_cut_meridian", Margin::of(k.norm()))? == Sign::Zero {
+                    return Err(refuse_at(
+                        cut.face,
+                        "the section loop has no meridian of the face's chart",
+                    ));
+                }
+                k
+            }
+        };
         let k = k.normalize();
         let h = k.cross(axis);
         // The cut's half-meridian, a curve on the face's sphere: its chart
@@ -7362,43 +7362,35 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
             CutSection::Circle {
                 foot, rho, normal, ..
             } => {
-                let across = normal.cross(k);
-                if sign_as(
-                    "bool_sphere_cut_section_meridian",
-                    Margin::of(across.norm()),
-                )? == Sign::Zero
+                // Through the foot where the cut runs in the section's own
+                // meridian, which no crossings-path choice moved.
+                match interior_cuts::meridian_chord(
+                    (cut.center, axis),
+                    (*foot, *rho, *normal),
+                    k,
+                    cut.meridian.is_none(),
+                    read,
+                )
+                .map_err(esc)?
                 {
-                    return Err(refuse_at(
-                        cut.face,
-                        "the section circle lies in its own meridian plane",
-                    ));
-                }
-                // The plane meets the circle where the circle's chord on
-                // it lies: across the circle along `e`, at the foot's
-                // offset from the plane, `d`, taken back along the plane
-                // normal's part in the circle's plane (`w`, of length
-                // `|w|`). Through the foot (`d = 0`, the section's own
-                // meridian) the chord is the diameter `foot ± ρ·e`.
-                let e = across.normalize();
-                if cut.meridian.is_none() {
-                    Some([*foot - e * *rho, *foot + e * *rho])
-                } else {
-                    let d = k.normalize().dot(*foot - cut.center);
-                    let n = normal.normalize();
-                    let w = k.normalize() - n * n.dot(k.normalize());
-                    let w2 = w.dot(w);
-                    let half2 = rho.powi(2) - d.powi(2) / w2;
-                    if sign_as("bool_sphere_cut_meridian_crosses", Margin::of(half2 / *rho))?
-                        != Sign::Positive
-                    {
+                    Ok(crossings) => Some(crossings),
+                    Err(miss) => {
                         return Err(refuse_at(
                             cut.face,
-                            "the cut's meridian plane is not read crossing the section circle twice",
+                            match miss {
+                                interior_cuts::ChordMiss::InItsPlane => {
+                                    "the section circle lies in its own meridian plane"
+                                }
+                                interior_cuts::ChordMiss::NotTwice => {
+                                    "the cut's meridian plane is not read crossing the section \
+                                     circle twice"
+                                }
+                                interior_cuts::ChordMiss::OffHalf => {
+                                    "the section circle holds a pole of the face's chart"
+                                }
+                            },
                         ));
                     }
-                    let mid = *foot - w * (d / w2);
-                    let half = half2.sqrt();
-                    Some([mid - e * half, mid + e * half])
                 }
             }
             CutSection::Loop { tube, .. } => {
@@ -7429,15 +7421,6 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                 None
             }
         };
-        for p in crossings.into_iter().flatten() {
-            if sign_as("bool_sphere_cut_half", Margin::of(h.dot(p - cut.center)))? != Sign::Positive
-            {
-                return Err(refuse_at(
-                    cut.face,
-                    "the section circle holds a pole of the face's chart",
-                ));
-            }
-        }
         // The piece of the scanned face that holds the circle: the face
         // itself until a cut splits it, then the piece both crossings
         // lie inside. Both on one piece's boundary is the circle across

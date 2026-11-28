@@ -234,17 +234,24 @@ fn meridian_turns<T: Real>() -> [T; 9] {
 ///
 /// - **a circle's cut** runs in the first plane of [`meridian_turns`]
 ///   that meets the circle decidedly twice, leaves both crossings
-///   decidedly on the cut's half-plane, and is decidedly off every
-///   first-pass section's plane on the face, and off every other
-///   cut-in's circle's plane there. A first-pass section is read
-///   where the crossing layer met the cut face (`events`): a partner
-///   plane's own plane, or a partner sphere's radical plane. Any other
-///   partner on a cut face (a cylinder, a cone, a torus) is not read, and
-///   the op does not cut in. A plane read in band at a turn passes to
-///   the next turn;
+///   decidedly on the cut's half-plane ([`meridian_chord`]), and is
+///   decidedly off every first-pass section's plane on the face. A
+///   first-pass section is read where the crossing layer met the cut face
+///   (`events`): a partner plane's own plane, or a partner sphere's
+///   radical plane. Any other partner on a cut face (a cylinder, a cone, a
+///   torus) is not read, and the op does not cut in. Where no turn clears
+///   and one was read in band, the op escalates as that turn's reading;
+///   only where every turn is decidedly blocked does it go on uncut;
 /// - **a loop's cut** runs in its own meridian (through its net's sum,
 ///   [`loop_cut_in`]), off every first-pass section's plane on the face
 ///   as above, or the op does not cut in.
+///
+/// Another cut-in's circle on the face is no section to turn off: a
+/// meridian plane holds the axis, so a cut-in circle in one is a great
+/// circle through both poles, and a candidate meets the cut's own circle
+/// twice on the sphere, so on that great circle. Two cut-in circles on one
+/// face are disjoint sections of the partner's faces, so no candidate
+/// lies in another's plane.
 ///
 /// Where a cut's piece parts a face bounded by section curves alone, the
 /// closing decides which part keeps the outline itself
@@ -257,8 +264,10 @@ fn meridian_turns<T: Real>() -> [T; 9] {
 ///
 /// # Errors
 ///
-/// [`BooleanError::Escalated`] where a loop's meridian, or a section
-/// plane against it, is read in band: a loop takes no other meridian.
+/// [`BooleanError::Escalated`] where a circle's own meridian is read in
+/// band, where no turn clears and one is read in band, and where a loop's
+/// meridian, or a section plane against it, is read in band: a loop takes
+/// no other meridian.
 pub(super) fn closing_meridians<T: Decide + AtRestPolicy>(
     (a, b): (&Body<T>, &Body<T>),
     cut_ins: Vec<SphereCutIn<T>>,
@@ -270,23 +279,8 @@ pub(super) fn closing_meridians<T: Decide + AtRestPolicy>(
         diag,
     };
     let sign = |name: &'static str, m: T| decide(name, Margin::of(m), band);
-    // Each cut-in's circle, by its face: another cut on that face must not
-    // run along it either.
-    let circles: Vec<CutCircle<T>> = cut_ins
-        .iter()
-        .enumerate()
-        .filter_map(|(index, c)| match c.section {
-            CutSection::Circle { foot, normal, .. } => Some(CutCircle {
-                index,
-                at: (c.operand, c.face),
-                foot,
-                normal: normal.normalize(),
-            }),
-            CutSection::Loop { .. } => None,
-        })
-        .collect();
     let mut out = Vec::with_capacity(cut_ins.len());
-    for (index, mut cut) in cut_ins.into_iter().enumerate() {
+    for mut cut in cut_ins {
         let (holder, partner) = match cut.operand {
             Operand::A => (a, b),
             Operand::B => (b, a),
@@ -324,12 +318,6 @@ pub(super) fn closing_meridians<T: Decide + AtRestPolicy>(
             };
             planes.push((at, normal.normalize()));
         }
-        planes.extend(
-            circles
-                .iter()
-                .filter(|c| c.index != index && c.at == (cut.operand, cut.face))
-                .map(|c| (c.foot, c.normal)),
-        );
         // Whether the meridian plane on the unit normal `k` is decidedly
         // off every section plane: crossing it (`|n × k|` read apart from
         // zero), or parallel to it and decidedly off it.
@@ -345,19 +333,41 @@ pub(super) fn closing_meridians<T: Decide + AtRestPolicy>(
         };
         match cut.section {
             CutSection::Circle {
-                foot, rho, normal, ..
+                foot,
+                rho,
+                normal,
+                u_ref,
             } => {
-                let k0 = axis.cross(foot - center);
-                let chosen = meridian_turns::<T>().into_iter().find_map(|t| {
-                    let k = k0 + axis.cross(k0) * t;
-                    meridian_reads((center, axis), (foot, rho, normal), k, &off_sections, sign)
-                        .ok()
-                        .flatten()
-                });
-                let Some(k) = chosen else {
+                let Some(k0) =
+                    circle_meridian((center, axis), (foot, rho, u_ref), sign).map_err(esc)?
+                else {
                     return Ok(None);
                 };
-                cut.meridian = Some(k);
+                // The first turn that clears decidedly. Where none does, a
+                // turn read in band escalates as itself: the cut is not
+                // decided blocked there. Only where every turn is decidedly
+                // blocked does the op go on uncut, to the guard's refusal.
+                let mut in_band = None;
+                let mut chosen = None;
+                for t in meridian_turns::<T>() {
+                    let k = k0 + axis.cross(k0) * t;
+                    match meridian_reads((center, axis), (foot, rho, normal), k, &off_sections, sign)
+                    {
+                        Ok(Some(k)) => {
+                            chosen = Some(k);
+                            break;
+                        }
+                        Ok(None) => {}
+                        Err(diag) => {
+                            in_band.get_or_insert(diag);
+                        }
+                    }
+                }
+                match (chosen, in_band) {
+                    (Some(k), _) => cut.meridian = Some(k),
+                    (None, Some(diag)) => return Err(esc(diag)),
+                    (None, None) => return Ok(None),
+                }
             }
             CutSection::Loop { toward, .. } => {
                 let k = axis.cross(toward);
@@ -374,25 +384,15 @@ pub(super) fn closing_meridians<T: Decide + AtRestPolicy>(
     Ok(Some(out))
 }
 
-/// A cut-in's circle, by its place in the cut-ins and the operand face
-/// it lies on ([`closing_meridians`]).
-struct CutCircle<T: Real> {
-    index: usize,
-    at: (Operand, FaceKey),
-    foot: Point3<T>,
-    normal: Vec3<T>,
-}
-
 /// **The meridian plane on the normal `k` for a circle's cut**, `k`
-/// itself where it is decidedly a direction, meets the circle (`foot`,
-/// `rho`, `normal`) decidedly twice, leaves both crossings decidedly on
-/// the half-plane `k × axis` of the sphere about `center`, and is
-/// decidedly off every section plane (`off_sections`); `None` where one of them
-/// fails, and the reading's refusal where one is in band. The crossings
-/// are those [`super::apply_cut_ins`] reads.
+/// itself where it is decidedly a direction, its chord of the circle
+/// (`foot`, `rho`, `normal`) is read ([`meridian_chord`]), and it is
+/// decidedly off every section plane (`off_sections`); `None` where one
+/// of them is decidedly not so, and the reading's refusal where one is in
+/// band.
 fn meridian_reads<T: Decide>(
     (center, axis): (Point3<T>, Vec3<T>),
-    (foot, rho, normal): (Point3<T>, T, Vec3<T>),
+    circle: (Point3<T>, T, Vec3<T>),
     k: Vec3<T>,
     off_sections: &impl Fn(Vec3<T>) -> Result<bool, Indeterminate>,
     sign: impl Fn(&'static str, T) -> Result<Sign, Indeterminate>,
@@ -401,27 +401,89 @@ fn meridian_reads<T: Decide>(
         return Ok(None);
     }
     let unit = k.normalize();
-    let n = normal.normalize();
-    let across = n.cross(unit);
-    if sign("bool_sphere_cut_section_meridian", across.norm())? != Sign::Positive {
+    if meridian_chord((center, axis), circle, unit, false, &sign)?.is_err() {
         return Ok(None);
-    }
-    let e = across.normalize();
-    let d = unit.dot(foot - center);
-    let w = unit - n * n.dot(unit);
-    let w2 = w.dot(w);
-    let half2 = rho.powi(2) - d.powi(2) / w2;
-    if sign("bool_sphere_cut_meridian_crosses", half2 / rho)? != Sign::Positive {
-        return Ok(None);
-    }
-    let (mid, half) = (foot - w * (d / w2), half2.sqrt());
-    let h = unit.cross(axis);
-    for p in [mid - e * half, mid + e * half] {
-        if sign("bool_sphere_cut_half", h.dot(p - center))? != Sign::Positive {
-            return Ok(None);
-        }
     }
     Ok(off_sections(unit)?.then_some(k))
+}
+
+/// **A circle cut's own meridian normal**: `axis × (foot − center)`, the
+/// plane through the circle's centre direction, or, where the foot is
+/// decidedly on the polar axis, the plane through the circle's point
+/// `foot + u_ref·ρ`. `None` where that too is decidedly no direction. The
+/// one reading of it, by [`closing_meridians`]' turns and
+/// [`super::apply_cut_ins`].
+pub(super) fn circle_meridian<T: Decide>(
+    (center, axis): (Point3<T>, Vec3<T>),
+    (foot, rho, u_ref): (Point3<T>, T, Vec3<T>),
+    sign: impl Fn(&'static str, T) -> Result<Sign, Indeterminate>,
+) -> Result<Option<Vec3<T>>, Indeterminate> {
+    let k = axis.cross(foot - center);
+    if sign("bool_sphere_cut_meridian", k.norm())? != Sign::Zero {
+        return Ok(Some(k));
+    }
+    let k = axis.cross(foot + u_ref * rho - center);
+    Ok((sign("bool_sphere_cut_meridian", k.norm())? != Sign::Zero).then_some(k))
+}
+
+/// Why a meridian plane's chord of a cut circle is not read
+/// ([`meridian_chord`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum ChordMiss {
+    /// The circle lies in the meridian's plane, or decidedly may.
+    InItsPlane,
+    /// The plane is not read meeting the circle twice.
+    NotTwice,
+    /// A crossing is not read on the cut's half-plane `k × axis`: the
+    /// circle holds a pole of the chart.
+    OffHalf,
+}
+
+/// **The two points where the meridian plane on the unit normal `k`
+/// crosses a cut circle** (`foot`, `rho`, `normal`) on the sphere about
+/// `center`, each decidedly on the cut's half-plane `k × axis`: the one
+/// reading of the cut's chord, by [`closing_meridians`]' turns and by
+/// [`super::apply_cut_ins`], which builds the cut on it.
+///
+/// The chord lies across the circle along `e = (normal × k)/|normal × k|`,
+/// at the foot's offset from the plane, `d`, taken back along the plane
+/// normal's part in the circle's plane (`w`): its midpoint is
+/// `foot − w·(d/|w|²)` and its half-length `√(ρ² − d²/|w|²)`.
+/// `through_foot`: the plane is the circle's own meridian (`d = 0`), and
+/// the chord is the diameter `foot ± ρ·e`, built as such.
+pub(super) fn meridian_chord<T: Decide>(
+    (center, axis): (Point3<T>, Vec3<T>),
+    (foot, rho, normal): (Point3<T>, T, Vec3<T>),
+    k: Vec3<T>,
+    through_foot: bool,
+    sign: impl Fn(&'static str, T) -> Result<Sign, Indeterminate>,
+) -> Result<Result<[Point3<T>; 2], ChordMiss>, Indeterminate> {
+    let across = normal.cross(k);
+    if sign("bool_sphere_cut_section_meridian", across.norm())? == Sign::Zero {
+        return Ok(Err(ChordMiss::InItsPlane));
+    }
+    let e = across.normalize();
+    let crossings = if through_foot {
+        [foot - e * rho, foot + e * rho]
+    } else {
+        let d = k.dot(foot - center);
+        let n = normal.normalize();
+        let w = k - n * n.dot(k);
+        let w2 = w.dot(w);
+        let half2 = rho.powi(2) - d.powi(2) / w2;
+        if sign("bool_sphere_cut_meridian_crosses", half2 / rho)? != Sign::Positive {
+            return Ok(Err(ChordMiss::NotTwice));
+        }
+        let (mid, half) = (foot - w * (d / w2), half2.sqrt());
+        [mid - e * half, mid + e * half]
+    };
+    let h = k.cross(axis);
+    for p in crossings {
+        if sign("bool_sphere_cut_half", h.dot(p - center))? != Sign::Positive {
+            return Ok(Err(ChordMiss::OffHalf));
+        }
+    }
+    Ok(Ok(crossings))
 }
 
 /// Each piece of a loop's tube ([`CutSection::Loop`]) by its eight
