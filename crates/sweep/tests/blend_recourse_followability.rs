@@ -233,7 +233,7 @@ fn the_radius_recourse_reduces_to_a_radius_that_builds() {
 fn the_clearance_recourse_reduces_to_a_blend_size_that_builds() {
     let body = waisted(tol());
     let rim = rim_arcs_at(&body, 1.0, 0.0);
-    assert_eq!(rim.len(), 2, "the base rim is seam-split");
+    assert_eq!(rim.len(), 1, "the base rim is one closed edge");
     let err = refusal(&body, &rim, 0.5, "r = 0.5 on the base rim", false);
     assert!(
         matches!(
@@ -275,7 +275,7 @@ fn lune_slit_plate() -> (Body<f64>, EdgeKey, EdgeKey) {
         let (a, b) = topo::readback::edge_sides(&body, e).unwrap().faces();
         [a, b]
             .iter()
-            .all(|&f| matches!(body.face_surface(f), Some(geom::Surface::Cylinder { .. })))
+            .all(|&f| matches!(body.face_surface(f), Ok(geom::Surface::Cylinder { .. })))
     };
     let edges = query::all_edges(&body);
     let kiss = *edges
@@ -921,7 +921,7 @@ fn the_assembly_recourse_names_four_doors_that_all_carve() {
     builds(&d, &[equator], 0.1, "a closed circular plane–sphere rim");
     let body = waisted(tol());
     let waist = rim_arcs_at(&body, 0.5, 0.5);
-    assert_eq!(waist.len(), 2, "the waist rim is seam-split");
+    assert_eq!(waist.len(), 1, "the waist rim is one closed edge");
     builds(
         &body,
         &waist,
@@ -933,7 +933,7 @@ fn the_assembly_recourse_names_four_doors_that_all_carve() {
         .merge_coplanar_faces(tol())
         .expect("the pole-split caps repair");
     let neck = rim_arcs_at(&repaired, 1.0, 0.0);
-    assert_eq!(neck.len(), 2, "the repaired neck rim is still two arcs");
+    assert_eq!(neck.len(), 1, "the repaired neck rim is one closed edge");
     builds(
         &repaired,
         &neck,

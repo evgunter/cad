@@ -99,7 +99,7 @@ pub(super) fn require_same<T: crate::props::AtRestPolicy>(
         return Ok(relation);
     }
     for (body, operand, s) in [(body1, o1, s1), (body2, o2, s2)] {
-        let kind = body.proven_face(s.face).surface().kind();
+        let kind = body.proven_face(s.face).expect_described().kind();
         if FaceShape::of_kind(kind) != FaceShape::Plane {
             return Err(BooleanError::CurvedBooleanUnsupported {
                 operand,
@@ -199,8 +199,8 @@ pub(super) fn recl_sectors<T: crate::props::AtRestPolicy>(
                 let [a_start, a_end] = sa.reached_bounds();
                 let [b_start, b_end] = sb.reached_bounds();
                 if class == GlueClass::Tangent {
-                    let s_a = a_body.proven_face(sa.face).surface().clone();
-                    let s_b = b_body.proven_face(sb.face).surface().clone();
+                    let s_a = a_body.proven_face(sa.face).expect_described().clone();
+                    let s_b = b_body.proven_face(sb.face).expect_described().clone();
                     let side =
                         |own: &geom::Surface<T>, other: &geom::Surface<T>, n, (d, reached)| {
                             super::sectors::tangent_relative_side(
@@ -227,7 +227,7 @@ pub(super) fn recl_sectors<T: crate::props::AtRestPolicy>(
                     // Each bound with the edge behind it, which a bound
                     // rides the rim only by being.
                     let side = |body: &Body<T>, operand, face, bound, other| {
-                        let kind = body.proven_face(face).surface().kind();
+                        let kind = body.proven_face(face).expect_described().kind();
                         super::sectors::junction_bound_side(
                             rim, p, bound, other, operand, face, kind, read, band,
                         )
@@ -336,7 +336,7 @@ pub(super) fn recl_sectors<T: crate::props::AtRestPolicy>(
                 return Err(BooleanError::CurvedBooleanUnsupported {
                     operand,
                     face,
-                    kind: body.proven_face(face).surface().kind(),
+                    kind: body.proven_face(face).expect_described().kind(),
                 });
             }
         };
@@ -1128,7 +1128,7 @@ pub(super) fn recl_edges<T: crate::props::AtRestPolicy>(
 /// coincident edges, where the edge's own vertex meets them, or inside
 /// the edge where a pinch vertex meets it, starts as a vertex-on-edge
 /// event, and the reduction splits the edges there before this lane
-/// reads `contacts.vv`, so that end too pairs one vertex with both
+/// reads `contacts.vv()`, so that end too pairs one vertex with both
 /// pieces' (the witness's top end does: its prism corner meets the
 /// pinch edges' interiors). The pieces' membership about the edge
 /// reads the same along it, so both ends hold the same two crossing
@@ -1734,13 +1734,19 @@ pub(super) fn resolve_edge_edge<T: crate::props::AtRestPolicy>(
                 (other_body, other_sec.face),
                 own_op,
                 own_sec.face,
-                own_body.proven_face(own_sec.face).surface().kind(),
+                own_body.proven_face(own_sec.face).expect_described().kind(),
                 read,
                 band,
             )?
         } else if read == DeclarationRead::Spent(crate::contact::GlueClass::Tangent) {
-            let s_own = own_body.proven_face(own_sec.face).surface().clone();
-            let s_other = other_body.proven_face(other_sec.face).surface().clone();
+            let s_own = own_body
+                .proven_face(own_sec.face)
+                .expect_described()
+                .clone();
+            let s_other = other_body
+                .proven_face(other_sec.face)
+                .expect_described()
+                .clone();
             let p = site()?;
             let reach = declared.reach_of(own_op, own_sec.face, other_op, other_sec.face)?;
             super::sectors::tangent_lump(
@@ -1778,7 +1784,8 @@ pub(super) fn resolve_edge_edge<T: crate::props::AtRestPolicy>(
         let planar = [(body_of(own), own_face), (body_of(other), other_face)]
             .iter()
             .all(|&(body, face)| {
-                FaceShape::of_kind(body.proven_face(face).surface().kind()) == FaceShape::Plane
+                FaceShape::of_kind(body.proven_face(face).expect_described().kind())
+                    == FaceShape::Plane
             });
         let which = if planar {
             Coincide::FlankSense
@@ -2085,7 +2092,7 @@ fn resolve_edge_sector<T: crate::props::AtRestPolicy>(
                 (ref_body, ref_sector.face),
                 own_op,
                 own_sec.face,
-                own_body.proven_face(own_sec.face).surface().kind(),
+                own_body.proven_face(own_sec.face).expect_described().kind(),
                 tangent_read(own_sec.face),
                 band,
             )?
@@ -2093,8 +2100,8 @@ fn resolve_edge_sector<T: crate::props::AtRestPolicy>(
             let read = tangent_read(own_sec.face);
             let p = site_point(own_sec)?;
             super::sectors::tangent_lump(
-                own_body.proven_face(own_sec.face).surface(),
-                ref_body.proven_face(ref_sector.face).surface(),
+                own_body.proven_face(own_sec.face).expect_described(),
+                ref_body.proven_face(ref_sector.face).expect_described(),
                 declared.reach_of(own_op, own_sec.face, ref_op, ref_sector.face)?,
                 ref_sector.plane(ref_op)?,
                 own_sec.plane(own_op)?,

@@ -234,12 +234,8 @@ fn is_wrap(body: &Body<f64>, edge: topo::EdgeKey) -> bool {
 /// edges between two of them or both of whose halves bound one. An
 /// edge whose wrap flag disagrees with its faces is an error.
 fn wall_census(body: &Body<f64>) -> Result<Wall, String> {
-    let on_wall = |face: topo::FaceKey| {
-        matches!(
-            body.face_surface(face),
-            Some(geom::Surface::Cylinder { .. })
-        )
-    };
+    let on_wall =
+        |face: topo::FaceKey| matches!(body.face_surface(face), Ok(geom::Surface::Cylinder { .. }));
     let walls = body.faces().filter(|&(f, _)| on_wall(f)).count();
     let (mut wraps, mut parted) = (0, 0);
     for (edge, _) in body.edges() {
@@ -891,10 +887,13 @@ fn a_boolean_tangent_to_a_two_arc_holes_rim_builds_sound() {
 /// `|A − B| + |A ∩ B| = |A|` and `|A ∪ B| + |A ∩ B| = |A| + |B|`.
 ///
 /// Held as it stands: the bottom rim's arc is tangent to the sphere at
-/// the vertex too, and the crossing layer refuses it
+/// the vertex too. The crossing layer reads that touch at the arc's own
+/// end as the vertex's meeting, and the join refuses the one-site
+/// section loop it leaves (`SingleSiteSectionLoop`), typed, all three ops
+/// alike; a crossing layer that reads it as the arc's tangency refuses it
 /// `CurvedPierceUnsupported` before the ring reads anything
-/// (`work/contacthold/conic-ties-outside-the-vertex-on-face-pass-still-read-first-order.md`),
-/// all three ops alike. Where it builds, every check above binds.
+/// (`work/tang/conic-ties-outside-the-vertex-on-face-pass-still-read-first-order.md`).
+/// Where it builds, every check above binds.
 #[test]
 fn a_ball_tangent_to_a_two_arc_holes_rim_is_held_or_builds_sound() {
     let radius = 3.0;
@@ -946,6 +945,15 @@ fn a_ball_tangent_to_a_two_arc_holes_rim_is_held_or_builds_sound() {
                 topo::readback::edge_carrier_kind(&a, edge),
                 Ok(geom::CurveKind::Circle)
             ) =>
+            {
+                held += 1;
+                continue;
+            }
+            // The rim's arc touches the sphere at its own end, the vertex:
+            // the crossing layer reads that end's meeting as the vertex's,
+            // and the join refuses the one-site section loop typed.
+            Err(BooleanError::Join(ref j))
+                if matches!(j.error(), JoinError::SingleSiteSectionLoop { .. }) =>
             {
                 held += 1;
                 continue;

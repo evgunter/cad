@@ -411,7 +411,7 @@ fn the_interval_corpus_holds_sectcones_move_unjudged() {
     println!("m10-p fence interval id-free: {got:016x?}");
     assert_eq!(
         got,
-        (0x17e7_eea0_6316_7a01, 0xcf46_5af8_bdc0_b3bd),
+        (0x11ce_58a0_e1df_9bd9, 0x25b7_ae51_ef1e_4b8d),
         "the corpus's Interval geometry moved"
     );
 }
@@ -525,7 +525,7 @@ fn the_corpus_geometry_is_bit_identical_with_ids_masked() {
         // Re-taken when the first lane became `fixture::digest::Fnv`,
         // whose multiplier differs from this file's old one; no outcome
         // or point moved (main's tree read this file's old pin).
-        (0xbca4_fec9_db42_0a4c, 0xaa52_8b49_2b9e_9890),
+        (0xa8fe_0fa9_1406_3c3a, 0xcd53_1eef_76ec_3e96),
         "an outcome or a point of the corpus moved — every other row here also \
          moves with ids, and this one does not"
     );

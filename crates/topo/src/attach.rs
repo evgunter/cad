@@ -73,7 +73,7 @@ use geom_core::{Band, Decide, Margin, Point3, Real, Sign};
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopKey, VertexKey};
 use crate::euler::{EdgeSubject, EulerOpError, FaceSurface, ParentSide, RechartDoor};
-use crate::geometry::{CurveKey, SurfaceKey};
+use crate::geometry::{CurveKey, SurfaceKey, SurfaceMiss, SurfaceSlot};
 use crate::live::{Arg, linked, lookup, proven, require_key};
 use crate::pcurves::{SiteCarriers, SiteHalf, SiteRows};
 use geom_core::Tol;
@@ -196,7 +196,7 @@ impl<T: Decide> Body<T> {
             | EdgeDescriptionSpec::OnPair { pair, .. } => pair.keys().contains(&k),
             EdgeDescriptionSpec::Scaffold(_) => true,
         };
-        let kept_is_plane = matches!(self.get_surface(kept), Some(Surface::Plane { .. }));
+        let kept_is_plane = matches!(self.get_surface(kept), Ok(Surface::Plane { .. }));
         let mut boundary: Vec<EdgeKey> = on_kept
             .iter()
             .flat_map(|&f| self.run_edges(&self.proven_face(f).half_edges()))
@@ -442,9 +442,25 @@ impl<T: Decide> Body<T> {
             }
         }
         let recharted = faces.iter().filter(|m| !m.on_parent_chart);
-        let dropped = self
+        let mut dropped = self
             .half_edges_proven_whole(recharted.map(|m| self.proven_face(m.face)))
             .concat();
+        // Every row of a listed edge is stated over its carrier and
+        // interval, on a face that keeps its chart too, so a spec that
+        // moves either drops them; one that restates both keeps them.
+        for (edge, _, curve) in &written.rows {
+            let e = proven(&self.edges, *edge, EntityId::Edge);
+            let kept = self.proven_edge(*edge).certified().is_some_and(|old| {
+                let ((a0, a1), (b0, b1)) = (old.params(), curve.params());
+                old.carrier()
+                    .same_content_by(curve.carrier(), T::same_value)
+                    && T::same_value(a0, b0)
+                    && T::same_value(a1, b1)
+            });
+            if !kept {
+                dropped.extend([e.he_plus, e.he_minus]);
+            }
+        }
 
         // ---- Mutation (infallible from here on). ----
         //
@@ -606,13 +622,17 @@ impl<T: Decide> Body<T> {
     }
 
     /// The surface `slot` stands for across a re-chart of `charts`.
-    fn slot_surface<'a>(&'a self, charts: &'a [Rechart<T>], slot: Slot) -> Option<&'a Surface<T>> {
+    fn slot_surface<'a>(
+        &'a self,
+        charts: &'a [Rechart<T>],
+        slot: Slot,
+    ) -> Result<&'a Surface<T>, SurfaceMiss> {
         match slot {
-            Slot::Minted(chart) => match &charts.get(chart)?.surface {
-                ChartSurface::New(surface) => Some(surface),
-                ChartSurface::Shared(_) => None,
+            Slot::Minted(chart) => match charts.get(chart).map(|c| &c.surface) {
+                Some(ChartSurface::New(surface)) => Ok(surface),
+                Some(ChartSurface::Shared(_)) | None => Err(SurfaceMiss::Stale),
             },
-            Slot::Kept(k) => Some(proven(&self.surfaces, k, GeomRef::Surface)),
+            Slot::Kept(k) => proven(&self.surfaces, k, GeomRef::Surface).described(),
         }
     }
 
@@ -641,7 +661,7 @@ impl<T: Decide> Body<T> {
     /// and a [`Reading::Keys`] door has no band: such an edge is
     /// returned, since neither reading vouches for it.
     ///
-    /// A side landing on the "no chart yet" placeholder is not asked:
+    /// A side landing on a pending face is not asked:
     /// there is no chart to vouch on, and no description can name it.
     /// What carries no certificate is not asked by either reading:
     /// scaffold and null edges, and an empty loop's lone vertex. The
@@ -669,14 +689,14 @@ impl<T: Decide> Body<T> {
             let sides = self.sides(edge, &moved);
             for side in sides.unnamed(named, spelling) {
                 let face = sides.faces[side];
-                if !asked(face) || self.slot_chartless(reading, sides.after[side]) {
+                if !asked(face) || self.slot_chartless(sides.after[side]) {
                     continue;
                 }
                 let plane = match reading {
                     Reading::Residuals {
                         door, band, charts, ..
                     } => match self.slot_surface(charts, sides.after[side]) {
-                        Some(&Surface::Plane { frame, .. }) => {
+                        Ok(&Surface::Plane { frame, .. }) => {
                             let (origin, normal) = (frame.origin(), frame.axis());
                             Some((*door, origin, normal, *band))
                         }
@@ -694,17 +714,15 @@ impl<T: Decide> Body<T> {
         Ok(out)
     }
 
-    /// Whether `slot` is the "no chart yet" placeholder, as `reading`
-    /// knows the charts its door mints: a side landing there has no
-    /// chart for a certificate to vouch on, so it is not asked. A keys-only
-    /// door's minted chart is asked of its [`Landing`] instead.
-    fn slot_chartless(&self, reading: &Reading<'_, T>, slot: Slot) -> bool {
-        match (slot, reading) {
-            (Slot::Kept(key), _) => self.wears_no_chart(key),
-            (Slot::Minted(_), Reading::Residuals { charts, .. }) => self
-                .slot_surface(charts, slot)
-                .is_some_and(Surface::is_placeholder_chart),
-            (Slot::Minted(_), Reading::Keys) => false,
+    /// Whether `slot` is pending, as `reading` knows the charts its door
+    /// mints: a side landing there has no chart for a certificate to
+    /// vouch on, so it is not asked. A describing door mints described
+    /// charts only, and a keys-only door's minted chart is asked of its
+    /// [`Landing`] instead.
+    fn slot_chartless(&self, slot: Slot) -> bool {
+        match slot {
+            Slot::Kept(key) => self.wears_no_chart(key),
+            Slot::Minted(_) => false,
         }
     }
 
@@ -815,8 +833,8 @@ impl<T: Decide> Body<T> {
     /// a minting door mints with one half on each side, does — unless
     /// `one_payload` (a certificate is a function of the payload it was
     /// taken on, and the move re-reads that payload), or the landing is
-    /// chartless ([`Landing::chartless`]: a face wearing the "no chart
-    /// yet" placeholder has no chart for a certificate to vouch on, and
+    /// chartless ([`Landing::chartless`]: a pending face has no chart for
+    /// a certificate to vouch on, and
     /// no description can name it, so that side asks nothing). Scaffold
     /// and null edges carry no certificate: they neither strand nor
     /// vouch, and are not asked. `face` is the face the refusal names.
@@ -1424,9 +1442,11 @@ impl<T: Decide> Body<T> {
     where
         T: Decide,
     {
+        // A certified description names described surfaces only: the
+        // certification door refuses a pending key.
         let surface = |k: SurfaceKey| {
-            let Some(s) = self.surfaces.get(k) else {
-                unreachable!("{k:?} is a surface a description this body holds names")
+            let Some(Ok(s)) = self.surfaces.get(k).map(SurfaceSlot::described) else {
+                unreachable!("{k:?} is a described surface a description this body holds names")
             };
             (k, s)
         };
@@ -1468,15 +1488,18 @@ impl<T: Decide> Body<T> {
             crate::live::proven(&self.edges, edge, EntityId::Edge),
         );
         let (ka, kb) = sides.surfaces();
-        let surface = |k: SurfaceKey| {
-            let Some(s) = self.surfaces.get(k) else {
-                unreachable!("{k:?} is the surface of a face this body holds")
-            };
-            (k, s)
+        // A pending face has no implicit form for the must-carry rule to
+        // read, so the image is kept, as beside a spline chart.
+        let surface = |k: SurfaceKey| match self.surfaces.get(k) {
+            Some(slot) => slot.described().ok().map(|s| (k, s)),
+            None => unreachable!("{k:?} is the surface of a face this body holds"),
+        };
+        let (Some(a), Some(b)) = (surface(ka), surface(kb)) else {
+            return Ok(None);
         };
         let (fa, fb) = sides.faces();
         let reach = crate::wedge_reach(self, [fa, fb], carrier, interval);
-        geom_brep::reask_chart([surface(ka), surface(kb)], carrier, interval, reach, band)
+        geom_brep::reask_chart([a, b], carrier, interval, reach, band)
     }
 
     /// Every wrap edge the at-rest reading ([`Named::adjacent_at_rest`])
@@ -1623,7 +1646,7 @@ impl<T: Decide> Body<T> {
     }
 
     /// Whether [`Body::description_rows`] plans `face` for `edge`: one
-    /// of `edge`'s halves is on it, and it is off a spline chart unless
+    /// of `edge`'s halves is on it, and it is off a spline or pending chart unless
     /// `edge` is null. The one home of that decision: the
     /// description plans a half's face by it, and
     /// [`Body::kev_describing`](crate::construction::Construct::kev_describing)'s released-loop plan leaves such a face
@@ -1640,12 +1663,12 @@ impl<T: Decide> Body<T> {
             })
     }
 
-    /// Whether `face`'s chart is a spline one, where the site mint's
-    /// closed-form lane does not reach. `face` is one the caller
-    /// resolved.
+    /// Whether `face`'s chart is a spline one or still pending, where the
+    /// site mint's closed-form lane does not reach. `face` is one the
+    /// caller resolved.
     fn face_on_spline_chart(&self, face: FaceKey) -> bool {
         let view = self.proven_face(face);
-        view.surface().spline_chart().is_some()
+        view.surface().map_or(true, |s| s.spline_chart().is_some())
     }
 
     /// The mutation half of every door that re-describes an existing
@@ -2051,7 +2074,7 @@ impl Slot {
     pub(crate) fn of_spec<T: Real>(spec: &FaceSurface<T>, own: SurfaceKey) -> Self {
         match spec {
             FaceSurface::Inherit => Self::Kept(own),
-            FaceSurface::New { .. } => Self::Minted(0),
+            FaceSurface::New { .. } | FaceSurface::Pending { .. } => Self::Minted(0),
             FaceSurface::Shared { key, .. } => Self::Kept(*key),
         }
     }
@@ -2059,9 +2082,8 @@ impl Slot {
 
 /// Where a keys-only door's moving boundary lands ([`Body::vouch_move`]):
 /// the key it leaves, the surface its face wears after the move, and
-/// whether that surface is the "no chart yet" placeholder
-/// ([`geom::Surface::is_placeholder_chart`]), which no description names
-/// and no certificate vouches on.
+/// whether that slot is pending ([`SurfaceSlot::Pending`]), which no
+/// description names and no certificate vouches on.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Landing {
     pub(crate) old: SurfaceKey,
@@ -2075,7 +2097,8 @@ impl<T: Decide> Body<T> {
     pub(crate) fn landing_of_spec(&self, old: SurfaceKey, spec: &FaceSurface<T>) -> Landing {
         let chartless = match spec {
             FaceSurface::Inherit => self.wears_no_chart(old),
-            FaceSurface::New { surface, .. } => surface.is_placeholder_chart(),
+            FaceSurface::New { .. } => false,
+            FaceSurface::Pending { .. } => true,
             FaceSurface::Shared { key, .. } => self.wears_no_chart(*key),
         };
         Landing {
@@ -2094,12 +2117,10 @@ impl<T: Decide> Body<T> {
         }
     }
 
-    /// Whether `key` is the "no chart yet" placeholder. A key that does
-    /// not resolve is not: the door's own lookups refuse it.
+    /// Whether `key`'s slot is pending. A key that does not resolve is
+    /// not: the door's own lookups refuse it.
     pub(crate) fn wears_no_chart(&self, key: SurfaceKey) -> bool {
-        self.surfaces
-            .get(key)
-            .is_some_and(Surface::is_placeholder_chart)
+        self.surfaces.get(key).is_some_and(SurfaceSlot::is_pending)
     }
 }
 
@@ -2351,7 +2372,7 @@ mod tests {
     fn face_at(body: &Body<f64>, axis: usize, value: f64) -> FaceKey {
         body.faces()
             .find(|(_, f)| match body.get_surface(f.surface) {
-                Some(Surface::Plane { frame, .. }) => {
+                Ok(Surface::Plane { frame, .. }) => {
                     let (origin, normal) = (frame.origin(), frame.axis());
                     let (o, n) = (origin.to_array(), normal.to_array());
                     n[axis].abs() > 0.5 && o[axis] == value
@@ -2382,7 +2403,7 @@ mod tests {
     /// `face`'s own plane, moved by `by` — a fresh payload, so a swap
     /// onto it is a swap onto another chart.
     fn plane_moved(body: &Body<f64>, face: FaceKey, by: Vec3<f64>) -> Surface<f64> {
-        let Some(&Surface::Plane {
+        let Ok(&Surface::Plane {
             frame: carrier_frame,
         }) = body.get_surface(surf(body, face))
         else {
@@ -2605,7 +2626,10 @@ mod tests {
         };
         assert_eq!(carried.get_face(top).unwrap().surface, new);
         assert_eq!(edges_naming(&carried, new), named, "all four carried");
-        assert!(carried.get_surface(old).is_none(), "the old cap is reaped");
+        assert!(
+            carried.get_surface(old).err() == Some(crate::SurfaceMiss::Stale),
+            "the old cap is reaped"
+        );
         assert_eq!(validate_geometric(&carried, tol()), Ok(()));
 
         let eps = tol().eps();
@@ -2701,7 +2725,10 @@ mod tests {
         );
         assert_eq!(surf(&body, top), shared);
         assert_eq!(edges_naming(&body, shared), named);
-        assert!(body.get_surface(old).is_none(), "the old cap is reaped");
+        assert!(
+            body.get_surface(old).err() == Some(crate::SurfaceMiss::Stale),
+            "the old cap is reaped"
+        );
         assert_eq!(validate_geometric(&body, tol()), Ok(()));
     }
 
@@ -2845,7 +2872,10 @@ mod tests {
             body.set_face_surface(membrane, FaceSurface::Shared { key: cap, sense }),
             Ok(cap)
         );
-        assert!(body.get_surface(copy).is_none(), "the copy is reaped");
+        assert!(
+            body.get_surface(copy).err() == Some(crate::SurfaceMiss::Stale),
+            "the copy is reaped"
+        );
         assert_eq!(validate_geometric(&body, tol()), Ok(()));
     }
 
@@ -3259,11 +3289,11 @@ mod tests {
             assert_eq!(surf(&both, top), top_key, "flipped={flipped}");
             assert_eq!(surf(&both, front), front_key, "flipped={flipped}");
             assert!(
-                matches!(both.get_surface(top_key), Some(Surface::Plane { frame, .. }) if frame.origin().z == 1.0 + d),
+                matches!(both.get_surface(top_key), Ok(Surface::Plane { frame, .. }) if frame.origin().z == 1.0 + d),
                 "the top wears the top's plane"
             );
             assert!(
-                matches!(both.get_surface(front_key), Some(Surface::Plane { frame, .. }) if frame.origin().y == -d),
+                matches!(both.get_surface(front_key), Ok(Surface::Plane { frame, .. }) if frame.origin().y == -d),
                 "the front wears the front's plane"
             );
             assert_eq!(validate_geometric(&both, tol()), Ok(()));
@@ -3820,7 +3850,7 @@ mod tests {
     /// none names the new key. `mfkrh` and `mfkrh_minting` each name all
     /// four, in cycle order, and write nothing; through the lift `mfkrh`
     /// lands and tier 3 reports the promoted face's residuals at rest.
-    /// `mfkrh_plug` takes the same ring: its placeholder is chartless,
+    /// `mfkrh_plug` takes the same ring: its pending face is chartless,
     /// and nothing is asked to vouch on a face with no chart.
     #[test]
     fn mfkrh_onto_a_far_plane_is_refused_unvouched_where_a_chart_is_taken() {
@@ -3858,7 +3888,7 @@ mod tests {
         let plugged = body.mfkrh_plug(ring, sense);
         assert!(
             plugged.is_ok(),
-            "the plug's placeholder is chartless, so nothing is asked to vouch on it: {plugged:?}"
+            "the plug's pending face is chartless, so nothing is asked to vouch on it: {plugged:?}"
         );
     }
 
@@ -4226,7 +4256,7 @@ mod tests {
     /// front face killed into the cap: on the cap's own plane, the
     /// front's three other edges land on a chart none of them names, and
     /// `kef` refuses them unvouched; with the cap first moved onto the
-    /// "no chart yet" placeholder, which none of its edges names, the
+    /// pending slot, which none of its edges names, the
     /// same kill is taken, since nothing vouches on a face with no chart.
     #[test]
     fn a_kill_onto_a_chartless_face_asks_nothing_to_vouch_on_it() {
@@ -4244,14 +4274,8 @@ mod tests {
             "{refused:?}"
         );
         let sense = sense(&body, top);
-        body.set_face_surface(
-            top,
-            FaceSurface::New {
-                surface: Surface::nurbs_placeholder(),
-                sense,
-            },
-        )
-        .unwrap();
+        body.set_face_surface(top, FaceSurface::Pending { sense })
+            .unwrap();
         let fused = body.kef(killed).unwrap();
         assert_eq!(fused.killed_face, front);
     }
@@ -4389,15 +4413,15 @@ mod tests {
     }
 
     /// **`mfkrh_plug` refuses only a strand, and its lever is the door
-    /// that takes a chart.** The plug refuses a ring its placeholder
+    /// that takes a chart.** The plug refuses a ring its pending face
     /// strands (the hole's rim, whose edges' `Intersection`s name the
     /// top), writing nothing; the move the refusal names, `mfkrh` onto
     /// the chart the ring's edges name — here the demoting face's own,
     /// `Inherit` — is taken. A ring whose edges are images in the cap's
-    /// chart (the demoted membrane) strands nothing on the placeholder,
+    /// chart (the demoted membrane) strands nothing on the pending face,
     /// and nothing is asked to vouch on a chartless face: the plug takes
     /// it, and so does the describing door moving the membrane, so
-    /// promoted, onto a placeholder with no re-descriptions.
+    /// promoted, onto a pending slot with no re-descriptions.
     #[test]
     fn mfkrh_plug_refuses_a_strand_and_asks_nothing_on_its_chartless_face() {
         let (mut body, _, ring) = holed_top();
@@ -4424,9 +4448,10 @@ mod tests {
         let plugged = body.mfkrh_plug(ring, true);
         assert!(plugged.is_ok(), "the membrane's images: {plugged:?}");
         let made = described.mfkrh(ring, FaceSurface::Inherit).unwrap();
+        let pending = described.add_pending_surface();
         let moved = described.set_face_surfaces_describing(
-            vec![Rechart::new(
-                Surface::nurbs_placeholder(),
+            vec![Rechart::shared(
+                pending,
                 made.face,
                 sense(&described, made.face),
             )],
@@ -4636,7 +4661,7 @@ mod tests {
     }
 
     /// **A chartless landing still asks the strand**: with the cap on
-    /// the "no chart yet" placeholder, the half's rim edges, images in
+    /// a pending slot, the half's rim edges, images in
     /// the half's own chart, are stranded by the kill all the same, so
     /// `kef` refuses them as stranded and its twin listing nothing
     /// refuses them undescribed.
@@ -4645,13 +4670,7 @@ mod tests {
         let (mut body, top, _, he) = half_cap_on_own_key();
         let sense = sense(&body, top);
         body.lifting_rechart_refusals_for_tests(|b| {
-            b.set_face_surface(
-                top,
-                FaceSurface::New {
-                    surface: Surface::nurbs_placeholder(),
-                    sense,
-                },
-            )
+            b.set_face_surface(top, FaceSurface::Pending { sense })
         })
         .unwrap();
         assert!(body.wears_no_chart(surf(&body, top)));
@@ -4679,24 +4698,24 @@ mod tests {
         );
     }
 
-    /// **The describing door moving a face onto an existing placeholder
+    /// **The describing door moving a face onto an existing pending
     /// key asks nothing**: the promoted membrane, its edges images in
-    /// the cap's chart, shared onto a "no chart yet" key already in the
+    /// the cap's chart, shared onto a pending key already in the
     /// arena, listing nothing, lands there.
     #[test]
-    fn the_describing_door_onto_a_shared_placeholder_key_asks_nothing() {
+    fn the_describing_door_onto_a_shared_pending_key_asks_nothing() {
         let (mut body, top, membrane) = brick_with_inlay();
         let (ring, _) = demoted(&mut body, top, membrane);
         let made = body.mfkrh(ring, FaceSurface::Inherit).unwrap();
-        let placeholder = body.add_surface(Surface::nurbs_placeholder());
+        let pending = body.add_pending_surface();
         let sense = sense(&body, made.face);
         let moved = body.set_face_surfaces_describing(
-            vec![Rechart::shared(placeholder, made.face, sense)],
+            vec![Rechart::shared(pending, made.face, sense)],
             &[],
             tol(),
         );
         assert!(moved.is_ok(), "{moved:?}");
-        assert_eq!(surf(&body, made.face), placeholder);
+        assert_eq!(surf(&body, made.face), pending);
     }
 
     /// **Every re-chart door's refusals render**, each leading with the
@@ -4801,7 +4820,7 @@ mod tests {
             .map(|(f, _)| f)
             .find(|&f| body.proven_face(f).half_edges().len() == 4)
             .expect("a prism has quadrilateral sides");
-        let Some(&Surface::Plane { frame, .. }) = body.get_surface(surf(&body, side)) else {
+        let Ok(&Surface::Plane { frame, .. }) = body.get_surface(surf(&body, side)) else {
             panic!("a prism's side is a plane")
         };
         let normal = frame.axis();

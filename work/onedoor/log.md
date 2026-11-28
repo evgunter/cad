@@ -529,7 +529,7 @@ Ev, in chat: "go ahead in whatever order you see fit (including parallelizing th
   - The fix pass took every item and folded census's `spiric_cap` twin.
   - Model-compare row `docs/model-compare-log/rows/PR-6929.md`.
   - (ONEDOOR orchestrator)
-- 2026-11-14 (GREEN, PR 6934): a P0 row on this slate, `main-red-four-sweep-rows-hold-volumes-the-one-surface-record-moves-at-1e-6`: since PR 6505 four sweep rows build bodies at ε 1e-6 whose volume lies outside its own enclosure of the closed form; the tests are pinned, not fixed. Same merge: `a-needle-channels-f64-shell-volume-rounds-by-up-to-8-6-percent-at-eps-1e-9-since-pr-6505` (arriving with PR 6931) and `work/band/a-cups-fixture-boolean-is-unfinished-at-eps-1e-6.md`, whose first move is ONEDOOR's.
+- 2026-11-14 (GREEN, PR 6934): a P0 row on this slate, `a-planar-faces-volume-term-reads-its-unweighted-mean-vertex-so-in-band-vertices-lever-over-the-face`: since PR 6505 four sweep rows build bodies at ε 1e-6 whose volume lies outside its own enclosure of the closed form; the tests are pinned, not fixed. Same merge: `a-needle-channels-f64-shell-volume-rounds-by-up-to-8-6-percent-at-eps-1e-9-since-pr-6505` (arriving with PR 6931) and `work/band/a-cups-fixture-boolean-is-unfinished-at-eps-1e-6.md`, whose first move is ONEDOOR's.
 - 2026-11-14 — **PR [#6939](https://github.com/evgunter/cad/pull/6939) (the `pcurves.rs` split) accepted.**
   - One reviewer (Opus): MERGEABLE, proven a pure move by an item-multiset comparison.
   - The style pass took the guard's census, the walk in one file, the file map and the README pointers.
@@ -547,7 +547,7 @@ Ev, in chat: "go ahead in whatever order you see fit (including parallelizing th
   `analytic-surfaces-spell-their-frame-field-by-field`: the per-kind
   `CarrierDesc` fold is the geom-brep side of that row's ratified
   kind-struct stage, and would be reshaped by it if done first.
-- Kept here: `main-red-four-sweep-rows-hold-volumes-the-one-surface-record-moves-at-1e-6`
+- Kept here: `a-planar-faces-volume-term-reads-its-unweighted-mean-vertex-so-in-band-vertices-lever-over-the-face`
   (P0). It is a regression in this track's own `[coincidence.door]`
   code (PR 6505, the one surface record), beside this track's
   `split-and-chord-coincidences-leave-two-records`; no live program's
@@ -577,3 +577,4 @@ Ev, in chat: "go ahead in whatever order you see fit (including parallelizing th
 - (DOCTAIL first-turn lane)
 - 2026-11-20 — `the-line-roots-door-is-still-built-in-topo` moved to `work/germ/`: GERM claimed it for the curve × surface crossing reading's U1 (the line × quadric door's move into `geom_brep::curve_face::line_quadric`, no behaviour change).
 - 2026-11-20 — `the-conic-quadric-door-is-still-built-in-topo` moved to `work/germ/`: GERM claimed it for the curve × surface crossing reading's U2 (the conic × quadric door's move into `geom_brep::curve_face::conic_quadric`, no behaviour change).
+- 2026-11-25 — `main-red-four-sweep-rows-hold-volumes-the-one-surface-record-moves-at-1e-6` re-read and renamed `a-planar-faces-volume-term-reads-its-unweighted-mean-vertex-so-in-band-vertices-lever-over-the-face`, rebanded P0 → P2 (Ev, in chat). A probe against `e996c0049` found no face moved onto another record in any of the four rows: the shift is `planar_face`'s mean-vertex anchor reading a few in-band vertices across a whole face, inside the kernel's promise. The fix is a design question on `[geom-brep.face-anchored.plane]`; the pins stay.

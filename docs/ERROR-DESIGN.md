@@ -637,7 +637,12 @@ mass has no valid build" — is not sayable about any macroscopic box.
   where widening cannot hide it.
 - **The two channels are checked where an answer is returned.** A
   definite numeric sign is the answer, and the tier is asked nothing
-  about it. Where the tier answers `Zero` at an exact witness
+  about it. Where the value reads no definite sign over the box at an
+  exact witness, the margin's expression is enclosed once more with
+  each parameter at one fixed point of the box: an enclosure that
+  excludes 0 there proves the margin is no identity over the box, so
+  the tier is asked nothing and the decision stays undecided. Where
+  the tier answers `Zero` at an exact witness
   (`Sym<Interval>`), a `debug_assert!` checks that the certified
   enclosure contains 0 (DESIGN [failure.taxonomy] row 5: a kernel bug
   only a re-derivation detects); it leaves out

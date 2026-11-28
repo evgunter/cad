@@ -98,7 +98,7 @@ fn interval_disc_extrudes_a_shared_cylinder() {
     assert_eq!(validate_closed(&t.body), Ok(()));
     assert_eq!(validate_geometric(&t.body, Tol::witness()), Ok(()));
     // One shared cylinder + two cap planes.
-    assert_eq!(t.body.surfaces().count(), 3);
+    assert_eq!(t.body.described_surfaces().count(), 3);
     let k0 = t.body.get_face(t.side_faces()[0][0]).unwrap().surface;
     let k1 = t.body.get_face(t.side_faces()[0][1]).unwrap().surface;
     assert_eq!(k0, k1);

@@ -5,8 +5,8 @@
 //!
 //! * the lineage after a graft: `Provenance::SplitEdge { edge }` is
 //!   forwarded into the destination arena's keys — does a split-seam
-//!   donut still fold after `graft_disjoint` / a disjoint `union`, into
-//!   a destination that already holds edges, in either operand order?;
+//!   donut still fold after `graft_disjoint`, into a destination that
+//!   already holds edges?;
 //! * `set_edge_curve` on a split child (the PR's disclosed unmeasured
 //!   limit): a child re-parametrised on the same carrier — what does
 //!   every consumer answer?;
@@ -22,9 +22,7 @@
 use crate::common;
 use common::*;
 use geom::Curve3;
-use geom_core::{Point2, Tol};
-use profile::RawLoop;
-use sweep::ExtrudeSide;
+use geom_core::Tol;
 use topo::Body;
 use topo::construction::Construct;
 
@@ -133,44 +131,36 @@ fn m10r2_split_donut_mesh_differs_only_on_the_seam_column() {
     assert_eq!(only_b.len(), only_a.len() + extra);
 }
 
-/// **The lineage after a graft.** `graft_disjoint` (and the boolean's
-/// disjoint-union path, which transplants the same way) forwards each
-/// edge's `Provenance::SplitEdge { edge }` record into the destination's
-/// keys, so the split seam's pieces chase to one root there as they did
-/// in the source. Into an EMPTY destination the fresh keys coincide with
+/// **The lineage after a graft.** `graft_disjoint` forwards each edge's
+/// `Provenance::SplitEdge { edge }` record into the destination's keys,
+/// so the split seam's pieces chase to one root there as they did in
+/// the source. Into an EMPTY destination the fresh keys coincide with
 /// the source's anyway; into a destination that already holds a body
 /// they do not, and before the forwarding the pieces chased into
-/// strangers — `props_rim_level` refused the grafted donut, and a
-/// disjoint `union` with a far box answered in one operand order and
-/// refused in the other (issue 1597). This row measures both
-/// destinations and both orders through `mass_properties` and
-/// `tessellate`.
+/// strangers (`props_rim_level` refused the grafted donut, issue 1597).
+/// This row grafts into both destinations and meshes each. The split
+/// donut is construction state (its split vertex a station, tier 3's
+/// check 11), and so is each graft of it: no finished-body door
+/// measures one, and no boolean takes one as an operand.
 #[test]
 fn m10r2_split_lineage_after_graft() {
     let tol = Tol::witness();
-    let v_donut = volume(&donut()).unwrap();
     let (src, seam, minted) = split_seam_donut(&[0.5]);
-    println!(
-        "M10R2 source: seam {seam:?} minted {minted:?}, V = {:?}",
-        volume(&src)
-    );
+    println!("M10R2 source: seam {seam:?} minted {minted:?}");
+    let base = donut();
+    let station = split_points(&base, base.edges().next().unwrap().0, &[0.5]);
+    construction_state(&src, &station);
     // (a) into an empty body.
     let mut empty = Body::<f64>::new();
     topo::graft_disjoint(&mut empty, &src).expect("graft into an empty body");
-    let v_empty = volume(&empty);
     let mesh_empty = mesh::tessellate(&empty, 0.1, tol).map(|m| m.positions.len());
-    println!("M10R2 graft into EMPTY: V = {v_empty:?}, mesh = {mesh_empty:?}");
+    println!("M10R2 graft into EMPTY: mesh = {mesh_empty:?}");
     // (b) into a body already holding the ball (disjoint: the ball sits
     // in the donut's hole).
     let mut held = ball();
-    let v_ball = volume(&held).unwrap();
     topo::graft_disjoint(&mut held, &src).expect("graft into the ball's body");
-    let v_held = volume(&held);
     let mesh_held = mesh::tessellate(&held, 0.1, tol).map(|m| m.positions.len());
-    println!(
-        "M10R2 graft into BALL: V = {v_held:?} (expect {}), mesh = {mesh_held:?}",
-        v_ball + v_donut
-    );
+    println!("M10R2 graft into BALL: mesh = {mesh_held:?}");
     for (fk, f) in held.faces() {
         let Ok((outer, _)) =
             topo::props::loop_edges(held.cycle_loop(f.outer).expect("a cycle loop"))
@@ -186,66 +176,13 @@ fn m10r2_split_lineage_after_graft() {
             println!("M10R2   face {fk:?} minor-circle arcs: {ids:?}");
         }
     }
-    // (c) the boolean's disjoint union, both operand orders: with the
-    // ball (a curved pair, refused before any graft) and with a far
-    // box (disjoint operands, grafted).
-    let src = topo::test_support::finished("the split-seam donut", src, tol);
-    let ball = topo::test_support::finished("the ball", ball(), tol);
-    let u1 = topo::union(&ball, &src, tol).map(|r| r.body().map(|b| volume(&b.body)));
-    let u2 = topo::union(&src, &ball, tol).map(|r| r.body().map(|b| volume(&b.body)));
-    println!("M10R2 union(ball, split donut): {u1:?}");
-    println!("M10R2 union(split donut, ball): {u2:?}");
-    let far_box = || {
-        let body = sweep::extrude(
-            &validated(vec![profile::ProfileLoop::<f64>::polygon([
-                Point2::new(10.0, 10.0),
-                Point2::new(11.0, 10.0),
-                Point2::new(11.0, 11.0),
-                Point2::new(10.0, 11.0),
-            ])]),
-            sweep::Extrusion::Distance {
-                depth: 1.0,
-                side: ExtrudeSide::Along,
-            },
-            tol,
-        )
-        .unwrap()
-        .body;
-        topo::test_support::finished("the far box", body, tol)
-    };
-    let u3 = topo::union(&far_box(), &src, tol).map(|r| r.body().map(|b| volume(&b.body)));
-    let u4 = topo::union(&src, &far_box(), tol).map(|r| r.body().map(|b| volume(&b.body)));
-    println!(
-        "M10R2 union(far box, split donut): {u3:?} (expect {})",
-        1.0 + v_donut
-    );
-    println!("M10R2 union(split donut, far box): {u4:?}");
-    assert_eq!(
-        v_empty.map(f64::to_bits),
-        Ok(v_donut.to_bits()),
-        "empty destination"
-    );
-    let close = |v: f64, want: f64| (v - want).abs() / want < 1e-12;
-    assert!(
-        matches!(v_held, Ok(v) if close(v, v_ball + v_donut)),
-        "the grafted split-seam donut in a held body: {v_held:?}"
-    );
-    assert!(mesh_held.is_ok(), "and it meshes: {mesh_held:?}");
-    for (order, u) in [("far box first", &u3), ("donut first", &u4)] {
+    for (what, body, mesh) in [("empty", &empty, &mesh_empty), ("held", &held, &mesh_held)] {
+        construction_state(body, &station);
         assert!(
-            matches!(u, Ok(Some(Ok(v))) if close(*v, 1.0 + v_donut)),
-            "union ({order}) answers the disjoint sum: {u:?}"
+            mesh.is_ok(),
+            "{what}: the grafted split-seam donut meshes: {mesh:?}"
         );
     }
-    let bits = |u: &Result<Option<Result<f64, _>>, _>| match u {
-        Ok(Some(Ok(v))) => Some(v.to_bits()),
-        _ => None,
-    };
-    assert_eq!(
-        bits(&u3),
-        bits(&u4),
-        "and both operand orders agree bitwise"
-    );
 }
 
 /// **`set_edge_curve` on a split child.** The second child of the
@@ -259,10 +196,9 @@ fn m10r2_split_lineage_after_graft() {
 /// `props_meridian_pieces_meet` at the shape door (`tessellate`) — the
 /// sub-ε one too, because the split's own `t` is a structural fact, not
 /// a value within ε — while the unsplit edge shifted the same way still
-/// answers bitwise (one edge's span is shift-invariant). The volume
-/// folds nothing: the torus's chart Green form reads each piece's own
-/// span on its own carrier, so the re-certified child is the same arc
-/// and the volume is the donut's.
+/// answers bitwise (one edge's span is shift-invariant). The split
+/// body is construction state (its split vertex a station, tier 3's
+/// check 11), so no finished-body door measures its volume.
 #[test]
 fn m10r2_set_edge_curve_on_a_split_child() {
     let tol = Tol::witness();
@@ -319,26 +255,23 @@ fn m10r2_set_edge_curve_on_a_split_child() {
         if set.is_err() {
             continue;
         }
-        let v = volume(&body);
         let m = mesh::tessellate(&body, 0.1, tol).map(|m| m.positions.len());
-        println!(
-            "M10R2 split={split} phi={phi:e}: V = {v:?} (donut {v_donut}), tessellate = {m:?}"
-        );
+        println!("M10R2 split={split} phi={phi:e}: tessellate = {m:?}");
         if split {
             let meet = geom_brep::props::PropsError::SpanUncertified {
                 what: "props_meridian_pieces_meet",
             };
-            let v = v.unwrap_or_else(|e| panic!("split={split} phi={phi:e}: measures: {e:?}"));
-            assert!(
-                (v - v_donut).abs() <= 1e-12 * v_donut,
-                "split={split} phi={phi:e}: the re-certified child is the same arc: {v} vs {v_donut}"
+            let base = donut();
+            construction_state(
+                &body,
+                &split_points(&base, base.edges().next().unwrap().0, &[0.5]),
             );
             assert!(
                 matches!(&m, Err(mesh::TessellateError::UnsupportedCurvedShape { source, .. }) if *source == meet),
                 "split={split} phi={phi:e}: tessellate refuses at the shape door: {m:?}"
             );
         } else {
-            let v = v.expect("one edge's span is shift-invariant");
+            let v = volume(&body).expect("one edge's span is shift-invariant");
             let ulps = (v.to_bits() as i64 - v_donut.to_bits() as i64).abs();
             println!(
                 "M10R2 split={split} phi={phi:e}: V - donut = {:e}, ulps apart: {ulps}",

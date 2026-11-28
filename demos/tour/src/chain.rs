@@ -180,7 +180,7 @@ pub const CERTIFIED_PIN_BOX: [(f64, f64); LINKS + 1] = [
 pub fn pin_axis<T: pncad::geom_core::Real>(body: &Body<T>) -> (T, T) {
     let mut found: Option<(SurfaceKey, (T, T))> = None;
     for (fk, face) in body.faces() {
-        let Some(Surface::Cylinder { frame, .. }) = body.face_surface(fk) else {
+        let Ok(Surface::Cylinder { frame, .. }) = body.face_surface(fk) else {
             continue;
         };
         let origin = frame.origin();

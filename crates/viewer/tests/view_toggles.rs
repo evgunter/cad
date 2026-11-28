@@ -19,10 +19,11 @@
 use crate::common;
 use pncad::document::{Bodies, BodyRead, Doc, Node, Operand, ProfileProgram, RecipeNodeId, VarId};
 use pncad::geom_core::Tol;
+use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
 use viewer::display::{BodyToggle, DisplayView, Held, SpaceToggles};
 use viewer::pickcache::{CacheStep, PickCache};
 use viewer::pickindex::PickIndex;
-use viewer::session::{BooleanSpec, DocSession, SessionOp};
+use viewer::session::{BooleanSpec, DocSession, FaceSelection, SessionOp};
 
 /// The box's side and depth: plate-scale, so `common::plate_delta`
 /// draws it.
@@ -99,40 +100,111 @@ fn row(session: &DocSession, node: RecipeNodeId) -> (BodyToggle, bool) {
 /// Whether the picture draws some body of `node` — itself, or for a
 /// `⊔` a piece of it — under `view`, as the scene and the pick read it:
 /// a part of the index that no hide drops and a shown drawing of `node`
-/// covers.
+/// covers; or, for a profile or a datum, an outline the pick measures.
 fn visible(index: &PickIndex, view: &DisplayView, node: RecipeNodeId) -> bool {
-    index.parts().iter().any(|part| {
-        !view.hides(part.node(), part.body())
-            && view
-                .shown_drawn
-                .iter()
-                .any(|drawn| drawn.of_node(node) && drawn.draws(part.node(), part.body()))
-    })
+    !index.drawn_outline(node, view).is_empty()
+        || index.parts().iter().any(|part| {
+            !view.hides(part.node(), part.body())
+                && view
+                    .shown_drawn
+                    .iter()
+                    .any(|drawn| drawn.of_node(node) && drawn.draws(part.node(), part.body()))
+        })
 }
 
-/// **Every toggle says what the picture does**: a body whose own toggle
-/// and its space's are on is drawn, and no other is — read off the
-/// toggles on one side and the index and the scene's view on the
-/// other. A body whose value the index cannot draw (a refusal, on its
-/// own badge) is not a toggle's to answer for.
+/// **Every toggle says what the picture does**: a body whose own
+/// toggle and its space's are on is drawn, and no other is — read off
+/// the toggles on one side and the index and the scene's view on the
+/// other. An outline is asked **per drawing**: it has a row in each
+/// space it is drawn in, and each of its drawings is measured by the
+/// pick exactly where the row of the drawing's space reads on, its own
+/// toggle and the space's. A body whose value the index cannot draw (a
+/// refusal, on its own badge) is not a toggle's to answer for.
 fn assert_toggles_agree(session: &DocSession, index: &PickIndex, at: &str) {
     let view = session.display_view();
     let undrawn: Vec<RecipeNodeId> = index.undrawn().iter().map(|u| u.node()).collect();
+    let (doc, eval) = session.landed_pair().expect("landed");
+    let mut rows: std::collections::BTreeMap<RecipeNodeId, Vec<(Option<VarId>, bool, bool)>> =
+        std::collections::BTreeMap::new();
     for group in toggles(session) {
         for body in group.bodies {
-            if undrawn.contains(&body.node) {
-                continue;
-            }
+            rows.entry(body.node)
+                .or_default()
+                .push((group.space, body.on, group.on));
+        }
+    }
+    for (node, rows) in rows {
+        if undrawn.contains(&node) {
+            continue;
+        }
+        if !doc.node(node).is_some_and(viewer::world::draws_an_outline) {
             assert_eq!(
-                body.on && group.on,
-                visible(index, &view, body.node),
-                "{at}: {:?}'s toggle ({}, its space's {}) says what is drawn",
-                body.node,
-                body.on,
-                group.on
+                rows.iter().any(|&(_, on, space_on)| on && space_on),
+                visible(index, &view, node),
+                "{at}: {node:?}'s toggles (space, own, its space's: {rows:?}) say what is drawn"
+            );
+            continue;
+        }
+        for drawing in drawings(doc, eval, node) {
+            let row_on = rows
+                .iter()
+                .any(|&(space, on, space_on)| space == drawing.space && on && space_on);
+            assert_eq!(
+                row_on,
+                picked_at(index, &view, &drawing),
+                "{at}: {node:?}'s drawing in {:?} is measured where its row ({rows:?}) reads on",
+                drawing.space
             );
         }
     }
+}
+
+/// `node`'s committed drawings, one per place the picture draws it.
+fn drawings(
+    doc: &Doc<ProfileProgram>,
+    eval: &pncad::document::Evaluation<f64>,
+    node: RecipeNodeId,
+) -> Vec<viewer::sketch::CommittedProfile> {
+    viewer::sketch::committed(doc, eval, 1.0e-4, None)
+        .drawn
+        .into_iter()
+        .filter(|drawn| drawn.node == node)
+        .collect()
+}
+
+/// Where `drawing`'s first corner stands under `view`'s maps, whether
+/// or not a hide drops it.
+fn corner_under(view: &DisplayView, drawing: &viewer::sketch::CommittedProfile) -> [f64; 3] {
+    let unhidden = DisplayView {
+        hidden_outlines: Default::default(),
+        hidden_spaces: Default::default(),
+        ..view.clone()
+    };
+    let loops: Vec<_> = drawing
+        .loops
+        .iter()
+        .map(|lp| lp.drawn_on(&drawing.plane))
+        .collect();
+    let placed = unhidden
+        .outline(drawing.node, drawing.space, drawing.copy, &loops)
+        .expect("nothing hides it");
+    let p = placed[0][0];
+    [p.x, p.y, p.z]
+}
+
+/// Whether the pick measures `drawing` under `view`: some drawing of its
+/// node the index holds starts at its corner.
+fn picked_at(
+    index: &PickIndex,
+    view: &DisplayView,
+    drawing: &viewer::sketch::CommittedProfile,
+) -> bool {
+    let at = corner_under(view, drawing);
+    index.drawings_of(drawing.node, view).iter().any(|loops| {
+        loops.first().and_then(|lp| lp.first()).is_some_and(|p| {
+            (p.x - at[0]).abs() < 1e-9 && (p.y - at[1]).abs() < 1e-9 && (p.z - at[2]).abs() < 1e-9
+        })
+    })
 }
 
 /// The document as it would be saved.
@@ -613,4 +685,366 @@ fn a_dropped_show_is_reported() {
         "and not as a hide"
     );
     assert!(session.display().toggled().is_empty(), "and is gone");
+}
+
+/// **An outline shown through a copy is listed, hidden and moved where
+/// it is drawn**: a profile drawn on a box's top cap, whose box is
+/// placed into a second box's space, is drawn in that space and not its
+/// own. Its row is under that space, whose hide drops it, and a
+/// free-move opened on it moves that space.
+///
+/// *Breaks if* an outline's row is grouped by its own space rather than
+/// the one it is drawn in (hiding the drawn space drops it while its
+/// row reads on), or the free-move asks its own space, which the
+/// picture does not show.
+#[test]
+fn an_outline_shown_through_a_copy_is_toggled_where_it_is_drawn() {
+    let tol = Tol::witness();
+    let (doc, cube) = extrude(&Doc::empty_derived("toggles-outline-copy", tol), 0.0, tol);
+    let (doc, other) = extrude(&doc, 3.0 * SIDE, tol);
+    let (mut session, mut cache) = landed(doc, tol);
+    let top = FaceSelection {
+        name: StableName {
+            kind: EntityKind::Face,
+            node: cube,
+            path: vec![RoleSeg::Cap(CapEnd::End)],
+        },
+        node: cube,
+        body: 0,
+    };
+    let drawn = common::session_insert(
+        &mut session,
+        SessionOp::DrawOnFace {
+            face: top,
+            traced: Vec::new(),
+            chains: vec![common::rectangle_chain([0.004, 0.004], 0.006, 0.004)],
+        },
+    );
+    let own = session
+        .committed_doc()
+        .node_space(cube)
+        .expect("the box's space");
+    let there = session
+        .committed_doc()
+        .node_space(other)
+        .expect("the other's space");
+    assert_eq!(
+        session.committed_doc().node_space(drawn),
+        Some(own),
+        "the profile is in the box's space"
+    );
+    perform(
+        &mut session,
+        SessionOp::Place {
+            body: cube.into(),
+            target: Operand::Var(there),
+            name: None,
+        },
+    );
+    session.pump();
+    sync(&session, &mut cache);
+    let listed_under = |session: &DocSession, space: VarId| {
+        toggles(session)
+            .iter()
+            .any(|group| group.space == Some(space) && group.bodies.iter().any(|b| b.node == drawn))
+    };
+    assert!(listed_under(&session, there), "listed where it is drawn");
+    assert!(!listed_under(&session, own), "and not under its own space");
+    let index = cache.index().expect("indexed");
+    assert!(
+        visible(index, &session.display_view(), drawn),
+        "premise: drawn"
+    );
+    assert_toggles_agree(&session, index, "at rest");
+
+    for hidden in [true, false] {
+        perform(
+            &mut session,
+            SessionOp::SetSpaceHidden {
+                space: there,
+                hidden,
+            },
+        );
+        let index = cache.index().expect("indexed");
+        assert_eq!(
+            visible(index, &session.display_view(), drawn),
+            !hidden,
+            "the drawn space's hide reaches it"
+        );
+        assert_toggles_agree(&session, index, "the drawn space toggled");
+    }
+    for on in [false, true] {
+        toggle(&mut session, drawn, on);
+        let index = cache.index().expect("indexed");
+        assert_toggles_agree(&session, index, "its own toggle turned");
+    }
+
+    // A free-move opened on the outline moves the space it is drawn in,
+    // and its drawing with it.
+    let (doc, eval) = session.landed_pair().expect("landed");
+    let drawing = drawings(doc, eval, drawn)
+        .pop()
+        .expect("drawn through the copy");
+    let before = corner_under(&session.display_view(), &drawing);
+    for op in [
+        SessionOp::BeginFreeMove { node: drawn },
+        SessionOp::PreviewFreeMove {
+            node: drawn,
+            frame: common::drawn::translated([SHIFT, 0.0, 0.0]),
+        },
+        SessionOp::CommitFreeMove { node: drawn },
+    ] {
+        perform(&mut session, op);
+    }
+    assert_eq!(
+        session.display().free_move_of(there),
+        Some(&common::drawn::translated([SHIFT, 0.0, 0.0])),
+        "the space it is drawn in is the one moved"
+    );
+    let index = cache.index().expect("indexed");
+    let view = session.display_view();
+    let after = corner_under(&view, &drawing);
+    assert!(
+        (after[0] - before[0] - SHIFT).abs() < 1e-9 && after[1] == before[1],
+        "the drawing moves with it: {before:?} -> {after:?}"
+    );
+    assert!(picked_at(index, &view, &drawing), "and is picked there");
+    assert_toggles_agree(&session, index, "the drawn space moved");
+}
+
+/// How far the copy fixtures' second copy and the free-move carry a
+/// drawing: clear of every other.
+const SHIFT: f64 = 0.1;
+
+/// **Three boxes and a profile drawn on the first's top cap**, nothing
+/// placed: the document, the first box, the profile, and the second and
+/// third boxes' own spaces.
+fn drawn_on_a_box(
+    tag: &str,
+    tol: Tol,
+) -> (
+    Doc<ProfileProgram>,
+    RecipeNodeId,
+    RecipeNodeId,
+    VarId,
+    VarId,
+) {
+    let (doc, cube) = extrude(&Doc::empty_derived(tag, tol), 0.0, tol);
+    let (doc, other) = extrude(&doc, 3.0 * SIDE, tol);
+    let (doc, third) = extrude(&doc, 6.0 * SIDE, tol);
+    let (mut session, _) = landed(doc, tol);
+    let drawn = common::session_insert(
+        &mut session,
+        SessionOp::DrawOnFace {
+            face: FaceSelection {
+                name: StableName {
+                    kind: EntityKind::Face,
+                    node: cube,
+                    path: vec![RoleSeg::Cap(CapEnd::End)],
+                },
+                node: cube,
+                body: 0,
+            },
+            traced: Vec::new(),
+            chains: vec![common::rectangle_chain([0.004, 0.004], 0.006, 0.004)],
+        },
+    );
+    let doc = session.committed_doc().clone();
+    let space = |node| doc.node_space(node).expect("a construction's own space");
+    let (t, u) = (space(other), space(third));
+    (doc, cube, drawn, t, u)
+}
+
+/// `doc` with a copy of `body` placed into `target`, pinned translated
+/// by `at` from where `body` stands; the document and the copy.
+fn placed_into(
+    doc: &Doc<ProfileProgram>,
+    body: RecipeNodeId,
+    target: VarId,
+    at: [f64; 3],
+    tol: Tol,
+) -> (Doc<ProfileProgram>, RecipeNodeId) {
+    let (doc, copy) = common::inserted(
+        doc,
+        Node::place(
+            BodyRead::plain(Operand::from(body)),
+            Operand::Var(target),
+            pncad::document::stand().bundle(),
+        ),
+        tol,
+    );
+    (
+        common::drawn::pinned(doc, copy, &common::drawn::translated(at)),
+        copy,
+    )
+}
+
+/// **Two copies into one space draw an outline twice, under one row**:
+/// the box is placed into a second box's space twice, `SHIFT` apart, so
+/// the profile on its cap is drawn at both, both in that space. One row,
+/// under that space; its hide drops both drawings; a free-move opened
+/// on the outline moves that space.
+///
+/// *Breaks if* the two drawings make two rows, or a drawing escapes its
+/// space's hide.
+#[test]
+fn two_copies_into_one_space_draw_an_outline_under_one_row() {
+    let tol = Tol::witness();
+    let (doc, cube, drawn, t, _) = drawn_on_a_box("toggles-outline-one-space", tol);
+    let (doc, _) = placed_into(&doc, cube, t, [0.0, 0.0, 0.0], tol);
+    let (doc, _) = placed_into(&doc, cube, t, [SHIFT, 0.0, 0.0], tol);
+    let (mut session, cache) = landed(doc, tol);
+    let (doc, eval) = session.landed_pair().expect("landed");
+    let at: Vec<_> = drawings(doc, eval, drawn).iter().map(|d| d.space).collect();
+    assert_eq!(
+        at,
+        vec![Some(t), Some(t)],
+        "the premise: drawn twice, both in T"
+    );
+    let rows: usize = toggles(&session)
+        .iter()
+        .map(|group| group.bodies.iter().filter(|b| b.node == drawn).count())
+        .sum();
+    assert_eq!(rows, 1, "one row");
+    let index = cache.index().expect("indexed");
+    assert_toggles_agree(&session, index, "at rest");
+    perform(
+        &mut session,
+        SessionOp::SetSpaceHidden {
+            space: t,
+            hidden: true,
+        },
+    );
+    assert!(
+        index.drawings_of(drawn, &session.display_view()).is_empty(),
+        "the space's hide drops both"
+    );
+    assert_toggles_agree(&session, index, "T hidden");
+    perform(
+        &mut session,
+        SessionOp::SetSpaceHidden {
+            space: t,
+            hidden: false,
+        },
+    );
+    perform(&mut session, SessionOp::BeginFreeMove { node: drawn });
+    perform(&mut session, SessionOp::CancelFreeMove);
+}
+
+/// **Two copies into two spaces draw an outline in each, under a row in
+/// each**: the box is placed into a second box's space and a third's,
+/// so the profile on its cap is drawn in both. Hiding one space drops
+/// that space's drawing and not the other's, and a free-move opened on
+/// the outline refuses, naming both spaces: no one space is the one it
+/// is drawn in.
+///
+/// *Breaks if* a space's hide reaches the other space's drawing (the
+/// census is per drawing), or the free-move picks one of the two.
+#[test]
+fn two_copies_into_two_spaces_draw_an_outline_in_each() {
+    let tol = Tol::witness();
+    let (doc, cube, drawn, t, u) = drawn_on_a_box("toggles-outline-two-spaces", tol);
+    let (doc, _) = placed_into(&doc, cube, t, [0.0, 0.0, 0.0], tol);
+    let (doc, _) = placed_into(&doc, cube, u, [SHIFT, 0.0, 0.0], tol);
+    let (mut session, cache) = landed(doc, tol);
+    let listed: Vec<Option<VarId>> = toggles(&session)
+        .iter()
+        .filter(|group| group.bodies.iter().any(|b| b.node == drawn))
+        .map(|group| group.space)
+        .collect();
+    let mut want = vec![Some(t), Some(u)];
+    want.sort();
+    let mut listed_sorted = listed.clone();
+    listed_sorted.sort();
+    assert_eq!(listed_sorted, want, "a row under each space it is drawn in");
+    let index = cache.index().expect("indexed");
+    assert_eq!(
+        index.drawings_of(drawn, &session.display_view()).len(),
+        2,
+        "the premise: drawn twice"
+    );
+    assert_toggles_agree(&session, index, "at rest");
+    perform(
+        &mut session,
+        SessionOp::SetSpaceHidden {
+            space: t,
+            hidden: true,
+        },
+    );
+    assert_eq!(
+        index.drawings_of(drawn, &session.display_view()).len(),
+        1,
+        "T's hide drops T's drawing alone"
+    );
+    assert_toggles_agree(&session, index, "T hidden");
+    perform(
+        &mut session,
+        SessionOp::SetSpaceHidden {
+            space: t,
+            hidden: false,
+        },
+    );
+    toggle(&mut session, drawn, false);
+    assert_toggles_agree(&session, index, "its own toggle off");
+    toggle(&mut session, drawn, true);
+
+    let refused = session.perform(SessionOp::BeginFreeMove { node: drawn });
+    let Some(viewer::session::Refusal::Display(viewer::display::DisplayFault::Admission(
+        viewer::display::AdmissionFault::DrawnInSpaces(in_spaces),
+    ))) = &refused.refusal
+    else {
+        panic!("refused as drawn in two spaces: {:?}", refused.refusal);
+    };
+    let named: Vec<VarId> = in_spaces.spaces.iter().map(|space| space.id()).collect();
+    assert_eq!(
+        named,
+        want.iter().flatten().copied().collect::<Vec<_>>(),
+        "naming both"
+    );
+    let said = refused.refusal.as_ref().expect("refused").to_string();
+    for space in &in_spaces.spaces {
+        let name = pncad::document::Said(space, pncad::document::Speaker::TAG)
+            .sentence()
+            .to_string();
+        assert!(said.contains(&name), "{said:?} names {name:?}");
+    }
+}
+
+/// **A copy chain that cycles through unshown spaces ends**: the box is
+/// copied into the second box's space, that copy back into the box's
+/// own space, and that copy and the second box each into the world, so
+/// neither space holds a drawn body. The walk from the box's space
+/// comes back to it; it ends, and the profile is drawn in the world.
+///
+/// *Breaks if* `world::showings` follows the cycle (a stack overflow).
+#[test]
+fn a_copy_chain_that_cycles_through_unshown_spaces_ends() {
+    let tol = Tol::witness();
+    let (doc, cube, drawn, t, _) = drawn_on_a_box("toggles-outline-cycle", tol);
+    let own = doc.node_space(cube).expect("the box's space");
+    let (doc, c1) = placed_into(&doc, cube, t, [0.0, 0.0, 0.0], tol);
+    let (doc, c2) = placed_into(&doc, c1, own, [0.0, 0.0, 0.0], tol);
+    let (doc, _) = placed_into(&doc, c2, VarId::WORLD, [0.0, 0.0, 0.0], tol);
+    let other = doc
+        .ids()
+        .into_iter()
+        .find(|&node| {
+            doc.node_space(node) == Some(t)
+                && doc
+                    .node(node)
+                    .is_some_and(|n| matches!(n, Node::Extrude { .. }))
+        })
+        .expect("the second box");
+    let (doc, _) = placed_into(&doc, other, VarId::WORLD, [0.0, 0.0, 0.0], tol);
+    let shown = viewer::world::shown_spaces(&doc);
+    assert!(
+        !shown.contains(&own) && !shown.contains(&t),
+        "the premise: neither space is shown: {shown:?}"
+    );
+    let spaces = viewer::world::drawn_spaces(&doc, &shown, drawn);
+    assert_eq!(
+        spaces,
+        std::collections::BTreeSet::from([Some(VarId::WORLD)]),
+        "the walk ends, in the world"
+    );
 }

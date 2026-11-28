@@ -56,6 +56,35 @@ pub fn vessel_at<T: Decide + topo::AtRestPolicy>(r: f64, h: f64) -> Body<T> {
     )
 }
 
+/// **The disc drum**: a circle of two half arcs on the `zx` plane,
+/// extruded `h` along `+y` — the vessel's solid (one cylinder of radius
+/// `r`, caps at `y = 0` and `y = h`) worn by TWO wall faces on one
+/// cylinder chart, parted by the two profile vertices' struts, each a
+/// DECLARED chart image (the profile vertex's extrusion declared it). A
+/// full revolve's wall is one face whose seam is derived, so the rows
+/// whose subject is a declared image on a shared curved chart stand on
+/// this body.
+pub fn disc_drum(r: f64, h: f64) -> Body<f64> {
+    let lp = bulge_loop(vec![
+        (Point2::new(r, 0.0), 1.0),
+        (Point2::new(-r, 0.0), 1.0),
+    ]);
+    let profile = Profile::new(SketchPlane::zx(), vec![lp])
+        .validate(Tol::witness())
+        .expect("the two-arc disc is a valid profile");
+    sweep::extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the disc extrudes")
+    .body
+    .into_body()
+}
+
 /// **The tube**: the annular meridian `[ri, ro] × [0, h]` revolved a
 /// full turn — the curved two-shell shape the STEP gate is recorded on.
 pub fn tube(ri: f64, ro: f64, h: f64) -> Body<f64> {
@@ -108,8 +137,9 @@ pub fn capped_vessel(r: f64, h: f64, deg: f64) -> (Body<f64>, f64, f64) {
 
 /// **The hollow capped vessel**: [`capped_vessel`]`(0.5, 0.6, 60)`
 /// shelled sealed at `0.2`, so its void is the same vessel eroded — a
-/// void with a pole-touching cap. Returns the body, the void cap's two
-/// half-faces and the operand's sphere radius.
+/// void with a pole-touching cap. Returns the body, the void cap's
+/// faces (one, its seam ending at the pole) and the operand's sphere
+/// radius.
 pub fn hollow_capped_vessel() -> (Body<f64>, Vec<topo::FaceKey>, f64) {
     let (vessel, rho, _) = capped_vessel(0.5, 0.6, 60.0);
     let hollow = topo::shell(
@@ -123,7 +153,7 @@ pub fn hollow_capped_vessel() -> (Body<f64>, Vec<topo::FaceKey>, f64) {
         .faces()
         .filter(|(fk, _)| {
             matches!(hollow.face_surface(*fk),
-                Some(geom::Surface::Sphere { radius, .. }) if (*radius - (rho - 0.2)).abs() < 1e-12)
+                Ok(geom::Surface::Sphere { radius, .. }) if (*radius - (rho - 0.2)).abs() < 1e-12)
         })
         .map(|(k, _)| k)
         .collect();

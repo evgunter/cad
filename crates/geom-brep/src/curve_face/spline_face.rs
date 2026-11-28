@@ -80,14 +80,16 @@
 //!   band of the chart's at the meeting's chart point; two within the
 //!   band of each other refuse.
 //!
-//! The walk is `geom_core::bisect::bisect`, with its piece budget.
+//! The walk is `geom_core::bisect::bisect_within`, with its piece budget
+//! past the blocks it starts from.
 
 use core::num::NonZeroUsize;
 
 use geom::{Curve3, NurbsSurface};
-use geom_core::bisect::{Step, bisect};
+use geom_core::bisect::{Budget, PIECE_BUDGET, Step, bisect_within};
 use geom_core::interval::dot;
 use geom_core::k_stats::decide;
+use geom_core::solved::decide_admit;
 use geom_core::spline::Knots;
 use geom_core::{
     Band, Bounds, CertifiedBounds, Decide, Indeterminate, Interval, Margin, Point3, Real, Sign,
@@ -97,7 +99,7 @@ use geom_core::{
 use crate::krawczyk::{
     det3, image, inverse3, mag, meet3, midpoint, midpoints, norm, solution_reach,
 };
-use crate::roots::Unsettled;
+use crate::roots::{Unsettled, unadmitted};
 use crate::ssi::enclose::{NurbsBoxes, UvWindow};
 
 /// Why [`isolate`] or [`settle`] gave no answer.
@@ -137,9 +139,12 @@ impl From<Unsettled> for SplineFaceRefusal {
 /// span, the chart point it meets, and the carrier's point there.
 #[derive(Clone, Copy, Debug)]
 pub struct ChartMeeting<T: Real> {
-    /// The parameter on the span.
+    /// The parameter on the span, admitted by its point reading on the
+    /// chart ([`geom_core::solved::decide_admit`]).
     pub t: T,
-    /// The chart point, `(u, v)`.
+    /// The chart point, `(u, v)`: the place the meeting was read at, an
+    /// `f64` beside the stored `t` (`geom-core` README, DL5.2: a place
+    /// is never a `T`).
     pub uv: (f64, f64),
     /// The carrier's point at `t`.
     pub point: Point3<T>,
@@ -927,7 +932,11 @@ pub fn isolate<T: CertifiedBounds>(
     let mut ends: Vec<Cell> = sectors.into_iter().flatten().collect();
     let mut found: Vec<Found> = Vec::new();
     let pieces = blocks.iter().map(|&x| (x, x));
-    let walked = bisect(pieces, |(x, block): (Cell, Cell)| {
+    // Every block is a root read once, so the budget walls the
+    // refinement past them: the span's knot spans times the chart's
+    // cells, thousands on a carrier fitted at a fine band.
+    let mut budget = Budget::new(PIECE_BUDGET.saturating_add(blocks.len()));
+    let walked = bisect_within(pieces, &mut budget, |(x, block): (Cell, Cell)| {
         if held(&found, &ends, x) {
             return Step::Settled;
         }
@@ -1143,16 +1152,17 @@ pub fn settle<T: geom_core::Certifies>(
             continue;
         }
         let [tm, um, vm] = root.mid();
-        let point = carrier.eval(T::from_computed(tm));
         let foot = chart.eval_at(um, vm);
         // Definitely off at the located meeting: the enclosure's point
-        // is not resolved to the band.
-        if gap_as("spline_face_root_on", point, foot)? != Sign::Zero {
-            return Err(Unsettled::Meter {
-                row: "spline_face_root_on",
-            }
-            .into());
-        }
+        // is not resolved to the band. The check bounds the distance
+        // between the carrier's point and the chart's at the box's middle,
+        // in metres; the readers below decide where that point stands
+        // along the span, against the box the walk proved and charged.
+        let (t, point) = decide_admit("spline_face_root_on", tm, band, |t| {
+            let point = carrier.eval(t);
+            (Margin::of((point - foot).norm()), point)
+        })
+        .map_err(|refused| unadmitted(refused, SplineFaceRefusal::Escalated))?;
         let mut at_end = false;
         for end in ends {
             at_end |= gap_as("spline_face_root_at_end", point, end)? == Sign::Zero;
@@ -1174,7 +1184,7 @@ pub fn settle<T: geom_core::Certifies>(
             return Err(Unsettled::Tangency.into());
         }
         out.push(ChartMeeting {
-            t: T::from_computed(tm),
+            t,
             uv: (um, vm),
             point,
         });
@@ -1196,3 +1206,6 @@ mod review_r2_rows;
 
 #[cfg(test)]
 mod past_end_rows;
+
+#[cfg(test)]
+mod crossing_parameter_rows;

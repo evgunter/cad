@@ -100,7 +100,6 @@ fn stop(got: &Result<BooleanResult<f64>, BooleanError>, kind: Option<geom::Surfa
             },
             other => format!("result {other:?}"),
         },
-        Err(BooleanError::GermSectionSpiric { .. }) => "spiric".to_owned(),
         Err(BooleanError::CurvedPairUnsupported {
             site: topo::PairRefusalSite::InteriorLoopGuard,
             kind,
@@ -147,9 +146,10 @@ fn marching<R>(run: impl FnOnce() -> R) -> (R, usize) {
 
 /// `a` against the donut moved to each of `places`, under ∪ in both
 /// member orders (`A ∪ B`, then `B ∪ A`), against `want` by placement at
-/// the compiled ε, each run marching its one marched pair once (the
+/// the compiled ε, each run marching each marched pair once (the
 /// section table carries a pair once per operation, for the germ mint,
-/// the join and the certificate alike); `other_eps` names the
+/// the join and the certificate alike): one pair, but where `two` names
+/// the placement; `other_eps` names the
 /// placements that stop elsewhere at another ε row, measured: at `1e-6`
 /// a march's tube straddles
 /// (`work/secttorus/the-torus-doors-tube-straddles-transverse-poses-at-a-coarse-band.md`).
@@ -158,6 +158,7 @@ fn row(
     places: &[usize],
     want: &[[&str; 2]],
     other_eps: &[(f64, usize, [&str; 2])],
+    two: &[usize],
 ) {
     let eps = Tol::witness().eps();
     let mut off = Vec::new();
@@ -183,7 +184,8 @@ fn row(
         if got != *want {
             off.push(format!("placement {i}: {got:?}"));
         }
-        if marches != [1, 1] {
+        let pairs = if two.contains(&i) { 2 } else { 1 };
+        if marches != [pairs, pairs] {
             off.push(format!("placement {i}: marches by op {marches:?}"));
         }
         for (order, r) in [("A ∪ B", &ab), ("B ∪ A", &ba)] {
@@ -229,8 +231,8 @@ pub(crate) fn union_floor(
 /// foot on the carried section, the general placements' (1, 2, 3, 5)
 /// listed by the march and the square walls' (0, 4) counted; every run
 /// builds past the mint, its chorded walls and torus face measured through
-/// the rotational lane, but placement 3, which stops at the cap plane's
-/// spiric (`GermSectionSpiric`). Placement 5 divides the drum's wall,
+/// the rotational lane; placement 3's tube crosses the cap plane
+/// obliquely too, a second marched pair. Placement 5 divides the drum's wall,
 /// holding a ring, by a spline chord, and re-homes the ring by the path.
 /// No body here is held to a volume of its own
 /// (`work/spiricarm/the-general-pose-torus-germ-unions-that-build-have-no-volume-truth.md`).
@@ -243,7 +245,7 @@ fn a_drum_against_a_moved_donut_passes_the_germ_mint() {
             [BUILDS, BUILDS],
             [BUILDS, BUILDS],
             [BUILDS, BUILDS],
-            ["spiric", "spiric"],
+            [BUILDS, BUILDS],
             [BUILDS, BUILDS],
             [BUILDS, BUILDS],
         ],
@@ -252,6 +254,7 @@ fn a_drum_against_a_moved_donut_passes_the_germ_mint() {
             (1e-6, 3, ["tube straddles"; 2]),
             (1e-6, 5, ["tube straddles"; 2]),
         ],
+        &[3],
     );
 }
 
@@ -262,7 +265,7 @@ fn a_drum_against_a_moved_donut_passes_the_germ_mint() {
 /// measured through the rotational lane.
 #[test]
 fn a_ball_round_the_donuts_axis_passes_the_germ_mint() {
-    row(ball, &[5], &[[BUILDS, BUILDS]], &[]);
+    row(ball, &[5], &[[BUILDS, BUILDS]], &[], &[]);
 }
 
 /// **Two donuts in general pose** (placements 1, 2, 3): the section the
@@ -286,5 +289,6 @@ fn two_donuts_in_general_pose_pass_the_germ_mint() {
             (1e-6, 1, ["pierce curvature"; 2]),
             (1e-6, 2, ["tube straddles"; 2]),
         ],
+        &[],
     );
 }

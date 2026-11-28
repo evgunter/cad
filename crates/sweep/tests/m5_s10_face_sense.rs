@@ -54,22 +54,26 @@ use sweep::{Extrusion, Revolution, extrude, revolve};
 use topo::boolean::point_in_solid;
 use topo::{Body, FaceKey};
 
-/// The unit ball centred at the origin: two half-sphere bands on ONE
-/// sphere surface, each **rimless** (bounded by meridians only).
+/// The unit ball centred at the origin, cut into two half-sphere lunes
+/// on ONE sphere surface, each **rimless** (bounded by meridians only).
 fn ball() -> Body<f64> {
     ball_at(0.0)
 }
 
 /// The unit ball centred at `(0, cy, 0)`, revolved from the PR 9c
 /// `ball` acceptance's half-disc (a unit semicircle closed by its
-/// on-axis diameter). `cy ≠ 0` is what the anchored-versus-vector-area
-/// row needs: it makes the `c·A⃗` terms nonzero.
+/// on-axis diameter), then split along the meridian opposite its wrap
+/// edge into two lunes: the revolve's one face reads the whole sphere,
+/// whose vector area vanishes, so only a band short of the whole sphere
+/// separates the sense's flux term from the winding-derived one.
+/// `cy ≠ 0` is what the anchored-versus-vector-area row needs: it makes
+/// the `c·A⃗` terms nonzero.
 fn ball_at(cy: f64) -> Body<f64> {
     let lp = bulge_loop(vec![
         (Point2::new(0.0, cy - 1.0), 1.0),
         (Point2::new(0.0, cy + 1.0), 0.0),
     ]);
-    revolve(
+    let mut ball = revolve(
         &validated(vec![lp]),
         axis_y(),
         Revolution::Full,
@@ -77,7 +81,9 @@ fn ball_at(cy: f64) -> Body<f64> {
     )
     .unwrap()
     .body
-    .into_body()
+    .into_body();
+    crate::seam_region_common::two_lunes(&mut ball, Tol::witness());
+    ball
 }
 
 /// The first face of `body` in arena order.
@@ -127,7 +133,7 @@ fn refused_at_the_door(body: &topo::Body<f64>) {
     );
 }
 
-/// **Acceptance row (props).** The unit ball's two half-bands are the
+/// **Acceptance row (props).** The unit ball's two lunes are the
 /// one face population in the kernel whose flux sign the BOUNDARY does
 /// not encode: a rimless band has no rim to recover `s_f` from, and
 /// its two meridians are traversed identically whichever side is
@@ -270,7 +276,7 @@ fn assembly_flip_is_wrong_but_nonzero() {
 
     let band_face = body
         .faces()
-        .find(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Sphere { .. })))
+        .find(|(fk, _)| matches!(body.face_surface(*fk), Ok(Surface::Sphere { .. })))
         .map(|(k, _)| k)
         .expect("the assembly keeps the ball's sphere bands");
     let flipped = body
@@ -582,7 +588,7 @@ fn loop_carriers(body: &Body<f64>, l: topo::LoopKey) -> Vec<geom::Curve3<f64>> {
 fn planar_arm_reaches(body: &Body<f64>) -> Vec<(FaceKey, topo::LoopKey)> {
     let mut out = Vec::new();
     for (fk, _) in body.faces() {
-        if !matches!(body.face_surface(fk), Some(Surface::Plane { .. })) {
+        if !matches!(body.face_surface(fk), Ok(Surface::Plane { .. })) {
             continue;
         }
         for (l, _, _) in body.face(fk).expect("a live face").loops() {
@@ -885,7 +891,7 @@ fn an_inverted_ellipse_bounded_planar_face_refuses_by_name() {
     );
     let planar = |pred: fn(&geom::Curve3<f64>) -> bool| -> Vec<(FaceKey, topo::LoopKey)> {
         body.faces()
-            .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Plane { .. })))
+            .filter(|(fk, _)| matches!(body.face_surface(*fk), Ok(Surface::Plane { .. })))
             .filter(|(_, f)| loop_carriers(&body, f.outer).iter().any(pred))
             .map(|(k, f)| (k, f.outer))
             .collect()
@@ -970,7 +976,7 @@ fn c_shape(dx: f64) -> Vec<ProfileLoop<f64>> {
 fn planar_caps(body: &Body<f64>) -> Vec<(FaceKey, topo::LoopKey, f64, f64)> {
     body.faces()
         .filter_map(|(k, f)| match body.face_surface(k) {
-            Some(Surface::Plane { frame, .. }) => {
+            Ok(Surface::Plane { frame, .. }) => {
                 let (origin, normal) = (frame.origin(), frame.axis());
                 Some((k, f.outer, origin.z, normal.z))
             }
@@ -1067,7 +1073,7 @@ fn a_convex_arc_c_shape_partial_revolve_caps_point_out_and_certify() {
     let mut outward: Vec<[f64; 3]> = body
         .faces()
         .filter_map(|(fk, f)| match body.face_surface(fk) {
-            Some(Surface::Plane { frame, .. }) => {
+            Ok(Surface::Plane { frame, .. }) => {
                 let normal = frame.axis();
                 let n = if f.sense { normal } else { -normal };
                 Some([n.x, n.y, n.z])

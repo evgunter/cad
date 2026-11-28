@@ -103,6 +103,7 @@ fn wall_by<T: Lane>(lofted: &Lofted<T>, score: impl Fn(Point3<f64>) -> f64) -> F
         .iter()
         .flatten()
         .flatten()
+        .flatten()
         .copied()
         .max_by(|&a, &b| score(centre(&lofted.body, a)).total_cmp(&score(centre(&lofted.body, b))))
         .expect("a loft has walls")
@@ -334,7 +335,7 @@ fn every_face_of_an_arc_railed_loft_has_a_window() {
     let rational = prism.faces().any(|(fk, _)| {
         matches!(
             prism.face_surface(fk),
-            Some(Surface::Nurbs(net)) if net.weights().iter().any(|&w| w != 1.0)
+            Ok(Surface::Nurbs(net)) if net.weights().iter().any(|&w| w != 1.0)
         )
     });
     assert!(rational, "the arc's wall is rational");

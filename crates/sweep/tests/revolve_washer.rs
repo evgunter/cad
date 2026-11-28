@@ -61,27 +61,16 @@ fn washer_full_revolve_is_genus_one_and_tier_valid() {
     // Meridians: the cylinder walls' carry their chart's own seam and
     // are derived; the plane walls have none (a plane annulus is one
     // face with no slit).
-    let RevolvedKind::Full {
-        meridians,
-        pi_walls,
-        pi_meridians,
-        pi_rims,
-        ..
-    } = &t.kind
-    else {
+    let RevolvedKind::Full { meridians, .. } = &t.kind else {
         panic!("full revolve");
     };
     let meridians = &meridians[0];
-    // Lamina case: one full-period band, no π-band entities.
-    assert!(pi_walls.iter().all(Option::is_none));
-    assert!(pi_meridians.iter().all(Option::is_none));
-    assert!(pi_rims.iter().all(Option::is_none));
     let mut seams = 0;
     let mut planes_unslit = 0;
     for (m, w) in meridians.iter().zip(&t.walls()[0]) {
         let plane = matches!(
             t.body.face_surface(w.expect("no on-axis segments")),
-            Some(Surface::Plane { .. })
+            Ok(Surface::Plane { .. })
         );
         match (m, plane) {
             (Some(e), false) => {
@@ -121,14 +110,11 @@ fn donut_two_arc_profile_shares_one_torus() {
     // V2 E4 F2 R0: v − e + f − r = 0 ⇒ genus 1.
     assert_eq!(counts(&t.body), (2, 4, 2, 0));
     // One shared torus surface.
-    assert_eq!(t.body.surfaces().count(), 1);
+    assert_eq!(t.body.described_surfaces().count(), 1);
     let k0 = t.body.get_face(t.walls()[0][0].unwrap()).unwrap().surface;
     let k1 = t.body.get_face(t.walls()[0][1].unwrap()).unwrap().surface;
     assert_eq!(k0, k1);
-    assert!(matches!(
-        t.body.get_surface(k0),
-        Some(Surface::Torus { .. })
-    ));
+    assert!(matches!(t.body.get_surface(k0), Ok(Surface::Torus { .. })));
     // Full-period rims stay conventional (same surface key each side,
     // so the surfaces under-determine the locus): images in that one
     // torus chart, declared by the profile's revolved vertex — never

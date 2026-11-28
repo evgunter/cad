@@ -151,9 +151,7 @@ impl core::error::Error for TraceFault {}
 /// On a kernel fault: the pose's or the method's readings contradict.
 fn refused<T: Real>(surface: &Surface<T>, refusal: &CrossRefusal<T>) -> TraceFault {
     use geom_brep::curve_pair::MeetFault;
-    let Some(window) = refusal.windows.first() else {
-        unreachable!("a crossing refusal holds a window");
-    };
+    let window = refusal.leading();
     match window.why {
         CrossWhy::Pose(PoseRefusal::InBand { diag, .. }) => TraceFault::Escalated(diag),
         CrossWhy::Pose(PoseRefusal::Torus(torus)) => TraceFault::Torus(torus),
@@ -187,12 +185,25 @@ fn refused<T: Real>(surface: &Surface<T>, refusal: &CrossRefusal<T>) -> TraceFau
 /// lying on it, through a cone's apex or grazing it refuses; apart, none;
 /// otherwise each meeting's parameter and point, ascending, past the
 /// ends `skip` names.
+///
+/// A spline carrier refuses [`TraceFault::Unsupported`] before the
+/// reading: a crossing's sense is read off the carrier's closed-form
+/// outward normal ([`crossing`]), which a spline has none of. C5's line
+/// arm reads a line's crossings of a chart with their incidence
+/// (`curve_face::OnChart`), which a trace may read the sense off once it
+/// reads a spline section at all; until then the trace refuses a spline
+/// as it did before the arm.
 fn meetings<T: Decide>(
     span: &Span<'_, T>,
     surface: &Surface<T>,
     skip: &[SpanEnd],
     band: Band,
 ) -> Result<Vec<(T, Point3<T>)>, TraceFault> {
+    if matches!(surface, Surface::Nurbs(_) | Surface::Approx(_)) {
+        return Err(TraceFault::Unsupported {
+            carrier: surface.kind(),
+        });
+    }
     let found = cross(span, surface, band).map_err(|refusal| refused(surface, &refusal))?;
     // A touch is no crossing: it grazes the piece where it is on the
     // span read, and is no meeting there where it is not (at an end the

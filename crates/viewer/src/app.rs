@@ -479,6 +479,13 @@ pub struct ViewerApp {
     /// set by the Features pane while it draws: the viewport marks a
     /// clearance row's witness while it is ([`crate::marks::witness`]).
     row_hovered: Option<pncad::document::RecipeNodeId>,
+    /// The profile step the editor held on the last frame
+    /// ([`ViewerBehavior::step_edited`]).
+    step_edited: Option<marks::EditedStep>,
+    /// What the profile editor says under the step it holds, as the
+    /// last focus built found it ([`marks::PanelFocus::note`]); nothing
+    /// while no focus is built over a current index.
+    step_note: Option<marks::HeldNote>,
     /// Whether the advisory-check findings window is open.
     ///
     /// Application chrome state, not a draft: nothing is being
@@ -1041,6 +1048,8 @@ impl ViewerApp {
             part_chooser: None,
             profile_drawn: ProfileDoors::default(),
             row_hovered: None,
+            step_edited: None,
+            step_note: None,
             checks_shown: false,
             controls_shown: false,
             camera,
@@ -1117,6 +1126,9 @@ impl ViewerApp {
     /// generation so a frame that changed nothing re-tessellates
     /// nothing.
     fn sync_scene(&mut self) {
+        // Found again below wherever a focus is built: a frame that
+        // builds none over a current index has nothing to say about it.
+        self.step_note = None;
         self.session.pump();
         // What the landings' prunes withdrew (DI5: a placement that pins
         // a free-moved space takes effect when its solve lands), said as
@@ -1224,7 +1236,13 @@ impl ViewerApp {
         let Some(index) = self.picks.index() else {
             return;
         };
-        let focus = marks::focus(index, self.session.doc(), self.session.selection());
+        let marks::PanelFocus { lit: focus, note } = marks::panel_focus(
+            index,
+            self.session.doc(),
+            self.session.selection(),
+            self.step_edited,
+        );
+        self.step_note = note;
         if !rebuilt
             && self.scene_display == Some(display_revision)
             && self.scene_focus == focus
@@ -2572,6 +2590,7 @@ impl eframe::App for ViewerApp {
         );
         let mut profile_drawn = ProfileDoors::<bool>::default();
         let mut row_hovered = None;
+        let mut step_edited = None;
         // **Zeroed here, every frame: after the toolbar has read last
         // frame's value and before the panes draw.** A frame the
         // viewport does not draw at all is a frame it found nothing in,
@@ -2629,6 +2648,8 @@ impl eframe::App for ViewerApp {
                     profile_was_drawn: self.profile_drawn,
                     row_hovered: &mut row_hovered,
                     row_was_hovered: self.row_hovered,
+                    step_edited: &mut step_edited,
+                    step_note: self.step_note,
                     pending_fit: &mut self.pending_fit,
                     projection_fault: &mut self.projection_fault,
                     viewport_reads: &mut self.viewport_reads,
@@ -2653,6 +2674,12 @@ impl eframe::App for ViewerApp {
         }
         self.profile_drawn = profile_drawn;
         self.row_hovered = row_hovered;
+        // The focus is built before the panes draw, so a step taken
+        // up or let go of this frame is lit by the next one.
+        if step_edited != self.step_edited {
+            ui.ctx().request_repaint();
+        }
+        self.step_edited = step_edited;
         // An edit made while the panes drew leaves the preview a
         // frame behind. Asking for a repaint is what makes that one
         // frame rather than "until the next input event".
@@ -2819,6 +2846,12 @@ pub(crate) struct ViewerBehavior<'a> {
     /// What [`Self::row_hovered`] said on the last frame: the row whose
     /// clearance witness the viewport marks as hovered.
     pub(crate) row_was_hovered: Option<pncad::document::RecipeNodeId>,
+    /// Set by the profile editor to the step being edited while it
+    /// draws; the focus reads it next frame ([`marks::panel_focus`]).
+    pub(crate) step_edited: &'a mut Option<marks::EditedStep>,
+    /// What the editor says under the step it held on the last frame
+    /// ([`marks::PanelFocus::note`]), with the step it is about.
+    pub(crate) step_note: Option<marks::HeldNote>,
     pub(crate) pending_fit: &'a mut bool,
     /// Where the viewport leaves a view matrix it could not form, for
     /// [`frame::projection_badge`] to read: a read of the camera, so
@@ -4497,7 +4530,7 @@ mod tests {
         /// handed, derived at `widgets::field_tests::MM`.
         const DECIMALS: core::ops::RangeInclusive<usize> = 1..=3;
 
-        let door = crate::widgets::number_text(WITNESS, DECIMALS);
+        let door = crate::widgets::number_text(WITNESS);
         let toolkit = egui::emath::format_with_decimals_in_range(WITNESS, DECIMALS);
         assert_ne!(
             door, toolkit,
@@ -5635,7 +5668,8 @@ mod properties_pane_tests {
         ]);
         let row = pane.row(extrude(), SlotId::Distance);
         assert_eq!(row.source.as_deref(), Some(source.as_str()));
-        let field = crate::props::field_text(&row, pane.app.session.notation());
+        let field = crate::props::field_text(&row, pane.app.session.notation())
+            .expect("a driven row shows its reading");
         assert_eq!(field, "= 0.04 m");
         let quoted = format!("{} = {source}", SlotId::Distance.label());
         let landed = pane.landed();
@@ -5683,7 +5717,8 @@ mod properties_pane_tests {
             let shown = crate::props::field_text(
                 &pane.row(pattern, SlotId::Origin(*axis)),
                 pane.app.session.notation(),
-            );
+            )
+            .expect("a driven row shows its reading");
             pane.click(&shown);
             let open = pane.frame(Vec::new());
             assert!(
@@ -7020,7 +7055,7 @@ mod properties_pane_tests {
         let made = the_new_node(&driven, &before);
         let row = driven.row(made, SlotId::Origin(Axis3::X));
         assert_eq!(
-            crate::props::field_text(&row, driven.app.session.notation()),
+            crate::test_support::literal_field_text(&row, driven.app.session.notation()),
             "0.1"
         );
         driven.settle();
@@ -9087,7 +9122,7 @@ mod properties_pane_tests {
             driven.settle();
             let delta = driven.app.delta;
             driven.app.derived.budget_delta = Some(crate::scene::FittedDelta {
-                requested_cost: Some(1),
+                requested_cost: Some(1.0),
                 ..crate::scene::FittedDelta::as_requested(delta)
             });
             let derived = driven.app.derived;
@@ -11919,6 +11954,126 @@ mod properties_pane_tests {
             );
         }
 
+        /// A click into the outline's step 2 field, held: answers that
+        /// step, as the editor names it.
+        fn hold_step_two(driven: &mut Driven) -> crate::marks::EditedStep {
+            let painted = driven.quiet();
+            // Row 2's first field: the run after the first `x ` label
+            // that follows the row number `2`.
+            let row = painted
+                .iter()
+                .position(|(run, _)| run == "2")
+                .expect("the outline's row 2 is painted");
+            let label = row
+                + painted[row..]
+                    .iter()
+                    .position(|(run, _)| run.trim() == "x")
+                    .expect("row 2 has an x field");
+            let at = painted[label + 1].1.center();
+            let button = |pressed| egui::Event::PointerButton {
+                pos: at,
+                button: egui::PointerButton::Primary,
+                pressed,
+                modifiers: egui::Modifiers::default(),
+            };
+            // One frame: the press and release of a click, as a person's
+            // land well inside egui's click window.
+            driven.frame(vec![
+                egui::Event::PointerMoved(at),
+                button(true),
+                button(false),
+            ]);
+            driven.frame(Vec::new());
+            driven.frame(Vec::new());
+            let Some(pncad::document::Node::Profile(program)) =
+                driven.app.session.committed_doc().node(profile())
+            else {
+                panic!("the plate's profile")
+            };
+            crate::marks::EditedStep {
+                profile: profile(),
+                step: program.ids[0][2],
+            }
+        }
+
+        /// **A field held in the editor lights the wall its step swept,
+        /// and letting go lights the profile's whole body again.** A
+        /// click into the outline's step 2 field holds it; the scene the
+        /// app builds next is focused on that step's one wall
+        /// (`marks::step_focus`), never the plate.
+        #[test]
+        fn a_held_step_field_lights_its_wall() {
+            let mut driven = Driven::with(vec![SessionOp::Select(Selection::Node(profile()))]);
+            driven.quiet();
+            let whole = driven.app.scene_focus.clone();
+            assert!(whole.len() > 1, "the profile lights the plate: {whole:?}");
+            let edited = hold_step_two(&mut driven);
+            assert_eq!(
+                driven.app.step_edited,
+                Some(edited),
+                "the field holds step 2"
+            );
+            let index = driven.on_screen();
+            let wall = crate::marks::step_focus(index, driven.app.session.doc(), edited)
+                .expect("the plate's faces are named")
+                .lit;
+            assert_eq!(wall.len(), 1, "step 2 sweeps one wall: {wall:?}");
+            assert_eq!(
+                driven.app.scene_focus, wall,
+                "the scene lights that wall alone"
+            );
+            driven.frame(vec![egui::Event::Key {
+                key: egui::Key::Escape,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::default(),
+            }]);
+            driven.quiet();
+            assert_eq!(driven.app.step_edited, None, "let go, no step is held");
+            assert_eq!(
+                driven.app.scene_focus, whole,
+                "and the whole plate is lit again"
+            );
+        }
+
+        /// **A note is said only over the focus it was found with.** A
+        /// note planted for the held step, then a frame whose index is
+        /// refused, so no focus is built: the editor says nothing about
+        /// walls the picture no longer shows.
+        #[test]
+        fn a_held_steps_note_is_not_said_while_no_focus_is_built() {
+            let mut driven = Driven::with(vec![SessionOp::Select(Selection::Node(profile()))]);
+            let edited = hold_step_two(&mut driven);
+            assert_eq!(
+                driven.app.step_edited,
+                Some(edited),
+                "the field holds step 2"
+            );
+            let note = crate::marks::StepNote::Merged(1);
+            let said = note.to_string();
+            let (refusing, _) =
+                crate::test_support::RefusingIndexer::new(crate::evalseam::InlineIndexer::new());
+            driven.app.picks = crate::pickcache::PickCache::new(Box::new(refusing));
+            driven.frame(Vec::new());
+            driven.frame(Vec::new());
+            assert!(
+                driven.app.picks.error().is_some(),
+                "the premise: the index is refused"
+            );
+            driven.app.step_note = Some(crate::marks::HeldNote { step: edited, note });
+            let painted = driven.frame(Vec::new());
+            assert_eq!(
+                driven.app.step_edited,
+                Some(edited),
+                "the step is still held"
+            );
+            assert!(
+                !painted.iter().any(|(run, _)| run.contains(&said)),
+                "no note is said over a focus nobody built"
+            );
+        }
+
         /// The startup plate with `w` declared at the plate's width, its
         /// profile open in the editor.
         fn with_w() -> Driven {
@@ -13270,9 +13425,11 @@ mod properties_pane_tests {
     /// tool open, holds the whole circle** (review of PR 6129): the
     /// click goes through the frame's own `Tools::feed` call, so the
     /// `self.picks.index()` wiring is what this row reads. The startup
-    /// plate is deleted first so nothing occludes the cylinder.
+    /// plate is deleted first so nothing occludes the cylinder. A full
+    /// revolve's wall is one band, so its rim is one closed edge, and the
+    /// whole edge the index answers is that one arc.
     #[test]
-    fn a_viewport_click_on_a_seam_split_rim_holds_the_whole_circle() {
+    fn a_viewport_click_on_a_full_revolve_rim_holds_the_whole_circle() {
         use crate::session::EdgeSelection;
         use pncad::select::RoleSeg;
         let side = 0.01;
@@ -13324,10 +13481,7 @@ mod properties_pane_tests {
             height_px: f64::from(rect.height()) * ppp,
         };
         let is_rim = |name: &pncad::prelude::StableName| {
-            matches!(
-                name.path.as_slice(),
-                [.., RoleSeg::BandRim(_) | RoleSeg::BandRimPi(_)]
-            )
+            matches!(name.path.as_slice(), [.., RoleSeg::BandRim(_)])
         };
         let aimed = {
             let index = driven.on_screen();
@@ -13357,7 +13511,11 @@ mod properties_pane_tests {
             .on_screen()
             .whole_edge(&EdgeSelection { name, node, body })
             .expect("the index answers the rim");
-        assert_eq!(whole.len(), 2, "the circle under the cursor is two arcs");
+        assert_eq!(
+            whole.len(),
+            1,
+            "the circle under the cursor is one closed arc"
+        );
         let at = egui::pos2(
             rect.min.x + (cursor[0] / ppp) as f32,
             rect.min.y + (cursor[1] / ppp) as f32,
@@ -13369,7 +13527,7 @@ mod properties_pane_tests {
         held.sort();
         let mut want = whole.clone();
         want.sort();
-        assert_eq!(held, want, "one viewport click holds both arcs");
+        assert_eq!(held, want, "one viewport click holds the whole circle");
         assert_eq!(tool.count(), 1, "and counts one pick");
     }
 
@@ -14730,7 +14888,7 @@ mod properties_pane_tests {
         driven.app.drafts.new_variable_value = 0.005;
         let painted = driven.quiet();
         assert!(
-            painted.iter().any(|(run, _)| run == "5.0"),
+            painted.iter().any(|(run, _)| run == "5"),
             "5 mm: {painted:?}"
         );
         driven.app.drafts.new_variable_dimension = Some(Dimension::Scalar);

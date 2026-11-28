@@ -342,7 +342,8 @@ pub(crate) fn name_split<T: Decide>(
     }
 
     for s in &sides {
-        super::emit::check_total(&halves[s.slot()].t, s.body, 0)?;
+        let h = &mut halves[s.slot()];
+        h.t = super::emit::finish(std::mem::take(&mut h.t), s.body, 0)?;
     }
     let [above, below] = halves;
     Ok([above, below].map(|h| Emitted::new(h.t, h.rec)))
@@ -1313,10 +1314,13 @@ fn name_split_edges_vertices<T: Decide>(
                         target_node,
                     )
                 })?;
-            if target_table
-                .name_of(&ent(0, EntityKey::Vertex(src)))
-                .is_some()
-            {
+            let src_name = target_table.name_of(&ent(0, EntityKey::Vertex(src)));
+            // The plane through the target's conventional vertex crosses
+            // its closed edge's interior there, as a plane a hair away
+            // would: the vertex has no identity of its own.
+            let through_conventional =
+                super::emit::cut_through_conventional(target_body, src, src_name, body, v);
+            if src_name.is_some() && through_conventional.is_none() {
                 // The plane passed THROUGH an operand vertex: its
                 // copies in this half, named below. Its own birth
                 // record, if any, is the operation that made the
@@ -1336,14 +1340,16 @@ fn name_split_edges_vertices<T: Decide>(
             }
             // A vertex the split minted: the original's record lives in
             // whichever side kept it.
-            let parent_edge = sides
-                .iter()
-                .find_map(|sb| match sb.body.vertex_provenance_of(src) {
-                    Some(Provenance::SplitEdge { edge }) => {
-                        Some(chase_split_edge_to_table(sides, target_table, *edge))
-                    }
-                    _ => None,
-                });
+            let parent_edge = through_conventional.or_else(|| {
+                sides
+                    .iter()
+                    .find_map(|sb| match sb.body.vertex_provenance_of(src) {
+                        Some(Provenance::SplitEdge { edge }) => {
+                            Some(chase_split_edge_to_table(sides, target_table, *edge))
+                        }
+                        _ => None,
+                    })
+            });
             let Some(parent_edge) = parent_edge else {
                 unreachable!(
                     "split vertex {v:?} (standing for {src:?}) has neither a `SplitEdge` record \
@@ -1882,7 +1888,7 @@ pub(crate) fn name_boolean<T: Decide>(
     pieces.mint(&mut t, &mut tie)?;
     tie.flush(&mut t)?;
 
-    super::emit::check_total(&t, body, 0)?;
+    let t = super::emit::finish(t, body, 0)?;
     Ok(Emitted::new(t, rec))
 }
 
@@ -2481,11 +2487,6 @@ fn name_boolean_edges<T: Decide>(
             op.table.name_of(&ent(0, EntityKey::Edge(k))).is_some() && !joined_faces.contains(&e);
         if resolves {
             groups.entry(root).or_default().push(e);
-        } else if naming.chart_cuts[root.operand().index()].contains(&k) {
-            // The output stage glues a chart cut away with the two
-            // pieces of the face it divided; one left is a body the
-            // emitter cannot read.
-            return Err(bug("a chart cut survives in the result"));
         } else {
             match chord_kind(e)? {
                 ChordKind::Cross(fa, fb, one) => {
@@ -2811,16 +2812,25 @@ fn name_boolean_vertices<T: Decide>(
     // vertex fused into an A-side crossing key on a shared plane).
     let fused = Fused::of(naming);
     // An operand vertex's upstream name, if that operand's table names
-    // it. A key the table does not name (a vertex the reduction minted)
-    // yields nothing; a table that names a key and then fails to resolve
-    // it is corrupt, and says so.
-    let named_in = |side: OpSide<VertexKey>| -> Result<Option<Upstream>, NamingError> {
-        let (op, k) = side.of(a, b);
-        if op.table.name_of(&ent(0, EntityKey::Vertex(k))).is_none() {
-            return Ok(None);
-        }
-        upstream_name(op.table, op.node, ent(0, EntityKey::Vertex(k))).map(Some)
-    };
+    // it, for result vertex `v`. A key the table does not name (a vertex
+    // the reduction minted) yields nothing; a table that names a key and
+    // then fails to resolve it is corrupt, and says so. An operand's
+    // conventional vertex yields nothing at a result vertex that is no
+    // longer one: it has no identity of its own, so the vertex a cut
+    // leaves at its point is named as a point of its edge's interior, as
+    // one a hair away would be. Where the result vertex is still one, its
+    // edge names it (`emit::finish`).
+    let named_in_at =
+        |v: VertexKey, side: OpSide<VertexKey>| -> Result<Option<Upstream>, NamingError> {
+            let (op, k) = side.of(a, b);
+            let name = op.table.name_of(&ent(0, EntityKey::Vertex(k)));
+            if name.is_none()
+                || super::emit::cut_through_conventional(op.body, k, name, body, v).is_some()
+            {
+                return Ok(None);
+            }
+            upstream_name(op.table, op.node, ent(0, EntityKey::Vertex(k))).map(Some)
+        };
     // The vertex named as operand vertex `side`, its upstream `u`.
     let identity_of = |side: OpSide<VertexKey>, u: Upstream| {
         let parent = side.map(EntityKey::Vertex).parent();
@@ -2866,6 +2876,7 @@ fn name_boolean_vertices<T: Decide>(
             order.push(operand_key(naming, inv_vertices, fused.origin(k)).0);
         }
         order.extend(keys.iter().map(|&(o, k)| OpSide::on(o, k)));
+        let named_in = |side| named_in_at(v, side);
         for side in order {
             if let Some(u) = named_in(side)? {
                 identity = Some(identity_of(side, u));
@@ -3558,11 +3569,8 @@ fn senses_at<T: Decide>(
     // (side, edge) → (the sides of the vertex in the closed body,
     // before it and after it).
     let mut sides: BTreeMap<(topo::Operand, EdgeKey), [BTreeSet<bool>; 2]> = BTreeMap::new();
-    // A chart cut is no edge of its operand, so no line of a vertex.
-    let cut =
-        |row: &topo::EdgePieceClass| naming.chart_cuts[row.operand.index()].contains(&row.edge);
     for row in &naming.edge_classes {
-        if keys.contains(&(row.operand, row.vertex)) && !cut(row) {
+        if keys.contains(&(row.operand, row.vertex)) {
             sides.entry((row.operand, row.edge)).or_default()[usize::from(row.starts)]
                 .insert(row.class != topo::SideCode::Out);
         }
@@ -3576,8 +3584,8 @@ fn senses_at<T: Decide>(
         let Some(name) = op.table.name_of(&ent(0, EntityKey::Edge(edge))) else {
             unreachable!(
                 "operand edge {edge:?} of {side:?}, classified at result vertex {v:?}, is not \
-                 named: `topo::EdgePieceClass` holds an operand's own edge key, chart cuts \
-                 aside, and an operand's table is total over its body"
+                 named: `topo::EdgePieceClass` holds an operand's own edge key, and an \
+                 operand's table is total over its body"
             )
         };
         let name = name.clone();
@@ -3766,7 +3774,7 @@ fn sense_of(
 /// vertex `vertex` with**, where no operand names any of its own keys
 /// `keys` ([`operand_vertex_keys`]): the other operand's vertex in
 /// every vertex-pair row (`ReductionContacts::vv`) that holds one of
-/// them. A vertex-on-face row (`a_on_b`, `b_on_a`) is not read: it
+/// them. A vertex-on-face row (`ReductionContacts::on`) is not read: it
 /// holds the resting vertex's own key and a face, no second vertex key
 /// at the point to pair with, so it can name a result vertex only
 /// through that key, which `keys` already reads.
@@ -3777,7 +3785,7 @@ fn contact_identity(
     named_in: impl Fn(OpSide<VertexKey>) -> Result<Option<Upstream>, NamingError>,
 ) -> Result<Option<(OpSide<VertexKey>, Upstream)>, NamingError> {
     let mut named = Vec::new();
-    for row in &contacts.vv {
+    for row in contacts.vv() {
         let partner = if keys.contains(&(topo::Operand::A, row.a)) {
             OpSide::B(row.b)
         } else if keys.contains(&(topo::Operand::B, row.b)) {
@@ -4816,8 +4824,8 @@ fn rim_holding<T: Decide>(
 /// Whether edge `e` of `body` is carried by a line
 /// ([`geom::Curve3::is_curved`]), the one straightness test the flush
 /// readings share. The flush tests are straight-segment tests, and a curved
-/// edge's chord is not its locus (a sphere's two meridians share both
-/// ends and both faces).
+/// edge's chord is not its locus (the two meridians between a sphere's
+/// lunes share both ends and both faces).
 pub(super) fn is_straight<T: Decide>(body: &Body<T>, e: EdgeKey) -> bool {
     body.edge(e)
         .and_then(topo::EdgeView::certified)
@@ -4971,7 +4979,13 @@ pub(super) fn name_edge_pieces<T: geom_core::Real>(
         let (v0, v1) = edge_ends(body, e);
         let mut ends = Vec::with_capacity(2);
         for v in [v0, v1] {
-            let Some(end) = t.name_of(&ent(ix, EntityKey::Vertex(v))) else {
+            let end = t.name_of(&ent(ix, EntityKey::Vertex(v)));
+            // A closed edge's conventional vertex is named for the edge,
+            // so the edge's name cites none of it.
+            if super::emit::conventional_edge(body, v, end).is_some() {
+                continue;
+            }
+            let Some(end) = end else {
                 unreachable!(
                     "edge piece {e:?} under {base:?} ends at vertex {v:?}, which the table does \
                      not name: every caller (split, boolean, shell, union) names each vertex of \
@@ -6846,11 +6860,11 @@ mod wavy_loft {
     //! operand crosses them, the sector walk reads the spline walls
     //! around each crossing vertex, the spline walls' trims place the
     //! pierce points past the sweep's null edges, the join reads each
-    //! spline wall × plane pair on its section value, and the union
-    //! refuses where the carry cannot hold two arcs of the wall's section
-    //! apart
-    //! ([`a_union_across_a_nurbs_edge_refuses_where_two_arcs_pads_meet`],
-    //! which reds the day those pads narrow).
+    //! spline wall × plane pair on its section value, each arc carried,
+    //! and the union stops at the chord the join mints, whose image
+    //! misses it at rest
+    //! ([`a_union_across_a_nurbs_edge_stops_at_its_chords_image_at_rest`],
+    //! which reds the day that image holds).
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use crate::edit::DocEdit;
@@ -6994,21 +7008,19 @@ mod wavy_loft {
     /// wall's trim lifted past the sweep's null edges
     /// (`topo::null::Scaffolding::Skipped`). The join reads the loft's
     /// side wall `y = −1` against the face `x = 1` on the pair's section
-    /// value, whose two arcs stand closer than the pads their points are
-    /// read within, so the carry refuses them (`GermSectionUnbuilt`,
-    /// `Nurbs` × `Plane`, `CarryRefusal::PadsMeet`;
-    /// `work/sectarms/a-rim-arcs-pad-is-its-widest-certifying-rung.md`).
-    /// Past it, the plane × NURBS lane's own image of a chord misses it at
-    /// rest
-    /// (`work/sectarms/a-planes-carried-arc-across-a-flared-spline-wall-misses-its-own-image-at-rest.md`).
+    /// value, whose two arcs, two and a half rungs apart, are each read
+    /// in their own cells and carried. The join mints a chord on them,
+    /// and the plane × NURBS lane's own image of it misses it at rest
+    /// (`DescriptionUncertified`, `PlaneNurbs`, `ImageMiss`;
+    /// `work/sectarms/a-planes-carried-arc-across-a-flared-spline-wall-misses-its-own-image-at-rest.md`).
     ///
-    /// It reds the day those pads narrow. The end-to-end row, the
+    /// It reds the day that image holds. The end-to-end row, the
     /// crossings named through the boolean (the first and third, of one
     /// sense, tie), is
     /// `work/splice/a-spline-wall-cannot-say-whether-it-holds-a-pierce-point.md`'s,
     /// carried on that stop's row.
     #[test]
-    fn a_union_across_a_nurbs_edge_refuses_where_two_arcs_pads_meet() {
+    fn a_union_across_a_nurbs_edge_stops_at_its_chords_image_at_rest() {
         let (doc, loft) = wavy_doc(0.3);
         let (doc, profile) = ins(
             doc,
@@ -7071,74 +7083,31 @@ mod wavy_loft {
                  {senses:?}"
             );
         }
-        let Some(crate::eval::NodeError {
-            kind:
-                crate::eval::NodeErrorKind::Boolean(topo::BooleanError::GermSectionUnbuilt {
-                    a_face: face,
-                    a_kind: geom::SurfaceKind::Nurbs,
-                    b_face: pierced,
-                    b_kind: geom::SurfaceKind::Plane,
-                    why: topo::SectionUnbuilt::Carry(geom_brep::CarryRefusal::PadsMeet { .. }),
-                }),
-            ..
-        }) = ev.node_error(union)
-        else {
-            panic!(
-                "the union refuses where the carry cannot hold two arcs of a spline wall of \
-                 the loft against the box's face apart, got {:?}",
-                ev.node_error(union).map(|e| &e.kind)
-            );
+        let refusal = ev.node_error(union).map(|e| &e.kind);
+        let chord = match refusal {
+            Some(crate::eval::NodeErrorKind::Boolean(topo::BooleanError::Join(join))) => {
+                match join.error() {
+                    topo::JoinError::Euler(topo::EulerOpError::DescriptionUncertified {
+                        error,
+                        ..
+                    }) => Some(error),
+                    _ => None,
+                }
+            }
+            _ => None,
         };
-        // The recipe mints both bodies fresh, so their keys collide: the
-        // A face is read in the loft, the first member, and the B face
-        // in the box.
-        assert!(
-            matches!(body.face_surface(*face), Some(geom::Surface::Nurbs(_))),
-            "the refusal names a spline wall of the loft"
-        );
-        let block = ev
-            .value(copy)
-            .expect("the box evaluates")
-            .payload
-            .output_body(0)
-            .expect("the placed box");
-        // Where the placed box stands: its body is its source's, in its
-        // own coordinates, under its frame (D10 `[placement.frame]`).
-        let plane = block.body().face_surface(*pierced);
         assert!(
             matches!(
-                plane,
-                Some(geom::Surface::Plane { frame, .. })
-                    if (block.point_in_space(frame.origin()).x - 1.0).abs() < 1e-9
-                        && block.vec_in_space(frame.axis()).x.abs() > 1.0 - 1e-9
+                chord,
+                Some(geom_brep::CertifyError::PlaneNurbs(
+                    geom_brep::PlaneNurbsRefusal::Limb {
+                        limb: geom_brep::SsiLimb::ImageMiss,
+                        ..
+                    }
+                ))
             ),
-            "the pierced face is the box's face x = 1"
-        );
-        let walls: Vec<_> = near
-            .iter()
-            .filter_map(|&e| body.get_edge(e))
-            .flat_map(|e| [e.he_plus, e.he_minus])
-            .filter_map(|he| body.face_of_half_edge(he))
-            .collect();
-        assert!(
-            walls.contains(face),
-            "the refusal names a wall on a crossed corner: {face:?} of {walls:?}"
-        );
-        // Of those, the side wall `y = −1` the face `x = 1` cuts across:
-        // its corners stand at `x = ±1 ± a`, on both sides of `x = 1`.
-        let corners: Vec<_> = body
-            .half_edges()
-            .filter(|&(he, _)| body.face_of_half_edge(he) == Some(*face))
-            .filter_map(|(_, h)| body.get_vertex(h.start))
-            .filter_map(|v| body.get_point(v.point))
-            .collect();
-        assert!(
-            !corners.is_empty()
-                && corners.iter().all(|p| (p.y + 1.0).abs() < 1e-9)
-                && corners.iter().any(|p| p.x > 1.0)
-                && corners.iter().any(|p| p.x < 1.0),
-            "the refusal names the loft's side wall y = −1, which x = 1 cuts across: \
-             {corners:?}"
+            "the carry holds the two arcs of the loft's wall against the box's face apart, \
+             and the union stops at the chord's image at rest, got {refusal:?}"
         );
     }
 }

@@ -2,11 +2,11 @@
 id: a-whole-ball-cut-by-a-tilted-brick-refuses-an-unclassified-member-edge-side
 kind: issue
 title: A whole ball intersected or united with a tilted brick that cuts a cap off it refuses UNCLASSIFIED_SIDE at a union vertex
-status: parked
+status: closed
 opened: 2026-10-13
 priority: P2
 cost: M
-blocked_on: [a-conventional-vertex-mints-no-edge-derived-name]
+closed: 2026-11-24
 ---
 
 
@@ -153,3 +153,14 @@ That branch takes answer (3): it retires the re-chart and cuts every sphere esca
 ## Re-parked (2026-11-24, ORBIT)
 
 The re-chart is retired by PR 7602. With PR 7664 (the transient chart cut) the ball-and-brick document reaches naming under every op, and refuses at the section circle's conventional vertex. So this row now waits on `a-conventional-vertex-mints-no-edge-derived-name` (ORBIT, P0). Once that lands, read whether UNCLASSIFIED_SIDE still occurs. (ORBIT orchestrator)
+
+## Closed (2026-11-24, ORBIT, PR 7694)
+
+Answer (3) landed. PR 7602 retired the re-chart, PR 7664 closes the
+sphere cut-ins' chart cuts, and PR 7694 names the section circle's
+conventional vertex. On that branch every op over the ball and the
+brick names, in both orders: intersect, union and both differences
+(`crates/editor-core/tests/emit_ball_cut_by_brick.rs`,
+`every_op_over_a_ball_cut_by_a_brick_names`, green in `test (app)` on
+CI run 45402395871). No op reaches `UNCLASSIFIED_SIDE`, so the question
+this row parked has nothing left to ask. (ORBIT orchestrator)

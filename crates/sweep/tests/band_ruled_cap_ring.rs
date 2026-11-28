@@ -161,7 +161,7 @@ fn assert_consumed(body: &Body<f64>, a: f64, what: &str) {
         .filter(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(geom::Surface::Cylinder { radius, .. }) if (radius - a).abs() < 1e-12
+                Ok(geom::Surface::Cylinder { radius, .. }) if (radius - a).abs() < 1e-12
             )
         })
         .map(|(k, _)| k)
@@ -238,7 +238,7 @@ fn a_bore_inside_the_d_rods_removed_sliver_goes_with_it_at_interval() {
     let rec = out.naming.as_ref().expect("the surgery records its births");
     let walls: Vec<topo::FaceKey> = body
         .faces()
-        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(geom::Surface::Cylinder { .. })))
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Ok(geom::Surface::Cylinder { .. })))
         .map(|(k, _)| k)
         .filter(|k| out.body.get_face(*k).is_none())
         .collect();
@@ -662,7 +662,7 @@ fn a_channel_in_the_cut_cycle_reaching_into_the_sliver_refuses_ring_clearance() 
                 f.rings.is_empty()
                     && matches!(
                         body.face_surface(face),
-                        Some(geom::Surface::Plane { frame, .. }) if frame.axis().z.abs() > 0.5
+                        Ok(geom::Surface::Plane { frame, .. }) if frame.axis().z.abs() > 0.5
                     ),
                 "the face named is a cap, the channel in its outer cycle"
             );

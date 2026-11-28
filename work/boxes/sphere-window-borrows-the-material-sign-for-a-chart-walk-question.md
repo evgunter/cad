@@ -40,3 +40,17 @@ strut cap's fallback to the ball.
 Unchanged in substance. The window is `topo::cover`'s `sphere_window`,
 one constraint of the face cover's sphere arm, and still reads
 `boundary_material_sign == Encoded(sense)`.
+
+## Since `lathe/split-clear-cap` (2026-11-23)
+
+The window now reads `boundary_material_sign_holding(.., held, ..) ==
+Encoded(sense)`, where `held` is the face's held tips
+(`props::chart_image_with_tips`). So the borrow carries held-tip
+semantics: a wrap-tip cap, whose image is its rim alone, is placed by
+the pole at its tip and reads its zone, where it used to fall back to
+the ball. That reverses the deliberate no-datum fallback that
+`work/restfront/a-wrap-tip-cap-loses-its-side-datum-when-the-chart-image-drops-the-tip`
+recorded. The strut cap whose strut ends at the pole is that cap, and
+`a_caps_strut_does_not_bound_its_latitude_window` now pins its zone. A
+strut ending off a pole still reads `Unencoded` and falls back to the
+ball. The question this item raises is unchanged.

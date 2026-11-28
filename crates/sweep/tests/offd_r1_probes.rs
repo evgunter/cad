@@ -82,7 +82,7 @@ fn assert_rims_on_caps(body: &Body<f64>, face: FaceKey) {
     let caps: Vec<(geom_core::Point3<f64>, geom_core::Vec3<f64>)> = body
         .faces()
         .filter_map(|(fk, _)| match body.face_surface(fk) {
-            Some(geom::Surface::Plane { frame, .. }) => {
+            Ok(geom::Surface::Plane { frame, .. }) => {
                 let (origin, normal) = (frame.origin(), frame.axis());
                 Some((origin, normal))
             }
@@ -134,7 +134,7 @@ fn assert_rims_on_cylinders(body: &Body<f64>, face: FaceKey) {
     let cylinders: Vec<f64> = body
         .faces()
         .filter_map(|(fk, _)| match body.face_surface(fk) {
-            Some(geom::Surface::Cylinder { radius, .. }) => Some(*radius),
+            Ok(geom::Surface::Cylinder { radius, .. }) => Some(*radius),
             _ => None,
         })
         .collect();
@@ -169,7 +169,7 @@ fn assert_rims_on_cylinders(body: &Body<f64>, face: FaceKey) {
 
 fn cone_face(body: &Body<f64>) -> FaceKey {
     body.faces()
-        .find(|(fk, _)| matches!(body.face_surface(*fk), Some(geom::Surface::Cone { .. })))
+        .find(|(fk, _)| matches!(body.face_surface(*fk), Ok(geom::Surface::Cone { .. })))
         .map(|(k, _)| k)
         .expect("the fixture has a cone face")
 }
@@ -344,7 +344,7 @@ fn every_err_path_leaves_the_body_bit_untouched() {
         .find(|(fk, _)| {
             matches!(
                 tube.face_surface(*fk),
-                Some(geom::Surface::Cylinder { radius, .. }) if (radius - 0.4).abs() < 1e-9
+                Ok(geom::Surface::Cylinder { radius, .. }) if (radius - 0.4).abs() < 1e-9
             )
         })
         .map(|(k, _)| k)
@@ -369,12 +369,7 @@ fn every_err_path_leaves_the_body_bit_untouched() {
         let mut body = prism();
         let wall = body
             .faces()
-            .find(|(fk, _)| {
-                matches!(
-                    body.face_surface(*fk),
-                    Some(geom::Surface::Nurbs(n)) if !n.is_placeholder()
-                )
-            })
+            .find(|(fk, _)| matches!(body.face_surface(*fk), Ok(geom::Surface::Nurbs(_))))
             .map(|(k, _)| k)
             .unwrap();
         let before = dump(&body);
@@ -410,12 +405,12 @@ fn a_side_wall_replacement_re_anchors_the_rim_arcs() {
         .find(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(geom::Surface::Plane { frame, .. }) if frame.axis().y.abs() < 1e-9
+                Ok(geom::Surface::Plane { frame, .. }) if frame.axis().y.abs() < 1e-9
             )
         })
         .map(|(k, _)| k)
         .expect("a partial revolve has planar side walls");
-    let Some(geom::Surface::Plane { frame, .. }) = body.face_surface(side).cloned() else {
+    let Ok(geom::Surface::Plane { frame, .. }) = body.face_surface(side).cloned() else {
         unreachable!("the side wall is a plane")
     };
     let (origin, normal) = (frame.origin(), frame.axis());
@@ -489,12 +484,7 @@ fn the_curved_fit_reaches_the_floor() {
 fn fitted_obstruction_holds(name: &str, mut body: Body<f64>, curved: bool) {
     let wall = body
         .faces()
-        .find(|(fk, _)| {
-            matches!(
-                body.face_surface(*fk),
-                Some(geom::Surface::Nurbs(n)) if !n.is_placeholder()
-            )
-        })
+        .find(|(fk, _)| matches!(body.face_surface(*fk), Ok(geom::Surface::Nurbs(_))))
         .map(|(k, _)| k)
         .unwrap_or_else(|| panic!("{name}: no spline wall"));
     let e = topo::replace_face_offset(&mut body, wall, 5e-10, Tol::witness())
@@ -559,7 +549,7 @@ fn moved_together_outward_every_edge_leaves_the_fits_windows() {
         let kinds: Vec<geom::SurfaceKind> = [data.he_plus, data.he_minus]
             .into_iter()
             .filter_map(|he| body.face_of_half_edge(he))
-            .filter_map(|f| body.face_surface(f))
+            .filter_map(|f| body.face_surface(f).ok())
             .map(geom::Surface::kind)
             .collect();
         assert!(
@@ -584,7 +574,7 @@ fn moving_every_chart_mints_each_spline_walls_chart_once() {
         ("twisted loft", twisted_loft(0.3)),
     ] {
         let walls = body
-            .surfaces()
+            .described_surfaces()
             .filter(|(_, s)| s.kind() == geom::SurfaceKind::Nurbs)
             .count();
         let moves: Vec<topo::ChartMove<f64>> = body
@@ -629,7 +619,7 @@ fn moving_two_opposite_walls_mints_each_held_walls_chart_once() {
         let walls: Vec<FaceKey> = body
             .faces()
             .filter(|(fk, _)| {
-                body.face_surface(*fk).map(geom::Surface::kind) == Some(geom::SurfaceKind::Nurbs)
+                body.face_surface(*fk).map(geom::Surface::kind) == Ok(geom::SurfaceKind::Nurbs)
             })
             .map(|(k, _)| k)
             .collect();
@@ -678,7 +668,7 @@ fn an_offset_as_deep_as_the_walls_collapses_their_seams() {
             .find(|(fk, _)| {
                 matches!(
                     body.face_surface(*fk),
-                    Some(geom::Surface::Plane { frame, .. }) if frame.origin().z > 0.5
+                    Ok(geom::Surface::Plane { frame, .. }) if frame.origin().z > 0.5
                 )
             })
             .map(|(k, _)| k)
@@ -784,7 +774,7 @@ fn a_hex_prisms_side_moves_with_its_corners_on_its_oblique_neighbours() {
     let planes: Vec<(FaceKey, geom_core::Point3<f64>, geom_core::Vec3<f64>)> = body
         .faces()
         .filter_map(|(k, _)| match body.face_surface(k) {
-            Some(geom::Surface::Plane { frame, .. }) => {
+            Ok(geom::Surface::Plane { frame, .. }) => {
                 let (origin, normal) = (frame.origin(), frame.axis());
                 Some((k, origin, normal))
             }
@@ -844,12 +834,7 @@ fn a_fitted_walls_rims_answer_for_themselves_behind_its_seams() {
     ] {
         let wall = body
             .faces()
-            .find(|(fk, _)| {
-                matches!(
-                    body.face_surface(*fk),
-                    Some(geom::Surface::Nurbs(n)) if !n.is_placeholder()
-                )
-            })
+            .find(|(fk, _)| matches!(body.face_surface(*fk), Ok(geom::Surface::Nurbs(_))))
             .map(|(k, _)| k)
             .unwrap_or_else(|| panic!("{name}: no spline wall"));
         let (mut rims, mut seams) = (Vec::new(), Vec::new());

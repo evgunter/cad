@@ -131,15 +131,11 @@ pub(super) fn pierced_and_paired<T: Decide>(
 ) -> Result<(Rereads, Walls), BooleanError> {
     let mut rereads = BTreeMap::new();
     let mut walls = Walls::new();
-    for (operand, pierced) in [
-        (Operand::A, &contacts.a_on_b),
-        (Operand::B, &contacts.b_on_a),
-    ] {
+    for (operand, pierced) in Operand::BOTH.map(|o| (o, contacts.on(o).collect::<Vec<_>>())) {
         let theirs = operand.other().index();
         let declared = |x: FaceKey, y: FaceKey| {
-            records[theirs].ff.iter().any(|r| {
-                ([r.contact.a, r.contact.b] == [x, y] || [r.contact.a, r.contact.b] == [y, x])
-                    && crate::contact::area_record(bodies[theirs], x, y)
+            records[theirs].face_face().any(|(_, a, b)| {
+                (a, b) == (x.min(y), x.max(y)) && crate::contact::area_record(bodies[theirs], x, y)
             })
         };
         let mut pierces = BTreeMap::new();
@@ -159,7 +155,7 @@ pub(super) fn pierced_and_paired<T: Decide>(
                 return Err(twice);
             }
         }
-        for c in &contacts.vv {
+        for c in contacts.vv() {
             let (own, other) = match operand {
                 Operand::A => (c.a, c.b),
                 Operand::B => (c.b, c.a),
@@ -778,7 +774,7 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             .ok_or(BooleanError::ClassificationInvariant {
                 what: "a vertex-on-face contact's face no longer resolves",
             })?;
-    let pierced_surface = pierced_face.surface();
+    let pierced_surface = pierced_face.expect_described();
     // The kind every refusal below cites, read before any write.
     let pierced_kind = pierced_surface.kind();
     // The pierced face's oriented datum at `p`, from the one door.
@@ -798,9 +794,10 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             Ok(Some(n)) => n,
             // A spline face, read at the chart point the sweep placed the
             // pierce at (`chart`); one it placed at none refuses C5's
-            // typed refusal, naming the kind. That `p` has no second foot
-            // on another in-trim sheet within the band is the placement's
-            // claim (`work/splice/the-spline-placement-read-certifies-no-second-in-trim-foot`).
+            // typed refusal, naming the kind. The placement certifies no
+            // second in-trim sheet within the band of `p`, so this reads
+            // one sheet's normal as the face's
+            // (`work/splice/the-spline-placement-read-certifies-no-second-in-trim-foot`).
             Ok(None) => {
                 use crate::face_normal::SplineNormalError;
                 let uv = chart.ok_or_else(unbuilt)?;
@@ -813,7 +810,7 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 )
                 .map_err(|e| match e {
                     SplineNormalError::At(refusal) => refused(refusal),
-                    // A placeholder chart has no locus: the kind has no arm.
+                    // A pending face has no surface: the kind has no arm.
                     SplineNormalError::PlaceholderChart => unbuilt(),
                     SplineNormalError::StaleFace | SplineNormalError::NotSpline => {
                         BooleanError::ClassificationInvariant {
@@ -1046,7 +1043,7 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 (pierced_body, contact.face),
                 piercing,
                 s.face,
-                orbit_body.proven_face(s.face).surface().kind(),
+                orbit_body.proven_face(s.face).expect_described().kind(),
                 read,
                 band,
             )?;
@@ -1055,8 +1052,11 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             continue;
         }
         if class == Some(crate::contact::GlueClass::Tangent) {
-            let s_sector = orbit_body.proven_face(s.face).surface().clone();
-            let s_pierced = pierced_body.proven_face(contact.face).surface().clone();
+            let s_sector = orbit_body.proven_face(s.face).expect_described().clone();
+            let s_pierced = pierced_body
+                .proven_face(contact.face)
+                .expect_described()
+                .clone();
             let read = declared.read(
                 &[(piercing, s.face, pierced_op, contact.face)],
                 Coincide::TangentSide,
@@ -1376,7 +1376,7 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // (`on_wall`) has no bend in the face.
     let bend_of = |t: usize, d: Vec3<T>| {
         let face = sectors[t].face;
-        let surface = orbit_body.proven_face(face).surface();
+        let surface = orbit_body.proven_face(face).expect_described();
         // At a cone's apex the germ is a ruling, which the pierced plane
         // holds: the section runs straight along it.
         let bend = match sectors[t].apex() {
@@ -1950,9 +1950,12 @@ pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
     let point = node.point;
     // Each face's outward normal at the node, which it lies on.
     let outward = |operand, body: &Body<T>, face| -> Result<Vec3<T>, BooleanError> {
-        match crate::face_normal::face_outward_normal_at(body, face, point, band) {
-            Ok(Some(n)) => Ok(n.vec()),
-            Ok(None) => Err(BooleanError::ClassificationInvariant {
+        match crate::face_normal::face_outward_normal_or_why(body, face, point, band) {
+            Ok(Ok(n)) => Ok(n.vec()),
+            // A node's faces are cylinder walls (`node::is_wall`), which
+            // have an arm at every point off the axis, so a declined normal
+            // here is a torn record whatever the reason.
+            Ok(Err(_)) => Err(BooleanError::ClassificationInvariant {
                 what: "a node's face has no outward normal",
             }),
             Err(refusal) => Err(BooleanError::of_pierced_normal(refusal, operand, face)),
@@ -2200,7 +2203,8 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
                     },
                 ) {
                     Ok(_) => {
-                        let kind = |body: &Body<T>, face| body.proven_face(face).surface().kind();
+                        let kind =
+                            |body: &Body<T>, face| body.proven_face(face).expect_described().kind();
                         let unbuilt = BooleanError::HeldPierceUnbuilt {
                             operand: read.piercing,
                             face: read.face,
@@ -2280,7 +2284,7 @@ fn held_reads<T: Decide + crate::props::AtRestPolicy>(
             what: "a pierce ring's pierce has no run",
         })?;
     let faces: Vec<_> = piercing_body.faces().map(|(k, _)| k).collect();
-    let kind_of = |body: &Body<T>, face| body.proven_face(face).surface().kind();
+    let kind_of = |body: &Body<T>, face| body.proven_face(face).expect_described().kind();
     let unbuilt = |face, kind, placed| BooleanError::HeldPierceUnbuilt {
         operand: piercing,
         face,
@@ -2313,7 +2317,7 @@ fn held_reads<T: Decide + crate::props::AtRestPolicy>(
                 // Off the carrier, the face holds nothing: decided first,
                 // as the plane arm decides its plane first. A spline face
                 // has no residual, and its trim is asked.
-                let surface = piercing_body.proven_face(face).surface();
+                let surface = piercing_body.proven_face(face).expect_described();
                 let side = (!matches!(
                     surface.kind(),
                     geom::SurfaceKind::Nurbs | geom::SurfaceKind::Approx
@@ -2437,7 +2441,7 @@ fn held_reads<T: Decide + crate::props::AtRestPolicy>(
                 return Err(unbuilt(face, geom::SurfaceKind::Plane, true));
             }
             (None, _) => Some(
-                PierceLever::of(pierced_body.proven_face(pierced).surface(), p)
+                PierceLever::of(pierced_body.proven_face(pierced).expect_described(), p)
                     .within(arm.length()),
             ),
             (Some(_), _) => return Err(unbuilt(face, kind_of(piercing_body, face), true)),
@@ -2627,7 +2631,7 @@ fn one_carrier<T: Decide>(
             Ok(CarrierRelation::SameOriented | CarrierRelation::SameOpposite)
         );
     }
-    let surface = |f| body.proven_face(f).surface();
+    let surface = |f| body.proven_face(f).expect_described();
     match surface(a).paired_with(surface(b)) {
         geom::SurfacePairing::Analytic(data) => data.pairs().all(|(_, x, y)| {
             x.scalars().zip(y.scalars()).all(|(p, q)| {
@@ -2785,7 +2789,7 @@ fn unglued_flat_sector<T: Decide>(
         return BooleanError::CurvedBooleanUnsupported {
             operand: piercing,
             face: s.face,
-            kind: piercing_body.proven_face(s.face).surface().kind(),
+            kind: piercing_body.proven_face(s.face).expect_described().kind(),
         };
     }
     if FaceShape::of_kind(pierced_kind) != FaceShape::Plane {
@@ -2829,7 +2833,7 @@ const fn bend_refusal(diag: geom_core::Indeterminate) -> BooleanError {
 /// `crate::bound_side::Tie::descend`); a tie whose bend reads no side is lumped or
 /// refuses before this runs. Against a curved face it is a first-order
 /// tie
-/// (`work/contacthold/conic-ties-outside-the-vertex-on-face-pass-still-read-first-order.md`).
+/// (`work/tang/conic-ties-outside-the-vertex-on-face-pass-still-read-first-order.md`).
 ///
 /// A bisector entry's On is a direction's, levered at its sector's arm,
 /// and it is resolved only where its code changes no topology. Its two
@@ -3200,14 +3204,20 @@ mod tests {
         let rows = [
             (
                 "pierced twice by A",
-                ReductionContacts {
-                    a_on_b: vec![
-                        crate::Cited::new(vf(v, f), crate::Cites::decided(0)),
-                        crate::Cited::new(vf(w, f), crate::Cites::decided(0)),
-                        crate::Cited::new(vf(v, g), crate::Cites::decided(0)),
-                    ],
-                    ..Default::default()
-                },
+                ReductionContacts::of_rows([
+                    crate::Cited::new(
+                        vf(v, f).cells(crate::boolean::Operand::A),
+                        crate::Cites::decided(0),
+                    ),
+                    crate::Cited::new(
+                        vf(w, f).cells(crate::boolean::Operand::A),
+                        crate::Cites::decided(0),
+                    ),
+                    crate::Cited::new(
+                        vf(v, g).cells(crate::boolean::Operand::A),
+                        crate::Cites::decided(0),
+                    ),
+                ]),
                 Err((
                     Operand::A,
                     v,
@@ -3216,36 +3226,35 @@ mod tests {
             ),
             (
                 "pierced and paired, B",
-                ReductionContacts {
-                    b_on_a: vec![crate::Cited::new(vf(w, f), crate::Cites::decided(0))],
-                    vv: vec![
-                        crate::Cited::new(vv(x, v), crate::Cites::decided(0)),
-                        crate::Cited::new(vv(v, w), crate::Cites::decided(0)),
-                        crate::Cited::new(vv(x, w), crate::Cites::decided(0)),
-                    ],
-                    ..Default::default()
-                },
+                ReductionContacts::of_rows([
+                    crate::Cited::new(
+                        vf(w, f).cells(crate::boolean::Operand::B),
+                        crate::Cites::decided(0),
+                    ),
+                    crate::Cited::new(vv(x, v).cells(), crate::Cites::decided(0)),
+                    crate::Cited::new(vv(v, w).cells(), crate::Cites::decided(0)),
+                    crate::Cited::new(vv(x, w).cells(), crate::Cites::decided(0)),
+                ]),
                 Ok(vec![((Operand::B, w), SectorRead::Pair(v))]),
             ),
             (
                 "paired twice",
-                ReductionContacts {
-                    vv: vec![
-                        crate::Cited::new(vv(v, w), crate::Cites::decided(0)),
-                        crate::Cited::new(vv(v, x), crate::Cites::decided(0)),
-                        crate::Cited::new(vv(x, w), crate::Cites::decided(0)),
-                    ],
-                    ..Default::default()
-                },
+                ReductionContacts::of_rows([
+                    crate::Cited::new(vv(v, w).cells(), crate::Cites::decided(0)),
+                    crate::Cited::new(vv(v, x).cells(), crate::Cites::decided(0)),
+                    crate::Cited::new(vv(x, w).cells(), crate::Cites::decided(0)),
+                ]),
                 Ok(vec![]),
             ),
             (
                 "one key on each operand, pierced by A's and paired by B's",
-                ReductionContacts {
-                    a_on_b: vec![crate::Cited::new(vf(v, f), crate::Cites::decided(0))],
-                    vv: vec![crate::Cited::new(vv(w, v), crate::Cites::decided(0))],
-                    ..Default::default()
-                },
+                ReductionContacts::of_rows([
+                    crate::Cited::new(
+                        vf(v, f).cells(crate::boolean::Operand::A),
+                        crate::Cites::decided(0),
+                    ),
+                    crate::Cited::new(vv(w, v).cells(), crate::Cites::decided(0)),
+                ]),
                 Ok(vec![]),
             ),
         ];

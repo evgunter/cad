@@ -232,3 +232,4 @@
   - **A main red met on the way:** PR 6862 moved the teapot spout's refusal. The python re-pin is in 6860, and SECTARMS has the P1 row for the tour's `wall3_pinned`.
   - SEAL stays `active`: two P1 rows are parked. (SEAL orchestrator)
 - 2026-11-12 — **Track handed back; SEAL is `ready`** (Ev, in chat: a program no one is working is `ready`, not `active`). Its two P1 rows stay parked: `the-indeterminate-seal` and `topo-mints-indeterminates-outside-the-funnel`. No SEAL lane is running. (SEAL orchestrator)
+- 2026-11-25 — Note from the CONTACTHOLD close (`docs/doc-ledger/contacthold-leaves-the-tracker.md`): 1 row moved here by `git mv`, ids unchanged, each with a dated Moved note: `the-glue-door-reads-an-unreadable-pair-extent-as-no-glue`. (tracker sweep)

@@ -102,10 +102,11 @@
 //! `Budget(Pairs)`,
 //! `Budget(Depth)`, `Selection` (two shapes), `NotADistance` and
 //! `EmptyScope`; `NothingCertified` is covered by the adopted probe
-//! suites, `Unsupported` at the engine
-//! (`topo/tests/clearance_windows_on_a_spline_chart.rs`): a loft's
-//! walls, the one free-form face these fixtures build, now have
-//! windows. The injectivity question's own three — `Uncertified`,
+//! suites, and `Unsupported` by its named class
+//! (`m10_5_r2_probes_interval.rs`): every carrier these fixtures build,
+//! a loft's walls included, has a window, and so does every free-form
+//! face (`topo/tests/clearance_windows_on_a_spline_chart.rs`). The
+//! injectivity question's own three — `Uncertified`,
 //! `CollapsedChart`, `TorusNotRing` — are pinned at the engine
 //! (`sweep/tests/self_intersection_proves_injectivity.rs`), and
 //! `RecordedContact` needs a body that carries a contact record, which
@@ -1453,9 +1454,8 @@ fn the_query_door_refuses_a_bound_that_is_not_a_distance() {
 /// own isos, so it is the whole patch and the engine answers about it:
 /// the loft's boundary is injective — its faces are apart wherever they
 /// do not meet, and certified where they do.
-/// The refusal of a NURBS face the engine has no window for (trimmed,
-/// or bounded off its isos) is pinned at the engine
-/// (`topo/tests/clearance_windows_on_a_spline_chart.rs`).
+/// A NURBS face that is not its whole patch has a window too, its knot
+/// domain (`topo/tests/clearance_windows_on_a_spline_chart.rs`).
 #[test]
 fn a_lofts_walls_have_windows_and_its_boundary_is_injective() {
     let mut r = Recorder::new();

@@ -1192,3 +1192,303 @@ fn an_oblique_cylinder_section_decides_beside_its_ellipse() {
         "each half's cut face and wall are bounded by the ellipse"
     );
 }
+
+// ------------------------------------------------------------------ //
+// Faces a spline section bounds
+// ------------------------------------------------------------------ //
+
+/// The donut `R = 0.6`, `r = 0.2` about `y`, turned 0.7 rad about `x`
+/// and moved by `(0.1, 0.35, 0.2)`, and a point's tube coordinates in its
+/// own frame: `(ρ − R, h)`, `ρ` the distance from its axis.
+const DONUT: (f64, f64) = (0.6, 0.2);
+
+fn donut_pose() -> geom_core::Affine3<f64> {
+    geom_core::Affine3::translation(geom_core::Vec3::new(0.1, 0.35, 0.2))
+        * geom_core::Affine3::rotation_about_axis(
+            Point3::origin(),
+            geom_core::Vec3::new(1.0, 0.0, 0.0),
+            0.7,
+        )
+}
+
+/// The ball of radius 0.5 about the origin, poled on `y`, and the posed
+/// donut: their union, at rest. Its sphere and torus faces are bounded
+/// by the section's spline edges.
+fn ball_and_donut() -> Body<f64> {
+    use sweep::test_support::{ball_poled_y, finished, revolved_about_y};
+    let tol = Tol::witness();
+    let ball = finished(
+        "the ball",
+        ball_poled_y(0.5, geom_core::Vec3::new(0.0, 0.0, 0.0), tol),
+        tol,
+    );
+    let raw = revolved_about_y(
+        vec![
+            (Point2::new(DONUT.0, -DONUT.1), 1.0),
+            (Point2::new(DONUT.0, DONUT.1), 1.0),
+        ],
+        Revolution::Full,
+        tol,
+    );
+    let moved =
+        topo::transform_rigid(&raw, &geom_core::test_support::rigid(&donut_pose(), tol)).unwrap();
+    let donut = finished("the donut", moved, tol);
+    let union = topo::union(&ball, &donut, tol).expect("the union builds");
+    union
+        .body()
+        .expect("the union is a body")
+        .body
+        .clone()
+        .into_body()
+}
+
+/// Every edge of `face` but a seam (an edge with the face on both
+/// sides, which bounds nothing), with its carrier and span, at `f64`.
+fn face_edges(body: &Body<f64>, face: FaceKey) -> Vec<(geom::Curve3<f64>, (f64, f64))> {
+    let face_of = |he| {
+        let l = body.get_half_edge(he).unwrap().parent_loop;
+        body.get_loop(l).unwrap().face
+    };
+    body.face(face)
+        .unwrap()
+        .loops()
+        .map(|(lk, _, _)| lk)
+        .filter_map(|l| match body.get_loop(l).unwrap().boundary {
+            LoopBoundary::Cycle { first } => body.loop_cycle(first),
+            LoopBoundary::Empty { .. } => None,
+        })
+        .flatten()
+        .filter_map(|he| {
+            let e = body.get_edge(body.get_half_edge(he).unwrap().edge).unwrap();
+            if face_of(e.he_plus) == face && face_of(e.he_minus) == face {
+                return None;
+            }
+            let c = body.get_curve_geom(e.curve).unwrap().certified()?;
+            Some((c.carrier().clone(), c.params()))
+        })
+        .collect()
+}
+
+/// **The oracle on a face of the ball ∪ donut**, from the two operands'
+/// implicit forms and the planes of the face's own circle edges, sharing
+/// no code with the door: a point of the face's carrier is in the face
+/// when it lies outside the other operand and on the face's side of each
+/// surface its circle edges split its operand's carrier along (a sphere
+/// meridian's plane; a torus's top and bottom circles, `ρ = R`; a torus
+/// meridian's plane). The side is the one the face's spline edges'
+/// midpoints read farthest from that surface: each spline edge is a span
+/// of the section lying in the face.
+fn spline_face_oracle(body: &Body<f64>, face: FaceKey, s: &Surface<f64>) -> Oracle {
+    let into_donut = donut_pose().inverse();
+    let tube = move |p: Point3<f64>| {
+        let q = into_donut.transform_point(p);
+        (q.x.hypot(q.z) - DONUT.0, q.y)
+    };
+    let edges = face_edges(body, face);
+    let mids: Vec<Point3<f64>> = edges
+        .iter()
+        .filter(|(c, _)| matches!(c, geom::Curve3::Nurbs(_)))
+        .map(|(c, (t0, t1))| c.eval(0.5 * (t0 + t1)))
+        .collect();
+    assert!(!mids.is_empty(), "{face:?}: a spline edge bounds the face");
+    let side = |g: &dyn Fn(Point3<f64>) -> f64| {
+        let far = mids
+            .iter()
+            .map(|&m| g(m))
+            .fold(0.0, |a: f64, x| if x.abs() > a.abs() { x } else { a });
+        assert!(far.abs() > 1e-3, "{face:?}: a spline edge reads its side");
+        far.signum()
+    };
+    let mut constraints: Vec<Constraint> = Vec::new();
+    let mut planes: Vec<geom_core::Vec3<f64>> = Vec::new();
+    let mut add_plane = |n: geom_core::Vec3<f64>,
+                         at: Point3<f64>,
+                         constraints: &mut Vec<Constraint>,
+                         local: bool| {
+        if planes.iter().any(|m| m.cross(n).norm() < 1e-9) {
+            return;
+        }
+        planes.push(n);
+        let along = move |p: Point3<f64>| {
+            let q = if local {
+                into_donut.transform_point(p)
+            } else {
+                p
+            };
+            (q - at).dot(n)
+        };
+        let s = side(&along);
+        constraints.push(Box::new(move |p| -s * along(p)));
+    };
+    match *s {
+        Surface::Sphere { frame, radius } => {
+            let c = frame.origin();
+            constraints.push(Box::new(move |p| (p - c).norm() - radius));
+            constraints.push(Box::new(move |p| {
+                let (dr, h) = tube(p);
+                DONUT.1 - dr.hypot(h)
+            }));
+            for (carrier, _) in &edges {
+                let geom::Curve3::Circle(_) = carrier else {
+                    continue;
+                };
+                let frame = carrier.frame().unwrap();
+                let n = frame.axis();
+                assert!(
+                    (frame.origin() - c).dot(n).abs() < 1e-9,
+                    "{face:?}: a sphere's circle edge is a meridian"
+                );
+                add_plane(n, c, &mut constraints, false);
+            }
+        }
+        Surface::Torus { .. } => {
+            constraints.push(Box::new(move |p| {
+                let (dr, h) = tube(p);
+                dr.hypot(h) - DONUT.1
+            }));
+            constraints.push(Box::new(|p| 0.5 - (p - Point3::origin()).norm()));
+            let axis = into_donut
+                .inverse()
+                .transform_vec(geom_core::Vec3::new(0.0, 1.0, 0.0));
+            let mut rims = false;
+            for (carrier, _) in &edges {
+                let geom::Curve3::Circle(_) = carrier else {
+                    continue;
+                };
+                let frame = carrier.frame().unwrap();
+                if frame.axis().cross(axis).norm() < 1e-9 {
+                    let q = into_donut.transform_point(frame.origin());
+                    assert!(
+                        (q.y.abs() - DONUT.1).abs() < 1e-9,
+                        "{face:?}: a torus parallel edge is a top or bottom circle"
+                    );
+                    rims = true;
+                } else {
+                    let n = into_donut.transform_vec(frame.axis());
+                    assert!(
+                        n.y.abs() < 1e-9,
+                        "{face:?}: a torus circle edge is a parallel or a meridian"
+                    );
+                    add_plane(n, Point3::origin(), &mut constraints, true);
+                }
+            }
+            if rims {
+                let outer = move |p: Point3<f64>| tube(p).0;
+                let s = side(&outer);
+                constraints.push(Box::new(move |p| -s * outer(p)));
+            }
+        }
+        ref other => panic!("{face:?}: no spline-section oracle for {other:?}"),
+    }
+    section_oracle(constraints, 0)
+}
+
+/// [`grid`] on a body at `f64`, over the carrier's whole canonical
+/// window: an `n × n` grid's cells with `(i + 2j) mod stride = 0` (at
+/// stride 8 an eighth of them: one in eight along every `v`-row, one in
+/// four along every even `u`-column; at stride 1 every cell), each
+/// decided cell checked against `oracle` on a 5 × 5 interior lattice.
+fn grid_f64(
+    body: &Body<f64>,
+    face: FaceKey,
+    (n, stride): (usize, usize),
+    oracle: &Oracle,
+) -> GridStats {
+    let s = body.face_surface(face).unwrap().clone();
+    let ((u0, u1), (v0, v1)) = match s {
+        Surface::Sphere { .. } => ((0.0, TAU), (-PI / 2.0, PI / 2.0)),
+        Surface::Torus { .. } => ((0.0, TAU), (0.0, TAU)),
+        ref other => panic!("no window for {other:?}"),
+    };
+    let mut st = GridStats::default();
+    let (du, dv) = ((u1 - u0) / n as f64, (v1 - v0) / n as f64);
+    for i in 0..n {
+        for j in (0..n).filter(|j| (i + 2 * j) % stride == 0) {
+            let cu = (u0 + i as f64 * du, u0 + (i + 1) as f64 * du);
+            let cv = (v0 + j as f64 * dv, v0 + (j + 1) as f64 * dv);
+            st.cells += 1;
+            let verdict = cell_region(body, face, cu, cv, band());
+            let (mut any_in, mut any_out) = (false, false);
+            for p in 0..5 {
+                for q in 0..5 {
+                    let u = cu.0 + (0.1 + 0.2 * p as f64) * (cu.1 - cu.0);
+                    let v = cv.0 + (0.1 + 0.2 * q as f64) * (cv.1 - cv.0);
+                    match oracle(s.eval(u, v)) {
+                        Cls::In => any_in = true,
+                        Cls::Out => any_out = true,
+                        Cls::Near => {}
+                    }
+                }
+            }
+            let wrong = match verdict {
+                CellRegion::Outside => {
+                    st.outside += 1;
+                    any_in
+                }
+                CellRegion::Inside => {
+                    st.inside += 1;
+                    any_out
+                }
+                CellRegion::Undecided => false,
+            };
+            if wrong {
+                st.violations += 1;
+                eprintln!(
+                    "  !!! VIOLATION {face:?}: cell u[{:.5},{:.5}] v[{:.5},{:.5}] decided \
+                     {verdict:?} against the oracle",
+                    cu.0, cu.1, cv.0, cv.1
+                );
+            }
+        }
+    }
+    st
+}
+
+/// **A cell off a face a spline section bounds is dropped, and one
+/// holding a point of the face never is.** Every sphere and torus face of
+/// the ball ∪ donut that a section's spline edge bounds is read on a
+/// 16 × 16 grid of its carrier's whole window ([`grid_f64`]): every cell
+/// of the ball's one face, which spans the window but for the donut's
+/// section, and an eighth of the torus's. Each decides cells both
+/// ways, so a cell wholly off the face reads `Outside` and one wholly in
+/// it `Inside`: a region that read no spline edge answers neither on
+/// these faces. No decided cell holds a lattice point the operands'
+/// implicit oracle puts on the other side ([`spline_face_oracle`]).
+#[test]
+fn a_cell_off_a_face_a_spline_section_bounds_is_dropped() {
+    let body = ball_and_donut();
+    let mut read = (0usize, 0usize);
+    for (face, _) in body.faces() {
+        let s = body.face_surface(face).unwrap().clone();
+        let spline = face_edges(&body, face)
+            .iter()
+            .any(|(c, _)| matches!(c, geom::Curve3::Nurbs(_)));
+        let (kind, stride) = match s {
+            Surface::Sphere { .. } if spline => (&mut read.0, 1),
+            Surface::Torus { .. } if spline => (&mut read.1, 8),
+            _ => continue,
+        };
+        *kind += 1;
+        let st = grid_f64(
+            &body,
+            face,
+            (16, stride),
+            &spline_face_oracle(&body, face, &s),
+        );
+        let label = format!("{face:?} ({})", s.kind().name());
+        assert_eq!(
+            st.violations, 0,
+            "{label}: a decided cell contradicts the oracle"
+        );
+        assert!(
+            st.inside > 0 && st.outside > 0,
+            "{label}: the face decides cells both ways: inside={} outside={}",
+            st.inside,
+            st.outside
+        );
+    }
+    assert!(
+        read.0 > 0 && read.1 > 0,
+        "a spline section bounds a sphere face and a torus face: {read:?}"
+    );
+}

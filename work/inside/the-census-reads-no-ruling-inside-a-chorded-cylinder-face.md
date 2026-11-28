@@ -2,11 +2,14 @@
 id: the-census-reads-no-ruling-inside-a-chorded-cylinder-face
 kind: issue
 title: Tier 3′'s census refuses a body whose ruling line edge lies in a cylinder face its spline chords trim: the containment door does not read that trim
-status: open
+status: closed
 opened: 2026-11-03
 priority: P2
 cost: M
 refs: [cylinder-chart-trim-reads-a-walk-it-cannot-take-as-a-corrupt-face]
+closed: 2026-11-26
+pr: 7801
+branch: inside/face-door-spline-arm
 ---
 
 

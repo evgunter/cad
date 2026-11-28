@@ -276,7 +276,11 @@ fn skew<T: Decide>(normal: Vec3<T>, plane: SectionPlane<T>, at: Point3<T>) -> T 
 /// which has an arm for every kind read here.
 fn read_kind<T: Decide>(body: &Body<T>, face: FaceKey, at: Point3<T>, band: Band) -> bool {
     let f = body.proven_face(face);
-    match *f.surface() {
+    // A pending face is not read, as a spline face is not.
+    let Ok(surface) = f.surface() else {
+        return false;
+    };
+    match *surface {
         geom::Surface::Cone { frame, .. } => {
             let (apex, axis) = (frame.origin(), frame.axis_unit());
             !matches!(
@@ -394,7 +398,7 @@ fn section_sine<T: Decide>(
     band: Band,
 ) -> Option<Rounded<T>> {
     let f = body.proven_face(face);
-    let wall = f.surface().clone();
+    let wall = f.surface().ok()?.clone();
     if let Ok(Some(WallSection {
         case: SectionCase::Straight(_) | SectionCase::Tangent(_),
         ..

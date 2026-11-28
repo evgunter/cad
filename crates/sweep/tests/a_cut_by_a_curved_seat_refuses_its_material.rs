@@ -48,18 +48,19 @@ fn seat(z0: f64, h: f64) -> (AtRestBody<f64>, OperandRecords) {
         .filter(|&f| body.face_surface(f).unwrap().kind() == geom::SurfaceKind::Cylinder)
         .map(|f| (f, body.solid_of_face(f).unwrap()))
         .collect();
-    let mut records = OperandRecords::default();
+    let mut rows = Vec::new();
     for &(x, sx) in &walls {
         for &(y, sy) in &walls {
             if x < y && sx != sy {
-                records.ff.push(topo::CarriedRecord {
-                    contact: topo::FfContact { a: x, b: y },
-                    record: u32::try_from(records.ff.len()).unwrap(),
+                rows.push(topo::CarriedRecord {
+                    contact: topo::Contact::new(&body, Cell::Face(x), Cell::Face(y)).unwrap(),
+                    record: u32::try_from(rows.len()).unwrap(),
                 });
             }
         }
     }
-    assert!(!records.ff.is_empty(), "the premise: the walls meet");
+    let records = OperandRecords::from_iter(rows);
+    assert!(!records.is_empty(), "the premise: the walls meet");
     (body, records)
 }
 
@@ -78,7 +79,7 @@ fn a_cut_by_a_curved_seat_refuses_its_material() {
     );
     for (what, z0, h) in [("through", -0.5, 1.5), ("flush", 0.0, 0.5)] {
         let (seat, records) = seat(z0, h);
-        let first = records.ff[0].contact;
+        let first = records.rows()[0].contact;
         let r = topo::boolean_op_with(
             BooleanOp::Subtract,
             &block,
@@ -93,11 +94,7 @@ fn a_cut_by_a_curved_seat_refuses_its_material() {
         match r {
             Err(BooleanError::ToolSeatUnread { record, cells }) => {
                 assert_eq!(record, 0, "{what}: the first record");
-                assert_eq!(
-                    cells,
-                    [Cell::Face(first.a), Cell::Face(first.b)],
-                    "{what}: its two walls"
-                );
+                assert_eq!(cells, first.cells(), "{what}: its two walls");
             }
             other => panic!(
                 "{what}: refuses ToolSeatUnread, got {:?}",

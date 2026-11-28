@@ -165,8 +165,7 @@ pub(super) fn own_in_result<T: crate::props::AtRestPolicy>(
     let other = super::NullCopies::of_operand(&red.null_edges, operand.other());
     one(red
         .contacts
-        .vv
-        .iter()
+        .vv()
         .filter_map(|c| {
             let (mine, o) = match operand {
                 Operand::A => (c.a, c.b),

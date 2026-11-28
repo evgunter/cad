@@ -2966,12 +2966,12 @@ impl DocSession {
     /// control that pushes the op.
     ///
     /// It is the whole of that op's admission: its door runs
-    /// [`crate::display::body_check`] against the committed document,
+    /// [`crate::display::drawing_check`] against the committed document,
     /// and neither drag's table in `perform` refuses it. So a row drawn
     /// from the LANDED document (the feature tree's) reads the refusal
     /// for a node deleted since the last landing.
     pub fn body_toggle_refusal(&self, node: RecipeNodeId) -> Option<Refusal> {
-        crate::display::body_check(self.committed_doc(), node)
+        crate::display::drawing_check(self.committed_doc(), node)
             .err()
             .map(|fault| Refusal::Display(fault.into()))
     }

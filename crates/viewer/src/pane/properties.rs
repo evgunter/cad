@@ -585,10 +585,10 @@ impl ViewerBehavior<'_> {
         });
     }
 
-    /// The selected body's display controls: the hide toggle and the
+    /// The selected node's display controls: the hide toggle and the
     /// free-move probe. Draws nothing for a node the document does not
-    /// admit display state on — one that builds no body, or an id the
-    /// document no longer holds.
+    /// admit display state on — one the picture draws nothing of, or an
+    /// id the document no longer holds.
     ///
     /// **Silence is the whole answer for both refusals, and for the
     /// absent id it is half of a rule rather than a discard.** A
@@ -603,7 +603,7 @@ impl ViewerBehavior<'_> {
     /// this panel does nowhere.
     ///
     /// The body's toggle pushes [`SessionOp::SetBodyOn`], whose door
-    /// runs [`crate::display::body_check`] — the test that gates this
+    /// runs [`crate::display::drawing_check`] — the test that gates this
     /// section — so the toggle is offered exactly where the op accepts.
     pub(crate) fn display_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId) {
         // **The COMMITTED document, because that is the one the doors
@@ -617,7 +617,7 @@ impl ViewerBehavior<'_> {
         // The fault is discarded HERE, at the party that decides the
         // two refusals are one answer, rather than by a door that
         // answered a `bool` and could not have offered anything else.
-        if crate::display::body_check(doc, node).is_err() {
+        if crate::display::drawing_check(doc, node).is_err() {
             return;
         }
         ui.separator();
@@ -1563,38 +1563,13 @@ fn exists_notice(ui: &mut egui::Ui, theme: &Theme, name: &VarName, dimension: Di
 /// The number is in the unit the slot is WRITTEN in ([`FieldWriting`]).
 /// A slot with no one value — it did not evaluate, or it has one per
 /// member — is still drawn, over a zero it does not show. A literal that
-/// evaluated shows no fixed text: egui formats the number it is
-/// dragging, and a pinned text would freeze the field mid-gesture.
+/// evaluated shows its number ([`props::field_text`]).
 pub(crate) fn slot_showing(row: &SlotRow, draft: Option<&str>, notation: Notation) -> FieldShowing {
     let writing = FieldWriting::of(row.dimension, row.unit, notation);
-    let number = match props::shown_value(
-        writing.unit,
-        row.value
-            .as_ref()
-            .ok()
-            .and_then(props::Reading::one)
-            .map_or(0.0, SlotValue::as_f64),
-    ) {
-        // **A driven slot keeps its field whatever its value reads
-        // as.** It shows its reading as text ([`props::field_text`],
-        // which says `no … reading` where the working notation cannot
-        // name the value), and the field under that text is its door
-        // to the expression. The number the field holds is never
-        // written: a drag over a driven slot is refused by the
-        // session's driven-slot guard, and a typed number writes what
-        // was typed, so a zero held there lands nowhere — the same zero
-        // held under the text of a slot with no one value: one that did
-        // not evaluate, or one with a value per member.
-        Err(_) if row.driver.is_driven() => Ok(0.0),
-        number => number,
-    };
+    let number = props::slot_number(row, notation);
     let (text, source) = match draft {
         Some(draft) => (Some(draft.to_owned()), None),
-        None if row.driver.is_driven() || !row.value.as_ref().is_ok_and(|r| r.one().is_some()) => (
-            Some(props::field_text(row, notation)),
-            props::field_source(row),
-        ),
-        None => (None, None),
+        None => (props::field_text(row, notation), props::field_source(row)),
     };
     FieldShowing {
         name: None,
@@ -1873,16 +1848,14 @@ fn free_move_probe(
     // ([`crate::props::shown_value`]): a translation dragged or typed in
     // a coarse notation can have no value in a finer one the notation
     // was switched to.
-    let mut written = [0.0; 3];
-    for (shown, canonical) in written.iter_mut().zip(current) {
-        match crate::props::shown_value(field.unit, canonical) {
-            Ok(value) => *shown = value,
-            Err(unit) => {
-                crate::widgets::message(ui, crate::props::no_reading(unit));
-                return;
-            }
+    let over = match current.map(|canonical| crate::props::shown_value(field.unit, canonical)) {
+        [Ok(x), Ok(y), Ok(z)] => [x, y, z],
+        [Err(unit), ..] | [_, Err(unit), _] | [.., Err(unit)] => {
+            crate::widgets::message(ui, crate::props::no_reading(unit));
+            return;
         }
-    }
+    };
+    let mut written = over.map(crate::props::FieldNumber::shown);
     // The G1 gesture triple over DISPLAY state, through the one
     // widget→gesture mapping (`drag_ops`) so the typed-input arm exists
     // here too: typing a value performs a one-shot begin/preview/commit,
@@ -1895,7 +1868,7 @@ fn free_move_probe(
     let frame_of = |written: [f64; 3]| Frame::translation(written.map(|v| field.authored(v)));
     let ProbeOps { gesture, typed } = free_move_gesture(node, frame_of);
     ui.horizontal(|ui| {
-        vec3_row_ops(ui, field, &mut written, gesture, typed, ops);
+        vec3_row_ops(ui, field, (&mut written, over), gesture, typed, ops);
     });
 }
 

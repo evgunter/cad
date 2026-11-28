@@ -424,8 +424,14 @@ fn the_pin_alone_answers_subtract_and_intersect_in_closed_form() {
 /// the dome's crown.** On main every op answered a valid body missing
 /// the side cap: `dome ∩ bracket` came back as the crown alone, and a
 /// point inside the side cap, inside both operands, read `Out` of it.
+/// The guard proves the side circle inside both faces (R-loop), and the
+/// crossings path cuts the dome's face in through it and re-enters, so
+/// every op builds at its closed form: the two caps, of heights `0.1`
+/// (the crown) and `0.05` (the side, under the foot's near face at
+/// `0.95` along `cap_dir`), are disjoint, the side cap's highest point
+/// lying at `y = sin 48.2° < 0.9`.
 #[test]
-fn a_sphere_cap_behind_crossings_elsewhere_refuses_every_op() {
+fn a_sphere_cap_behind_crossings_elsewhere_builds_every_op() {
     let (d, c) = (dome(), dome_bracket());
     let band = geom_core::Band::linear(Tol::witness()).expect("the run's band");
     let q = Point3::origin() + cap_dir() * 0.97;
@@ -438,28 +444,55 @@ fn a_sphere_cap_behind_crossings_elsewhere_refuses_every_op() {
             "the witness point is inside the {name}"
         );
     }
-    for (op, r) in [
-        (topo::BooleanOp::Union, topo::union(&d, &c, Tol::witness())),
-        (
-            topo::BooleanOp::Intersect,
-            topo::intersect(&d, &c, Tol::witness()),
-        ),
-        (
-            topo::BooleanOp::Subtract,
-            topo::subtract(&d, &c, Tol::witness()),
-        ),
-        (
-            topo::BooleanOp::Subtract,
-            topo::subtract(&c, &d, Tol::witness()),
-        ),
-    ] {
-        refuses_as_the_interior_loop_guard(r, op, geom::SurfaceKind::Sphere, "dome and bracket");
-    }
     assert!(
         verdicts(&d, &c).iter().any(|v| v == "Err(Loop)"),
         "{:?}",
         verdicts(&d, &c)
     );
+    let cap = |h: f64| std::f64::consts::PI * h * h * (3.0 - h) / 3.0;
+    let both = cap(0.1) + cap(0.05);
+    let (vd, vc) = (2.0 * std::f64::consts::PI / 3.0, volume(&c));
+    for (what, r, want, inside) in [
+        (
+            "dome ∪ bracket",
+            topo::union(&d, &c, Tol::witness()),
+            vd + vc - both,
+            true,
+        ),
+        (
+            "dome ∩ bracket",
+            topo::intersect(&d, &c, Tol::witness()),
+            both,
+            true,
+        ),
+        (
+            "dome ∖ bracket",
+            topo::subtract(&d, &c, Tol::witness()),
+            vd - both,
+            false,
+        ),
+        (
+            "bracket ∖ dome",
+            topo::subtract(&c, &d, Tol::witness()),
+            vc - both,
+            false,
+        ),
+    ] {
+        let r = r.unwrap_or_else(|e| panic!("{what}: {e:?}"));
+        sweep::test_support::cut_trace::assert_no_cut_trace(what, &r, [&d, &c]);
+        let b = &r.body().expect("non-empty").body;
+        assert_eq!(
+            topo::validate_geometric(b, Tol::witness()),
+            Ok(()),
+            "{what}"
+        );
+        close(volume(b), want, what);
+        assert_eq!(
+            in_solid(b, q),
+            Some(inside),
+            "{what} at the side cap's witness"
+        );
+    }
 }
 
 /// **The sphere lane the guard must leave answering.** The bracket's top
@@ -559,22 +592,20 @@ fn the_oval_lens_is_well_above_the_rows_tolerance() {
     assert!(lens < 0.02, "the lens volume {lens}");
 }
 
-/// **The corner bar: a second lens, never a body.** A `0.2`-square bar
+/// **The corner bar: a second lens, built true.** A `0.2`-square bar
 /// across the donut's hole, cut to the length that puts all eight
 /// corners on the inner face. Its end squares' edges along `y` keep a
 /// constant `ρ`, so their interiors run inside the tube, and the lens
 /// between each end square and the tube is bounded only by the corners'
-/// own contacts. The section certificate would clear it (each end
-/// square's section is one component with the corners' events on it,
-/// W4; the side faces cut `(0,1)` and `(1,0)` pairs, W2): the lens arcs
-/// are evidenced, and tracing them is the crossing layer's business.
-/// What keeps the result from being a body is downstream of the guard —
-/// the join's germ frame, where every op refuses: the end squares stand
-/// past the inner equator, so each cuts one null oval, a general spiric
-/// quartic the frame refuses by name. That is what this row pins, so it
-/// reds the day anything serves that section.
+/// own contacts. Each end square stands past the inner equator and cuts
+/// one null oval, a general spiric quartic, which the section value
+/// marches: the union builds a valid body, held to the donut's and the
+/// bar's closed forms less their overlap, which [`corner_bar_overlap`]
+/// integrates apart from the kernel, and so does every other op that
+/// passes the piece sort, whose probe reads no torus face a marched edge
+/// trims.
 #[test]
-fn the_corner_bar_never_comes_back_a_body() {
+fn the_corner_bar_builds_its_lenses() {
     let d = donut();
     let hw = 0.1_f64;
     let rho = 2.0 - (0.25 - hw * hw).sqrt();
@@ -584,29 +615,76 @@ fn the_corner_bar_never_comes_back_a_body() {
         boxed((-hw, hw), (-hw, hw), (-z, z)),
         Tol::witness(),
     );
-    for (what, r) in [
-        ("∪", topo::union(&d, &b, Tol::witness())),
-        ("∩", topo::intersect(&d, &b, Tol::witness())),
-        ("∖", topo::subtract(&d, &b, Tol::witness())),
-        ("∖ reversed", topo::subtract(&b, &d, Tol::witness())),
+    let (vd, vb, vo) = (
+        core::f64::consts::PI.powi(2),
+        4.0 * hw * hw * 2.0 * z,
+        corner_bar_overlap(hw, z),
+    );
+    assert!(vo > 0.0, "the bar's ends cut the tube");
+    let (mut held, mut sorted) = (0, Vec::new());
+    for (what, r, want) in [
+        ("∪", topo::union(&d, &b, Tol::witness()), vd + vb - vo),
+        ("∩", topo::intersect(&d, &b, Tol::witness()), vo),
+        ("∖", topo::subtract(&d, &b, Tol::witness()), vd - vo),
+        (
+            "∖ reversed",
+            topo::subtract(&b, &d, Tol::witness()),
+            vb - vo,
+        ),
     ] {
-        match r {
-            Ok(r) => panic!(
-                "{what}: the corner bar came back {:?}",
-                r.body().map(|x| (x.kind, volume(&x.body)))
-            ),
-            Err(e) => assert!(
-                matches!(
-                    e,
-                    topo::BooleanError::GermSectionSpiric {
-                        loops: topo::SpiricLoops::Null,
-                        ..
-                    }
-                ),
-                "{what}: the end square's null oval refuses at the frame: {e:?}"
-            ),
+        let r = match r {
+            // The piece sort's probe reads no torus face a marched edge
+            // trims (`work/inside/point-in-solid-refuses-a-torus-face-bounded-by-a-spline-chord.md`).
+            Err(topo::BooleanError::Pieces(topo::PieceSortError::Probe {
+                source: topo::PointInSolidError::PartialTorusFace { .. },
+                ..
+            })) if what != "∪" => {
+                sorted.push(what);
+                continue;
+            }
+            r => r.unwrap_or_else(|e| panic!("{what}: the corner bar builds, got {e:?}")),
+        };
+        let body = r.body().unwrap_or_else(|| panic!("{what}: a body"));
+        assert_eq!(
+            topo::validate_geometric(&body.body, Tol::witness()),
+            Ok(()),
+            "{what}: tier 3"
+        );
+        let got = volume(&body.body);
+        assert!(
+            (got - want).abs() < 1e-8,
+            "{what}: volume {got} against {want}"
+        );
+        held += usize::from(what != "∪");
+    }
+    // The ops past ∪ that stop at the piece sort read no torus face a
+    // marched edge trims (`work/inside/point-in-solid-refuses-a-torus-face-bounded-by-a-spline-chord.md`);
+    // at least one builds and is held to its truth.
+    assert!(
+        held >= 1,
+        "no op past ∪ builds to its truth; at the piece sort: {sorted:?}"
+    );
+}
+
+/// **The corner bar's overlap with the donut** `R = 2`, `r = 0.5` about
+/// `y`: over the bar's square `|x|, |y| ≤ hw` by the midpoint rule, the
+/// run of `|z| ≤ z_end` where `√(x² + z²)` reaches the tube's inner wall
+/// at height `y`, `2 − √(r² − y²)`, taken in closed form. At 600 × 600
+/// cells it is within `1e-9` of the limit.
+pub(crate) fn corner_bar_overlap(hw: f64, z_end: f64) -> f64 {
+    let n = 600_u32;
+    let h = 2.0 * hw / f64::from(n);
+    let mut sum = 0.0;
+    for i in 0..n {
+        let x = -hw + (f64::from(i) + 0.5) * h;
+        for j in 0..n {
+            let y = -hw + (f64::from(j) + 0.5) * h;
+            let inner = 2.0 - (0.25 - y * y).sqrt();
+            let from = (inner * inner - x * x).max(0.0).sqrt();
+            sum += 2.0 * (z_end - from).max(0.0);
         }
     }
+    sum * h * h
 }
 
 /// The full donut, `R = 2`, `r = 0.5` about `y`.
@@ -751,7 +829,7 @@ fn nurbs_bump() -> Body<f64> {
         .find(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(geom::Surface::Plane { frame, .. })
+                Ok(geom::Surface::Plane { frame, .. })
                     if frame.origin().z.abs() < 1e-12 && frame.axis().z.abs() > 0.5
             )
         })

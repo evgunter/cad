@@ -108,7 +108,7 @@ PR 6665 gave the doors and holders below a `geom::Line`. Where the line came fro
 - `geom-brep/src/curve_face/conic_quadric.rs`: `cone_roots` ×2, `quadric_ladder`, `through_the_apex`
 - `topo/src/contain.rs`: `curved_interior_placement` ×2
 - `topo/src/boolean/join.rs`: `pt_germ_frame` ×2, `region_halves` ×5
-- `topo/src/boolean/ops.rs`: `pinched_at_cone_apex`
+- `topo/src/boolean/ops.rs`: none left (`pinched_at_cone_apex` was deleted by LATHE's PR 7585, when props came to measure a cone loop pinched at its apex)
 - `topo/src/boolean/reduce.rs`: `conic_clearance`, `line_quadric_roots` ×3, `requeue` ×6
 - `topo/src/boolean/section_cert.rs`: `cone_cylinder`, `cone_pair` ×3, `torus_pair`
 - `topo/src/boolean/section_cert/ruling.rs`: (closure), `assemble`

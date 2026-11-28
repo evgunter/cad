@@ -978,8 +978,6 @@ fn build_one_shell(
     // refusal part-way closes the scope by dropping it.
     let mut door = body.begin_surgery();
     let faces = assemble_solid(&mut door, &shell, tol, band, file)?;
-    topo::mint_pcurves(&mut door, tol)
-        .map_err(|source| StepImportError::Pcurves { source, file })?;
     door.sweep_and_close();
     moves.extend(join(&mut body, solid.id, &faces, tol, band, file)?);
     Ok((body, moves, shell.holders))

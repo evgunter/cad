@@ -2276,6 +2276,11 @@ fn a_lever_refusal_names_the_instance_and_why() {
         &["FaceUnbounded", "Nurbs"],
     );
     assert_f6(
+        &reach(ReachRefusal::FacePending { face }),
+        &["instance 000000000007", "no surface yet", "Recourse"],
+        &["FacePending"],
+    );
+    assert_f6(
         &reach(ReachRefusal::MalformedBody { face }),
         &["instance 000000000007", "not well formed"],
         &["MalformedBody"],
@@ -2350,7 +2355,6 @@ test_utils::f6_variants! {
         SharedRim,
         ChordOffRim,
         MemberEdgeTied,
-        ConventionalVertex,
         ClosedCarrierUnread,
         CarrierUnplaced,
         PartnerUnread,
@@ -2528,9 +2532,9 @@ fn naming_error_display_names_its_content_not_its_struct() {
         ),
         (
             NamingError::Emission {
-                what: "a chart cut survives in the result",
+                what: "a carried edge's group names no operand",
             },
-            vec!["a chart cut survives in the result"],
+            vec!["a carried edge's group names no operand"],
         ),
         (
             NamingError::SplitLineage(topo::SplitLineageCycle { edge }),
@@ -2679,17 +2683,6 @@ fn naming_error_display_names_its_content_not_its_struct() {
                 reached: topo::Cell::Vertex(topo::VertexKey::default()),
             }),
             vec!["a vertex of a Boolean's result settles on a cell the result does not hold"],
-        ),
-        (
-            NamingError::ConventionalVertex {
-                vertex: topo::VertexKey::default(),
-                body: 3,
-            },
-            vec![
-                "conventional vertex",
-                "output body 3",
-                "a-conventional-vertex",
-            ],
         ),
         (
             NamingError::MemberEdgeTied {

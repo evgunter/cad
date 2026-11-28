@@ -9,8 +9,8 @@
 #![allow(clippy::panic, clippy::unwrap_used, clippy::expect_used)]
 
 use crate::seam_region_common::{
-    assert_refused, flipped, seam_siblings, sphere_faces, sphere_of, split_at_meridian, unencoded,
-    v,
+    assert_refused, flipped, seam_siblings, sphere_faces, sphere_of, split_at_meridian, two_lunes,
+    unencoded, v,
 };
 use geom::{Curve3, Surface};
 use geom_core::{Point3, Tol, Vec3};
@@ -144,8 +144,13 @@ fn lens(r1: f64, r2: f64, d: f64) -> f64 {
 }
 
 fn build(p: &Pair, tol: Tol) -> (Body<f64>, f64) {
-    let a = finished("a", ball_poled(1.0, v([0.0; 3]), v(p.pole_a), tol), tol);
-    let b = finished("b", ball_poled(p.rb, v(p.off), v(p.pole_b), tol), tol);
+    let lunes = |r, c, pole| {
+        let mut ball = ball_poled(r, c, pole, tol);
+        two_lunes(&mut ball, tol);
+        ball
+    };
+    let a = finished("a", lunes(1.0, v([0.0; 3]), v(p.pole_a)), tol);
+    let b = finished("b", lunes(p.rb, v(p.off), v(p.pole_b)), tol);
     let d = v(p.off).norm();
     let shared = lens(1.0, p.rb, d);
     let ball = |r: f64| 4.0 / 3.0 * PI * r.powi(3);
@@ -213,11 +218,9 @@ fn a_flip_of_one_seam_sibling_is_named_by_the_regions_side() {
 #[test]
 fn a_holed_region_reads_its_side_by_its_area() {
     let tol = Tol::witness();
-    let ball = finished(
-        "ball",
-        ball_poled(1.0, v([0.0; 3]), v([0.0, 1.0, 0.0]), tol),
-        tol,
-    );
+    let mut ball = ball_poled(1.0, v([0.0; 3]), v([0.0, 1.0, 0.0]), tol);
+    two_lunes(&mut ball, tol);
+    let ball = finished("ball", ball, tol);
     let slab = finished(
         "slab",
         brick::<f64>((-0.5, 0.5), (-2.0, 2.0), (-2.0, 2.0), tol),
@@ -259,7 +262,7 @@ fn a_whole_sphere_is_left_to_the_volume_check() {
         tol,
     );
     let faces = sphere_faces(&ball);
-    assert_eq!(faces.len(), 2, "a ball is two lunes");
+    assert_eq!(faces.len(), 1, "a ball is one face");
     let errs = topo::validate_geometric(&flipped(&ball, &faces), tol).unwrap_err();
     assert!(
         errs.iter()
@@ -338,7 +341,7 @@ fn a_chain_of_three_siblings_reads_one_side() {
     let (mut body, want) = build(p, tol);
     let [x, _] = seam_siblings(&body, tol)[0];
     let on_a = match body.get_surface(body.faces().find(|(k, _)| *k == x).unwrap().1.surface) {
-        Some(Surface::Sphere { frame, .. }) => {
+        Ok(Surface::Sphere { frame, .. }) => {
             let center = frame.origin();
             (center - Point3::new(0.0, 0.0, 0.0)).norm() < 1e-9
         }

@@ -119,7 +119,7 @@ fn sphere_faces(body: &Body<f64>) -> Vec<FaceKey> {
 /// The face's own chart frame: `(centre, radius, polar axis, seam, the
 /// seam's quadrature partner)`.
 fn chart(body: &Body<f64>, face: FaceKey) -> (Point3<f64>, f64, Vec3<f64>, Vec3<f64>, Vec3<f64>) {
-    let Some(&geom::Surface::Sphere {
+    let Ok(&geom::Surface::Sphere {
         frame: carrier_frame,
         radius,
     }) = body.face_surface(face)
@@ -278,7 +278,7 @@ fn a_probe_a_hair_past_a_near_polar_rim_is_decided_where_an_axial_lever_cannot()
         );
         let body = ball_with_a_near_polar_rim(u_r);
         let faces = sphere_faces(&body);
-        assert_eq!(faces.len(), 2, "a full revolve mints two half-bands");
+        assert_eq!(faces.len(), 1, "a full revolve mints one face");
         let rim_polar = core::f64::consts::PI - u_r;
         for az in [0.7_f64, 2.4, 3.8, 5.5] {
             // Inside the rim (nearer the north pole): exactly one band
@@ -386,7 +386,7 @@ fn probes_on_the_boundary_land_on_the_boundary_at_a_rim_and_at_a_meridian() {
 fn boundary_edges(body: &Body<f64>, face: FaceKey, meridian: bool) -> Vec<topo::EdgeKey> {
     let fd = body.get_face(face).unwrap();
     let axis = match body.face_surface(face) {
-        Some(&geom::Surface::Sphere { frame, .. }) => frame.axis(),
+        Ok(&geom::Surface::Sphere { frame, .. }) => frame.axis(),
         _ => panic!("a sphere face"),
     };
     let topo::LoopBoundary::Cycle { first } = body.get_loop(fd.outer).unwrap().boundary else {
@@ -410,15 +410,14 @@ fn boundary_edges(body: &Body<f64>, face: FaceKey, meridian: bool) -> Vec<topo::
         .collect()
 }
 
-/// The whole ball's two half-bands are the same class — meridian-bounded
-/// lunes, half a period each — and the face door now answers on them
-/// too, each for its own half. Exactly one band contains any given
-/// off-seam point.
+/// The whole ball is one face, its meridian walked out and back, and the
+/// face door answers on it as on a lune: it contains every off-seam
+/// point, so exactly one sphere face contains any given one.
 #[test]
 fn the_balls_two_bands_each_answer_for_their_own_half() {
     let body = lune(Revolution::Full);
     let faces = sphere_faces(&body);
-    assert_eq!(faces.len(), 2, "a full revolve mints two half-bands");
+    assert_eq!(faces.len(), 1, "a full revolve mints one face");
     let b = band();
     for az in [0.3_f64, 1.9, 2.9, 4.1, 5.7] {
         let verdicts: Vec<_> = faces
@@ -520,8 +519,8 @@ fn the_solid_door_answers_around_a_rimmed_sphere_band() {
     );
 }
 
-/// The refusal that remains says what the reading NEEDS: edges that are
-/// circles. The retired blocker — "`chart_mints` is false for sphere
+/// The refusal that remains says what the reading NEEDS: edges that lie
+/// on the sphere. The retired blocker — "`chart_mints` is false for sphere
 /// charts" — must not come back.
 #[test]
 fn the_refusal_names_the_class_it_needs() {
@@ -531,7 +530,7 @@ fn the_refusal_names_the_class_it_needs() {
     .render(geom_brep::recourse::Reading::Build);
     for want in [
         "sphere face",
-        "Recourse: cut the sphere face only where its edges are circles",
+        "Recourse: bound the sphere face only with edges that lie on the sphere",
     ] {
         assert!(msg.contains(want), "missing {want:?}: {msg}");
     }
@@ -852,7 +851,7 @@ fn a_sphere_face_with_a_straight_edge_refuses_at_both_doors() {
     );
     assert!(
         err.render(geom_brep::recourse::Reading::Build)
-            .contains("edges are circles"),
+            .contains("edges that lie on the sphere"),
         "{err_at}",
         err_at = err.render(geom_brep::recourse::Reading::Build)
     );
@@ -865,7 +864,7 @@ fn flat_disc(body: &Body<f64>) -> FaceKey {
         .find(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(geom::Surface::Plane { frame, .. }) if frame.axis().y.abs() > 0.9
+                Ok(geom::Surface::Plane { frame, .. }) if frame.axis().y.abs() > 0.9
             )
         })
         .map(|(k, _)| k)
@@ -895,7 +894,7 @@ fn boundary_pick(
 ) -> (topo::EdgeKey, geom::Curve3<f64>, topo::SurfaceKey) {
     let fd = body.get_face(face).unwrap();
     let axis = match body.face_surface(face) {
-        Some(&geom::Surface::Sphere { frame, .. }) => frame.axis(),
+        Ok(&geom::Surface::Sphere { frame, .. }) => frame.axis(),
         _ => panic!("sphere"),
     };
     let topo::LoopBoundary::Cycle { first } = body.get_loop(fd.outer).unwrap().boundary else {

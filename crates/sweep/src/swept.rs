@@ -461,6 +461,24 @@ impl<T: Real> Traversed<T> {
         })
     }
 
+    /// Part of this traversal, from a point on it onward: a line stays
+    /// a line and keeps its director, and an arc keeps its centre,
+    /// radius and turn, sweeps `sweep` and takes `radials`, its unit
+    /// radials at the part's two ends (a loft's sub-arc piece,
+    /// `loft::segment_pieces`, which hands in the arc's own at the
+    /// segment's ends and its start radial turned by the cut's angle
+    /// between them).
+    pub(crate) fn part(self, sweep: T, radials: [Vec2<T>; 2]) -> Self {
+        Self(match self.0 {
+            line @ SegmentKind::Line { .. } => line,
+            SegmentKind::Arc { arc, turn, .. } => SegmentKind::Arc {
+                arc: Arc2 { sweep, ..arc },
+                turn,
+                radials,
+            },
+        })
+    }
+
     /// The carrier class, in this traversal's orientation.
     pub(crate) fn get(self) -> SegmentKind<T> {
         self.0
@@ -1025,8 +1043,6 @@ pub(crate) struct FullTurn {
     pub(crate) strut: EdgeKey,
     /// The near rim's plus half, in the wall.
     pub(crate) near_in_wall: HalfEdgeKey,
-    /// The near rim's minus half, in `near_face`.
-    pub(crate) near_minus: HalfEdgeKey,
     /// The near rim.
     pub(crate) near: EdgeKey,
     /// The face holding the near rim's minus half.
@@ -1089,7 +1105,6 @@ pub(crate) fn build_full_turn<T: Decide + topo::AtRestPolicy>(
         wall: far.face,
         strut: strut.edge,
         near_in_wall: near.he_plus,
-        near_minus: near.he_minus,
         near: near.edge,
         near_face: near.face,
     })
@@ -1186,6 +1201,36 @@ pub(crate) fn describe_wrap_edge<T: Decide + topo::AtRestPolicy>(
     tol: Tol,
 ) -> Result<(), EulerOpError> {
     body.restate_stored_edge(edge, EdgeDescriptionSpec::wrap(wall), tol)?;
+    Ok(())
+}
+
+/// [`describe_wrap_edge`], and then the edge restated once more from
+/// what it stores, so its stored certificate is the run a fresh
+/// re-certification mints: the wrap restatement derives the edge's
+/// chart image, and a run over a derived image can differ in the last
+/// bits from a run over the same image stated
+/// (`work/select/a-run-over-a-derived-chart-image-certifies-apart-from-the-same-image-stated.md`).
+/// A revolve's wrap edges take it (the full revolve's meridian, the
+/// full-turn torus's latitude); extrude's strut is one of that row's
+/// sites.
+///
+/// # Panics
+///
+/// As [`Body::restate_stored_edge`], on a kernel bug.
+pub(crate) fn describe_wrap_edge_fresh<T: Decide + topo::AtRestPolicy>(
+    body: &mut Body<T>,
+    edge: EdgeKey,
+    wall: SurfaceKey,
+    tol: Tol,
+) -> Result<(), EulerOpError> {
+    describe_wrap_edge(body, edge, wall, tol)?;
+    let stored = body
+        .edge(edge)
+        .and_then(topo::EdgeView::certified)
+        .unwrap_or_else(|| unreachable!("the edge was restated certified just above"))
+        .restated_spec()
+        .description;
+    body.restate_stored_edge(edge, stored, tol)?;
     Ok(())
 }
 

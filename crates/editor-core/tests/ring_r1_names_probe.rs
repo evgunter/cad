@@ -12,7 +12,7 @@ use crate::fixture;
 
 use editor_core::{
     CancelToken, EntityKind, EvalOptions, Evaluation, MeridianEnd, ProfileDoc, ProfileEdgeRef,
-    RecipeNodeId, RoleSeg, band, band_pi, band_rim, evaluate, meridian_vertex,
+    RecipeNodeId, RoleSeg, band, band_rim, evaluate, meridian_vertex,
 };
 use fixture::{ang, insert, minted, on_frame, revolve_about, table};
 use geom_core::Tol;
@@ -93,6 +93,22 @@ fn full_wire_holed_revolve_names_totally() {
             .is_some()
         );
     }
-    // And the wire outer keeps its π-band names (loop 0).
-    assert!((0..4).any(|s| t.lookup(&band_pi(rev, pe(&doc, rev, 0, s))).is_some()));
+    // And the wire outer names one band per off-axis side (loop 0), its
+    // cylinder's seam the one meridian, the axis side none.
+    for s in 0..3 {
+        assert!(
+            t.lookup(&band(rev, pe(&doc, rev, 0, s))).is_some(),
+            "outer side {s}"
+        );
+    }
+    assert!(t.lookup(&band(rev, pe(&doc, rev, 0, 3))).is_none());
+    assert!(
+        t.lookup(&minted(
+            EntityKind::Edge,
+            rev,
+            RoleSeg::Meridian(MeridianEnd::Seam, pe(&doc, rev, 0, 1).into()),
+        ))
+        .is_some(),
+        "the outer cylinder's seam"
+    );
 }

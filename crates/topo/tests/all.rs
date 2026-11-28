@@ -75,6 +75,8 @@ mod a_circle_no_row_holds_ends_alike_in_every_form;
 mod a_corner_reads_only_its_own_sectors;
 #[path = "a_corrupted_row_is_never_read_as_its_carrier_off_the_face.rs"]
 mod a_corrupted_row_is_never_read_as_its_carrier_off_the_face;
+#[path = "a_crossings_containment_turns_on_its_admitted_parameter.rs"]
+mod a_crossings_containment_turns_on_its_admitted_parameter;
 #[path = "a_decided_overlap_decides_its_pair.rs"]
 mod a_decided_overlap_decides_its_pair;
 #[path = "a_doubled_line_does_not_revert.rs"]
@@ -474,6 +476,8 @@ mod a_whole_spiric_oval_bounds_its_mirror_torus;
 mod a_whole_villarceau_circle_bounds_a_torus_face;
 #[path = "a_widened_rotation_moves_a_body.rs"]
 mod a_widened_rotation_moves_a_body;
+#[path = "an_all_pending_cube_at_public_doors.rs"]
+mod an_all_pending_cube_at_public_doors;
 #[path = "certified_enclosure_impl_census.rs"]
 mod certified_enclosure_impl_census;
 #[path = "cleave_mint_doors.rs"]

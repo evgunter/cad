@@ -1,11 +1,13 @@
 //! **A chart singularity in a face is a vertex of it, through the import
 //! door.** Each fixture states a sphere pole or a cone apex in a face's
-//! closure without making it a pole-form vertex — inside the face, inside
-//! an edge, or at the tip of a seam that is its only edge — and import
-//! re-mints it (`NormalizationKind::ChartSingularityVertex`), reported
-//! with where the file put it. The body that comes out passes tier 3,
-//! measures its closed form, meshes, and ends every singular point it
-//! reaches in exactly two edges.
+//! closure — inside the face, inside an edge, or at the tip of a seam
+//! that is its only edge. Import re-mints the first two
+//! (`NormalizationKind::ChartSingularityVertex`), reported with where the
+//! file put it, and adopts the third as stated: it already is the wrap
+//! tip. The body that comes out passes tier 3, measures its closed form,
+//! meshes, and makes every singular point it reaches a vertex, either
+//! the tip of one wrap edge its face walks out and back or the meeting
+//! of two edges.
 //!
 //! Fixtures: `fixtures/rim-only-cap/gen_rim_only_cap.py` (the rim-only,
 //! seamed, spurred, tilted and cone caps), `fixtures/halfcap/` (a meridian arc
@@ -16,8 +18,7 @@
 
 use core::f64::consts::PI;
 
-use geom::Surface;
-use geom_core::{Point3, Tol};
+use geom_core::Tol;
 use step_import::{
     ImportOptions, NormalizationKind, SingularityFound, StepImport, StepImportError, import_step,
 };
@@ -43,7 +44,7 @@ struct Row {
 }
 
 fn rows() -> Vec<Row> {
-    use SingularityFound::{InsideEdge, Interior, ValenceOneVertex};
+    use SingularityFound::{InsideEdge, Interior};
     let r = 0.010_f64;
     let rim_cap = cap(r, r * (1.0 - 0.5_f64.sin()));
     // The ball less the cap x > 8 mm.
@@ -54,39 +55,40 @@ fn rows() -> Vec<Row> {
         Row {
             path: "rim-only-cap/rimonly1.step",
             found: &[Interior],
-            census: (3, 4, 3),
+            census: (2, 2, 2),
             volume: rim_cap,
         },
         Row {
             path: "rim-only-cap/rimonly2.step",
             found: &[Interior],
-            census: (3, 4, 3),
+            census: (2, 2, 2),
             volume: rim_cap,
         },
         Row {
             path: "rim-only-cap/seamed.step",
-            found: &[ValenceOneVertex],
-            census: (3, 4, 3),
+            found: &[],
+            census: (2, 2, 2),
             volume: rim_cap,
         },
         // The spur does not take the face out: the pole is still inside
-        // it, and the meridian along the spur is joined to it.
+        // it, and the wrap edge along the spur is joined to it, so the
+        // cap settles as the seamed one does.
         Row {
             path: "rim-only-cap/spur.step",
             found: &[Interior],
-            census: (3, 4, 3),
+            census: (2, 2, 2),
             volume: rim_cap,
         },
         Row {
             path: "rim-only-cap/tilted.step",
             found: &[Interior],
-            census: (3, 4, 3),
+            census: (2, 2, 2),
             volume: cap(r, 0.004),
         },
         Row {
             path: "rim-only-cap/conecap.step",
             found: &[Interior],
-            census: (3, 4, 3),
+            census: (2, 2, 2),
             volume: cone,
         },
         Row {
@@ -104,51 +106,32 @@ fn rows() -> Vec<Row> {
         Row {
             path: "seam-region/side_cut_equator_split.step",
             found: &[Interior, Interior],
-            census: (5, 10, 7),
+            census: (3, 7, 6),
             volume: side_cut,
         },
         Row {
             path: "seam-region/side_cut_meridian_split.step",
             found: &[Interior, InsideEdge],
-            census: (5, 10, 7),
+            census: (4, 9, 7),
             volume: side_cut,
         },
         Row {
             path: "occ/cap.step",
-            found: &[ValenceOneVertex],
-            census: (3, 4, 3),
+            found: &[],
+            census: (2, 2, 2),
             volume: rim_cap,
         },
         Row {
             path: "occ/side_cut.step",
-            found: &[ValenceOneVertex],
-            census: (3, 5, 4),
+            found: &[],
+            census: (2, 4, 4),
             volume: side_cut,
         },
     ]
 }
 
-/// The singular points of every sphere and cone face of `body`.
-fn singular_points(body: &topo::Body<f64>) -> Vec<Point3<f64>> {
-    let mut out = Vec::new();
-    for (fk, _) in body.faces() {
-        match *body.face_surface(fk).unwrap() {
-            Surface::Sphere { frame, radius, .. } => {
-                let (center, axis) = (frame.origin(), frame.axis());
-                out.extend([center + axis * radius, center - axis * radius])
-            }
-            Surface::Cone { frame, .. } => {
-                let apex = frame.origin();
-                out.push(apex)
-            }
-            _ => {}
-        }
-    }
-    out
-}
-
 #[test]
-fn every_chart_singularity_a_file_puts_in_a_face_imports_as_a_pole_form_vertex() {
+fn every_chart_singularity_a_file_puts_in_a_face_imports_as_a_vertex_of_it() {
     let tol = Tol::witness();
     for row in rows() {
         let name = row.path;
@@ -196,23 +179,8 @@ fn every_chart_singularity_a_file_puts_in_a_face_imports_as_a_pole_form_vertex()
             Ok(()),
             "{name}: meshes"
         );
-        // The rule itself: every singular point the body reaches is a
-        // vertex with exactly two edge ends at it.
-        let points: Vec<_> = b.vertex_points().collect();
-        for s in singular_points(b) {
-            let Some((v, _)) = points.iter().find(|(_, p)| (*p - s).norm() <= 1e-9) else {
-                continue;
-            };
-            let ends = b
-                .edges()
-                .flat_map(|(_, e)| [e.he_plus, e.he_minus])
-                .filter(|h| b.get_half_edge(*h).unwrap().start == *v)
-                .count();
-            assert_eq!(
-                ends, 2,
-                "{name}: the singular point {s:?} ends {ends} edges"
-            );
-        }
+        // The rule itself.
+        crate::common::assert_singular_points_are_vertices(name, b);
     }
 }
 
@@ -268,5 +236,52 @@ fn a_seam_at_the_pole_of_an_inverted_face_refuses_typed() {
             assert!(what.contains("ORIENTATION-INVERTED"), "{what}");
         }
         other => panic!("the inverted seamed cap: {other:?}"),
+    }
+}
+
+/// **Where a spur lies round the axis is not read off a frame field.**
+/// The spurred cap with its sphere's `u_ref` turned to `−x`, away from
+/// the spur: the wrap edge still runs to the spur's tip, the cap's
+/// point nearest the pole, and the cap settles as with the spur on
+/// `u_ref`'s meridian.
+#[test]
+fn a_spur_off_the_u_ref_meridian_imports_as_one_on_it() {
+    let tol = Tol::witness();
+    let r = 0.010_f64;
+    let want = cap(r, r * (1.0 - 0.5_f64.sin()));
+    let text = fixture("rim-only-cap/spur.step");
+    let frame = "#35 = DIRECTION('',(1.,0.,0.));";
+    assert!(text.contains(frame), "the sphere's u_ref");
+    for (what, text) in [
+        ("as written", text.clone()),
+        (
+            "u_ref turned",
+            text.replace(frame, "#35 = DIRECTION('',(-1.,0.,0.));"),
+        ),
+    ] {
+        let Ok(StepImport::Solid { body, .. }) = import_step(&text, &ImportOptions::default(), tol)
+        else {
+            panic!("{what}: the spurred cap imports");
+        };
+        let b = &*body;
+        assert_eq!(
+            (
+                b.faces().count(),
+                b.edges().count(),
+                b.vertex_points().count()
+            ),
+            (2, 2, 2),
+            "{what}: the census"
+        );
+        let volume = topo::test_support::pinned_volume(
+            "the spurred cap",
+            &topo::test_support::finished("the spurred cap", b.clone(), tol),
+            tol,
+        )
+        .volume;
+        assert!(
+            (volume - want).abs() <= 1e-9 * want,
+            "{what}: volume {volume} vs {want}"
+        );
     }
 }
