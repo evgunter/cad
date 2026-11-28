@@ -183,7 +183,9 @@ pub(super) fn evaluate<T: Real + Bounds>(
             continue;
         }
         let kid = |i: usize| memo.get(&n.kids[i]).copied().flatten();
-        let v = match n.op {
+        // A closure, so that a child with no value leaves THIS node with
+        // none (memoised) rather than returning from the walk.
+        let v = (|| match n.op {
             SymOp::Param => param(n.payload),
             SymOp::Opaque | SymOp::Hull | SymOp::Free => None,
             SymOp::Lit => Some(T::from_f64(f64::from_bits(n.payload))),
@@ -218,7 +220,7 @@ pub(super) fn evaluate<T: Real + Bounds>(
                 [a, b] => Some(d.select_le_zero(kid(a)?, kid(b)?)),
                 _ => None,
             }),
-        };
+        })();
         memo.insert(id, v);
     }
     memo.get(&root).copied().flatten()
@@ -368,6 +370,22 @@ mod tests {
         with_session_rules(budget(), SymRules::shipped(), f)
     }
 
+    /// What the leaf's point memo holds for `id`: `None` where it was
+    /// never read, `Some(None)` where it declined.
+    fn memo_of(id: SymId) -> Option<Option<Interval>> {
+        SESSION.with(|s| s.borrow().as_ref()?.points.get(&id).copied())
+    }
+
+    /// How many nodes the leaf's point memo holds.
+    fn memo_len() -> usize {
+        SESSION.with(|s| s.borrow().as_ref().map_or(0, |s| s.points.len()))
+    }
+
+    /// `id`'s reading at the leaf's point, as the refuter takes it.
+    fn read_now(id: SymId) -> Option<Interval> {
+        SESSION.with(|s| reading(s.borrow_mut().as_mut().expect("a session"), id))
+    }
+
     /// **A nonzero margin undecided over the box is refuted with no form
     /// built.** `x² − 0.01` straddles over `[-1, 1]` and reads at least
     /// `0.15² · 4 − 0.01 > 0` at any point the rule picks. Red on main,
@@ -422,7 +440,8 @@ mod tests {
     /// `select(x, x − p, 1)` reads its `x − p`, which is 0 there, and
     /// climbs. The second is red under the mutant that takes `when_gt`
     /// (an unsound refutation); the first under the mutant that hulls
-    /// every select.
+    /// every select; the third, whose untaken arm must stay out of the
+    /// memo, under the mutant that walks both arms.
     #[test]
     fn a_select_takes_the_arm_its_decision_reads_at_the_point() {
         let (name, p) = below_centre();
@@ -437,11 +456,14 @@ mod tests {
             asked(x.select_le_zero(x - lit(p), lit(1.0)))
         });
         assert!(forms > 0, "the arm it takes reads 0 at the point: asked");
-        let ((_, forms), _) = shipped(|| {
+        let ((forms, unread), _) = shipped(|| {
             let x = param(&name, -1.0, 1.0);
-            asked(x.select_le_zero(lit(1.0), S::opaque(Interval::from_bounds(-1.0, 1.0))))
+            let gt = x * lit(7.0) - lit(0.5);
+            let (_, forms) = asked(x.select_le_zero(lit(1.0), gt));
+            (forms, memo_of(gt.node()))
         });
-        assert_eq!(forms, 0, "the arm it does not take is not read");
+        assert_eq!(forms, 0, "the arm it takes reads 1: refuted");
+        assert!(unread.is_none(), "the arm it does not take is not read");
     }
 
     /// **A `select` whose decision straddles at the point reads the hull
@@ -470,8 +492,10 @@ mod tests {
     /// not its expression's value; the variable is minted here as the
     /// door mints it, the door's one caller being limb 2), an
     /// opaque value, a hull and a parameter with no bracket each read
-    /// nothing, and the tier is asked as before. Each red under the
-    /// mutant that reads the value as 0.
+    /// nothing, and the tier is asked as before. The row asserts the
+    /// reading DECLINED (the memo holds no value for the margin), so it
+    /// is red under the mutant that reads the value as 0 (refuted) and
+    /// under one that reads it as any enclosure, 0 held or not.
     #[test]
     fn values_with_no_expression_decline() {
         type Row = (&'static str, fn() -> S);
@@ -494,11 +518,16 @@ mod tests {
             }),
         ];
         for (what, m) in rows {
-            let ((_, forms), _) = shipped(|| asked(m()));
+            let ((forms, held), _) = shipped(|| {
+                let m = m();
+                let (_, forms) = asked(m);
+                (forms, memo_of(m.node()))
+            });
             assert!(
-                forms > 0,
-                "{what}: the reading declines and the tier is asked"
+                matches!(held, Some(None)),
+                "{what}: the reading declined: {held:?}"
             );
+            assert!(forms > 0, "{what}: and the tier is asked");
         }
     }
 
@@ -584,6 +613,275 @@ mod tests {
         assert_eq!(sorted.len(), points.len(), "{points:?}");
         assert_eq!(point_of(1, 1.0, 1.0), Some(1.0), "a point bracket");
         assert_eq!(point_of(1, f64::NEG_INFINITY, 1.0), None);
+        assert_eq!(point_of(1, 2.0, 1.0), None, "reversed");
+        assert_eq!(point_of(1, f64::NAN, 1.0), None);
+        // At the edges the point can land on a face (`point_of`'s docs):
+        // inside the bracket all the same, which is all soundness needs.
+        for (lo, hi) in [
+            (1.0, 1.0f64.next_up()),
+            (-f64::MAX, f64::MAX),
+            (0.0, f64::MIN_POSITIVE),
+            (1e300, f64::MAX),
+        ] {
+            for n in names {
+                let q = point_of(symbol(n), lo, hi).expect("finite and ordered");
+                assert!(lo <= q && q <= hi, "[{lo:e}, {hi:e}] {n}: {q:e}");
+            }
+        }
+    }
+
+    /// **Every arm of the op table reads the op's own enclosure at the
+    /// point.** Each row builds one op over `x` (and `y`) and compares the
+    /// reading, bit for bit, with `Interval` performing that op on the
+    /// point values. Red under any arm that reads another op: `Powi`
+    /// through `|exponent|`, `Floor` as the identity, `Sin` for `Cos`, a
+    /// `Div` read as a product. (`Inv` is minted only as a `Div`'s
+    /// second factor, which the `Mul` arm reads as the quotient; its own
+    /// arm is the `Div` row's.)
+    #[test]
+    fn every_arm_of_the_op_table_reads_its_op_at_the_point() {
+        type Row = (
+            &'static str,
+            fn(S, S) -> S,
+            fn(Interval, Interval) -> Interval,
+        );
+        let rows: [Row; 24] = [
+            ("lit", |_, _| lit(0.3), |_, _| Interval::from_f64(0.3)),
+            ("pi", |_, _| S::pi(), |_, _| Interval::pi()),
+            ("add", |x, y| x + y, |x, y| x + y),
+            ("sub", |x, y| x - y, |x, y| x - y),
+            ("mul", |x, y| x * y, |x, y| x * y),
+            ("div", |x, y| x / y, |x, y| x / y),
+            ("neg", |x, _| -x, |x, _| -x),
+            ("powi 3", |x, _| x.powi(3), |x, _| x.powi(3)),
+            ("powi -2", |x, _| x.powi(-2), |x, _| x.powi(-2)),
+            ("sqrt", |x, _| x.sqrt(), |x, _| x.sqrt()),
+            ("abs", |x, _| (-x).abs(), |x, _| (-x).abs()),
+            ("sin", |x, _| x.sin_cos().0, |x, _| x.sin_cos().0),
+            ("cos", |x, _| x.sin_cos().1, |x, _| x.sin_cos().1),
+            ("tan", |x, _| x.tan(), |x, _| x.tan()),
+            ("asin", |x, _| x.asin(), |x, _| x.asin()),
+            ("acos", |x, _| x.acos(), |x, _| x.acos()),
+            ("atan", |x, _| x.atan(), |x, _| x.atan()),
+            (
+                "floor",
+                |x, _| (x * lit(7.0)).floor(),
+                |x, _| (x * Interval::from_f64(7.0)).floor(),
+            ),
+            ("less_sin", |x, _| x.less_sin(), |x, _| x.less_sin()),
+            ("atan2", |x, y| x.atan2(-y), |x, y| x.atan2(-y)),
+            ("min", |x, y| x.min(y), |x, y| x.min(y)),
+            ("max", |x, y| x.max(y), |x, y| x.max(y)),
+            ("copysign", |x, y| x.copysign(-y), |x, y| x.copysign(-y)),
+            (
+                "select",
+                |x, y| (x - y).select_le_zero(x, y),
+                |x, y| (x - y).select_le_zero(x, y),
+            ),
+        ];
+        let at = |name: &str, lo: f64, hi: f64| {
+            Interval::from_f64(point_of(symbol(name), lo, hi).unwrap())
+        };
+        let (px, py) = (at("x", 0.2, 0.9), at("y", 1.5, 2.5));
+        for (what, built, op) in rows {
+            let (read, _) = shipped(|| {
+                let m = built(param("x", 0.2, 0.9), param("y", 1.5, 2.5));
+                read_now(m.node())
+            });
+            let want = op(px, py);
+            assert_eq!(
+                read.map(Interval::repr_bits),
+                Some(want.repr_bits()),
+                "{what}: {read:?} against {want:?}"
+            );
+        }
+    }
+
+    /// **A bracket that MOVES clears the readings taken under the old
+    /// one** (one reviewer's row). `max(x, −x) − x` is `−2x` at the point
+    /// of `[-1, 1e-12]`, refuted; over `[0.25, 1]` it is an identity. The
+    /// node is one node under both brackets, so a reading kept across the
+    /// move refutes the identity. Red under the mutant that clears the
+    /// memo only on a parameter's first bracket.
+    #[test]
+    fn a_moved_bracket_clears_the_readings() {
+        let m = |x: S| x.max(-x) - x;
+        let ((first, second), counts) = shipped(|| {
+            let (first, _) = asked(m(param("x", -1.0, 1e-12)));
+            let (second, _) = asked(m(param("x", 0.25, 1.0)));
+            (first, second)
+        });
+        assert_ne!(first, Some(Sign::Zero), "refuted under the first bracket");
+        assert_eq!(
+            second,
+            Some(Sign::Zero),
+            "proven under the second: {counts:?}"
+        );
+        assert_eq!(counts.symbolic, 1, "{counts:?}");
+    }
+
+    /// **With the shape report installed, a refuted decision records its
+    /// numeric outcome and renders nothing**: no form is built (the
+    /// renderer builds the plain and early forms of what it renders) and
+    /// its record has no form. Red under the mutant that renders before
+    /// the refutation.
+    #[test]
+    fn a_refuted_decision_renders_no_form_for_the_shape_report() {
+        let ((forms, shapes), _) = shipped(|| {
+            super::super::report::start_shape_report();
+            let x = param("x", -1.0, 1.0);
+            let (_, forms) = asked(x * x - lit(0.01));
+            (forms, super::super::report::take_shape_report())
+        });
+        assert_eq!(forms, 0, "no form built, the render's included");
+        assert_eq!(shapes.len(), 1, "{shapes:?}");
+        assert!(shapes[0].form.is_none(), "{:?}", shapes[0]);
+    }
+
+    /// **A sub-graph several margins share is read once per leaf**: after
+    /// `s = x² − 0.01` is read, reading `s · y` adds two nodes to the
+    /// memo (`y` and the product), not the sub-graph again. Red under the
+    /// mutant that reads each margin into a fresh memo.
+    #[test]
+    fn a_shared_sub_graph_is_read_once() {
+        let ((a, b, ab), _) = shipped(|| {
+            let (x, y) = (param("x", -1.0, 1.0), param("y", 2.0, 3.0));
+            let shared = x * x - lit(0.01);
+            let _ = read_now(shared.node());
+            let a = memo_len();
+            let _ = read_now((shared * y).node());
+            let b = memo_len();
+            let _ = read_now((shared * y).node());
+            (a, b, memo_len())
+        });
+        assert_eq!(b - a, 2, "only the new nodes are read");
+        assert_eq!(ab, b, "a margin read is read once");
+    }
+
+    /// **A margin over nodes another leaf recorded is read, not
+    /// declined**: the nodes are in the drive's table, which the reading
+    /// resolves through. Leaf A mints `x² − 0.01`; leaf B, on another
+    /// thread so that none of A's caches are its own, records `x`'s
+    /// bracket and decides the margin A minted: refuted, no form. Red
+    /// under the mutant that resolves nodes in the leaf's own cache
+    /// alone.
+    #[test]
+    fn a_margin_another_leaf_recorded_is_read() {
+        use super::super::{DriveMemo, with_session_memo};
+        let table = std::sync::Arc::new(DriveMemo::new(budget(), SymRules::shipped()));
+        let table = &table;
+        let ((cached, forms), _) = with_session_memo(budget(), SymRules::shipped(), table, || {
+            let x = param("x", -1.0, 1.0);
+            let m = x * x - lit(0.01);
+            // Leaf B runs while A is open, so A's cache is not one it can
+            // be handed.
+            std::thread::scope(|s| {
+                s.spawn(move || {
+                    with_session_memo(budget(), SymRules::shipped(), table, || {
+                        let _ = param("x", -1.0, 1.0);
+                        let cached = SESSION.with(|s| {
+                            s.borrow()
+                                .as_ref()
+                                .is_some_and(|s| s.nodes.contains_key(&m.node()))
+                        });
+                        (cached, asked(m).1)
+                    })
+                    .0
+                })
+                .join()
+                .expect("leaf B ran")
+            })
+        });
+        assert!(!cached, "leaf B does not hold the margin in its own cache");
+        assert_eq!(forms, 0, "read through the drive's table and refuted");
+    }
+
+    /// **A dual lane reads through its inner scalar**: `Sym<Dual<Interval>>`
+    /// decides at an exact witness, so the margin is refuted there as at
+    /// `Sym<Interval>`. Red under the mutant in which a dual reads
+    /// nothing.
+    #[test]
+    fn a_dual_lane_reads_at_its_exact_witness() {
+        use crate::Dual;
+        let ((sign, forms), _) = shipped(|| {
+            let x = Sym::param_over(
+                ParamSymbol::new(symbol("x")),
+                Dual::variable(Interval::from_bounds(-1.0, 1.0)),
+                -1.0,
+                1.0,
+            );
+            let m = x * x - Sym::<Dual<Interval>>::from_f64(0.01);
+            let before = forms_built();
+            let band = Band::linear(Tol::witness()).expect("a linear band");
+            let sign = crate::k_stats::decide("point_test", Margin::of(m), band).ok();
+            (sign, forms_built() - before)
+        });
+        assert_eq!(forms, 0, "refuted at the dual's witness");
+        assert_ne!(sign, Some(Sign::Zero));
+    }
+
+    /// **A refutation can move a LATER decision of the same scope, and
+    /// only towards a proof** (one reviewer's row): the growth guard
+    /// (`SymRetry::max_forms`, per node) withholds a retry attempt from a
+    /// node whose attempt memos are at the cap, and a refuted ask builds
+    /// no retry forms. At a cap of one form, `x² − 0.01` climbed first
+    /// (main's behaviour) fills the cap, and the identity after it is
+    /// left to the numeric channel's in-band `Zero`; refuted first, the
+    /// identity is proven on the retry. Same sign either way; the
+    /// symbolic count is what moves.
+    #[test]
+    fn a_refutation_moves_a_later_identity_through_the_growth_guard() {
+        use super::super::{Path, SymRetry, discharge_in, with_session_retry};
+        let c = || S::from_f64(1.0 / 3.0);
+        let chain = |k: usize| (1..k).fold(c(), |acc, _| acc * c());
+        let identity = move || chain(5) - chain(2) * chain(3);
+        let band = || Band::linear(Tol::witness()).expect("band");
+        let capped = SymRetry {
+            bits: Some(512),
+            max_forms: 1,
+            ..SymRetry::none()
+        };
+        let run = |climb_first: bool| {
+            with_session_retry(budget(), SymRules::shipped(), capped, || {
+                let x = param("x", -1.0, 1.0);
+                let m1 = x * x - lit(0.01);
+                if climb_first {
+                    let _ = discharge_in(m1.node(), Path::Decision);
+                } else {
+                    let _ = crate::k_stats::decide("probe_m1", Margin::of(m1), band());
+                }
+                crate::k_stats::decide("probe_id", Margin::of(identity()), band())
+            })
+        };
+        let (head, hc) = run(false);
+        let (main, mc) = run(true);
+        assert_eq!((head, main), (Ok(Sign::Zero), Ok(Sign::Zero)));
+        assert_eq!(
+            (hc.symbolic, hc.retried),
+            (1, 1),
+            "refuted first: proven on the retry"
+        );
+        assert_eq!(
+            (mc.symbolic, mc.retried),
+            (0, 0),
+            "climbed first: the retry is withheld"
+        );
+    }
+
+    /// **A registered identity true over the box is not refuted**: the
+    /// point reads it near 0, and the door proves it (one reviewer's
+    /// row, at the decision).
+    #[test]
+    fn a_true_registered_identity_is_not_refuted() {
+        let ((sign, _), counts) = shipped(|| {
+            let x = param("x", 0.9, 1.1);
+            let a = (x * x).sqrt() * lit(3.0);
+            let b = x * lit(3.0);
+            let _ = a.register_equal(b, Tol::witness());
+            asked(a - b)
+        });
+        assert_eq!(sign, Some(Sign::Zero), "{counts:?}");
+        assert_eq!(counts.symbolic, 1, "{counts:?}");
     }
 
     /// **The instrument**: refuted asks climbed anyway prove no zero, and
