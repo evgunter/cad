@@ -41,3 +41,18 @@ Judged on the recommended final state: **agreed**. Both act at `Sym::decide_sign
 ## Round 1 (dispatched 17:45 UTC 2026-11-28; a confirmation round, not a disagreement)
 
 Each shown the other's report and asked for one agreed order, one form, one decline list and one wording for E12. A count (M16) is being taken by the probe lane meanwhile.
+
+### Round 1 replies (both in by 17:44 UTC 2026-11-28)
+
+Neither recommendation moved; the details are now one text.
+
+- **Order:** value; plain form (zero form: proven `Zero`); the box read; PR 7712's point reading gates the ladder; the ladder. B took A's order: the two give the same answer on every ask and differ in cost only. PR 7712's row "builds no form" is re-cut to "climbs no rung past the plain form".
+- **Form:** the plain form only, both. The early form is added only if the count shows `select` declines it would decide.
+- **Decline list:** free, opaque, hull, frozen, poisoned, any atom the enclosure cannot enter. Registered identities are not on it (the plain form never reads the door). Both.
+- **Empty intersection:** a `debug_assert!`; the release build stands on the value's reading. Both.
+- **The `f64` gap:** a certified leaf's decisions hold of the margin's real value at every member, as a symbolic `Zero`'s already do. Both.
+- **E12 text:** the same three sentences, near-identical wording.
+- **The re-spelled readers:** the side reader's ray and the one-plane reading stay, both. The wall's roots: B, still needed in every lane (roots are values a construction consumes); A, needed where it makes an identity fold, each site to be checked (unsure). A moved here from its first report, which called the landed re-spellings special cases.
+- **What the count must show:** both name the same stops (a member that contradicts, or an empty intersection: stop; declines dominating: the next unit is the decline list; "encloses, straddles, members agree" dominating: a centred enclosure first; form cost: a gate before the form).
+
+**Reconciliation ends: agreed.** M16 (the count) is pending before the `[ev]` PR.
