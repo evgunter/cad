@@ -6,7 +6,7 @@ status: open
 opened: 2026-11-28
 priority: P2
 cost: M
-refs: [a-strut-rings-side-is-read-from-its-own-germ]
+refs: [a-section-loop-inside-two-one-band-curved-faces-refuses-at-the-section-certificate]
 ---
 
 
@@ -28,8 +28,7 @@ The ball turned 1.1 rad about `(0.3, 1, 0.2)` and moved to
 
 Main at `1460fc7dbc1`, with `chord_join.rs` as main has it, runs
 `union(moved, donut0)` past the same 300 s cap at 1e-12. So this is not
-the strut-ring deferral. The donut-first ops refuse in about 8 s at
-every ε.
+the strut-ring change.
 
 Not bisected. It may be the class of
 `inside/main-slow-since-7801-the-face-door-spline-arm-runs-slow-rows-and-the-mesh-budget-job-for-hours`;
@@ -37,6 +36,8 @@ nobody has checked.
 
 ## Pin
 
-`the_spline_edge_placement_under_every_op` skips the ball-first ops at
-ε 1e-12, printing a `SKIPPED at ε 1e-12` line that cites this row. The
-donut-first pins still run there.
+At ε 1e-12, `the_spline_edge_placement_under_every_op` holds only the
+donut-first three. The ball-first three are a row of their own,
+`the_spline_edge_placement_ball_first_ops`, `#[ignore]`d with a reason
+citing this item, so a run lists it as ignored. At the other ε the
+every-op row reads all six.

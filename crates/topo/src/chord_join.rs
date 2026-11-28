@@ -301,11 +301,14 @@ pub enum JoinError {
     /// No vertex of a ring says which side of the run dividing its face
     /// off it is on: every vertex is ON the run (a ring an
     /// ill-conditioned operand put there), or, on a curved face, no
-    /// path from a vertex is decided. A pierce ring no join has reached
-    /// is deferred instead ([`ChordJoiner`]'s pending rings), and
-    /// refuses this way only if its join cannot place it either: it
-    /// meets a pending ring in another face, a polygon completes inside
-    /// it, or it is still pending when either sweep is done.
+    /// path from a vertex is decided. A pierce ring on a plane with every
+    /// vertex on the run is deferred instead ([`ChordJoiner`]'s pending
+    /// rings), and refuses this way only if its join cannot place it
+    /// either: it meets a pending ring in another face, a polygon
+    /// completes inside it, or it is still pending when either sweep is
+    /// done. A pierce ring on a curved face no path decides is read by
+    /// its point against the new face, and refuses this way where that
+    /// reading lands on the face's boundary, in band, or reads nothing.
     RingHomingAmbiguous {
         /// The undecidable ring.
         ring: LoopKey,
@@ -803,8 +806,9 @@ impl JoinError {
             ),
             Self::RingHomingAmbiguous { .. } => write!(
                 f,
-                "every vertex of a hole loop lies on the boundary of the piece being \
-                 divided off, so which piece holds it cannot be decided. Recourse: {JOIN_RECOURSE}"
+                "which piece of a face being divided holds one of its hole loops cannot be \
+                 decided: every vertex of the loop lies on the piece's boundary, or no reading \
+                 of it settles. Recourse: {JOIN_RECOURSE}"
             ),
             Self::UnpairedLooseEnds { count } => write!(
                 f,
@@ -5674,18 +5678,18 @@ impl ChordJoiner {
     /// tested: a ring-lane remainder is geometrically coincident with
     /// the run and would land `OnBoundary`.
     ///
-    /// A pierce ring no join has reached yet (a strut, its vertices all
-    /// copies of its pierce point) whose side no reading decides is left
-    /// pending ([`Self::place_pending`]): on a plane every vertex decided
-    /// ON the run ([`RingSide::OnRun`]), on a curved face every path
-    /// ending on the run or grazing it ([`RingSide::Undecided`]). No
-    /// point of it says which side it is on, but its own polygon will:
-    /// that join moves it into the face of the ring it meets, and a ring
-    /// still pending when the sweep is done refuses ([`Self::finish`]).
-    /// Until then it sits in `oldf`, its point outside `newf`'s region or
-    /// on its boundary, so a later division of the face holding it reads
-    /// it outside, on the run or undecided, and never moves it; a reading
-    /// inside is a kernel defect and refuses as one. Any other ring no
+    /// A pierce ring on a plane every vertex of which is decided ON the
+    /// run ([`RingSide::OnRun`]) is a strut at a pinch the run passes
+    /// through: no point of it says which side it is on, but its own
+    /// polygon will, so it is left pending ([`Self::place_pending`]). Its
+    /// point stays on the boundary of the face holding it, so a later
+    /// division of that face reads it on the run again or out, and never
+    /// moves it; a reading inside is a kernel defect and refuses as one.
+    ///
+    /// A pierce ring on a curved face no path decides
+    /// ([`RingSide::Undecided`]) is placed by its point in `newf`, through
+    /// the point-in-face door ([`strut_in_run`]), the reading
+    /// `boolean::fate::rehome` re-homes its rings by. Any other ring no
     /// reading places refuses.
     fn rehome_rings<T: Decide>(
         &mut self,
@@ -5731,9 +5735,14 @@ impl ChordJoiner {
                 }
             };
             match side {
-                // A pending ring's point lies outside `oldf`'s region or
-                // on its boundary, so a run walled off `oldf` never holds
-                // it: only its own polygon's join moves it.
+                // A pending ring is a plane strut whose every vertex was
+                // decided ON an earlier run, so its point lies on the
+                // boundary of the face holding it, and a run walled off
+                // that face never holds it strictly: only its own
+                // polygon's join moves it. Only the plane lane reads
+                // `OnRun`, and a division keeps the face's carrier, so a
+                // pending ring always sits on a plane: the path lane
+                // never meets one.
                 RingSide::In if self.pending.contains_key(ring) => {
                     return Err(JoinError::SectionInvariant {
                         face: oldf,
@@ -5743,8 +5752,15 @@ impl ChordJoiner {
                 }
                 RingSide::In => body.ring_move(ring, newf)?,
                 RingSide::Out => {}
-                RingSide::OnRun | RingSide::Undecided if is_pierce_ring(body, ring)? => {
+                RingSide::OnRun if is_pierce_ring(body, ring)? => {
                     self.pending.insert(ring, ());
+                }
+                RingSide::Undecided if is_pierce_ring(body, ring)? => {
+                    match strut_in_run(body, ring, newf, self.band)? {
+                        Some(true) => body.ring_move(ring, newf)?,
+                        Some(false) => {}
+                        None => return Err(JoinError::RingHomingAmbiguous { ring }),
+                    }
                 }
                 RingSide::OnRun | RingSide::Undecided => {
                     return Err(JoinError::RingHomingAmbiguous { ring });
@@ -5807,6 +5823,57 @@ impl ChordJoiner {
             Ok(CutOutcome::Merged)
         }
     }
+}
+
+/// **Whether a pierce ring's point lies inside `newf`**, the face a run
+/// just walled off the face holding it, read by the point-in-face door
+/// ([`crate::contain::placement_on_carrier`]), the reading
+/// `boolean::fate::rehome` re-homes its rings by: `Some(true)` decided
+/// inside, `Some(false)` decided outside or off the carrier, and `None`
+/// on `newf`'s boundary, in band, or where the door reads no verdict.
+///
+/// The premise: the ring is a strut, every vertex of it a copy of its
+/// pierce point ([`is_pierce_ring`]), which lies on the carrier of the
+/// face holding it, the carrier `newf` shares. So the ring's anchor is
+/// the ring's one point, and the door places it on that carrier.
+///
+/// A spline `newf` reads `None`: the door's in-trim foot speaks for one
+/// sheet only, and a second in-trim sheet within the band is not ruled
+/// out (`work/splice/the-spline-placement-read-certifies-no-second-in-trim-foot`),
+/// where the path parity this stands in for is chart-free.
+///
+/// # Errors
+///
+/// [`JoinError::Corrupt`] where the ring's anchor does not resolve.
+fn strut_in_run<T: Decide>(
+    body: &Body<T>,
+    ring: LoopKey,
+    newf: FaceKey,
+    band: Band,
+) -> Result<Option<bool>, JoinError> {
+    use crate::contain::{CurvedPlacement, FaceContainment};
+    let spline = body
+        .face(newf)
+        .ok_or_else(|| corrupt_face(newf))?
+        .expect_described()
+        .spline_chart()
+        .is_some();
+    if spline {
+        return Ok(None);
+    }
+    let p = ring_representative(body, ring).map_err(JoinError::Corrupt)?;
+    let held = crate::held::Held::constructed(p, "the pierce point of a strut ring of this face");
+    Ok(
+        match crate::contain::placement_on_carrier(body, newf, held, band) {
+            Ok((CurvedPlacement::Trim(Some(FaceContainment::In)), _, _)) => Some(true),
+            Ok((
+                CurvedPlacement::OffCarrier | CurvedPlacement::Trim(Some(FaceContainment::Out)),
+                _,
+                _,
+            )) => Some(false),
+            Ok(_) | Err(_) => None,
+        },
+    )
 }
 
 /// Whether every edge of `ring` is a null edge: a pierce ring no join
@@ -7303,6 +7370,58 @@ mod pending_ring_tests {
         assert!(
             body.get_face(other).unwrap().rings.contains(&off),
             "the ring off the run is homed by its own vertex"
+        );
+    }
+
+    /// **A strut ring on a curved face no path places is read by its
+    /// point in the new face** ([`super::strut_in_run`], the
+    /// point-in-face door `boolean::fate::rehome` trusts): on a cylinder
+    /// sheet over azimuths `[0.2, 1.4]`, a strut at azimuth 0.8 is inside,
+    /// one at 2.5 on the carrier is outside, and one on the sheet's edge at
+    /// azimuth 0.2 reads nothing. On a spline face it reads nothing
+    /// whatever the point: its in-trim foot speaks for one sheet only.
+    ///
+    /// Red where the door's In and Out are swapped, or a spline face is
+    /// read.
+    #[test]
+    fn a_strut_ring_on_a_curved_face_is_read_by_its_point_in_the_new_face() {
+        let band = Band::linear(tol()).unwrap();
+        let mut body = Body::<f64>::new();
+        let sheet = crate::test_support_fixtures::cyl_wall_sheet(
+            &mut body,
+            crate::test_support_fixtures::CylFrame::canonical(1.0),
+            (0.2, 1.4),
+            (0.0, 1.0),
+            tol(),
+        );
+        crate::test_support_fixtures::set_sheet_sense(&mut body, sheet, true, tol());
+        // The rings are held by a second face, as a ring being re-homed is
+        // held by the face being divided, not by the new face it is read in.
+        let holder = crate::test_support_fixtures::cyl_wall_sheet(
+            &mut body,
+            crate::test_support_fixtures::CylFrame::canonical(1.0),
+            (3.0, 4.0),
+            (0.0, 1.0),
+            tol(),
+        );
+        let at = |u: f64| Point3::new(u.cos(), u.sin(), 0.5);
+        for (u, want, what) in [
+            (0.8, Some(true), "inside the sheet"),
+            (2.5, Some(false), "on the carrier, outside the sheet"),
+            (0.2, None, "on the sheet's edge"),
+        ] {
+            let (ring, _) = pierce_ring(&mut body, holder, at(u), 1);
+            let got = super::strut_in_run(&body, ring, sheet, band);
+            assert!(matches!(got, Ok(g) if g == want), "a strut {what}: {got:?}");
+        }
+        let (mut dome, top) = crate::test_support_fixtures::domed_cube();
+        let p = crate::test_support_fixtures::dome().eval(0.5, 0.5);
+        let side = dome.faces().map(|(k, _)| k).find(|&k| k != top).unwrap();
+        let (ring, _) = pierce_ring(&mut dome, side, p, 1);
+        let got = super::strut_in_run(&dome, ring, top, band);
+        assert!(
+            matches!(got, Ok(None)),
+            "a strut on a spline face reads nothing: {got:?}"
         );
     }
 
