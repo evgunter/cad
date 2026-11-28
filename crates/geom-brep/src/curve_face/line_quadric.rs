@@ -2360,3 +2360,42 @@ mod review_wall_roots_probes {
         }
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic, clippy::print_stdout)]
+mod review_door_probe {
+    //! Reviewer probe: the door over the nearest-point fixture's whole box
+    //! (`nearest_rows::boxed`'s shape, `u ∈ [−w, w]` for several `w`).
+    use super::*;
+    use geom_core::{Bounds, Interval, Real, UnitVec3};
+
+    fn boxed<T: Real>(u: T) -> (geom::Line<T>, (geom::Line<T>, T)) {
+        let lift = |x: f64| T::from_f64(x);
+        let (tilt, turn) = (10f64.to_radians(), 200f64.to_radians());
+        let d = Vec3::new(tilt.sin() * turn.cos(), tilt.sin() * turn.sin(), tilt.cos());
+        let q = Point3::new(
+            lift(-2.26e-4) + lift(2.5e-4) * u,
+            lift(-5.83e-4) + lift(6.0e-4) * u,
+            lift(0.0),
+        );
+        let ray = geom::Line { origin: q, dir: UnitVec3::squared(d.map(lift)) };
+        let wall = geom::Line { origin: Point3::new(0.0, 0.0, 0.0).map(lift), dir: UnitVec3::exact_z() };
+        (ray, (wall, lift(1.2e-3)))
+    }
+
+    #[test]
+    fn probe_the_door_over_wider_boxes() {
+        let band = geom_core::Band::linear(geom_core::Tol::witness()).unwrap();
+        for w in [0.1, 0.2, 0.3, 0.5, 0.7, 1.0] {
+            let (ray, (wall, radius)) = boxed(Interval::from_bounds(-w, w));
+            let got = line_wall_roots(ray, wall, radius, Interval::from_f64(0.1), band, About::Nearest);
+            match got {
+                Ok(WallRoots::Two([t0, t1], s)) => println!(
+                    "w {w}: t0 [{:e}, {:e}] t1 [{:e}, {:e}] slack {:e}",
+                    t0.lo(), t0.hi(), t1.lo(), t1.hi(), s.hi()
+                ),
+                other => println!("w {w}: {other:?}"),
+            }
+        }
+    }
+}
