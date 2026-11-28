@@ -29,8 +29,10 @@ change: the ladder run on all of them returned no `Zero`), and the
 value each declined reading stopped at was a hull (the measurement
 recorded the first decline a reading met, so whether a hull's operands
 would also decline is not measured). The gap's climbs cost more than the
-same climbs did before the change (11.4 s), because the forms they
-share were built by asks the reading now refutes.
+same climbs did before the change (11.4 s). That the cause is shared
+forms, built before the change by asks the reading now refutes and
+now built by these climbs, is inferred from the shift and not
+measured (no per-form attribution was taken).
 
 What would close it is the designers' second reading (B,
 `probe/briefs/fork-the-climb/B.md` on `boxfinish/briefs`): a value the
