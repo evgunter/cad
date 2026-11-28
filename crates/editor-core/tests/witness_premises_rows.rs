@@ -138,8 +138,11 @@ fn round_beside_a_block(cone: bool) -> ProfileDoc {
 /// a sphere, whose `props_sphere_*` premises are on both vectors.
 ///
 /// Red with the lifted pass logged (`unlogged` taken out of `topo`'s
-/// `lifted_closed_form`): the witness lists each curved face's
-/// premises once more than the replay does.
+/// `lifted_closed_form`) on `plate_param` and `cut_cylinder`: the
+/// witness lists each cylinder wall's premises once more than the
+/// replay does. The ball does not part under that mutant (measured;
+/// why its wall is not read again there is not traced), so for a
+/// sphere this row pins the parity and not the repair.
 #[test]
 fn a_point_replay_states_the_witnesss_vector_on_curved_documents() {
     let extra = [corpus::cup::document()];
