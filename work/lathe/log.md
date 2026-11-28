@@ -239,3 +239,14 @@ Signed: (CARVE orchestrator)
 - 2026-11-27 (LATHE orchestrator) **PR 7828 merged** (07489b261d): declined normals are a Limit at fate::normal_at and reduce::sheets_part, while mint_node keeps the fault. CI all green. The item close is a follow-up. Process note: lanes should set status=closed in the PR's last commit, not `review`, so the merge closes the item.
 - 2026-11-27 (LATHE orchestrator) Close-cuts head 07bccfa41b. The germ_torus_components rows run base 255–283 s and head 261–285 s at 1e-9 (noise). The 40-minute stall was the already-filed 1e-12 leg (secttorus). Fast set 17,284/17,284; touched rows 71/71 at 1e-9 and 1e-6. The PR opens after the 1e-12 pass.
 - 2026-11-28 (LATHE orchestrator) Close-cuts PR 7831 (head 07bccfa41b). Review is dual Opus: R1 on soundness (decided meridian, non-plane partners, gate = part_cut, a randomized box-vs-ball sweep), R2 on tests and style (re-pin honesty, mutations, merge loss, tracker, clippy and gates on the merged head).
+- 2026-11-28 (LATHE orchestrator) PR 7831 reviews.
+  - R1 (soundness): no MAJOR. Turned-box, rod, slab and 28-pose random sweeps were all sound, census-undecidable with an oracle, or typed; both orders agree.
+  - R2 (tests and style): no MAJOR. Gates are green on the merged head and the merge lost nothing. Mutation M6 (other cut-ins' planes dropped) stays all green: a gap.
+  - Fix list sent:
+    - In-band turns must escalate, not answer the guard (both reviewers).
+    - One shared chord reading.
+    - Rows for M6, the non-plane partner, the sphere radical plane, the loop arm, and the dropped Loop+other refusal.
+    - An inclusion–exclusion oracle.
+    - Check whether the built die-slab ∪ carries pole-form vertices at (0,±1,0) (R2's S5), else refuse it and file the tier-3′ gap.
+    - Doc fixes.
+  - Class noted: a gate that re-derives the construction it predicts (two chord formulas) drifts silently.
