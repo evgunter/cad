@@ -42,4 +42,9 @@ cause).
 **Done when** the row is green or pinned on its refusal with the row
 that holds the cause.
 
+**2026-11-28:** the row passes on main `2abe74440` and on the lane's
+head (`coincidence_door`'s slow rows, 59 of 59), so some merge since
+`dc21cb117` turned it green; which was not looked for. Left for GREEN
+to close.
+
 Signed: (BOXFINISH one-plane lane)

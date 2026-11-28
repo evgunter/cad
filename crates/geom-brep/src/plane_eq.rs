@@ -527,7 +527,9 @@ mod tests {
             3 => unitise(sum(0..4) * sum(4..8) - sum(0..3) * sum(3..6)),
             4 => unitise(sum(0..8) * sum(0..8) * sum(0..4) - sum(0..5)),
             5 => {
-                let v = Vec3::new(x[0] - x[0], k(0.0), sum(0..4) - sum(4..6));
+                // A component zero as a formula, not as a literal.
+                let (a, b) = (x[0], x[0]);
+                let v = Vec3::new(a - b, k(0.0), sum(0..4) - sum(4..6));
                 v.z / v.norm()
             }
             6 => {
