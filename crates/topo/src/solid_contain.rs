@@ -2747,6 +2747,11 @@ pub(crate) enum Mark {
     /// two crossings the passage could not order, the reading
     /// ([`curved_edges`]'s nearest crossing).
     SetAside(crate::side_reader::MarkKind, Indeterminate),
+    /// A face whose crossing the turn of its loops did not place, or a
+    /// line edge whose gap nothing placed ([`edge_gap`]), with the
+    /// reading: over a box, members the ray crosses there and members
+    /// it passes.
+    Unplaced(Indeterminate),
     /// A vertex on the ray, a wedge whose edges it passes through, or a
     /// crossing no reading here places.
     Graze,
@@ -2856,16 +2861,18 @@ impl<T: Copy> RayHit<T> {
 
     /// The fault a sideless hit the count reached reads, `unread` a
     /// corner's, a wedge's or an unordered crossing's
-    /// ([`crate::side_reader::MarkKind`]): a
-    /// mark in band of the ray, else a graze.
+    /// ([`crate::side_reader::MarkKind`]), or with no kind an unplaced
+    /// crossing's ([`Mark::Unplaced`]): the first such mark, else a
+    /// graze.
     pub(crate) fn unread<E>(
         hits: &[&Self],
-        unread: impl FnOnce(crate::side_reader::MarkKind, [FaceKey; 2], Indeterminate) -> E,
+        unread: impl FnOnce(Option<crate::side_reader::MarkKind>, [FaceKey; 2], Indeterminate) -> E,
     ) -> RayFault<E> {
         match hits.iter().find_map(|h| {
             let faces = [h.face, h.other.unwrap_or(h.face)];
             match h.mark {
-                Some(Mark::SetAside(kind, gap)) => Some((kind, faces, gap)),
+                Some(Mark::SetAside(kind, gap)) => Some((Some(kind), faces, gap)),
+                Some(Mark::Unplaced(gap)) => Some((None, faces, gap)),
                 Some(Mark::Graze) | None => None,
             }
         }) {
@@ -2987,7 +2994,7 @@ enum RootSide {
 ///   is.
 /// - **An edge** whose lines' gap is within the band ([`edge_gap`]) and
 ///   whose closest point lies definitely inside it is met; one whose
-///   gap nothing read sets the ray aside there. One whose
+///   gap nothing placed is marked at its passage, read nowhere. One whose
 ///   closest point lies definitely past an end is nearest the ray at
 ///   that end, which is read as its vertex. One whose closest point is
 ///   in band of an end is marked a graze there, which no reading here
@@ -3055,7 +3062,11 @@ fn edge_meets<T: Decide>(
         }
         // Where the lines come closest, against each end of the edge:
         // inside it, past it (the edge's nearest point to the ray is that
-        // end, its vertex read above), or in band of it.
+        // end, its vertex read above), or in band of it. A gap nothing
+        // placed holds members that meet the edge and members that pass
+        // it: where the closest point is not definitely past an end, the
+        // edge is read nowhere at its passage, and stops the ray only
+        // where the count reaches it.
         let mut inside = true;
         for [lo, hi] in pass.reach {
             if decide(rows.edge_span(), Margin::of(lo), band) == Ok(Sign::Positive) {
@@ -3063,14 +3074,24 @@ fn edge_meets<T: Decide>(
             }
             inside = false;
             if decide(rows.edge_span(), Margin::of(hi), band) != Ok(Sign::Negative) {
-                meets.marks.push(RayHit::marked(faces, at, Mark::Graze));
+                let mark = match gap {
+                    Err(diag) => Mark::Unplaced(diag),
+                    Ok(_) => Mark::Graze,
+                };
+                meets.marks.push(RayHit::marked(faces, at, mark));
             }
             break;
         }
         if !inside {
             continue;
         }
-        let gap = gap.map_err(|diag| edge_gap::set_aside(pass.faces.0, diag))?;
+        let Ok(gap) = gap.map_err(|diag| {
+            meets
+                .marks
+                .push(RayHit::marked(faces, at, Mark::Unplaced(diag)));
+        }) else {
+            continue;
+        };
         meets.meet(Met {
             edge: pass.edge,
             faces,
@@ -3155,24 +3176,30 @@ struct TurnRay {
     rows: RayRows,
 }
 
-/// **Whether a ray crosses planar `face` at `p`**, off the turn of its
-/// loops about `p` ([`loop_turn`]); `None` where an edge of it is neither
-/// a line nor a circle arc. The caller reads it only where every edge
-/// bounding `face` is one the ray was decided clear of
-/// ([`EdgeMeets::clear`]), so `p`, a point of the ray, lies off every one,
-/// and a seam inside the face, which bounds nothing and was read nowhere,
-/// is left out of the turn ([`loop_turn`]). The turn is `±2π` inside the
-/// face and `0` outside it, to rounding: `|turn| − π` is `±π`, definite
-/// by construction ([`turned_inside`]). No auxiliary direction is cast,
-/// so no tie the face's geometry does not hold is ever decided.
+/// **Whether the line through `q` along `d` crosses planar `face`**, off
+/// the turn of its loops seen along the line, about `q` ([`loop_turn`]);
+/// `None` where an edge of it is neither a line nor a circle arc. Seen
+/// along `d`, a face the line is not parallel to is carried one to one
+/// onto the plane square to `d`, and the line to the point `q`, so the
+/// loops turn `±2π` about `q` where the line crosses the face and `0`
+/// where it passes beside it: `|turn| − π` is `±π`, definite by
+/// construction ([`turned_inside`]). No crossing point is formed: each
+/// vertex is read once, against the line's own point, so over a box the
+/// turn is as wide as the vertices move across the line and no wider.
+/// The caller reads it only where the ray rises off the face's plane
+/// and every edge bounding `face` is one the ray was decided clear of
+/// ([`EdgeMeets::clear`]); a seam inside the face, which bounds nothing
+/// and was read nowhere, is left out ([`loop_turn`]). No auxiliary
+/// direction is cast, so no tie the face's geometry does not hold is
+/// ever decided.
 fn crosses_by_turn<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
-    (normal, p): (Vec3<T>, Point3<T>),
+    (d, q): (Vec3<T>, Point3<T>),
     reach: T,
     ray: TurnRay,
 ) -> Result<Option<bool>, RayFault<PointInSolidError>> {
-    match loop_turn(body, face, normal, p, |x| x)? {
+    match loop_turn(body, face, d, q, |x| x)? {
         Some(turn) => turned_inside(face, turn, reach, ray).map(Some),
         None => Ok(None),
     }
@@ -3316,22 +3343,24 @@ fn turned_inside<T: Decide>(
         == Sign::Positive)
 }
 
-/// **`n̂·(u × w)` and `u·w` of two vectors across the unit `normal`**,
-/// the dot read as `(n̂ × u)·(n̂ × w)`: equal to `u·w` where neither has
-/// a part along `n̂`, and it multiplies nothing along `n̂`. At `f64` it
-/// is `u·w` to rounding; at `Interval` and `Sym` a part along the
-/// normal that two points' enclosures share is never squared into the
-/// dot. It chooses no frame ([`Vec3::orthonormal_basis`] selects one).
+/// **`n̂·(u × w)` and `u·w` of two vectors seen along the unit
+/// `normal`**, the dot read as `(n̂ × u)·(n̂ × w)`: the cross and dot of
+/// their parts square to `n̂`, with nothing along `n̂` multiplied. It
+/// chooses no frame ([`Vec3::orthonormal_basis`] selects one).
 fn planar_cross_dot<T: Decide>(normal: Vec3<T>, u: Vec3<T>, w: Vec3<T>) -> (T, T) {
     (normal.dot(u.cross(w)), normal.cross(u).dot(normal.cross(w)))
 }
-/// **The turn of `face`'s loops about `p`**, about `normal`, every point
-/// of them first carried by `map` (the identity for a planar face, which
-/// `p` lies in; an image of a curved face in the plane `p`'s image lies
-/// in): a line edge, carried to a segment, turns by the angle its ends
-/// make at `p`, and a circle arc, carried to a circle arc, by [`arc_turn`]
-/// over its two halves, each read across the normal ([`planar_cross_dot`]). `None`
-/// where an edge is neither.
+/// **The turn of `face`'s loops about `p`**, seen along `normal`, every
+/// point of them first carried by `map` (the identity for a planar face
+/// seen along a ray through `p`; an image of a curved face in the plane
+/// `p`'s image lies in): a line edge, carried to a segment, turns by the
+/// angle its ends make at `p`, and a circle arc, carried to a circle arc,
+/// by [`arc_turn`] over its two halves, each read along the normal
+/// ([`planar_cross_dot`]). `None` where an edge is neither.
+///
+/// An arc's turn subtracts its own stored points from each other (its
+/// ends and middles), so an arc that moves over a box is read as wide
+/// as it moves; a line edge's is not.
 fn loop_turn<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -3382,8 +3411,8 @@ fn loop_turn<T: Decide>(
     Ok(Some(turn))
 }
 
-/// [`loop_turn`] of planar `face` about `p`, for the rows that hold its
-/// enclosure over a box.
+/// [`loop_turn`] of planar `face` about `p` seen along `normal`, for the
+/// rows that hold its enclosure over a box.
 #[cfg(test)]
 pub(crate) fn planar_turn<T: Decide>(
     body: &Body<T>,
@@ -3464,21 +3493,29 @@ pub(crate) fn edge_clearance<T: Decide>(
         .edge(e.edge)
         .and_then(crate::live::EdgeView::certified)?;
     match *curve.carrier() {
-        geom::Curve3::Line(_) => {
-            let (a, b) = (at(e.ends[0])?, at(e.ends[1])?);
-            // The chord and the point, each turned across the normal
-            // where one is given.
-            let o = Point3::new(T::zero(), T::zero(), T::zero());
-            let (from, to, at) = match across {
-                Some(n) => (o, o + n.cross(b - a), o + n.cross(m - a)),
-                None => (a, b, m),
-            };
-            let (line, length) = geom::Line::chord(from, to);
-            geom::Curve3::Line(line).distance_within(at, (T::zero(), length))
-        }
+        geom::Curve3::Line(_) => segment_clearance(at(e.ends[0])?, at(e.ends[1])?, m, across),
         geom::Curve3::Circle(_) => curve.carrier().distance_within(m, curve.params()),
         _ => None,
     }
+}
+
+/// **A lower bound on the distance from `m` to the segment `a → b`**,
+/// read across `across` where one is given ([`edge_clearance`]).
+pub(crate) fn segment_clearance<T: Decide>(
+    a: Point3<T>,
+    b: Point3<T>,
+    m: Point3<T>,
+    across: Option<Vec3<T>>,
+) -> Option<T> {
+    // The chord and the point, each turned across the normal where one
+    // is given.
+    let o = Point3::new(T::zero(), T::zero(), T::zero());
+    let (from, to, at) = match across {
+        Some(n) => (o, o + n.cross(b - a), o + n.cross(m - a)),
+        None => (a, b, m),
+    };
+    let (line, length) = geom::Line::chord(from, to);
+    geom::Curve3::Line(line).distance_within(at, (T::zero(), length))
 }
 
 /// Whether every edge bounding `face` is one of `read`: a seam inside it
@@ -4088,8 +4125,11 @@ fn root_held<T: Decide>(
 ///   from the passage in band of its carrier.
 ///
 /// A planar face whose edges are all lines and circle arcs, each decided
-/// clear of the ray, is crossed where the turn of its loops says
-/// ([`crosses_by_turn`]); another takes its in-face walk. Each root of a
+/// clear of the ray, is crossed where the turn of its loops seen along
+/// the ray says ([`crosses_by_turn`]); one whose turn is undecided is
+/// read nowhere at its plane's advance, which stops the ray only where
+/// its count reaches it ([`RayHit::mark`]); another takes its in-face
+/// walk. Each root of a
 /// curved face no edge stands for is tested against its face's trim,
 /// except a cylinder face's whose edges are all rulings and circles, each
 /// decided clear of the ray, which is held where the turn of its loops on
@@ -4336,15 +4376,40 @@ pub(crate) fn ray_crossings<T: Decide>(
         // crossing at all — in particular a `t = 0` hit on a face plane
         // through `q` (a corner-aligned query) must be skipped, not
         // grazed, when the face itself is elsewhere.
+        let point = (c.t - c.slack, c.t + c.slack);
         let turned = match every_bound_read(body, face, &meets.clear) {
-            true => crosses_by_turn(body, face, (c.normal, c.p), reach, turn_ray)?,
+            true => match crosses_by_turn(body, face, (d.get(), q), reach, turn_ray) {
+                Ok(turned) => turned,
+                // A turn the loops do not decide holds members the ray
+                // crosses the face at and members it passes beside. Each
+                // crossing lies at the plane's advance, so the face is
+                // read nowhere there, and stops the ray only where the
+                // count reaches it.
+                Err(RayFault::InBand(unplaced @ PointInSolidError::Escalated { diag, .. })) => {
+                    offer(
+                        RayHit {
+                            mark: Some(Mark::Unplaced(diag)),
+                            ..RayHit::crossing(face, c.t, c.slack, 0)
+                        },
+                        point,
+                        true,
+                    )
+                    // Not placed ahead of the start either: the turn is
+                    // what the ray could not read.
+                    .map_err(|fault| match fault {
+                        RayFault::InBand(_) => RayFault::InBand(unplaced),
+                        fault => fault,
+                    })?;
+                    continue;
+                }
+                Err(fault) => return Err(fault),
+            },
             false => None,
         };
         let inside = match turned {
             Some(inside) => Some(inside),
             None => point_in_face(body, face, c.normal, c.p, band).map_err(at_hit)?,
         };
-        let point = (c.t - c.slack, c.t + c.slack);
         match inside {
             Some(false) => {}
             Some(true) => offer(
@@ -4356,7 +4421,12 @@ pub(crate) fn ray_crossings<T: Decide>(
         }
     }
     for m in meets.marks {
-        offer(m, (m.at, m.at), true)?;
+        offer(m, (m.at, m.at), true).map_err(|fault| match (fault, m.mark) {
+            // An unplaced edge not placed ahead of the start either: its
+            // gap is what the ray could not read.
+            (RayFault::InBand(_), Some(Mark::Unplaced(diag))) => edge_gap::set_aside(m.face, diag),
+            (fault, _) => fault,
+        })?;
     }
     // A curved face's crossing at `t`, `outward` its sign there.
     let mut offer_root = |face: FaceKey, (t, slack): (T, T), outward: Sign, edge: bool| {

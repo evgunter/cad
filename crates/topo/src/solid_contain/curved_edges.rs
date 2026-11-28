@@ -676,7 +676,7 @@ mod nearest_rows {
         let faces = [FaceKey::default(); 2];
         let hit = RayHit::marked(faces, 1.0_f64, Mark::SetAside(MarkKind::Order, gap));
         match RayHit::unread(&[&hit], |kind, _, g| (kind, g)) {
-            RayFault::InBand((MarkKind::Order, g)) => assert_eq!(g, gap),
+            RayFault::InBand((Some(MarkKind::Order), g)) => assert_eq!(g, gap),
             _ => panic!("an unordered crossing reads in band as one"),
         }
     }

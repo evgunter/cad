@@ -323,93 +323,113 @@ fn no_aim_of_a_boxed_door_body_reads_in() {
     }
 }
 
-/// How many of the slab's six aims read `Out` over depth `1 ± half`,
-/// and what the reader's own rays read ([`topo::test_support::aimed_rays`]).
-fn slab_reads(half: f64) -> (usize, Vec<String>) {
-    let slab = &shapes()[0];
-    assert_eq!(slab.name, "slab");
-    over(slab, 1.0 - half, 1.0 + half, |body, band| {
-        let each = topo::test_support::each_aim(body, band);
-        for r in &each {
-            assert!(kind(r) != "IN", "depth 1 ± {half}: a wrong side: {r}");
-        }
-        (
-            each.iter().filter(|r| kind(r) == "out").count(),
-            topo::test_support::aimed_rays(body, band),
-        )
-    })
-    .expect("the door builds a slab")
+/// The door's unit slab of depth `depth` at `f64`.
+fn slab_member(depth: f64) -> Body<f64> {
+    prism::<f64>(
+        [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
+            .iter()
+            .map(|&(x, y)| (Point2::new(x, y), 0.0))
+            .collect(),
+        depth,
+        Tol::witness(),
+    )
 }
 
-/// **The door's slab reads its side by its caps' rays over a box half
-/// its depth wide.** The extrude door's leaf at the symbolic box scalar,
-/// its plane normals and edge lines the door's own, depth `1 ± 0.25`
-/// and `1 ± 0.3`: both caps' rays read `Out`, the four walls' are set
-/// aside, and the reader's rays answer `Out` (no volume). Every member
-/// is a solid whose side at infinity is `Out` (three are read at `f64`).
+/// **Each ray of the door's slab reads until a member's crossings
+/// change.** The extrude door's leaf at the symbolic box scalar, its
+/// plane normals and edge lines the door's own, depth `1 ± w`. A ray is
+/// one line for every member (`topo`'s `side_reader::AimedLine`), so it
+/// stops reading only where the box holds members it crosses
+/// differently, read here by casting the box's own lines at 41 `f64`
+/// members ([`topo::test_support::line_crossings`]):
+/// - both caps' rays read `Out` at every width to `± 0.45`;
+/// - a wall's ray is aimed `0.19` under the wall's top edge at the
+///   middle member: it reads `Out` to `± 0.16`, and from `± 0.2` the
+///   box holds members whose wall ends under the aim, so it is set
+///   aside and its line crosses the members in more than one way;
+/// - no ray set aside at any width crosses every member alike;
+/// - the reader's rays answer `Out` (no volume) at every width, as
+///   every member reads.
 ///
-/// **Red, each under one reading put back as it was** in `topo`:
-/// - the loops' turn read on all three components
-///   (`u.dot(w)` for the second reading of `solid_contain::planar_cross_dot`):
-///   no ray reads at either width;
-/// - the aim's step reading `solid_contain::edge_clearance` with no
-///   normal (`None` for `Some(normal)` in `loop_aim`): at `± 0.3`
-///   the top cap's ray is set aside on the turn of its own loop.
-///
-/// The walls' rays are not asked for: a wall's aim hangs a fixed step
-/// under its moving top edge
-/// (`work/boxfinish/a-walls-aim-hangs-from-its-moving-edge-so-its-ray-reads-a-box-a-tenth-as-wide.md`).
+/// **Red** with the ray built from the lane's own aim and direction
+/// (the walls' rays are set aside at `± 0.1` on `side_at_infinity_edge`,
+/// every member crossed alike), and with the loops' turn read across
+/// the face's normal about the ray's crossing point (`(c.normal, c.p)`
+/// for `(d, q)` in `topo`'s `solid_contain::ray_crossings`: the walls'
+/// rays are set aside at `± 0.12`).
 #[test]
-fn a_door_slab_reads_its_side_by_its_caps_rays_over_a_wide_box() {
-    let tol = Tol::witness();
-    let band = Band::linear(tol).unwrap();
-    for depth in [0.75, 1.0, 1.25] {
-        let member = prism::<f64>(
-            [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
-                .iter()
-                .map(|&(x, y)| (Point2::new(x, y), 0.0))
-                .collect(),
-            depth,
-            tol,
-        );
+fn each_ray_of_a_door_slab_reads_until_a_members_crossings_change() {
+    let band = Band::linear(Tol::witness()).unwrap();
+    for depth in [0.55, 0.775, 1.0, 1.225, 1.45] {
         assert_eq!(
-            topo::test_support::aimed_rays(&member, band),
+            topo::test_support::aimed_rays(&slab_member(depth), band),
             ["Ok(Side(Out))"],
             "the member of depth {depth}"
         );
     }
-    for half in [0.25, 0.3] {
-        let (out, rays) = slab_reads(half);
-        assert_eq!(
-            out, 2,
-            "depth 1 ± {half}: both caps' rays read, the walls' do not"
-        );
-        assert_eq!(
-            rays,
-            ["Ok(Side(Out))"],
-            "depth 1 ± {half}: the reader's rays"
-        );
+    let slab = &shapes()[0];
+    assert_eq!(slab.name, "slab");
+    for half in [0.05, 0.1, 0.16, 0.2, 0.25, 0.45] {
+        let (each, lines, reader) = over(slab, 1.0 - half, 1.0 + half, |body, band| {
+            (
+                topo::test_support::each_aim(body, band),
+                topo::test_support::aim_lines(body, band),
+                topo::test_support::aimed_rays(body, band),
+            )
+        })
+        .expect("the door builds a slab");
+        assert_eq!(reader, ["Ok(Side(Out))"], "depth 1 ± {half}: the reader");
+        assert_eq!(each.len(), 6, "a slab offers six aims");
+        for (read, line) in each.iter().zip(lines) {
+            let (face, aim, dir) = line.expect("every face of a slab offers an aim");
+            let cap = dir.z.abs() > 0.5;
+            let out = kind(read) == "out";
+            assert!(kind(read) != "IN", "depth 1 ± {half}: a wrong side: {read}");
+            if cap || half <= 0.16 {
+                assert!(out, "depth 1 ± {half}: a ray is set aside: {read}");
+            }
+            if !out {
+                let ways = (0..=40)
+                    .map(|k| {
+                        let depth = 1.0 + half * (f64::from(k) / 20.0 - 1.0);
+                        topo::test_support::line_crossings(
+                            &slab_member(depth),
+                            face,
+                            (aim, dir),
+                            band,
+                        )
+                    })
+                    .collect::<std::collections::BTreeSet<_>>()
+                    .len();
+                assert!(
+                    ways > 1,
+                    "depth 1 ± {half}: a ray every member is crossed alike by is set aside: {read}"
+                );
+            }
+            if !cap && half >= 0.2 {
+                assert!(
+                    !out,
+                    "depth 1 ± {half}: a wall's ray reads over members whose wall ends under its aim"
+                );
+            }
+        }
     }
 }
 
-/// **A ray whose own crossing is as wide as the box reads no pair.** At
-/// depth `1 ± 0.45` the top cap's ray reaches its count with its own
-/// crossing enclosed half a depth either side of its aim, across its
-/// exit through the bottom cap: how far apart the two lie along the ray
-/// is an enclosure from below zero to past the slab, which is no
-/// reading that the caps lie in band of each other. The ray is set
-/// aside; the bottom cap's reads `Out`. At `1 ± 0.5` no ray reads, and
-/// the reader's rays are unread, so the volume is asked: they do not
-/// refuse on a pair.
-///
-/// **Red where `side_reader::aimed_ray` takes a pair on any undecided
-/// gap** (the `in_band` test on the gap `RayHit::pair_as` hands back
-/// removed): the top cap's ray reads `Pair` at `± 0.45`, and at `± 0.5`
-/// the reader refuses `InBand` on caps half a depth apart.
+/// **A ray whose own crossing is as wide as the box reads no pair.** A
+/// cap's ray is one line, so over depth `1 ± w` its own crossing is
+/// truly `w` either side of its aim. It lies before the ray's exit
+/// through the other cap at every member, and is read before it at
+/// every box the door builds: the top cap's ray reads `Out` at
+/// `1 ± 0.45`, `1 ± 0.5` and `1 ± 0.98`, and no ray anywhere reads a
+/// pair. The two spans reach each other only over a box holding a
+/// member of no depth, which the door refuses; what an undecided gap
+/// reads there is held in `topo`
+/// (`side_reader`'s `a_gap_reaching_past_the_band_is_no_pair`).
 #[test]
 fn a_ray_whose_own_crossing_is_as_wide_as_the_box_reads_no_pair() {
     let slab = &shapes()[0];
-    for (half, read) in [(0.45, "Ok(Side(Out))"), (0.5, "Ok(Unread {")] {
+    for half in [0.45, 0.5, 0.98] {
         let (each, rays) = over(slab, 1.0 - half, 1.0 + half, |body, band| {
             (
                 topo::test_support::each_aim(body, band),
@@ -423,10 +443,12 @@ fn a_ray_whose_own_crossing_is_as_wide_as_the_box_reads_no_pair() {
                 "depth 1 ± {half}: a pair, or a wrong side: {r}"
             );
         }
-        assert!(
-            rays.len() == 1 && rays[0].starts_with(read),
-            "depth 1 ± {half}: the reader's rays read {rays:?}"
+        assert_eq!(
+            each.iter().filter(|r| kind(r) == "out").count(),
+            2,
+            "depth 1 ± {half}: both caps' rays read: {each:#?}"
         );
+        assert_eq!(rays, ["Ok(Side(Out))"], "depth 1 ± {half}: the reader");
     }
 }
 

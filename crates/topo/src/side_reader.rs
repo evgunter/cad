@@ -18,7 +18,7 @@
 
 use geom_brep::ladder::{Answering, Climb, Rung, climb};
 use geom_core::UnitVec3;
-use geom_core::{Band, Decide, Indeterminate, Point3, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Point3, Real, Vec3};
 
 use crate::body::Body;
 use crate::entity::{EntityId, FaceKey};
@@ -303,11 +303,12 @@ impl<V> SideUnread<V> {
     }
 }
 
-/// An aim: a point on a face and the face's outward normal there.
-type Aim<T> = (Point3<T>, Vec3<T>);
+/// An aim: a point on a face and the face's outward normal there, each
+/// a place ([`AimedLine`]).
+type Aim = (Point3<f64>, Vec3<f64>);
 
 /// **Where a ray aimed at `face` aims**, and the face's outward normal
-/// there. A planar face whose every edge is a line or a circle arc aims at
+/// there, each read at its middle ([`AimedLine`]). A planar face whose every edge is a line or a circle arc aims at
 /// a point stepped in from its first edge ([`loop_aim`]), which asks
 /// nothing: the ray meets the edges it passes, however near, and crosses
 /// the face by the turn of its loops ([`ray_crossings`]). Another planar
@@ -338,12 +339,15 @@ fn aim_at<T: Decide>(
     face: FaceKey,
     geo: &FaceGeo<T>,
     band: Band,
-) -> Result<Option<Aim<T>>, PointInSolidError> {
+) -> Result<Option<Aim>, PointInSolidError> {
+    let place = |aim: Point3<T>, normal: Vec3<T>| (aim.map(T::place), normal.map(T::place));
     if let Some(geom_brep::PlaneDesc { normal, .. }) = crate::face_normal::face_plane(body, face) {
         if let Some(aim) = loop_aim(body, face, normal) {
-            return Ok(Some((aim, normal)));
+            return Ok(Some((aim, normal.map(T::place))));
         }
-        return Ok(crate::stands::planar_interior_point(body, face, band)?.map(|aim| (aim, normal)));
+        return Ok(
+            crate::stands::planar_interior_point(body, face, band)?.map(|aim| place(aim, normal))
+        );
     }
     let f = body
         .face(face)
@@ -381,7 +385,7 @@ fn aim_at<T: Decide>(
             );
             let jet = chart.ders((u0 + u1) / two, (v0 + v1) / two);
             let normal = geom_brep::OutwardNormal::from_chart(jet.du.cross(jet.dv), f.sense());
-            return Ok(Some((jet.point, normal.vec())));
+            return Ok(Some(place(jet.point, normal.vec())));
         }
         _ => return Ok(None),
     };
@@ -401,32 +405,38 @@ fn aim_at<T: Decide>(
             crate::face_normal::face_outward_normal_at(body, face, aim, band)
                 .ok()
                 .flatten()
-                .map(|normal| (aim, normal.vec())),
+                .map(|normal| place(aim, normal.vec())),
         );
     }
     let chart = geom_brep::implicit_gradient(surface, aim);
-    Ok(Some((
+    Ok(Some(place(
         aim,
         geom_brep::OutwardNormal::from_chart(chart, f.sense()).vec(),
     )))
 }
 
 /// **Where a ray aimed at planar `face` aims**, where every edge of it is
-/// a line or a circle arc, found by evaluation alone: the point `m` of the
-/// outer loop's first edge (in walk order, so a body rebuilt with another
-/// first half-edge aims elsewhere) at the golden section of its span
-/// ([`geom_core::GOLDEN_SECTION`]), stepped into the face along
-/// `normal × τ` ([`crate::stands::inward`]) by half a lower bound on `m`'s
-/// distance from every other edge of every loop, read in the face's
-/// plane ([`crate::solid_contain::edge_clearance`], across the normal), and
-/// by at most half its own arc's radius. The step's path meets no edge,
-/// so the aim lies in the face, off its middles and its boundary; a face
-/// narrower than the rounding there steps nowhere, and its aim only
-/// steers. It asks nothing, and the ray crosses the face edge by edge or
-/// by the turn of its loops however near an edge it lands
-/// ([`ray_crossings`]). `None` for a face with another edge, or one whose
-/// outer loop has none.
-fn loop_aim<T: Decide>(body: &Body<T>, face: FaceKey, normal: Vec3<T>) -> Option<Point3<T>> {
+/// a line or a circle arc, found by evaluation alone and as a place
+/// ([`AimedLine`]): the point `m` of the outer loop's first edge (in walk
+/// order, so a body rebuilt with another first half-edge aims elsewhere)
+/// at the golden section of its span ([`geom_core::GOLDEN_SECTION`]),
+/// stepped into the face along `normal × τ` ([`crate::stands::inward`])
+/// by half a lower bound on `m`'s distance from every other edge of every
+/// loop, read in the face's plane
+/// ([`crate::solid_contain::segment_clearance`], across the normal), and
+/// by at most half its own arc's radius. Each stored value it is built
+/// from (`m`, `τ`, the normal, a line edge's two vertices) is read at
+/// its middle first and the aim worked at `f64` from those, so over a
+/// box it is the aim of the body whose every stored value stands at its
+/// middle, and at `f64` the aim itself; a circle edge's clearance is
+/// read at the lane against the stated `m`, then at its middle. The
+/// step's path meets no edge of that body, so the aim lies in its face,
+/// off its middles and its boundary; a face narrower than the rounding
+/// there steps nowhere, and its aim only steers. It asks nothing, and
+/// the ray crosses the face edge by edge or by the turn of its loops
+/// however near an edge it lands ([`ray_crossings`]). `None` for a face
+/// with another edge, or one whose outer loop has none.
+fn loop_aim<T: Decide>(body: &Body<T>, face: FaceKey, normal: Vec3<T>) -> Option<Point3<f64>> {
     let edges = body.proven_face(face).edges();
     let outer = proven(&body.faces, face, EntityId::Face).outer;
     let first = *edges.first()?;
@@ -434,26 +444,33 @@ fn loop_aim<T: Decide>(body: &Body<T>, face: FaceKey, normal: Vec3<T>) -> Option
         return None;
     }
     let curve = |e: crate::entity::EdgeKey| body.proven_edge(e).certified();
+    let at = |v| Some(body.get_point(body.get_vertex(v)?.point)?.map(T::place));
     let (m, tau) =
         crate::solid_contain::along_half(body, first.half, 1.0 - geom_core::GOLDEN_SECTION)?;
-    let half = T::from_f64(0.5);
+    let (m, tau, normal_at) = (m.map(T::place), tau.map(T::place), normal.map(T::place));
     let mut step = match *curve(first.edge)?.carrier() {
         geom::Curve3::Line(_) => None,
-        geom::Curve3::Circle(circle) => {
-            let radius = circle.radius();
-            Some(radius * half)
-        }
+        geom::Curve3::Circle(circle) => Some(circle.radius().place() * 0.5),
         _ => return None,
     };
     for e in &edges {
         if e.edge == first.edge || e.across == face {
             continue;
         }
-        let room = crate::solid_contain::edge_clearance(body, e, m, Some(normal))? * half;
-        step = Some(step.map_or(room, |s: T| s.min(room)));
+        let room = match *curve(e.edge)?.carrier() {
+            geom::Curve3::Line(_) => crate::solid_contain::segment_clearance(
+                at(e.ends[0])?,
+                at(e.ends[1])?,
+                m,
+                Some(normal_at),
+            )?,
+            _ => crate::solid_contain::edge_clearance(body, e, m.map(T::from_f64), Some(normal))?
+                .place(),
+        } * 0.5;
+        step = Some(step.map_or(room, |s| Real::min(s, room)));
     }
-    let into = crate::stands::inward(normal, tau);
-    Some(m + into.normalize() * step.unwrap_or(T::zero()).max(T::zero()))
+    let into = crate::stands::inward(normal_at, tau);
+    Some(m + into.normalize() * Real::max(step.unwrap_or(0.0), 0.0))
 }
 
 /// **Whether faces `a` and `b` meet**, so that a ray's two crossings of
@@ -695,19 +712,19 @@ fn cast_aims<T: Decide>(
     // the volume, not a refusal, is what follows it.
     let (mut aimed, mut set_aside) = (0, Vec::new());
     let read = climb(Answering::Any, &geos, |&(face, ref geo)| {
-        let (aim, normal) = match aim_at(body, face, geo, band) {
-            Ok(Some(aimed_at)) => aimed_at,
+        let line = match aim_at(body, face, geo, band) {
+            Ok(Some(aimed_at)) => AimedLine::at_incidence(aimed_at),
             Ok(None) => return Rung::Passes,
             Err(e) => return Rung::Aborts(Err(e)),
         };
         aimed += 1;
-        match aimed_ray(body, faces, &geos, face, aim, normal, band) {
+        match aimed_ray(body, faces, &geos, face, line, band) {
             Ok(Aimed::Side(side)) => Rung::Answers(Ok(side)),
             Ok(Aimed::Pair(pair)) => Rung::InBand(pair),
             Ok(Aimed::SetAside(why)) => {
                 set_aside.push(SetAside {
                     aimed: face,
-                    aim: Some(crate::census::witness(aim.map(|x| T::from_f64(x.place())))),
+                    aim: Some(crate::census::witness(line.aim)),
                     why,
                 });
                 Rung::Passes
@@ -755,11 +772,16 @@ pub(crate) struct AimedLine {
 }
 
 impl AimedLine {
-    /// The line through the middle of `aim` against the middle of `out`.
-    fn through<T: Decide>(aim: Point3<T>, out: Vec3<T>) -> Self {
+    /// **The line aimed at `aim` at [`AIM_INCIDENCE`] to `normal`**,
+    /// turned about it off the coordinate planes ([`aim_turn`]).
+    fn at_incidence((aim, normal): Aim) -> Self {
+        let (along, across) = AIM_INCIDENCE;
+        let (b1, b2) = normal.orthonormal_basis();
+        let (turn_sin, turn_cos) = aim_turn();
+        let tangent = b1 * turn_cos + b2 * turn_sin;
         Self {
-            aim: aim.map(T::place),
-            out: out.map(T::place),
+            aim,
+            out: normal * along + tangent * across,
         }
     }
 
@@ -795,27 +817,19 @@ impl AimedLine {
 /// `out` is unit as `normal` is, so an advance along it is a length;
 /// that a face's stored normal is unit is the body's to hold, and
 /// nothing here checks it.
-#[allow(clippy::too_many_arguments)] // the selection, the aim and the band
 fn aimed_ray<T: Decide>(
     body: &Body<T>,
     faces: &[FaceKey],
     geos: &[(FaceKey, FaceGeo<T>)],
     face: FaceKey,
-    aim: Point3<T>,
-    normal: Vec3<T>,
+    line: AimedLine,
     band: Band,
 ) -> Result<Aimed, PointInSolidError> {
-    let (along, across) = AIM_INCIDENCE;
     let shell = body
         .get_face(face)
         .ok_or(PointInSolidError::CorruptFace { face })?
         .shell;
-    let (b1, b2) = normal.orthonormal_basis();
-    let (turn_sin, turn_cos) = aim_turn();
-    let tangent = b1 * T::from_f64(turn_cos) + b2 * T::from_f64(turn_sin);
-    let out = normal * T::from_f64(along) + tangent * T::from_f64(across);
-    let line = AimedLine::through(aim, out);
-    let at = crate::census::witness(line.aim::<T>());
+    let at = crate::census::witness(line.aim);
     let reach = selection_reach(body, faces, line.aim(), band)?;
     let start = reach.length() * T::from_f64(-2.0);
     let crossings = match ray_crossings(
@@ -843,19 +857,7 @@ fn aimed_ray<T: Decide>(
             |a, b| {
                 a.pair_as(body, b, AIMED_ROWS.order(), band).map_err(|f| {
                     f.map(|(near, gap, far)| {
-                        // A pair is a gap in band. One that reaches past
-                        // it places the two crossings nowhere against
-                        // each other: the ray is set aside on it, with
-                        // its margin.
-                        if !crate::validate::in_band(&gap) {
-                            return Unread::Mark(SetAsideWhy::Crossing(
-                                PointInSolidError::Escalated {
-                                    face: near,
-                                    diag: gap,
-                                },
-                            ));
-                        }
-                        Unread::Pair(AimedPair {
+                        undecided_gap(AimedPair {
                             shell,
                             aimed: face,
                             aim: at.clone(),
@@ -868,7 +870,13 @@ fn aimed_ray<T: Decide>(
             },
             |hits| {
                 RayHit::unread(hits, |kind, faces, gap| {
-                    Unread::Mark(SetAsideWhy::marked(kind, faces, gap))
+                    Unread::Mark(match kind {
+                        Some(kind) => SetAsideWhy::marked(kind, faces, gap),
+                        None => SetAsideWhy::Crossing(PointInSolidError::Escalated {
+                            face: faces[0],
+                            diag: gap,
+                        }),
+                    })
                 })
             },
         ) {
@@ -881,6 +889,21 @@ fn aimed_ray<T: Decide>(
         },
     )
 }
+/// **What two crossings whose gap along the ray is undecided read**: a
+/// pair where the gap lies in band; where it reaches past the band, the
+/// two crossings are placed nowhere against each other, and the ray is
+/// set aside on the gap, with its margin.
+fn undecided_gap(pair: AimedPair) -> Unread {
+    if crate::validate::in_band(&pair.gap) {
+        Unread::Pair(pair)
+    } else {
+        Unread::Mark(SetAsideWhy::Crossing(PointInSolidError::Escalated {
+            face: pair.near,
+            diag: pair.gap,
+        }))
+    }
+}
+
 /// **How far each solid's aimed rays start from `aim`, over two**
 /// ([`selection_reach`]): the probes read the reach's scale off it. A
 /// solid with no face aims no ray, and reads as such: the reach is asked
@@ -930,6 +953,31 @@ pub(crate) fn shell_aims_report<T: Decide>(body: &Body<T>, band: Band) -> Vec<St
         .collect()
 }
 
+/// **Each aim's line** ([`AimedLine`]), every face of every solid in the
+/// order [`each_aim_report`] reads them, as `(aim, direction)`: the
+/// point aimed at and the unit direction the ray runs along, at `f64`.
+/// `None` for a face that offers no aim. The rows cast it at members.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn aim_lines_report<T: Decide>(
+    body: &Body<T>,
+    band: Band,
+) -> Vec<Option<(FaceKey, Point3<f64>, Vec3<f64>)>> {
+    let mut out = Vec::new();
+    for (solid, _) in body.solids() {
+        let Ok(sel) = SolidFaces::of(body, solid) else {
+            continue;
+        };
+        for &face in sel.faces() {
+            let line = face_geo(body, face, &sel.charts, band)
+                .ok()
+                .and_then(|geo| aim_at(body, face, &geo, band).ok().flatten())
+                .map(AimedLine::at_incidence);
+            out.push(line.map(|l| (face, l.aim, -l.out.normalize())));
+        }
+    }
+    out
+}
+
 /// **Each aim's own reading**, every face of every solid aimed at (not
 /// only until one decides), as `(face, reading)` text: the curved
 /// edge-meeting ray's probes read it.
@@ -955,10 +1003,17 @@ pub(crate) fn each_aim_report<T: Decide>(body: &Body<T>, band: Band) -> Vec<Stri
         };
         for (face, geo) in &geos {
             let read = match aim_at(body, *face, geo, band) {
-                Ok(Some((aim, normal))) => {
+                Ok(Some(aim)) => {
                     format!(
                         "{:?}",
-                        aimed_ray(body, sel.faces(), &geos, *face, aim, normal, band)
+                        aimed_ray(
+                            body,
+                            sel.faces(),
+                            &geos,
+                            *face,
+                            AimedLine::at_incidence(aim),
+                            band
+                        )
                     )
                 }
                 Ok(None) => "no aim".to_owned(),
@@ -1089,7 +1144,14 @@ pub(crate) fn ray_at_report<T: Decide>(
     match geos {
         Ok(geos) => format!(
             "{:?}",
-            aimed_ray(body, sel.faces(), &geos, face, aim, normal, band)
+            aimed_ray(
+                body,
+                sel.faces(),
+                &geos,
+                face,
+                AimedLine::at_incidence((aim.map(T::place), normal.map(T::place))),
+                band
+            )
         ),
         Err(e) => format!("no geometry: {e:?}"),
     }
@@ -1106,8 +1168,25 @@ pub(crate) fn ray_counts(
     face: FaceKey,
     ray: &geom::Ray<f64>,
     band: Band,
-    (turn, reversed): (usize, bool),
+    order: (usize, bool),
 ) -> Result<Vec<(f64, f64, i32, bool)>, String> {
+    Ok(ray_hits(body, face, ray, band, order)?
+        .into_iter()
+        .map(|(span, _, count, sideless)| (span.0, span.1, count, sideless))
+        .collect())
+}
+
+/// [`ray_counts`] with each crossing's faces: `(span, faces, count,
+/// sideless)`.
+#[cfg(any(test, feature = "test-support"))]
+#[allow(clippy::type_complexity)]
+pub(crate) fn ray_hits(
+    body: &Body<f64>,
+    face: FaceKey,
+    ray: &geom::Ray<f64>,
+    band: Band,
+    (turn, reversed): (usize, bool),
+) -> Result<Vec<((f64, f64), (FaceKey, Option<FaceKey>), i32, bool)>, String> {
     let solid = body
         .get_face(face)
         .and_then(|f| body.get_shell(f.shell))
@@ -1132,8 +1211,54 @@ pub(crate) fn ray_counts(
     Ok(crossings
         .all()
         .into_iter()
-        .map(|((from, to), hit, sideless)| (from, to, hit.count(), sideless || hit.mark.is_some()))
+        .map(|(span, hit, sideless)| {
+            (
+                span,
+                (hit.face, hit.other),
+                hit.count(),
+                sideless || hit.mark.is_some(),
+            )
+        })
         .collect())
+}
+
+/// **What a box's own aimed line crosses at a member**: the faces the
+/// line `(aim, dir)` aimed at `face` crosses in the `f64` body `member`,
+/// in order along it, each with its count, as text; a crossing that
+/// reads no side, or a walk that faults, says so. Two members whose
+/// texts differ are crossed differently by that line.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn line_crossings_report(
+    member: &Body<f64>,
+    face: FaceKey,
+    (aim, dir): (Point3<f64>, Vec3<f64>),
+    band: Band,
+) -> String {
+    let reach = match SolidFaces::of_body(member)
+        .map_err(|e| format!("{e:?}"))
+        .and_then(|sel| {
+            selection_reach(member, sel.faces(), aim, band).map_err(|e| format!("{e:?}"))
+        }) {
+        Ok(reach) => reach.length(),
+        Err(e) => return format!("fault: {e}"),
+    };
+    let ray = geom::Ray::starting(aim, UnitVec3::squared(dir), -2.0 * reach);
+    match ray_hits(member, face, &ray, band, (0, false)) {
+        Ok(mut hits) => {
+            hits.sort_by(|a, b| a.0.0.total_cmp(&b.0.0));
+            hits.iter()
+                .map(|&(_, (f, other), count, sideless)| {
+                    if sideless {
+                        format!("{f:?}/{other:?}:sideless")
+                    } else {
+                        format!("{f:?}/{other:?}:{count}")
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(" ")
+        }
+        Err(e) => format!("fault: {e}"),
+    }
 }
 
 #[cfg(test)]
@@ -1414,6 +1539,44 @@ mod mark_kind_rows {
             assert_eq!(why.mark().map(|(k, _, _)| k), Some(kind), "{why:?}");
         }
         assert!(SetAsideWhy::Graze.mark().is_none(), "a graze is no mark");
+    }
+
+    /// **A gap reaching past the band is no pair.** Two crossings of
+    /// faces that do not meet whose gap along the ray is an enclosure
+    /// from below zero to past the band (a crossing as wide as its box
+    /// across the next one) are placed nowhere against each other: the
+    /// ray is set aside on the gap, with its margin. The same two with
+    /// their gap in the band are a pair.
+    ///
+    /// **Red where a pair is taken on any undecided gap** (the
+    /// `in_band` test removed from `undecided_gap`).
+    #[test]
+    fn a_gap_reaching_past_the_band_is_no_pair() {
+        let pair = |gap| AimedPair {
+            shell: crate::entity::ShellKey::default(),
+            aimed: FaceKey::default(),
+            aim: String::new(),
+            near: FaceKey::default(),
+            far: FaceKey::default(),
+            gap,
+        };
+        let wide = Indeterminate {
+            margin: geom_core::MarginDiag::enclosure(-0.5, 1.3),
+            terminal_sliver: false,
+            ..gap()
+        };
+        assert!(
+            matches!(
+                undecided_gap(pair(wide)),
+                Unread::Mark(SetAsideWhy::Crossing(PointInSolidError::Escalated { diag, .. }))
+                    if diag == wide
+            ),
+            "a gap as wide as the box sets the ray aside on it"
+        );
+        assert!(
+            matches!(undecided_gap(pair(gap())), Unread::Pair(_)),
+            "a gap in band is a pair"
+        );
     }
 
     /// **An unordered crossing says so, with its margin**: the set-aside

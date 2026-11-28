@@ -200,6 +200,17 @@ fn a_tilted_boxed_cap_reads_only_its_members_side() {
                     rays[0] == want || rays[0].starts_with("Ok(Unread"),
                     "{tilt:?} io={inside_out} ±{half}: {rays:?}"
                 );
+                // The top cap's own ray and the reader read by rays to
+                // `± 0.15` at every tilt: wider, a tilted body's stops
+                // are its edges' stored lines, as wide as their chords.
+                if half <= 0.15 {
+                    assert_eq!(rays[0], want, "{tilt:?} ±{half}: the reader");
+                    assert!(
+                        each[0].ends_with(&format!(": {want}")),
+                        "{tilt:?} ±{half}: the top cap's ray: {}",
+                        each[0]
+                    );
+                }
                 println!(
                     "tilt {tilt:?} inside_out {inside_out} ±{half}: {reads}/6 aims read; reader: {}",
                     &rays[0][..rays[0].len().min(60)]
@@ -209,45 +220,38 @@ fn a_tilted_boxed_cap_reads_only_its_members_side() {
     }
 }
 
-/// **A tilted moving cap's turn holds its members'**: about
-/// a point of the cap `±2π`, about a point beside it `0`, the
-/// enclosure printed for its width.
+/// **A tilted moving cap's turn seen along a fixed line holds its
+/// members' and decides**: about a point of a line through the cap
+/// `±2π`, beside it `0`, each narrower than `π` at `± 0.25`, where the
+/// turn about a point riding the cap is `5` to `9` wide under every
+/// spelling. Each vertex's enclosure enters once, against the line's
+/// own point, so the turn is as wide as the cap moves across the line.
+/// The enclosures are printed for their widths.
 #[test]
 fn a_tilted_moving_caps_turn_holds_its_members() {
     use crate::solid_contain::planar_turn;
     let tau = core::f64::consts::TAU;
+    let (along, across) = AIM_INCIDENCE;
     for tilt in TILTS {
-        for (what, x, turns) in [
-            ("inside", 0.37, 1.0),
-            ("beside", 1.5, 0.0),
-            ("near", 0.999, 1.0),
-        ] {
+        let n = Vec3::new(-tilt.0, -tilt.1, 1.0).normalize();
+        let (b1, _) = n.orthonormal_basis();
+        let d = (n * -along + b1 * across).map(Boxed::from_f64);
+        for (what, x, turns) in [("through", 0.37, 1.0), ("beside", 1.5, 0.0)] {
+            let q = Point3::new(x, 0.41, 1.0 + tilt.0 * x + tilt.1 * 0.41).map(Boxed::from_f64);
             for half in [0.05, 0.25, 0.45] {
                 let turn = over_tilted(half, tilt, false, |body, _| {
-                    let (face, normal) = top_cap(body, geom_core::Bounds::lo);
-                    // The cap's corner over the origin carries `top` itself.
-                    let corner = body
-                        .proven_face(face)
-                        .edges()
-                        .iter()
-                        .map(|e| {
-                            *body
-                                .get_point(body.get_vertex(e.ends[0]).unwrap().point)
-                                .unwrap()
-                        })
-                        .find(|c| {
-                            geom_core::Bounds::hi(c.x) == 0.0 && geom_core::Bounds::hi(c.y) == 0.0
-                        })
-                        .expect("a corner over the origin");
-                    let height = corner.z + Boxed::from_f64(tilt.0 * x + tilt.1 * 0.41);
-                    let p = Point3::new(Boxed::from_f64(x), Boxed::from_f64(0.41), height);
-                    planar_turn(body, face, normal, p).expect("four lines")
+                    let (face, _) = top_cap(body, geom_core::Bounds::lo);
+                    planar_turn(body, face, d, q).expect("four lines")
                 });
                 let (lo, hi) = (geom_core::Bounds::lo(turn), geom_core::Bounds::hi(turn));
                 let want = turns * tau;
                 assert!(
-                    lo <= want && want <= hi,
-                    "{tilt:?} {what} ±{half}: [{lo}, {hi}] misses {want}"
+                    lo <= want.abs() && want.abs() <= hi || lo <= -want && -want <= hi,
+                    "{tilt:?} {what} ±{half}: [{lo}, {hi}] misses ±{want}"
+                );
+                assert!(
+                    half > 0.25 || hi - lo < core::f64::consts::PI,
+                    "{tilt:?} {what} ±{half}: [{lo}, {hi}] decides nothing"
                 );
                 println!(
                     "turn {tilt:?} {what} ±{half}: [{lo}, {hi}] width {:e}",
@@ -326,4 +330,73 @@ fn the_f64_turn_decides_as_the_three_component_form_did() {
         }
     }
     println!("f64 turn: {n} points, worst |new − old| = {worst:e}");
+}
+
+/// **A family that turns inside out within its box is read as neither
+/// side.** The upright brick with every plane's stated normal scaled by
+/// a parameter over `[−0.5, 1]`: the member at `1` is the brick, whose
+/// side is `Out`, and every member below `0` is the brick inside out,
+/// whose side is `In`. Every aim is set aside and the reader's rays are
+/// unread: a ray's count turns with the sign of `d·n̂`, which the box
+/// does not decide.
+#[test]
+fn a_family_that_turns_inside_out_within_its_box_is_read_as_neither_side() {
+    let tol = Tol::witness();
+    let band = Band::linear(tol).expect("the witness band");
+    let budget = SymBudget {
+        max_terms: 64,
+        max_degree: 8,
+    };
+    for sign in [1.0, -1.0] {
+        let member = tilted::<f64>(1.0, (0.0, 0.0), sign < 0.0, tol);
+        let want = if sign > 0.0 { "Out" } else { "In" };
+        assert_eq!(
+            aimed_rays_report(&member, band),
+            [format!("Ok(Side({want}))")],
+            "the member whose normals are scaled by {sign}"
+        );
+    }
+    let (each, reader) = geom_core::sym::with_session(budget, || {
+        let flip = Sym::param_over(
+            ParamSymbol::new(test_utils::symbol_id("tilted_cap_flip")),
+            Interval::from_bounds(-0.5, 1.0),
+            -0.5,
+            1.0,
+        );
+        let mut body = tilted(Boxed::from_f64(1.0), (0.0, 0.0), false, tol);
+        let faces: Vec<_> = body.faces().map(|(face, _)| face).collect();
+        for face in faces {
+            let Surface::Plane { frame } = *body.proven_face(face).surface().expect("a plane")
+            else {
+                panic!("a brick's face is planar");
+            };
+            body.set_face_surface(
+                face,
+                FaceSurface::New {
+                    surface: Surface::Plane {
+                        frame: geom::Frame::new(
+                            frame.origin(),
+                            frame.axis().map(|x| x * flip),
+                            frame.u_ref(),
+                        ),
+                    },
+                    sense: true,
+                },
+            )
+            .expect("the face takes its plane");
+        }
+        (each_aim_report(&body, band), aimed_rays_report(&body, band))
+    })
+    .0;
+    assert_eq!(each.len(), 6, "a brick offers six aims");
+    for read in &each {
+        assert!(
+            read.contains("Ok(SetAside("),
+            "an aim of a family that turns inside out reads a side: {read}"
+        );
+    }
+    assert!(
+        reader[0].starts_with("Ok(Unread"),
+        "the reader's rays: {reader:?}"
+    );
 }

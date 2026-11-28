@@ -14,8 +14,10 @@
 //!   band's edge holds members that pass the edge and members that meet
 //!   it; a carrier's two bounds on one distance that straddle the band
 //!   say neither; a poisoned margin says nothing. None is a reading, so
-//!   none stands for a crossing: the ray is set aside where the edge
-//!   could be met ([`set_aside`]).
+//!   none stands for a crossing: the ray reads nothing where the edge
+//!   could be met, a mark at a line edge's passage
+//!   ([`super::RayHit::mark`]) and the ray's refusal at a curved one
+//!   ([`set_aside`]).
 //!
 //! **Which escalation is in the band** is the classifier's word, read
 //! here and nowhere else in the ray's edge arms

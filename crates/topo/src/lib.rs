@@ -659,6 +659,28 @@ pub mod test_support {
         crate::side_reader::shell_aims_report(body, band)
     }
 
+    /// Each aim's line as `(face, aim, direction)` at `f64`
+    /// (`side_reader`'s `AimedLine`), in [`each_aim`]'s order: the rows
+    /// cast a box's own lines at its members.
+    pub fn aim_lines<T: geom_core::Decide>(
+        body: &Body<T>,
+        band: geom_core::Band,
+    ) -> Vec<Option<(crate::FaceKey, geom_core::Point3<f64>, geom_core::Vec3<f64>)>> {
+        crate::side_reader::aim_lines_report(body, band)
+    }
+
+    /// What the line `(aim, dir)` aimed at `face` crosses in `member`,
+    /// in order, as text (`side_reader`): two members whose texts
+    /// differ are crossed differently by one line.
+    pub fn line_crossings(
+        member: &Body<f64>,
+        face: crate::FaceKey,
+        line: (geom_core::Point3<f64>, geom_core::Vec3<f64>),
+        band: geom_core::Band,
+    ) -> String {
+        crate::side_reader::line_crossings_report(member, face, line, band)
+    }
+
     /// Each face's aimed ray's own reading, every face aimed at
     /// (`side_reader`): the curved edge-meeting ray's probes read it.
     pub fn each_aim<T: geom_core::Decide>(body: &Body<T>, band: geom_core::Band) -> Vec<String> {
