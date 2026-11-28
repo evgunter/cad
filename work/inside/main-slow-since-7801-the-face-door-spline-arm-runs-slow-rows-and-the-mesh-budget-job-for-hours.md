@@ -54,3 +54,9 @@ HELDRECORDS's orchestrator bisected one more row, in the same way: `sweep::all g
 | `7ce370250a8`, `d23272dea5` | FAIL |
 
 The failure on main, as PR 7808's evidence lane reported it, reads `outer equator arc in the box top: A ∪ B: point_in_solid Point3 { x: 0.0, y: 0.2, z: 2.5 } = Ok(Out)`. That is a **wrong material answer**, not a refusal: containment says Out where the row's closed form says otherwise. This is the worse half of this row. Fix it first, or revert PR 7801 until it can be fixed.
+
+## 2026-11-28: the mesh-budget job now hangs to GitHub's 6 h cut-off
+
+HELDRECORDS's `heldrecords/interior-minted` lane (PR 7832) saw the PR gate's `mesh budget meter + certificate falsifier` job cancelled at 6 h on two heads, a258c91 and f9a6cc7. The test that sticks is `quadric_pair_sections::a_loops_edges_read_simple_knots_at_every_scale` (`quadric_pair_sections.rs:288`).
+
+The lane ran that test locally, in release with the budget feature and a 1500 s cap. It **timed out on main `91f1ee7873` as well as on its head**, so the hang is main's. Evidence is on https://github.com/evgunter/cad/pull/7832#issuecomment-7240767550. It has not been bisected to PR 7801. If it turns out not to be PR 7801's, split it into its own row.
