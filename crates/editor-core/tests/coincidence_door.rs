@@ -3313,20 +3313,17 @@ fn the_balls_interval_union_encloses_its_closed_form_under_a_bounded_pad() {
 /// flush, and its abutting walls opposed, are flush through the cubes'
 /// heights and the slides' values, no mate's statement: the door reads
 /// each residual whole, a function of the variables it does not show
-/// zero, and names one construction as the recourse; the abutting
-/// pair's residual and the last flush pair's pass the term budget, and
-/// the door names the budget. With the union's members named in the
-/// other order the same rows are proven, and the abutting pair's
-/// residual, the margin the union recorded in that order, fits the
-/// budget
-/// (`work/boxfinish/an-unproven-plane-pairs-recourse-follows-operand-order-under-the-term-budget.md`).
+/// zero, and names one construction as the recourse; three of the
+/// four pairs' residuals pass the term budget, and the door names the
+/// budget. With the union's members named in the other order every row
+/// reads the same.
 /// The world's `⊔`
 /// records the union's base, which the union mints from the two, on the
 /// floor's top at rest, and the carrier verdict proves it: the base and
 /// the floor's top are one plane by their stored carriers.
 ///
-/// Red if the scene's rows change in kind, site or proof, or a row is
-/// proven in one order of the union's members and not in the other.
+/// Red if the scene's rows change in kind, site or proof, or a row's
+/// proof or reason follows the order of the union's members.
 #[test]
 fn two_blocks_resting_on_one_floor_are_one_plane_at_their_bases() {
     let cd = crate::corpus::blocks_on_one_floor::document();
@@ -3338,7 +3335,7 @@ fn two_blocks_resting_on_one_floor_are_one_plane_at_their_bases() {
         [
             flush,
             "SameOriented PlaneLadder SameConstruction",
-            flush,
+            "SameOriented PlaneLadder unproven/Numeric/Budget",
             "SameOpposite PlaneLadder unproven/Numeric/Budget",
             "SameOriented PlaneLadder unproven/Numeric/Budget",
             on,
@@ -3351,34 +3348,12 @@ fn two_blocks_resting_on_one_floor_are_one_plane_at_their_bases() {
     // The union's members named in the other order: every pair is read
     // with its operands exchanged.
     let (_, mut exchanged) = door_lines(&crate::corpus::blocks_on_one_floor::members_exchanged());
+    let mut stated = lines.clone();
     exchanged.sort();
-    let proven = |lines: &[String]| -> Vec<String> {
-        let mut kinds: Vec<String> = lines
-            .iter()
-            .map(|line| line.split('/').next().expect("a line").to_owned())
-            .collect();
-        kinds.sort();
-        kinds
-    };
+    stated.sort();
     assert_eq!(
-        proven(&exchanged),
-        proven(&lines),
-        "the same rows are proven with the members exchanged"
-    );
-    assert_eq!(
-        exchanged,
-        [
-            on,
-            on,
-            on,
-            on,
-            "SameOpposite PlaneLadder unproven/Numeric/OneConstruction",
-            "SameOriented PlaneLadder SameConstruction",
-            "SameOriented PlaneLadder unproven/Numeric/Budget",
-            flush,
-            flush,
-        ],
-        "the members exchanged, sorted: the abutting pair's residual fits the budget"
+        exchanged, stated,
+        "every row reads alike with the union's two members exchanged"
     );
     let at_rest: Vec<String> = at_rest_rows(&cd.doc, &ev)
         .iter()

@@ -34,6 +34,21 @@ does not carry (a literal axis beside a chord over its own length).
   sign read off an enclosure: there the sign is decided, and the chord
   is an enclosure's slack and not a zero claim.
 
+**Two more of the class, named by the one-plane unit's review** (read,
+not run; each takes the magnitude of a cosine where the chord sites
+take the nearer of two chords, and is zero as an expression only where
+the two directions are spelled as exact `±` copies):
+- `geom-brep/src/props/curved.rs`, the cylinder's rim arm:
+  `require_zero("props_cylinder_circle_tilt", 1 − |n_c·axis|)` levered
+  at the rim's reach, a premise that the rim circle's axis is the
+  cylinder's. Not this unit's; the sign-free claim is the cross
+  product's norm, as the plane arm now reads.
+- `geom-brep/src/pair_section/cone_torus.rs`, the apex's form:
+  `|axis·n| − sin` levered at the apex's reach (`APEX_FORM`), which
+  classes the contact by its sign and reads Zero where the cone's half
+  angle is the normal's. Not this unit's; its Zero rests on the value
+  wherever `axis·n` is not a literal.
+
 **A neighbour with the sign fixed by the question** (read, not run):
 `topo/src/shell.rs`'s moved-walls pairing reads two walls as opposed
 through `(a.normal + b.normal).norm()` (`shell_walls_antiparallel`) and
