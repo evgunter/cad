@@ -707,7 +707,7 @@ fn cast_aims<T: Decide>(
             Ok(Aimed::SetAside(why)) => {
                 set_aside.push(SetAside {
                     aimed: face,
-                    aim: Some(crate::census::witness(aim)),
+                    aim: Some(crate::census::witness(aim.map(|x| T::from_f64(x.place())))),
                     why,
                 });
                 Rung::Passes
@@ -733,21 +733,68 @@ enum Aimed {
     SetAside(SetAsideWhy),
 }
 
+/// **An aimed ray's line**: the point it is aimed at and the direction
+/// it runs against, as plain numbers. The ray is scratch: no output
+/// keeps it and any ray from beyond the selection reads the same side,
+/// so where it runs is a choice and never a claim (DESIGN `[scalars]`),
+/// and a place the code chose to evaluate at is never a lane value
+/// (`geom-core`'s DL5.2). It is chosen from the lane's aim and outward
+/// direction and read off the middle of each ([`geom_core::Real::place`]),
+/// which is the only way one is built, so a line that rides a boxed
+/// body cannot be written.
+///
+/// - At `f64` it is the aim and direction themselves, bit for bit.
+/// - At `Interval` and `Sym<Interval>` it is one line for every member
+///   of the box: each reading the walk takes holds one stored value
+///   against it, and so encloses every member's reading of that line.
+/// - At a dual it is the base value's line, with no tangent.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct AimedLine {
+    aim: Point3<f64>,
+    out: Vec3<f64>,
+}
+
+impl AimedLine {
+    /// The line through the middle of `aim` against the middle of `out`.
+    fn through<T: Decide>(aim: Point3<T>, out: Vec3<T>) -> Self {
+        Self {
+            aim: aim.map(T::place),
+            out: out.map(T::place),
+        }
+    }
+
+    /// The point aimed at, stated in the lane.
+    fn aim<T: Decide>(&self) -> Point3<T> {
+        self.aim.map(T::from_f64)
+    }
+
+    /// **The ray along this line from advance `start`**, in the lane:
+    /// its origin the aim and its direction `−out` squared there, each
+    /// a stated constant.
+    fn ray<T: Decide>(&self, start: T) -> geom::Ray<T> {
+        geom::Ray::starting(
+            self.aim(),
+            -UnitVec3::squared(self.out.map(T::from_f64)),
+            start,
+        )
+    }
+}
+
 /// **One aimed ray**: the line through `aim` on `face` at
 /// [`AIM_INCIDENCE`] to `normal`, turned off the coordinate planes
-/// ([`aim_turn`]), read from twice the selection's reach before `aim`
-/// off the sign of its count.
+/// ([`aim_turn`]), fixed as a place ([`AimedLine`]) and read from twice
+/// the selection's reach before its aim off the sign of its count.
 ///
-/// The ray is its line through `aim` along `−out` and the advance it
+/// The ray is its line through the aim along `−out` and the advance it
 /// starts at, never a start point and a direction read back off it: the
-/// crossing walk reads every crossing from `aim`
-/// ([`geom::Ray::starting`]), so a crossing is as wide as `aim`, `out`
-/// and the face crossed make it, and the start's width, which is the
-/// reach's, enters only the forward tests ([`geom::Ray::ahead`]), where
-/// a crossing of a face lies at least the reach past the start. `out` is
-/// unit as `normal` is, so an advance along it is a length; that a
-/// face's stored normal is unit is the body's to hold, and nothing here
-/// checks it.
+/// crossing walk reads every crossing from the aim
+/// ([`geom::Ray::starting`]), so a crossing is as wide as the face
+/// crossed makes it, and the start's width, which is the reach's from
+/// the fixed aim, enters only the forward tests ([`geom::Ray::ahead`]),
+/// where a crossing of a face lies at least the reach past the start.
+/// `out` is unit as `normal` is, so an advance along it is a length;
+/// that a face's stored normal is unit is the body's to hold, and
+/// nothing here checks it.
 #[allow(clippy::too_many_arguments)] // the selection, the aim and the band
 fn aimed_ray<T: Decide>(
     body: &Body<T>,
@@ -759,25 +806,24 @@ fn aimed_ray<T: Decide>(
     band: Band,
 ) -> Result<Aimed, PointInSolidError> {
     let (along, across) = AIM_INCIDENCE;
-    let at = crate::census::witness(aim);
     let shell = body
         .get_face(face)
         .ok_or(PointInSolidError::CorruptFace { face })?
         .shell;
-    // The ray is scratch: no output keeps its aim, and only the
-    // crossings it reads decide.
     let (b1, b2) = normal.orthonormal_basis();
     let (turn_sin, turn_cos) = aim_turn();
     let tangent = b1 * T::from_f64(turn_cos) + b2 * T::from_f64(turn_sin);
     let out = normal * T::from_f64(along) + tangent * T::from_f64(across);
-    let reach = selection_reach(body, faces, aim, band)?;
+    let line = AimedLine::through(aim, out);
+    let at = crate::census::witness(line.aim::<T>());
+    let reach = selection_reach(body, faces, line.aim(), band)?;
     let start = reach.length() * T::from_f64(-2.0);
     let crossings = match ray_crossings(
         body,
         geos,
-        // The aim squared: the face's normal is unit only to its
+        // The direction squared: the face's normal is unit only to its
         // carrier's convention, and the ray's advance is in metres.
-        &geom::Ray::starting(aim, -UnitVec3::squared(out), start),
+        &line.ray(start),
         reach,
         band,
         AIMED_ROWS,
