@@ -956,6 +956,7 @@ fn as_the_viewer_shows_it(e: topo::BooleanError) -> String {
         node: editor_core::RecipeNodeId::new(0, 5),
         kind: editor_core::NodeErrorKind::Boolean(e),
         escalations: std::sync::Arc::new(Vec::new()),
+        sym: std::sync::Arc::default(),
     }
     .to_string()
 }

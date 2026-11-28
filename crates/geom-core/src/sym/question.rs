@@ -4,22 +4,27 @@
 //! by the normal form and the retry ladder.
 //!
 //! **What an ask can read.** Each ask runs in a state of its own, made
-//! for that ask and dropped with it, that holds the installed session's
-//! node table for the ask's length and nothing else of it: no registry,
-//! no parameter bracket, no witness kind, no memo, no count, no
-//! deferral list. So no rule that reads a value has anything to read
-//! (the certified read at `min` / `max` / `select` needs a bracket and
-//! a witness kind; the registered-identity door needs a registry), no
-//! earlier ask can move a later one, and the installed session is
-//! neither read nor written. The rules, the retry ladder and the budget
-//! are constants here, not the session's.
+//! for that ask and dropped with it, that reads nodes where the
+//! installed session does and holds nothing else of it: the leaf's node
+//! cache for the ask's length, and the drive's table behind it for a
+//! node another leaf recorded (`Session::node_of`). No registry, no
+//! parameter bracket, no witness kind, no memo, no count, no deferral
+//! list, and no form of the drive's table, whose forms are under the
+//! drive's rules and budget and not the question's. So no rule that
+//! reads a value has anything to read (the certified read at `min` /
+//! `max` / `select` needs a bracket and a witness kind; the
+//! registered-identity door needs a registry), no earlier ask can move
+//! a later one, and neither the installed session nor the drive's
+//! table is written. The rules, the retry ladder and the budget are
+//! constants here, not the session's.
 //!
-//! **What the answer is a function of**: the nodes the installed
-//! session has recorded when the ask is made. For a document built
-//! inside its session that is the document's expression graph, and one
-//! graph gets one answer at every valuation and in every session. A
-//! node minted outside the session is an unknown to it, as to every
-//! walk, and proves nothing; outside any session there is no graph.
+//! **What the answer is a function of**: the nodes the expression
+//! reaches. For a document built inside its drive that is the
+//! document's expression graph, whichever leaf minted each node, and
+//! one graph gets one answer at every valuation and in every session. A
+//! node minted outside every session on the table is an unknown to the
+//! ask, as to every walk (`memo`'s header, with the one order it still
+//! reads), and proves nothing; outside any session there is no graph.
 
 use super::{Path, SESSION, Session, SymBudget, SymId, SymRetry, SymRules, ladder};
 use crate::real::ProvedZero;
@@ -90,6 +95,10 @@ impl<'s> Ask<'s> {
     fn open(installed: &'s mut Session, budget: SymBudget, retry: SymRetry) -> Self {
         let mut own = Session::new(budget, RULES, retry, None);
         own.lend_nodes(installed);
+        // The node table is the drive's: a node another leaf recorded
+        // is in no cache of this leaf's, and the ask reads it where the
+        // installed session would (`Session::node_of`).
+        own.nodes_in.clone_from(&installed.memo);
         Self {
             installed,
             own,
@@ -108,7 +117,7 @@ impl Drop for Ask<'_> {
 }
 
 impl Session {
-    /// Swaps the node table with `other`'s: lent on the way into an ask
+    /// Swaps the node cache with `other`'s: lent on the way into an ask
     /// and returned on the way out.
     fn lend_nodes(&mut self, other: &mut Session) {
         core::mem::swap(&mut self.nodes, &mut other.nodes);
@@ -338,9 +347,9 @@ mod tests {
                 [
                     sess.forms.len(),
                     sess.forms_early.len(),
-                    sess.forms_door.len(),
+                    sess.node.forms_door.len(),
                     sess.atoms.len(),
-                    sess.retries.len(),
+                    sess.node.retries.len(),
                     sess.nodes.len(),
                 ],
                 sess.deferred.as_ref().map(std::collections::HashMap::len),

@@ -247,7 +247,7 @@ fn explain(sess: &mut Session, root: SymId, levels: usize) -> String {
     while let Some((id, depth)) = at {
         let lines = explain_node(sess, id, depth);
         if depth < levels
-            && let Some(node) = sess.nodes.get(&id)
+            && let Some(node) = sess.node_of(id)
         {
             stack.extend(node.kids().iter().rev().map(|k| (*k, depth + 1)));
         }
@@ -278,7 +278,7 @@ fn explain(sess: &mut Session, root: SymId, levels: usize) -> String {
 /// One node's lines of the explanation.
 fn explain_node(sess: &mut Session, id: SymId, depth: usize) -> String {
     let pad = "  ".repeat(depth);
-    let Some(node) = sess.nodes.get(&id).copied() else {
+    let Some(node) = sess.node_of(id) else {
         return format!("{pad}[unrecorded #{:08x}]\n", id.bits() as u32);
     };
     let e = early_form(sess, id);
