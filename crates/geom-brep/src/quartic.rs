@@ -571,3 +571,214 @@ mod quadratic_rows {
         assert!(off.is_empty(), "the straddling quadratic's roots: {off:#?}");
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic, clippy::print_stdout)]
+mod review_wall_roots_probes {
+    //! Reviewer probes (review of `boxfinish/wall-roots`): the roots over
+    //! a box at `Interval` against an exact oracle, and `f64` bit-identity
+    //! against the merge base's spelling. Each writes its cases to the
+    //! file `REVIEW_PROBE_OUT` names, for `probe/review-wall-roots/oracle.py`.
+
+    use super::quadratic_roots;
+    use geom_core::{Bounds, Decide, Interval, Real};
+    use std::io::Write;
+
+    /// The merge base's spelling, verbatim.
+    fn old_roots<T: Decide>(a: T, b: T, c: T, disc: T) -> [T; 2] {
+        let root = disc.max(T::zero()).sqrt();
+        let (minus, plus) = (T::zero() - b - root, root - b);
+        [
+            b.select_le_zero(c / plus, minus / a),
+            b.select_le_zero(plus / a, c / minus),
+        ]
+    }
+
+    struct Rng(u64);
+    impl Rng {
+        fn next(&mut self) -> u64 {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            self.0
+        }
+        fn unit(&mut self) -> f64 {
+            (self.next() >> 11) as f64 / (1u64 << 53) as f64
+        }
+        fn logu(&mut self, lo: f64, hi: f64) -> f64 {
+            (lo.ln() + (hi.ln() - lo.ln()) * self.unit()).exp()
+        }
+        fn sign(&mut self) -> f64 {
+            if self.next() & 1 == 0 { 1.0 } else { -1.0 }
+        }
+    }
+
+    fn out() -> Option<std::fs::File> {
+        std::env::var("REVIEW_PROBE_OUT")
+            .ok()
+            .map(|p| std::fs::File::create(p).unwrap())
+    }
+
+    fn hx(x: f64) -> String {
+        format!("{:016x}", x.to_bits())
+    }
+
+    /// Claim 1: random quadratics over boxes whose `b` straddles,
+    /// touches or misses zero; every case whose `disc` enclosure is
+    /// positive and whose `a` is decided nonzero is written with its
+    /// enclosures and 24 members; the oracle checks containment.
+    #[test]
+    fn probe_interval_roots_enclose_members() {
+        let seed: u64 = std::env::var("REVIEW_SEED").map_or(0x5eed_0001, |s| s.parse().unwrap());
+        let n: usize = std::env::var("REVIEW_N").map_or(20_000, |s| s.parse().unwrap());
+        let mut rng = Rng(seed);
+        let mut f = out();
+        let (mut kept, mut straddle, mut unbounded_new, mut unbounded_old, mut divisor0) =
+            (0, 0, 0, 0, 0);
+        let mut worst_ratio: f64 = 0.0;
+        let (mut wider, mut widest) = (0, 1.0f64);
+        let mut worst_case = String::new();
+        for _ in 0..n {
+            let scale = rng.logu(1e-6, 1e3);
+            let a0 = rng.sign() * rng.logu(1e-4, 1e2);
+            let aw = a0.abs() * rng.unit() * 0.1 * f64::from(u8::from(rng.next() % 3 == 0));
+            let a = Interval::from_bounds(a0 - aw, a0 + aw);
+            // b: centre and half-width in units of `scale`, so that it
+            // straddles, touches or misses zero.
+            let kind = rng.next() % 4;
+            let bw = scale * rng.unit();
+            let bc = match kind {
+                0 => scale * (rng.unit() - 0.5) * 0.5, // straddles
+                1 => rng.sign() * bw,                  // touches zero
+                2 => rng.sign() * (bw + scale * rng.unit()), // misses
+                _ => 0.0,
+            };
+            let b = Interval::from_bounds(bc - bw, bc + bw);
+            // c with sign opposite a (so a·c < 0, disc > b²) or small.
+            let cm = rng.logu(1e-3, 10.0) * scale * scale / a0.abs();
+            let cc = if rng.next() % 3 == 0 { a0.signum() * cm * 0.01 } else { -a0.signum() * cm };
+            let cw = cc.abs() * rng.unit() * 0.5;
+            let c = Interval::from_bounds(cc - cw, cc + cw);
+            let disc = b.powi(2) - a * c;
+            if !(disc.lo() > 0.0 && (a.lo() > 0.0 || a.hi() < 0.0)) {
+                continue;
+            }
+            kept += 1;
+            if b.lo() < 0.0 && b.hi() > 0.0 {
+                straddle += 1;
+            }
+            let new = quadratic_roots(a, b, c, disc);
+            let old = old_roots(a, b, c, disc);
+            let fin = |r: &[Interval; 2]| r.iter().all(|r| r.lo().is_finite() && r.hi().is_finite());
+            if !fin(&new) {
+                unbounded_new += 1;
+            }
+            if !fin(&old) {
+                unbounded_old += 1;
+            } else {
+                for k in 0..2 {
+                    let (wn, wo) = (new[k].hi() - new[k].lo(), old[k].hi() - old[k].lo());
+                    if wn > wo * (1.0 + 1e-12) {
+                        wider += 1;
+                        widest = widest.max(wn / wo);
+                    }
+                }
+            }
+            // The divisors of each arm as the function reads them.
+            let root = disc.max(Interval::from_f64(0.0)).sqrt();
+            let plus = root - b.min(Interval::from_f64(0.0));
+            let minus = Interval::from_f64(0.0) - b.max(Interval::from_f64(0.0)) - root;
+            if plus.lo() <= 0.0 || minus.hi() >= 0.0 {
+                divisor0 += 1;
+            }
+            // Members: corners and random points.
+            let mut members = Vec::new();
+            for i in 0..24 {
+                let pick = |rng: &mut Rng, x: Interval, k: usize| match k {
+                    0 => x.lo(),
+                    1 => x.hi(),
+                    _ => x.lo() + (x.hi() - x.lo()) * rng.unit(),
+                };
+                let ka = if i < 8 { i & 1 } else { 2 };
+                let kb = if i < 8 { (i >> 1) & 1 } else { 2 };
+                let kc = if i < 8 { (i >> 2) & 1 } else { 2 };
+                members.push((pick(&mut rng, a, ka), pick(&mut rng, b, kb), pick(&mut rng, c, kc)));
+            }
+            // width ratio against the sampled spread (f64 roots).
+            for k in 0..2 {
+                let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
+                for &(am, bm, cm) in &members {
+                    let r = quadratic_roots(am, bm, cm, bm * bm - am * cm)[k];
+                    lo = lo.min(r);
+                    hi = hi.max(r);
+                }
+                let spread = (hi - lo).max(f64::MIN_POSITIVE);
+                let ratio = (new[k].hi() - new[k].lo()) / spread;
+                if ratio.is_finite() && ratio > worst_ratio {
+                    worst_ratio = ratio;
+                    worst_case = format!(
+                        "a [{:e},{:e}] b [{:e},{:e}] c [{:e},{:e}] root {k} [{:e},{:e}] old [{:e},{:e}]",
+                        a.lo(), a.hi(), b.lo(), b.hi(), c.lo(), c.hi(), new[k].lo(), new[k].hi(), old[k].lo(), old[k].hi()
+                    );
+                }
+            }
+            if let Some(f) = f.as_mut() {
+                let mut line = format!(
+                    "Q {} {} {} {} {} {} {} {} {} {}",
+                    hx(a.lo()), hx(a.hi()), hx(b.lo()), hx(b.hi()), hx(c.lo()), hx(c.hi()),
+                    hx(new[0].lo()), hx(new[0].hi()), hx(new[1].lo()), hx(new[1].hi())
+                );
+                for (am, bm, cm) in members {
+                    line.push_str(&format!(" {} {} {}", hx(am), hx(bm), hx(cm)));
+                }
+                writeln!(f, "{line}").unwrap();
+            }
+        }
+        println!(
+            "seed {seed:#x}: kept {kept}, b straddling {straddle}, unbounded new {unbounded_new}, \
+             unbounded old {unbounded_old}, a divisor reaching zero {divisor0}, worst width/spread {worst_ratio:.3}; new wider than a bounded old in {wider} roots (worst x{widest:.3}); worst case {worst_case}"
+        );
+    }
+
+    /// Claim 2: the old and new spellings agree to the bit at `f64`,
+    /// over a large random sample and the edge values.
+    #[test]
+    fn probe_f64_bits_match_the_base() {
+        let mut rng = Rng(0x00b1_7b17);
+        let edges = [
+            0.0, -0.0, 1.0, -1.0, f64::MIN_POSITIVE, -f64::MIN_POSITIVE, 5e-324, -5e-324,
+            f64::MAX, -f64::MAX, f64::INFINITY, f64::NEG_INFINITY, f64::NAN, 1e-300, -1e-300,
+            1e300, 3.0,
+        ];
+        let same = |x: f64, y: f64| x.to_bits() == y.to_bits() || (x.is_nan() && y.is_nan());
+        let mut off = Vec::new();
+        let mut count = 0u64;
+        let mut check = |a: f64, b: f64, c: f64, disc: f64| {
+            count += 1;
+            let (n, o) = (quadratic_roots(a, b, c, disc), old_roots(a, b, c, disc));
+            if !(same(n[0], o[0]) && same(n[1], o[1])) && off.len() < 20 {
+                off.push(format!("a {a:e} b {b:e} c {c:e} disc {disc:e}: {n:?} vs {o:?}"));
+            }
+        };
+        for &a in &edges {
+            for &b in &edges {
+                for &c in &edges {
+                    check(a, b, c, b * b - a * c);
+                    for &disc in &edges {
+                        check(a, b, c, disc);
+                    }
+                }
+            }
+        }
+        for _ in 0..2_000_000 {
+            let a = rng.sign() * rng.logu(1e-200, 1e200);
+            let b = rng.sign() * rng.logu(1e-200, 1e200);
+            let c = rng.sign() * rng.logu(1e-200, 1e200);
+            check(a, b, c, b * b - a * c);
+            let b2 = if rng.next() & 1 == 0 { 0.0 } else { -0.0 };
+            check(a, b2, c, -a * c);
+        }
+        println!("{count} cases compared");
+        assert!(off.is_empty(), "bits moved: {off:#?}");
+    }
+}

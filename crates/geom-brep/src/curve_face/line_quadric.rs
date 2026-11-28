@@ -2056,3 +2056,307 @@ mod nearest_rows {
         assert!(off.is_empty(), "the boxed ray's crossings: {off:#?}");
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic, clippy::print_stdout)]
+mod review_wall_roots_probes {
+    //! Reviewer probes (review of `boxfinish/wall-roots`): the quadratic
+    //! about the nearest point at `f64` against an exact oracle, and over
+    //! a box at `Interval`, beside the merge base's spelling. Cases go to
+    //! the file `REVIEW_PROBE_OUT` names, for
+    //! `probe/review-wall-roots/oracle.py`.
+
+    use super::*;
+    use geom_core::{Bounds, Interval, Real, UnitVec3};
+    use std::io::Write;
+
+    /// The merge base's wall quadratic: `(shift, [a, b, c])`.
+    fn old_wall<T: Decide>(
+        line: geom::Line<T>,
+        (wall, radius): (geom::Line<T>, T),
+        span: T,
+        about: About,
+    ) -> (T, [T; 3]) {
+        let geom::Line { origin: q, dir: d } = line;
+        let axis = wall.dir;
+        let w0p = wall.offset(q);
+        let dp = d.get() - axis.get() * d.get().dot(axis.get());
+        let a2 = dp.norm_squared();
+        let shift = match about {
+            About::Start => T::zero(),
+            About::Nearest => ((T::zero() - w0p.dot(dp)) / a2)
+                .max(T::zero() - span)
+                .min(span),
+        };
+        let w = w0p + dp * shift;
+        (shift, [a2, w.dot(dp), w.norm_squared() - radius.powi(2)])
+    }
+
+    fn old_sphere<T: Decide>(line: geom::Line<T>, center: Point3<T>, radius: T, about: About) -> (T, [T; 3]) {
+        let geom::Line { origin: q, dir: d } = line;
+        let w0 = q - center;
+        let a2 = d.get().norm_squared();
+        let shift = match about {
+            About::Start => T::zero(),
+            About::Nearest => (T::zero() - w0.dot(d.get())) / a2,
+        };
+        let w = w0 + d.get() * shift;
+        (shift, [a2, w.dot(d.get()), w.norm_squared() - radius.powi(2)])
+    }
+
+    fn old_cone<T: Decide>(line: geom::Line<T>, cone: geom::Line<T>, half_angle: T, run: (T, T)) -> (T, [T; 3]) {
+        let geom::Line { origin: q, dir: d } = line;
+        let geom::Line { origin: apex, dir: axis } = cone;
+        let w0 = q - apex;
+        let shift = line.param_within(apex, run);
+        let w = w0 + d.get() * shift;
+        let cos2 = half_angle.cos().powi(2);
+        let (da, wa) = (d.get().dot(axis.get()), w.dot(axis.get()));
+        (
+            shift,
+            [
+                da.powi(2) - d.get().norm_squared() * cos2,
+                da * wa - w.dot(d.get()) * cos2,
+                wa.powi(2) - w.norm_squared() * cos2,
+            ],
+        )
+    }
+
+    struct Rng(u64);
+    impl Rng {
+        fn next(&mut self) -> u64 {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            self.0
+        }
+        fn unit(&mut self) -> f64 {
+            (self.next() >> 11) as f64 / (1u64 << 53) as f64
+        }
+        fn logu(&mut self, lo: f64, hi: f64) -> f64 {
+            (lo.ln() + (hi.ln() - lo.ln()) * self.unit()).exp()
+        }
+        fn sign(&mut self) -> f64 {
+            if self.next() & 1 == 0 { 1.0 } else { -1.0 }
+        }
+    }
+
+    fn hx(x: f64) -> String {
+        format!("{:016x}", x.to_bits())
+    }
+
+    fn out() -> Option<std::fs::File> {
+        std::env::var("REVIEW_PROBE_OUT")
+            .ok()
+            .map(|p| std::fs::File::create(p).unwrap())
+    }
+
+    fn z_wall<T: Real>() -> geom::Line<T> {
+        geom::Line {
+            origin: Point3::new(T::zero(), T::zero(), T::zero()),
+            dir: UnitVec3::exact_z(),
+        }
+    }
+
+    /// A random line case: `(q, d, radius, span)`. Families: the
+    /// approach inside the run, held back at either end, a run of zero
+    /// length, a line all but parallel to the axis, a start on the axis.
+    fn case(rng: &mut Rng) -> ([f64; 3], [f64; 3], f64, f64, u64) {
+        let fam = rng.next() % 6;
+        let r = rng.logu(1e-4, 1e3);
+        let tilt = if fam == 4 { rng.logu(1e-9, 1e-5) } else { rng.logu(1e-3, 1.5) };
+        let turn = rng.unit() * std::f64::consts::TAU;
+        let d = Vec3::new(tilt.sin() * turn.cos(), tilt.sin() * turn.sin(), tilt.cos()).normalize();
+        // The approach's distance from the axis, then the start moved
+        // along the line by `back`.
+        let p = r * rng.logu(1e-3, 3.0);
+        let phi = rng.unit() * std::f64::consts::TAU;
+        let dp = Vec3::new(d.x, d.y, 0.0);
+        let mut foot = Vec3::new(phi.cos(), phi.sin(), 0.0);
+        // Square to `dp` in the plane across the axis.
+        foot = (foot - dp * (foot.dot(dp) / dp.norm_squared())).normalize() * p;
+        if fam == 5 {
+            foot = Vec3::new(0.0, 0.0, 0.0);
+        }
+        let back = rng.sign() * r * rng.logu(1e-2, 1e6) / tilt.sin().max(1e-12);
+        let q = Point3::new(foot.x, foot.y, rng.sign() * r * rng.unit()) + d * back;
+        let free = back.abs();
+        let span = match fam {
+            0 | 4 | 5 => free * rng.logu(1.01, 100.0),
+            1 => free * rng.unit(),
+            2 => 0.0,
+            _ => free * rng.logu(0.9, 1.1),
+        };
+        ([q.x, q.y, q.z], [d.x, d.y, d.z], r, span, fam)
+    }
+
+    /// Claims 4 and 5 at `f64`: new and old coefficients, shift and roots
+    /// written per case; the oracle reads exact `b`, `c` and roots.
+    #[test]
+    fn probe_nearest_f64_cases() {
+        let seed: u64 = std::env::var("REVIEW_SEED").map_or(0x0ea2_0001, |s| s.parse().unwrap());
+        let n: usize = std::env::var("REVIEW_N").map_or(20_000, |s| s.parse().unwrap());
+        let mut rng = Rng(seed);
+        let mut f = out();
+        let mut start_bits_moved = 0;
+        for _ in 0..n {
+            let (q, d, r, span, fam) = case(&mut rng);
+            let line = geom::Line {
+                origin: Point3::new(q[0], q[1], q[2]),
+                dir: UnitVec3::squared(Vec3::new(d[0], d[1], d[2])),
+            };
+            let dg = line.dir.get();
+            for about in [About::Start, About::Nearest] {
+                let new = wall_quadratic(line, (z_wall(), r), span, about);
+                let (oshift, old) = old_wall(line, (z_wall(), r), span, about);
+                if about == About::Start
+                    && (new.coeffs.iter().zip(old).any(|(x, y)| x.to_bits() != y.to_bits()))
+                {
+                    start_bits_moved += 1;
+                }
+                if about == About::Start {
+                    continue;
+                }
+                let disc = new.disc();
+                let (roots, slack) = new.roots(disc);
+                let odisc = old[1].powi(2) - old[0] * old[2];
+                let oroots = crate::quartic::quadratic_roots(old[0], old[1], old[2], odisc)
+                    .map(|t| t + oshift);
+                if let Some(f) = f.as_mut() {
+                    writeln!(
+                        f,
+                        "W {fam} {} {} {} {} {} {} {} {} | {} {} {} {} | {} {} {} {} | {} {} {}",
+                        hx(q[0]), hx(q[1]), hx(q[2]), hx(dg.x), hx(dg.y), hx(dg.z), hx(r), hx(span),
+                        hx(new.shift), hx(new.coeffs[1]), hx(new.coeffs[2]), hx(oshift),
+                        hx(old[1]), hx(old[2]), hx(roots[1]), hx(oroots[1]),
+                        hx(roots[0]), hx(oroots[0]), hx(slack)
+                    )
+                    .unwrap();
+                }
+            }
+        }
+        println!("About::Start coefficient bits moved in {start_bits_moved} of {n} cases");
+        assert_eq!(start_bits_moved, 0, "About::Start bits moved");
+    }
+
+    /// Claim 6: the sphere about its start and the cone, new against
+    /// old, bit for bit where they should be.
+    #[test]
+    fn probe_sphere_and_cone_bits() {
+        let mut rng = Rng(0x05fe_7e00);
+        let mut cone_out = out();
+        let (mut sphere_start, mut sphere_near_b, mut cone_shift, mut cone_a, mut n) = (0, 0, 0, 0, 0);
+        let (mut cone_b_rel, mut cone_c_rel): (f64, f64) = (0.0, 0.0);
+        for _ in 0..50_000 {
+            n += 1;
+            let (q, d, r, span, _) = case(&mut rng);
+            let line = geom::Line {
+                origin: Point3::new(q[0], q[1], q[2]),
+                dir: UnitVec3::squared(Vec3::new(d[0], d[1], d[2])),
+            };
+            let center = Point3::new(rng.unit(), rng.unit(), rng.unit());
+            let s = sphere_quadratic(line, (center, r), About::Start);
+            let (_, so) = old_sphere(line, center, r, About::Start);
+            if s.coeffs.iter().zip(so).any(|(x, y)| x.to_bits() != y.to_bits()) {
+                sphere_start += 1;
+            }
+            let sn = sphere_quadratic(line, (center, r), About::Nearest);
+            if sn.coeffs[1] != 0.0 {
+                sphere_near_b += 1;
+            }
+            let apex = Point3::new(rng.unit(), rng.unit(), rng.unit());
+            let cone = geom::Line { origin: apex, dir: UnitVec3::exact_z() };
+            let half = rng.unit() * 1.4 + 0.05;
+            let run = (-span, span);
+            let cn = line_cone_quadratic(line, cone, half, run);
+            let (cs, co) = old_cone(line, cone, half, run);
+            if cn.shift.to_bits() != cs.to_bits() {
+                cone_shift += 1;
+            }
+            if cn.coeffs[0].to_bits() != co[0].to_bits() {
+                cone_a += 1;
+            }
+            if let Some(f) = cone_out.as_mut() {
+                let dg = line.dir.get();
+                writeln!(
+                    f,
+                    "C {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}",
+                    hx(q[0]), hx(q[1]), hx(q[2]), hx(dg.x), hx(dg.y), hx(dg.z),
+                    hx(apex.x), hx(apex.y), hx(apex.z), hx(half.cos().powi(2)), hx(span),
+                    hx(cn.coeffs[1]), hx(cn.coeffs[2]), hx(co[1]), hx(co[2]), hx(cn.shift)
+                )
+                .unwrap();
+            }
+            let scale = |x: f64| x.abs().max(1e-300);
+            cone_b_rel = cone_b_rel.max((cn.coeffs[1] - co[1]).abs() / scale(co[1]));
+            cone_c_rel = cone_c_rel.max((cn.coeffs[2] - co[2]).abs() / scale(co[2]));
+        }
+        println!(
+            "{n} cases: sphere About::Start bits moved {sphere_start}; sphere nearest b != 0 {sphere_near_b}; \
+             cone shift bits moved {cone_shift}; cone a moved {cone_a}; cone b rel {cone_b_rel:e}; cone c rel {cone_c_rel:e}"
+        );
+    }
+
+    /// Claim 4 at `Interval`: boxed starts `q0 + v·u`, `u ∈ box`, the box
+    /// in units of the line's approach, so that the clamp binds over all,
+    /// part or none of it. Writes the enclosures (new and old) and
+    /// members' starts for the exact oracle.
+    #[test]
+    fn probe_nearest_interval_boxes() {
+        let seed: u64 = std::env::var("REVIEW_SEED").map_or(0x0b0c_0001, |s| s.parse().unwrap());
+        let n: usize = std::env::var("REVIEW_N").map_or(5_000, |s| s.parse().unwrap());
+        let mut rng = Rng(seed);
+        let mut f = out();
+        let lift = Interval::from_f64;
+        for _ in 0..n {
+            let (q, d, r, span, fam) = case(&mut rng);
+            let width = r * rng.logu(1e-6, 1.0);
+            let v = [rng.sign() * rng.unit(), rng.sign() * rng.unit(), rng.sign() * rng.unit()];
+            // Sometimes the box moves the start along the line, so the
+            // clamp binds for only part of it.
+            let v = if rng.next() % 3 == 0 {
+                let k = span.max(r) / width;
+                [d[0] * k, d[1] * k, d[2] * k]
+            } else {
+                v
+            };
+            let u = Interval::from_bounds(-1.0, 1.0);
+            let qi = Point3::new(
+                lift(q[0]) + lift(width * v[0]) * u,
+                lift(q[1]) + lift(width * v[1]) * u,
+                lift(q[2]) + lift(width * v[2]) * u,
+            );
+            let di = Vec3::new(d[0], d[1], d[2]).normalize();
+            let line = geom::Line {
+                origin: qi,
+                dir: UnitVec3::squared(di.map(lift)),
+            };
+            let line_dir = line.dir.get();
+            let new = wall_quadratic(line, (z_wall(), lift(r)), lift(span), About::Nearest);
+            let (_, old) = old_wall(line, (z_wall(), lift(r)), lift(span), About::Nearest);
+            let disc = new.disc();
+            let roots = if disc.lo() > 0.0 { Some(new.roots(disc).0) } else { None };
+            if let Some(f) = f.as_mut() {
+                let mut line_out = format!(
+                    "B {fam} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}",
+                    hx(line_dir.x.lo()), hx(line_dir.x.hi()), hx(line_dir.y.lo()), hx(line_dir.y.hi()),
+                    hx(line_dir.z.lo()), hx(line_dir.z.hi()), hx(r), hx(span),
+                    hx(new.coeffs[1].lo()), hx(new.coeffs[1].hi()),
+                    hx(new.coeffs[2].lo()), hx(new.coeffs[2].hi()),
+                    hx(old[1].lo()), hx(old[1].hi()), hx(old[2].lo()), hx(old[2].hi()),
+                    hx(roots.map_or(f64::NAN, |r| r[1].lo())), hx(roots.map_or(f64::NAN, |r| r[1].hi())),
+                );
+                for i in 0..=8 {
+                    let um = -1.0 + f64::from(i) / 4.0;
+                    let qm = [
+                        q[0] + width * v[0] * um,
+                        q[1] + width * v[1] * um,
+                        q[2] + width * v[2] * um,
+                    ];
+                    line_out.push_str(&format!(" {} {} {}", hx(qm[0]), hx(qm[1]), hx(qm[2])));
+                }
+                writeln!(f, "{line_out}").unwrap();
+            }
+        }
+    }
+}
