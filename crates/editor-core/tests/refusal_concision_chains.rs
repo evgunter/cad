@@ -34,6 +34,7 @@ pub(crate) fn as_the_viewer_shows_it(kind: NodeErrorKind) -> String {
         node: RecipeNodeId::new(0, tagged(5)),
         kind,
         escalations: std::sync::Arc::new(Vec::new()),
+        sym: std::sync::Arc::default(),
     }
     .to_string()
 }
@@ -1412,6 +1413,7 @@ fn drawn_lines(kind: NodeErrorKind) -> Vec<String> {
         node: RecipeNodeId::new(0, tagged(5)),
         kind,
         escalations: std::sync::Arc::new(Vec::new()),
+        sym: std::sync::Arc::default(),
     };
     core::iter::once(error.to_string())
         .chain(

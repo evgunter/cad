@@ -2351,6 +2351,7 @@ mod tests {
                 node: measure,
                 kind: crate::eval::NodeErrorKind::EmptyOperand { input: slab.block },
                 escalations: std::sync::Arc::new(Vec::new()),
+                sym: std::sync::Arc::default(),
             }),
         );
         let mentions = |said: &crate::Sentence| {
@@ -2442,6 +2443,7 @@ mod tests {
                     process_eps: 2.0,
                 },
                 escalations: std::sync::Arc::new(Vec::new()),
+                sym: std::sync::Arc::default(),
             }),
         );
         let outcome = record

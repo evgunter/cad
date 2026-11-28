@@ -142,6 +142,10 @@ pub(crate) struct PartValue<T: topo::AtRestPolicy + Decide> {
     /// a dual descent binds the same part's run to, read off the
     /// record's row (DUAL-DESIGN DL3, [`Refusals`]).
     pub refused: Arc<Refusals>,
+    /// What the part's run left in the symbolic session
+    /// ([`geom_core::sym::NodeRecord`]): an instance node that reads
+    /// this row receives its identities.
+    pub sym: Arc<geom_core::sym::NodeRecord>,
 }
 
 /// **A part's evaluation, as a build of record**: the nodes it refused
@@ -220,6 +224,7 @@ impl<T: topo::AtRestPolicy + Decide> PartValue<T> {
 impl<T: topo::AtRestPolicy + Decide> Clone for PartValue<T> {
     fn clone(&self) -> Self {
         Self {
+            sym: Arc::clone(&self.sym),
             body: self.body.clone(),
             names: Arc::clone(&self.names),
             carry: self.carry.clone(),
@@ -599,6 +604,9 @@ type Rows<T> = BTreeMap<(DocRef, u64), Result<PartValue<T>, PartFault>>;
 /// its admission admitted ([`Self::enter`]). A running evaluation reads the [`Reached`]
 /// table the pass hands over, never this.
 pub(crate) struct PartStore<'a, T: topo::AtRestPolicy + Decide> {
+    /// The symbolic record of each part run this store made, in the
+    /// order run: the replay's receipt counts each once.
+    pub(crate) built: Vec<Arc<geom_core::sym::NodeRecord>>,
     resolver: Option<&'a Arc<dyn PartResolver>>,
     /// The ambient ε these rows were produced at, by bits — half the
     /// key, hoisted because it is constant within one store.
@@ -644,6 +652,7 @@ impl<'a, T: topo::AtRestPolicy + Decide> PartStore<'a, T> {
     ) -> Self {
         Self {
             resolver,
+            built: Vec::new(),
             eps_bits: tol.eps().to_bits(),
             boolean_sweep,
             symbols: false,
@@ -693,6 +702,8 @@ pub(crate) struct Entry<T: topo::AtRestPolicy + Decide> {
     /// How many referenced documents the pass evaluated, at every
     /// depth.
     pub evaluations: usize,
+    /// The symbolic record of each part run made, in the order run.
+    pub built: Vec<Arc<geom_core::sym::NodeRecord>>,
 }
 
 impl<T: super::EvalScalar> PartStore<'_, T> {
@@ -905,6 +916,7 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
                 costs: self.costs,
             },
             evaluations: self.evaluations,
+            built: self.built,
         }
     }
 
@@ -980,14 +992,27 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
                 continue;
             }
             let reached = core::mem::take(&mut current.reached);
-            let value = self.evaluate_entered(
-                &current.doc,
-                current.doc_ref,
-                reached,
-                cancel,
-                tol,
-                current_record.as_deref(),
-            );
+            // A part's run is a scope of its own in the symbolic
+            // session, opened over no identity: what its nodes and its
+            // product decide and register is the part's, rides its
+            // row, and is counted once in the replay however many
+            // instance nodes read the row.
+            let (value, record) = geom_core::sym::apart(|| {
+                self.evaluate_entered(
+                    &current.doc,
+                    current.doc_ref,
+                    reached,
+                    cancel,
+                    tol,
+                    current_record.as_deref(),
+                )
+            });
+            let record = Arc::new(record);
+            self.built.push(Arc::clone(&record));
+            let value = value.map(|mut value| {
+                value.sym = record;
+                value
+            });
             path.pop();
             let Some((parent, parent_record)) = waiting.pop() else {
                 return value;
@@ -1173,6 +1198,7 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
             carried_at_rest,
         } = crate::checks::at_rest::whole_reading(doc, &product, tol);
         Ok(PartValue {
+            sym: Arc::default(),
             interference: Arc::new(
                 seam.interference
                     .into_iter()

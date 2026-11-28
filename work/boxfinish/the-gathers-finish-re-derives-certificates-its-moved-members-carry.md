@@ -2,11 +2,12 @@
 id: the-gathers-finish-re-derives-certificates-its-moved-members-carry
 kind: unit
 title: The gather's finish re-derives from values the certificates its finished, moved members already carry: a product turned by a boxed joint refuses at plain Interval, and a member's volume is re-read at Sym
-status: dispatched
+status: review
 opened: 2026-11-24
 priority: P1
 cost: H
 branch: boxfinish/gather-carries
+pr: 7723
 ---
 
 

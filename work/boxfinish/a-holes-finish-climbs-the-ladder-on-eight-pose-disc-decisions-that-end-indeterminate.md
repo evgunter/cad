@@ -2,11 +2,12 @@
 id: a-holes-finish-climbs-the-ladder-on-eight-pose-disc-decisions-that-end-indeterminate
 kind: issue
 title: A hole's finish over a box reads four margins that are definitely nonzero as straddling zero (a curve's clearance from its carrier, a winding, a pose discriminant, a carrier gap), and each then climbs the symbolic ladder
-status: dispatched
+status: review
 opened: 2026-11-24
 priority: P1
 cost: M
 branch: boxfinish/wall-roots
+pr: 7724
 ---
 
 
