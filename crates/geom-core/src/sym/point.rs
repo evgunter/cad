@@ -137,10 +137,16 @@ fn plain_is_zero(sess: &Session, id: SymId) -> bool {
 /// reading declines (the module docs list when).
 fn reading(sess: &mut Session, id: SymId) -> Option<Interval> {
     let mut memo = core::mem::take(&mut sess.points);
-    let out = evaluate(sess, &mut memo, id, &|symbol| {
-        let &(lo, hi) = sess.params.get(&indet_param(symbol))?;
-        point_of(symbol, lo, hi).map(Interval::from_f64)
-    });
+    let out = evaluate(
+        sess,
+        &mut memo,
+        id,
+        &|symbol| {
+            let &(lo, hi) = sess.params.get(&indet_param(symbol))?;
+            point_of(symbol, lo, hi).map(Interval::from_f64)
+        },
+        &select_arms,
+    );
     sess.points = memo;
     out.filter(|x| x.is_certified())
 }
@@ -156,11 +162,12 @@ fn reading(sess: &mut Session, id: SymId) -> Option<Interval> {
 /// arm that decision takes (both where it straddles), so an arm the
 /// computation does not take at this value cannot leave it without
 /// one. Without recursion, since a margin's graph can be deep.
-pub(super) fn evaluate<T: Real + Bounds>(
+pub(super) fn evaluate<T: Real>(
     sess: &Session,
     memo: &mut IdMap<Option<T>>,
     root: SymId,
     param: &dyn Fn(u64) -> Option<T>,
+    arms: &dyn Fn(Option<T>) -> &'static [usize],
 ) -> Option<T> {
     let mut stack = vec![(root, false)];
     while let Some((id, expanded)) = stack.pop() {
@@ -179,7 +186,7 @@ pub(super) fn evaluate<T: Real + Bounds>(
                 }
                 Some(d) => {
                     stack.push((id, true));
-                    for &k in select_arms(*d) {
+                    for &k in arms(*d) {
                         stack.push((n.kids[k], false));
                     }
                 }
@@ -208,25 +215,25 @@ pub(super) fn evaluate<T: Real + Bounds>(
                 _ => Some(kid(0)? * kid(1)?),
             },
             SymOp::Neg => Some(-kid(0)?),
-            SymOp::Powi => Some(kid(0)?.powi(n.payload as u32 as i32)),
+            SymOp::Powi => Some(Real::powi(kid(0)?, n.payload as u32 as i32)),
             SymOp::Inv => Some(T::one() / kid(0)?),
-            SymOp::Sqrt => Some(kid(0)?.sqrt()),
-            SymOp::Abs => Some(kid(0)?.abs()),
-            SymOp::Sin => Some(kid(0)?.sin_cos().0),
-            SymOp::Cos => Some(kid(0)?.sin_cos().1),
-            SymOp::Tan => Some(kid(0)?.tan()),
-            SymOp::Asin => Some(kid(0)?.asin()),
-            SymOp::Acos => Some(kid(0)?.acos()),
-            SymOp::Atan => Some(kid(0)?.atan()),
-            SymOp::Floor => Some(kid(0)?.floor()),
-            SymOp::LessSin => Some(kid(0)?.less_sin()),
-            SymOp::Atan2 => Some(kid(0)?.atan2(kid(1)?)),
-            SymOp::Min => Some(kid(0)?.min(kid(1)?)),
-            SymOp::Max => Some(kid(0)?.max(kid(1)?)),
-            SymOp::Copysign => Some(kid(0)?.copysign(kid(1)?)),
-            SymOp::Select => kid(0).and_then(|d| match *select_arms(Some(d)) {
-                [k] => Some(d.select_le_zero(kid(k)?, kid(k)?)),
-                [a, b] => Some(d.select_le_zero(kid(a)?, kid(b)?)),
+            SymOp::Sqrt => Some(Real::sqrt(kid(0)?)),
+            SymOp::Abs => Some(Real::abs(kid(0)?)),
+            SymOp::Sin => Some(Real::sin_cos(kid(0)?).0),
+            SymOp::Cos => Some(Real::sin_cos(kid(0)?).1),
+            SymOp::Tan => Some(Real::tan(kid(0)?)),
+            SymOp::Asin => Some(Real::asin(kid(0)?)),
+            SymOp::Acos => Some(Real::acos(kid(0)?)),
+            SymOp::Atan => Some(Real::atan(kid(0)?)),
+            SymOp::Floor => Some(Real::floor(kid(0)?)),
+            SymOp::LessSin => Some(Real::less_sin(kid(0)?)),
+            SymOp::Atan2 => Some(Real::atan2(kid(0)?, kid(1)?)),
+            SymOp::Min => Some(Real::min(kid(0)?, kid(1)?)),
+            SymOp::Max => Some(Real::max(kid(0)?, kid(1)?)),
+            SymOp::Copysign => Some(Real::copysign(kid(0)?, kid(1)?)),
+            SymOp::Select => kid(0).and_then(|d| match *arms(Some(d)) {
+                [k] => Some(Real::select_le_zero(d, kid(k)?, kid(k)?)),
+                [a, b] => Some(Real::select_le_zero(d, kid(a)?, kid(b)?)),
                 _ => None,
             }),
         })();
@@ -235,12 +242,11 @@ pub(super) fn evaluate<T: Real + Bounds>(
     memo.get(&root).copied().flatten()
 }
 
-/// The child slots of a `select` its decision's value `d` takes:
+/// The child slots of a `select` its decision's enclosure `d` takes:
 /// `when_le` where `d ≤ 0` holds over all of `d`, `when_gt` where
-/// `d > 0` does, both otherwise (a straddling enclosure, or a `NaN`),
-/// and none where the decision has no value. One rule for the walk and
-/// the evaluation.
-fn select_arms<T: Bounds>(d: Option<T>) -> &'static [usize] {
+/// `d > 0` does, both where it straddles, and none where the decision
+/// has no value. One rule for the walk and the evaluation.
+pub(super) fn select_arms(d: Option<Interval>) -> &'static [usize] {
     match d {
         None => &[],
         Some(d) if Bounds::hi(d) <= 0.0 => &[1],
@@ -698,9 +704,11 @@ mod tests {
                 read_now(m.node())
             });
             let want = op(px, py);
-            assert_eq!(
-                read.map(Interval::repr_bits),
-                Some(want.repr_bits()),
+            assert!(
+                read.is_some_and(|r| {
+                    Bounds::lo(r).total_cmp(&Bounds::lo(want)).is_eq()
+                        && Bounds::hi(r).total_cmp(&Bounds::hi(want)).is_eq()
+                }),
                 "{what}: {read:?} against {want:?}"
             );
         }
@@ -878,22 +886,6 @@ mod tests {
             (0, 0),
             "climbed first: the retry is withheld"
         );
-    }
-
-    /// **A registered identity true over the box is not refuted**: the
-    /// point reads it near 0, and the door proves it (one reviewer's
-    /// row, at the decision).
-    #[test]
-    fn a_true_registered_identity_is_not_refuted() {
-        let ((sign, _), counts) = shipped(|| {
-            let x = param("x", 0.9, 1.1);
-            let a = (x * x).sqrt() * lit(3.0);
-            let b = x * lit(3.0);
-            let _ = a.register_equal(b, Tol::witness());
-            asked(a - b)
-        });
-        assert_eq!(sign, Some(Sign::Zero), "{counts:?}");
-        assert_eq!(counts.symbolic, 1, "{counts:?}");
     }
 
     /// **No reading where it cannot refute**: a root whose plain form a

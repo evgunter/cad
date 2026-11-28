@@ -146,8 +146,21 @@ pub fn revalue(node: SymId, env: &dyn Fn(ParamSymbol) -> Option<f64>) -> Option<
     SESSION.with(|s| {
         let s = s.borrow();
         let sess = s.as_ref()?;
-        super::point::evaluate(sess, &mut Default::default(), node, &|symbol| {
-            env(ParamSymbol(symbol))
-        })
+        // A point: its `select` takes one arm, or reads both at `NaN`.
+        let arms = |d: Option<f64>| -> &'static [usize] {
+            match d {
+                None => &[],
+                Some(d) if d <= 0.0 => &[1],
+                Some(d) if d > 0.0 => &[2],
+                Some(_) => &[1, 2],
+            }
+        };
+        super::point::evaluate(
+            sess,
+            &mut Default::default(),
+            node,
+            &|symbol| env(ParamSymbol(symbol)),
+            &arms,
+        )
     })
 }
