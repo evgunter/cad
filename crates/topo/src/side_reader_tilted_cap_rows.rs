@@ -327,3 +327,260 @@ fn the_f64_turn_decides_as_the_three_component_form_did() {
     }
     println!("f64 turn: {n} points, worst |new − old| = {worst:e}");
 }
+
+// ---- probe (M14): reach and tier 3′ over the fixture bricks ----
+
+fn m14_label<T: Decide>(body: &Body<T>, face: FaceKey) -> String {
+    match crate::face_normal::face_plane(body, face) {
+        Some(p) => {
+            let n = [p.normal.x, p.normal.y, p.normal.z].map(m14_mid);
+            if n[2] > 0.5 {
+                "top".to_owned()
+            } else if n[2] < -0.5 {
+                "bottom".to_owned()
+            } else {
+                format!("wall({:+.0},{:+.0})", n[0], n[1])
+            }
+        }
+        None => "?".to_owned(),
+    }
+}
+
+fn m14_rows<T: Decide + crate::props::AtRestPolicy + geom_core::Bounds>(
+    what: &str,
+    body: &Body<T>,
+    band: Band,
+    tol: Tol,
+) {
+    let faces: Vec<FaceKey> = body.faces().map(|(f, _)| f).collect();
+    for (i, f) in faces.iter().enumerate() {
+        println!("M14 {what} key {f:?} = {} #{i}", m14_label(body, *f));
+    }
+    for r in each_aim_report(body, band) {
+        let label = faces
+            .iter()
+            .find(|f| r.starts_with(&format!("{f:?}:")))
+            .map(|f| m14_label(body, *f))
+            .unwrap_or_default();
+        let cut: String = r.chars().take(700).collect();
+        println!("M14 {what} aim {label} | {cut}");
+    }
+    for r in aimed_rays_report(body, band) {
+        let cut: String = r.chars().take(300).collect();
+        println!("M14 {what} reader | {cut}");
+    }
+    if std::env::var_os("BOXFINISH_M14_CENSUS").is_some() {
+        let errors = crate::census::census_and_certify(
+            body,
+            &crate::boolean::ContactRecords::default(),
+            band,
+            tol,
+            None,
+        );
+        println!("M14 {what} census | {} findings", errors.len());
+        for e in errors {
+            let cut: String = format!("{e:?}").chars().take(500).collect();
+            println!("M14 {what} census-finding | {cut}");
+        }
+    }
+}
+
+fn m14_body<T: Decide + crate::props::AtRestPolicy>(kind: usize, top: T, tol: Tol) -> Body<T> {
+    match kind {
+        0 => brick_at(top, T::from_f64(1.0), false, tol),
+        1 => lined_brick(top, tol),
+        2 => tilted(top, TILTS[1], false, tol),
+        _ => tilted(top, TILTS[2], false, tol),
+    }
+}
+
+const M14_KINDS: [&str; 4] = ["brick", "lined", "tilt(0.3,0.2)", "tilt(-0.45,0.6)"];
+const M14_WIDTHS: [f64; 4] = [0.05, 0.1, 0.25, 0.45];
+
+/// Probe: prints only. `BOXFINISH_M14_FIX=1` fixes each aimed ray;
+/// `BOXFINISH_M14_CENSUS=1` adds tier 3′'s census by itself.
+#[test]
+#[ignore = "probe: cargo nextest run -p topo m14_probe --run-ignored all --no-capture"]
+fn m14_probe() {
+    let tol = Tol::witness();
+    let band = Band::linear(tol).expect("the witness band");
+    let budget = SymBudget {
+        max_terms: 64,
+        max_degree: 8,
+    };
+    for (kind, name) in M14_KINDS.iter().enumerate() {
+        for w in M14_WIDTHS {
+            for f in [-1.0, -0.5, 0.0, 0.5, 1.0] {
+                let member = m14_body::<f64>(kind, 1.0 + f * w, tol);
+                println!(
+                    "M14 {name} w={w} member {} | {:?}",
+                    1.0 + f * w,
+                    aimed_rays_report(&member, band)
+                );
+            }
+            let start = std::time::Instant::now();
+            geom_core::sym::with_session(budget, || {
+                let top = Sym::param_over(
+                    ParamSymbol::new(test_utils::symbol_id("m14_top")),
+                    Interval::from_bounds(1.0 - w, 1.0 + w),
+                    1.0 - w,
+                    1.0 + w,
+                );
+                m14_rows(
+                    &format!("{name} w={w} sym"),
+                    &m14_body::<Boxed>(kind, top, tol),
+                    band,
+                    tol,
+                );
+            });
+            println!("M14 {name} w={w} sym took {:?}", start.elapsed());
+            let start = std::time::Instant::now();
+            let built = std::panic::catch_unwind(|| {
+                m14_body::<Interval>(kind, Interval::from_bounds(1.0 - w, 1.0 + w), tol)
+            });
+            match built {
+                Ok(body) => m14_rows(&format!("{name} w={w} iv"), &body, band, tol),
+                Err(e) => println!(
+                    "M14 {name} w={w} iv construction refuses | {}",
+                    e.downcast_ref::<String>().map_or("?", |s| s.as_str())
+                ),
+            }
+            println!("M14 {name} w={w} iv took {:?}", start.elapsed());
+        }
+    }
+}
+
+// ---- probe (M15): why the census is undecided on the tilted cap ----
+
+fn m15_census<T: Decide + crate::props::AtRestPolicy + geom_core::Bounds>(
+    what: &str,
+    body: &Body<T>,
+    band: Band,
+    tol: Tol,
+) {
+    println!("M15 CASE {what}");
+    for (f, _) in body.faces() {
+        println!("M15 key {f:?} = {}", m14_label(body, f));
+    }
+    let errors = crate::census::census_and_certify(
+        body,
+        &crate::boolean::ContactRecords::default(),
+        band,
+        tol,
+        None,
+    );
+    println!("M15 END {what}: {} findings", errors.len());
+    for e in errors {
+        let cut: String = format!("{e:?}").chars().take(400).collect();
+        println!("M15 finding | {cut}");
+    }
+}
+
+/// Probe: prints only, under `BOXFINISH_M15=1|2`.
+#[test]
+#[ignore = "probe: BOXFINISH_M15=1 cargo nextest run -p topo m15_probe --run-ignored all --no-capture"]
+fn m15_probe() {
+    let tol = Tol::witness();
+    let band = Band::linear(tol).expect("the witness band");
+    let budget = SymBudget {
+        max_terms: 64,
+        max_degree: 8,
+    };
+    let sym = |name: &str, w: f64, build: &dyn Fn(Boxed) -> Body<Boxed>| {
+        let (_, counts) = geom_core::sym::with_session(budget, || {
+            let top = Sym::param_over(
+                ParamSymbol::new(test_utils::symbol_id("m15_top")),
+                Interval::from_bounds(1.0 - w, 1.0 + w),
+                1.0 - w,
+                1.0 + w,
+            );
+            m15_census(name, &build(top), band, tol);
+        });
+        println!("M15 COUNTS {name}: {counts:?}");
+    };
+    let tilt = TILTS[1];
+    geom_core::sym::report::explain_depth(
+        std::env::var("BOXFINISH_M15_EXPLAIN").map_or(0, |v| v.parse().unwrap()),
+    );
+    sym("steep sym w=0.25", 0.25, &|top| {
+        tilted(top, TILTS[2], false, tol)
+    });
+    sym("tilt sym w=0.05", 0.05, &|top| {
+        tilted(top, tilt, false, tol)
+    });
+    sym("tilt sym w=0", 0.0, &|top| tilted(top, tilt, false, tol));
+    sym("tilt sym w=0.25", 0.25, &|top| {
+        tilted(top, tilt, false, tol)
+    });
+    sym("square(tilted 0,0) sym w=0.05", 0.05, &|top| {
+        tilted(top, TILTS[0], false, tol)
+    });
+    sym("lined sym w=0.05", 0.05, &|top| lined_brick(top, tol));
+    for f in [-1.0, -0.5, 0.0, 0.5, 1.0] {
+        let top = 1.0 + f * 0.05;
+        m15_census(
+            &format!("tilt f64 member {top}"),
+            &tilted::<f64>(top, tilt, false, tol),
+            band,
+            tol,
+        );
+    }
+    let built = std::panic::catch_unwind(|| {
+        tilted::<Interval>(Interval::from_bounds(1.0, 1.0), tilt, false, tol)
+    });
+    match built {
+        Ok(body) => m15_census("tilt iv w=0", &body, band, tol),
+        Err(e) => println!(
+            "M15 CASE tilt iv w=0 construction refuses | {}",
+            e.downcast_ref::<String>().map_or("?", |s| s.as_str())
+        ),
+    }
+}
+
+// ---- probe (M16): population 1, the fixture bodies ----
+
+/// Probe: records through `BOXFINISH_M16=<file>` only.
+#[test]
+#[ignore = "probe: BOXFINISH_M16=<file> cargo nextest run -p topo m16_pop1 --run-ignored all"]
+fn m16_pop1() {
+    use geom_core::sym::m16;
+    let tol = Tol::witness();
+    let band = Band::linear(tol).expect("the witness band");
+    let budget = SymBudget {
+        max_terms: 64,
+        max_degree: 8,
+    };
+    let records = crate::boolean::ContactRecords::default();
+    for (kind, name) in M14_KINDS.iter().enumerate() {
+        for w in M14_WIDTHS {
+            for pass in ["census", "finish"] {
+                let what = format!("pop1|{name}|{w}|{pass}");
+                m16::context(&what);
+                let (out, counts) = geom_core::sym::with_session(budget, || {
+                    let top = Sym::param_over(
+                        ParamSymbol::new(test_utils::symbol_id("m16_top")),
+                        Interval::from_bounds(1.0 - w, 1.0 + w),
+                        1.0 - w,
+                        1.0 + w,
+                    );
+                    let body = m14_body::<Boxed>(kind, top, tol);
+                    if pass == "census" {
+                        crate::census::census_and_certify(&body, &records, band, tol, None)
+                    } else {
+                        crate::validate::validate_pseudomanifold_structural(&body, &records, tol)
+                            .err()
+                            .unwrap_or_default()
+                    }
+                });
+                let kinds: Vec<String> = out
+                    .iter()
+                    .map(|e| format!("{e:?}").chars().take(40).collect())
+                    .collect();
+                m16::note(&format!(
+                    "{what}\tfindings={}\t{counts:?}\t{kinds:?}",
+                    out.len()
+                ));
+            }
+        }
+    }
+}

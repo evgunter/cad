@@ -1543,6 +1543,16 @@ pub fn drive(
     if config.symbolic.enabled {
         decisions.frozen = memo.frozen();
     }
+    {
+        let drive = M16_DRIVE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        geom_core::sym::m16::note(&format!(
+            "tour|d{drive}\tcertified={}\trefused={}\tsplits={}\tleaves_so_far={}",
+            certified.len(),
+            refused.len(),
+            splits,
+            M16_LEAF.load(std::sync::atomic::Ordering::Relaxed)
+        ));
+    }
     if geom_core::k_stats::probe_tally::on() {
         eprintln!(
             "[bf-drive] certified={} refused={} splits={} decisions sym={} num={} frozen={}",
@@ -1648,6 +1658,9 @@ pub(crate) enum LeafVerdict {
 // none is written — so a bundle would be a struct that exists to
 // satisfy a count.
 #[allow(clippy::too_many_arguments)]
+static M16_DRIVE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+static M16_LEAF: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
 pub(crate) fn classify(
     doc: &Doc<ProfileProgram>,
     box_: &ParamBox,
@@ -1666,6 +1679,11 @@ pub(crate) fn classify(
         ..lane_opts(stop)
     };
     if symbolic.enabled {
+        geom_core::sym::m16::context(&format!(
+            "tour|d{}|l{}",
+            M16_DRIVE.load(std::sync::atomic::Ordering::Relaxed),
+            M16_LEAF.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+        ));
         // PROBE (boxfinish/probe-switch-off): one line per leaf.
         let probe = geom_core::k_stats::probe_tally::on();
         let started = std::time::Instant::now();

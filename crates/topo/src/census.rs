@@ -3949,6 +3949,12 @@ fn pair_edge_face<T: Decide>(
         return;
     }
     let r = [e.p0, e.p1].map(|p| geom::plane_offset(f.origin, f.normal, p));
+    if std::env::var_os("BOXFINISH_M15").is_some() {
+        println!(
+            "M15 ef edge={:?} face={:?}\n  p0={:?}\n  p1={:?}\n  origin={:?}\n  normal={:?}\n  r0={:?}\n  r1={:?}",
+            e.key, f.key, e.p0, e.p1, f.origin, f.normal, r[0], r[1]
+        );
+    }
     let read = r
         .map(|r| geom_core::k_stats::decide_reported("pm_census_ef_residual", Margin::of(r), band));
     let pair = EfPair {

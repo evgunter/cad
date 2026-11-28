@@ -1038,6 +1038,8 @@ pub mod deferred;
 /// and the pure operations on a form.
 #[path = "sym/form.rs"]
 mod form;
+/// Probe (M16): the form-enclosure reading, counted beside today's answer.
+pub mod m16;
 /// Rule F: the manifest sign — `copysign` and `abs` atoms whose sign
 /// the form already shows, and the non-negativity predicate rule D
 /// shares with it.
@@ -5971,12 +5973,63 @@ impl<T: Decide> Sym<T> {
             count_decision(false);
             return numeric;
         }
+        let m16_pre = (!domain_violation && m16::on()).then(|| m16::prebuild(self.node));
+        let m16_t0 = std::time::Instant::now();
         let answered = if domain_violation {
             None
         } else {
             discharge_checked(self.node, self.value.enclosure_probe())
         };
+        if let (Some(pre), Some(enc)) = (m16_pre, self.value.enclosure_probe()) {
+            let today = match (&numeric, answered.is_some()) {
+                (_, true) => "ladder-zero",
+                (Ok(_), false) => "value-zero-in-band",
+                (Err(_), false) => "undecided",
+            };
+            if let Some(sign) = m16::probe(
+                self.node,
+                enc,
+                band,
+                pre,
+                today,
+                m16_t0.elapsed().as_nanos(),
+            ) {
+                let margin = match numeric {
+                    Ok(Decided { margin, .. }) | Err(Indeterminate { margin, .. }) => margin,
+                };
+                return Ok(Decided {
+                    sign,
+                    margin: margin.as_proven(),
+                });
+            }
+        }
         count_decision(answered.is_some());
+        if let Some(level) = std::env::var("BOXFINISH_M15").ok() {
+            let name = crate::k_stats::current_predicate();
+            let wanted = std::env::var("BOXFINISH_M15_NAMES")
+                .map_or(true, |n| n.split(',').any(|x| x == name));
+            if wanted && (answered.is_none() || level == "2") {
+                let text = report::render_node(self.node);
+                let cut = |t: &str| t.chars().take(1500).collect::<String>();
+                println!(
+                    "M15 decide {name} numeric={} enc={:?} asked={} answered={answered:?} sizes={:?} plain=<{}> early=<{}> explain=<{}>",
+                    match &numeric {
+                        Ok(d) => format!("{:?}", d.sign),
+                        Err(_) => "Undecided".to_owned(),
+                    },
+                    self.value.enclosure_probe(),
+                    !domain_violation,
+                    text.as_ref().map(|t| t.sizes),
+                    text.as_ref().map_or(String::new(), |t| cut(&t.plain)),
+                    text.as_ref()
+                        .and_then(|t| t.early.as_ref())
+                        .map_or(String::new(), |t| cut(t)),
+                    text.as_ref()
+                        .and_then(|t| t.explain.as_ref())
+                        .map_or(String::new(), |t| t.chars().take(6000).collect::<String>()),
+                );
+            }
+        }
         if answered.is_some() {
             #[cfg(feature = "probe")]
             crate::k_stats::retag_at(mark, crate::k_stats::SampleOutcome::Symbolic);

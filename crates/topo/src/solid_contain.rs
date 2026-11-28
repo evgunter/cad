@@ -4374,19 +4374,20 @@ pub(crate) fn ray_crossings<T: Decide>(
         // through `q` (a corner-aligned query) must be skipped, not
         // grazed, when the face itself is elsewhere.
         let turned = match every_bound_read(body, face, &meets.clear) {
-            true => {
-                let turned = crosses_by_turn(body, face, (c.normal, c.p), reach, turn_ray);
-                if geom_core::k_stats::probe_tally::on() {
-                    eprintln!(
-                        "[bf-ray]   crosses_by_turn {face:?} -> {}",
-                        match &turned {
-                            Ok(t) => format!("{t:?}"),
-                            Err(_) => "FAULT".to_owned(),
-                        }
-                    );
-                }
-                turned?
+            true if std::env::var_os("BOXFINISH_M14_B2").is_some() => {
+                // Probe (M14 B2): the loop's turn seen along the ray, about
+                // the ray's own point.
+                let dv = d.get();
+                let m = [dv.x, dv.y, dv.z].map(crate::side_reader::m14_mid);
+                let len = (m[0] * m[0] + m[1] * m[1] + m[2] * m[2]).sqrt();
+                let along = Vec3::new(
+                    T::from_f64(m[0] / len),
+                    T::from_f64(m[1] / len),
+                    T::from_f64(m[2] / len),
+                );
+                crosses_by_turn(body, face, (along, q), reach, turn_ray)?
             }
+            true => crosses_by_turn(body, face, (c.normal, c.p), reach, turn_ray)?,
             false => None,
         };
         let inside = match turned {

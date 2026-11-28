@@ -737,6 +737,21 @@ fn cast_aims<T: Decide>(
     }
 }
 
+/// Probe (M14): the middle of a scalar's enclosure, by lane.
+pub(crate) fn m14_mid<T: geom_core::Real>(x: T) -> f64 {
+    use geom_core::Bounds;
+    let any: &dyn std::any::Any = &x;
+    if let Some(v) = any.downcast_ref::<f64>() {
+        *v
+    } else if let Some(v) = any.downcast_ref::<geom_core::Interval>() {
+        0.5 * (v.lo() + v.hi())
+    } else if let Some(v) = any.downcast_ref::<geom_core::Sym<geom_core::Interval>>() {
+        0.5 * (v.lo() + v.hi())
+    } else {
+        panic!("m14_mid: an unknown lane")
+    }
+}
+
 /// What one aimed ray reads ([`aimed_ray`]).
 #[derive(Debug)]
 enum Aimed {
@@ -891,6 +906,12 @@ fn aimed_ray_inner<T: Decide>(
         eprintln!("[bf-ray]   out={}", v3(out));
         eprintln!("[bf-ray]   reach={}", probe_w(&reach.length()));
     }
+    let (aim, out) = if std::env::var_os("BOXFINISH_M14_FIX").is_some() {
+        let m = |x: T| T::from_f64(m14_mid(x));
+        (Point3::new(m(aim.x), m(aim.y), m(aim.z)), out.map(m))
+    } else {
+        (aim, out)
+    };
     let crossings = match ray_crossings(
         body,
         geos,

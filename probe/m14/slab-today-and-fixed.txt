@@ -1,0 +1,24 @@
+===== slab-today.out
+-- ('slab', 'sym')
+  aim 0                  OUT | OUT | OUT | Crossing:sai_order[-9.17e-15,2.39]
+  aim 1                  OUT | OUT | OUT | OUT
+  aim 2                  OUT | Crossing:sai_edge[0,0.641] | Crossing:sai_edge[0,1.22] | Crossing:sai_edge[0,1.44]
+  aim 3                  OUT | Crossing:sai_edge[0,0.641] | Crossing:sai_edge[0,1.22] | Crossing:sai_edge[0,1.44]
+  aim 4                  OUT | Crossing:sai_edge[0,0.641] | Crossing:sai_edge[0,1.34] | Crossing:sai_edge[0,1.33]
+  aim 5                  OUT | Crossing:sai_edge[0,0.641] | Crossing:sai_edge[0,1.34] | Crossing:sai_edge[0,1.33]
+  reader                 OUT | OUT | OUT | OUT
+  census                 0 findings | 0 findings | 0 findings | 0 findings
+-- ('slab', 'iv')
+  door                   REFUSES EndpointEnd carrier_endpoint_end [0,0.1] | REFUSES EndpointEnd carrier_endpoint_end [0,0.2] | REFUSES EndpointEnd carrier_endpoint_end [0,0.5] | REFUSES EndpointEnd carrier_endpoint_end [0,0.9]
+===== slab-fix.out
+-- ('slab', 'sym')
+  aim 0                  OUT | OUT | OUT | OUT
+  aim 1                  OUT | OUT | OUT | OUT
+  aim 2                  OUT | OUT | Crossing:sai_winding[-5.11,0.03] | Crossing:sai_winding
+  aim 3                  OUT | OUT | Crossing:sai_winding[-5.11,0.03] | Crossing:sai_winding
+  aim 4                  OUT | OUT | Crossing:sai_winding[-5.11,0.03] | Crossing:sai_winding
+  aim 5                  OUT | OUT | Crossing:sai_winding[-5.11,0.03] | Crossing:sai_winding
+  reader                 OUT | OUT | OUT | OUT
+  census                 0 findings | 0 findings | 0 findings | 0 findings
+-- ('slab', 'iv')
+  door                   REFUSES EndpointEnd carrier_endpoint_end [0,0.1] | REFUSES EndpointEnd carrier_endpoint_end [0,0.2] | REFUSES EndpointEnd carrier_endpoint_end [0,0.5] | REFUSES EndpointEnd carrier_endpoint_end [0,0.9]

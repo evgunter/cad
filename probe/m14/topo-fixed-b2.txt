@@ -1,0 +1,41 @@
+===== fixb2.out
+-- ('brick', 'sym')
+  aim 0 top              OUT | OUT | Crossing:sai_advance[-15.8,3.46] | Crossing:sai_advance[-120,7.76]
+  aim 1 bottom           OUT | OUT | Graze | Crossing:sai_winding[-12.4,17]
+  aim 2 wall(+0,-1)      OUT | Crossing:sai_advance[-10,11.3] | Crossing:sai_advance[-59.2,54.3] | Crossing:sai_winding[-18.9,2.16]
+  aim 3 wall(+1,+0)      OUT | Crossing:sai_advance[-15.6,7.45] | Crossing:sai_advance[-66.9,49.5] | Crossing:sai_winding[-18.9,2.16]
+  aim 4 wall(+0,+1)      OUT | Crossing:sai_advance[-15.6,7.45] | Crossing:sai_advance[-66.9,49.5] | Crossing:sai_winding[-18.9,2.16]
+  aim 5 wall(-1,+0)      OUT | Crossing:sai_advance[-10,11.3] | Crossing:sai_advance[-59.2,54.3] | Crossing:sai_winding[-18.9,2.16]
+  reader                 OUT | OUT | Unread aimed=6 | Unread aimed=6
+-- ('brick', 'iv')
+  construction           REFUSES EndpointEnd carrier_endpoint_end [0,0.211] | REFUSES EndpointEnd carrier_endpoint_end [0,0.444] | REFUSES EndpointEnd carrier_endpoint_end [0,1.33] | REFUSES EndpointEnd carrier_endpoint_end [0,3.27]
+-- ('lined', 'sym')
+  aim 0 top              OUT | OUT | OUT | OUT
+  aim 1 bottom           OUT | OUT | OUT | Crossing:sai_winding[-5.57,7.61]
+  aim 2 wall(+0,-1)      OUT | OUT | Crossing:sai_winding[-5.11,0.297] | Crossing:sai_winding[-6.3,4.53]
+  aim 3 wall(+1,+0)      OUT | OUT | Crossing:sai_winding[-5.11,0.297] | Crossing:sai_winding[-6.3,4.53]
+  aim 4 wall(+0,+1)      OUT | OUT | Crossing:sai_winding[-5.11,0.297] | Crossing:sai_winding[-6.3,4.53]
+  aim 5 wall(-1,+0)      OUT | OUT | Crossing:sai_winding[-5.11,0.297] | Crossing:sai_winding[-6.3,4.53]
+  reader                 OUT | OUT | OUT | OUT
+-- ('lined', 'iv')
+  construction           REFUSES EndpointEnd carrier_endpoint_end [0,0.211] | REFUSES EndpointEnd carrier_endpoint_end [0,0.444] | REFUSES EndpointEnd carrier_endpoint_end [0,1.33] | REFUSES EndpointEnd carrier_endpoint_end [0,3.27]
+-- ('tilt(0.3,0.2)', 'sym')
+  aim 0 top              OUT | OUT | OUT | Crossing:sai_winding[-13.6,20.4]
+  aim 1 bottom           OUT | OUT | Graze | Crossing:sai_winding[-11.5,15.5]
+  aim 2 wall(+0,-1)      OUT | OUT | Crossing:sai_advance[-106,63.8] | Crossing:sai_advance[-0.266,13.6]
+  aim 3 wall(+1,+0)      Graze | Crossing:sai_advance[-11.3,20.3] | Crossing:sai_winding[-9.67,12.5] | Crossing:sai_advance[-373,475]
+  aim 4 wall(+0,+1)      Graze | Crossing:sai_advance[-10.2,21.3] | Crossing:sai_advance[-70.5,101] | Crossing:sai_advance[-0.202,19.2]
+  aim 5 wall(-1,+0)      OUT | OUT | Crossing:sai_advance[-125,78.7] | Crossing:sai_advance[-526,397]
+  reader                 OUT | OUT | OUT | Unread aimed=6
+-- ('tilt(0.3,0.2)', 'iv')
+  construction           REFUSES EndpointEnd carrier_endpoint_end [0,0.211] | REFUSES EndpointEnd carrier_endpoint_end [0,0.444] | REFUSES EndpointEnd carrier_endpoint_end [0,1.33] | REFUSES EndpointEnd carrier_endpoint_end [0,3.27]
+-- ('tilt(-0.45,0.6)', 'sym')
+  aim 0 top              OUT | OUT | Crossing:sai_winding[-11.1,13.9] | Crossing:sai_denom[-9.67,0]
+  aim 1 bottom           OUT | OUT | Graze | Crossing:sai_winding[-12.7,16.9]
+  aim 2 wall(+0,-1)      OUT | OUT | Crossing:sai_advance[-80.6,47.2] | Crossing:sai_advance[-932,652]
+  aim 3 wall(+1,+0)      OUT | Crossing:sai_winding[-7.16,7.75] | Crossing:sai_advance[-151,123] | Crossing:sai_advance[-771,522]
+  aim 4 wall(+0,+1)      OUT | Crossing:sai_winding | Crossing:sai_advance[-148,213] | Crossing:sai_advance[-1.94,24.8]
+  aim 5 wall(-1,+0)      Crossing:sai_edge[0,0.566] | Crossing:sai_edge[0,1.21] | Crossing:sai_winding[-12.3,15.2] | Crossing:sai_advance[-361,801]
+  reader                 OUT | OUT | Unread aimed=6 | Unread aimed=6
+-- ('tilt(-0.45,0.6)', 'iv')
+  construction           REFUSES EndpointEnd carrier_endpoint_end [0,0.211] | REFUSES EndpointEnd carrier_endpoint_end [0,0.444] | REFUSES EndpointEnd carrier_endpoint_end [0,1.33] | REFUSES EndpointEnd carrier_endpoint_end [0,3.27]

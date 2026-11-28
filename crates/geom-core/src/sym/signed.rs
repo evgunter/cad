@@ -756,3 +756,81 @@ mod tests {
         assert!(!rat_enclosure(&Rat::new(1, 1, 2000).unwrap()).is_certified());
     }
 }
+
+// ---- probe (M16): the enclosure walk with its reason for declining ----
+
+fn m16_indet(
+    id: u128,
+    params: &IndetMap<(f64, f64)>,
+    atoms: &IndetMap<AtomInfo>,
+    depth: usize,
+) -> Result<Interval, String> {
+    if id == INDET_PI {
+        return Ok(pi_bracket());
+    }
+    if let Some(&(lo, hi)) = params.get(&id) {
+        return Ok(Interval::from_bounds(lo, hi));
+    }
+    if depth >= ENCLOSE_DEPTH {
+        return Err("depth".into());
+    }
+    let Some(atom) = atoms.get(&id) else {
+        return Err(format!("unbracketed-indet@{depth}"));
+    };
+    let arg = |k: usize| match atom.args[k].as_deref() {
+        Some(f) => m16_form(f, params, atoms, depth + 1),
+        None => Err(format!("atom-arity:{:?}@{depth}", atom.op)),
+    };
+    let out = match atom.op {
+        SymOp::Sqrt => arg(0)?.clamped_to(0.0, f64::INFINITY).sqrt(),
+        SymOp::Abs => ring_abs(arg(0)?),
+        SymOp::Min => ring_min(arg(0)?, arg(1)?),
+        SymOp::Max => ring_max(arg(0)?, arg(1)?),
+        op => return Err(format!("atom:{op:?}@{depth}")),
+    };
+    if out.is_certified() {
+        Ok(out)
+    } else {
+        Err(format!("poison:{:?}@{depth}", atom.op))
+    }
+}
+
+fn m16_poly(
+    p: &Poly,
+    params: &IndetMap<(f64, f64)>,
+    atoms: &IndetMap<AtomInfo>,
+    depth: usize,
+) -> Result<Interval, String> {
+    let mut acc = Interval::zero();
+    for (m, c) in p.terms() {
+        let mut term = rat_enclosure(c);
+        for &(id, e) in m {
+            let x = m16_indet(id, params, atoms, depth)?;
+            let e = i32::try_from(e).map_err(|_| format!("exponent@{depth}"))?;
+            term = term * x.powi(e);
+        }
+        acc = acc + term;
+    }
+    if acc.is_certified() {
+        Ok(acc)
+    } else {
+        Err(format!("poison:sum@{depth}"))
+    }
+}
+
+pub(super) fn m16_form(
+    f: &Form,
+    params: &IndetMap<(f64, f64)>,
+    atoms: &IndetMap<AtomInfo>,
+    depth: usize,
+) -> Result<Interval, String> {
+    if f.poisoned {
+        return Err(format!("poisoned-form@{depth}"));
+    }
+    let q = m16_poly(&f.num, params, atoms, depth)? / m16_poly(&f.den, params, atoms, depth)?;
+    if q.is_certified() {
+        Ok(q)
+    } else {
+        Err(format!("poison:quotient@{depth}"))
+    }
+}

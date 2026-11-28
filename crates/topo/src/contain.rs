@@ -1378,6 +1378,9 @@ pub(crate) fn one_vertex_at<T: Decide>(
     band: Band,
 ) -> Result<Option<MarginDiag>, Indeterminate> {
     let distance = geom_core::Margin::norm3(p - q);
+    if std::env::var_os("BOXFINISH_M15").is_some() {
+        println!("M15 vertex\n  p={p:?}\n  q={q:?}\n  d={:?}", p - q);
+    }
     let (magnitude, margin) =
         geom_core::k_stats::decide_magnitude_reported("bool_contact_vertex", distance, band)?;
     Ok((magnitude == geom_core::k_stats::Magnitude::Zero).then_some(margin))
